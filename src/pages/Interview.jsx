@@ -64,11 +64,16 @@ export default function Interview() {
           return;
         }
 
-        // Check if message is asking a Yes/No question or has options
-        const hasYesNo = /\b(yes|no)\b/i.test(lastMessage.content) && 
-                        lastMessage.content.includes('?');
-        const hasOptions = /\[(.*?)\]/i.test(lastMessage.content);
-        setShowQuickButtons(hasYesNo || hasOptions);
+        // Remove any markers from content before checking for yes/no patterns
+        const cleanContent = lastMessage.content.replace(/\[.*?\]/g, '');
+
+        // Check if message is asking a Yes/No question
+        const hasQuestion = cleanContent.includes('?');
+        const mentionsYesNo = /\b(yes|no)\b/i.test(cleanContent);
+        
+        setShowQuickButtons(hasQuestion && mentionsYesNo);
+      } else {
+        setShowQuickButtons(false);
       }
     }
   }, [messages]);
