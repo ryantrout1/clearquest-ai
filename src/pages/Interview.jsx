@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -213,7 +214,7 @@ export default function Interview() {
             variant="outline"
             size="sm"
             onClick={handlePause}
-            className="border-slate-600 text-white hover:bg-slate-700"
+            className="border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
           >
             <Pause className="w-4 h-4 mr-2" />
             Pause
@@ -222,8 +223,8 @@ export default function Interview() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto pb-6">
+        <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
@@ -239,8 +240,8 @@ export default function Interview() {
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
+      {/* Input Area - with more top padding */}
+      <div className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-6">
         <div className="max-w-5xl mx-auto">
           {error && (
             <Alert variant="destructive" className="mb-4">
@@ -254,7 +255,7 @@ export default function Interview() {
             <div className="flex flex-wrap gap-3 mb-4">
               <Button
                 onClick={() => handleQuickResponse("Yes")}
-                className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                 size="lg"
               >
                 <Check className="w-5 h-5" />
@@ -262,7 +263,7 @@ export default function Interview() {
               </Button>
               <Button
                 onClick={() => handleQuickResponse("No")}
-                className="bg-red-600 hover:bg-red-700 flex items-center gap-2"
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
                 size="lg"
               >
                 <X className="w-5 h-5" />
@@ -276,26 +277,26 @@ export default function Interview() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={showQuickButtons ? "Or type your response..." : "Type your response..."}
-              className="flex-1 bg-slate-900/50 border-slate-600 text-white"
+              className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
               disabled={isSending}
             />
             <Button
               type="submit"
               disabled={isSending || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isSending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
                   <Send className="w-5 h-5 mr-2" />
-                  Send
+                  <span className="font-medium">Send</span>
                 </>
               )}
             </Button>
           </form>
           
-          <p className="text-xs text-slate-500 mt-2 text-center">
+          <p className="text-xs text-slate-500 mt-3 text-center">
             All responses are encrypted and will be reviewed by authorized investigators
           </p>
         </div>
