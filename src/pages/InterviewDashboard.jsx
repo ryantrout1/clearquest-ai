@@ -88,7 +88,7 @@ export default function InterviewDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("HomeHub")}>
             <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -96,20 +96,20 @@ export default function InterviewDashboard() {
             </Button>
           </Link>
           
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
-                <Shield className="w-8 h-8 text-blue-400" />
-                Interview Dashboard
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white flex items-center gap-2 md:gap-3 break-words">
+                <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
+                <span>Interview Dashboard</span>
               </h1>
-              <p className="text-slate-300 mt-2">
+              <p className="text-sm md:text-base text-slate-300 mt-2">
                 Monitor and manage interview sessions • Logged in as {currentUser.username}
               </p>
             </div>
             <Button 
               variant="outline" 
               onClick={handleLogout}
-              className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white hover:border-slate-500"
+              className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white hover:border-slate-500"
             >
               Logout
             </Button>
@@ -117,7 +117,7 @@ export default function InterviewDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatsCard
             title="Total Sessions"
             value={stats.total}
@@ -146,9 +146,9 @@ export default function InterviewDashboard() {
 
         {/* Filters */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col gap-4">
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
                   placeholder="Search by session code or department..."
@@ -158,12 +158,12 @@ export default function InterviewDashboard() {
                 />
               </div>
               
-              <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-                <TabsList className="bg-slate-900/50">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="in_progress">In Progress</TabsTrigger>
-                  <TabsTrigger value="completed">Completed</TabsTrigger>
-                  <TabsTrigger value="paused">Paused</TabsTrigger>
+              <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+                <TabsList className="bg-slate-900/50 w-full grid grid-cols-4">
+                  <TabsTrigger value="all" className="text-xs md:text-sm">All</TabsTrigger>
+                  <TabsTrigger value="in_progress" className="text-xs md:text-sm">In Progress</TabsTrigger>
+                  <TabsTrigger value="completed" className="text-xs md:text-sm">Completed</TabsTrigger>
+                  <TabsTrigger value="paused" className="text-xs md:text-sm">Paused</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -173,16 +173,18 @@ export default function InterviewDashboard() {
         {/* Sessions List */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
-            <CardTitle className="text-white flex items-center justify-between">
-              <span>Interview Sessions ({filteredSessions.length})</span>
-              <Link to={createPageUrl("StartInterview")}>
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+            <div className="flex flex-col gap-4">
+              <CardTitle className="text-white text-lg md:text-xl">
+                Interview Sessions ({filteredSessions.length})
+              </CardTitle>
+              <Link to={createPageUrl("StartInterview")} className="w-full md:w-auto">
+                <Button size="sm" className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
                   New Interview
                 </Button>
               </Link>
-            </CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             {isLoading ? (
               <div className="text-center py-12 text-slate-400">
                 Loading sessions...
@@ -190,7 +192,7 @@ export default function InterviewDashboard() {
             ) : filteredSessions.length === 0 ? (
               <div className="text-center py-12 space-y-4">
                 <FileText className="w-16 h-16 text-slate-600 mx-auto" />
-                <p className="text-slate-400">
+                <p className="text-slate-400 text-sm">
                   {searchTerm || statusFilter !== "all" 
                     ? "No sessions match your filters" 
                     : "No interview sessions yet"}
