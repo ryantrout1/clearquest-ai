@@ -3,6 +3,7 @@ import StartInterview from './pages/StartInterview';
 import Interview from './pages/Interview';
 import AdminDashboard from './pages/AdminDashboard';
 import SessionDetails from './pages/SessionDetails';
+import Layout from './Layout.jsx';
 
 
 export const PAGES = {
@@ -16,4 +17,5 @@ export const PAGES = {
 export const pagesConfig = {
     mainPage: "Home",
     Pages: PAGES,
+    Layout: Layout,
 };
