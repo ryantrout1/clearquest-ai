@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Shield, Send, Loader2, Pause, AlertCircle } from "lucide-react";
+import { Shield, Send, Loader2, Pause, AlertCircle, Check, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MessageBubble from "../components/interview/MessageBubble";
 
@@ -21,6 +21,7 @@ export default function Interview() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showQuickButtons, setShowQuickButtons] = useState(false);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -32,6 +33,20 @@ export default function Interview() {
     }
     loadSession();
   }, [sessionId]);
+
+  useEffect(() => {
+    // Check if we should show quick response buttons
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && lastMessage.content) {
+        // Check if message is asking a Yes/No question or has options
+        const hasYesNo = /\b(yes|no)\b/i.test(lastMessage.content) && 
+                        lastMessage.content.includes('?');
+        const hasOptions = /\[(.*?)\]/i.test(lastMessage.content);
+        setShowQuickButtons(hasYesNo || hasOptions);
+      }
+    }
+  }, [messages]);
 
   const loadSession = async () => {
     try {
@@ -46,7 +61,6 @@ export default function Interview() {
       setConversation(conversationData);
       setMessages(conversationData.messages || []);
 
-      // Subscribe to conversation updates
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
@@ -55,7 +69,6 @@ export default function Interview() {
         }
       );
 
-      // If no messages yet, send initial greeting
       if (!conversationData.messages || conversationData.messages.length === 0) {
         await sendInitialGreeting(conversationData);
       }
@@ -79,19 +92,21 @@ export default function Interview() {
     }
   };
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || isSending || !conversation) return;
+  const handleSend = async (messageText = null) => {
+    const textToSend = messageText || input.trim();
+    if (!textToSend || isSending || !conversation) return;
 
-    const userMessage = input.trim();
-    setInput("");
+    if (!messageText) {
+      setInput("");
+    }
     setIsSending(true);
     setError(null);
+    setShowQuickButtons(false);
 
     try {
       await base44.agents.addMessage(conversation, {
         role: "user",
-        content: userMessage
+        content: textToSend
       });
     } catch (err) {
       console.error("Error sending message:", err);
@@ -99,6 +114,15 @@ export default function Interview() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleQuickResponse = (response) => {
+    handleSend(response);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    handleSend();
   };
 
   const handlePause = async () => {
@@ -203,11 +227,33 @@ export default function Interview() {
             </Alert>
           )}
           
-          <form onSubmit={handleSend} className="flex gap-3">
+          {/* Quick Response Buttons */}
+          {showQuickButtons && !isSending && (
+            <div className="flex flex-wrap gap-3 mb-4">
+              <Button
+                onClick={() => handleQuickResponse("Yes")}
+                className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
+                size="lg"
+              >
+                <Check className="w-5 h-5" />
+                Yes
+              </Button>
+              <Button
+                onClick={() => handleQuickResponse("No")}
+                className="bg-red-600 hover:bg-red-700 flex items-center gap-2"
+                size="lg"
+              >
+                <X className="w-5 h-5" />
+                No
+              </Button>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex gap-3">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your response..."
+              placeholder={showQuickButtons ? "Or type your response..." : "Type your response..."}
               className="flex-1 bg-slate-900/50 border-slate-600 text-white"
               disabled={isSending}
             />
