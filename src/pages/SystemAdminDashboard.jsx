@@ -127,7 +127,7 @@ export default function SystemAdminDashboard() {
         {/* Header */}
         <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
