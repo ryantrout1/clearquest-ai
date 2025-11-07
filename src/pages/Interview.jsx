@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -448,55 +449,60 @@ export default function Interview() {
             </Alert>
           )}
           
-          {/* Quick Response Buttons */}
-          {showQuickButtons && !isSending && (
-            <div className="flex flex-wrap gap-3 mb-4">
-              <Button
-                onClick={() => handleQuickResponse("Yes")}
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-                size="lg"
-              >
-                <Check className="w-5 h-5" />
-                Yes
-              </Button>
-              <Button
-                onClick={() => handleQuickResponse("No")}
-                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
-                size="lg"
-              >
-                <X className="w-5 h-5" />
-                No
-              </Button>
+          {/* Quick Response Buttons OR Text Input - Not Both */}
+          {showQuickButtons && !isSending ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => handleQuickResponse("Yes")}
+                  className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                  size="lg"
+                >
+                  <Check className="w-5 h-5" />
+                  Yes
+                </Button>
+                <Button
+                  onClick={() => handleQuickResponse("No")}
+                  className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                  size="lg"
+                >
+                  <X className="w-5 h-5" />
+                  No
+                </Button>
+              </div>
+              <p className="text-xs text-slate-400 text-center">
+                Or type a custom response below if needed
+              </p>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex gap-3">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your response..."
+                className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
+                disabled={isSending}
+              />
+              <Button
+                type="submit"
+                disabled={isSending || !input.trim()}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSending ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Send</span>
+                  </>
+                )}
+              </Button>
+            </form>
           )}
-
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={showQuickButtons ? "Or type your response..." : "Type your response..."}
-              className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
-              disabled={isSending}
-            />
-            <Button
-              type="submit"
-              disabled={isSending || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isSending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Send className="w-5 h-5 mr-2" />
-                  <span className="font-medium">Send</span>
-                </>
-              )}
-            </Button>
-          </form>
           
           {/* Change Answer Button */}
           {messages.length > 2 && !isSending && (
-            <div className="mt-3 flex justify-center">
+            <div className="mt-4 flex justify-center">
               <Button
                 variant="ghost"
                 size="sm"
