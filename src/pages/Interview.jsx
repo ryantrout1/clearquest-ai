@@ -49,30 +49,32 @@ export default function Interview() {
   useEffect(() => {
     // Check if we should show quick response buttons or category transitions
     if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant' && lastMessage.content) {
+      // Find the last ASSISTANT message (not user message)
+      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+      
+      if (lastAssistantMessage && lastAssistantMessage.content) {
         // Check for category transition triggers - MUST check before other logic
-        if (lastMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
+        if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
           handleCategoryTransition('initial');
           return;
         }
-        if (lastMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-          const match = lastMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
+        if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
+          const match = lastAssistantMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
           if (match) {
             handleCategoryTransition(match[1]);
           }
           return;
         }
-        if (lastMessage.content.includes('[SHOW_COMPLETION]')) {
+        if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
           handleCategoryTransition('complete');
           return;
         }
 
         // Also detect category transitions from text patterns (backup detection)
-        const cleanContent = lastMessage.content.toLowerCase();
+        const cleanContent = lastAssistantMessage.content.toLowerCase();
         if (cleanContent.includes('moving to the next section') || 
             cleanContent.includes("we're now moving to")) {
-          const categoryMatch = lastMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
+          const categoryMatch = lastAssistantMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
           if (categoryMatch) {
             const categoryName = categoryMatch[1].trim().replace(/\.$/, '');
             const category = allCategories.find(cat => 
@@ -86,7 +88,7 @@ export default function Interview() {
         }
 
         // Remove any markers from content before checking for yes/no patterns
-        const content = lastMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+        const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
 
         // Check if message is asking a Yes/No question
         const hasQuestion = content.includes('?');
@@ -384,12 +386,10 @@ export default function Interview() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
-                <p className="text-xs md:text-sm text-slate-400 truncate">
-                  {session?.current_category || 'Starting...'}
-                </p>
-              </div>
+              <h1 className="text-sm md:text-lg font-semibold text-white truncate">ClearQuest Interview</h1>
+              <p className="text-xs md:text-sm text-slate-400 truncate">
+                {session?.current_category || 'Starting...'}
+              </p>
             </div>
             <Button
               variant="outline"
