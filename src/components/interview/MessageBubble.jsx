@@ -14,6 +14,11 @@ const FunctionDisplay = ({ toolCall }) => {
 export default function MessageBubble({ message }) {
   const isUser = message.role === 'user';
   
+  // Hide initial trigger messages
+  if (isUser && (message.content === 'Ready to begin' || message.content?.includes('Start interview'))) {
+    return null;
+  }
+  
   return (
     <div className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (

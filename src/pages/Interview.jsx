@@ -92,7 +92,7 @@ export default function Interview() {
     try {
       await base44.agents.addMessage(conv, {
         role: "user",
-        content: `Start interview for department ${sessionData.department_code}, file ${sessionData.file_number}. Begin with greeting and first question.`
+        content: `Ready to begin`
       });
     } catch (err) {
       console.error("Error sending initial greeting:", err);
