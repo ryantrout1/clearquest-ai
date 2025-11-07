@@ -126,6 +126,8 @@ export default function Interview() {
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
+          // Refresh session data to get updated question count
+          refreshSession();
         }
       );
 
@@ -144,6 +146,15 @@ export default function Interview() {
     }
   };
 
+  const refreshSession = async () => {
+    try {
+      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      setSession(sessionData);
+    } catch (err) {
+      console.error("Error refreshing session:", err);
+    }
+  };
+
   const loadAllQuestionsAndCategories = async () => {
     try {
       // Load all data in parallel - only once
@@ -157,7 +168,7 @@ export default function Interview() {
       setAllQuestions(questionsData);
 
       // Calculate progress
-      await updateCategoryProgress(categoriesData, questionsData, responsesData);
+      updateCategoryProgress(categoriesData, questionsData, responsesData);
     } catch (err) {
       console.error("Error loading questions and categories:", err);
     }
@@ -255,6 +266,8 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
+      // Refresh session to get updated counts
+      await refreshSession();
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
@@ -302,6 +315,15 @@ export default function Interview() {
       }
     };
   }, []);
+
+  // Calculate current category progress
+  const getCurrentCategoryProgress = () => {
+    if (!session?.current_category || categories.length === 0) return 0;
+    const currentCat = categories.find(cat => cat.category_label === session.current_category);
+    if (!currentCat || currentCat.total_questions === 0) return 0;
+    const progress = (currentCat.answered_questions / currentCat.total_questions) * 100;
+    return Math.round(progress);
+  };
 
   if (isLoading) {
     return (
@@ -355,27 +377,45 @@ export default function Interview() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-      {/* Header */}
-      <div className="bg-slate-800/80 backdrop-blur-sm border-b border-slate-700 px-4 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-blue-400" />
-            <div>
-              <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
-              <p className="text-sm text-slate-400">
-                Session: {session?.session_code} • {session?.total_questions_answered || 0} questions answered
-              </p>
+      {/* Header - Fixed at top */}
+      <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm md:text-lg font-semibold text-white truncate">ClearQuest Interview</h1>
+                <p className="text-xs md:text-sm text-slate-400 truncate">
+                  Session: {session?.session_code} • {session?.total_questions_answered || 0} questions answered
+                </p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePause}
+              className="border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent flex-shrink-0 text-xs md:text-sm"
+            >
+              <Pause className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              Pause
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePause}
-            className="border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
-          >
-            <Pause className="w-4 h-4 mr-2" />
-            Pause
-          </Button>
+          
+          {/* Category Progress Bar */}
+          {session?.current_category && (
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs text-slate-400">
+                <span>{session.current_category}</span>
+                <span>{getCurrentCategoryProgress()}% Complete</span>
+              </div>
+              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${getCurrentCategoryProgress()}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
