@@ -131,48 +131,44 @@ export default function HomeHub() {
         {/* Action Cards */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           {isSuperAdmin && (
-            <button
+            <Card 
               onClick={() => handleNavigate("SystemAdminDashboard")}
-              className="text-left w-full"
+              className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all cursor-pointer group h-full"
             >
-              <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all cursor-pointer group h-full">
-                <CardContent className="p-8 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-4 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                      <Settings className="w-10 h-10 text-blue-400" />
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h2>
-                  <p className="text-slate-400">
-                    Manage all departments, users, and system settings
-                  </p>
-                </CardContent>
-              </Card>
-            </button>
-          )}
-
-          <button
-            onClick={() => handleNavigate("Departments")}
-            className="text-left w-full"
-          >
-            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all cursor-pointer group h-full">
               <CardContent className="p-8 text-center">
                 <div className="flex justify-center mb-4">
-                  <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                    <Building2 className="w-10 h-10 text-purple-400" />
+                  <div className="p-4 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                    <Settings className="w-10 h-10 text-blue-400" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {isSuperAdmin ? 'Departments' : 'My Department'}
-                </h2>
+                <h2 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h2>
                 <p className="text-slate-400">
-                  {isSuperAdmin 
-                    ? 'View and manage all departments' 
-                    : 'Access your department dashboard and settings'}
+                  Manage all departments, users, and system settings
                 </p>
               </CardContent>
             </Card>
-          </button>
+          )}
+
+          <Card 
+            onClick={() => handleNavigate("Departments")}
+            className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all cursor-pointer group h-full"
+          >
+            <CardContent className="p-8 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                  <Building2 className="w-10 h-10 text-purple-400" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {isSuperAdmin ? 'Departments' : 'My Department'}
+              </h2>
+              <p className="text-slate-400">
+                {isSuperAdmin 
+                  ? 'View and manage all departments' 
+                  : 'Access your department dashboard and settings'}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Remember Choice */}
