@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -61,9 +62,8 @@ export default function InterviewDashboard() {
   });
 
   const handleLogout = () => {
-    base44.auth.logout();
     sessionStorage.removeItem("clearquest_admin_auth");
-    navigate(createPageUrl("Home"));
+    window.location.href = createPageUrl("Home");
   };
 
   const filteredSessions = sessions.filter(session => {
@@ -90,7 +90,7 @@ export default function InterviewDashboard() {
         {/* Header */}
         <div className="mb-8">
           <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>

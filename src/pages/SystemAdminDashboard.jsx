@@ -263,8 +263,8 @@ export default function SystemAdminDashboard() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Link to={createPageUrl(`DepartmentView?id=${dept.id}`)}>
-                        <Button size="sm" variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)}>
+                        <Button size="sm" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500">
                           View
                         </Button>
                       </Link>

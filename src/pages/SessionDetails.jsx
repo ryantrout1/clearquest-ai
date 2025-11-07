@@ -90,7 +90,7 @@ export default function SessionDetails() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <Link to={createPageUrl("InterviewDashboard")}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white mb-6">
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>

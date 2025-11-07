@@ -88,9 +88,9 @@ export default function HomeHub() {
   };
 
   const handleLogout = () => {
-    base44.auth.logout();
     sessionStorage.removeItem("clearquest_admin_auth");
     localStorage.removeItem("clearquest_home_preference");
+    window.location.href = createPageUrl("Home");
   };
 
   if (isLoading) {
@@ -157,28 +157,26 @@ export default function HomeHub() {
             </div>
           )}
 
-          <div
-            onClick={() => handleNavigate(user?.department_id ? `DepartmentDashboard?id=${user.department_id}` : "DepartmentDashboard")}
-            className="cursor-pointer group"
-          >
-            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-              <CardContent className="p-8 text-center">
-                <div className="flex justify-center mb-4">
-                  <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                    <Building2 className="w-10 h-10 text-purple-400" />
+          {user?.department_id && (
+            <div
+              onClick={() => handleNavigate(`DepartmentDashboard?id=${user.department_id}`)}
+              className="cursor-pointer group"
+            >
+              <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
+                <CardContent className="p-8 text-center">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                      <Building2 className="w-10 h-10 text-purple-400" />
+                    </div>
                   </div>
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {isSuperAdmin ? 'Departments' : 'My Department'}
-                </h2>
-                <p className="text-slate-400">
-                  {isSuperAdmin 
-                    ? 'View all departments' 
-                    : 'Department settings and information'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">My Department</h2>
+                  <p className="text-slate-400">
+                    Department settings and information
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           <div
             onClick={() => handleNavigate("InterviewDashboard")}

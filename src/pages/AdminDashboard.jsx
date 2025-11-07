@@ -45,7 +45,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     sessionStorage.removeItem("clearquest_admin_auth");
-    navigate(createPageUrl("Home"));
+    window.location.href = createPageUrl("Home");
   };
 
   const filteredSessions = sessions.filter(session => {
