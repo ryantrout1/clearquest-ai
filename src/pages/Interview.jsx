@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -23,6 +22,7 @@ export default function Interview() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
+  const [initStatus, setInitStatus] = useState("Loading session...");
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -51,6 +51,7 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
+      setInitStatus("Loading session data...");
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
 
@@ -58,10 +59,12 @@ export default function Interview() {
         throw new Error("No conversation linked to this session");
       }
 
+      setInitStatus("Loading conversation...");
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       setMessages(conversationData.messages || []);
 
+      setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
@@ -70,26 +73,29 @@ export default function Interview() {
         }
       );
 
+      // If no messages, send initial greeting
       if (!conversationData.messages || conversationData.messages.length === 0) {
-        await sendInitialGreeting(conversationData);
+        setInitStatus("Starting interview...");
+        await sendInitialGreeting(conversationData, sessionData);
       }
 
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading session:", err);
-      setError("Failed to load interview session");
+      setError(`Failed to load interview session: ${err.message}`);
       setIsLoading(false);
     }
   };
 
-  const sendInitialGreeting = async (conv) => {
+  const sendInitialGreeting = async (conv, sessionData) => {
     try {
       await base44.agents.addMessage(conv, {
         role: "user",
-        content: `Hello, I'm ready to begin the interview. My department code is ${session.department_code} and file number is ${session.file_number}. Please skip asking for these and proceed directly to the first question.`
+        content: `Hello, I'm ready to begin the interview. My department code is ${sessionData.department_code} and file number is ${sessionData.file_number}. Please skip asking for these and proceed directly to the first question.`
       });
     } catch (err) {
       console.error("Error sending initial greeting:", err);
+      setError(`Failed to start interview: ${err.message}`);
     }
   };
 
@@ -155,10 +161,19 @@ export default function Interview() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Loading interview session...</p>
+          <p className="text-slate-300">{initStatus}</p>
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <p className="text-xs text-slate-500 mt-4">
+            If this takes more than 30 seconds, please refresh the page
+          </p>
         </div>
       </div>
     );
@@ -167,10 +182,15 @@ export default function Interview() {
   if (error && !session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="max-w-md space-y-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <Button onClick={() => navigate(createPageUrl("StartInterview"))} className="w-full">
+            Start New Interview
+          </Button>
+        </div>
       </div>
     );
   }
@@ -206,8 +226,9 @@ export default function Interview() {
         <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
-              <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50" />
-              <p className="text-slate-400">Initializing interview...</p>
+              <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
+              <p className="text-slate-400">Waiting for AI interviewer to respond...</p>
+              <p className="text-xs text-slate-500">This should only take a few seconds</p>
             </div>
           ) : (
             messages.map((message, index) => (
