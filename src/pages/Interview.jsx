@@ -49,6 +49,17 @@ export default function Interview() {
     loadSession();
   }, [sessionId]);
 
+  // Poll for response updates every 3 seconds
+  useEffect(() => {
+    if (!sessionId || isLoading) return;
+    
+    const pollInterval = setInterval(() => {
+      refreshSessionData();
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [sessionId, isLoading]);
+
   useEffect(() => {
     // Check if we should show quick response buttons or category transitions
     if (messages.length > 0) {
