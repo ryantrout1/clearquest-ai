@@ -6,6 +6,10 @@ import SessionDetails from './pages/SessionDetails';
 import AdminLogin from './pages/AdminLogin';
 import HomeHub from './pages/HomeHub';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
+import CreateDepartment from './pages/CreateDepartment';
+import Departments from './pages/Departments';
+import DepartmentDashboard from './pages/DepartmentDashboard';
+import TrialSignup from './pages/TrialSignup';
 import Layout from './Layout.jsx';
 
 
@@ -18,6 +22,10 @@ export const PAGES = {
     "AdminLogin": AdminLogin,
     "HomeHub": HomeHub,
     "SystemAdminDashboard": SystemAdminDashboard,
+    "CreateDepartment": CreateDepartment,
+    "Departments": Departments,
+    "DepartmentDashboard": DepartmentDashboard,
+    "TrialSignup": TrialSignup,
 }
 
 export const pagesConfig = {
