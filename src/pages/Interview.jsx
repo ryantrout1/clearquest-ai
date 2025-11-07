@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -126,7 +125,7 @@ export default function Interview() {
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
-          // Refresh session data to get updated question count
+          // Refresh session data to get updated question count and category
           refreshSession();
         }
       );
@@ -150,6 +149,8 @@ export default function Interview() {
     try {
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
+      // Also refresh category progress when session updates
+      await updateCategoryProgress();
     } catch (err) {
       console.error("Error refreshing session:", err);
     }
@@ -266,7 +267,7 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // Refresh session to get updated counts
+      // Refresh session to get updated counts and category
       await refreshSession();
     } catch (err) {
       console.error("Error sending message:", err);
@@ -321,8 +322,7 @@ export default function Interview() {
     if (!session?.current_category || categories.length === 0) return 0;
     const currentCat = categories.find(cat => cat.category_label === session.current_category);
     if (!currentCat || currentCat.total_questions === 0) return 0;
-    const progress = (currentCat.answered_questions / currentCat.total_questions) * 100;
-    return Math.round(progress);
+    return Math.round((currentCat.answered_questions / currentCat.total_questions) * 100);
   };
 
   if (isLoading) {
@@ -386,7 +386,7 @@ export default function Interview() {
               <div className="min-w-0 flex-1">
                 <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
                 <p className="text-xs md:text-sm text-slate-400 truncate">
-                  {session?.current_category || 'Loading...'}
+                  {session?.current_category || 'Starting...'}
                 </p>
               </div>
             </div>
