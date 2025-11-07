@@ -153,15 +153,7 @@ export default function HomeHub() {
           )}
 
           <div
-            onClick={() => {
-              // For users with department_id, go directly to their department
-              // For super admins without department_id, just go to DepartmentDashboard (will show first dept)
-              if (user?.department_id) {
-                handleNavigate(`DepartmentDashboard?id=${user.department_id}`);
-              } else {
-                handleNavigate("DepartmentDashboard");
-              }
-            }}
+            onClick={() => handleNavigate(user?.department_id ? `DepartmentDashboard?id=${user.department_id}` : "DepartmentDashboard")}
             className="cursor-pointer group"
           >
             <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
@@ -172,11 +164,11 @@ export default function HomeHub() {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">
-                  {isSuperAdmin ? 'Department Info' : 'My Department'}
+                  {isSuperAdmin ? 'Departments' : 'My Department'}
                 </h2>
                 <p className="text-slate-400">
                   {isSuperAdmin 
-                    ? 'View department details' 
+                    ? 'View all departments' 
                     : 'Department settings and information'}
                 </p>
               </CardContent>
