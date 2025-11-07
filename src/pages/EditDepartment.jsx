@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -29,6 +30,37 @@ export default function EditDepartment() {
 
   const loadData = async () => {
     try {
+      // Check for mock admin authentication first
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      if (adminAuth) {
+        try {
+          const auth = JSON.parse(adminAuth);
+          // Create mock super admin user
+          const mockUser = {
+            email: `${auth.username.toLowerCase()}@clearquest.ai`,
+            first_name: auth.username,
+            last_name: "Admin",
+            role: "SUPER_ADMIN",
+            id: "mock-admin-id"
+          };
+          setUser(mockUser);
+
+          if (!deptId) {
+            navigate(createPageUrl("SystemAdminDashboard"));
+            return;
+          }
+
+          const dept = await base44.entities.Department.get(deptId);
+          setDepartment(dept);
+          setFormData(dept);
+          return; // Exit after successful mock admin auth and data load
+        } catch (err) {
+          console.error("Error with mock admin auth:", err);
+          // If mock admin auth fails, proceed to normal Base44 authentication
+        }
+      }
+
+      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       setUser(currentUser);
 
