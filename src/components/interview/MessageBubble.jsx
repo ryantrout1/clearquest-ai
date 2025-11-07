@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,26 @@ import { toast } from "sonner";
 
 const FunctionDisplay = ({ toolCall }) => {
   // Hidden by default - users don't need to see function calls
+  return null;
+};
+
+// Extract question number from message content
+const extractQuestionNumber = (content) => {
+  if (!content) return null;
+  
+  // Try to match Q### pattern (like Q001, Q023, Q113)
+  const qMatch = content.match(/\b(Q\d{3})\b/);
+  if (qMatch) {
+    // Convert Q001 to just "1", Q023 to "23", etc
+    return parseInt(qMatch[1].substring(1), 10).toString();
+  }
+  
+  // Try to match "Question ###" pattern
+  const questionMatch = content.match(/Question\s+(\d+)/i);
+  if (questionMatch) {
+    return questionMatch[1];
+  }
+  
   return null;
 };
 
@@ -31,11 +50,18 @@ export default function MessageBubble({ message }) {
     return null;
   }
   
+  // Extract question number for AI messages
+  const questionNumber = !isUser ? extractQuestionNumber(message.content) : null;
+  
   return (
     <div className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mt-0.5">
-          <div className="h-2 w-2 rounded-full bg-blue-400" />
+        <div className="h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mt-0.5 flex-shrink-0">
+          {questionNumber ? (
+            <span className="text-xs font-semibold text-blue-300">{questionNumber}</span>
+          ) : (
+            <div className="h-2 w-2 rounded-full bg-blue-400" />
+          )}
         </div>
       )}
       <div className={cn("max-w-[85%]", isUser && "flex flex-col items-end")}>
