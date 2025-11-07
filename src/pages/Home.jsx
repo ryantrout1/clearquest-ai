@@ -47,6 +47,18 @@ export default function Home() {
                 </Button>
               </Link>
             </div>
+
+            {/* Trial Signup CTA */}
+            <div className="mt-12 pt-8 border-t border-slate-700/50">
+              <p className="text-slate-300 mb-4">
+                New department? Start your free trial today
+              </p>
+              <Link to={createPageUrl("TrialSignup")}>
+                <Button size="lg" variant="outline" className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-8 py-4">
+                  Start 30-Day Free Trial
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

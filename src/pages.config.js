@@ -10,6 +10,7 @@ import CreateDepartment from './pages/CreateDepartment';
 import Departments from './pages/Departments';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import TrialSignup from './pages/TrialSignup';
+import EditDepartment from './pages/EditDepartment';
 import Layout from './Layout.jsx';
 
 
@@ -26,6 +27,7 @@ export const PAGES = {
     "Departments": Departments,
     "DepartmentDashboard": DepartmentDashboard,
     "TrialSignup": TrialSignup,
+    "EditDepartment": EditDepartment,
 }
 
 export const pagesConfig = {
