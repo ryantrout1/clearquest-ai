@@ -92,7 +92,7 @@ export default function Interview() {
     try {
       await base44.agents.addMessage(conv, {
         role: "user",
-        content: `Hello, I'm ready to begin the interview. My department code is ${sessionData.department_code} and file number is ${sessionData.file_number}. Please skip asking for these and proceed directly to the first question.`
+        content: `Start interview for department ${sessionData.department_code}, file ${sessionData.file_number}. Begin with greeting and first question.`
       });
     } catch (err) {
       console.error("Error sending initial greeting:", err);
@@ -232,9 +232,11 @@ export default function Interview() {
               <p className="text-xs text-slate-500">This should only take a few seconds</p>
             </div>
           ) : (
-            messages.map((message, index) => (
-              <MessageBubble key={index} message={message} />
-            ))
+            messages
+              .filter(message => message.content && message.content.trim() !== '')
+              .map((message, index) => (
+                <MessageBubble key={index} message={message} />
+              ))
           )}
           <div ref={messagesEndRef} />
         </div>
