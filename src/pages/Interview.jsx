@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -278,6 +279,10 @@ export default function Interview() {
     }
   };
 
+  const handleChangeAnswer = () => {
+    handleSend("I want to change my previous answer");
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -445,6 +450,20 @@ export default function Interview() {
               )}
             </Button>
           </form>
+          
+          {/* Change Answer Button */}
+          {messages.length > 2 && !isSending && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleChangeAnswer}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                Need to change your previous answer?
+              </Button>
+            </div>
+          )}
           
           <p className="text-xs text-slate-500 mt-3 text-center">
             All responses are encrypted and will be reviewed by authorized investigators
