@@ -77,6 +77,7 @@ export default function HomeHub() {
   };
 
   const handleNavigate = (destination) => {
+    console.log("Navigating to:", destination);
     if (rememberChoice) {
       localStorage.setItem('clearquest_home_preference', destination);
     }
