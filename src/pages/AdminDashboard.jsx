@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -13,14 +15,38 @@ import SessionCard from "../components/admin/SessionCard";
 import StatsCard from "../components/admin/StatsCard";
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const authData = sessionStorage.getItem("clearquest_admin_auth");
+    if (!authData) {
+      navigate(createPageUrl("AdminLogin"));
+      return;
+    }
+    
+    try {
+      const auth = JSON.parse(authData);
+      setCurrentUser(auth.username);
+    } catch (err) {
+      console.error("Failed to parse auth data:", err); // Added error logging for debugging
+      navigate(createPageUrl("AdminLogin"));
+    }
+  }, [navigate]);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions'],
     queryFn: () => base44.entities.InterviewSession.list('-created_date'),
     refetchInterval: 5000
   });
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("clearquest_admin_auth");
+    navigate(createPageUrl("Home"));
+  };
 
   const filteredSessions = sessions.filter(session => {
     const matchesSearch = session.session_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -35,6 +61,10 @@ export default function AdminDashboard() {
     completed: sessions.filter(s => s.status === "completed").length,
     flagged: sessions.filter(s => s.red_flags?.length > 0).length
   };
+
+  if (!currentUser) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
@@ -54,18 +84,29 @@ export default function AdminDashboard() {
                 <Shield className="w-8 h-8 text-blue-400" />
                 Admin Dashboard
               </h1>
-              <p className="text-slate-300 mt-2">Monitor and manage interview sessions</p>
+              <p className="text-slate-300 mt-2">
+                Monitor and manage interview sessions • Logged in as {currentUser}
+              </p>
             </div>
-            <a
-              href={base44.agents.getWhatsAppConnectURL('clearquest_interviewer')}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button className="bg-green-600 hover:bg-green-700">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                WhatsApp Integration
+            <div className="flex gap-2">
+              <a
+                href={base44.agents.getWhatsAppConnectURL('clearquest_interviewer')}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button className="bg-green-600 hover:bg-green-700">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  WhatsApp Integration
+                </Button>
+              </a>
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                className="border-slate-600 text-white hover:bg-slate-700"
+              >
+                Logout
               </Button>
-            </a>
+            </div>
           </div>
         </div>
 

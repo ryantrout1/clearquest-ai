@@ -1,14 +1,32 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, FileText, AlertTriangle, Eye } from "lucide-react";
+import { Clock, FileText, AlertTriangle, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function SessionCard({ session }) {
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const statusConfig = {
     in_progress: { label: "In Progress", color: "bg-orange-100 text-orange-800 border-orange-200" },
     completed: { label: "Completed", color: "bg-green-100 text-green-800 border-green-200" },
@@ -24,6 +42,35 @@ export default function SessionCard({ session }) {
 
   const status = statusConfig[session.status] || statusConfig.in_progress;
   const risk = riskConfig[session.risk_rating] || riskConfig.low;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      // Delete all related responses first
+      const responses = await base44.entities.Response.filter({ session_id: session.id });
+      for (const response of responses) {
+        await base44.entities.Response.delete(response.id);
+      }
+
+      // Delete all related follow-up responses
+      const followups = await base44.entities.FollowUpResponse.filter({ session_id: session.id });
+      for (const followup of followups) {
+        await base44.entities.FollowUpResponse.delete(followup.id);
+      }
+
+      // Delete the session
+      await base44.entities.InterviewSession.delete(session.id);
+      
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      
+      toast.success("Interview session deleted successfully");
+    } catch (err) {
+      console.error("Error deleting session:", err);
+      toast.error("Failed to delete session");
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <Card className="bg-slate-900/30 border-slate-700 hover:border-blue-500/50 transition-colors">
@@ -117,6 +164,39 @@ export default function SessionCard({ session }) {
                 </Button>
               </Link>
             )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="w-full border-red-600/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-slate-800 border-slate-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Delete Interview Session?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-300">
+                    This will permanently delete session <strong>{session.session_code}</strong> and all associated responses. 
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-slate-700 text-white border-slate-600">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete Session
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </CardContent>
