@@ -388,7 +388,7 @@ export default function Interview() {
               <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
               <h1 className="text-sm md:text-lg font-semibold text-white truncate">ClearQuest Interview</h1>
               <p className="text-xs md:text-sm text-slate-400 truncate">
-                {session?.current_category || 'Starting...'}
+                {session?.current_category || 'Applications with Other LE Agencies'}
               </p>
             </div>
             <Button
@@ -402,20 +402,26 @@ export default function Interview() {
             </Button>
           </div>
           
-          {/* Category Progress Bar */}
-          {session?.current_category && (
-            <div className="space-y-1">
-              <div className="text-xs md:text-sm text-yellow-400 font-medium">
-                {getCurrentCategoryProgress()}% Complete
-              </div>
-              <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-green-500 transition-all duration-500 ease-out"
-                  style={{ width: `${getCurrentCategoryProgress()}%` }}
-                />
-              </div>
+          {/* Progress Bar - Always Show */}
+          <div className="space-y-1">
+            <div className="text-xs md:text-sm text-yellow-400 font-medium">
+              {session?.current_category ? (
+                `${getCurrentCategoryProgress()}% Complete`
+              ) : (
+                `${Math.round(((session?.total_questions_answered || 0) / 162) * 100)}% Complete`
+              )}
             </div>
-          )}
+            <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-green-500 transition-all duration-500 ease-out"
+                style={{ 
+                  width: session?.current_category 
+                    ? `${getCurrentCategoryProgress()}%` 
+                    : `${Math.round(((session?.total_questions_answered || 0) / 162) * 100)}%`
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
