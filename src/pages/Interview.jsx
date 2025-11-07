@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -85,7 +86,7 @@ export default function Interview() {
     try {
       await base44.agents.addMessage(conv, {
         role: "user",
-        content: "Hello, I'm ready to begin the interview."
+        content: `Hello, I'm ready to begin the interview. My department code is ${session.department_code} and file number is ${session.file_number}. Please skip asking for these and proceed directly to the first question.`
       });
     } catch (err) {
       console.error("Error sending initial greeting:", err);
