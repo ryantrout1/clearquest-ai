@@ -157,36 +157,40 @@ export default function Interview() {
       setAllQuestions(questionsData);
 
       // Calculate progress
-      updateCategoryProgress(categoriesData, questionsData, responsesData);
+      await updateCategoryProgress(categoriesData, questionsData, responsesData);
     } catch (err) {
       console.error("Error loading questions and categories:", err);
     }
   };
 
   const updateCategoryProgress = async (categoriesData = null, questionsData = null, responsesData = null) => {
-    // Use cached data if available, otherwise fetch responses only
-    const cats = categoriesData || allCategories;
-    const questions = questionsData || allQuestions;
-    const responses = responsesData || await base44.entities.Response.filter({ session_id: sessionId });
+    try {
+      // Use cached data if available, otherwise fetch responses
+      const cats = categoriesData || allCategories;
+      const questions = questionsData || allQuestions;
+      const responses = responsesData || await base44.entities.Response.filter({ session_id: sessionId });
 
-    const categoryProgress = cats.map(cat => {
-      const categoryQuestions = questions.filter(q => q.category === cat.category_label);
-      const answeredInCategory = responses.filter(r => 
-        categoryQuestions.some(q => q.question_id === r.question_id)
-      );
+      const categoryProgress = cats.map(cat => {
+        const categoryQuestions = questions.filter(q => q.category === cat.category_label);
+        const answeredInCategory = responses.filter(r => 
+          categoryQuestions.some(q => q.question_id === r.question_id)
+        );
 
-      return {
-        ...cat,
-        total_questions: categoryQuestions.length,
-        answered_questions: answeredInCategory.length
-      };
-    });
+        return {
+          ...cat,
+          total_questions: categoryQuestions.length,
+          answered_questions: answeredInCategory.length
+        };
+      });
 
-    setCategories(categoryProgress);
+      setCategories(categoryProgress);
+    } catch (err) {
+      console.error("Error updating category progress:", err);
+    }
   };
 
   const handleCategoryTransition = async (type) => {
-    // Only refresh responses, not questions/categories
+    // Refresh progress with fresh response data
     await updateCategoryProgress();
 
     if (type === 'initial') {
