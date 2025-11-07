@@ -129,7 +129,8 @@ export default function Interview() {
       ]);
 
       const categoryProgress = categoriesData.map(cat => {
-        const categoryQuestions = questionsData.filter(q => q.category === cat.category_id);
+        // Match questions by category_label (full name) not category_id
+        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
         const answeredInCategory = responsesData.filter(r => 
           categoryQuestions.some(q => q.question_id === r.question_id)
         );
