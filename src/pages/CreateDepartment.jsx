@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -39,6 +40,27 @@ export default function CreateDepartment() {
 
   const checkAuth = async () => {
     try {
+      // Check for mock admin authentication first
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      if (adminAuth) {
+        try {
+          const auth = JSON.parse(adminAuth);
+          // Create mock super admin user
+          const mockUser = {
+            email: `${auth.username.toLowerCase()}@clearquest.ai`,
+            first_name: auth.username,
+            last_name: "Admin",
+            role: "SUPER_ADMIN",
+            id: "mock-admin-id"
+          };
+          setUser(mockUser);
+          return;
+        } catch (err) {
+          console.error("Error parsing admin auth:", err);
+        }
+      }
+
+      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       if (currentUser.role !== 'SUPER_ADMIN') {
         navigate(createPageUrl("HomeHub"));
