@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -42,7 +43,7 @@ export default function AdminLogin() {
         username: validUser.username,
         timestamp: Date.now()
       }));
-      navigate(createPageUrl("AdminDashboard"));
+      navigate(createPageUrl("HomeHub"));
     } else {
       setError("Invalid username or password");
       setIsLoading(false);
