@@ -380,13 +380,13 @@ export default function Interview() {
       {/* Header - Fixed at top */}
       <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm md:text-lg font-semibold text-white truncate">ClearQuest Interview</h1>
+                <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
                 <p className="text-xs md:text-sm text-slate-400 truncate">
-                  Session: {session?.session_code} • {session?.total_questions_answered || 0} questions answered
+                  Session: {session?.session_code}
                 </p>
               </div>
             </div>
@@ -403,14 +403,14 @@ export default function Interview() {
           
           {/* Category Progress Bar */}
           {session?.current_category && (
-            <div className="space-y-1">
-              <div className="flex justify-between items-center text-xs text-slate-400">
-                <span>{session.current_category}</span>
-                <span>{getCurrentCategoryProgress()}% Complete</span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-400">{session.current_category}</span>
+                <span className="text-xs font-medium text-blue-400">{getCurrentCategoryProgress()}%</span>
               </div>
-              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 ease-out"
                   style={{ width: `${getCurrentCategoryProgress()}%` }}
                 />
               </div>
