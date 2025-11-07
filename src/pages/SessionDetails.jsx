@@ -90,30 +90,30 @@ export default function SessionDetails() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <Link to={createPageUrl("InterviewDashboard")}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-6">
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4 md:mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
         </Link>
 
         {/* Header Card */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
+        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
           <CardHeader>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex flex-col gap-4">
               <div>
-                <CardTitle className="text-2xl text-white flex items-center gap-3">
-                  <Shield className="w-6 h-6 text-blue-400" />
-                  {session.session_code}
+                <CardTitle className="text-xl md:text-2xl text-white flex items-center gap-2 md:gap-3 break-all">
+                  <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
+                  <span className="break-all">{session.session_code}</span>
                 </CardTitle>
-                <p className="text-slate-400 mt-2">
+                <p className="text-slate-400 mt-2 text-sm">
                   Department: {session.department_code} • File: {session.file_number}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Badge className={cn("border", statusConfig[session.status]?.color)}>
+              <div className="flex flex-wrap gap-2">
+                <Badge className={cn("border text-xs md:text-sm", statusConfig[session.status]?.color)}>
                   {statusConfig[session.status]?.label}
                 </Badge>
-                <Badge className={riskConfig[session.risk_rating]?.color}>
+                <Badge className={cn("text-xs md:text-sm", riskConfig[session.risk_rating]?.color)}>
                   {riskConfig[session.risk_rating]?.label}
                 </Badge>
               </div>
@@ -122,7 +122,7 @@ export default function SessionDetails() {
         </Card>
 
         {/* Stats Grid */}
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
           <StatCard label="Questions Answered" value={session.total_questions_answered || 0} />
           <StatCard label="Follow-ups Triggered" value={session.followups_triggered || 0} />
           <StatCard label="Red Flags" value={session.red_flags?.length || 0} color="red" />
@@ -130,9 +130,9 @@ export default function SessionDetails() {
         </div>
 
         {/* Timeline */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
+        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
           <CardHeader>
-            <CardTitle className="text-white">Timeline</CardTitle>
+            <CardTitle className="text-white text-lg">Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <TimelineItem
@@ -150,19 +150,19 @@ export default function SessionDetails() {
 
         {/* Red Flags */}
         {session.red_flags?.length > 0 && (
-          <Card className="bg-red-950/20 border-red-800/30 mb-6">
+          <Card className="bg-red-950/20 border-red-800/30 mb-4 md:mb-6">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-400" />
-                Red Flags ({session.red_flags.length})
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <span>Red Flags ({session.red_flags.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {session.red_flags.map((flag, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-red-300">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-2" />
-                    <span>{flag}</span>
+                  <div key={idx} className="flex items-start gap-2 text-red-300 text-sm">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-2 flex-shrink-0" />
+                    <span className="break-words">{flag}</span>
                   </div>
                 ))}
               </div>
@@ -171,17 +171,17 @@ export default function SessionDetails() {
         )}
 
         {/* Responses */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-white">Responses ({responses.length})</CardTitle>
-            <Button onClick={generateReport} className="bg-blue-600 hover:bg-blue-700">
+        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
+          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <CardTitle className="text-white text-lg">Responses ({responses.length})</CardTitle>
+            <Button onClick={generateReport} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-sm">
               <Download className="w-4 h-4 mr-2" />
               Generate Report
             </Button>
           </CardHeader>
           <CardContent>
             {responses.length === 0 ? (
-              <p className="text-slate-400 text-center py-8">No responses yet</p>
+              <p className="text-slate-400 text-center py-8 text-sm">No responses yet</p>
             ) : (
               <div className="space-y-4">
                 {responses.map((response, idx) => (
@@ -200,9 +200,9 @@ function StatCard({ label, value, color = "blue" }) {
   const colorClass = color === "red" ? "text-red-400" : "text-blue-400";
   return (
     <Card className="bg-slate-900/30 border-slate-700">
-      <CardContent className="p-4">
-        <p className="text-slate-400 text-sm">{label}</p>
-        <p className={cn("text-3xl font-bold mt-1", colorClass)}>{value}</p>
+      <CardContent className="p-3 md:p-4">
+        <p className="text-slate-400 text-xs md:text-sm truncate">{label}</p>
+        <p className={cn("text-2xl md:text-3xl font-bold mt-1", colorClass)}>{value}</p>
       </CardContent>
     </Card>
   );
@@ -210,13 +210,15 @@ function StatCard({ label, value, color = "blue" }) {
 
 function TimelineItem({ label, date }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <div className="w-2 h-2 rounded-full bg-blue-400" />
-      <span className="text-slate-300">{label}</span>
-      <span className="text-slate-500">•</span>
-      <span className="text-slate-400">
-        {format(new Date(date), "MMM d, yyyy 'at' h:mm a")}
-      </span>
+    <div className="flex items-start gap-3 text-xs md:text-sm">
+      <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+      <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 flex-1 min-w-0">
+        <span className="text-slate-300">{label}</span>
+        <span className="text-slate-500 hidden md:inline">•</span>
+        <span className="text-slate-400 break-words">
+          {format(new Date(date), "MMM d, yyyy 'at' h:mm a")}
+        </span>
+      </div>
     </div>
   );
 }
@@ -226,30 +228,30 @@ function ResponseCard({ response, followups }) {
   
   return (
     <div className="border border-slate-700 rounded-lg p-4 space-y-3">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
           <Badge variant="outline" className="text-xs text-slate-400 border-slate-600 mb-2">
             {response.category}
           </Badge>
-          <p className="text-white font-medium">{response.question_text}</p>
+          <p className="text-white font-medium text-sm md:text-base break-words">{response.question_text}</p>
         </div>
         {response.is_flagged && (
-          <AlertTriangle className="w-4 h-4 text-red-400" />
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
         )}
       </div>
       
-      <div className="flex items-center gap-2">
-        <span className="text-slate-400 text-sm">Answer:</span>
-        <Badge className={response.answer === "Yes" ? "bg-blue-600" : "bg-slate-700"}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-slate-400 text-xs md:text-sm">Answer:</span>
+        <Badge className={response.answer === "Yes" ? "bg-blue-600 text-xs md:text-sm" : "bg-slate-700 text-xs md:text-sm"}>
           {response.answer}
         </Badge>
       </div>
 
       {relatedFollowups.length > 0 && (
         <div className="mt-4 pl-4 border-l-2 border-blue-500/30 space-y-2">
-          <p className="text-sm font-medium text-blue-400">Follow-up Details</p>
+          <p className="text-xs md:text-sm font-medium text-blue-400">Follow-up Details</p>
           {relatedFollowups.map((followup, idx) => (
-            <div key={idx} className="text-sm text-slate-300 space-y-1">
+            <div key={idx} className="text-xs md:text-sm text-slate-300 space-y-1 break-words">
               {followup.substance_name && <p>• Substance: {followup.substance_name}</p>}
               {followup.incident_date && <p>• Date: {followup.incident_date}</p>}
               {followup.incident_description && <p>• Description: {followup.incident_description}</p>}

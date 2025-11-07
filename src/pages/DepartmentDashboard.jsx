@@ -113,29 +113,29 @@ export default function DepartmentDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
           </Link>
 
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-start gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3 md:gap-4">
               {department.logo_url && !department.use_default_branding ? (
                 <img 
                   src={department.logo_url} 
                   alt={department.department_name}
-                  className="w-16 h-16 object-contain"
+                  className="w-12 h-12 md:w-16 md:h-16 object-contain flex-shrink-0"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
-                  <Building2 className="w-8 h-8 text-blue-400" />
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-6 h-6 md:w-8 md:h-8 text-blue-400" />
                 </div>
               )}
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-white">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white break-words">
                   {department.department_name}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -145,7 +145,7 @@ export default function DepartmentDashboard() {
                   <Badge variant="outline" className="text-slate-400 border-slate-600">
                     {department.department_type}
                   </Badge>
-                  <span className="text-slate-400 text-sm">
+                  <span className="text-slate-400 text-xs md:text-sm">
                     {departmentUsers.length} users • {department.seats_allocated} seats
                   </span>
                 </div>
@@ -153,8 +153,8 @@ export default function DepartmentDashboard() {
             </div>
 
             {canEdit && (
-              <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
-                <Button className="bg-blue-600 hover:bg-blue-700">
+              <Link to={createPageUrl(`EditDepartment?id=${department.id}`)} className="w-full md:w-auto">
+                <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
                   <Settings className="w-4 h-4 mr-2" />
                   Settings
                 </Button>
@@ -167,7 +167,7 @@ export default function DepartmentDashboard() {
         {isTrialExpiring && daysUntilExpiry <= 7 && (
           <Alert className="mb-6 bg-orange-950/20 border-orange-800/50 text-orange-200">
             <AlertCircle className="h-4 h-4" />
-            <AlertDescription>
+            <AlertDescription className="text-sm">
               <strong>Trial Ending Soon:</strong> Your trial expires in {daysUntilExpiry} days.
               {isDeptAdmin && " Contact support to upgrade your plan."}
             </AlertDescription>
@@ -175,7 +175,7 @@ export default function DepartmentDashboard() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatCard
             title="Applicants Processed"
             value={department.applicants_processed || 0}
@@ -189,24 +189,24 @@ export default function DepartmentDashboard() {
             color="green"
           />
           <StatCard
-            title="Avg Processing Time"
+            title="Avg Time"
             value={`${department.avg_processing_time || 0}m`}
             icon={TrendingUp}
             color="purple"
           />
           <StatCard
-            title="Data Retention"
-            value={`${department.retention_period} days`}
+            title="Retention"
+            value={`${department.retention_period}d`}
             icon={Calendar}
             color="orange"
           />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4 md:gap-6">
           {/* Department Info */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Department Information</CardTitle>
+              <CardTitle className="text-white text-lg">Department Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <InfoRow label="Department ID" value={department.department_id} />
@@ -221,7 +221,7 @@ export default function DepartmentDashboard() {
           {/* Security Settings */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
+              <CardTitle className="text-white text-lg flex items-center gap-2">
                 <Shield className="w-5 h-5 text-blue-400" />
                 Security & Compliance
               </CardTitle>
@@ -246,7 +246,7 @@ export default function DepartmentDashboard() {
           {/* Users */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Department Users</CardTitle>
+              <CardTitle className="text-white text-lg">Department Users</CardTitle>
             </CardHeader>
             <CardContent>
               {departmentUsers.length === 0 ? (
@@ -254,12 +254,12 @@ export default function DepartmentDashboard() {
               ) : (
                 <div className="space-y-2">
                   {departmentUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-slate-700">
-                      <div>
-                        <p className="text-white font-medium">{u.first_name} {u.last_name}</p>
-                        <p className="text-slate-400 text-xs">{u.email}</p>
+                    <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-slate-700 gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white font-medium text-sm truncate">{u.first_name} {u.last_name}</p>
+                        <p className="text-slate-400 text-xs truncate">{u.email}</p>
                       </div>
-                      <Badge variant="outline" className="text-xs text-slate-300 border-slate-600">
+                      <Badge variant="outline" className="text-xs text-slate-300 border-slate-600 whitespace-nowrap">
                         {u.role.replace('DEPT_', '')}
                       </Badge>
                     </div>
@@ -272,7 +272,7 @@ export default function DepartmentDashboard() {
           {/* Activity Log */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Recent Activity</CardTitle>
+              <CardTitle className="text-white text-lg">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
               {!department.activity_log || department.activity_log.length === 0 ? (
@@ -280,9 +280,9 @@ export default function DepartmentDashboard() {
               ) : (
                 <div className="space-y-2">
                   {department.activity_log.slice(0, 10).map((activity, idx) => (
-                    <div key={idx} className="text-sm text-slate-300 flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2" />
-                      <span>{activity}</span>
+                    <div key={idx} className="text-xs md:text-sm text-slate-300 flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-shrink-0" />
+                      <span className="break-words">{activity}</span>
                     </div>
                   ))}
                 </div>
@@ -305,13 +305,13 @@ function StatCard({ title, value, icon: Icon, color }) {
 
   return (
     <Card className={`relative overflow-hidden bg-gradient-to-br border ${colorClasses[color]}`}>
-      <CardContent className="p-6">
+      <CardContent className="p-4 md:p-6">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">{title}</p>
-            <p className="text-3xl font-bold text-white mt-1">{value}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs md:text-sm text-slate-400 truncate">{title}</p>
+            <p className="text-2xl md:text-3xl font-bold text-white mt-1">{value}</p>
           </div>
-          <Icon className="w-6 h-6" />
+          <Icon className="w-5 h-5 md:w-6 md:h-6 flex-shrink-0 ml-2" />
         </div>
       </CardContent>
     </Card>
@@ -322,18 +322,18 @@ function InfoRow({ label, value, badge, link }) {
   if (!value) return null;
 
   return (
-    <div className="flex justify-between items-start">
-      <span className="text-slate-400">{label}</span>
+    <div className="flex justify-between items-start gap-2">
+      <span className="text-slate-400 flex-shrink-0">{label}</span>
       {badge ? (
         <Badge className={badge === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-orange-500/20 text-orange-300'}>
           {value}
         </Badge>
       ) : link && value ? (
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+        <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-right truncate min-w-0 flex-1">
           {value}
         </a>
       ) : (
-        <span className="text-white text-right">{value}</span>
+        <span className="text-white text-right break-words min-w-0 flex-1">{value}</span>
       )}
     </div>
   );

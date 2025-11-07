@@ -125,7 +125,7 @@ export default function SystemAdminDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("HomeHub")}>
             <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -133,18 +133,18 @@ export default function SystemAdminDashboard() {
             </Button>
           </Link>
 
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
-                <Shield className="w-8 h-8 text-blue-400" />
-                System Admin Dashboard
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white flex items-center gap-2 md:gap-3 break-words">
+                <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
+                <span>System Admin Dashboard</span>
               </h1>
-              <p className="text-slate-300 mt-2">
+              <p className="text-sm md:text-base text-slate-300 mt-2">
                 Global system management and oversight
               </p>
             </div>
-            <Link to={createPageUrl("CreateDepartment")}>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+            <Link to={createPageUrl("CreateDepartment")} className="w-full md:w-auto">
+              <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4 mr-2" />
                 Create Department
               </Button>
@@ -153,7 +153,7 @@ export default function SystemAdminDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatCard
             title="Total Departments"
             value={stats.totalDepartments}
@@ -227,9 +227,9 @@ export default function SystemAdminDashboard() {
         {/* Departments Table */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <CardTitle className="text-white">All Departments</CardTitle>
-              <div className="relative w-full md:w-auto md:max-w-xs">
+            <div className="flex flex-col gap-4">
+              <CardTitle className="text-white text-lg md:text-xl">All Departments</CardTitle>
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
                   placeholder="Search departments..."
@@ -248,28 +248,28 @@ export default function SystemAdminDashboard() {
                   className="border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
                 >
                   <div className="flex flex-col gap-4">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                        <h3 className="text-white font-medium">{dept.department_name}</h3>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-white font-medium text-sm md:text-base break-words">{dept.department_name}</h3>
                         <Badge className={getPlanBadgeColor(dept.plan_level)}>
                           {dept.plan_level}
                         </Badge>
-                        <Badge variant="outline" className="text-slate-400 border-slate-600">
+                        <Badge variant="outline" className="text-slate-400 border-slate-600 text-xs">
                           {dept.department_type}
                         </Badge>
                       </div>
-                      <p className="text-slate-400 text-sm mt-2">
+                      <p className="text-slate-400 text-xs md:text-sm">
                         {dept.applicants_processed || 0} applicants • {dept.seats_allocated} seats
                       </p>
                     </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1 md:flex-none">
-                        <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500">
+                    <div className="flex gap-2 w-full">
+                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1">
+                        <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500 text-xs md:text-sm">
                           View
                         </Button>
                       </Link>
-                      <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1 md:flex-none">
-                        <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700">
+                      <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1">
+                        <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs md:text-sm">
                           Edit
                         </Button>
                       </Link>
@@ -295,14 +295,14 @@ function StatCard({ title, value, icon: Icon, color }) {
 
   return (
     <Card className={`relative overflow-hidden bg-gradient-to-br border ${colorClasses[color]}`}>
-      <CardContent className="p-6">
+      <CardContent className="p-4 md:p-6">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">{title}</p>
-            <p className="text-3xl font-bold text-white mt-1">{value}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs md:text-sm text-slate-400 truncate">{title}</p>
+            <p className="text-2xl md:text-3xl font-bold text-white mt-1">{value}</p>
           </div>
-          <div className="p-3 rounded-xl bg-opacity-20">
-            <Icon className="w-6 h-6" />
+          <div className="p-2 md:p-3 rounded-xl bg-opacity-20 flex-shrink-0 ml-2">
+            <Icon className="w-5 h-5 md:w-6 md:h-6" />
           </div>
         </div>
       </CardContent>

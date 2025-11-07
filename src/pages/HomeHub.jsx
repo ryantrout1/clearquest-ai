@@ -109,23 +109,23 @@ export default function HomeHub() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
+        <div className="text-center mb-8 md:mb-12">
+          <div className="flex justify-center mb-4 md:mb-6">
             <div className="relative">
               <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-50" />
-              <Shield className="relative w-20 h-20 text-blue-400" strokeWidth={1.5} />
+              <Shield className="relative w-16 h-16 md:w-20 md:h-20 text-blue-400" strokeWidth={1.5} />
             </div>
           </div>
           
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 px-4">
             Welcome to ClearQuest AI
           </h1>
           
-          <div className="space-y-2">
-            <p className="text-xl text-blue-300">
+          <div className="space-y-2 px-4">
+            <p className="text-lg md:text-xl text-blue-300 break-words">
               {user?.first_name} {user?.last_name}
             </p>
-            <p className="text-slate-400">
+            <p className="text-sm md:text-base text-slate-400 break-words">
               {user?.role === 'SUPER_ADMIN' && 'Super Administrator'}
               {user?.role === 'DEPT_ADMIN' && 'Department Administrator'}
               {user?.role === 'DEPT_USER' && 'Department User'}
@@ -135,21 +135,21 @@ export default function HomeHub() {
         </div>
 
         {/* Action Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
           {isSuperAdmin && (
             <div
               onClick={() => handleNavigate("SystemAdminDashboard")}
               className="cursor-pointer group"
             >
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
-                <CardContent className="p-8 text-center">
+                <CardContent className="p-6 md:p-8 text-center">
                   <div className="flex justify-center mb-4">
-                    <div className="p-4 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                      <Settings className="w-10 h-10 text-blue-400" />
+                    <div className="p-3 md:p-4 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                      <Settings className="w-8 h-8 md:w-10 md:h-10 text-blue-400" />
                     </div>
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">System Admin</h2>
-                  <p className="text-slate-400">
+                  <h2 className="text-xl md:text-2xl font-bold text-white mb-2">System Admin</h2>
+                  <p className="text-sm md:text-base text-slate-400">
                     Manage all departments and system settings
                   </p>
                 </CardContent>
@@ -163,14 +163,14 @@ export default function HomeHub() {
               className="cursor-pointer group"
             >
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-                <CardContent className="p-8 text-center">
+                <CardContent className="p-6 md:p-8 text-center">
                   <div className="flex justify-center mb-4">
-                    <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                      <Building2 className="w-10 h-10 text-purple-400" />
+                    <div className="p-3 md:p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                      <Building2 className="w-8 h-8 md:w-10 md:h-10 text-purple-400" />
                     </div>
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">My Department</h2>
-                  <p className="text-slate-400">
+                  <h2 className="text-xl md:text-2xl font-bold text-white mb-2">My Department</h2>
+                  <p className="text-sm md:text-base text-slate-400">
                     Department settings and information
                   </p>
                 </CardContent>
@@ -183,14 +183,14 @@ export default function HomeHub() {
             className="cursor-pointer group"
           >
             <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-green-500/50 transition-all h-full">
-              <CardContent className="p-8 text-center">
+              <CardContent className="p-6 md:p-8 text-center">
                 <div className="flex justify-center mb-4">
-                  <div className="p-4 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
-                    <Shield className="w-10 h-10 text-green-400" />
+                  <div className="p-3 md:p-4 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                    <Shield className="w-8 h-8 md:w-10 md:h-10 text-green-400" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Interviews</h2>
-                <p className="text-slate-400">
+                <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Interviews</h2>
+                <p className="text-sm md:text-base text-slate-400">
                   Monitor and manage interview sessions
                 </p>
               </CardContent>
@@ -200,33 +200,33 @@ export default function HomeHub() {
 
         {/* Remember Choice */}
         {!isSuperAdmin && (
-          <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="flex items-center justify-center gap-2 mb-6 md:mb-8 px-4">
             <Checkbox 
               id="remember" 
               checked={rememberChoice}
               onCheckedChange={setRememberChoice}
             />
-            <label htmlFor="remember" className="text-sm text-slate-400 cursor-pointer">
+            <label htmlFor="remember" className="text-xs md:text-sm text-slate-400 cursor-pointer">
               Remember my choice and skip this page
             </label>
           </div>
         )}
 
         {/* Footer Actions */}
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
           <Button
             variant="outline"
-            className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+            className="w-full sm:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
             onClick={handleLogout}
           >
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
           
-          <a href="mailto:support@clearquest.ai">
+          <a href="mailto:support@clearquest.ai" className="w-full sm:w-auto">
             <Button
               variant="outline"
-              className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
             >
               <HelpCircle className="w-4 h-4 mr-2" />
               Help & Support
@@ -235,7 +235,7 @@ export default function HomeHub() {
         </div>
 
         {/* Version */}
-        <p className="text-center text-slate-500 text-sm mt-8">
+        <p className="text-center text-slate-500 text-xs md:text-sm mt-6 md:mt-8 px-4">
           ClearQuest AI v1 • CJIS Compliant
         </p>
       </div>

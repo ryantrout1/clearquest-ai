@@ -141,7 +141,7 @@ export default function EditDepartment() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-6">
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4 md:mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
@@ -150,16 +150,16 @@ export default function EditDepartment() {
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-blue-400" />
-              <div>
-                <CardTitle className="text-2xl text-white">Edit Department</CardTitle>
-                <p className="text-slate-300 text-sm mt-1">{department.department_name}</p>
+              <Building2 className="w-6 h-6 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-xl md:text-2xl text-white break-words">Edit Department</CardTitle>
+                <p className="text-slate-300 text-sm mt-1 truncate">{department.department_name}</p>
               </div>
             </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
               {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
@@ -396,16 +396,16 @@ export default function EditDepartment() {
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-                <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)}>
-                  <Button type="button" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
+              <div className="flex flex-col-reverse md:flex-row justify-end gap-3 pt-4 border-t border-slate-700">
+                <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)} className="w-full md:w-auto">
+                  <Button type="button" variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
                     Cancel
                   </Button>
                 </Link>
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
                 >
                   {isSubmitting ? (
                     <>
