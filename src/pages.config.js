@@ -4,6 +4,8 @@ import Interview from './pages/Interview';
 import AdminDashboard from './pages/AdminDashboard';
 import SessionDetails from './pages/SessionDetails';
 import AdminLogin from './pages/AdminLogin';
+import HomeHub from './pages/HomeHub';
+import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import Layout from './Layout.jsx';
 
 
@@ -14,6 +16,8 @@ export const PAGES = {
     "AdminDashboard": AdminDashboard,
     "SessionDetails": SessionDetails,
     "AdminLogin": AdminLogin,
+    "HomeHub": HomeHub,
+    "SystemAdminDashboard": SystemAdminDashboard,
 }
 
 export const pagesConfig = {
