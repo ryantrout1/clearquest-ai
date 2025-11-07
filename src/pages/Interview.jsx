@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Shield, Send, Loader2, Pause, AlertCircle, Check, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MessageBubble from "../components/interview/MessageBubble";
+import CategoryProgress from "../components/interview/CategoryProgress";
 
 export default function Interview() {
   const navigate = useNavigate();
@@ -24,6 +25,11 @@ export default function Interview() {
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
   const [initStatus, setInitStatus] = useState("Loading session...");
+  const [showCategoryProgress, setShowCategoryProgress] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [currentCategory, setCurrentCategory] = useState(null);
+  const [isInitialOverview, setIsInitialOverview] = useState(false);
+  const [isCompletionView, setIsCompletionView] = useState(false);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -41,6 +47,23 @@ export default function Interview() {
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === 'assistant' && lastMessage.content) {
+        // Check for category transition triggers
+        if (lastMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
+          handleCategoryTransition('initial');
+          return;
+        }
+        if (lastMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
+          const match = lastMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
+          if (match) {
+            handleCategoryTransition(match[1]);
+          }
+          return;
+        }
+        if (lastMessage.content.includes('[SHOW_COMPLETION]')) {
+          handleCategoryTransition('complete');
+          return;
+        }
+
         // Check if message is asking a Yes/No question or has options
         const hasYesNo = /\b(yes|no)\b/i.test(lastMessage.content) && 
                         lastMessage.content.includes('?');
@@ -65,6 +88,9 @@ export default function Interview() {
       setConversation(conversationData);
       setMessages(conversationData.messages || []);
 
+      // Load categories and questions for progress tracking
+      await loadCategoryProgress();
+
       setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
@@ -74,10 +100,11 @@ export default function Interview() {
         }
       );
 
-      // If no messages, send initial greeting
+      // If no messages, send initial greeting and show overview
       if (!conversationData.messages || conversationData.messages.length === 0) {
-        setInitStatus("Starting interview...");
-        await sendInitialGreeting(conversationData, sessionData);
+        setInitStatus("Preparing interview overview...");
+        setIsInitialOverview(true);
+        setShowCategoryProgress(true);
       }
 
       setIsLoading(false);
@@ -85,6 +112,77 @@ export default function Interview() {
       console.error("Error loading session:", err);
       setError(`Failed to load interview session: ${err.message}`);
       setIsLoading(false);
+    }
+  };
+
+  const loadCategoryProgress = async () => {
+    try {
+      const [categoriesData, questionsData, responsesData] = await Promise.all([
+        base44.entities.Category.list('display_order'),
+        base44.entities.Question.filter({ active: true }),
+        base44.entities.Response.filter({ session_id: sessionId })
+      ]);
+
+      const categoryProgress = categoriesData.map(cat => {
+        const categoryQuestions = questionsData.filter(q => q.category === cat.category_id);
+        const answeredInCategory = responsesData.filter(r => 
+          categoryQuestions.some(q => q.question_id === r.question_id)
+        );
+
+        return {
+          ...cat,
+          total_questions: categoryQuestions.length,
+          answered_questions: answeredInCategory.length
+        };
+      });
+
+      setCategories(categoryProgress);
+    } catch (err) {
+      console.error("Error loading category progress:", err);
+    }
+  };
+
+  const handleCategoryTransition = async (type) => {
+    await loadCategoryProgress(); // Refresh progress
+
+    if (type === 'initial') {
+      setIsInitialOverview(true);
+      setIsCompletionView(false);
+      setShowCategoryProgress(true);
+    } else if (type === 'complete') {
+      setIsInitialOverview(false);
+      setIsCompletionView(true);
+      setShowCategoryProgress(true);
+    } else {
+      // Find category by ID
+      const category = categories.find(cat => cat.category_id === type);
+      setCurrentCategory(category);
+      setIsInitialOverview(false);
+      setIsCompletionView(false);
+      setShowCategoryProgress(true);
+    }
+  };
+
+  const handleContinueFromProgress = async () => {
+    setShowCategoryProgress(false);
+    setIsInitialOverview(false);
+    setIsCompletionView(false);
+
+    if (isCompletionView) {
+      navigate(createPageUrl("AdminDashboard"));
+      return;
+    }
+
+    // Send message to agent to continue
+    if (conversation) {
+      try {
+        await base44.agents.addMessage(conversation, {
+          role: "user",
+          content: "Continue"
+        });
+      } catch (err) {
+        console.error("Error sending continue message:", err);
+      }
     }
   };
 
@@ -192,6 +290,20 @@ export default function Interview() {
             Start New Interview
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (showCategoryProgress) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <CategoryProgress
+          categories={categories}
+          currentCategory={currentCategory}
+          onContinue={handleContinueFromProgress}
+          isInitial={isInitialOverview}
+          isComplete={isCompletionView}
+        />
       </div>
     );
   }
