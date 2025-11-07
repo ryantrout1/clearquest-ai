@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -30,6 +29,10 @@ export default function Interview() {
   const [currentCategory, setCurrentCategory] = useState(null);
   const [isInitialOverview, setIsInitialOverview] = useState(false);
   const [isCompletionView, setIsCompletionView] = useState(false);
+  
+  // Cache questions and categories - load once
+  const [allQuestions, setAllQuestions] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -68,12 +71,10 @@ export default function Interview() {
         const cleanContent = lastMessage.content.toLowerCase();
         if (cleanContent.includes('moving to the next section') || 
             cleanContent.includes("we're now moving to")) {
-          // Try to extract category from the message
           const categoryMatch = lastMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
           if (categoryMatch) {
             const categoryName = categoryMatch[1].trim().replace(/\.$/, '');
-            // Find matching category by label
-            const category = categories.find(cat => 
+            const category = allCategories.find(cat => 
               cat.category_label.toLowerCase() === categoryName.toLowerCase()
             );
             if (category) {
@@ -92,14 +93,12 @@ export default function Interview() {
         // Exclude only meta/continuation prompts - NOT actual interview questions
         const isContinuePrompt = /please say.*continue|say.*continue.*ready|ready to proceed/i.test(content);
         
-        // If it has a question mark and isn't a continue prompt, show buttons
-        // This is more permissive - let most questions through
         setShowQuickButtons(hasQuestion && !isContinuePrompt);
       } else {
         setShowQuickButtons(false);
       }
     }
-  }, [messages, categories]);
+  }, [messages, allCategories]);
 
   const loadSession = async () => {
     try {
@@ -116,8 +115,9 @@ export default function Interview() {
       setConversation(conversationData);
       setMessages(conversationData.messages || []);
 
-      // Load categories and questions for progress tracking
-      await loadCategoryProgress();
+      // Load categories and questions ONCE - cache them
+      setInitStatus("Loading questions and categories...");
+      await loadAllQuestionsAndCategories();
 
       setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
@@ -128,7 +128,7 @@ export default function Interview() {
         }
       );
 
-      // If no messages, send initial greeting and show overview
+      // If no messages, show initial overview
       if (!conversationData.messages || conversationData.messages.length === 0) {
         setInitStatus("Preparing interview overview...");
         setIsInitialOverview(true);
@@ -143,36 +143,50 @@ export default function Interview() {
     }
   };
 
-  const loadCategoryProgress = async () => {
+  const loadAllQuestionsAndCategories = async () => {
     try {
+      // Load all data in parallel - only once
       const [categoriesData, questionsData, responsesData] = await Promise.all([
         base44.entities.Category.list('display_order'),
         base44.entities.Question.filter({ active: true }),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
 
-      const categoryProgress = categoriesData.map(cat => {
-        // Match questions by category_label (full name) not category_id
-        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
-        const answeredInCategory = responsesData.filter(r => 
-          categoryQuestions.some(q => q.question_id === r.question_id)
-        );
+      setAllCategories(categoriesData);
+      setAllQuestions(questionsData);
 
-        return {
-          ...cat,
-          total_questions: categoryQuestions.length,
-          answered_questions: answeredInCategory.length
-        };
-      });
-
-      setCategories(categoryProgress);
+      // Calculate progress
+      updateCategoryProgress(categoriesData, questionsData, responsesData);
     } catch (err) {
-      console.error("Error loading category progress:", err);
+      console.error("Error loading questions and categories:", err);
     }
   };
 
+  const updateCategoryProgress = async (categoriesData = null, questionsData = null, responsesData = null) => {
+    // Use cached data if available, otherwise fetch responses only
+    const cats = categoriesData || allCategories;
+    const questions = questionsData || allQuestions;
+    const responses = responsesData || await base44.entities.Response.filter({ session_id: sessionId });
+
+    const categoryProgress = cats.map(cat => {
+      const categoryQuestions = questions.filter(q => q.category === cat.category_label);
+      const answeredInCategory = responses.filter(r => 
+        categoryQuestions.some(q => q.question_id === r.question_id)
+      );
+
+      return {
+        ...cat,
+        total_questions: categoryQuestions.length,
+        answered_questions: answeredInCategory.length
+      };
+    });
+
+    setCategories(categoryProgress);
+  };
+
   const handleCategoryTransition = async (type) => {
-    await loadCategoryProgress(); // Refresh progress
+    // Only refresh responses, not questions/categories
+    await updateCategoryProgress();
 
     if (type === 'initial') {
       setIsInitialOverview(true);
@@ -185,8 +199,7 @@ export default function Interview() {
       setCurrentCategory(null);
       setShowCategoryProgress(true);
     } else {
-      // Find category by ID
-      const category = categories.find(cat => cat.category_id === type);
+      const category = allCategories.find(cat => cat.category_id === type);
       setCurrentCategory(category);
       setIsInitialOverview(false);
       setIsCompletionView(false);
@@ -205,7 +218,6 @@ export default function Interview() {
       return;
     }
 
-    // Send message to agent to continue
     if (conversation) {
       try {
         setIsSending(true);
@@ -219,18 +231,6 @@ export default function Interview() {
       } finally {
         setIsSending(false);
       }
-    }
-  };
-
-  const sendInitialGreeting = async (conv, sessionData) => {
-    try {
-      await base44.agents.addMessage(conv, {
-        role: "user",
-        content: `Ready to begin`
-      });
-    } catch (err) {
-      console.error("Error sending initial greeting:", err);
-      setError(`Failed to start interview: ${err.message}`);
     }
   };
 
@@ -390,7 +390,7 @@ export default function Interview() {
         </div>
       </div>
 
-      {/* Input Area - with more top padding */}
+      {/* Input Area */}
       <div className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-6">
         <div className="max-w-5xl mx-auto">
           {error && (
