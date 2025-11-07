@@ -141,7 +141,7 @@ export default function EditDepartment() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white mb-6">
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
@@ -398,7 +398,7 @@ export default function EditDepartment() {
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
                 <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)}>
-                  <Button type="button" variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                  <Button type="button" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
                     Cancel
                   </Button>
                 </Link>
