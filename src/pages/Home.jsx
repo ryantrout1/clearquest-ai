@@ -10,7 +10,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?w=1600')] bg-cover bg-center opacity-10" />
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1516245834210-c4c142787335?w=1600')] bg-cover bg-center opacity-10" />
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center space-y-8">
@@ -24,9 +24,6 @@ export default function Home() {
             <div className="space-y-4">
               <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight">
                 ClearQuest AI
-                <span className="block text-2xl md:text-3xl text-blue-400 mt-4 font-light">
-                  v1 Production Build
-                </span>
               </h1>
               <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
                 CJIS-Compliant Background Interview System for Law Enforcement Applicant Screening
@@ -40,7 +37,7 @@ export default function Home() {
                   Start New Interview
                 </Button>
               </Link>
-              <Link to={createPageUrl("AdminLogin")}> {/* Changed from "AdminDashboard" to "AdminLogin" */}
+              <Link to={createPageUrl("AdminLogin")}>
                 <Button size="lg" variant="outline" className="bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700 px-8 py-6 text-lg">
                   <Shield className="w-5 h-5 mr-2" />
                   Admin Dashboard
@@ -86,8 +83,8 @@ export default function Home() {
           />
           <FeatureCard
             icon={<Clock className="w-8 h-8" />}
-            title="Token Optimized"
-            description="Credit-efficient design achieving ≤40% baseline usage through smart caching and prompt optimization."
+            title="Time Efficient"
+            description="Streamlined interview process reduces investigator workload while maintaining thoroughness and accuracy."
             color="orange"
           />
           <FeatureCard
