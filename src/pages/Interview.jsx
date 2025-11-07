@@ -281,8 +281,9 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // Refresh session and answered count to get updated data
-      setTimeout(() => refreshSessionData(), 1000);
+      // Refresh session and answered count after agent processes
+      // Increased delay to give agent time to create Response record
+      setTimeout(() => refreshSessionData(), 2500);
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
