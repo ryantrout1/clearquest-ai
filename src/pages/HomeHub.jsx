@@ -27,6 +27,7 @@ export default function HomeHub() {
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
+          console.log("Mock admin auth found:", auth);
           // Create a mock super admin user for Ryan/Dylan
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
@@ -35,6 +36,7 @@ export default function HomeHub() {
             role: "SUPER_ADMIN",
             department_id: null
           };
+          console.log("Mock user created:", mockUser);
           setUser(mockUser);
           
           // Check for remembered preference
@@ -53,6 +55,7 @@ export default function HomeHub() {
 
       // Otherwise try to get authenticated Base44 user
       const currentUser = await base44.auth.me();
+      console.log("Base44 user loaded:", currentUser);
       setUser(currentUser);
 
       // Load department if user has one
@@ -99,6 +102,8 @@ export default function HomeHub() {
   }
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  console.log("User object:", user);
+  console.log("Is super admin:", isSuperAdmin);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
