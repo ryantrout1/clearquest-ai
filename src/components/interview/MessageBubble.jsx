@@ -14,17 +14,25 @@ const FunctionDisplay = ({ toolCall }) => {
 const extractQuestionNumber = (content) => {
   if (!content) return null;
   
-  // Try to match Q### pattern (like Q001, Q023, Q113)
-  const qMatch = content.match(/\b(Q\d{3})\b/);
-  if (qMatch) {
-    // Convert Q001 to just "1", Q023 to "23", etc
-    return parseInt(qMatch[1].substring(1), 10).toString();
-  }
+  // Try multiple patterns to find question numbers
+  const patterns = [
+    /\b(Q\d{3})\b/,                    // Q001, Q023, Q113
+    /\bQ(\d+)\b/i,                     // Q8, Q23, Q113
+    /Question\s+(\d+)/i,               // Question 8, Question 23
+    /^(\d+)\.\s+/,                     // 8. Have you...
+    /question\s*#?\s*(\d+)/i,          // question #8, question 8
+  ];
   
-  // Try to match "Question ###" pattern
-  const questionMatch = content.match(/Question\s+(\d+)/i);
-  if (questionMatch) {
-    return questionMatch[1];
+  for (const pattern of patterns) {
+    const match = content.match(pattern);
+    if (match) {
+      // Extract the number part
+      const numStr = match[1].replace(/^Q/i, '');
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > 0 && num <= 162) {
+        return num.toString();
+      }
+    }
   }
   
   return null;
