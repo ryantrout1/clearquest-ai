@@ -28,16 +28,16 @@ export default function SessionCard({ session }) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const statusConfig = {
-    in_progress: { label: "In Progress", color: "bg-orange-100 text-orange-800 border-orange-200" },
-    completed: { label: "Completed", color: "bg-green-100 text-green-800 border-green-200" },
-    paused: { label: "Paused", color: "bg-blue-100 text-blue-800 border-blue-200" },
-    error: { label: "Error", color: "bg-red-100 text-red-800 border-red-200" }
+    in_progress: { label: "In Progress", color: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
+    completed: { label: "Completed", color: "bg-green-500/20 text-green-300 border-green-500/30" },
+    paused: { label: "Paused", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    error: { label: "Error", color: "bg-red-500/20 text-red-300 border-red-500/30" }
   };
 
   const riskConfig = {
-    low: { label: "Low Risk", color: "bg-green-100 text-green-800" },
-    moderate: { label: "Moderate", color: "bg-yellow-100 text-yellow-800" },
-    elevated: { label: "Elevated", color: "bg-red-100 text-red-800" }
+    low: { label: "Low Risk", color: "bg-green-500/20 text-green-300 border-green-500/30" },
+    moderate: { label: "Moderate", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
+    elevated: { label: "Elevated", color: "bg-red-500/20 text-red-300 border-red-500/30" }
   };
 
   const status = statusConfig[session.status] || statusConfig.in_progress;
@@ -137,12 +137,12 @@ export default function SessionCard({ session }) {
             {session.red_flags?.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {session.red_flags.slice(0, 3).map((flag, idx) => (
-                  <Badge key={idx} variant="outline" className="text-red-400 border-red-400/30 bg-red-950/20">
+                  <Badge key={idx} variant="outline" className="text-red-300 border-red-500/30 bg-red-950/30">
                     {flag}
                   </Badge>
                 ))}
                 {session.red_flags.length > 3 && (
-                  <Badge variant="outline" className="text-slate-400 border-slate-600">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 bg-slate-900/50">
                     +{session.red_flags.length - 3} more
                   </Badge>
                 )}
@@ -150,16 +150,16 @@ export default function SessionCard({ session }) {
             )}
           </div>
 
-          <div className="flex md:flex-col gap-2">
+          <div className="flex md:flex-col gap-2 min-w-[140px]">
             <Link to={createPageUrl(`SessionDetails?id=${session.id}`)} className="flex-1 md:flex-none">
-              <Button size="sm" variant="outline" className="w-full border-slate-600 text-white hover:bg-slate-700">
+              <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-slate-200 hover:bg-slate-800 hover:text-white hover:border-slate-500">
                 <Eye className="w-4 h-4 mr-2" />
                 View Details
               </Button>
             </Link>
             {session.status === "in_progress" && (
               <Link to={createPageUrl(`Interview?session=${session.id}`)} className="flex-1 md:flex-none">
-                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700">
+                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                   Resume
                 </Button>
               </Link>
@@ -169,7 +169,7 @@ export default function SessionCard({ session }) {
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  className="w-full border-red-600/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+                  className="w-full bg-slate-900/50 border-red-500/50 text-red-400 hover:bg-red-950/30 hover:text-red-300 hover:border-red-500"
                   disabled={isDeleting}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
