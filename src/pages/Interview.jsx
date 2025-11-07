@@ -65,13 +65,19 @@ export default function Interview() {
         }
 
         // Remove any markers from content before checking for yes/no patterns
-        const cleanContent = lastMessage.content.replace(/\[.*?\]/g, '');
+        const cleanContent = lastMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
 
         // Check if message is asking a Yes/No question
         const hasQuestion = cleanContent.includes('?');
-        const mentionsYesNo = /\b(yes|no)\b/i.test(cleanContent);
         
-        setShowQuickButtons(hasQuestion && mentionsYesNo);
+        // More comprehensive yes/no detection
+        const mentionsYesNo = /\b(yes|no)\b/i.test(cleanContent);
+        const isYesNoQuestion = /\b(have you|did you|were you|are you|do you|will you|would you|can you|could you|has|had|was|is)\b/i.test(cleanContent);
+        
+        // Exclude follow-up meta questions that aren't about the actual interview
+        const isMetaQuestion = /\b(single|multiple|other incidents?|any other|anything else)\b/i.test(cleanContent);
+        
+        setShowQuickButtons(hasQuestion && !isMetaQuestion && (mentionsYesNo || isYesNoQuestion));
       } else {
         setShowQuickButtons(false);
       }
