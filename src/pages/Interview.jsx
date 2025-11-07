@@ -35,6 +35,9 @@ export default function Interview() {
   const [allQuestions, setAllQuestions] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
   
+  // Track actual answered question count from responses
+  const [answeredCount, setAnsweredCount] = useState(0);
+  
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
 
@@ -122,14 +125,18 @@ export default function Interview() {
       setInitStatus("Loading questions and categories...");
       await loadAllQuestionsAndCategories();
 
+      // Get actual answered count from responses
+      const responses = await base44.entities.Response.filter({ session_id: sessionId });
+      setAnsweredCount(responses.length);
+
       setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
-          // Refresh session data to get updated question count and category
-          refreshSession();
+          // Refresh session data and answered count
+          refreshSessionData();
         }
       );
 
@@ -148,12 +155,16 @@ export default function Interview() {
     }
   };
 
-  const refreshSession = async () => {
+  const refreshSessionData = async () => {
     try {
-      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      const [sessionData, responses] = await Promise.all([
+        base44.entities.InterviewSession.get(sessionId),
+        base44.entities.Response.filter({ session_id: sessionId })
+      ]);
       setSession(sessionData);
+      setAnsweredCount(responses.length);
       // Also refresh category progress when session updates
-      await updateCategoryProgress();
+      await updateCategoryProgress(null, null, responses);
     } catch (err) {
       console.error("Error refreshing session:", err);
     }
@@ -270,8 +281,8 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // Refresh session to get updated counts and category
-      await refreshSession();
+      // Refresh session and answered count to get updated data
+      setTimeout(() => refreshSessionData(), 1000);
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
@@ -326,6 +337,11 @@ export default function Interview() {
     const currentCat = categories.find(cat => cat.category_label === session.current_category);
     if (!currentCat || currentCat.total_questions === 0) return 0;
     return Math.round((currentCat.answered_questions / currentCat.total_questions) * 100);
+  };
+
+  // Calculate overall progress from actual answered count
+  const getOverallProgress = () => {
+    return Math.round((answeredCount / 162) * 100);
   };
 
   if (isLoading) {
@@ -405,20 +421,12 @@ export default function Interview() {
           {/* Progress Bar - Always Show */}
           <div className="space-y-1">
             <div className="text-xs md:text-sm text-yellow-400 font-medium">
-              {session?.current_category ? (
-                `${getCurrentCategoryProgress()}% Complete`
-              ) : (
-                `${Math.round(((session?.total_questions_answered || 0) / 162) * 100)}% Complete`
-              )}
+              {getOverallProgress()}% Complete
             </div>
             <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-green-500 transition-all duration-500 ease-out"
-                style={{ 
-                  width: session?.current_category 
-                    ? `${getCurrentCategoryProgress()}%` 
-                    : `${Math.round(((session?.total_questions_answered || 0) / 162) * 100)}%`
-                }}
+                style={{ width: `${getOverallProgress()}%` }}
               />
             </div>
           </div>
