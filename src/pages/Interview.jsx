@@ -420,15 +420,23 @@ export default function Interview() {
             </Button>
           </div>
           
-          {/* Progress Bar - Always Show */}
+          {/* Progress Bar - Show Current Category Progress */}
           <div className="space-y-1">
             <div className="text-xs md:text-sm text-yellow-400 font-medium">
-              {getOverallProgress()}% Complete
+              {(() => {
+                const currentCat = categories.find(cat => cat.category_label === session?.current_category);
+                if (currentCat) {
+                  return `${currentCat.answered_questions || 0} / ${currentCat.total_questions || 0} questions • ${getCurrentCategoryProgress()}% Complete`;
+                }
+                return `${answeredCount} / 162 questions • ${getOverallProgress()}% Complete`;
+              })()}
             </div>
             <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-green-500 transition-all duration-500 ease-out"
-                style={{ width: `${getOverallProgress()}%` }}
+                style={{ 
+                  width: `${session?.current_category ? getCurrentCategoryProgress() : getOverallProgress()}%` 
+                }}
               />
             </div>
           </div>
