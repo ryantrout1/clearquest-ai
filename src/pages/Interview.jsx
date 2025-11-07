@@ -175,7 +175,7 @@ export default function Interview() {
     setIsCompletionView(false);
 
     if (isCompletionView) {
-      navigate(createPageUrl("AdminDashboard"));
+      navigate(createPageUrl("InterviewDashboard"));
       return;
     }
 

@@ -19,8 +19,9 @@ export default function Departments() {
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
-          // Mock super admins go to system admin dashboard
-          navigate(createPageUrl("SystemAdminDashboard"));
+          // Mock super admins - check if they have a department_id
+          // For now, always go to DepartmentDashboard (they can use System Admin button for system admin dashboard)
+          navigate(createPageUrl("DepartmentDashboard"));
           return;
         } catch (err) {
           console.error("Error parsing admin auth:", err);
@@ -30,14 +31,11 @@ export default function Departments() {
       // Otherwise check Base44 authentication
       const user = await base44.auth.me();
 
-      if (user.role === 'SUPER_ADMIN') {
-        // Super admins go to system admin dashboard
-        navigate(createPageUrl("SystemAdminDashboard"));
-      } else if (user.department_id) {
-        // Department users go to their department dashboard
+      if (user.department_id) {
+        // Users with department go to their department dashboard
         navigate(createPageUrl(`DepartmentDashboard?id=${user.department_id}`));
       } else {
-        // User has no department - shouldn't happen
+        // No department - go to home
         navigate(createPageUrl("HomeHub"));
       }
     } catch (err) {

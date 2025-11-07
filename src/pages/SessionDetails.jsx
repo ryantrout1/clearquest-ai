@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -65,7 +66,7 @@ export default function SessionDetails() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <p className="text-slate-300">Session not found</p>
-          <Link to={createPageUrl("AdminDashboard")}>
+          <Link to={createPageUrl("InterviewDashboard")}>
             <Button className="mt-4">Back to Dashboard</Button>
           </Link>
         </div>
@@ -88,7 +89,7 @@ export default function SessionDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <Link to={createPageUrl("AdminDashboard")}>
+        <Link to={createPageUrl("InterviewDashboard")}>
           <Button variant="ghost" className="text-slate-300 hover:text-white mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard

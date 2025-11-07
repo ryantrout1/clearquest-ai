@@ -130,7 +130,7 @@ export default function HomeHub() {
         </div>
 
         {/* Action Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
           {isSuperAdmin && (
             <div
               onClick={() => handleNavigate("SystemAdminDashboard")}
@@ -143,9 +143,9 @@ export default function HomeHub() {
                       <Settings className="w-10 h-10 text-blue-400" />
                     </div>
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Admin Dashboard</h2>
+                  <h2 className="text-2xl font-bold text-white mb-2">System Admin</h2>
                   <p className="text-slate-400">
-                    Manage all departments, users, and system settings
+                    Manage all departments and system settings
                   </p>
                 </CardContent>
               </Card>
@@ -153,10 +153,10 @@ export default function HomeHub() {
           )}
 
           <div
-            onClick={() => handleNavigate("Departments")}
+            onClick={() => handleNavigate(user?.department_id ? `DepartmentDashboard?id=${user.department_id}` : "DepartmentDashboard")}
             className="cursor-pointer group"
           >
-            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
               <CardContent className="p-8 text-center">
                 <div className="flex justify-center mb-4">
                   <div className="p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
@@ -168,8 +168,27 @@ export default function HomeHub() {
                 </h2>
                 <p className="text-slate-400">
                   {isSuperAdmin 
-                    ? 'View and manage all departments' 
-                    : 'Access your department dashboard and settings'}
+                    ? 'View all departments' 
+                    : 'Department settings and information'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div
+            onClick={() => handleNavigate("InterviewDashboard")}
+            className="cursor-pointer group"
+          >
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-green-500/50 transition-all h-full">
+              <CardContent className="p-8 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="p-4 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                    <Shield className="w-10 h-10 text-green-400" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Interviews</h2>
+                <p className="text-slate-400">
+                  Monitor and manage interview sessions
                 </p>
               </CardContent>
             </Card>
