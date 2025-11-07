@@ -99,10 +99,10 @@ export default function CreateDepartment() {
         color_accent: "#E6B980"
       };
 
-      const newDept = await base44.entities.Department.create(departmentData);
+      await base44.entities.Department.create(departmentData);
       
       toast.success("Department created successfully!");
-      navigate(createPageUrl(`DepartmentView?id=${newDept.id}`));
+      navigate(createPageUrl("SystemAdminDashboard"));
     } catch (err) {
       console.error("Error creating department:", err);
       toast.error("Failed to create department");
@@ -306,7 +306,7 @@ export default function CreateDepartment() {
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
                 <Link to={createPageUrl("SystemAdminDashboard")}>
-                  <Button type="button" variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                  <Button type="button" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
                     Cancel
                   </Button>
                 </Link>
