@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -28,6 +29,43 @@ export default function DepartmentDashboard() {
 
   const loadUser = async () => {
     try {
+      // Check for mock admin authentication first
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      if (adminAuth) {
+        try {
+          const auth = JSON.parse(adminAuth);
+          const mockUser = {
+            email: `${auth.username.toLowerCase()}@clearquest.ai`,
+            first_name: auth.username,
+            last_name: "Admin",
+            role: "SUPER_ADMIN",
+            id: "mock-admin-id"
+          };
+          setUser(mockUser);
+
+          // For mock admins, if no deptId provided, get first department
+          if (!deptId) {
+            const departments = await base44.entities.Department.list('created_date', 1);
+            if (departments.length > 0) {
+              setDepartment(departments[0]);
+            } else {
+              // No departments exist yet
+              navigate(createPageUrl("SystemAdminDashboard"));
+            }
+            return; // Stop execution after handling mock admin
+          }
+
+          // Load specific department if deptId is provided for mock admin
+          const dept = await base44.entities.Department.get(deptId);
+          setDepartment(dept);
+          return; // Stop execution after handling mock admin
+        } catch (err) {
+          console.error("Error with mock admin:", err);
+          // If mock admin authentication fails, proceed to regular Base44 auth
+        }
+      }
+
+      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       setUser(currentUser);
 
@@ -49,7 +87,12 @@ export default function DepartmentDashboard() {
       setDepartment(dept);
     } catch (err) {
       console.error("Error loading data:", err);
-      navigate(createPageUrl("AdminLogin"));
+      // Only navigate to AdminLogin if the error is due to authentication, not mock admin fallback
+      if (err.response && err.response.status === 401) {
+        navigate(createPageUrl("AdminLogin"));
+      } else if (!adminAuth) { // If there was no mock admin auth and another error occurred
+         navigate(createPageUrl("AdminLogin")); // Or a more generic error page
+      }
     }
   };
 
