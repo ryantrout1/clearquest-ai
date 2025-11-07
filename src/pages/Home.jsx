@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -40,7 +41,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link to={createPageUrl("AdminDashboard")}>
-                <Button size="lg" variant="outline" className="border-slate-600 text-white hover:bg-slate-800 px-8 py-6 text-lg">
+                <Button size="lg" variant="outline" className="bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700 px-8 py-6 text-lg">
                   <Shield className="w-5 h-5 mr-2" />
                   Admin Dashboard
                 </Button>
