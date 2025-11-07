@@ -14,6 +14,20 @@ export default function Departments() {
 
   const handleRouting = async () => {
     try {
+      // Check for mock admin authentication first
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      if (adminAuth) {
+        try {
+          const auth = JSON.parse(adminAuth);
+          // Mock super admins go to system admin dashboard
+          navigate(createPageUrl("SystemAdminDashboard"));
+          return;
+        } catch (err) {
+          console.error("Error parsing admin auth:", err);
+        }
+      }
+
+      // Otherwise check Base44 authentication
       const user = await base44.auth.me();
 
       if (user.role === 'SUPER_ADMIN') {
