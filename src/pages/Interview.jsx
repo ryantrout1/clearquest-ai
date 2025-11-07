@@ -89,14 +89,12 @@ export default function Interview() {
         // Check if message is asking a Yes/No question
         const hasQuestion = content.includes('?');
         
-        // More comprehensive yes/no detection
-        const mentionsYesNo = /\b(yes|no)\b/i.test(content);
-        const isYesNoQuestion = /\b(have you|did you|were you|are you|do you|will you|would you|can you|could you|has|had|was|is)\b/i.test(content);
+        // Exclude only meta/continuation prompts - NOT actual interview questions
+        const isContinuePrompt = /please say.*continue|say.*continue.*ready|ready to proceed/i.test(content);
         
-        // Exclude follow-up meta questions that aren't about the actual interview
-        const isMetaQuestion = /\b(single|multiple|other incidents?|any other|anything else|continue|ready to proceed)\b/i.test(content);
-        
-        setShowQuickButtons(hasQuestion && !isMetaQuestion && (mentionsYesNo || isYesNoQuestion));
+        // If it has a question mark and isn't a continue prompt, show buttons
+        // This is more permissive - let most questions through
+        setShowQuickButtons(hasQuestion && !isContinuePrompt);
       } else {
         setShowQuickButtons(false);
       }
