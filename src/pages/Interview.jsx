@@ -43,11 +43,11 @@ export default function Interview() {
   }, [sessionId]);
 
   useEffect(() => {
-    // Check if we should show quick response buttons
+    // Check if we should show quick response buttons or category transitions
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === 'assistant' && lastMessage.content) {
-        // Check for category transition triggers
+        // Check for category transition triggers - MUST check before other logic
         if (lastMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
           handleCategoryTransition('initial');
           return;
@@ -64,25 +64,44 @@ export default function Interview() {
           return;
         }
 
+        // Also detect category transitions from text patterns (backup detection)
+        const cleanContent = lastMessage.content.toLowerCase();
+        if (cleanContent.includes('moving to the next section') || 
+            cleanContent.includes("we're now moving to")) {
+          // Try to extract category from the message
+          const categoryMatch = lastMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
+          if (categoryMatch) {
+            const categoryName = categoryMatch[1].trim().replace(/\.$/, '');
+            // Find matching category by label
+            const category = categories.find(cat => 
+              cat.category_label.toLowerCase() === categoryName.toLowerCase()
+            );
+            if (category) {
+              handleCategoryTransition(category.category_id);
+              return;
+            }
+          }
+        }
+
         // Remove any markers from content before checking for yes/no patterns
-        const cleanContent = lastMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+        const content = lastMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
 
         // Check if message is asking a Yes/No question
-        const hasQuestion = cleanContent.includes('?');
+        const hasQuestion = content.includes('?');
         
         // More comprehensive yes/no detection
-        const mentionsYesNo = /\b(yes|no)\b/i.test(cleanContent);
-        const isYesNoQuestion = /\b(have you|did you|were you|are you|do you|will you|would you|can you|could you|has|had|was|is)\b/i.test(cleanContent);
+        const mentionsYesNo = /\b(yes|no)\b/i.test(content);
+        const isYesNoQuestion = /\b(have you|did you|were you|are you|do you|will you|would you|can you|could you|has|had|was|is)\b/i.test(content);
         
         // Exclude follow-up meta questions that aren't about the actual interview
-        const isMetaQuestion = /\b(single|multiple|other incidents?|any other|anything else)\b/i.test(cleanContent);
+        const isMetaQuestion = /\b(single|multiple|other incidents?|any other|anything else|continue|ready to proceed)\b/i.test(content);
         
         setShowQuickButtons(hasQuestion && !isMetaQuestion && (mentionsYesNo || isYesNoQuestion));
       } else {
         setShowQuickButtons(false);
       }
     }
-  }, [messages]);
+  }, [messages, categories]);
 
   const loadSession = async () => {
     try {
@@ -160,10 +179,12 @@ export default function Interview() {
     if (type === 'initial') {
       setIsInitialOverview(true);
       setIsCompletionView(false);
+      setCurrentCategory(null);
       setShowCategoryProgress(true);
     } else if (type === 'complete') {
       setIsInitialOverview(false);
       setIsCompletionView(true);
+      setCurrentCategory(null);
       setShowCategoryProgress(true);
     } else {
       // Find category by ID
@@ -179,6 +200,7 @@ export default function Interview() {
     setShowCategoryProgress(false);
     setIsInitialOverview(false);
     setIsCompletionView(false);
+    setCurrentCategory(null);
 
     if (isCompletionView) {
       navigate(createPageUrl("InterviewDashboard"));
@@ -188,12 +210,16 @@ export default function Interview() {
     // Send message to agent to continue
     if (conversation) {
       try {
+        setIsSending(true);
         await base44.agents.addMessage(conversation, {
           role: "user",
           content: "Continue"
         });
       } catch (err) {
         console.error("Error sending continue message:", err);
+        setError("Failed to continue interview");
+      } finally {
+        setIsSending(false);
       }
     }
   };
