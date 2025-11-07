@@ -161,6 +161,7 @@ export default function Interview() {
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
+      console.log(`Refreshed: ${responses.length} responses found`);
       setSession(sessionData);
       setAnsweredCount(responses.length);
       // Also refresh category progress when session updates
