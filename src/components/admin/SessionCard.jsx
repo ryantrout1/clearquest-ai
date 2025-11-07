@@ -157,13 +157,6 @@ export default function SessionCard({ session }) {
                 View Details
               </Button>
             </Link>
-            {session.status === "in_progress" && (
-              <Link to={createPageUrl(`Interview?session=${session.id}`)} className="flex-1 md:flex-none">
-                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                  Resume
-                </Button>
-              </Link>
-            )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button 
