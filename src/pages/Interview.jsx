@@ -451,28 +451,23 @@ export default function Interview() {
           
           {/* Quick Response Buttons OR Text Input - Not Both */}
           {showQuickButtons && !isSending ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={() => handleQuickResponse("Yes")}
-                  className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
-                  size="lg"
-                >
-                  <Check className="w-5 h-5" />
-                  Yes
-                </Button>
-                <Button
-                  onClick={() => handleQuickResponse("No")}
-                  className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
-                  size="lg"
-                >
-                  <X className="w-5 h-5" />
-                  No
-                </Button>
-              </div>
-              <p className="text-xs text-slate-400 text-center">
-                Or type a custom response below if needed
-              </p>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => handleQuickResponse("Yes")}
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                size="lg"
+              >
+                <Check className="w-5 h-5" />
+                Yes
+              </Button>
+              <Button
+                onClick={() => handleQuickResponse("No")}
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                size="lg"
+              >
+                <X className="w-5 h-5" />
+                No
+              </Button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex gap-3">
