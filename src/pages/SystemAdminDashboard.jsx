@@ -227,9 +227,9 @@ export default function SystemAdminDashboard() {
         {/* Departments Table */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <CardTitle className="text-white">All Departments</CardTitle>
-              <div className="relative w-full max-w-xs">
+              <div className="relative w-full md:w-auto md:max-w-xs">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
                   placeholder="Search departments..."
@@ -247,9 +247,9 @@ export default function SystemAdminDashboard() {
                   key={dept.id}
                   className="border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 md:gap-3">
                         <h3 className="text-white font-medium">{dept.department_name}</h3>
                         <Badge className={getPlanBadgeColor(dept.plan_level)}>
                           {dept.plan_level}
@@ -258,18 +258,18 @@ export default function SystemAdminDashboard() {
                           {dept.department_type}
                         </Badge>
                       </div>
-                      <p className="text-slate-400 text-sm mt-1">
+                      <p className="text-slate-400 text-sm mt-2">
                         {dept.applicants_processed || 0} applicants • {dept.seats_allocated} seats
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)}>
-                        <Button size="sm" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500">
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1 md:flex-none">
+                        <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500">
                           View
                         </Button>
                       </Link>
-                      <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)}>
-                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1 md:flex-none">
+                        <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700">
                           Edit
                         </Button>
                       </Link>
