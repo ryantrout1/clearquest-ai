@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -21,6 +22,36 @@ export default function HomeHub() {
 
   const loadUser = async () => {
     try {
+      // Check for mock admin authentication first (for Ryan/Dylan local testing)
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      if (adminAuth) {
+        try {
+          const auth = JSON.parse(adminAuth);
+          // Create a mock super admin user for Ryan/Dylan
+          const mockUser = {
+            email: `${auth.username.toLowerCase()}@clearquest.ai`,
+            first_name: auth.username,
+            last_name: "Admin",
+            role: "SUPER_ADMIN",
+            department_id: null
+          };
+          setUser(mockUser);
+          
+          // Check for remembered preference
+          const remembered = localStorage.getItem('clearquest_home_preference');
+          if (remembered) {
+            navigate(createPageUrl(remembered));
+          }
+          
+          setIsLoading(false);
+          return; // Exit function after handling mock admin
+        } catch (err) {
+          console.error("Error parsing admin auth from sessionStorage:", err);
+          // Continue to attempt regular auth if mock auth fails to parse
+        }
+      }
+
+      // Otherwise try to get authenticated Base44 user
       const currentUser = await base44.auth.me();
       setUser(currentUser);
 
@@ -31,6 +62,7 @@ export default function HomeHub() {
       }
 
       // Check for remembered preference
+      // Only apply if not a SUPER_ADMIN, as SUPER_ADMINs always see the hub first
       const remembered = localStorage.getItem('clearquest_home_preference');
       if (remembered && currentUser.role !== 'SUPER_ADMIN') {
         navigate(createPageUrl(remembered));
@@ -39,6 +71,7 @@ export default function HomeHub() {
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading user:", err);
+      // Redirect to login if user is not authenticated or an error occurs
       navigate(createPageUrl("AdminLogin"));
     }
   };
@@ -52,6 +85,9 @@ export default function HomeHub() {
 
   const handleLogout = () => {
     base44.auth.logout();
+    sessionStorage.removeItem("clearquest_admin_auth"); // Also clear mock admin auth
+    localStorage.removeItem("clearquest_home_preference"); // Clear remembered preference on logout
+    navigate(createPageUrl("AdminLogin")); // Navigate to login page
   };
 
   if (isLoading) {
