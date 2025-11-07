@@ -88,25 +88,13 @@ export default function AdminDashboard() {
                 Monitor and manage interview sessions • Logged in as {currentUser}
               </p>
             </div>
-            <div className="flex gap-2">
-              <a
-                href={base44.agents.getWhatsAppConnectURL('clearquest_interviewer')}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button className="bg-green-600 hover:bg-green-700">
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  WhatsApp Integration
-                </Button>
-              </a>
-              <Button 
-                variant="outline" 
-                onClick={handleLogout}
-                className="border-slate-600 text-white hover:bg-slate-700"
-              >
-                Logout
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              onClick={handleLogout}
+              className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white hover:border-slate-500"
+            >
+              Logout
+            </Button>
           </div>
         </div>
 
