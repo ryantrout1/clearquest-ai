@@ -38,9 +38,9 @@ export default function MessageBubble({ message, onEditResponse }) {
         return null;
     }
     
-    // Clean content - remove markers before rendering
+    // Clean content - remove ALL markers before rendering (including ones with content inside)
     let cleanContent = message.content || '';
-    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW\]/g, '');
+    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW.*?\]/g, ''); // Matches [SHOW_CATEGORY_OVERVIEW] and [SHOW_CATEGORY_OVERVIEW: ...]
     cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_TRANSITION:.*?\]/g, '');
     cleanContent = cleanContent.replace(/\[SHOW_COMPLETION\]/g, '');
     cleanContent = cleanContent.trim();
