@@ -30,7 +30,7 @@ const removeQuestionPrefix = (content) => {
     return content.replace(/^Q\d{1,3}:\s*/i, '');
 };
 
-export default function MessageBubble({ message, onEditResponse }) {
+export default function MessageBubble({ message, onEditResponse, showWelcome = false }) {
     const isUser = message.role === 'user';
     
     // Hide initial "Ready to begin" and "Continue" messages
@@ -38,19 +38,23 @@ export default function MessageBubble({ message, onEditResponse }) {
         return null;
     }
     
-    // Hide category transition and completion messages (these are full-screen)
+    // Hide messages with markers (they're handled separately)
     if (message.content) {
+        // Hide welcome message UNLESS showWelcome is true
+        if (message.content.includes('[SHOW_CATEGORY_OVERVIEW]') && !showWelcome) {
+            return null;
+        }
         if (message.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-            return null; // Don't show transition messages - we handle them with full-screen component
+            return null;
         }
         if (message.content.includes('[SHOW_COMPLETION]')) {
-            return null; // Don't show completion message - we handle it with full-screen component
+            return null;
         }
     }
     
     // Clean content - remove ALL markers
     let cleanContent = message.content || '';
-    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW.*?\]/g, ''); // Remove overview marker
+    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW.*?\]/g, '');
     cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_TRANSITION:.*?\]/g, '');
     cleanContent = cleanContent.replace(/\[SHOW_COMPLETION\]/g, '');
     cleanContent = cleanContent.trim();
