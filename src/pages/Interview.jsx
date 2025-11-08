@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -25,30 +24,22 @@ export default function Interview() {
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
   const [showContinueButton, setShowContinueButton] = useState(false);
-  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true); // NEW: Track if welcome should be visible
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true);
   const [initStatus, setInitStatus] = useState("Loading session...");
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
   const [currentCategory, setCurrentCategory] = useState(null);
   const [isInitialOverview, setIsInitialOverview] = useState(false);
   const [isCompletionView, setIsCompletionView] = useState(false);
-  
-  // Cache questions and categories - load once
-  const [allQuestions, setAllQuestions] = useState([]);
-  const [allCategories, setAllCategories] = useState([]);
-  
-  // Track actual answered question count from responses
   const [answeredCount, setAnsweredCount] = useState(0);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const isConversationActiveRef = useRef(false);
-  const lastRefreshRef = useRef(0);
-  const lastMessageCountRef = useRef(0); // NEW: Track message count to prevent unnecessary updates
-  
   const hasShownInitialOverviewRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false);
   const isNewSessionRef = useRef(false);
+  const lastMessageUpdateRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -58,74 +49,54 @@ export default function Interview() {
     loadSession();
   }, [sessionId]);
 
+  // Debounced message handling
   useEffect(() => {
-    // CRITICAL: Check for markers and handle them
-    if (messages.length > 0) {
-      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    if (messages.length === 0) return;
+    
+    const now = Date.now();
+    if (now - lastMessageUpdateRef.current < 100) return; // Debounce 100ms
+    lastMessageUpdateRef.current = now;
+
+    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    
+    if (lastAssistantMessage?.content) {
+      if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
+        setShowContinueButton(true);
+        setShowWelcomeMessage(true);
+        setShowQuickButtons(false);
+        return;
+      }
       
-      if (lastAssistantMessage?.content) {
-        console.log("📨 Last assistant message:", lastAssistantMessage.content.substring(0, 100));
-        
-        // Check for welcome message with overview marker - show Continue button
-        if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] - showing Continue button");
-          setShowContinueButton(true);
-          setShowWelcomeMessage(true); // Show welcome while button is visible
-          setShowQuickButtons(false);
-          return;
-        }
-        
-        if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-          if (!showCategoryProgress) {
-            const match = lastAssistantMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
-            if (match) {
-              console.log("🎯 Detected category transition:", match[1]);
-              handleCategoryTransition(match[1]);
-              return;
-            }
-          }
-        }
-        
-        if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
-          if (!showCategoryProgress) {
-            console.log("🎯 Detected completion marker");
-            handleCategoryTransition('complete');
+      if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
+        if (!showCategoryProgress) {
+          const match = lastAssistantMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
+          if (match) {
+            handleCategoryTransition(match[1]);
             return;
           }
         }
       }
-    }
-  }, [messages, showCategoryProgress]);
-
-  useEffect(() => {
-    // This useEffect handles UI state (quick buttons, etc.) - runs AFTER marker detection
-    if (showCategoryProgress || showContinueButton) {
-      return;
-    }
-    
-    if (messages.length > 0) {
-      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
       
-      if (lastAssistantMessage?.content) {
-        // Remove any markers from content before checking for yes/no patterns
-        const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+      if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
+        if (!showCategoryProgress) {
+          handleCategoryTransition('complete');
+          return;
+        }
+      }
 
-        // Check if message is asking a Yes/No question
+      // Show quick buttons for yes/no questions
+      if (!showCategoryProgress && !showContinueButton) {
+        const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
         const hasQuestion = content.includes('?');
-        
-        // Exclude meta/continuation prompts
         const isContinuePrompt = /please say.*continue|say.*continue.*ready|ready to proceed/i.test(content);
-        
         setShowQuickButtons(hasQuestion && !isContinuePrompt);
-      } else {
-        setShowQuickButtons(false);
       }
     }
-  }, [messages, allCategories, showCategoryProgress, showContinueButton]);
+  }, [messages, showCategoryProgress, showContinueButton]);
 
   const loadSession = async () => {
     try {
-      setInitStatus("Loading session data...");
+      setInitStatus("Loading session...");
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
 
@@ -138,50 +109,19 @@ export default function Interview() {
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
-      console.log("📨 Loaded conversation with", existingMessages.length, "messages");
-      
       setMessages(existingMessages);
-      lastMessageCountRef.current = existingMessages.length; // Track initial count
-
-      setInitStatus("Loading questions and categories...");
-      await loadAllQuestionsAndCategories();
-
-      const responses = await base44.entities.Response.filter({ session_id: sessionId });
-      setAnsweredCount(responses.length);
-      console.log("📊 Response count:", responses.length);
 
       setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          
-          // Only update if message count actually changed
-          if (newMessages.length !== lastMessageCountRef.current) {
-            console.log("📨 New message detected:", newMessages.length, "total");
-            lastMessageCountRef.current = newMessages.length;
-            setMessages(newMessages);
-            
-            // Smooth scroll to bottom
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-            }, 100);
-          }
-          
-          // Throttle session refresh to avoid excessive updates
-          const now = Date.now();
-          if (now - lastRefreshRef.current > 3000) { // Increased from 2s to 3s
-            lastRefreshRef.current = now;
-            refreshSessionData();
-          }
+          setMessages(newMessages);
         }
       );
 
-      // CRITICAL FIX: If this is a brand new session (0 responses, empty conversation)
-      // Show the category overview IMMEDIATELY and DON'T trigger agent yet
-      if (responses.length === 0 && existingMessages.length === 0) {
-        console.log("🎯 NEW SESSION DETECTED - showing overview immediately");
-        console.log("⏸️ Agent will be triggered when user clicks 'Begin Interview'");
+      // Check for new session
+      if (existingMessages.length === 0) {
         isNewSessionRef.current = true;
         hasShownInitialOverviewRef.current = true;
         setIsInitialOverview(true);
@@ -190,30 +130,13 @@ export default function Interview() {
         return;
       }
 
-      // For existing sessions, check if we need to trigger agent
+      // Check for existing overview marker
       if (existingMessages.length > 0) {
         const lastMsg = [...existingMessages].reverse().find(m => m.role === 'assistant');
         if (lastMsg?.content?.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          console.log("🎯 Found [SHOW_CATEGORY_OVERVIEW] in existing messages");
           hasShownInitialOverviewRef.current = true;
           handleCategoryTransition('initial');
         }
-      } else if (!hasTriggeredAgentRef.current) {
-        // Conversation exists but is empty - this is a resumed session, trigger agent
-        console.log("🚀 Empty conversation on resumed session - triggering agent");
-        hasTriggeredAgentRef.current = true;
-        setTimeout(async () => {
-          try {
-            await base44.agents.addMessage(conversationData, {
-              role: "user",
-              content: "Ready to begin"
-            });
-            console.log("✅ Initial message sent to agent");
-          } catch (err) {
-            console.error("❌ Error triggering agent:", err);
-            setError("Failed to start interview. Please refresh the page.");
-          }
-        }, 500);
       }
 
       setIsLoading(false);
@@ -224,104 +147,20 @@ export default function Interview() {
     }
   };
 
-  const refreshSessionData = async () => {
+  const handleCategoryTransition = useCallback(async (type) => {
     try {
-      const [sessionData, responses] = await Promise.all([
-        base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Response.filter({ session_id: sessionId })
-      ]);
-      setSession(sessionData);
-      setAnsweredCount(responses.length);
-      
-      if (allCategories.length > 0 && allQuestions.length > 0) {
-        updateCategoryProgressOptimized(responses);
-      }
-    } catch (err) {
-      console.error("Error refreshing session:", err);
-    }
-  };
-
-  const loadAllQuestionsAndCategories = async () => {
-    try {
-      const [categoriesData, questionsData, responsesData] = await Promise.all([
+      const [categoriesData, responsesData] = await Promise.all([
         base44.entities.Category.list('display_order'),
-        base44.entities.Question.filter({ active: true }),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
 
-      setAllCategories(categoriesData);
-      setAllQuestions(questionsData);
-
-      updateCategoryProgress(categoriesData, questionsData, responsesData);
-    } catch (err) {
-      console.error("Error loading questions and categories:", err);
-    }
-  };
-
-  const updateCategoryProgressOptimized = (responses) => {
-    const categoryProgress = allCategories.map(cat => {
-      const categoryQuestions = allQuestions.filter(q => q.category === cat.category_label);
-      const answeredInCategory = responses.filter(r => 
-        categoryQuestions.some(q => q.question_id === r.question_id)
-      );
-
-      return {
-        ...cat,
-        total_questions: categoryQuestions.length,
-        answered_questions: answeredInCategory.length
-      };
-    });
-
-    setCategories(categoryProgress);
-  };
-
-  const updateCategoryProgress = async (categoriesData = null, questionsData = null, responsesData = null) => {
-    try {
-      const cats = categoriesData || allCategories;
-      const questions = questionsData || allQuestions;
-      const responses = responsesData || await base44.entities.Response.filter({ session_id: sessionId });
-
-      const categoryProgress = cats.map(cat => {
-        const categoryQuestions = questions.filter(q => q.category === cat.category_label);
-        const answeredInCategory = responses.filter(r => 
-          categoryQuestions.some(q => q.question_id === r.question_id)
-        );
-
-        return {
-          ...cat,
-          total_questions: categoryQuestions.length,
-          answered_questions: answeredInCategory.length
-        };
-      });
-
-      setCategories(categoryProgress);
-    } catch (err) {
-      console.error("Error updating category progress:", err);
-    }
-  };
-
-  const handleCategoryTransition = async (type) => {
-    console.log("🔄 handleCategoryTransition called with type:", type);
-    
-    try {
-      // Force a fresh fetch of all data
-      const [categoriesData, questionsData, responsesData] = await Promise.all([
-        base44.entities.Category.list('display_order'),
-        base44.entities.Question.filter({ active: true }),
-        base44.entities.Response.filter({ session_id: sessionId })
-      ]);
-
-      console.log("📊 Responses fetched:", responsesData.length);
-      console.log("📋 Categories fetched:", categoriesData.length);
-      console.log("❓ Questions fetched:", questionsData.length);
+      const questionsData = await base44.entities.Question.filter({ active: true });
 
       const categoryProgress = categoriesData.map(cat => {
         const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
         const answeredInCategory = responsesData.filter(r => 
           categoryQuestions.some(q => q.question_id === r.question_id)
         );
-
-        console.log(`📦 ${cat.category_label}: ${answeredInCategory.length}/${categoryQuestions.length} answered`);
 
         return {
           ...cat,
@@ -334,7 +173,6 @@ export default function Interview() {
       setAnsweredCount(responsesData.length);
 
       if (type === 'initial') {
-        console.log("✅ Setting initial overview state");
         setIsInitialOverview(true);
         setIsCompletionView(false);
         setCurrentCategory(null);
@@ -346,7 +184,6 @@ export default function Interview() {
         setShowCategoryProgress(true);
       } else {
         const category = categoriesData.find(cat => cat.category_id === type);
-        console.log("🎯 Setting current category:", category?.category_label);
         setCurrentCategory(category);
         setIsInitialOverview(false);
         setIsCompletionView(false);
@@ -354,30 +191,10 @@ export default function Interview() {
       }
     } catch (err) {
       console.error("Error refreshing category progress:", err);
-      if (type === 'initial') {
-        setIsInitialOverview(true);
-        setIsCompletionView(false);
-        setCurrentCategory(null);
-        setShowCategoryProgress(true);
-      } else if (type === 'complete') {
-        setIsInitialOverview(false);
-        setIsCompletionView(true);
-        setCurrentCategory(null);
-        setShowCategoryProgress(true);
-      } else {
-        const category = allCategories.find(cat => cat.category_id === type);
-        setCurrentCategory(category);
-        setIsInitialOverview(false);
-        setIsCompletionView(false);
-        setShowCategoryProgress(true);
-      }
     }
-  };
+  }, [sessionId]);
 
   const handleContinueFromProgress = async () => {
-    console.log("▶️ handleContinueFromProgress called");
-    console.log("🔍 isNewSessionRef.current:", isNewSessionRef.current);
-    
     setShowCategoryProgress(false);
     setIsInitialOverview(false);
     setIsCompletionView(false);
@@ -393,9 +210,7 @@ export default function Interview() {
         setIsSending(true);
         isConversationActiveRef.current = true;
         
-        // For brand new sessions, send "Start Q001" to skip welcome and go straight to questions
         if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
-          console.log("🚀 NEW SESSION - Sending 'Start with Q001' to skip welcome");
           hasTriggeredAgentRef.current = true;
           await base44.agents.addMessage(conversation, {
             role: "user",
@@ -403,7 +218,6 @@ export default function Interview() {
           });
           isNewSessionRef.current = false;
         } else {
-          console.log("📤 Sending 'Continue' message to agent");
           await base44.agents.addMessage(conversation, {
             role: "user",
             content: "Continue"
@@ -422,21 +236,18 @@ export default function Interview() {
   };
 
   const handleContinueFromWelcome = async () => {
-    console.log("▶️ User clicked Continue on welcome message");
     setShowContinueButton(false);
-    setShowWelcomeMessage(false); // Hide welcome message after user clicks Continue
+    setShowWelcomeMessage(false);
     
     if (conversation && !isSending && !isConversationActiveRef.current) {
       try {
         setIsSending(true);
         isConversationActiveRef.current = true;
         
-        console.log("📤 Sending 'Continue' to agent");
         await base44.agents.addMessage(conversation, {
           role: "user",
           content: "Continue"
         });
-        console.log("✅ Continue sent successfully");
       } catch (err) {
         console.error("❌ Error sending continue:", err);
         setError("Failed to continue. Please try again.");
@@ -490,8 +301,6 @@ export default function Interview() {
         role: "user",
         content: `I want to change my previous answer to: ${newAnswer}`
       });
-      
-      await refreshSessionData();
     } catch (err) {
       console.error("Error editing response:", err);
       setError("Failed to update answer. Please try again.");
@@ -520,16 +329,11 @@ export default function Interview() {
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  };
-
   useEffect(() => {
-    // Only scroll when messages actually change
     if (messages.length > 0) {
-      scrollToBottom();
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [messages.length]); // Changed dependency to messages.length instead of messages
+  }, [messages.length]);
 
   useEffect(() => {
     return () => {
@@ -538,17 +342,6 @@ export default function Interview() {
       }
     };
   }, []);
-
-  const getCurrentCategoryProgress = () => {
-    if (!session?.current_category || categories.length === 0) return 0;
-    const currentCat = categories.find(cat => cat.category_label === session.current_category);
-    if (!currentCat || currentCat.total_questions === 0) return 0;
-    return Math.round((currentCat.answered_questions / currentCat.total_questions) * 100);
-  };
-
-  const getOverallProgress = () => {
-    return Math.round((answeredCount / 162) * 100);
-  };
 
   if (isLoading) {
     return (
@@ -562,9 +355,6 @@ export default function Interview() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <p className="text-xs text-slate-500 mt-4">
-            If this takes more than 30 seconds, please refresh the page
-          </p>
         </div>
       </div>
     );
@@ -587,7 +377,6 @@ export default function Interview() {
   }
 
   if (showCategoryProgress) {
-    console.log("📊 Rendering CategoryProgress component");
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <CategoryProgress
@@ -601,7 +390,6 @@ export default function Interview() {
     );
   }
 
-  console.log("💬 Rendering main interview UI");
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
       {/* Header */}
@@ -637,14 +425,13 @@ export default function Interview() {
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
               <p className="text-slate-400">Waiting for AI interviewer to start...</p>
-              <p className="text-xs text-slate-500">This should only take a few seconds</p>
             </div>
           ) : (
             messages
               .filter(message => message.content && message.content.trim() !== '')
               .map((message, index) => (
                 <MessageBubble 
-                  key={index} 
+                  key={`${message.role}-${index}-${message.content?.substring(0, 20)}`}
                   message={message} 
                   onEditResponse={handleEditResponse}
                   showWelcome={showWelcomeMessage}
