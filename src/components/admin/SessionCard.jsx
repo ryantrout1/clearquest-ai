@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,17 +45,33 @@ export default function SessionCard({ session }) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Fetch actual response and follow-up counts for this session
+  const { data: responses = [] } = useQuery({
+    queryKey: ['session-responses', session.id],
+    queryFn: () => base44.entities.Response.filter({ session_id: session.id }),
+    staleTime: 5000
+  });
+
+  const { data: followups = [] } = useQuery({
+    queryKey: ['session-followups', session.id],
+    queryFn: () => base44.entities.FollowUpResponse.filter({ session_id: session.id }),
+    staleTime: 5000
+  });
+
+  // Calculate actual progress from responses
+  const answeredCount = responses.length;
+  const completionPercentage = Math.round((answeredCount / 162) * 100);
+  const followupsCount = followups.length;
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
       // Delete all responses associated with this session
-      const responses = await base44.entities.Response.filter({ session_id: session.id });
       for (const response of responses) {
         await base44.entities.Response.delete(response.id);
       }
 
       // Delete all follow-up responses
-      const followups = await base44.entities.FollowUpResponse.filter({ session_id: session.id });
       for (const followup of followups) {
         await base44.entities.FollowUpResponse.delete(followup.id);
       }
@@ -129,19 +145,19 @@ export default function SessionCard({ session }) {
             <div>
               <p className="text-xs text-slate-500">Progress</p>
               <p className="text-sm md:text-base font-semibold text-blue-400">
-                {session.completion_percentage || 0}%
+                {completionPercentage}%
               </p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Questions</p>
               <p className="text-sm md:text-base font-semibold text-white">
-                {session.total_questions_answered || 0}
+                {answeredCount}
               </p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Follow-ups</p>
               <p className="text-sm md:text-base font-semibold text-white">
-                {session.followups_triggered || 0}
+                {followupsCount}
               </p>
             </div>
             <div>
