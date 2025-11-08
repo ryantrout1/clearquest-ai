@@ -96,7 +96,7 @@ export default function InterviewDashboard() {
             </Button>
           </Link>
           
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white flex items-center gap-2 md:gap-3 break-words">
                 <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
