@@ -38,22 +38,19 @@ export default function MessageBubble({ message, onEditResponse }) {
         return null;
     }
     
-    // CRITICAL: Hide messages that contain markers completely (they're handled by CategoryProgress component)
+    // Hide category transition and completion messages (these are full-screen)
     if (message.content) {
-        if (message.content.includes('[SHOW_CATEGORY_OVERVIEW')) {
-            return null; // Don't show welcome message at all - we handle overview separately
-        }
         if (message.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-            return null; // Don't show transition messages - we handle them separately
+            return null; // Don't show transition messages - we handle them with full-screen component
         }
         if (message.content.includes('[SHOW_COMPLETION]')) {
-            return null; // Don't show completion message - we handle it separately
+            return null; // Don't show completion message - we handle it with full-screen component
         }
     }
     
-    // Clean content - remove any remaining markers (backup)
+    // Clean content - remove ALL markers
     let cleanContent = message.content || '';
-    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW.*?\]/g, '');
+    cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_OVERVIEW.*?\]/g, ''); // Remove overview marker
     cleanContent = cleanContent.replace(/\[SHOW_CATEGORY_TRANSITION:.*?\]/g, '');
     cleanContent = cleanContent.replace(/\[SHOW_COMPLETION\]/g, '');
     cleanContent = cleanContent.trim();
