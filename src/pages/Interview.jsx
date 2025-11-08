@@ -46,6 +46,7 @@ export default function Interview() {
   // NEW: Track if we've already shown the initial overview to prevent re-triggering
   const hasShownInitialOverviewRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false); // NEW: Track if we've triggered agent
+  const isNewSessionRef = useRef(false); // NEW: Track if this is a brand new session
 
   useEffect(() => {
     if (!sessionId) {
@@ -195,31 +196,16 @@ export default function Interview() {
       );
 
       // CRITICAL FIX: If this is a brand new session (0 responses, empty conversation)
-      // Show the category overview IMMEDIATELY without waiting for agent
+      // Show the category overview IMMEDIATELY and DON'T trigger agent yet
       if (responses.length === 0 && existingMessages.length === 0) {
         console.log("🎯 NEW SESSION DETECTED - showing overview immediately");
+        console.log("⏸️ Agent will be triggered when user clicks 'Begin Interview'");
+        isNewSessionRef.current = true; // Mark as new session
         hasShownInitialOverviewRef.current = true;
         setIsInitialOverview(true);
         setShowCategoryProgress(true);
         setIsLoading(false);
-        
-        // Trigger agent in background - it will be ready when user clicks "Begin Interview"
-        if (!hasTriggeredAgentRef.current) {
-          hasTriggeredAgentRef.current = true;
-          setTimeout(async () => {
-            try {
-              console.log("🚀 Triggering agent in background");
-              await base44.agents.addMessage(conversationData, {
-                role: "user",
-                content: "Ready to begin"
-              });
-              console.log("✅ Agent triggered successfully");
-            } catch (err) {
-              console.error("❌ Error triggering agent:", err);
-            }
-          }, 1000);
-        }
-        return; // Exit early - don't set isLoading false again
+        return; // Exit early - agent will be triggered by user action
       }
 
       // For existing sessions, check if we need to show overview
@@ -231,8 +217,8 @@ export default function Interview() {
           handleCategoryTransition('initial');
         }
       } else if (!hasTriggeredAgentRef.current) {
-        // Conversation exists but is empty - trigger agent
-        console.log("🚀 Conversation empty - triggering agent");
+        // Conversation exists but is empty - this is a resumed session, trigger agent
+        console.log("🚀 Empty conversation on resumed session - triggering agent");
         hasTriggeredAgentRef.current = true;
         setTimeout(async () => {
           try {
@@ -401,6 +387,8 @@ export default function Interview() {
 
   const handleContinueFromProgress = async () => {
     console.log("▶️ handleContinueFromProgress called");
+    console.log("🔍 isNewSessionRef.current:", isNewSessionRef.current);
+    
     setShowCategoryProgress(false);
     setIsInitialOverview(false);
     setIsCompletionView(false);
@@ -415,13 +403,26 @@ export default function Interview() {
       try {
         setIsSending(true);
         isConversationActiveRef.current = true;
-        console.log("📤 Sending Continue message to agent");
-        await base44.agents.addMessage(conversation, {
-          role: "user",
-          content: "Continue"
-        });
+        
+        // CRITICAL: For brand new sessions, send "Ready to begin" to start the agent
+        // For existing sessions, send "Continue" to proceed
+        if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
+          console.log("🚀 NEW SESSION - Sending 'Ready to begin' to start agent");
+          hasTriggeredAgentRef.current = true;
+          await base44.agents.addMessage(conversation, {
+            role: "user",
+            content: "Ready to begin"
+          });
+          isNewSessionRef.current = false; // Clear the flag
+        } else {
+          console.log("📤 Sending 'Continue' message to agent");
+          await base44.agents.addMessage(conversation, {
+            role: "user",
+            content: "Continue"
+          });
+        }
       } catch (err) {
-        console.error("Error sending continue message:", err);
+        console.error("❌ Error sending message:", err);
         setError("Failed to continue interview");
       } finally {
         setIsSending(false);
