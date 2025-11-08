@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +41,7 @@ const riskConfig = {
 };
 
 export default function SessionCard({ session }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -66,28 +67,43 @@ export default function SessionCard({ session }) {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
+      console.log("🗑️ Deleting session:", session.id);
+      
       // Delete all responses associated with this session
+      console.log("Deleting", responses.length, "responses");
       for (const response of responses) {
         await base44.entities.Response.delete(response.id);
       }
 
       // Delete all follow-up responses
+      console.log("Deleting", followups.length, "follow-ups");
       for (const followup of followups) {
         await base44.entities.FollowUpResponse.delete(followup.id);
       }
 
       // Delete the session itself
+      console.log("Deleting session record");
       await base44.entities.InterviewSession.delete(session.id);
 
+      console.log("✅ Session deleted successfully");
+      
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['session-responses', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['session-followups', session.id] });
+      
       toast.success("Session deleted successfully");
       setIsDeleteDialogOpen(false);
     } catch (err) {
-      console.error("Error deleting session:", err);
-      toast.error("Failed to delete session");
+      console.error("❌ Error deleting session:", err);
+      toast.error(`Failed to delete session: ${err.message}`);
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleViewDetails = () => {
+    navigate(createPageUrl(`SessionDetails?id=${session.id}`));
   };
 
   return (
@@ -122,15 +138,16 @@ export default function SessionCard({ session }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to={createPageUrl(`SessionDetails?id=${session.id}`)} className="flex items-center">
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
-                    </Link>
+                  <DropdownMenuItem
+                    onClick={handleViewDetails}
+                    className="cursor-pointer text-blue-400 hover:text-blue-300 hover:bg-slate-700 focus:text-blue-300 focus:bg-slate-700"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Details
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setIsDeleteDialogOpen(true)}
-                    className="cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-950/20"
+                    className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-950/20 focus:text-red-300 focus:bg-red-950/20"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete
@@ -182,17 +199,20 @@ export default function SessionCard({ session }) {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete Interview Session?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
-              This will permanently delete session <span className="font-semibold text-white">{session.session_code}</span> and all associated responses. This action cannot be undone.
+              This will permanently delete session <span className="font-semibold text-white break-all">{session.session_code}</span> and all {responses.length} responses plus {followups.length} follow-ups. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600">
+            <AlertDialogCancel 
+              disabled={isDeleting}
+              className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600"
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
