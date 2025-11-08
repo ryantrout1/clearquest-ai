@@ -47,6 +47,7 @@ export default function Interview() {
   const hasShownInitialOverviewRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false); // NEW: Track if we've triggered agent
   const isNewSessionRef = useRef(false); // NEW: Track if this is a brand new session
+  const hasSentContinueAfterWelcomeRef = useRef(false); // NEW: Track if we've sent Continue after welcome
 
   useEffect(() => {
     if (!sessionId) {
@@ -57,19 +58,41 @@ export default function Interview() {
   }, [sessionId]);
 
   useEffect(() => {
-    // CRITICAL: Check for markers IMMEDIATELY when messages update
+    // CRITICAL: Check for markers and auto-continue IMMEDIATELY when messages update
     if (messages.length > 0) {
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
       
       if (lastAssistantMessage?.content) {
         console.log("📨 Last assistant message:", lastAssistantMessage.content.substring(0, 100));
         
-        // PRIORITY 1: Check for markers BEFORE anything else
+        // PRIORITY 1: Check for welcome message with overview marker
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          if (!hasShownInitialOverviewRef.current && !showCategoryProgress) {
-            console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] - triggering overview NOW");
+          // We already showed the overview, so just send Continue to get Q001
+          if (!hasSentContinueAfterWelcomeRef.current && !showCategoryProgress) {
+            console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] in message - auto-sending Continue to get Q001");
+            hasSentContinueAfterWelcomeRef.current = true;
             hasShownInitialOverviewRef.current = true;
-            handleCategoryTransition('initial');
+            
+            // Send Continue automatically after a brief delay
+            setTimeout(async () => {
+              if (conversation && !isConversationActiveRef.current) {
+                try {
+                  console.log("📤 Auto-sending Continue to trigger Q001");
+                  isConversationActiveRef.current = true;
+                  await base44.agents.addMessage(conversation, {
+                    role: "user",
+                    content: "Continue"
+                  });
+                  console.log("✅ Continue sent successfully");
+                } catch (err) {
+                  console.error("❌ Error sending auto-continue:", err);
+                } finally {
+                  setTimeout(() => {
+                    isConversationActiveRef.current = false;
+                  }, 500);
+                }
+              }
+            }, 1000);
             return;
           }
         }
@@ -94,7 +117,7 @@ export default function Interview() {
         }
       }
     }
-  }, [messages, showCategoryProgress]);
+  }, [messages, showCategoryProgress, conversation]);
 
   useEffect(() => {
     // This useEffect handles UI state (quick buttons, etc.) - runs AFTER marker detection
@@ -404,8 +427,7 @@ export default function Interview() {
         setIsSending(true);
         isConversationActiveRef.current = true;
         
-        // CRITICAL: For brand new sessions, send "Ready to begin" to start the agent
-        // For existing sessions, send "Continue" to proceed
+        // For brand new sessions, send "Ready to begin" to start the agent
         if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
           console.log("🚀 NEW SESSION - Sending 'Ready to begin' to start agent");
           hasTriggeredAgentRef.current = true;
@@ -413,7 +435,7 @@ export default function Interview() {
             role: "user",
             content: "Ready to begin"
           });
-          isNewSessionRef.current = false; // Clear the flag
+          isNewSessionRef.current = false;
         } else {
           console.log("📤 Sending 'Continue' message to agent");
           await base44.agents.addMessage(conversation, {
@@ -589,13 +611,18 @@ export default function Interview() {
   console.log("💬 Rendering main interview UI");
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-      {/* Header - Fixed at top */}
+      {/* Header - REMOVED progress display */}
       <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
-              <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
+              <div>
+                <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
+                <p className="text-xs md:text-sm text-slate-400 mt-0.5">
+                  {session?.current_category || 'Applications with Other LE Agencies'}
+                </p>
+              </div>
             </div>
             <Button
               variant="outline"
@@ -606,46 +633,6 @@ export default function Interview() {
               <Pause className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
               Pause
             </Button>
-          </div>
-          
-          {/* Category Name */}
-          <div className="mb-2">
-            <p className="text-xs md:text-sm text-slate-400">
-              {session?.current_category || 'Applications with Other LE Agencies'}
-            </p>
-          </div>
-          
-          {/* Category Progress */}
-          <div className="space-y-1">
-            <div className="text-xs md:text-sm text-yellow-400 font-medium">
-              {(() => {
-                const currentCat = categories.find(cat => cat.category_label === session?.current_category);
-                if (currentCat) {
-                  const answered = currentCat.answered_questions || 0;
-                  const total = currentCat.total_questions || 1;
-                  const percent = Math.round((answered / total) * 100);
-                  return `${answered} / ${total} questions • ${percent}% Complete`;
-                }
-                // Fallback to overall if no current category
-                return `${answeredCount} / 162 questions • ${getOverallProgress()}% Complete`;
-              })()}
-            </div>
-            <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-green-500 transition-all duration-500 ease-out"
-                style={{ 
-                  width: `${(() => {
-                    const currentCat = categories.find(cat => cat.category_label === session?.current_category);
-                    if (currentCat) {
-                      const answered = currentCat.answered_questions || 0;
-                      const total = currentCat.total_questions || 1;
-                      return Math.round((answered / total) * 100);
-                    }
-                    return getOverallProgress();
-                  })()}%` 
-                }}
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -684,7 +671,6 @@ export default function Interview() {
             </Alert>
           )}
           
-          {/* Quick Response Buttons OR Text Input - Not Both */}
           {showQuickButtons && !isSending ? (
             <div className="flex flex-wrap gap-3">
               <Button
