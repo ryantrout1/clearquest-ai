@@ -298,137 +298,73 @@ function StepCard({ number, title, description, link, onClick }) {
 function SessionDialog({ open, onOpenChange }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-3xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-2xl max-h-[90vh] p-0">
+        <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-bold flex items-center gap-3">
             <Shield className="w-6 h-6 text-blue-400" />
-            Starting a Session
+            How to Start a Session
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2">
-            Simple, anonymous, and CJIS-compliant. Two fields. 30 seconds to begin.
+            Two simple fields. Anonymous and secure. Takes 30 seconds.
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
-          <div className="space-y-6 py-6">
-            {/* Session Form Preview */}
-            <div className="bg-slate-800/50 border-2 border-blue-500/30 rounded-lg p-6">
-              <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-                <Lock className="w-5 h-5 text-blue-400" />
-                What You Need
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-white text-sm">Department Code</Label>
-                  <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300">
-                    e.g., PD-2024, SD-2025, METRO-001
-                  </div>
-                  <p className="text-xs text-slate-400">Your department's identifying code</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-white text-sm">File Number</Label>
-                  <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300">
-                    e.g., A-12345, APP-2024-789, FILE-456
-                  </div>
-                  <p className="text-xs text-slate-400">Applicant case or file number</p>
-                </div>
+        <div className="px-6 pb-6 space-y-6">
+          {/* Simple Form Preview */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-white font-medium">1. Department Code</Label>
+              <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300 font-mono">
+                PD-2024
               </div>
-
-              <div className="mt-4 bg-blue-950/30 border border-blue-800/50 rounded-lg p-3">
-                <p className="text-sm text-blue-200">
-                  <strong>Result:</strong> Creates session code "PD-2024-A-12345"
-                </p>
-              </div>
+              <p className="text-xs text-slate-400">Your department's unique identifier</p>
             </div>
 
-            {/* Privacy Features */}
-            <div className="space-y-3">
-              <h3 className="font-semibold text-white">Why It's Secure</h3>
-              
-              <div className="grid md:grid-cols-2 gap-3">
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Lock className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-white text-sm mb-1">Fully Anonymous</h4>
-                      <p className="text-xs text-slate-300">No names, birthdates, or identifying info collected. Only department code + file number.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Shield className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-white text-sm mb-1">CJIS Compliant</h4>
-                      <p className="text-xs text-slate-300">256-bit AES encryption. Meets FBI CJIS Security Policy requirements.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-white text-sm mb-1">Automatic Retention</h4>
-                      <p className="text-xs text-slate-300">Configurable data retention (7-365 days). Auto-deletion after period.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <FileText className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-white text-sm mb-1">Audit Trail</h4>
-                      <p className="text-xs text-slate-300">Every session SHA-256 hashed with timestamps for integrity verification.</p>
-                    </div>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label className="text-white font-medium">2. File Number</Label>
+              <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300 font-mono">
+                A-12345
               </div>
+              <p className="text-xs text-slate-400">The applicant's case/file number</p>
             </div>
 
-            {/* What Happens Next */}
-            <div className="bg-gradient-to-br from-blue-950/30 to-purple-950/30 border border-blue-800/50 rounded-lg p-5">
-              <h3 className="font-semibold text-white mb-3">After You Start</h3>
-              <div className="space-y-2 text-sm text-slate-300">
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 font-bold">1.</span>
-                  <span>Session created instantly and applicant begins interview</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 font-bold">2.</span>
-                  <span>AI asks questions one at a time conversationally</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 font-bold">3.</span>
-                  <span>Applicant can pause and resume anytime</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 font-bold">4.</span>
-                  <span>Investigator can monitor progress in real-time</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-400 font-bold">5.</span>
-                  <span>Complete report generated at interview completion</span>
-                </div>
+            <div className="pt-3 border-t border-slate-700">
+              <div className="flex items-center gap-2 text-sm">
+                <ChevronRight className="w-4 h-4 text-blue-400" />
+                <span className="text-slate-300">Creates session: <span className="font-mono text-blue-400">PD-2024-A-12345</span></span>
               </div>
             </div>
           </div>
-        </ScrollArea>
 
-        <div className="p-6 pt-0 border-t border-slate-700 mt-4">
-          <p className="text-xs text-slate-400 text-center mb-4">
-            <strong>Investigator Note:</strong> Session setup takes 30 seconds. Applicant immediately begins interview with no additional configuration.
-          </p>
+          {/* Key Points */}
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-3">
+              <Lock className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-white">Fully Anonymous</p>
+                <p className="text-xs text-slate-400">No personal info required</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-3">
+              <Clock className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-white">Instant Start</p>
+                <p className="text-xs text-slate-400">Interview begins immediately</p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
           <Link to={createPageUrl("StartInterview")} className="block">
             <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12">
               <Shield className="w-5 h-5 mr-2" />
               Start a Session Now
             </Button>
           </Link>
+
+          <p className="text-xs text-center text-slate-500">
+            Session setup takes ~30 seconds. Applicant immediately begins the interview.
+          </p>
         </div>
       </DialogContent>
     </Dialog>
