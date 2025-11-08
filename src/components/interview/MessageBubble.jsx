@@ -33,8 +33,12 @@ const removeQuestionPrefix = (content) => {
 const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) => {
     const isUser = message.role === 'user';
     
-    // Hide initial "Ready to begin" and "Continue" messages
-    if (isUser && (message.content === "Ready to begin" || message.content === "Continue")) {
+    // Hide system command messages
+    if (isUser && (
+        message.content === "Ready to begin" || 
+        message.content === "Continue" ||
+        message.content === "Start with Q001"
+    )) {
         return null;
     }
     
