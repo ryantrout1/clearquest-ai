@@ -160,8 +160,6 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
       className="relative h-64 cursor-pointer group"
       style={{ perspective: "1000px" }}
       onClick={() => setIsFlipped(!isFlipped)}
-      onMouseEnter={() => setIsFlipped(true)}
-      onMouseLeave={() => setIsFlipped(false)}
     >
       <div
         className={`relative w-full h-full transition-transform duration-500 ease-in-out`}
@@ -183,7 +181,10 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
             <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
             <h3 className="text-xl font-semibold text-white">{title}</h3>
             <p className="text-slate-300 text-sm leading-relaxed flex-1">{description}</p>
-            <p className="text-xs text-slate-400 italic md:hidden">Tap for more</p>
+            <div className="flex items-center gap-1 text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+              <span>More</span>
+              <span className="transform group-hover:translate-x-1 transition-transform">→</span>
+            </div>
           </div>
         </div>
 
@@ -196,10 +197,14 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
             transform: "rotateY(180deg)"
           }}
         >
-          <div className="relative space-y-4 flex flex-col h-full justify-center">
+          <div className="relative space-y-4 flex flex-col h-full">
             <div className={`${colorClasses[color].split(' ')[3]} mb-2`}>{icon}</div>
             <h3 className="text-xl font-semibold text-white">{title}</h3>
-            <p className="text-slate-300 text-sm leading-relaxed">{detailedDescription}</p>
+            <p className="text-slate-300 text-sm leading-relaxed flex-1">{detailedDescription}</p>
+            <div className="flex items-center gap-1 text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+              <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
+              <span>Back</span>
+            </div>
           </div>
         </div>
       </div>
