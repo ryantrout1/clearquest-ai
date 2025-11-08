@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from "@/components/ui/button";
 import { Copy, Edit2 } from 'lucide-react';
@@ -30,7 +30,7 @@ const removeQuestionPrefix = (content) => {
     return content.replace(/^Q\d{1,3}:\s*/i, '');
 };
 
-export default function MessageBubble({ message, onEditResponse, showWelcome = false }) {
+const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) => {
     const isUser = message.role === 'user';
     
     // Hide initial "Ready to begin" and "Continue" messages
@@ -124,7 +124,7 @@ export default function MessageBubble({ message, onEditResponse, showWelcome = f
                                         },
                                         a: ({ children, ...props }) => (
                                             <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200">{children}</a>
-                                        ),
+                        ),
                                         p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
                                         ul: ({ children }) => <ul className="my-1 ml-4 list-disc">{children}</ul>,
                                         ol: ({ children }) => <ol className="my-1 ml-4 list-decimal">{children}</ol>,
@@ -181,4 +181,12 @@ export default function MessageBubble({ message, onEditResponse, showWelcome = f
             </div>
         </div>
     );
-}
+}, (prevProps, nextProps) => {
+    // Custom comparison function - only re-render if content actually changed
+    return prevProps.message.content === nextProps.message.content &&
+           prevProps.showWelcome === nextProps.showWelcome;
+});
+
+MessageBubble.displayName = 'MessageBubble';
+
+export default MessageBubble;
