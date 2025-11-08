@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -49,9 +50,6 @@ export default function Interview() {
     }
     loadSession();
   }, [sessionId]);
-
-  // OPTIMIZED: Removed polling - subscription handles updates
-  // Only refresh on specific triggers, not on a timer
 
   useEffect(() => {
     // Check if we should show quick response buttons or category transitions
@@ -374,6 +372,29 @@ export default function Interview() {
     }
   };
 
+  const handleEditResponse = async (message, newAnswer) => {
+    if (!conversation || isSending) return;
+    
+    setIsSending(true);
+    setError(null);
+    
+    try {
+      // Send the new answer as a correction
+      await base44.agents.addMessage(conversation, {
+        role: "user",
+        content: `I want to change my previous answer to: ${newAnswer}`
+      });
+      
+      // Refresh session data
+      await refreshSessionData();
+    } catch (err) {
+      console.error("Error editing response:", err);
+      setError("Failed to update answer. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleQuickResponse = (response) => {
     handleSend(response);
   };
@@ -549,7 +570,11 @@ export default function Interview() {
             messages
               .filter(message => message.content && message.content.trim() !== '')
               .map((message, index) => (
-                <MessageBubble key={index} message={message} />
+                <MessageBubble 
+                  key={index} 
+                  message={message} 
+                  onEditResponse={handleEditResponse}
+                />
               ))
           )}
           <div ref={messagesEndRef} />

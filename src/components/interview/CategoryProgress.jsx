@@ -19,6 +19,9 @@ export default function CategoryProgress({
   // Determine if this is a returning candidate (has any answers)
   const isReturning = totalCompleted > 0;
 
+  // Determine if this is a category transition (not initial, not complete)
+  const isCategoryTransition = !isInitial && !isComplete;
+
   // Define the 12 sections with their names
   const sections = [
     "Applications with Other LE Agencies",
@@ -39,11 +42,13 @@ export default function CategoryProgress({
   const sectionData = sections.map(sectionName => {
     const category = categories.find(cat => cat.category_label === sectionName);
     const isCompleted = category ? 
-      (category.answered_questions === category.total_questions && category.total_questions > 0) : 
+      (category.answered_questions >= category.total_questions && category.total_questions > 0) : 
       false;
     return {
       name: sectionName,
-      completed: isCompleted
+      completed: isCompleted,
+      answered: category?.answered_questions || 0,
+      total: category?.total_questions || 0
     };
   });
 
@@ -100,7 +105,11 @@ export default function CategoryProgress({
           
           <div>
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-              Interview Overview
+              {isCategoryTransition ? (
+                <>Section Complete</>
+              ) : (
+                <>Interview Overview</>
+              )}
             </h2>
             <p className="text-slate-300">
               12 sections • 162 total questions
@@ -140,7 +149,13 @@ export default function CategoryProgress({
             size="lg"
             className="bg-blue-600 hover:bg-blue-700 text-white w-full"
           >
-            {isReturning ? "Continue Interview" : "Begin Interview"}
+            {isCategoryTransition ? (
+              <>Continue to Next Section</>
+            ) : isReturning ? (
+              <>Continue Interview</>
+            ) : (
+              <>Begin Interview</>
+            )}
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
           
