@@ -393,13 +393,13 @@ export default function Interview() {
         setIsSending(true);
         isConversationActiveRef.current = true;
         
-        // For brand new sessions, send "Ready to begin" to start the agent
+        // For brand new sessions, send "Start Q001" to skip welcome and go straight to questions
         if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
-          console.log("🚀 NEW SESSION - Sending 'Ready to begin' to start agent");
+          console.log("🚀 NEW SESSION - Sending 'Start with Q001' to skip welcome");
           hasTriggeredAgentRef.current = true;
           await base44.agents.addMessage(conversation, {
             role: "user",
-            content: "Ready to begin"
+            content: "Start with Q001"
           });
           isNewSessionRef.current = false;
         } else {
