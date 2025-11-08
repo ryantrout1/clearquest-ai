@@ -214,6 +214,16 @@ export default function HomeHub() {
 
         {/* Footer Actions */}
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
+          <Link to={createPageUrl("Home")} className="w-full sm:w-auto">
+            <Button
+              variant="outline"
+              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Public Home
+            </Button>
+          </Link>
+          
           <Button
             variant="outline"
             className="w-full sm:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
