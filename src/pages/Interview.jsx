@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -24,6 +25,7 @@ export default function Interview() {
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
   const [showContinueButton, setShowContinueButton] = useState(false);
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true); // NEW: Track if welcome should be visible
   const [initStatus, setInitStatus] = useState("Loading session...");
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -67,6 +69,7 @@ export default function Interview() {
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
           console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] - showing Continue button");
           setShowContinueButton(true);
+          setShowWelcomeMessage(true); // Show welcome while button is visible
           setShowQuickButtons(false);
           return;
         }
@@ -399,6 +402,7 @@ export default function Interview() {
   const handleContinueFromWelcome = async () => {
     console.log("▶️ User clicked Continue on welcome message");
     setShowContinueButton(false);
+    setShowWelcomeMessage(false); // Hide welcome message after user clicks Continue
     
     if (conversation && !isSending && !isConversationActiveRef.current) {
       try {
@@ -618,6 +622,7 @@ export default function Interview() {
                   key={index} 
                   message={message} 
                   onEditResponse={handleEditResponse}
+                  showWelcome={showWelcomeMessage}
                 />
               ))
           )}
