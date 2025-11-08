@@ -41,6 +41,7 @@ export default function Interview() {
   const hasTriggeredAgentRef = useRef(false);
   const isNewSessionRef = useRef(false);
   const lastMessageUpdateRef = useRef(0);
+  const placeholderShownRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -105,7 +106,13 @@ export default function Interview() {
       ]);
       
       setSession(sessionData);
-      setFirstQuestion(q001Data);
+      
+      if (q001Data) {
+        setFirstQuestion(q001Data);
+        console.log("✅ Loaded Q001:", q001Data.question_text);
+      } else {
+        console.error("❌ Q001 not found in database");
+      }
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
@@ -121,7 +128,10 @@ export default function Interview() {
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          setMessages(newMessages);
+          // Don't overwrite placeholder if agent hasn't responded yet
+          if (!placeholderShownRef.current || newMessages.length > 1) {
+            setMessages(newMessages);
+          }
         }
       );
 
@@ -212,14 +222,40 @@ export default function Interview() {
 
     // For new sessions, show Q001 immediately from cache
     if (isNewSessionRef.current && firstQuestion && !hasTriggeredAgentRef.current) {
-      // Add placeholder Q001 message immediately for instant feedback
+      console.log("🚀 Showing Q001 immediately:", firstQuestion.question_text);
+      
+      // Add Q001 message immediately
       const placeholderMessage = {
         role: 'assistant',
         content: `Q001: ${firstQuestion.question_text}`,
-        tool_calls: []
+        tool_calls: [],
+        created_at: new Date().toISOString()
       };
+      
+      placeholderShownRef.current = true;
       setMessages([placeholderMessage]);
       setShowQuickButtons(true);
+      
+      // Send to agent in background (non-blocking)
+      if (conversation) {
+        hasTriggeredAgentRef.current = true;
+        isNewSessionRef.current = false;
+        
+        // Small delay to ensure UI updates first
+        setTimeout(() => {
+          base44.agents.addMessage(conversation, {
+            role: "user",
+            content: "Start with Q001"
+          }).then(() => {
+            placeholderShownRef.current = false;
+          }).catch(err => {
+            console.error("❌ Error sending to agent:", err);
+            setError("Failed to start interview");
+            placeholderShownRef.current = false;
+          });
+        }, 100);
+      }
+      return;
     }
 
     if (conversation) {
@@ -227,24 +263,10 @@ export default function Interview() {
         setIsSending(true);
         isConversationActiveRef.current = true;
         
-        if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
-          hasTriggeredAgentRef.current = true;
-          // Send message to agent in background (agent will replace placeholder)
-          base44.agents.addMessage(conversation, {
-            role: "user",
-            content: "Start with Q001"
-          }).finally(() => {
-            setIsSending(false);
-            isConversationActiveRef.current = false;
-          });
-          isNewSessionRef.current = false;
-          return; // Don't wait - we already showed Q001
-        } else {
-          await base44.agents.addMessage(conversation, {
-            role: "user",
-            content: "Continue"
-          });
-        }
+        await base44.agents.addMessage(conversation, {
+          role: "user",
+          content: "Continue"
+        });
       } catch (err) {
         console.error("❌ Error sending message:", err);
         setError("Failed to continue interview");
