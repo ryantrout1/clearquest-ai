@@ -14,7 +14,7 @@ export default function CategoryProgress({
 }) {
   const [showAll, setShowAll] = React.useState(isInitial);
   
-  const totalQuestions = categories.reduce((sum, cat) => sum + (cat.total_questions || 0), 0);
+  const totalQuestions = 162; // Fixed total questions
   const answeredQuestions = categories.reduce((sum, cat) => sum + (cat.answered_questions || 0), 0);
   const overallProgress = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
 
