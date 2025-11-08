@@ -44,6 +44,7 @@ export default function Interview() {
   const unsubscribeRef = useRef(null);
   const isConversationActiveRef = useRef(false);
   const lastRefreshRef = useRef(0);
+  const lastMessageCountRef = useRef(0); // NEW: Track message count to prevent unnecessary updates
   
   const hasShownInitialOverviewRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false);
@@ -140,6 +141,7 @@ export default function Interview() {
       console.log("📨 Loaded conversation with", existingMessages.length, "messages");
       
       setMessages(existingMessages);
+      lastMessageCountRef.current = existingMessages.length; // Track initial count
 
       setInitStatus("Loading questions and categories...");
       await loadAllQuestionsAndCategories();
@@ -152,11 +154,23 @@ export default function Interview() {
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
-          console.log("📨 Subscription update - messages count:", data.messages?.length);
-          setMessages(data.messages || []);
-          scrollToBottom();
+          const newMessages = data.messages || [];
+          
+          // Only update if message count actually changed
+          if (newMessages.length !== lastMessageCountRef.current) {
+            console.log("📨 New message detected:", newMessages.length, "total");
+            lastMessageCountRef.current = newMessages.length;
+            setMessages(newMessages);
+            
+            // Smooth scroll to bottom
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            }, 100);
+          }
+          
+          // Throttle session refresh to avoid excessive updates
           const now = Date.now();
-          if (now - lastRefreshRef.current > 2000) {
+          if (now - lastRefreshRef.current > 3000) { // Increased from 2s to 3s
             lastRefreshRef.current = now;
             refreshSessionData();
           }
@@ -507,12 +521,15 @@ export default function Interview() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Only scroll when messages actually change
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages.length]); // Changed dependency to messages.length instead of messages
 
   useEffect(() => {
     return () => {
