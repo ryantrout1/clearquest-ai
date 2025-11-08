@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -146,12 +145,9 @@ export default function Interview() {
         }
       );
 
-      // If no messages, show initial overview
-      if (!conversationData.messages || conversationData.messages.length === 0) {
-        setInitStatus("Preparing interview overview...");
-        setIsInitialOverview(true);
-        setShowCategoryProgress(true);
-      }
+      // REMOVED: Don't automatically show category overview
+      // Let the agent send its welcome message with [SHOW_CATEGORY_OVERVIEW] marker
+      // which will be detected by the useEffect above
 
       setIsLoading(false);
     } catch (err) {
@@ -161,7 +157,6 @@ export default function Interview() {
     }
   };
 
-  // OPTIMIZED: Lighter refresh without heavy recalculations
   const refreshSessionData = async () => {
     try {
       const [sessionData, responses] = await Promise.all([
@@ -563,7 +558,7 @@ export default function Interview() {
           {messages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
-              <p className="text-slate-400">Waiting for AI interviewer to respond...</p>
+              <p className="text-slate-400">Waiting for AI interviewer to start...</p>
               <p className="text-xs text-slate-500">This should only take a few seconds</p>
             </div>
           ) : (
