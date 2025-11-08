@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -252,25 +253,68 @@ export default function Interview() {
   };
 
   const handleCategoryTransition = async (type) => {
-    // Refresh progress with fresh response data
-    await updateCategoryProgress();
+    // CRITICAL: Refresh progress with fresh response data BEFORE showing transition
+    try {
+      const [categoriesData, questionsData, responsesData] = await Promise.all([
+        base44.entities.Category.list('display_order'),
+        base44.entities.Question.filter({ active: true }),
+        base44.entities.Response.filter({ session_id: sessionId })
+      ]);
 
-    if (type === 'initial') {
-      setIsInitialOverview(true);
-      setIsCompletionView(false);
-      setCurrentCategory(null);
-      setShowCategoryProgress(true);
-    } else if (type === 'complete') {
-      setIsInitialOverview(false);
-      setIsCompletionView(true);
-      setCurrentCategory(null);
-      setShowCategoryProgress(true);
-    } else {
-      const category = allCategories.find(cat => cat.category_id === type);
-      setCurrentCategory(category);
-      setIsInitialOverview(false);
-      setIsCompletionView(false);
-      setShowCategoryProgress(true);
+      // Calculate fresh progress
+      const categoryProgress = categoriesData.map(cat => {
+        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
+        const answeredInCategory = responsesData.filter(r => 
+          categoryQuestions.some(q => q.question_id === r.question_id)
+        );
+
+        return {
+          ...cat,
+          total_questions: categoryQuestions.length,
+          answered_questions: answeredInCategory.length
+        };
+      });
+
+      setCategories(categoryProgress);
+      setAnsweredCount(responsesData.length);
+
+      if (type === 'initial') {
+        setIsInitialOverview(true);
+        setIsCompletionView(false);
+        setCurrentCategory(null);
+        setShowCategoryProgress(true);
+      } else if (type === 'complete') {
+        setIsInitialOverview(false);
+        setIsCompletionView(true);
+        setCurrentCategory(null);
+        setShowCategoryProgress(true);
+      } else {
+        const category = categoriesData.find(cat => cat.category_id === type);
+        setCurrentCategory(category);
+        setIsInitialOverview(false);
+        setIsCompletionView(false);
+        setShowCategoryProgress(true);
+      }
+    } catch (err) {
+      console.error("Error refreshing category progress:", err);
+      // Still show transition even if refresh fails - use existing 'allCategories' as fallback for lookup
+      if (type === 'initial') {
+        setIsInitialOverview(true);
+        setIsCompletionView(false);
+        setCurrentCategory(null);
+        setShowCategoryProgress(true);
+      } else if (type === 'complete') {
+        setIsInitialOverview(false);
+        setIsCompletionView(true);
+        setCurrentCategory(null);
+        setShowCategoryProgress(true);
+      } else {
+        const category = allCategories.find(cat => cat.category_id === type); // Fallback to allCategories
+        setCurrentCategory(category);
+        setIsInitialOverview(false);
+        setIsCompletionView(false);
+        setShowCategoryProgress(true);
+      }
     }
   };
 
