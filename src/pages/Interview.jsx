@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -41,6 +42,9 @@ export default function Interview() {
   const unsubscribeRef = useRef(null);
   const isConversationActiveRef = useRef(false);
   const lastRefreshRef = useRef(0);
+  
+  // NEW: Track if we've already shown the initial overview to prevent re-triggering
+  const hasShownInitialOverviewRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -51,6 +55,12 @@ export default function Interview() {
   }, [sessionId]);
 
   useEffect(() => {
+    // CRITICAL: Don't process messages if category progress is already showing
+    if (showCategoryProgress) {
+      console.log("Category progress already showing, skipping message processing");
+      return;
+    }
+    
     // Check if we should show quick response buttons or category transitions
     if (messages.length > 0) {
       // Find the last ASSISTANT message (not user message)
@@ -59,17 +69,24 @@ export default function Interview() {
       if (lastAssistantMessage && lastAssistantMessage.content) {
         // Check for category transition triggers - MUST check before other logic
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          handleCategoryTransition('initial');
+          // Only show initial overview once
+          if (!hasShownInitialOverviewRef.current) {
+            console.log("Detected [SHOW_CATEGORY_OVERVIEW], showing initial overview");
+            hasShownInitialOverviewRef.current = true;
+            handleCategoryTransition('initial');
+          }
           return;
         }
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
           const match = lastAssistantMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
           if (match) {
+            console.log("Detected category transition:", match[1]);
             handleCategoryTransition(match[1]);
           }
           return;
         }
         if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
+          console.log("Detected completion marker");
           handleCategoryTransition('complete');
           return;
         }
@@ -105,7 +122,7 @@ export default function Interview() {
         setShowQuickButtons(false);
       }
     }
-  }, [messages, allCategories]);
+  }, [messages, allCategories, showCategoryProgress]);
 
   const loadSession = async () => {
     try {
@@ -120,7 +137,10 @@ export default function Interview() {
       setInitStatus("Loading conversation...");
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
-      setMessages(conversationData.messages || []);
+      
+      // Check if conversation has existing messages
+      const existingMessages = conversationData.messages || [];
+      setMessages(existingMessages);
 
       // Load categories and questions ONCE - cache them
       setInitStatus("Loading questions and categories...");
@@ -134,6 +154,7 @@ export default function Interview() {
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
+          console.log("Subscription update - messages count:", data.messages?.length);
           setMessages(data.messages || []);
           scrollToBottom();
           // OPTIMIZED: Throttle refreshes - only every 2 seconds
@@ -144,10 +165,6 @@ export default function Interview() {
           }
         }
       );
-
-      // REMOVED: Don't automatically show category overview
-      // Let the agent send its welcome message with [SHOW_CATEGORY_OVERVIEW] marker
-      // which will be detected by the useEffect above
 
       setIsLoading(false);
     } catch (err) {
@@ -239,6 +256,8 @@ export default function Interview() {
   };
 
   const handleCategoryTransition = async (type) => {
+    console.log("handleCategoryTransition called with type:", type);
+    
     // CRITICAL: Refresh progress with fresh response data BEFORE showing transition
     try {
       const [categoriesData, questionsData, responsesData] = await Promise.all([
@@ -265,6 +284,7 @@ export default function Interview() {
       setAnsweredCount(responsesData.length);
 
       if (type === 'initial') {
+        console.log("Setting initial overview state");
         setIsInitialOverview(true);
         setIsCompletionView(false);
         setCurrentCategory(null);
@@ -305,6 +325,7 @@ export default function Interview() {
   };
 
   const handleContinueFromProgress = async () => {
+    console.log("handleContinueFromProgress called");
     setShowCategoryProgress(false);
     setIsInitialOverview(false);
     setIsCompletionView(false);
@@ -319,6 +340,7 @@ export default function Interview() {
       try {
         setIsSending(true);
         isConversationActiveRef.current = true;
+        console.log("Sending Continue message to agent");
         await base44.agents.addMessage(conversation, {
           role: "user",
           content: "Continue"
@@ -476,6 +498,7 @@ export default function Interview() {
   }
 
   if (showCategoryProgress) {
+    console.log("Rendering CategoryProgress component");
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <CategoryProgress
@@ -489,6 +512,7 @@ export default function Interview() {
     );
   }
 
+  console.log("Rendering main interview UI");
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
       {/* Header - Fixed at top */}
