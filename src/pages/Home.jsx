@@ -38,7 +38,7 @@ export default function Home() {
             
             <div className="space-y-4">
               <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight">
-                ClearQuest AI
+                ClearQuest
               </h1>
               <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
                 CJIS-Compliant Background Interview System for Law Enforcement Applicant Screening
@@ -82,14 +82,14 @@ export default function Home() {
             icon={<Lock className="w-8 h-8" />}
             title="CJIS-Compliant Security"
             description="256-bit AES encryption, 7-day auto-retention options, and anonymous sessions for total data integrity."
-            detailedDescription="ClearQuest AI meets full CJIS standards with encrypted data storage, secure access controls, and automatic data retention to protect investigator integrity."
+            detailedDescription="ClearQuest meets full CJIS standards with encrypted data storage, secure access controls, and automatic data retention to protect investigator integrity."
             color="blue"
           />
           <FeatureCard
             icon={<MessageSquare className="w-8 h-8" />}
             title="Built for Investigators"
-            description="You're the expert — ClearQuest AI handles the structure so you can focus on professional judgment and accuracy."
-            detailedDescription="Designed around real investigator workflows — you stay in control while ClearQuest AI handles structure, documentation, and follow-up precision."
+            description="You're the expert — ClearQuest handles the structure so you can focus on professional judgment and accuracy."
+            detailedDescription="Designed around real investigator workflows — you stay in control while ClearQuest handles structure, documentation, and follow-up precision."
             color="purple"
           />
           <FeatureCard
@@ -174,7 +174,7 @@ export default function Home() {
       <div className="border-t border-slate-700/50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-slate-400 text-sm">
-            © 2025 ClearQuest AI™ • CJIS Compliant • All Rights Reserved
+            © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
           </p>
         </div>
       </div>
@@ -677,7 +677,7 @@ function FollowupsDialog({ open, onOpenChange }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+          <DialogTitle className="2xl font-bold flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-orange-400" />
             Automated Follow-Up Packs
           </DialogTitle>
@@ -714,7 +714,7 @@ function FollowupsDialog({ open, onOpenChange }) {
 
         <div className="p-6 pt-0 border-t border-slate-700 mt-4">
           <p className="text-xs text-slate-400 text-center">
-            <strong>Investigator Note:</strong> ClearQuest AI handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
+            <strong>Investigator Note:</strong> ClearQuest handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
           </p>
         </div>
       </DialogContent>
