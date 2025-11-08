@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -7,14 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export default function HomeHub() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [rememberChoice, setRememberChoice] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -38,13 +35,6 @@ export default function HomeHub() {
           };
           console.log("Mock user created:", mockUser);
           setUser(mockUser);
-          
-          // Check for remembered preference
-          const remembered = localStorage.getItem('clearquest_home_preference');
-          if (remembered) {
-            navigate(createPageUrl(remembered));
-          }
-          
           setIsLoading(false);
           return; // Exit function after handling mock admin
         } catch (err) {
@@ -64,13 +54,6 @@ export default function HomeHub() {
         setDepartment(dept);
       }
 
-      // Check for remembered preference
-      // Only apply if not a SUPER_ADMIN, as SUPER_ADMINs always see the hub first
-      const remembered = localStorage.getItem('clearquest_home_preference');
-      if (remembered && currentUser.role !== 'SUPER_ADMIN') {
-        navigate(createPageUrl(remembered));
-      }
-
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading user:", err);
@@ -81,9 +64,6 @@ export default function HomeHub() {
 
   const handleNavigate = (destination) => {
     console.log("Navigating to:", destination);
-    if (rememberChoice) {
-      localStorage.setItem('clearquest_home_preference', destination);
-    }
     navigate(createPageUrl(destination));
   };
 
@@ -134,83 +114,74 @@ export default function HomeHub() {
           </div>
         </div>
 
-        {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-          {isSuperAdmin && (
-            <div
-              onClick={() => handleNavigate("SystemAdminDashboard")}
-              className="cursor-pointer group"
-            >
-              <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-3 md:p-4 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                      <Settings className="w-8 h-8 md:w-10 md:h-10 text-blue-400" />
+        {/* Action Cards - Only 2 Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-12 max-w-3xl mx-auto">
+          {isSuperAdmin ? (
+            <>
+              {/* Super Admin: System Admin Card */}
+              <div
+                onClick={() => handleNavigate("SystemAdminDashboard")}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                        <Settings className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
+                      </div>
                     </div>
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white mb-2">System Admin</h2>
-                  <p className="text-sm md:text-base text-slate-400">
-                    Manage all departments and system settings
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
+                    <p className="text-base md:text-lg text-slate-400">
+                      Manage all departments and system settings
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Department User/Admin: Department Card */}
+              <div
+                onClick={() => handleNavigate(`DepartmentDashboard?id=${user?.department_id}`)}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                        <Building2 className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
+                      </div>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">My Department</h2>
+                    <p className="text-base md:text-lg text-slate-400">
+                      Department settings and information
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
           )}
 
-          {user?.department_id && (
-            <div
-              onClick={() => handleNavigate(`DepartmentDashboard?id=${user.department_id}`)}
-              className="cursor-pointer group"
-            >
-              <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-3 md:p-4 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                      <Building2 className="w-8 h-8 md:w-10 md:h-10 text-purple-400" />
-                    </div>
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white mb-2">My Department</h2>
-                  <p className="text-sm md:text-base text-slate-400">
-                    Department settings and information
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+          {/* Interviews Card - For Everyone */}
           <div
             onClick={() => handleNavigate("InterviewDashboard")}
             className="cursor-pointer group"
           >
             <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-green-500/50 transition-all h-full">
-              <CardContent className="p-6 md:p-8 text-center">
-                <div className="flex justify-center mb-4">
-                  <div className="p-3 md:p-4 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
-                    <Shield className="w-8 h-8 md:w-10 md:h-10 text-green-400" />
+              <CardContent className="p-8 md:p-10 text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="p-5 md:p-6 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                    <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-400" />
                   </div>
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Interviews</h2>
-                <p className="text-sm md:text-base text-slate-400">
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Interviews</h2>
+                <p className="text-base md:text-lg text-slate-400">
                   Monitor and manage interview sessions
                 </p>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        {/* Remember Choice */}
-        {!isSuperAdmin && (
-          <div className="flex items-center justify-center gap-2 mb-6 md:mb-8 px-4">
-            <Checkbox 
-              id="remember" 
-              checked={rememberChoice}
-              onCheckedChange={setRememberChoice}
-            />
-            <label htmlFor="remember" className="text-xs md:text-sm text-slate-400 cursor-pointer">
-              Remember my choice and skip this page
-            </label>
-          </div>
-        )}
 
         {/* Footer Actions */}
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
