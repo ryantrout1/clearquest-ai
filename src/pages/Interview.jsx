@@ -150,8 +150,8 @@ export default function Interview() {
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
-          // Mark that we got an update - refresh session data after a delay
-          setTimeout(() => refreshSessionData(), 1500);
+          // OPTIMIZED: Refresh session data immediately when messages update
+          refreshSessionData();
         }
       );
 
@@ -366,17 +366,17 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // OPTIMIZED: Refresh after agent processes (reduced delay)
-      setTimeout(() => {
-        refreshSessionData();
-        isConversationActiveRef.current = false;
-      }, 2000); // Reduced from 2500ms
+      // REMOVED: The delayed refresh - now handled by subscription callback
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
       isConversationActiveRef.current = false;
     } finally {
       setIsSending(false);
+      // Reset conversation active state after a short delay
+      setTimeout(() => {
+        isConversationActiveRef.current = false;
+      }, 1000);
     }
   };
 
