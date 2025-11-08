@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Shield, Send, Loader2, Pause, AlertCircle, Check, X } from "lucide-react";
+import { Shield, Send, Loader2, Pause, AlertCircle, Check, X, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MessageBubble from "../components/interview/MessageBubble";
 import CategoryProgress from "../components/interview/CategoryProgress";
@@ -24,6 +23,7 @@ export default function Interview() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   const [initStatus, setInitStatus] = useState("Loading session...");
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -43,11 +43,9 @@ export default function Interview() {
   const isConversationActiveRef = useRef(false);
   const lastRefreshRef = useRef(0);
   
-  // NEW: Track if we've already shown the initial overview to prevent re-triggering
   const hasShownInitialOverviewRef = useRef(false);
-  const hasTriggeredAgentRef = useRef(false); // NEW: Track if we've triggered agent
-  const isNewSessionRef = useRef(false); // NEW: Track if this is a brand new session
-  const hasSentContinueAfterWelcomeRef = useRef(false); // NEW: Track if we've sent Continue after welcome
+  const hasTriggeredAgentRef = useRef(false);
+  const isNewSessionRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -58,43 +56,19 @@ export default function Interview() {
   }, [sessionId]);
 
   useEffect(() => {
-    // CRITICAL: Check for markers and auto-continue IMMEDIATELY when messages update
+    // CRITICAL: Check for markers and handle them
     if (messages.length > 0) {
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
       
       if (lastAssistantMessage?.content) {
         console.log("📨 Last assistant message:", lastAssistantMessage.content.substring(0, 100));
         
-        // PRIORITY 1: Check for welcome message with overview marker
+        // Check for welcome message with overview marker - show Continue button
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          // We already showed the overview, so just send Continue to get Q001
-          if (!hasSentContinueAfterWelcomeRef.current && !showCategoryProgress) {
-            console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] in message - auto-sending Continue to get Q001");
-            hasSentContinueAfterWelcomeRef.current = true;
-            hasShownInitialOverviewRef.current = true;
-            
-            // Send Continue automatically after a brief delay
-            setTimeout(async () => {
-              if (conversation && !isConversationActiveRef.current) {
-                try {
-                  console.log("📤 Auto-sending Continue to trigger Q001");
-                  isConversationActiveRef.current = true;
-                  await base44.agents.addMessage(conversation, {
-                    role: "user",
-                    content: "Continue"
-                  });
-                  console.log("✅ Continue sent successfully");
-                } catch (err) {
-                  console.error("❌ Error sending auto-continue:", err);
-                } finally {
-                  setTimeout(() => {
-                    isConversationActiveRef.current = false;
-                  }, 500);
-                }
-              }
-            }, 1000);
-            return;
-          }
+          console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] - showing Continue button");
+          setShowContinueButton(true);
+          setShowQuickButtons(false);
+          return;
         }
         
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
@@ -117,11 +91,11 @@ export default function Interview() {
         }
       }
     }
-  }, [messages, showCategoryProgress, conversation]);
+  }, [messages, showCategoryProgress]);
 
   useEffect(() => {
     // This useEffect handles UI state (quick buttons, etc.) - runs AFTER marker detection
-    if (showCategoryProgress) {
+    if (showCategoryProgress || showContinueButton) {
       return;
     }
     
@@ -129,24 +103,6 @@ export default function Interview() {
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
       
       if (lastAssistantMessage?.content) {
-        // Also detect category transitions from text patterns (backup detection) - this is less critical than markers
-        const cleanContentTextDetection = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase(); // Remove markers before text detection
-        if (cleanContentTextDetection.includes('moving to the next section') || 
-            cleanContentTextDetection.includes("we're now moving to")) {
-          const categoryMatch = lastAssistantMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
-          if (categoryMatch) {
-            const categoryName = categoryMatch[1].trim().replace(/\.$/, '');
-            const category = allCategories.find(cat => 
-              cat.category_label.toLowerCase() === categoryName.toLowerCase()
-            );
-            if (category) {
-              console.log("🎯 Detected category transition via text pattern:", categoryName);
-              handleCategoryTransition(category.category_id);
-              return; // Stop processing
-            }
-          }
-        }
-
         // Remove any markers from content before checking for yes/no patterns
         const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
 
@@ -161,7 +117,7 @@ export default function Interview() {
         setShowQuickButtons(false);
       }
     }
-  }, [messages, allCategories, showCategoryProgress]);
+  }, [messages, allCategories, showCategoryProgress, showContinueButton]);
 
   const loadSession = async () => {
     try {
@@ -180,21 +136,7 @@ export default function Interview() {
       const existingMessages = conversationData.messages || [];
       console.log("📨 Loaded conversation with", existingMessages.length, "messages");
       
-      setMessages(existingMessages); // This will trigger the useEffects to process messages
-      
-      // Add a console log for debugging if a marker is present in existing messages
-      if (existingMessages.length > 0) {
-        const lastMsg = [...existingMessages].reverse().find(m => m.role === 'assistant');
-        if (lastMsg?.content?.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          console.log("🎯 Found [SHOW_CATEGORY_OVERVIEW] in existing messages - will trigger overview");
-        }
-        if (lastMsg?.content?.includes('[SHOW_CATEGORY_TRANSITION:')) {
-          console.log("🎯 Found [SHOW_CATEGORY_TRANSITION] in existing messages - will trigger transition");
-        }
-        if (lastMsg?.content?.includes('[SHOW_COMPLETION]')) {
-          console.log("🎯 Found [SHOW_COMPLETION] in existing messages - will trigger completion");
-        }
-      }
+      setMessages(existingMessages);
 
       setInitStatus("Loading questions and categories...");
       await loadAllQuestionsAndCategories();
@@ -223,15 +165,15 @@ export default function Interview() {
       if (responses.length === 0 && existingMessages.length === 0) {
         console.log("🎯 NEW SESSION DETECTED - showing overview immediately");
         console.log("⏸️ Agent will be triggered when user clicks 'Begin Interview'");
-        isNewSessionRef.current = true; // Mark as new session
+        isNewSessionRef.current = true;
         hasShownInitialOverviewRef.current = true;
         setIsInitialOverview(true);
         setShowCategoryProgress(true);
         setIsLoading(false);
-        return; // Exit early - agent will be triggered by user action
+        return;
       }
 
-      // For existing sessions, check if we need to show overview
+      // For existing sessions, check if we need to trigger agent
       if (existingMessages.length > 0) {
         const lastMsg = [...existingMessages].reverse().find(m => m.role === 'assistant');
         if (lastMsg?.content?.includes('[SHOW_CATEGORY_OVERVIEW]')) {
@@ -387,7 +329,6 @@ export default function Interview() {
       }
     } catch (err) {
       console.error("Error refreshing category progress:", err);
-      // Still show transition even if refresh fails (using potentially stale data)
       if (type === 'initial') {
         setIsInitialOverview(true);
         setIsCompletionView(false);
@@ -455,6 +396,33 @@ export default function Interview() {
     }
   };
 
+  const handleContinueFromWelcome = async () => {
+    console.log("▶️ User clicked Continue on welcome message");
+    setShowContinueButton(false);
+    
+    if (conversation && !isSending && !isConversationActiveRef.current) {
+      try {
+        setIsSending(true);
+        isConversationActiveRef.current = true;
+        
+        console.log("📤 Sending 'Continue' to agent");
+        await base44.agents.addMessage(conversation, {
+          role: "user",
+          content: "Continue"
+        });
+        console.log("✅ Continue sent successfully");
+      } catch (err) {
+        console.error("❌ Error sending continue:", err);
+        setError("Failed to continue. Please try again.");
+      } finally {
+        setIsSending(false);
+        setTimeout(() => {
+          isConversationActiveRef.current = false;
+        }, 500);
+      }
+    }
+  };
+
   const handleSend = async (messageText = null) => {
     const textToSend = messageText || input.trim();
     if (!textToSend || isSending || !conversation) return;
@@ -465,6 +433,7 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
+    setShowContinueButton(false);
     isConversationActiveRef.current = true;
 
     try {
@@ -472,7 +441,6 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // No delay - subscription handles updates
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
@@ -492,13 +460,11 @@ export default function Interview() {
     setError(null);
     
     try {
-      // Send the new answer as a correction
       await base44.agents.addMessage(conversation, {
         role: "user",
         content: `I want to change my previous answer to: ${newAnswer}`
       });
       
-      // Refresh session data
       await refreshSessionData();
     } catch (err) {
       console.error("Error editing response:", err);
@@ -544,7 +510,6 @@ export default function Interview() {
     };
   }, []);
 
-  // Calculate current category progress
   const getCurrentCategoryProgress = () => {
     if (!session?.current_category || categories.length === 0) return 0;
     const currentCat = categories.find(cat => cat.category_label === session.current_category);
@@ -552,7 +517,6 @@ export default function Interview() {
     return Math.round((currentCat.answered_questions / currentCat.total_questions) * 100);
   };
 
-  // Calculate overall progress from actual answered count
   const getOverallProgress = () => {
     return Math.round((answeredCount / 162) * 100);
   };
@@ -611,7 +575,7 @@ export default function Interview() {
   console.log("💬 Rendering main interview UI");
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-      {/* Header - REMOVED progress display */}
+      {/* Header */}
       <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
@@ -671,7 +635,25 @@ export default function Interview() {
             </Alert>
           )}
           
-          {showQuickButtons && !isSending ? (
+          {showContinueButton ? (
+            <Button
+              onClick={handleContinueFromWelcome}
+              disabled={isSending}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-14 text-lg"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  Continue to Questions
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </>
+              )}
+            </Button>
+          ) : showQuickButtons && !isSending ? (
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => handleQuickResponse("Yes")}
