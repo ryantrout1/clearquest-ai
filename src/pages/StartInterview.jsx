@@ -93,24 +93,8 @@ export default function StartInterview() {
       });
       console.log("Session updated with conversation ID");
 
-      console.log("Step 5: Sending initial message...");
-      // Wait a moment for conversation to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Send initial message to trigger agent
-      try {
-        await base44.agents.addMessage(conversation, {
-          role: "user",
-          content: "Ready to begin"
-        });
-        console.log("Initial message sent successfully");
-      } catch (msgErr) {
-        console.error("Error sending initial message:", msgErr);
-        // Continue anyway - the Interview page will handle waiting for agent
-      }
-
-      console.log("Step 6: Navigating to interview page...");
-      // Navigate to interview
+      // REMOVED: Don't send message here - let Interview page handle it
+      // Navigate to interview immediately
       navigate(createPageUrl(`Interview?session=${session.id}`));
     } catch (err) {
       console.error("Error creating session:", err);

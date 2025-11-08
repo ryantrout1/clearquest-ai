@@ -45,6 +45,7 @@ export default function Interview() {
   
   // NEW: Track if we've already shown the initial overview to prevent re-triggering
   const hasShownInitialOverviewRef = useRef(false);
+  const hasTriggeredAgentRef = useRef(false); // NEW: Track if we've triggered agent
 
   useEffect(() => {
     if (!sessionId) {
@@ -141,6 +142,8 @@ export default function Interview() {
       // Check if conversation has existing messages
       const existingMessages = conversationData.messages || [];
       setMessages(existingMessages);
+      
+      console.log("Loaded conversation with", existingMessages.length, "messages");
 
       // Load categories and questions ONCE - cache them
       setInitStatus("Loading questions and categories...");
@@ -165,6 +168,27 @@ export default function Interview() {
           }
         }
       );
+
+      // CRITICAL NEW LOGIC: If conversation is empty, trigger agent
+      if (existingMessages.length === 0 && !hasTriggeredAgentRef.current) {
+        console.log("Conversation is empty - triggering agent with initial message");
+        hasTriggeredAgentRef.current = true;
+        setInitStatus("Starting AI interviewer...");
+        
+        // Small delay to ensure subscription is fully set up
+        setTimeout(async () => {
+          try {
+            await base44.agents.addMessage(conversationData, {
+              role: "user",
+              content: "Ready to begin"
+            });
+            console.log("Initial message sent to trigger agent");
+          } catch (err) {
+            console.error("Error triggering agent:", err);
+            setError("Failed to start interview. Please refresh the page.");
+          }
+        }, 500);
+      }
 
       setIsLoading(false);
     } catch (err) {
