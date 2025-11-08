@@ -61,7 +61,7 @@ export default function Interview() {
       const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
       
       if (lastAssistantMessage?.content) {
-        console.log("Last assistant message:", lastAssistantMessage.content);
+        console.log("📨 Last assistant message:", lastAssistantMessage.content.substring(0, 100));
         
         // PRIORITY 1: Check for markers BEFORE anything else
         if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
@@ -69,7 +69,7 @@ export default function Interview() {
             console.log("🎯 Detected [SHOW_CATEGORY_OVERVIEW] - triggering overview NOW");
             hasShownInitialOverviewRef.current = true;
             handleCategoryTransition('initial');
-            return; // Stop processing
+            return;
           }
         }
         
@@ -79,7 +79,7 @@ export default function Interview() {
             if (match) {
               console.log("🎯 Detected category transition:", match[1]);
               handleCategoryTransition(match[1]);
-              return; // Stop processing
+              return;
             }
           }
         }
@@ -88,7 +88,7 @@ export default function Interview() {
           if (!showCategoryProgress) {
             console.log("🎯 Detected completion marker");
             handleCategoryTransition('complete');
-            return; // Stop processing
+            return;
           }
         }
       }
@@ -98,7 +98,6 @@ export default function Interview() {
   useEffect(() => {
     // This useEffect handles UI state (quick buttons, etc.) - runs AFTER marker detection
     if (showCategoryProgress) {
-      console.log("Category progress showing, skipping UI state updates");
       return;
     }
     
@@ -107,7 +106,7 @@ export default function Interview() {
       
       if (lastAssistantMessage?.content) {
         // Also detect category transitions from text patterns (backup detection) - this is less critical than markers
-        const cleanContentTextDetection = lastAssistantMessage.content.toLowerCase();
+        const cleanContentTextDetection = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase(); // Remove markers before text detection
         if (cleanContentTextDetection.includes('moving to the next section') || 
             cleanContentTextDetection.includes("we're now moving to")) {
           const categoryMatch = lastAssistantMessage.content.match(/moving to the next section[.\s]*([^\n]+)/i);
@@ -178,6 +177,7 @@ export default function Interview() {
 
       const responses = await base44.entities.Response.filter({ session_id: sessionId });
       setAnsweredCount(responses.length);
+      console.log("📊 Response count:", responses.length);
 
       setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
@@ -194,12 +194,46 @@ export default function Interview() {
         }
       );
 
-      // If conversation is empty, trigger agent
-      if (existingMessages.length === 0 && !hasTriggeredAgentRef.current) {
+      // CRITICAL FIX: If this is a brand new session (0 responses, empty conversation)
+      // Show the category overview IMMEDIATELY without waiting for agent
+      if (responses.length === 0 && existingMessages.length === 0) {
+        console.log("🎯 NEW SESSION DETECTED - showing overview immediately");
+        hasShownInitialOverviewRef.current = true;
+        setIsInitialOverview(true);
+        setShowCategoryProgress(true);
+        setIsLoading(false);
+        
+        // Trigger agent in background - it will be ready when user clicks "Begin Interview"
+        if (!hasTriggeredAgentRef.current) {
+          hasTriggeredAgentRef.current = true;
+          setTimeout(async () => {
+            try {
+              console.log("🚀 Triggering agent in background");
+              await base44.agents.addMessage(conversationData, {
+                role: "user",
+                content: "Ready to begin"
+              });
+              console.log("✅ Agent triggered successfully");
+            } catch (err) {
+              console.error("❌ Error triggering agent:", err);
+            }
+          }, 1000);
+        }
+        return; // Exit early - don't set isLoading false again
+      }
+
+      // For existing sessions, check if we need to show overview
+      if (existingMessages.length > 0) {
+        const lastMsg = [...existingMessages].reverse().find(m => m.role === 'assistant');
+        if (lastMsg?.content?.includes('[SHOW_CATEGORY_OVERVIEW]')) {
+          console.log("🎯 Found [SHOW_CATEGORY_OVERVIEW] in existing messages");
+          hasShownInitialOverviewRef.current = true;
+          handleCategoryTransition('initial');
+        }
+      } else if (!hasTriggeredAgentRef.current) {
+        // Conversation exists but is empty - trigger agent
         console.log("🚀 Conversation empty - triggering agent");
         hasTriggeredAgentRef.current = true;
-        setInitStatus("Starting AI interviewer...");
-        
         setTimeout(async () => {
           try {
             await base44.agents.addMessage(conversationData, {
