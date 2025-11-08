@@ -84,6 +84,12 @@ export default function StartInterview() {
         conversation_id: conversation.id
       });
 
+      // CRITICAL FIX: Send initial message to trigger agent's welcome message
+      await base44.agents.addMessage(conversation, {
+        role: "user",
+        content: "Ready to begin"
+      });
+
       // Navigate to interview
       navigate(createPageUrl(`Interview?session=${session.id}`));
     } catch (err) {
