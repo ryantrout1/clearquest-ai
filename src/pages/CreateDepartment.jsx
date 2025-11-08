@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -45,7 +44,6 @@ export default function CreateDepartment() {
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
-          // Create mock super admin user
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
             first_name: auth.username,
@@ -60,7 +58,6 @@ export default function CreateDepartment() {
         }
       }
 
-      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       if (currentUser.role !== 'SUPER_ADMIN') {
         navigate(createPageUrl("HomeHub"));
@@ -77,10 +74,7 @@ export default function CreateDepartment() {
     setIsSubmitting(true);
 
     try {
-      // Generate department ID
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
-      
-      // Calculate trial end date (30 days from now)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
 
@@ -116,52 +110,52 @@ export default function CreateDepartment() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <Link to={createPageUrl("SystemAdminDashboard")}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white mb-6">
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
         </Link>
 
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
-          <CardHeader>
+          <CardHeader className="p-6 md:p-8">
             <div className="flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-blue-400" />
+              <Building2 className="w-8 h-8 text-blue-400 flex-shrink-0" />
               <div>
-                <CardTitle className="text-2xl text-white">Create New Department</CardTitle>
-                <CardDescription className="text-slate-300">
+                <CardTitle className="text-xl md:text-2xl text-white">Create New Department</CardTitle>
+                <CardDescription className="text-slate-300 text-sm md:text-base">
                   Set up a new department with trial access
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="p-6 md:p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Department Info */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
+                <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Department Information
                 </h3>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="department_name" className="text-white">Department Name *</Label>
+                    <Label htmlFor="department_name" className="text-white text-sm">Department Name *</Label>
                     <Input
                       id="department_name"
                       value={formData.department_name}
                       onChange={(e) => setFormData({...formData, department_name: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="department_type" className="text-white">Department Type *</Label>
+                    <Label htmlFor="department_type" className="text-white text-sm">Department Type *</Label>
                     <Select
                       value={formData.department_type}
                       onValueChange={(value) => setFormData({...formData, department_type: value})}
                     >
-                      <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white">
+                      <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white h-11">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -174,44 +168,44 @@ export default function CreateDepartment() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="jurisdiction" className="text-white">Jurisdiction</Label>
+                    <Label htmlFor="jurisdiction" className="text-white text-sm">Jurisdiction</Label>
                     <Input
                       id="jurisdiction"
                       value={formData.jurisdiction}
                       onChange={(e) => setFormData({...formData, jurisdiction: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone_number" className="text-white">Phone Number</Label>
+                    <Label htmlFor="phone_number" className="text-white text-sm">Phone Number</Label>
                     <Input
                       id="phone_number"
                       type="tel"
                       value={formData.phone_number}
                       onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="department_address" className="text-white">Address</Label>
+                    <Label htmlFor="department_address" className="text-white text-sm">Address</Label>
                     <Input
                       id="department_address"
                       value={formData.department_address}
                       onChange={(e) => setFormData({...formData, department_address: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="website_url" className="text-white">Website</Label>
+                    <Label htmlFor="website_url" className="text-white text-sm">Website</Label>
                     <Input
                       id="website_url"
                       type="url"
                       value={formData.website_url}
                       onChange={(e) => setFormData({...formData, website_url: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
                 </div>
@@ -219,51 +213,51 @@ export default function CreateDepartment() {
 
               {/* Primary Contact */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
+                <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Primary Contact
                 </h3>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="contact_name" className="text-white">Contact Name</Label>
+                    <Label htmlFor="contact_name" className="text-white text-sm">Contact Name</Label>
                     <Input
                       id="contact_name"
                       value={formData.contact_name}
                       onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="contact_title" className="text-white">Title</Label>
+                    <Label htmlFor="contact_title" className="text-white text-sm">Title</Label>
                     <Input
                       id="contact_title"
                       value={formData.contact_title}
                       onChange={(e) => setFormData({...formData, contact_title: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="contact_email" className="text-white">Email *</Label>
+                    <Label htmlFor="contact_email" className="text-white text-sm">Email *</Label>
                     <Input
                       id="contact_email"
                       type="email"
                       value={formData.contact_email}
                       onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="contact_phone" className="text-white">Phone</Label>
+                    <Label htmlFor="contact_phone" className="text-white text-sm">Phone</Label>
                     <Input
                       id="contact_phone"
                       type="tel"
                       value={formData.contact_phone}
                       onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
                 </div>
@@ -271,25 +265,25 @@ export default function CreateDepartment() {
 
               {/* Account Settings */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
+                <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Account Settings
                 </h3>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="seats_allocated" className="text-white">Seats Allocated</Label>
+                    <Label htmlFor="seats_allocated" className="text-white text-sm">Seats Allocated</Label>
                     <Input
                       id="seats_allocated"
                       type="number"
                       min="1"
                       value={formData.seats_allocated}
                       onChange={(e) => setFormData({...formData, seats_allocated: parseInt(e.target.value)})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="retention_period" className="text-white">Retention Period (days)</Label>
+                    <Label htmlFor="retention_period" className="text-white text-sm">Retention Period (days)</Label>
                     <Input
                       id="retention_period"
                       type="number"
@@ -297,23 +291,23 @@ export default function CreateDepartment() {
                       max="365"
                       value={formData.retention_period}
                       onChange={(e) => setFormData({...formData, retention_period: parseInt(e.target.value)})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-                <Link to={createPageUrl("SystemAdminDashboard")}>
-                  <Button type="button" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
+              <div className="flex flex-col md:flex-row justify-end gap-3 pt-4 border-t border-slate-700">
+                <Link to={createPageUrl("SystemAdminDashboard")} className="w-full md:w-auto">
+                  <Button type="button" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white h-11">
                     Cancel
                   </Button>
                 </Link>
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 h-11"
                 >
                   {isSubmitting ? (
                     <>

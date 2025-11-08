@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -53,9 +52,9 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-md mx-auto">
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
@@ -63,20 +62,20 @@ export default function AdminLogin() {
         </div>
 
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
-          <CardHeader className="text-center space-y-4">
+          <CardHeader className="text-center space-y-4 p-6 md:p-8">
             <div className="flex justify-center">
               <div className="relative">
                 <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-30" />
                 <Shield className="relative w-16 h-16 text-blue-400" />
               </div>
             </div>
-            <CardTitle className="text-3xl text-white">Admin Login</CardTitle>
-            <CardDescription className="text-slate-300 text-base">
+            <CardTitle className="text-2xl md:text-3xl text-white">Admin Login</CardTitle>
+            <CardDescription className="text-slate-300 text-sm md:text-base">
               Sign in to access the ClearQuest admin dashboard
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 p-6 md:p-8">
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -86,7 +85,7 @@ export default function AdminLogin() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-white">
+                <Label htmlFor="username" className="text-white text-sm md:text-base">
                   Username
                 </Label>
                 <Input
@@ -95,14 +94,14 @@ export default function AdminLogin() {
                   placeholder="Enter username"
                   value={formData.username}
                   onChange={(e) => setFormData({...formData, username: e.target.value})}
-                  className="bg-slate-900/50 border-slate-600 text-white"
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                   autoComplete="username"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white">
+                <Label htmlFor="password" className="text-white text-sm md:text-base">
                   Password
                 </Label>
                 <Input
@@ -111,7 +110,7 @@ export default function AdminLogin() {
                   placeholder="Enter password"
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="bg-slate-900/50 border-slate-600 text-white"
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                   autoComplete="current-password"
                 />
@@ -120,7 +119,7 @@ export default function AdminLogin() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 md:h-14 text-base md:text-lg"
                 disabled={isLoading}
               >
                 {isLoading ? (

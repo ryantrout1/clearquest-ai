@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ArrowLeft, Loader2, AlertCircle, Lock } from "lucide-react";
+import { Shield, ArrowLeft, Loader2, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 
@@ -84,9 +84,9 @@ export default function StartInterview() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
@@ -94,30 +94,29 @@ export default function StartInterview() {
         </div>
 
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
-          <CardHeader className="text-center space-y-4">
+          <CardHeader className="text-center space-y-4 p-6 md:p-8">
             <div className="flex justify-center">
               <div className="relative">
                 <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-30" />
                 <Shield className="relative w-16 h-16 text-blue-400" />
               </div>
             </div>
-            <CardTitle className="text-3xl text-white">Start New Interview</CardTitle>
-            <CardDescription className="text-slate-300 text-base">
+            <CardTitle className="text-2xl md:text-3xl text-white">Start New Interview</CardTitle>
+            <CardDescription className="text-slate-300 text-sm md:text-base">
               Begin a confidential CJIS-compliant background interview session
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 p-6 md:p-8">
             {error && (
               <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
             <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
               <Lock className="h-4 w-4" />
-              <AlertDescription>
+              <AlertDescription className="text-sm">
                 <strong>Privacy Notice:</strong> This interview is completely anonymous. 
                 No personally identifiable information is collected. Sessions are identified 
                 only by department code and file number. All data is encrypted end-to-end.
@@ -126,7 +125,7 @@ export default function StartInterview() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="departmentCode" className="text-white">
+                <Label htmlFor="departmentCode" className="text-white text-sm md:text-base">
                   Department Code *
                 </Label>
                 <Input
@@ -134,7 +133,7 @@ export default function StartInterview() {
                   placeholder="e.g., PD-2024"
                   value={formData.departmentCode}
                   onChange={(e) => setFormData({...formData, departmentCode: e.target.value.toUpperCase()})}
-                  className="bg-slate-900/50 border-slate-600 text-white"
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                 />
                 <p className="text-sm text-slate-400">
@@ -143,7 +142,7 @@ export default function StartInterview() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fileNumber" className="text-white">
+                <Label htmlFor="fileNumber" className="text-white text-sm md:text-base">
                   File Number *
                 </Label>
                 <Input
@@ -151,7 +150,7 @@ export default function StartInterview() {
                   placeholder="e.g., A-12345"
                   value={formData.fileNumber}
                   onChange={(e) => setFormData({...formData, fileNumber: e.target.value.toUpperCase()})}
-                  className="bg-slate-900/50 border-slate-600 text-white"
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                 />
                 <p className="text-sm text-slate-400">
@@ -159,12 +158,12 @@ export default function StartInterview() {
                 </p>
               </div>
 
-              <div className="bg-slate-900/30 border border-slate-700 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-white flex items-center gap-2">
+              <div className="bg-slate-900/30 border border-slate-700 rounded-lg p-4 md:p-6 space-y-3">
+                <h4 className="font-semibold text-white flex items-center gap-2 text-sm md:text-base">
                   <Shield className="w-4 h-4 text-blue-400" />
                   What to Expect
                 </h4>
-                <ul className="space-y-2 text-sm text-slate-300">
+                <ul className="space-y-2 text-xs md:text-sm text-slate-300">
                   <li>• <strong>162 questions</strong> covering your complete background</li>
                   <li>• Questions are asked <strong>one at a time</strong> conversationally</li>
                   <li>• Some "Yes" answers will trigger <strong>detailed follow-ups</strong></li>
@@ -177,7 +176,7 @@ export default function StartInterview() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 md:h-14 text-base md:text-lg"
                 disabled={isCreating}
               >
                 {isCreating ? (
@@ -193,7 +192,7 @@ export default function StartInterview() {
                 )}
               </Button>
 
-              <p className="text-xs text-center text-slate-400">
+              <p className="text-xs text-center text-slate-400 px-2">
                 By starting this interview, you acknowledge that all responses will be reviewed 
                 by authorized investigators and may be used in background screening decisions.
               </p>
