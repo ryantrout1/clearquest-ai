@@ -25,7 +25,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/7af242d9a_image.png')] bg-cover bg-center opacity-10" />
+        <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/7af242d9f_image.png')] bg-cover bg-center opacity-10" />
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center space-y-8">
@@ -141,7 +141,7 @@ export default function Home() {
         <div className="grid md:grid-cols-4 gap-6">
           <StepCard 
             number="1" 
-            title="Start Session" 
+            title="Initiate Interview" 
             description="Create anonymous session with department code and file number"
             link="See How to Start"
             onClick={() => setSessionDialogOpen(true)}
@@ -302,7 +302,7 @@ function SessionDialog({ open, onOpenChange }) {
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-2xl font-bold flex items-center gap-3">
             <Shield className="w-6 h-6 text-blue-400" />
-            How to Start a Session
+            How to Initiate an Interview
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2">
             Two simple fields. Anonymous and secure. Takes 30 seconds.
@@ -358,7 +358,7 @@ function SessionDialog({ open, onOpenChange }) {
           <Link to={createPageUrl("StartInterview")} className="block">
             <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12">
               <Shield className="w-5 h-5 mr-2" />
-              Start a Session Now
+              Initiate Interview Now
             </Button>
           </Link>
 
