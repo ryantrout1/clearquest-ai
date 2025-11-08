@@ -65,38 +65,38 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-8">
           <FeatureCard
             icon={<Lock className="w-8 h-8" />}
-            title="CJIS Compliant"
-            description="Full encryption (TLS 1.2+, AES-256), anonymous sessions, SHA-256 audit trails, and 7-30 day retention policies."
+            title="CJIS-Compliant Security"
+            description="256-bit AES encryption, 7-day auto-retention options, and anonymous sessions for total data integrity."
             color="blue"
           />
           <FeatureCard
             icon={<MessageSquare className="w-8 h-8" />}
-            title="Conversational AI"
-            description="One question at a time with dynamic follow-up packs. Natural language processing for structured data capture."
+            title="Built for Investigators"
+            description="You're the expert — ClearQuest AI handles the structure so you can focus on professional judgment and accuracy."
             color="purple"
           />
           <FeatureCard
             icon={<FileCheck className="w-8 h-8" />}
-            title="162 Questions"
-            description="Comprehensive question bank covering employment, criminal history, substance use, financial integrity, and more."
+            title="162-Question Master Bank"
+            description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
             color="green"
           />
           <FeatureCard
             icon={<Clock className="w-8 h-8" />}
-            title="Time Efficient"
-            description="Streamlined interview process reduces investigator workload while maintaining thoroughness and accuracy."
+            title="Time-Saving Workflow"
+            description="Streamlined data capture reduces admin tasks while maintaining thoroughness and compliance."
             color="orange"
           />
           <FeatureCard
             icon={<CheckCircle className="w-8 h-8" />}
-            title="Smart Follow-Ups"
-            description="10 standardized follow-up packs with 6-phase playbook: Acknowledge → Facts → Accountability → Pattern → Changes → Summary."
+            title="Automated Follow-Ups"
+            description='Every "Yes" triggers structured follow-up packs so no detail is ever missed.'
             color="indigo"
           />
           <FeatureCard
             icon={<Shield className="w-8 h-8" />}
-            title="Investigator Reports"
-            description="Department-branded PDF reports with summaries, transcripts, risk ratings, and secure hash verification."
+            title="Ready-to-Submit Reports"
+            description="Instant PDF summaries with transcripts, risk notes, and verification sections ready for submission."
             color="red"
           />
         </div>
