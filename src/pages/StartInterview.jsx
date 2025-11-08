@@ -31,8 +31,25 @@ export default function StartInterview() {
     setIsCreating(true);
 
     try {
-      // Create interview session
       const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
+      
+      // Check if a session with this code already exists
+      const existingSessions = await base44.entities.InterviewSession.filter({ 
+        session_code: sessionCode 
+      });
+      
+      // If there's an existing in_progress or paused session, resume it
+      const activeSession = existingSessions.find(s => 
+        s.status === 'in_progress' || s.status === 'paused'
+      );
+      
+      if (activeSession) {
+        // Resume existing session
+        navigate(createPageUrl(`Interview?session=${activeSession.id}`));
+        return;
+      }
+
+      // Create new session
       const sessionHash = await generateHash(sessionCode);
       
       const session = await base44.entities.InterviewSession.create({
@@ -43,6 +60,9 @@ export default function StartInterview() {
         started_date: new Date().toISOString(),
         session_hash: sessionHash,
         red_flags: [],
+        total_questions_answered: 0,
+        completion_percentage: 0,
+        followups_triggered: 0,
         metadata: {
           created_via: "web_interface",
           user_agent: navigator.userAgent
