@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -41,6 +40,7 @@ export default function Interview() {
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const isConversationActiveRef = useRef(false);
+  const lastRefreshRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -50,19 +50,8 @@ export default function Interview() {
     loadSession();
   }, [sessionId]);
 
-  // OPTIMIZED: Only poll when NOT in active conversation (reduces unnecessary DB calls)
-  useEffect(() => {
-    if (!sessionId || isLoading || isSending) return;
-    
-    const pollInterval = setInterval(() => {
-      // Only refresh if user isn't actively conversing
-      if (!isConversationActiveRef.current) {
-        refreshSessionData();
-      }
-    }, 5000); // Increased from 3s to 5s
-
-    return () => clearInterval(pollInterval);
-  }, [sessionId, isLoading, isSending]);
+  // OPTIMIZED: Removed polling - subscription handles updates
+  // Only refresh on specific triggers, not on a timer
 
   useEffect(() => {
     // Check if we should show quick response buttons or category transitions
@@ -150,8 +139,12 @@ export default function Interview() {
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
-          // OPTIMIZED: Refresh session data immediately when messages update
-          refreshSessionData();
+          // OPTIMIZED: Throttle refreshes - only every 2 seconds
+          const now = Date.now();
+          if (now - lastRefreshRef.current > 2000) {
+            lastRefreshRef.current = now;
+            refreshSessionData();
+          }
         }
       );
 
@@ -297,7 +290,7 @@ export default function Interview() {
       }
     } catch (err) {
       console.error("Error refreshing category progress:", err);
-      // Still show transition even if refresh fails - use existing 'allCategories' as fallback for lookup
+      // Still show transition even if refresh fails
       if (type === 'initial') {
         setIsInitialOverview(true);
         setIsCompletionView(false);
@@ -309,7 +302,7 @@ export default function Interview() {
         setCurrentCategory(null);
         setShowCategoryProgress(true);
       } else {
-        const category = allCategories.find(cat => cat.category_id === type); // Fallback to allCategories
+        const category = allCategories.find(cat => cat.category_id === type);
         setCurrentCategory(category);
         setIsInitialOverview(false);
         setIsCompletionView(false);
@@ -342,9 +335,10 @@ export default function Interview() {
         setError("Failed to continue interview");
       } finally {
         setIsSending(false);
+        // OPTIMIZED: Reduced delay from 2s to 500ms
         setTimeout(() => {
           isConversationActiveRef.current = false;
-        }, 2000);
+        }, 500);
       }
     }
   };
@@ -366,17 +360,17 @@ export default function Interview() {
         role: "user",
         content: textToSend
       });
-      // REMOVED: The delayed refresh - now handled by subscription callback
+      // No delay - subscription handles updates
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
       isConversationActiveRef.current = false;
     } finally {
       setIsSending(false);
-      // Reset conversation active state after a short delay
+      // OPTIMIZED: Reduced delay from 1s to 300ms
       setTimeout(() => {
         isConversationActiveRef.current = false;
-      }, 1000);
+      }, 300);
     }
   };
 
