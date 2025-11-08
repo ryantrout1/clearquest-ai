@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -40,6 +39,7 @@ export default function Interview() {
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  const isConversationActiveRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -49,16 +49,19 @@ export default function Interview() {
     loadSession();
   }, [sessionId]);
 
-  // Poll for response updates every 3 seconds
+  // OPTIMIZED: Only poll when NOT in active conversation (reduces unnecessary DB calls)
   useEffect(() => {
-    if (!sessionId || isLoading) return;
+    if (!sessionId || isLoading || isSending) return;
     
     const pollInterval = setInterval(() => {
-      refreshSessionData();
-    }, 3000);
+      // Only refresh if user isn't actively conversing
+      if (!isConversationActiveRef.current) {
+        refreshSessionData();
+      }
+    }, 5000); // Increased from 3s to 5s
 
     return () => clearInterval(pollInterval);
-  }, [sessionId, isLoading]);
+  }, [sessionId, isLoading, isSending]);
 
   useEffect(() => {
     // Check if we should show quick response buttons or category transitions
@@ -146,8 +149,8 @@ export default function Interview() {
         (data) => {
           setMessages(data.messages || []);
           scrollToBottom();
-          // Refresh session data and answered count
-          refreshSessionData();
+          // Mark that we got an update - refresh session data after a delay
+          setTimeout(() => refreshSessionData(), 1500);
         }
       );
 
@@ -166,17 +169,20 @@ export default function Interview() {
     }
   };
 
+  // OPTIMIZED: Lighter refresh without heavy recalculations
   const refreshSessionData = async () => {
     try {
       const [sessionData, responses] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
-      console.log(`Refreshed: ${responses.length} responses found`);
       setSession(sessionData);
       setAnsweredCount(responses.length);
-      // Also refresh category progress when session updates
-      await updateCategoryProgress(null, null, responses);
+      
+      // OPTIMIZED: Only update category progress if we have categories loaded
+      if (allCategories.length > 0 && allQuestions.length > 0) {
+        updateCategoryProgressOptimized(responses);
+      }
     } catch (err) {
       console.error("Error refreshing session:", err);
     }
@@ -199,6 +205,24 @@ export default function Interview() {
     } catch (err) {
       console.error("Error loading questions and categories:", err);
     }
+  };
+
+  // OPTIMIZED: Faster category progress update using cached data
+  const updateCategoryProgressOptimized = (responses) => {
+    const categoryProgress = allCategories.map(cat => {
+      const categoryQuestions = allQuestions.filter(q => q.category === cat.category_label);
+      const answeredInCategory = responses.filter(r => 
+        categoryQuestions.some(q => q.question_id === r.question_id)
+      );
+
+      return {
+        ...cat,
+        total_questions: categoryQuestions.length,
+        answered_questions: answeredInCategory.length
+      };
+    });
+
+    setCategories(categoryProgress);
   };
 
   const updateCategoryProgress = async (categoriesData = null, questionsData = null, responsesData = null) => {
@@ -264,6 +288,7 @@ export default function Interview() {
     if (conversation) {
       try {
         setIsSending(true);
+        isConversationActiveRef.current = true;
         await base44.agents.addMessage(conversation, {
           role: "user",
           content: "Continue"
@@ -273,6 +298,9 @@ export default function Interview() {
         setError("Failed to continue interview");
       } finally {
         setIsSending(false);
+        setTimeout(() => {
+          isConversationActiveRef.current = false;
+        }, 2000);
       }
     }
   };
@@ -287,18 +315,22 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
+    isConversationActiveRef.current = true;
 
     try {
       await base44.agents.addMessage(conversation, {
         role: "user",
         content: textToSend
       });
-      // Refresh session and answered count after agent processes
-      // Increased delay to give agent time to create Response record
-      setTimeout(() => refreshSessionData(), 2500);
+      // OPTIMIZED: Refresh after agent processes (reduced delay)
+      setTimeout(() => {
+        refreshSessionData();
+        isConversationActiveRef.current = false;
+      }, 2000); // Reduced from 2500ms
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
+      isConversationActiveRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -322,10 +354,6 @@ export default function Interview() {
     } catch (err) {
       console.error("Error pausing session:", err);
     }
-  };
-
-  const handleChangeAnswer = () => {
-    handleSend("I want to change my previous answer");
   };
 
   const scrollToBottom = () => {
@@ -544,20 +572,6 @@ export default function Interview() {
                 )}
               </Button>
             </form>
-          )}
-          
-          {/* Change Answer Button */}
-          {messages.length > 2 && !isSending && (
-            <div className="mt-4 flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleChangeAnswer}
-                className="text-slate-400 hover:text-white text-xs"
-              >
-                Need to change your previous answer?
-              </Button>
-            </div>
           )}
           
           <p className="text-xs text-slate-500 mt-3 text-center">
