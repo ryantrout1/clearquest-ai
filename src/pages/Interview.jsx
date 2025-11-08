@@ -290,17 +290,24 @@ export default function Interview() {
     console.log("🔄 handleCategoryTransition called with type:", type);
     
     try {
+      // Force a fresh fetch of all data
       const [categoriesData, questionsData, responsesData] = await Promise.all([
         base44.entities.Category.list('display_order'),
         base44.entities.Question.filter({ active: true }),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
 
+      console.log("📊 Responses fetched:", responsesData.length);
+      console.log("📋 Categories fetched:", categoriesData.length);
+      console.log("❓ Questions fetched:", questionsData.length);
+
       const categoryProgress = categoriesData.map(cat => {
         const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
         const answeredInCategory = responsesData.filter(r => 
           categoryQuestions.some(q => q.question_id === r.question_id)
         );
+
+        console.log(`📦 ${cat.category_label}: ${answeredInCategory.length}/${categoryQuestions.length} answered`);
 
         return {
           ...cat,
@@ -325,6 +332,7 @@ export default function Interview() {
         setShowCategoryProgress(true);
       } else {
         const category = categoriesData.find(cat => cat.category_id === type);
+        console.log("🎯 Setting current category:", category?.category_label);
         setCurrentCategory(category);
         setIsInitialOverview(false);
         setIsCompletionView(false);
