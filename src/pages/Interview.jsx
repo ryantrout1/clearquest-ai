@@ -412,13 +412,10 @@ export default function Interview() {
       {/* Header - Fixed at top */}
       <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
-              <h1 className="text-sm md:text-lg font-semibold text-white truncate">ClearQuest Interview</h1>
-              <p className="text-xs md:text-sm text-slate-400 truncate">
-                {session?.current_category || 'Applications with Other LE Agencies'}
-              </p>
+              <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
             </div>
             <Button
               variant="outline"
@@ -431,14 +428,25 @@ export default function Interview() {
             </Button>
           </div>
           
-          {/* Progress Bar - Show Current Category Progress */}
+          {/* Category Name */}
+          <div className="mb-2">
+            <p className="text-xs md:text-sm text-slate-400">
+              {session?.current_category || 'Applications with Other LE Agencies'}
+            </p>
+          </div>
+          
+          {/* Category Progress */}
           <div className="space-y-1">
             <div className="text-xs md:text-sm text-yellow-400 font-medium">
               {(() => {
                 const currentCat = categories.find(cat => cat.category_label === session?.current_category);
                 if (currentCat) {
-                  return `${currentCat.answered_questions || 0} / ${currentCat.total_questions || 0} questions • ${getCurrentCategoryProgress()}% Complete`;
+                  const answered = currentCat.answered_questions || 0;
+                  const total = currentCat.total_questions || 1;
+                  const percent = Math.round((answered / total) * 100);
+                  return `${answered} / ${total} questions • ${percent}% Complete`;
                 }
+                // Fallback to overall if no current category
                 return `${answeredCount} / 162 questions • ${getOverallProgress()}% Complete`;
               })()}
             </div>
@@ -446,7 +454,15 @@ export default function Interview() {
               <div 
                 className="h-full bg-green-500 transition-all duration-500 ease-out"
                 style={{ 
-                  width: `${session?.current_category ? getCurrentCategoryProgress() : getOverallProgress()}%` 
+                  width: `${(() => {
+                    const currentCat = categories.find(cat => cat.category_label === session?.current_category);
+                    if (currentCat) {
+                      const answered = currentCat.answered_questions || 0;
+                      const total = currentCat.total_questions || 1;
+                      return Math.round((answered / total) * 100);
+                    }
+                    return getOverallProgress();
+                  })()}%` 
                 }}
               />
             </div>
