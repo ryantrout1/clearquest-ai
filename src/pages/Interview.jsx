@@ -32,6 +32,7 @@ export default function Interview() {
   const [isInitialOverview, setIsInitialOverview] = useState(false);
   const [isCompletionView, setIsCompletionView] = useState(false);
   const [answeredCount, setAnsweredCount] = useState(0);
+  const [firstQuestion, setFirstQuestion] = useState(null);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -54,7 +55,7 @@ export default function Interview() {
     if (messages.length === 0) return;
     
     const now = Date.now();
-    if (now - lastMessageUpdateRef.current < 100) return; // Debounce 100ms
+    if (now - lastMessageUpdateRef.current < 100) return;
     lastMessageUpdateRef.current = now;
 
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
@@ -84,7 +85,6 @@ export default function Interview() {
         }
       }
 
-      // Show quick buttons for yes/no questions
       if (!showCategoryProgress && !showContinueButton) {
         const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
         const hasQuestion = content.includes('?');
@@ -97,21 +97,26 @@ export default function Interview() {
   const loadSession = async () => {
     try {
       setInitStatus("Loading session...");
-      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      
+      // Load session, conversation, and first question in parallel
+      const [sessionData, q001Data] = await Promise.all([
+        base44.entities.InterviewSession.get(sessionId),
+        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
+      ]);
+      
       setSession(sessionData);
+      setFirstQuestion(q001Data);
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
       }
 
-      setInitStatus("Loading conversation...");
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
       setMessages(existingMessages);
 
-      setInitStatus("Setting up real-time updates...");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
@@ -205,6 +210,18 @@ export default function Interview() {
       return;
     }
 
+    // For new sessions, show Q001 immediately from cache
+    if (isNewSessionRef.current && firstQuestion && !hasTriggeredAgentRef.current) {
+      // Add placeholder Q001 message immediately for instant feedback
+      const placeholderMessage = {
+        role: 'assistant',
+        content: `Q001: ${firstQuestion.question_text}`,
+        tool_calls: []
+      };
+      setMessages([placeholderMessage]);
+      setShowQuickButtons(true);
+    }
+
     if (conversation) {
       try {
         setIsSending(true);
@@ -212,11 +229,16 @@ export default function Interview() {
         
         if (isNewSessionRef.current && !hasTriggeredAgentRef.current) {
           hasTriggeredAgentRef.current = true;
-          await base44.agents.addMessage(conversation, {
+          // Send message to agent in background (agent will replace placeholder)
+          base44.agents.addMessage(conversation, {
             role: "user",
             content: "Start with Q001"
+          }).finally(() => {
+            setIsSending(false);
+            isConversationActiveRef.current = false;
           });
           isNewSessionRef.current = false;
+          return; // Don't wait - we already showed Q001
         } else {
           await base44.agents.addMessage(conversation, {
             role: "user",
