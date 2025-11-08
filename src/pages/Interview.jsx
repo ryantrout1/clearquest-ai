@@ -42,6 +42,8 @@ export default function Interview() {
   const isNewSessionRef = useRef(false);
   const lastMessageUpdateRef = useRef(0);
   const placeholderShownRef = useRef(false);
+  const messageCountRef = useRef(0);
+  const autoScrollEnabledRef = useRef(true);
 
   useEffect(() => {
     if (!sessionId) {
@@ -50,6 +52,17 @@ export default function Interview() {
     }
     loadSession();
   }, [sessionId]);
+
+  // Smooth scroll only when new messages arrive
+  useEffect(() => {
+    if (messages.length > messageCountRef.current && autoScrollEnabledRef.current) {
+      messageCountRef.current = messages.length;
+      // Smooth scroll with a slight delay for render
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      });
+    }
+  }, [messages.length]);
 
   // Debounced message handling
   useEffect(() => {
@@ -123,14 +136,24 @@ export default function Interview() {
       
       const existingMessages = conversationData.messages || [];
       setMessages(existingMessages);
+      messageCountRef.current = existingMessages.length;
 
+      // Optimized subscription - only update if messages actually changed
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          // Don't overwrite placeholder if agent hasn't responded yet
-          if (!placeholderShownRef.current || newMessages.length > 1) {
+          
+          // Only update if message count changed or content changed
+          if (newMessages.length !== messageCountRef.current) {
             setMessages(newMessages);
+          } else if (!placeholderShownRef.current) {
+            // Only check content if we're not showing placeholder
+            const lastNewMsg = newMessages[newMessages.length - 1];
+            const lastCurrentMsg = messages[messages.length - 1];
+            if (lastNewMsg?.content !== lastCurrentMsg?.content) {
+              setMessages(newMessages);
+            }
           }
         }
       );
@@ -224,8 +247,9 @@ export default function Interview() {
     if (isNewSessionRef.current && firstQuestion && !hasTriggeredAgentRef.current) {
       console.log("🚀 Showing Q001 immediately:", firstQuestion.question_text);
       
-      // Add Q001 message immediately
+      // Add Q001 message immediately with stable ID
       const placeholderMessage = {
+        id: 'q001-placeholder',
         role: 'assistant',
         content: `Q001: ${firstQuestion.question_text}`,
         tool_calls: [],
@@ -234,6 +258,7 @@ export default function Interview() {
       
       placeholderShownRef.current = true;
       setMessages([placeholderMessage]);
+      messageCountRef.current = 1;
       setShowQuickButtons(true);
       
       // Send to agent in background (non-blocking)
@@ -374,12 +399,6 @@ export default function Interview() {
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, [messages.length]);
-
-  useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
@@ -468,14 +487,14 @@ export default function Interview() {
           {messages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
-              <p className="text-slate-400">Waiting for AI interviewer to start...</p>
+              <p className="text-slate-400">Waiting for interviewer to start...</p>
             </div>
           ) : (
             messages
               .filter(message => message.content && message.content.trim() !== '')
               .map((message, index) => (
                 <MessageBubble 
-                  key={`${message.role}-${index}-${message.content?.substring(0, 20)}`}
+                  key={message.id || `${message.role}-${index}-${message.created_at}`}
                   message={message} 
                   onEditResponse={handleEditResponse}
                   showWelcome={showWelcomeMessage}
