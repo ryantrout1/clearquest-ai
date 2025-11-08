@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -173,16 +172,9 @@ export default function InterviewDashboard() {
         {/* Sessions List */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
-            <div className="flex flex-col gap-4">
-              <CardTitle className="text-white text-lg md:text-xl">
-                Interview Sessions ({filteredSessions.length})
-              </CardTitle>
-              <Link to={createPageUrl("StartInterview")} className="w-full md:w-auto">
-                <Button size="sm" className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
-                  New Interview
-                </Button>
-              </Link>
-            </div>
+            <CardTitle className="text-white text-lg md:text-xl">
+              Interview Sessions ({filteredSessions.length})
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4 md:p-6">
             {isLoading ? (
