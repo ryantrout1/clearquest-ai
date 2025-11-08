@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -67,36 +66,42 @@ export default function Home() {
             icon={<Lock className="w-8 h-8" />}
             title="CJIS-Compliant Security"
             description="256-bit AES encryption, 7-day auto-retention options, and anonymous sessions for total data integrity."
+            detailedDescription="ClearQuest AI meets full CJIS standards with encrypted data storage, secure access controls, and automatic data retention to protect investigator integrity."
             color="blue"
           />
           <FeatureCard
             icon={<MessageSquare className="w-8 h-8" />}
             title="Built for Investigators"
             description="You're the expert — ClearQuest AI handles the structure so you can focus on professional judgment and accuracy."
+            detailedDescription="Designed around real investigator workflows — you stay in control while ClearQuest AI handles structure, documentation, and follow-up precision."
             color="purple"
           />
           <FeatureCard
             icon={<FileCheck className="w-8 h-8" />}
             title="162-Question Master Bank"
             description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
+            detailedDescription="Covers every investigative domain from employment to criminal history, ensuring every applicant is evaluated consistently and completely."
             color="green"
           />
           <FeatureCard
             icon={<Clock className="w-8 h-8" />}
             title="Time-Saving Workflow"
             description="Streamlined data capture reduces admin tasks while maintaining thoroughness and compliance."
+            detailedDescription="Automates repetitive interview steps so investigators can focus on analysis and decision-making, not manual data entry."
             color="orange"
           />
           <FeatureCard
             icon={<CheckCircle className="w-8 h-8" />}
             title="Automated Follow-Ups"
             description='Every "Yes" triggers structured follow-up packs so no detail is ever missed.'
+            detailedDescription='Every "Yes" answer launches the correct follow-up pack instantly — guaranteeing no missed detail and standardized documentation.'
             color="indigo"
           />
           <FeatureCard
             icon={<Shield className="w-8 h-8" />}
             title="Ready-to-Submit Reports"
             description="Instant PDF summaries with transcripts, risk notes, and verification sections ready for submission."
+            detailedDescription="One-click generation of full reports with transcripts, notes, and risk summaries formatted for easy departmental submission."
             color="red"
           />
         </div>
@@ -137,7 +142,9 @@ export default function Home() {
   );
 }
 
-function FeatureCard({ icon, title, description, color }) {
+function FeatureCard({ icon, title, description, detailedDescription, color }) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
   const colorClasses = {
     blue: "from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400",
     purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400",
@@ -148,12 +155,50 @@ function FeatureCard({ icon, title, description, color }) {
   };
 
   return (
-    <div className={`relative group bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6 hover:scale-105 transition-transform duration-300`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-      <div className="relative space-y-4">
-        <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
-        <h3 className="text-xl font-semibold text-white">{title}</h3>
-        <p className="text-slate-300 text-sm leading-relaxed">{description}</p>
+    <div 
+      className="relative h-64 cursor-pointer group"
+      style={{ perspective: "1000px" }}
+      onClick={() => setIsFlipped(!isFlipped)}
+    >
+      <div
+        className={`relative w-full h-full transition-transform duration-500 ease-in-out`}
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
+        }}
+      >
+        {/* Front Side */}
+        <div
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6`}
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden"
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+          <div className="relative space-y-4 flex flex-col h-full">
+            <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
+            <h3 className="text-xl font-semibold text-white">{title}</h3>
+            <p className="text-slate-300 text-sm leading-relaxed flex-1">{description}</p>
+            <p className="text-xs text-slate-400 italic">Tap or hover for more</p>
+          </div>
+        </div>
+
+        {/* Back Side */}
+        <div
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6`}
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            transform: "rotateY(180deg)"
+          }}
+        >
+          <div className="relative space-y-4 flex flex-col h-full justify-center">
+            <div className={`${colorClasses[color].split(' ')[3]} mb-2`}>{icon}</div>
+            <h3 className="text-xl font-semibold text-white">{title}</h3>
+            <p className="text-slate-300 text-sm leading-relaxed">{detailedDescription}</p>
+          </div>
+        </div>
       </div>
     </div>
   );
