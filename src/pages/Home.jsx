@@ -289,68 +289,182 @@ function StepCard({ number, title, description, link, onClick }) {
 }
 
 function QuestionsDialog({ open, onOpenChange }) {
+  const [expandedCategory, setExpandedCategory] = useState(null);
+
   const categories = [
     {
       name: "Applications with Other LE Agencies",
       count: "4 questions",
-      questions: ["Q001-Q004: Prior law enforcement applications, outcomes, and reasons for non-hire"]
+      description: "Prior applications, hiring outcomes, and withdrawal reasons",
+      questions: [
+        "Have you ever applied to any other law enforcement agency?",
+        "Were you hired by any of these agencies?",
+        "Have you ever withdrawn from a hiring process?",
+        "Have you been denied employment by any law enforcement agency?"
+      ]
     },
     {
       name: "Driving Record",
       count: "17 questions",
-      questions: ["Q005-Q021: License status, DUIs, suspensions, accidents, violations, and driving habits"]
+      description: "License history, DUIs, suspensions, accidents, and traffic violations",
+      questions: [
+        "Do you have a valid driver's license?",
+        "Has your license ever been suspended or revoked?",
+        "Have you ever been arrested for DUI/DWI?",
+        "Have you been involved in any at-fault accidents?",
+        "Do you have any outstanding traffic warrants?",
+        "Have you received more than 3 traffic citations in the past 3 years?",
+        "Have you ever fled from police during a traffic stop?"
+      ]
     },
     {
       name: "Criminal Involvement / Police Contacts",
       count: "44 questions",
-      questions: ["Q022-Q065: Arrests, charges, convictions, warrants, restraining orders, gang affiliation, weapons violations"]
+      description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations",
+      questions: [
+        "Have you ever been arrested for any reason?",
+        "Have you ever been charged with a crime?",
+        "Have you ever been convicted of a felony?",
+        "Do you have any outstanding warrants?",
+        "Have you ever been subject to a restraining order?",
+        "Have you ever been affiliated with a gang?",
+        "Have you illegally possessed or used a firearm?",
+        "Have you ever been questioned by police regarding criminal activity?",
+        "Have you ever provided false information to law enforcement?",
+        "...and 35 more comprehensive criminal history questions"
+      ]
     },
     {
       name: "Extremist Organizations",
       count: "4 questions",
-      questions: ["Q066-Q069: Membership or affiliation with hate groups, extremist organizations"]
+      description: "Membership or support of hate groups and extremist ideologies",
+      questions: [
+        "Have you ever been a member of any extremist organization?",
+        "Have you attended events or meetings of hate groups?",
+        "Have you financially supported any extremist causes?",
+        "Have you ever promoted extremist ideologies online or in person?"
+      ]
     },
     {
       name: "Sexual Activities",
       count: "18 questions",
-      questions: ["Q070-Q087: Prostitution, pornography, sexual assault, harassment, exploitation"]
+      description: "Prostitution, pornography, harassment, assault, and exploitation",
+      questions: [
+        "Have you ever engaged in prostitution or paid for sexual services?",
+        "Have you ever been involved in the creation or distribution of pornography?",
+        "Have you ever been accused of sexual harassment?",
+        "Have you ever committed sexual assault or misconduct?",
+        "Have you viewed or possessed illegal pornography?",
+        "Have you engaged in sexual activity with a minor?",
+        "...and 12 more questions covering all sexual misconduct areas"
+      ]
     },
     {
       name: "Financial History",
       count: "8 questions",
-      questions: ["Q088-Q095: Bankruptcy, foreclosure, repossession, liens, judgments, debt, gambling"]
+      description: "Bankruptcy, foreclosure, liens, debt, and gambling issues",
+      questions: [
+        "Have you ever filed for bankruptcy?",
+        "Have you had any property foreclosed or repossessed?",
+        "Do you have any outstanding liens or judgments?",
+        "Are you currently in significant debt?",
+        "Have you defaulted on any loans?",
+        "Do you have any unpaid child support?",
+        "Have you engaged in illegal gambling?",
+        "Have you ever written bad checks?"
+      ]
     },
     {
       name: "Illegal Drug / Narcotic History",
       count: "18 questions",
-      questions: ["Q096-Q113: Drug use, sales, manufacturing, prescriptions, including 47-substance checklist"]
+      description: "47-substance checklist covering use, sales, manufacturing, and prescriptions",
+      questions: [
+        "Have you ever used marijuana/cannabis?",
+        "Have you used cocaine or crack cocaine?",
+        "Have you used methamphetamine or amphetamines?",
+        "Have you used heroin or other opioids illegally?",
+        "Have you used hallucinogens (LSD, mushrooms, etc.)?",
+        "Have you sold or distributed illegal drugs?",
+        "Have you manufactured illegal drugs?",
+        "Have you misused prescription medications?",
+        "PLUS: Detailed 47-substance checklist including designer drugs, steroids, inhalants"
+      ]
     },
     {
       name: "Alcohol History",
       count: "3 questions",
-      questions: ["Q114-Q116: Alcohol dependency, treatment, DUIs"]
+      description: "Alcohol dependency, treatment programs, and related incidents",
+      questions: [
+        "Have you ever been dependent on alcohol?",
+        "Have you participated in alcohol treatment or counseling?",
+        "Have you had alcohol-related incidents beyond DUIs?"
+      ]
     },
     {
       name: "Military History",
       count: "8 questions",
-      questions: ["Q117-Q124: Service branch, discharge type, courts-martial, discipline"]
+      description: "Service branch, discharge status, discipline, and courts-martial",
+      questions: [
+        "Have you served in the military?",
+        "What type of discharge did you receive?",
+        "Were you ever court-martialed?",
+        "Did you receive any Article 15s or NJPs?",
+        "Were you denied a security clearance?",
+        "Did you go AWOL or desert?",
+        "Were you discharged for misconduct?",
+        "Have you received military discipline for integrity violations?"
+      ]
     },
     {
       name: "Employment History",
       count: "23 questions",
-      questions: ["Q125-Q147: Terminations, resignations, investigations, misconduct, policy violations"]
+      description: "Terminations, resignations, workplace investigations, and policy violations",
+      questions: [
+        "Have you ever been fired from a job?",
+        "Have you been asked to resign?",
+        "Were you ever investigated by an employer?",
+        "Have you violated company policies?",
+        "Have you been disciplined for misconduct at work?",
+        "Have you stolen from an employer?",
+        "Have you falsified work records or timesheets?",
+        "Have you been involved in workplace harassment?",
+        "...and 15 more employment integrity questions"
+      ]
     },
     {
-      name: "Prior Law Enforcement",
+      name: "Prior Law Enforcement Employment",
       count: "11 questions",
-      questions: ["Q148-Q158: LE employment, complaints, discipline, use of force, integrity violations"]
+      description: "LE work history, complaints, use of force, and integrity violations",
+      questions: [
+        "Have you worked in law enforcement before?",
+        "Have you received citizen complaints?",
+        "Were you ever suspended or disciplined?",
+        "Have you had excessive use of force incidents?",
+        "Were you investigated for integrity violations?",
+        "Have you falsified police reports?",
+        "Did you misuse your position or authority?",
+        "Were you involved in evidence tampering?",
+        "Have you violated department policies?",
+        "Were you terminated or forced to resign from LE?",
+        "Are you currently under investigation?"
+      ]
     },
     {
       name: "General Disclosures & Eligibility",
       count: "4 questions",
-      questions: ["Q159-Q162: Citizenship, tattoos, statements, additional disclosures"]
+      description: "Citizenship, visible tattoos, sworn statements, and final disclosures",
+      questions: [
+        "Are you a U.S. citizen or legal resident?",
+        "Do you have any visible tattoos or body markings?",
+        "Have you made false statements during this application process?",
+        "Is there anything else you'd like to disclose that wasn't covered?"
+      ]
     }
   ];
+
+  const toggleCategory = (index) => {
+    setExpandedCategory(expandedCategory === index ? null : index);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -361,26 +475,52 @@ function QuestionsDialog({ open, onOpenChange }) {
             162-Question Master Bank
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2">
-            Every question, organized by investigative domain. Complete standardization across all applicants.
+            Every question, organized by investigative domain. Click any section to see sample questions.
           </DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
-          <div className="space-y-4 py-6">
+          <div className="space-y-3 py-6">
             {categories.map((category, idx) => (
               <div 
                 key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
+                className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden hover:border-blue-500/50 transition-colors"
               >
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <h3 className="font-semibold text-white text-base">{category.name}</h3>
-                  <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap">
-                    {category.count}
-                  </Badge>
-                </div>
-                <p className="text-sm text-slate-400">
-                  {category.questions[0]}
-                </p>
+                <button
+                  onClick={() => toggleCategory(idx)}
+                  className="w-full p-4 text-left flex items-center justify-between gap-4 hover:bg-slate-800/70 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-white text-base">{category.name}</h3>
+                      <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap text-xs">
+                        {category.count}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      {category.description}
+                    </p>
+                  </div>
+                  <ChevronRight 
+                    className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${
+                      expandedCategory === idx ? 'rotate-90' : ''
+                    }`}
+                  />
+                </button>
+
+                {expandedCategory === idx && (
+                  <div className="px-4 pb-4 border-t border-slate-700/50">
+                    <div className="pt-3 space-y-2">
+                      <p className="text-xs font-semibold text-blue-400 mb-2">Sample Questions:</p>
+                      {category.questions.map((question, qIdx) => (
+                        <div key={qIdx} className="flex items-start gap-2 text-sm">
+                          <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                          <span className="text-slate-300">{question}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -388,7 +528,7 @@ function QuestionsDialog({ open, onOpenChange }) {
 
         <div className="p-6 pt-0 border-t border-slate-700 mt-4">
           <p className="text-xs text-slate-400 text-center">
-            <strong>Investigator Note:</strong> AI asks one question at a time conversationally. Applicants cannot skip ahead or see what's coming.
+            <strong>Investigator Note:</strong> AI asks one question at a time conversationally. Applicants cannot skip ahead or see what's coming. Every answer is recorded with timestamps.
           </p>
         </div>
       </DialogContent>
