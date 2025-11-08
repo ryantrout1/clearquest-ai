@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -33,6 +34,7 @@ export default function StartInterview() {
     try {
       const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
       
+      console.log("Step 1: Checking for existing sessions...");
       // Check if a session with this code already exists
       const existingSessions = await base44.entities.InterviewSession.filter({ 
         session_code: sessionCode 
@@ -44,11 +46,13 @@ export default function StartInterview() {
       );
       
       if (activeSession) {
+        console.log("Found existing session, resuming...");
         // Resume existing session
         navigate(createPageUrl(`Interview?session=${activeSession.id}`));
         return;
       }
 
+      console.log("Step 2: Creating new session...");
       // Create new session
       const sessionHash = await generateHash(sessionCode);
       
@@ -68,7 +72,9 @@ export default function StartInterview() {
           user_agent: navigator.userAgent
         }
       });
+      console.log("Session created:", session.id);
 
+      console.log("Step 3: Creating agent conversation...");
       // Create agent conversation
       const conversation = await base44.agents.createConversation({
         agent_name: "clearquest_interviewer",
@@ -78,23 +84,38 @@ export default function StartInterview() {
           type: "applicant_interview"
         }
       });
+      console.log("Conversation created:", conversation.id);
 
+      console.log("Step 4: Updating session with conversation ID...");
       // Update session with conversation ID
       await base44.entities.InterviewSession.update(session.id, {
         conversation_id: conversation.id
       });
+      console.log("Session updated with conversation ID");
 
-      // CRITICAL FIX: Send initial message to trigger agent's welcome message
-      await base44.agents.addMessage(conversation, {
-        role: "user",
-        content: "Ready to begin"
-      });
+      console.log("Step 5: Sending initial message...");
+      // Wait a moment for conversation to be ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Send initial message to trigger agent
+      try {
+        await base44.agents.addMessage(conversation, {
+          role: "user",
+          content: "Ready to begin"
+        });
+        console.log("Initial message sent successfully");
+      } catch (msgErr) {
+        console.error("Error sending initial message:", msgErr);
+        // Continue anyway - the Interview page will handle waiting for agent
+      }
 
+      console.log("Step 6: Navigating to interview page...");
       // Navigate to interview
       navigate(createPageUrl(`Interview?session=${session.id}`));
     } catch (err) {
       console.error("Error creating session:", err);
-      setError("Failed to create interview session. Please try again.");
+      console.error("Error details:", err.message, err.stack);
+      setError(`Failed to create interview session: ${err.message || 'Please try again.'}`);
       setIsCreating(false);
     }
   };
