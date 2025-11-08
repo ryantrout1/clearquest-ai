@@ -191,6 +191,13 @@ export default function SessionDetails() {
             )}
           </CardContent>
         </Card>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-slate-500 text-xs">
+            © 2025 ClearQuest AI™ • CJIS Compliant
+          </p>
+        </div>
       </div>
     </div>
   );

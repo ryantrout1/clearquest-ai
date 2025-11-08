@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -217,7 +218,7 @@ export default function HomeHub() {
 
         {/* Version */}
         <p className="text-center text-slate-500 text-xs md:text-sm mt-6 md:mt-8 px-4">
-          ClearQuest AI v1 • CJIS Compliant
+          © 2025 ClearQuest AI™ • CJIS Compliant
         </p>
       </div>
     </div>

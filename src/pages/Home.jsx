@@ -124,6 +124,15 @@ export default function Home() {
           <StepCard number="4" title="Generate Report" description="Investigator receives complete PDF summary" />
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="border-t border-slate-700/50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-slate-400 text-sm">
+            © 2025 ClearQuest AI™ • CJIS Compliant • All Rights Reserved
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
