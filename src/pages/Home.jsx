@@ -139,34 +139,54 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h2 className="text-4xl font-bold text-white text-center mb-12">How It Works</h2>
         <div className="grid md:grid-cols-4 gap-6">
-          <StepCard 
+          <SimpleStepCard 
             number="1" 
             title="Start Session" 
-            description="Create anonymous session with department code and file number"
-            link="See How to Start"
-            onClick={() => setSessionDialogOpen(true)}
+            description="Enter department code and file number to create anonymous interview"
           />
-          <StepCard 
+          <SimpleStepCard 
             number="2" 
             title="Answer Questions" 
-            description="Conversational AI asks one question at a time"
-            link="See the Questions"
-            onClick={() => setQuestionsDialogOpen(true)}
+            description="AI conversationally asks 162 questions one at a time"
           />
-          <StepCard 
+          <SimpleStepCard 
             number="3" 
             title="Follow-Ups" 
-            description="'Yes' answers trigger structured follow-up packs"
-            link="View Follow-Up Packs"
-            onClick={() => setFollowupsDialogOpen(true)}
+            description="'Yes' answers automatically trigger detailed follow-up questions"
           />
-          <StepCard 
+          <SimpleStepCard 
             number="4" 
-            title="Generate Report" 
-            description="Investigator receives complete PDF summary"
-            link="See Report Example"
-            onClick={() => setReportDialogOpen(true)}
+            title="Get Report" 
+            description="Complete PDF summary generated instantly for investigator review"
           />
+        </div>
+        
+        {/* Optional: Learn More Links */}
+        <div className="mt-8 flex flex-wrap justify-center gap-4 text-sm">
+          <button
+            onClick={() => setSessionDialogOpen(true)}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            Learn about sessions →
+          </button>
+          <button
+            onClick={() => setQuestionsDialogOpen(true)}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            See all questions →
+          </button>
+          <button
+            onClick={() => setFollowupsDialogOpen(true)}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            View follow-ups →
+          </button>
+          <button
+            onClick={() => setReportDialogOpen(true)}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            See report example →
+          </button>
         </div>
       </div>
 
@@ -179,16 +199,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Session Dialog */}
+      {/* Dialogs */}
       <SessionDialog open={sessionDialogOpen} onOpenChange={setSessionDialogOpen} />
-      
-      {/* Questions Dialog */}
       <QuestionsDialog open={questionsDialogOpen} onOpenChange={setQuestionsDialogOpen} />
-      
-      {/* Follow-ups Dialog */}
       <FollowupsDialog open={followupsDialogOpen} onOpenChange={setFollowupsDialogOpen} />
-      
-      {/* Report Dialog */}
       <ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} />
     </div>
   );
@@ -272,25 +286,14 @@ function StatCard({ number, label }) {
   );
 }
 
-function StepCard({ number, title, description, link, onClick }) {
+function SimpleStepCard({ number, title, description }) {
   return (
-    <div className="relative">
-      <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 space-y-4 hover:border-blue-500/50 transition-colors h-full flex flex-col">
-        <div className="w-12 h-12 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-2xl font-bold text-blue-400">{number}</span>
-        </div>
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-slate-400 text-sm flex-1">{description}</p>
-        {link && onClick && (
-          <button
-            onClick={onClick}
-            className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors group"
-          >
-            <span>{link}</span>
-            <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-          </button>
-        )}
+    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 space-y-4 hover:border-blue-500/50 transition-all h-full">
+      <div className="w-14 h-14 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center">
+        <span className="text-2xl font-bold text-blue-400">{number}</span>
       </div>
+      <h3 className="text-xl font-semibold text-white">{title}</h3>
+      <p className="text-slate-400 text-sm leading-relaxed">{description}</p>
     </div>
   );
 }
