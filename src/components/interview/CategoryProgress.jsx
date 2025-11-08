@@ -16,7 +16,8 @@ export default function CategoryProgress({
   
   const totalQuestions = 162; // Fixed total questions
   const answeredQuestions = categories.reduce((sum, cat) => sum + (cat.answered_questions || 0), 0);
-  const overallProgress = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+  const overallProgress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+  const overallProgressDisplay = overallProgress.toFixed(1); // One decimal place
 
   // For transition view, show only relevant categories
   const displayCategories = isInitial || showAll 
@@ -76,7 +77,7 @@ export default function CategoryProgress({
               </div>
               <Progress value={overallProgress} className="h-2 md:h-3" />
               <p className="text-xs md:text-sm text-slate-400 text-center">
-                {overallProgress}% Complete
+                {overallProgressDisplay}% Complete
               </p>
             </div>
           </CardContent>
@@ -112,12 +113,13 @@ export default function CategoryProgress({
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
           {displayCategories.map((category, idx) => {
-            const progress = category.total_questions > 0 
-              ? Math.round((category.answered_questions / category.total_questions) * 100) 
-              : 0;
-            const isComplete = progress === 100;
+            const answered = category.answered_questions || 0;
+            const total = category.total_questions || 0;
+            const progress = total > 0 ? (answered / total) * 100 : 0;
+            const progressDisplay = progress.toFixed(1);
+            const isValidCategory = answered === total && total > 0; // Valid when all questions answered
             const isCurrent = currentCategory?.category_id === category.category_id;
-            const isPending = progress === 0;
+            const isPending = answered === 0;
 
             return (
               <div
@@ -125,13 +127,13 @@ export default function CategoryProgress({
                 className={cn(
                   "border rounded-lg p-3 md:p-4 transition-all",
                   isCurrent && "border-blue-500 bg-blue-950/20 ring-2 ring-blue-500/20",
-                  isComplete && !isCurrent && "border-green-500/30 bg-green-950/10",
-                  isPending && !isCurrent && "border-slate-700 bg-slate-900/30"
+                  isValidCategory && !isCurrent && "border-green-500/30 bg-green-950/10",
+                  isPending && !isCurrent && !isValidCategory && "border-slate-700 bg-slate-900/30"
                 )}
               >
                 <div className="flex items-start gap-2 md:gap-3">
                   <div className="mt-0.5 flex-shrink-0">
-                    {isComplete ? (
+                    {isValidCategory ? (
                       <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
                     ) : (
                       <Circle className={cn(
@@ -143,34 +145,46 @@ export default function CategoryProgress({
                   
                   <div className="flex-1 min-w-0 space-y-1 md:space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className={cn(
-                        "font-medium text-xs md:text-sm leading-tight",
-                        isCurrent && "text-blue-400",
-                        isComplete && !isCurrent && "text-green-400",
-                        isPending && "text-slate-300"
-                      )}>
-                        {category.category_label}
-                      </h3>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={cn(
+                          "font-medium text-xs md:text-sm leading-tight",
+                          isCurrent && "text-blue-400",
+                          isValidCategory && !isCurrent && "text-green-400",
+                          isPending && !isValidCategory && "text-slate-300"
+                        )}>
+                          {category.category_label}
+                        </h3>
+                        {isValidCategory && (
+                          <span className="inline-block mt-1 text-xs text-green-400 font-medium">
+                            Valid ✓
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">
-                        {category.answered_questions || 0}/{category.total_questions || 0}
+                        {answered}/{total}
                       </span>
                     </div>
                     
-                    {(isInitial || isCurrent) && (
+                    {(isInitial || isCurrent) && category.description && (
                       <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
                         {category.description}
                       </p>
                     )}
                     
                     {!isInitial && (
-                      <Progress 
-                        value={progress} 
-                        className={cn(
-                          "h-1 md:h-1.5",
-                          isComplete && "[&>div]:bg-green-500",
-                          isCurrent && "[&>div]:bg-blue-500"
-                        )} 
-                      />
+                      <div className="space-y-1">
+                        <Progress 
+                          value={progress} 
+                          className={cn(
+                            "h-1 md:h-1.5",
+                            isValidCategory && "[&>div]:bg-green-500",
+                            isCurrent && "[&>div]:bg-blue-500"
+                          )} 
+                        />
+                        <p className="text-xs text-slate-500">
+                          {progressDisplay}%
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

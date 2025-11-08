@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -172,7 +171,6 @@ export default function Interview() {
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Response.filter({ session_id: sessionId })
       ]);
-      console.log(`Refreshed: ${responses.length} responses found`);
       setSession(sessionData);
       setAnsweredCount(responses.length);
       // Also refresh category progress when session updates
@@ -344,17 +342,19 @@ export default function Interview() {
     };
   }, []);
 
-  // Calculate current category progress
+  // Calculate current category progress with one decimal
   const getCurrentCategoryProgress = () => {
-    if (!session?.current_category || categories.length === 0) return 0;
+    if (!session?.current_category || categories.length === 0) return "0.0";
     const currentCat = categories.find(cat => cat.category_label === session.current_category);
-    if (!currentCat || currentCat.total_questions === 0) return 0;
-    return Math.round((currentCat.answered_questions / currentCat.total_questions) * 100);
+    if (!currentCat || currentCat.total_questions === 0) return "0.0";
+    const progress = (currentCat.answered_questions / currentCat.total_questions) * 100;
+    return progress.toFixed(1);
   };
 
-  // Calculate overall progress from actual answered count
+  // Calculate overall progress with one decimal
   const getOverallProgress = () => {
-    return Math.round((answeredCount / 162) * 100);
+    const progress = (answeredCount / 162) * 100;
+    return progress.toFixed(1);
   };
 
   if (isLoading) {
@@ -443,7 +443,7 @@ export default function Interview() {
                 if (currentCat) {
                   const answered = currentCat.answered_questions || 0;
                   const total = currentCat.total_questions || 1;
-                  const percent = Math.round((answered / total) * 100);
+                  const percent = ((answered / total) * 100).toFixed(1);
                   return `${answered} / ${total} questions • ${percent}% Complete`;
                 }
                 // Fallback to overall if no current category
@@ -459,7 +459,7 @@ export default function Interview() {
                     if (currentCat) {
                       const answered = currentCat.answered_questions || 0;
                       const total = currentCat.total_questions || 1;
-                      return Math.round((answered / total) * 100);
+                      return ((answered / total) * 100).toFixed(1);
                     }
                     return getOverallProgress();
                   })()}%` 
