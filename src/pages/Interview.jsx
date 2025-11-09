@@ -29,9 +29,10 @@ export default function Interview() {
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const hasTriggeredAgentRef = useRef(false);
-  const messageCountRef = useRef(0);
   const lastScrollTimeRef = useRef(0);
   const pendingScrollRef = useRef(false);
+  const lastMessageCountRef = useRef(0);
+  const lastMessageContentRef = useRef('');
 
   useEffect(() => {
     if (!sessionId) {
@@ -49,8 +50,8 @@ export default function Interview() {
 
   // Optimized smooth scroll - only when genuinely new content
   useEffect(() => {
-    if (messages.length > messageCountRef.current) {
-      messageCountRef.current = messages.length;
+    if (messages.length > lastMessageCountRef.current) {
+      lastMessageCountRef.current = messages.length;
       
       // Debounce scroll to avoid jank
       const now = Date.now();
@@ -117,29 +118,40 @@ export default function Interview() {
       
       const existingMessages = conversationData.messages || [];
 
-      // Subscribe to conversation updates BEFORE setting initial messages
+      // OPTIMIZED SUBSCRIPTION - Only update when truly necessary
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
           
-          // Only update if there's a genuine change
-          setMessages(prevMessages => {
-            // Don't update if same length and same content
-            if (newMessages.length === prevMessages.length) {
-              const lastNew = newMessages[newMessages.length - 1];
-              const lastPrev = prevMessages[prevMessages.length - 1];
-              if (lastNew?.content === lastPrev?.content) {
-                return prevMessages; // No change
-              }
-            }
+          // Check if messages actually changed
+          const newCount = newMessages.length;
+          const lastContent = newMessages[newCount - 1]?.content || '';
+          
+          // Only update if:
+          // 1. Message count changed, OR
+          // 2. Last message content changed (streaming)
+          if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
+            lastMessageCountRef.current = newCount;
+            lastMessageContentRef.current = lastContent;
             
-            // Only update if different
-            if (JSON.stringify(newMessages) !== JSON.stringify(prevMessages)) {
-              return newMessages;
-            }
-            return prevMessages;
-          });
+            // Use functional update to ensure we're working with latest state
+            setMessages(prevMessages => {
+              // If adding messages, just append (don't replace)
+              if (newCount > prevMessages.length) {
+                // Return new array with new messages appended
+                return newMessages;
+              }
+              
+              // If streaming (same count but different content), update last message
+              if (newCount === prevMessages.length && lastContent !== prevMessages[prevMessages.length - 1]?.content) {
+                return newMessages;
+              }
+              
+              // No change
+              return prevMessages;
+            });
+          }
         }
       );
 
@@ -147,7 +159,7 @@ export default function Interview() {
       if (existingMessages.length === 0 && q001Data) {
         console.log("✅ New session - showing Q001 immediately");
         
-        // Create stable placeholder message
+        // Create stable placeholder message with unique ID
         const q001Message = {
           id: 'q001-initial',
           role: 'assistant',
@@ -157,7 +169,8 @@ export default function Interview() {
         };
         
         setMessages([q001Message]);
-        messageCountRef.current = 1;
+        lastMessageCountRef.current = 1;
+        lastMessageContentRef.current = q001Message.content;
         setShowQuickButtons(true);
         setIsLoading(false);
         
@@ -182,7 +195,8 @@ export default function Interview() {
 
       // Existing session - show messages immediately
       setMessages(existingMessages);
-      messageCountRef.current = existingMessages.length;
+      lastMessageCountRef.current = existingMessages.length;
+      lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       setIsLoading(false);
 
     } catch (err) {
