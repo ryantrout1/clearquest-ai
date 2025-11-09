@@ -30,12 +30,12 @@ export default function Interview() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [questions, setQuestions] = useState([]);
+  const [isFirstMessage, setIsFirstMessage] = useState(true); // Track if this is the first user message
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const footerRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const hasTriggeredAgentRef = useRef(false);
   const lastMessageCountRef = useRef(0);
   const lastMessageContentRef = useRef('');
   const shouldAutoScrollRef = useRef(true);
@@ -300,9 +300,17 @@ export default function Interview() {
     console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
 
     try {
+      // For the first message, send it prefixed with the Q001 context
+      let messageContent = textToSend;
+      if (isFirstMessage) {
+        console.log("📌 First message - including Q001 context for agent");
+        messageContent = `My answer to Q001 (Have you ever applied to any other law enforcement agency?): ${textToSend}. Please continue with Q002.`;
+        setIsFirstMessage(false); // Set to false after the first message is processed
+      }
+
       await base44.agents.addMessage(conversation, {
         role: "user",
-        content: textToSend
+        content: messageContent
       });
       
       retryCountRef.current = 0;
@@ -330,7 +338,7 @@ export default function Interview() {
     } finally {
       setIsSending(false);
     }
-  }, [input, isSending, conversation]);
+  }, [input, isSending, conversation, isFirstMessage]);
 
   const handleRetry = useCallback(() => {
     if (lastFailedMessage) {
@@ -423,7 +431,7 @@ export default function Interview() {
       ]);
 
       const categoryProgress = categoriesData.map(cat => {
-        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
+        const categoryQuestions = questionsData.filter(q => q.question_id && q.category === cat.category_label);
         const answeredInCategory = responsesData.filter(r => 
           categoryQuestions.some(q => q.question_id === r.question_id)
         );
@@ -532,7 +540,7 @@ export default function Interview() {
       );
 
       if (existingMessages.length === 0 && q001Data) {
-        console.log("✅ New session - showing Q001");
+        console.log("✅ New session - showing Q001 INSTANTLY (no agent call)");
         
         const q001Message = {
           id: 'q001-initial',
@@ -548,21 +556,12 @@ export default function Interview() {
         shouldAutoScrollRef.current = true;
         setShowQuickButtons(true);
         setIsLoading(false);
+        setIsFirstMessage(true); // This is the first message
         
         setTimeout(() => instantScrollToBottom(), 100);
         
-        if (!hasTriggeredAgentRef.current) {
-          hasTriggeredAgentRef.current = true;
-          setTimeout(() => {
-            base44.agents.addMessage(conversationData, {
-              role: "user",
-              content: "Start with Q001"
-            }).catch(err => {
-              console.error("❌ Error starting interview:", err);
-              setError("Failed to start interview. Please refresh.");
-            });
-          }, 50);
-        }
+        // DO NOT send "Start with Q001" - let user answer Q001 directly
+        // The agent will be engaged when the user sends their first answer
         
         return;
       }
@@ -572,6 +571,7 @@ export default function Interview() {
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       shouldAutoScrollRef.current = true;
       setIsLoading(false);
+      setIsFirstMessage(false); // Not a new session, so not the first message
       
       setTimeout(() => instantScrollToBottom(), 100);
 
