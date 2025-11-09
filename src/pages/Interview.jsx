@@ -30,7 +30,6 @@ export default function Interview() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [questions, setQuestions] = useState([]);
-  const [isFirstMessage, setIsFirstMessage] = useState(true); // Track if this is the first user message
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -300,17 +299,9 @@ export default function Interview() {
     console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
 
     try {
-      // For the first message, send it prefixed with the Q001 context
-      let messageContent = textToSend;
-      if (isFirstMessage) {
-        console.log("📌 First message - including Q001 context for agent");
-        messageContent = `My answer to Q001 (Have you ever applied to any other law enforcement agency?): ${textToSend}. Please continue with Q002.`;
-        setIsFirstMessage(false); // Set to false after the first message is processed
-      }
-
       await base44.agents.addMessage(conversation, {
         role: "user",
-        content: messageContent
+        content: textToSend
       });
       
       retryCountRef.current = 0;
@@ -338,7 +329,7 @@ export default function Interview() {
     } finally {
       setIsSending(false);
     }
-  }, [input, isSending, conversation, isFirstMessage]);
+  }, [input, isSending, conversation]);
 
   const handleRetry = useCallback(() => {
     if (lastFailedMessage) {
@@ -540,7 +531,7 @@ export default function Interview() {
       );
 
       if (existingMessages.length === 0 && q001Data) {
-        console.log("✅ New session - showing Q001 INSTANTLY (no agent call)");
+        console.log("✅ New session - showing Q001 INSTANTLY");
         
         const q001Message = {
           id: 'q001-initial',
@@ -556,12 +547,8 @@ export default function Interview() {
         shouldAutoScrollRef.current = true;
         setShowQuickButtons(true);
         setIsLoading(false);
-        setIsFirstMessage(true); // This is the first message
         
         setTimeout(() => instantScrollToBottom(), 100);
-        
-        // DO NOT send "Start with Q001" - let user answer Q001 directly
-        // The agent will be engaged when the user sends their first answer
         
         return;
       }
@@ -571,7 +558,6 @@ export default function Interview() {
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       shouldAutoScrollRef.current = true;
       setIsLoading(false);
-      setIsFirstMessage(false); // Not a new session, so not the first message
       
       setTimeout(() => instantScrollToBottom(), 100);
 
