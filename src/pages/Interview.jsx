@@ -33,7 +33,8 @@ export default function Interview() {
   const hasTriggeredAgentRef = useRef(false);
   const lastMessageCountRef = useRef(0);
   const lastMessageContentRef = useRef('');
-  const initialLoadRef = useRef(true);
+  const shouldAutoScrollRef = useRef(true); // Track if we should auto-scroll
+  const userJustSentMessageRef = useRef(false); // Track if user just sent a message
 
   useEffect(() => {
     if (!sessionId) {
@@ -58,66 +59,95 @@ export default function Interview() {
       }
     };
 
-    // Initial measurement
     updateFooterHeight();
-
-    // Re-measure on window resize
     window.addEventListener('resize', updateFooterHeight);
-    
-    // Re-measure when showQuickButtons changes (buttons vs input field)
-    const timer = setTimeout(updateFooterHeight, 50);
+    const timer = setTimeout(updateFooterHeight, 100);
 
     return () => {
       window.removeEventListener('resize', updateFooterHeight);
       clearTimeout(timer);
     };
-  }, [showQuickButtons]);
+  }, [showQuickButtons, error]);
 
-  // Check if user is near bottom of scroll container
-  const isNearBottom = useCallback(() => {
-    if (!messagesContainerRef.current) return true;
-    
+  // Monitor user scroll to detect manual scrolling
+  useEffect(() => {
     const container = messagesContainerRef.current;
-    const threshold = 150; // pixels from bottom
-    const position = container.scrollTop + container.clientHeight;
-    const bottom = container.scrollHeight;
-    
-    return bottom - position < threshold;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Check if user is near bottom
+      const threshold = 200;
+      const position = container.scrollTop + container.clientHeight;
+      const bottom = container.scrollHeight;
+      const nearBottom = bottom - position < threshold;
+      
+      // Update auto-scroll flag based on scroll position
+      shouldAutoScrollRef.current = nearBottom;
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Smart auto-scroll: only scroll if user was already near bottom
-  const scrollToBottom = useCallback((instant = false, force = false) => {
+  // Force scroll to bottom - simple and reliable
+  const forceScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
-    // Force scroll on initial load, otherwise check if near bottom
-    if (!force && !isNearBottom()) {
-      return; // User has scrolled up, don't auto-scroll
-    }
+    const container = messagesContainerRef.current;
+    
+    // Use requestAnimationFrame to ensure DOM is painted
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      });
+    });
+  }, []);
+
+  // Instant scroll to bottom (no animation)
+  const instantScrollToBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
-    const scrollOptions = {
-      top: container.scrollHeight,
-      behavior: instant ? 'auto' : 'smooth'
-    };
-    container.scrollTo(scrollOptions);
-  }, [isNearBottom]);
+    container.scrollTop = container.scrollHeight;
+  }, []);
 
-  // Scroll when messages change
+  // Handle message updates and auto-scroll
   useEffect(() => {
-    if (messages.length > lastMessageCountRef.current) {
-      lastMessageCountRef.current = messages.length;
+    const newMessageCount = messages.length;
+    
+    // No messages yet, nothing to do
+    if (newMessageCount === 0) return;
+    
+    // Messages added
+    if (newMessageCount > lastMessageCountRef.current) {
+      const messagesAdded = newMessageCount - lastMessageCountRef.current;
+      lastMessageCountRef.current = newMessageCount;
       
-      // Force scroll on initial load, smart scroll on updates
-      const forceScroll = initialLoadRef.current;
-      const isInstant = initialLoadRef.current;
+      console.log(`📨 ${messagesAdded} new message(s) - User just sent: ${userJustSentMessageRef.current}, Auto-scroll: ${shouldAutoScrollRef.current}`);
       
-      // Small delay to ensure DOM has rendered
-      setTimeout(() => {
-        scrollToBottom(!isInstant, forceScroll);
-        initialLoadRef.current = false;
-      }, 50);
+      // Always scroll if user just sent a message (they expect to see response)
+      // OR if auto-scroll is enabled (user is at bottom)
+      if (userJustSentMessageRef.current || shouldAutoScrollRef.current) {
+        // Longer delay to ensure DOM is fully rendered with new messages
+        setTimeout(() => {
+          forceScrollToBottom();
+          console.log('✅ Auto-scrolled to bottom');
+        }, 150);
+        
+        // Reset the flag after scrolling
+        if (userJustSentMessageRef.current) {
+          setTimeout(() => {
+            userJustSentMessageRef.current = false;
+          }, 200);
+        }
+      } else {
+        console.log('⏸️ User scrolled up - not auto-scrolling');
+      }
     }
-  }, [messages.length, scrollToBottom]);
+  }, [messages, forceScrollToBottom]);
 
   // Optimized message state updates
   useEffect(() => {
@@ -173,28 +203,11 @@ export default function Interview() {
           const newCount = newMessages.length;
           const lastContent = newMessages[newCount - 1]?.content || '';
           
-          // Only update if:
-          // 1. Message count changed, OR
-          // 2. Last message content changed (streaming)
+          // Only update if message count changed OR last message content changed (streaming)
           if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
-            lastMessageCountRef.current = newCount;
             lastMessageContentRef.current = lastContent;
             
-            // Use functional update to ensure we're working with latest state
-            setMessages(prevMessages => {
-              // If adding messages, just append (don't replace)
-              if (newCount > prevMessages.length) {
-                return newMessages;
-              }
-              
-              // If streaming (same count but different content), update last message
-              if (newCount === prevMessages.length && lastContent !== prevMessages[prevMessages.length - 1]?.content) {
-                return newMessages;
-              }
-              
-              // No change
-              return prevMessages;
-            });
+            setMessages(newMessages);
           }
         }
       );
@@ -215,11 +228,14 @@ export default function Interview() {
         setMessages([q001Message]);
         lastMessageCountRef.current = 1;
         lastMessageContentRef.current = q001Message.content;
+        shouldAutoScrollRef.current = true;
         setShowQuickButtons(true);
         setIsLoading(false);
         
-        // Force scroll after render
-        setTimeout(() => scrollToBottom(true, true), 100);
+        // Instant scroll after render
+        setTimeout(() => {
+          instantScrollToBottom();
+        }, 100);
         
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
@@ -243,10 +259,13 @@ export default function Interview() {
       setMessages(existingMessages);
       lastMessageCountRef.current = existingMessages.length;
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
+      shouldAutoScrollRef.current = true;
       setIsLoading(false);
       
-      // Force scroll to bottom after messages render
-      setTimeout(() => scrollToBottom(true, true), 100);
+      // Instant scroll to bottom after messages render
+      setTimeout(() => {
+        instantScrollToBottom();
+      }, 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -299,6 +318,12 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
+    
+    // Flag that user just sent a message - ensure we scroll to show response
+    userJustSentMessageRef.current = true;
+    shouldAutoScrollRef.current = true;
+
+    console.log(`🚀 User sending: "${textToSend}"`);
 
     try {
       await base44.agents.addMessage(conversation, {
@@ -309,6 +334,7 @@ export default function Interview() {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
       setShowQuickButtons(true);
+      userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -319,6 +345,8 @@ export default function Interview() {
     
     setIsSending(true);
     setError(null);
+    userJustSentMessageRef.current = true;
+    shouldAutoScrollRef.current = true;
     
     try {
       await base44.agents.addMessage(conversation, {
@@ -328,6 +356,7 @@ export default function Interview() {
     } catch (err) {
       console.error("Error editing response:", err);
       setError("Failed to update answer. Please try again.");
+      userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -438,7 +467,7 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area - Scrollable Middle Section with padding for footer */}
+      {/* Messages Area - Scrollable with dynamic padding */}
       <main 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto"
@@ -464,10 +493,10 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Footer - Fixed at Bottom (outside scroll container) */}
+      {/* Footer - Fixed at Bottom */}
       <footer 
         ref={footerRef}
-        className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl z-50"
       >
         <div className="max-w-5xl mx-auto">
           {error && (
