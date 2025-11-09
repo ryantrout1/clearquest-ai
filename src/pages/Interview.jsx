@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -26,6 +27,7 @@ export default function Interview() {
   const [categories, setCategories] = useState([]);
   const [isCompletionView, setIsCompletionView] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState(null);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -64,7 +66,7 @@ export default function Interview() {
         unsubscribeRef.current();
       }
     };
-  }, [sessionId]);
+  }, [sessionId, navigate]);
 
   // Measure footer height and set CSS variable
   useEffect(() => {
@@ -241,7 +243,7 @@ export default function Interview() {
       const hasQuestion = content.includes('?');
       setShowQuickButtons(hasQuestion);
     }
-  }, [messages, showCategoryProgress]);
+  }, [messages, showCategoryProgress, handleCompletion]);
 
   const loadSession = async () => {
     try {
@@ -360,6 +362,265 @@ export default function Interview() {
 
   const handleContinueFromCompletion = () => {
     navigate(createPageUrl("InterviewDashboard"));
+  };
+
+  const handleDownloadReport = useCallback(async () => {
+    setIsDownloadingReport(true);
+    
+    try {
+      console.log("🔍 Generating report for session:", sessionId);
+      
+      // Fetch all data needed for the report
+      const [sessionData, responses, followups, questions] = await Promise.all([
+        base44.entities.InterviewSession.get(sessionId),
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
+        base44.entities.Question.filter({ active: true })
+      ]);
+
+      console.log(`📊 Loaded: ${responses.length} responses, ${followups.length} follow-ups`);
+
+      // Generate report content
+      const reportContent = generateReportHTML(sessionData, responses, followups, questions);
+
+      // Create a temporary container
+      const printContainer = document.createElement('div');
+      printContainer.innerHTML = reportContent;
+      printContainer.style.position = 'absolute';
+      printContainer.style.left = '-9999px';
+      document.body.appendChild(printContainer);
+
+      // Trigger print dialog (user can save as PDF)
+      window.print();
+
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(printContainer);
+      }, 100);
+
+      console.log("✅ Report generated successfully");
+      
+    } catch (err) {
+      console.error("❌ Error generating report:", err);
+      setError("Failed to generate report. Please try again.");
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  }, [sessionId]);
+
+  const generateReportHTML = (session, responses, followups, questions) => {
+    const now = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+
+    // Group responses by category
+    const categorizedResponses = {};
+    responses.forEach(response => {
+      const question = questions.find(q => q.question_id === response.question_id);
+      const category = question?.category || 'Uncategorized'; // Fallback for uncategorized questions
+      if (!categorizedResponses[category]) {
+        categorizedResponses[category] = [];
+      }
+      categorizedResponses[category].push({ response, question });
+    });
+
+    // Sort categories by a predefined order if possible, or alphabetically
+    const sortedCategories = Object.keys(categorizedResponses).sort((a, b) => {
+        // Example: If you have a specific order, implement it here.
+        // For now, simple alphabetical sort.
+        return a.localeCompare(b);
+    });
+
+
+    // Generate HTML content
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Interview Report - ${session.session_code}</title>
+        <style>
+          @media print {
+            @page { 
+              margin: 0.75in;
+              size: letter;
+            }
+            body { margin: 0; padding: 0; }
+          }
+          
+          body {
+            font-family: 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #000;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          
+          .header {
+            text-align: center;
+            border-bottom: 3px solid #000;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+          }
+          
+          .header h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+          }
+          
+          .header .session-info {
+            font-size: 10pt;
+            color: #333;
+          }
+          
+          .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+          }
+          
+          .section-title {
+            font-size: 13pt;
+            font-weight: bold;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+          }
+          
+          .question-block {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 3px solid #333;
+            break-inside: avoid; /* Ensure question block stays together */
+          }
+          
+          .question-id {
+            font-weight: bold;
+            color: #0066cc;
+            font-size: 10pt;
+          }
+          
+          .question-text {
+            font-weight: bold;
+            margin: 5px 0;
+          }
+          
+          .answer {
+            margin-left: 20px;
+            padding: 8px;
+            background: white;
+            border: 1px solid #ddd;
+          }
+          
+          .answer-label {
+            font-weight: bold;
+            font-size: 9pt;
+            color: #666;
+          }
+          
+          .timestamp {
+            font-size: 9pt;
+            color: #999;
+            margin-top: 3px;
+          }
+          
+          .follow-up {
+            margin-left: 40px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff3cd;
+            border-left: 3px solid #ff9800;
+          }
+          
+          .follow-up-title {
+            font-weight: bold;
+            color: #ff6600;
+            font-size: 10pt;
+          }
+          
+          .summary-box {
+            background: #e8f4f8;
+            border: 2px solid #0066cc;
+            padding: 15px;
+            margin-bottom: 20px;
+          }
+          
+          .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #333;
+            text-align: center;
+            font-size: 9pt;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Applicant Background Interview Report</h1>
+          <div class="session-info">
+            <strong>Session Code:</strong> ${session.session_code}<br>
+            <strong>Date:</strong> ${now}<br>
+            <strong>Questions Answered:</strong> ${responses.length} / 162<br>
+            <strong>Follow-Ups Triggered:</strong> ${followups.length}
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <strong>Interview Summary:</strong><br>
+          Applicant completed ${responses.length} questions across ${sortedCategories.length} categories. 
+          This report contains all responses provided during the interview session, including follow-up details where applicable.
+        </div>
+
+        ${sortedCategories.map(category => `
+          <div class="section">
+            <div class="section-title">${category}</div>
+            ${categorizedResponses[category].map(({ response, question }) => {
+              const relatedFollowups = followups.filter(f => f.response_id === response.id);
+              
+              return `
+                <div class="question-block">
+                  <div class="question-id">${response.question_id}</div>
+                  <div class="question-text">${question?.question_text || response.question_text}</div>
+                  <div class="answer">
+                    <span class="answer-label">Response:</span> ${response.answer || 'N/A'}
+                    ${response.answer_array && response.answer_array.length > 0 ? `<br><strong>Details:</strong> ${response.answer_array.join(', ')}` : ''}
+                  </div>
+                  <div class="timestamp">Answered: ${new Date(response.response_timestamp).toLocaleString()}</div>
+                  
+                  ${relatedFollowups.map(followup => `
+                    <div class="follow-up">
+                      <div class="follow-up-title">Follow-Up: ${followup.followup_pack || 'N/A'}</div>
+                      ${followup.substance_name ? `<strong>Substance:</strong> ${followup.substance_name}<br>` : ''}
+                      ${followup.incident_date ? `<strong>Date:</strong> ${followup.incident_date}<br>` : ''}
+                      ${followup.incident_location ? `<strong>Location:</strong> ${followup.incident_location}<br>` : ''}
+                      ${followup.incident_description ? `<strong>Description:</strong> ${followup.incident_description}<br>` : ''}
+                      ${followup.frequency ? `<strong>Frequency:</strong> ${followup.frequency}<br>` : ''}
+                      ${followup.accountability_response ? `<strong>Accountability:</strong> ${followup.accountability_response}<br>` : ''}
+                      ${followup.changes_since ? `<strong>Changes Since:</strong> ${followup.changes_since}` : ''}
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `).join('')}
+
+        <div class="footer">
+          <strong>ClearQuest™ Interview System</strong><br>
+          CJIS Compliant • All responses encrypted and secured<br>
+          Report generated: ${new Date().toLocaleString()}
+        </div>
+      </body>
+      </html>
+    `;
   };
 
   const handleSend = useCallback(async (messageText = null, isRetry = false) => {
@@ -518,6 +779,8 @@ export default function Interview() {
           onContinue={handleContinueFromCompletion}
           isInitial={false}
           isComplete={true}
+          onDownloadReport={handleDownloadReport}
+          isDownloading={isDownloadingReport}
         />
       </div>
     );

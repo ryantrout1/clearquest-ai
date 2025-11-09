@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shield, CheckCircle, Circle, ArrowRight } from "lucide-react";
+import { Shield, CheckCircle, Circle, ArrowRight, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function CategoryProgress({ 
@@ -10,19 +10,17 @@ export default function CategoryProgress({
   currentCategory, 
   onContinue, 
   isInitial, 
-  isComplete 
+  isComplete,
+  onDownloadReport,
+  isDownloading
 }) {
   const totalQuestions = 162;
   const totalCompleted = categories.reduce((sum, cat) => sum + (cat.answered_questions || 0), 0);
   const overallProgress = Math.round((totalCompleted / totalQuestions) * 100);
 
-  // Determine if this is a returning candidate (has any answers)
   const isReturning = totalCompleted > 0;
-
-  // Determine if this is a category transition (not initial, not complete)
   const isCategoryTransition = !isInitial && !isComplete;
 
-  // Define the 12 sections with their names
   const sections = [
     "Applications with Other LE Agencies",
     "Driving Record",
@@ -38,7 +36,6 @@ export default function CategoryProgress({
     "General Disclosures & Eligibility"
   ];
 
-  // Match categories to sections and determine completion
   const sectionData = sections.map(sectionName => {
     const category = categories.find(cat => cat.category_label === sectionName);
     const isCompleted = category ? 
@@ -57,35 +54,75 @@ export default function CategoryProgress({
       <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 max-w-3xl mx-auto">
         <CardContent className="p-6 md:p-8">
           <div className="text-center space-y-6">
+            {/* Success Icon */}
             <div className="flex justify-center">
               <div className="p-4 rounded-full bg-green-600/20">
                 <CheckCircle className="w-12 h-12 text-green-400" />
               </div>
             </div>
             
+            {/* Thank You Message */}
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
                 Interview Complete
               </h2>
-              <p className="text-slate-300">
-                All 162 questions answered across 12 sections
+              <p className="text-lg text-green-400 mb-4">
+                Thank you for your honesty and thoroughness.
+              </p>
+              <p className="text-slate-300 leading-relaxed">
+                You've successfully completed all 162 questions. Your responses demonstrate your commitment 
+                to transparency and integrity—qualities essential to law enforcement.
               </p>
             </div>
 
-            <div className="bg-slate-900/50 rounded-lg p-4">
-              <p className="text-sm text-slate-400">
-                Your responses have been recorded and encrypted. An investigator will review your interview shortly.
+            {/* Completion Stats */}
+            <div className="bg-slate-900/50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Total Questions</span>
+                <span className="text-white font-semibold">162 / 162</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Sections Completed</span>
+                <span className="text-white font-semibold">12 / 12</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Completion</span>
+                <span className="text-green-400 font-semibold">100%</span>
+              </div>
+            </div>
+
+            {/* Encouragement */}
+            <div className="bg-blue-950/30 border border-blue-800/50 rounded-lg p-4">
+              <p className="text-sm text-blue-200 leading-relaxed">
+                <strong>What's Next:</strong> Your responses have been encrypted and securely stored. 
+                An investigator will review your interview and may contact you for follow-up verification. 
+                Your candidness throughout this process reflects positively on your character.
               </p>
             </div>
 
+            {/* Download Report Button */}
             <Button
-              onClick={onContinue}
+              onClick={onDownloadReport}
+              disabled={isDownloading}
               size="lg"
-              className="bg-blue-600 hover:bg-blue-700 text-white w-full md:w-auto px-8"
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full md:w-auto px-8 h-12"
             >
-              Return to Dashboard
-              <ArrowRight className="w-5 h-5 ml-2" />
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Generating Report...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5 mr-2" />
+                  Download Your Interview Report
+                </>
+              )}
             </Button>
+
+            <p className="text-xs text-slate-500">
+              Your interview report will be downloaded as a PDF document containing all your responses.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -117,7 +154,7 @@ export default function CategoryProgress({
           </div>
         </div>
 
-        {/* Sections Grid - Two Columns */}
+        {/* Sections Grid */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-white mb-4">All Sections</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
