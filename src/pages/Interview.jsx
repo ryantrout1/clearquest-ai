@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -26,7 +25,7 @@ export default function Interview() {
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
   const [isCompletionView, setIsCompletionView] = useState(false);
-  const [lastFailedMessage, setLastFailedMessage] = useState(null); // Track failed message for retry
+  const [lastFailedMessage, setLastFailedMessage] = useState(null);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -37,9 +36,21 @@ export default function Interview() {
   const lastMessageContentRef = useRef('');
   const shouldAutoScrollRef = useRef(true);
   const userJustSentMessageRef = useRef(false);
-  const previousScrollTopRef = useRef(0); // Track previous scroll position
-  const isUpdatingRef = useRef(false); // Prevent scroll jumps during updates
-  const retryCountRef = useRef(0); // Track retry attempts
+  const scrollLockRef = useRef(false); // Aggressive scroll lock
+  const retryCountRef = useRef(0);
+
+  // Disable browser's automatic scroll restoration
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    
+    return () => {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'auto';
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -74,25 +85,29 @@ export default function Interview() {
     };
   }, [showQuickButtons, error]);
 
-  // Monitor user scroll to detect manual scrolling
+  // Monitor scroll with aggressive position locking
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
+    let savedScrollTop = 0;
+
     const handleScroll = () => {
-      // Don't update flags if we're in the middle of an update
-      if (isUpdatingRef.current) return;
+      // If scroll is locked, restore position immediately
+      if (scrollLockRef.current) {
+        container.scrollTop = savedScrollTop;
+        return;
+      }
       
-      // Save current scroll position
-      previousScrollTopRef.current = container.scrollTop;
+      // Save position
+      savedScrollTop = container.scrollTop;
       
-      // Check if user is near bottom
+      // Check if near bottom
       const threshold = 200;
       const position = container.scrollTop + container.clientHeight;
       const bottom = container.scrollHeight;
       const nearBottom = bottom - position < threshold;
       
-      // Update auto-scroll flag
       shouldAutoScrollRef.current = nearBottom;
     };
 
@@ -106,12 +121,17 @@ export default function Interview() {
     
     const container = messagesContainerRef.current;
     
-    // Double RAF for guaranteed DOM paint
+    // Release scroll lock before scrolling
+    scrollLockRef.current = false;
+    
+    // Triple RAF for maximum reliability
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth'
+        requestAnimationFrame(() => {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+          });
         });
       });
     });
@@ -120,18 +140,12 @@ export default function Interview() {
   // Instant scroll to bottom
   const instantScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
+    scrollLockRef.current = false;
     const container = messagesContainerRef.current;
     container.scrollTop = container.scrollHeight;
   }, []);
 
-  // Restore scroll position (prevent jumps)
-  const restoreScrollPosition = useCallback(() => {
-    if (!messagesContainerRef.current) return;
-    const container = messagesContainerRef.current;
-    container.scrollTop = previousScrollTopRef.current;
-  }, []);
-
-  // Handle message updates with scroll preservation
+  // Handle message updates with aggressive scroll locking
   useEffect(() => {
     const newMessageCount = messages.length;
     
@@ -140,57 +154,66 @@ export default function Interview() {
     const previousCount = lastMessageCountRef.current;
     const messagesAdded = newMessageCount - previousCount;
     
-    // Messages were added (not just updated)
+    // Messages were added
     if (messagesAdded > 0) {
       lastMessageCountRef.current = newMessageCount;
       
-      console.log(`📨 ${messagesAdded} new message(s) added`);
-      console.log(`User sent: ${userJustSentMessageRef.current}, Auto-scroll enabled: ${shouldAutoScrollRef.current}`);
+      console.log(`📨 ${messagesAdded} new message(s) - User action: ${userJustSentMessageRef.current}`);
       
-      // Set updating flag to prevent scroll listener interference
-      isUpdatingRef.current = true;
-      
-      // Decide if we should auto-scroll
-      const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
-      
-      if (shouldScroll) {
-        // Wait for DOM to render new messages, then scroll
-        setTimeout(() => {
-          smoothScrollToBottom();
-          isUpdatingRef.current = false;
-          console.log('✅ Auto-scrolled to show new messages');
-        }, 150);
+      // LOCK SCROLL POSITION during update
+      const container = messagesContainerRef.current;
+      if (container) {
+        const savedPosition = container.scrollTop;
+        scrollLockRef.current = true;
         
-        // Reset user action flag
-        if (userJustSentMessageRef.current) {
+        // Force scroll position to stay put during React re-render
+        const lockTimer = setInterval(() => {
+          if (scrollLockRef.current && container.scrollTop !== savedPosition) {
+            container.scrollTop = savedPosition;
+          }
+        }, 0);
+        
+        // Decide if we should auto-scroll
+        const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
+        
+        if (shouldScroll) {
+          // Release lock and scroll after DOM updates
           setTimeout(() => {
-            userJustSentMessageRef.current = false;
+            clearInterval(lockTimer);
+            smoothScrollToBottom();
+            console.log('✅ Scrolled to bottom');
           }, 200);
+          
+          // Reset user action flag
+          if (userJustSentMessageRef.current) {
+            setTimeout(() => {
+              userJustSentMessageRef.current = false;
+            }, 250);
+          }
+        } else {
+          // User scrolled up - maintain position
+          setTimeout(() => {
+            clearInterval(lockTimer);
+            scrollLockRef.current = false;
+            console.log('⏸️ Position maintained');
+          }, 100);
         }
-      } else {
-        // User scrolled up - don't auto-scroll
-        console.log('⏸️ User reviewing history - preserving position');
-        isUpdatingRef.current = false;
       }
-    } 
-    // Same number of messages but content changed (streaming)
+    }
+    // Streaming content
     else if (messagesAdded === 0 && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
       const lastContent = lastMessage?.content || '';
       
-      // Content is being streamed (AI typing)
       if (lastContent !== lastMessageContentRef.current) {
         lastMessageContentRef.current = lastContent;
         
-        // If user was at bottom, keep them at bottom during streaming
-        if (shouldAutoScrollRef.current) {
-          // Use RAF to prevent scroll jumps
-          requestAnimationFrame(() => {
-            if (messagesContainerRef.current && shouldAutoScrollRef.current) {
-              const container = messagesContainerRef.current;
-              container.scrollTop = container.scrollHeight;
-            }
-          });
+        // Keep at bottom during streaming without jumping
+        if (shouldAutoScrollRef.current && !scrollLockRef.current) {
+          const container = messagesContainerRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
         }
       }
     }
@@ -343,7 +366,6 @@ export default function Interview() {
     const textToSend = messageText || input.trim();
     if (!textToSend || isSending || !conversation) return;
 
-    // Don't clear input if this is a retry
     if (!messageText && !isRetry) {
       setInput("");
     }
@@ -352,7 +374,6 @@ export default function Interview() {
     setError(null);
     setShowQuickButtons(false);
     
-    // User action - always scroll to show response
     userJustSentMessageRef.current = true;
     shouldAutoScrollRef.current = true;
 
@@ -364,32 +385,27 @@ export default function Interview() {
         content: textToSend
       });
       
-      // Success - reset retry count and failed message
       retryCountRef.current = 0;
       setLastFailedMessage(null);
       
     } catch (err) {
       console.error("❌ Error sending message:", err);
       
-      // Store failed message for retry
       setLastFailedMessage(textToSend);
-      
-      // Increment retry count
       retryCountRef.current += 1;
       
-      // More detailed error message
       let errorMsg = "Failed to send message.";
       
-      if (err.message?.toLowerCase().includes('network') || err.message?.toLowerCase().includes('fetch')) {
+      if (err.message?.includes('network') || err.message?.includes('fetch')) {
         errorMsg = "Network error - check your connection and try again.";
-      } else if (err.message?.toLowerCase().includes('timeout')) {
+      } else if (err.message?.includes('timeout')) {
         errorMsg = "Request timed out - please try again.";
       } else if (err.message) {
         errorMsg = `Error: ${err.message}`;
       }
       
       setError(errorMsg);
-      setShowQuickButtons(true); // Restore buttons so user can retry
+      setShowQuickButtons(true);
       userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
@@ -445,13 +461,19 @@ export default function Interview() {
     }
   }, [sessionId, navigate]);
 
+  // Generate stable keys for messages
   const displayMessages = useMemo(() => {
-    return messages.filter(message => 
-      message.content && 
-      message.content.trim() !== '' &&
-      !message.content.includes('[SHOW_CATEGORY_OVERVIEW]') &&
-      !message.content.includes('[SHOW_CATEGORY_TRANSITION:')
-    );
+    return messages
+      .filter(message => 
+        message.content && 
+        message.content.trim() !== '' &&
+        !message.content.includes('[SHOW_CATEGORY_OVERVIEW]') &&
+        !message.content.includes('[SHOW_CATEGORY_TRANSITION:')
+      )
+      .map((msg, index) => ({
+        ...msg,
+        stableKey: msg.id || `stable-${msg.created_at}-${index}`
+      }));
   }, [messages]);
 
   if (isLoading) {
@@ -529,11 +551,14 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Messages - with CSS overflow anchor */}
       <main 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: 'var(--footer-h, 200px)' }}
+        style={{ 
+          paddingBottom: 'var(--footer-h, 200px)',
+          overflowAnchor: 'auto' // Prevents scroll jumps
+        }}
       >
         <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
           {displayMessages.length === 0 ? (
@@ -542,9 +567,9 @@ export default function Interview() {
               <p className="text-slate-400">Starting interview...</p>
             </div>
           ) : (
-            displayMessages.map((message, index) => (
+            displayMessages.map((message) => (
               <MessageBubble 
-                key={message.id || `msg-${message.created_at}-${index}`}
+                key={message.stableKey}
                 message={message} 
                 onEditResponse={handleEditResponse}
                 showWelcome={false}
@@ -625,7 +650,7 @@ export default function Interview() {
                 ) : (
                   <>
                     <Send className="w-5 h-5 mr-2" />
-                    <span className="font-semibold">Send</span>
+                    <span className="font-medium">Send</span>
                   </>
                 )}
               </Button>
