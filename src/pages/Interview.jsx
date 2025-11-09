@@ -23,21 +23,15 @@ export default function Interview() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
-  const [showContinueButton, setShowContinueButton] = useState(false);
-  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true);
   const [initStatus, setInitStatus] = useState("Loading session...");
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [currentCategory, setCurrentCategory] = useState(null);
-  const [isInitialOverview, setIsInitialOverview] = useState(false);
   const [isCompletionView, setIsCompletionView] = useState(false);
-  const [answeredCount, setAnsweredCount] = useState(0);
   const [firstQuestion, setFirstQuestion] = useState(null);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const isConversationActiveRef = useRef(false);
-  const hasShownInitialOverviewRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false);
   const isNewSessionRef = useRef(false);
   const lastMessageUpdateRef = useRef(0);
@@ -75,38 +69,20 @@ export default function Interview() {
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
     
     if (lastAssistantMessage?.content) {
-      if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-        setShowContinueButton(true);
-        setShowWelcomeMessage(true);
-        setShowQuickButtons(false);
-        return;
-      }
-      
-      if (lastAssistantMessage.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-        if (!showCategoryProgress) {
-          const match = lastAssistantMessage.content.match(/\[SHOW_CATEGORY_TRANSITION:(.*?)\]/);
-          if (match) {
-            handleCategoryTransition(match[1]);
-            return;
-          }
-        }
-      }
-      
+      // Check for completion
       if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
         if (!showCategoryProgress) {
-          handleCategoryTransition('complete');
+          handleCompletion();
           return;
         }
       }
 
-      if (!showCategoryProgress && !showContinueButton) {
-        const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
-        const hasQuestion = content.includes('?');
-        const isContinuePrompt = /please say.*continue|say.*continue.*ready|ready to proceed/i.test(content);
-        setShowQuickButtons(hasQuestion && !isContinuePrompt);
-      }
+      // Show quick buttons for questions
+      const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+      const hasQuestion = content.includes('?');
+      setShowQuickButtons(hasQuestion && !showCategoryProgress);
     }
-  }, [messages, showCategoryProgress, showContinueButton]);
+  }, [messages, showCategoryProgress]);
 
   const loadSession = async () => {
     try {
@@ -158,22 +134,44 @@ export default function Interview() {
         }
       );
 
-      // Check for new session
+      // Check for new session - start immediately with Q001
       if (existingMessages.length === 0) {
         isNewSessionRef.current = true;
-        hasShownInitialOverviewRef.current = true;
-        setIsInitialOverview(true);
-        setShowCategoryProgress(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // Check for existing overview marker
-      if (existingMessages.length > 0) {
-        const lastMsg = [...existingMessages].reverse().find(m => m.role === 'assistant');
-        if (lastMsg?.content?.includes('[SHOW_CATEGORY_OVERVIEW]')) {
-          hasShownInitialOverviewRef.current = true;
-          handleCategoryTransition('initial');
+        
+        // Show Q001 immediately
+        if (q001Data && !hasTriggeredAgentRef.current) {
+          console.log("🚀 New session - showing Q001 immediately");
+          
+          const placeholderMessage = {
+            id: 'q001-placeholder',
+            role: 'assistant',
+            content: `Q001: ${q001Data.question_text}`,
+            tool_calls: [],
+            created_at: new Date().toISOString()
+          };
+          
+          placeholderShownRef.current = true;
+          setMessages([placeholderMessage]);
+          messageCountRef.current = 1;
+          setShowQuickButtons(true);
+          setIsLoading(false);
+          
+          // Send to agent in background
+          hasTriggeredAgentRef.current = true;
+          setTimeout(() => {
+            base44.agents.addMessage(conversationData, {
+              role: "user",
+              content: "Start with Q001"
+            }).then(() => {
+              placeholderShownRef.current = false;
+            }).catch(err => {
+              console.error("❌ Error sending to agent:", err);
+              setError("Failed to start interview");
+              placeholderShownRef.current = false;
+            });
+          }, 100);
+          
+          return;
         }
       }
 
@@ -185,7 +183,7 @@ export default function Interview() {
     }
   };
 
-  const handleCategoryTransition = useCallback(async (type) => {
+  const handleCompletion = useCallback(async () => {
     try {
       const [categoriesData, responsesData] = await Promise.all([
         base44.entities.Category.list('display_order'),
@@ -208,125 +206,15 @@ export default function Interview() {
       });
 
       setCategories(categoryProgress);
-      setAnsweredCount(responsesData.length);
-
-      if (type === 'initial') {
-        setIsInitialOverview(true);
-        setIsCompletionView(false);
-        setCurrentCategory(null);
-        setShowCategoryProgress(true);
-      } else if (type === 'complete') {
-        setIsInitialOverview(false);
-        setIsCompletionView(true);
-        setCurrentCategory(null);
-        setShowCategoryProgress(true);
-      } else {
-        const category = categoriesData.find(cat => cat.category_id === type);
-        setCurrentCategory(category);
-        setIsInitialOverview(false);
-        setIsCompletionView(false);
-        setShowCategoryProgress(true);
-      }
+      setIsCompletionView(true);
+      setShowCategoryProgress(true);
     } catch (err) {
-      console.error("Error refreshing category progress:", err);
+      console.error("Error loading completion data:", err);
     }
   }, [sessionId]);
 
-  const handleContinueFromProgress = async () => {
-    setShowCategoryProgress(false);
-    setIsInitialOverview(false);
-    setIsCompletionView(false);
-    setCurrentCategory(null);
-
-    if (isCompletionView) {
-      navigate(createPageUrl("InterviewDashboard"));
-      return;
-    }
-
-    // For new sessions, show Q001 immediately from cache
-    if (isNewSessionRef.current && firstQuestion && !hasTriggeredAgentRef.current) {
-      console.log("🚀 Showing Q001 immediately:", firstQuestion.question_text);
-      
-      // Add Q001 message immediately with stable ID
-      const placeholderMessage = {
-        id: 'q001-placeholder',
-        role: 'assistant',
-        content: `Q001: ${firstQuestion.question_text}`,
-        tool_calls: [],
-        created_at: new Date().toISOString()
-      };
-      
-      placeholderShownRef.current = true;
-      setMessages([placeholderMessage]);
-      messageCountRef.current = 1;
-      setShowQuickButtons(true);
-      
-      // Send to agent in background (non-blocking)
-      if (conversation) {
-        hasTriggeredAgentRef.current = true;
-        isNewSessionRef.current = false;
-        
-        // Small delay to ensure UI updates first
-        setTimeout(() => {
-          base44.agents.addMessage(conversation, {
-            role: "user",
-            content: "Start with Q001"
-          }).then(() => {
-            placeholderShownRef.current = false;
-          }).catch(err => {
-            console.error("❌ Error sending to agent:", err);
-            setError("Failed to start interview");
-            placeholderShownRef.current = false;
-          });
-        }, 100);
-      }
-      return;
-    }
-
-    if (conversation) {
-      try {
-        setIsSending(true);
-        isConversationActiveRef.current = true;
-        
-        await base44.agents.addMessage(conversation, {
-          role: "user",
-          content: "Continue"
-        });
-      } catch (err) {
-        console.error("❌ Error sending message:", err);
-        setError("Failed to continue interview");
-      } finally {
-        setIsSending(false);
-        setTimeout(() => {
-          isConversationActiveRef.current = false;
-        }, 500);
-      }
-    }
-  };
-
-  const handleContinueFromWelcome = async () => {
-    setShowContinueButton(false);
-    setShowWelcomeMessage(false);
-    
-    if (conversation && !isSending && !isConversationActiveRef.current) {
-      try {
-        setIsSending(true);
-        isConversationActiveRef.current = true;
-        
-        await base44.agents.addMessage(conversation, {
-          role: "user",
-          content: "Continue"
-        });
-      } catch (err) {
-        console.error("❌ Error sending continue:", err);
-        setError("Failed to continue. Please try again.");
-      } finally {
-        setIsSending(false);
-        setTimeout(() => {
-          isConversationActiveRef.current = false;
-        }, 500);
-      }
-    }
+  const handleContinueFromCompletion = () => {
+    navigate(createPageUrl("InterviewDashboard"));
   };
 
   const handleSend = async (messageText = null) => {
@@ -339,7 +227,6 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
-    setShowContinueButton(false);
     isConversationActiveRef.current = true;
 
     try {
@@ -439,15 +326,15 @@ export default function Interview() {
     );
   }
 
-  if (showCategoryProgress) {
+  if (showCategoryProgress && isCompletionView) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <CategoryProgress
           categories={categories}
-          currentCategory={currentCategory}
-          onContinue={handleContinueFromProgress}
-          isInitial={isInitialOverview}
-          isComplete={isCompletionView}
+          currentCategory={null}
+          onContinue={handleContinueFromCompletion}
+          isInitial={false}
+          isComplete={true}
         />
       </div>
     );
@@ -497,7 +384,7 @@ export default function Interview() {
                   key={message.id || `${message.role}-${index}-${message.created_at}`}
                   message={message} 
                   onEditResponse={handleEditResponse}
-                  showWelcome={showWelcomeMessage}
+                  showWelcome={false}
                 />
               ))
           )}
@@ -515,25 +402,7 @@ export default function Interview() {
             </Alert>
           )}
           
-          {showContinueButton ? (
-            <Button
-              onClick={handleContinueFromWelcome}
-              disabled={isSending}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-14 text-lg"
-            >
-              {isSending ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  Continue to Questions
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </>
-              )}
-            </Button>
-          ) : showQuickButtons && !isSending ? (
+          {showQuickButtons && !isSending ? (
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => handleQuickResponse("Yes")}
