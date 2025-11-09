@@ -33,6 +33,7 @@ export default function Interview() {
   const pendingScrollRef = useRef(false);
   const lastMessageCountRef = useRef(0);
   const lastMessageContentRef = useRef('');
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
     if (!sessionId) {
@@ -48,14 +49,17 @@ export default function Interview() {
     };
   }, [sessionId]);
 
-  // Optimized smooth scroll - only when genuinely new content
+  // Scroll to bottom when messages first load or when new messages arrive
   useEffect(() => {
     if (messages.length > lastMessageCountRef.current) {
       lastMessageCountRef.current = messages.length;
       
+      // Immediate scroll on initial load, smooth scroll on updates
+      const behavior = initialLoadRef.current ? "instant" : "smooth";
+      
       // Debounce scroll to avoid jank
       const now = Date.now();
-      if (now - lastScrollTimeRef.current > 100) {
+      if (now - lastScrollTimeRef.current > 100 || initialLoadRef.current) {
         lastScrollTimeRef.current = now;
         
         // Use requestAnimationFrame for smooth 60fps scrolling
@@ -63,11 +67,12 @@ export default function Interview() {
           pendingScrollRef.current = true;
           requestAnimationFrame(() => {
             messagesEndRef.current?.scrollIntoView({ 
-              behavior: "smooth", 
+              behavior: behavior, 
               block: "end",
               inline: "nearest"
             });
             pendingScrollRef.current = false;
+            initialLoadRef.current = false;
           });
         }
       }
@@ -174,6 +179,14 @@ export default function Interview() {
         setShowQuickButtons(true);
         setIsLoading(false);
         
+        // Scroll to Q001 immediately
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ 
+            behavior: "instant", 
+            block: "end" 
+          });
+        }, 100);
+        
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
           hasTriggeredAgentRef.current = true;
@@ -193,11 +206,27 @@ export default function Interview() {
         return;
       }
 
-      // Existing session - show messages immediately
+      // Existing session - show messages immediately and scroll to bottom
       setMessages(existingMessages);
       lastMessageCountRef.current = existingMessages.length;
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       setIsLoading(false);
+      
+      // Scroll to the last question after messages render
+      // Use multiple attempts to ensure scroll happens after render
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: "instant", 
+          block: "end" 
+        });
+      }, 100);
+      
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: "instant", 
+          block: "end" 
+        });
+      }, 300);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
