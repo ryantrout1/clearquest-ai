@@ -28,6 +28,7 @@ export default function Interview() {
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const footerRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const hasTriggeredAgentRef = useRef(false);
   const lastMessageCountRef = useRef(0);
@@ -48,29 +49,71 @@ export default function Interview() {
     };
   }, [sessionId]);
 
-  // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback((instant = false) => {
-    if (messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      const scrollOptions = {
-        top: container.scrollHeight,
-        behavior: instant ? 'auto' : 'smooth'
-      };
-      container.scrollTo(scrollOptions);
-    }
+  // Measure footer height and set CSS variable
+  useEffect(() => {
+    const updateFooterHeight = () => {
+      if (footerRef.current) {
+        const height = footerRef.current.offsetHeight;
+        document.documentElement.style.setProperty('--footer-h', `${height}px`);
+      }
+    };
+
+    // Initial measurement
+    updateFooterHeight();
+
+    // Re-measure on window resize
+    window.addEventListener('resize', updateFooterHeight);
+    
+    // Re-measure when showQuickButtons changes (buttons vs input field)
+    const timer = setTimeout(updateFooterHeight, 50);
+
+    return () => {
+      window.removeEventListener('resize', updateFooterHeight);
+      clearTimeout(timer);
+    };
+  }, [showQuickButtons]);
+
+  // Check if user is near bottom of scroll container
+  const isNearBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return true;
+    
+    const container = messagesContainerRef.current;
+    const threshold = 150; // pixels from bottom
+    const position = container.scrollTop + container.clientHeight;
+    const bottom = container.scrollHeight;
+    
+    return bottom - position < threshold;
   }, []);
+
+  // Smart auto-scroll: only scroll if user was already near bottom
+  const scrollToBottom = useCallback((instant = false, force = false) => {
+    if (!messagesContainerRef.current) return;
+    
+    // Force scroll on initial load, otherwise check if near bottom
+    if (!force && !isNearBottom()) {
+      return; // User has scrolled up, don't auto-scroll
+    }
+    
+    const container = messagesContainerRef.current;
+    const scrollOptions = {
+      top: container.scrollHeight,
+      behavior: instant ? 'auto' : 'smooth'
+    };
+    container.scrollTo(scrollOptions);
+  }, [isNearBottom]);
 
   // Scroll when messages change
   useEffect(() => {
     if (messages.length > lastMessageCountRef.current) {
       lastMessageCountRef.current = messages.length;
       
-      // Use instant scroll on initial load, smooth on updates
+      // Force scroll on initial load, smart scroll on updates
+      const forceScroll = initialLoadRef.current;
       const isInstant = initialLoadRef.current;
       
       // Small delay to ensure DOM has rendered
       setTimeout(() => {
-        scrollToBottom(!isInstant);
+        scrollToBottom(!isInstant, forceScroll);
         initialLoadRef.current = false;
       }, 50);
     }
@@ -175,8 +218,8 @@ export default function Interview() {
         setShowQuickButtons(true);
         setIsLoading(false);
         
-        // Scroll after render
-        setTimeout(() => scrollToBottom(true), 100);
+        // Force scroll after render
+        setTimeout(() => scrollToBottom(true, true), 100);
         
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
@@ -202,8 +245,8 @@ export default function Interview() {
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       setIsLoading(false);
       
-      // Scroll to bottom after messages render
-      setTimeout(() => scrollToBottom(true), 100);
+      // Force scroll to bottom after messages render
+      setTimeout(() => scrollToBottom(true, true), 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -395,12 +438,13 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area - Scrollable Middle Section */}
+      {/* Messages Area - Scrollable Middle Section with padding for footer */}
       <main 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto"
+        style={{ paddingBottom: 'var(--footer-h, 200px)' }}
       >
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-96">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
@@ -420,8 +464,11 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Footer - Fixed at Bottom */}
-      <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl">
+      {/* Footer - Fixed at Bottom (outside scroll container) */}
+      <footer 
+        ref={footerRef}
+        className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl"
+      >
         <div className="max-w-5xl mx-auto">
           {error && (
             <Alert variant="destructive" className="mb-4">
