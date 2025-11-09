@@ -29,8 +29,6 @@ export default function Interview() {
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const hasTriggeredAgentRef = useRef(false);
-  const lastScrollTimeRef = useRef(0);
-  const pendingScrollRef = useRef(false);
   const lastMessageCountRef = useRef(0);
   const lastMessageContentRef = useRef('');
   const initialLoadRef = useRef(true);
@@ -49,7 +47,7 @@ export default function Interview() {
     };
   }, [sessionId]);
 
-  // Scroll to bottom when messages first load or when new messages arrive
+  // Scroll to bottom when messages change - with proper timing to ensure DOM is updated
   useEffect(() => {
     if (messages.length > lastMessageCountRef.current) {
       lastMessageCountRef.current = messages.length;
@@ -57,25 +55,18 @@ export default function Interview() {
       // Immediate scroll on initial load, smooth scroll on updates
       const behavior = initialLoadRef.current ? "instant" : "smooth";
       
-      // Debounce scroll to avoid jank
-      const now = Date.now();
-      if (now - lastScrollTimeRef.current > 100 || initialLoadRef.current) {
-        lastScrollTimeRef.current = now;
-        
-        // Use requestAnimationFrame for smooth 60fps scrolling
-        if (!pendingScrollRef.current) {
-          pendingScrollRef.current = true;
-          requestAnimationFrame(() => {
-            messagesEndRef.current?.scrollIntoView({ 
-              behavior: behavior, 
-              block: "end",
-              inline: "nearest"
-            });
-            pendingScrollRef.current = false;
-            initialLoadRef.current = false;
+      // Give DOM time to render the new message before scrolling
+      // Use double RAF to ensure paint has completed
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ 
+            behavior: behavior, 
+            block: "end",
+            inline: "nearest"
           });
-        }
-      }
+          initialLoadRef.current = false;
+        });
+      });
     }
   }, [messages.length]);
 
@@ -179,13 +170,15 @@ export default function Interview() {
         setShowQuickButtons(true);
         setIsLoading(false);
         
-        // Scroll to Q001 immediately
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ 
-            behavior: "instant", 
-            block: "end" 
+        // Scroll to Q001 immediately after render
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ 
+              behavior: "instant", 
+              block: "end" 
+            });
           });
-        }, 100);
+        });
         
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
@@ -213,20 +206,14 @@ export default function Interview() {
       setIsLoading(false);
       
       // Scroll to the last question after messages render
-      // Use multiple attempts to ensure scroll happens after render
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: "instant", 
-          block: "end" 
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ 
+            behavior: "instant", 
+            block: "end" 
+          });
         });
-      }, 100);
-      
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: "instant", 
-          block: "end" 
-        });
-      }, 300);
+      });
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
