@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -25,6 +26,7 @@ export default function Interview() {
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
   const [isCompletionView, setIsCompletionView] = useState(false);
+  const [lastFailedMessage, setLastFailedMessage] = useState(null); // Track failed message for retry
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -37,6 +39,7 @@ export default function Interview() {
   const userJustSentMessageRef = useRef(false);
   const previousScrollTopRef = useRef(0); // Track previous scroll position
   const isUpdatingRef = useRef(false); // Prevent scroll jumps during updates
+  const retryCountRef = useRef(0); // Track retry attempts
 
   useEffect(() => {
     if (!sessionId) {
@@ -336,11 +339,12 @@ export default function Interview() {
     navigate(createPageUrl("InterviewDashboard"));
   };
 
-  const handleSend = useCallback(async (messageText = null) => {
+  const handleSend = useCallback(async (messageText = null, isRetry = false) => {
     const textToSend = messageText || input.trim();
     if (!textToSend || isSending || !conversation) return;
 
-    if (!messageText) {
+    // Don't clear input if this is a retry
+    if (!messageText && !isRetry) {
       setInput("");
     }
     
@@ -352,22 +356,52 @@ export default function Interview() {
     userJustSentMessageRef.current = true;
     shouldAutoScrollRef.current = true;
 
-    console.log(`🚀 Sending: "${textToSend}"`);
+    console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
 
     try {
       await base44.agents.addMessage(conversation, {
         role: "user",
         content: textToSend
       });
+      
+      // Success - reset retry count and failed message
+      retryCountRef.current = 0;
+      setLastFailedMessage(null);
+      
     } catch (err) {
-      console.error("Error sending message:", err);
-      setError("Failed to send message. Please try again.");
-      setShowQuickButtons(true);
+      console.error("❌ Error sending message:", err);
+      
+      // Store failed message for retry
+      setLastFailedMessage(textToSend);
+      
+      // Increment retry count
+      retryCountRef.current += 1;
+      
+      // More detailed error message
+      let errorMsg = "Failed to send message.";
+      
+      if (err.message?.toLowerCase().includes('network') || err.message?.toLowerCase().includes('fetch')) {
+        errorMsg = "Network error - check your connection and try again.";
+      } else if (err.message?.toLowerCase().includes('timeout')) {
+        errorMsg = "Request timed out - please try again.";
+      } else if (err.message) {
+        errorMsg = `Error: ${err.message}`;
+      }
+      
+      setError(errorMsg);
+      setShowQuickButtons(true); // Restore buttons so user can retry
       userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
     }
   }, [input, isSending, conversation]);
+
+  const handleRetry = useCallback(() => {
+    if (lastFailedMessage) {
+      console.log("🔄 Retrying last message...");
+      handleSend(lastFailedMessage, true);
+    }
+  }, [lastFailedMessage, handleSend]);
 
   const handleEditResponse = useCallback(async (message, newAnswer) => {
     if (!conversation || isSending) return;
@@ -530,7 +564,24 @@ export default function Interview() {
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="flex items-center justify-between gap-2">
+                <span>{error}</span>
+                {lastFailedMessage && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRetry}
+                    disabled={isSending}
+                    className="border-red-400 text-red-200 hover:bg-red-950 hover:text-white flex-shrink-0"
+                  >
+                    {isSending ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      "Retry"
+                    )}
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
           
@@ -574,7 +625,7 @@ export default function Interview() {
                 ) : (
                   <>
                     <Send className="w-5 h-5 mr-2" />
-                    <span className="font-medium">Send</span>
+                    <span className="font-semibold">Send</span>
                   </>
                 )}
               </Button>
