@@ -55,18 +55,16 @@ export default function Interview() {
       // Immediate scroll on initial load, smooth scroll on updates
       const behavior = initialLoadRef.current ? "instant" : "smooth";
       
-      // Give DOM time to render the new message before scrolling
-      // Use double RAF to ensure paint has completed
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          messagesEndRef.current?.scrollIntoView({ 
-            behavior: behavior, 
-            block: "end",
-            inline: "nearest"
-          });
-          initialLoadRef.current = false;
+      // Give DOM extra time to render and paint
+      // Use setTimeout to ensure scroll happens after all React updates
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: behavior, 
+          block: "end",
+          inline: "nearest"
         });
-      });
+        initialLoadRef.current = false;
+      }, 100);
     }
   }, [messages.length]);
 
@@ -171,14 +169,12 @@ export default function Interview() {
         setIsLoading(false);
         
         // Scroll to Q001 immediately after render
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            messagesEndRef.current?.scrollIntoView({ 
-              behavior: "instant", 
-              block: "end" 
-            });
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ 
+            behavior: "instant", 
+            block: "end" 
           });
-        });
+        }, 100);
         
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
@@ -206,14 +202,12 @@ export default function Interview() {
       setIsLoading(false);
       
       // Scroll to the last question after messages render
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          messagesEndRef.current?.scrollIntoView({ 
-            behavior: "instant", 
-            block: "end" 
-          });
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: "instant", 
+          block: "end" 
         });
-      });
+      }, 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -405,9 +399,9 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area - Scrollable */}
+      {/* Messages Area - Scrollable with extra padding at bottom */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-8">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-64">
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
