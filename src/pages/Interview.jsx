@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Shield, Send, Loader2, Pause, AlertCircle, Check, X, ArrowRight } from "lucide-react";
+import { Shield, Send, Loader2, Pause, AlertCircle, Check, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MessageBubble from "../components/interview/MessageBubble";
 import CategoryProgress from "../components/interview/CategoryProgress";
@@ -23,21 +22,16 @@ export default function Interview() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
-  const [initStatus, setInitStatus] = useState("Loading session...");
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
   const [categories, setCategories] = useState([]);
   const [isCompletionView, setIsCompletionView] = useState(false);
-  const [firstQuestion, setFirstQuestion] = useState(null);
   
   const messagesEndRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const isConversationActiveRef = useRef(false);
   const hasTriggeredAgentRef = useRef(false);
-  const isNewSessionRef = useRef(false);
-  const lastMessageUpdateRef = useRef(0);
-  const placeholderShownRef = useRef(false);
   const messageCountRef = useRef(0);
-  const autoScrollEnabledRef = useRef(true);
+  const lastScrollTimeRef = useRef(0);
+  const pendingScrollRef = useRef(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -45,137 +39,152 @@ export default function Interview() {
       return;
     }
     loadSession();
+    
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
   }, [sessionId]);
 
-  // Smooth scroll only when new messages arrive
+  // Optimized smooth scroll - only when genuinely new content
   useEffect(() => {
-    if (messages.length > messageCountRef.current && autoScrollEnabledRef.current) {
+    if (messages.length > messageCountRef.current) {
       messageCountRef.current = messages.length;
-      // Smooth scroll with a slight delay for render
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      });
+      
+      // Debounce scroll to avoid jank
+      const now = Date.now();
+      if (now - lastScrollTimeRef.current > 100) {
+        lastScrollTimeRef.current = now;
+        
+        // Use requestAnimationFrame for smooth 60fps scrolling
+        if (!pendingScrollRef.current) {
+          pendingScrollRef.current = true;
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ 
+              behavior: "smooth", 
+              block: "end",
+              inline: "nearest"
+            });
+            pendingScrollRef.current = false;
+          });
+        }
+      }
     }
   }, [messages.length]);
 
-  // Debounced message handling
+  // Optimized message state updates
   useEffect(() => {
     if (messages.length === 0) return;
-    
-    const now = Date.now();
-    if (now - lastMessageUpdateRef.current < 100) return;
-    lastMessageUpdateRef.current = now;
 
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
     
-    if (lastAssistantMessage?.content) {
-      // Check for completion
-      if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
-        if (!showCategoryProgress) {
-          handleCompletion();
-          return;
-        }
-      }
+    if (!lastAssistantMessage?.content) return;
 
-      // Show quick buttons for questions
+    // Check for completion
+    if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
+      if (!showCategoryProgress) {
+        handleCompletion();
+      }
+      return;
+    }
+
+    // Show quick buttons for questions (only if not in special view)
+    if (!showCategoryProgress) {
       const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
       const hasQuestion = content.includes('?');
-      setShowQuickButtons(hasQuestion && !showCategoryProgress);
+      setShowQuickButtons(hasQuestion);
     }
   }, [messages, showCategoryProgress]);
 
   const loadSession = async () => {
     try {
-      setInitStatus("Loading session...");
-      
-      // Load session, conversation, and first question in parallel
+      // Load session and Q001 in parallel for instant start
       const [sessionData, q001Data] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
       ]);
       
       setSession(sessionData);
-      
-      if (q001Data) {
-        setFirstQuestion(q001Data);
-        console.log("✅ Loaded Q001:", q001Data.question_text);
-      } else {
-        console.error("❌ Q001 not found in database");
-      }
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
       }
 
+      // Load conversation
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
-      setMessages(existingMessages);
-      messageCountRef.current = existingMessages.length;
 
-      // Optimized subscription - only update if messages actually changed
+      // Subscribe to conversation updates BEFORE setting initial messages
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
           
-          // Only update if message count changed or content changed
-          if (newMessages.length !== messageCountRef.current) {
-            setMessages(newMessages);
-          } else if (!placeholderShownRef.current) {
-            // Only check content if we're not showing placeholder
-            const lastNewMsg = newMessages[newMessages.length - 1];
-            const lastCurrentMsg = messages[messages.length - 1];
-            if (lastNewMsg?.content !== lastCurrentMsg?.content) {
-              setMessages(newMessages);
+          // Only update if there's a genuine change
+          setMessages(prevMessages => {
+            // Don't update if same length and same content
+            if (newMessages.length === prevMessages.length) {
+              const lastNew = newMessages[newMessages.length - 1];
+              const lastPrev = prevMessages[prevMessages.length - 1];
+              if (lastNew?.content === lastPrev?.content) {
+                return prevMessages; // No change
+              }
             }
-          }
+            
+            // Only update if different
+            if (JSON.stringify(newMessages) !== JSON.stringify(prevMessages)) {
+              return newMessages;
+            }
+            return prevMessages;
+          });
         }
       );
 
-      // Check for new session - start immediately with Q001
-      if (existingMessages.length === 0) {
-        isNewSessionRef.current = true;
+      // Handle new session - show Q001 immediately
+      if (existingMessages.length === 0 && q001Data) {
+        console.log("✅ New session - showing Q001 immediately");
         
-        // Show Q001 immediately
-        if (q001Data && !hasTriggeredAgentRef.current) {
-          console.log("🚀 New session - showing Q001 immediately");
-          
-          const placeholderMessage = {
-            id: 'q001-placeholder',
-            role: 'assistant',
-            content: `Q001: ${q001Data.question_text}`,
-            tool_calls: [],
-            created_at: new Date().toISOString()
-          };
-          
-          placeholderShownRef.current = true;
-          setMessages([placeholderMessage]);
-          messageCountRef.current = 1;
-          setShowQuickButtons(true);
-          setIsLoading(false);
-          
-          // Send to agent in background
+        // Create stable placeholder message
+        const q001Message = {
+          id: 'q001-initial',
+          role: 'assistant',
+          content: `Q001: ${q001Data.question_text}`,
+          tool_calls: [],
+          created_at: new Date().toISOString()
+        };
+        
+        setMessages([q001Message]);
+        messageCountRef.current = 1;
+        setShowQuickButtons(true);
+        setIsLoading(false);
+        
+        // Trigger agent in background ONCE
+        if (!hasTriggeredAgentRef.current) {
           hasTriggeredAgentRef.current = true;
+          
+          // Small delay to ensure UI renders first
           setTimeout(() => {
             base44.agents.addMessage(conversationData, {
               role: "user",
               content: "Start with Q001"
-            }).then(() => {
-              placeholderShownRef.current = false;
             }).catch(err => {
-              console.error("❌ Error sending to agent:", err);
-              setError("Failed to start interview");
-              placeholderShownRef.current = false;
+              console.error("❌ Error starting interview:", err);
+              setError("Failed to start interview. Please refresh.");
             });
-          }, 100);
-          
-          return;
+          }, 50);
         }
+        
+        return;
       }
 
+      // Existing session - show messages immediately
+      setMessages(existingMessages);
+      messageCountRef.current = existingMessages.length;
       setIsLoading(false);
+
     } catch (err) {
       console.error("❌ Error loading session:", err);
       setError(`Failed to load interview session: ${err.message}`);
@@ -185,12 +194,11 @@ export default function Interview() {
 
   const handleCompletion = useCallback(async () => {
     try {
-      const [categoriesData, responsesData] = await Promise.all([
+      const [categoriesData, responsesData, questionsData] = await Promise.all([
         base44.entities.Category.list('display_order'),
-        base44.entities.Response.filter({ session_id: sessionId })
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.Question.filter({ active: true })
       ]);
-
-      const questionsData = await base44.entities.Question.filter({ active: true });
 
       const categoryProgress = categoriesData.map(cat => {
         const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
@@ -217,17 +225,17 @@ export default function Interview() {
     navigate(createPageUrl("InterviewDashboard"));
   };
 
-  const handleSend = async (messageText = null) => {
+  const handleSend = useCallback(async (messageText = null) => {
     const textToSend = messageText || input.trim();
     if (!textToSend || isSending || !conversation) return;
 
     if (!messageText) {
       setInput("");
     }
+    
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
-    isConversationActiveRef.current = true;
 
     try {
       await base44.agents.addMessage(conversation, {
@@ -237,16 +245,13 @@ export default function Interview() {
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
-      isConversationActiveRef.current = false;
+      setShowQuickButtons(true); // Re-show buttons on error
     } finally {
       setIsSending(false);
-      setTimeout(() => {
-        isConversationActiveRef.current = false;
-      }, 300);
     }
-  };
+  }, [input, isSending, conversation]);
 
-  const handleEditResponse = async (message, newAnswer) => {
+  const handleEditResponse = useCallback(async (message, newAnswer) => {
     if (!conversation || isSending) return;
     
     setIsSending(true);
@@ -263,42 +268,44 @@ export default function Interview() {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [conversation, isSending]);
 
-  const handleQuickResponse = (response) => {
+  const handleQuickResponse = useCallback((response) => {
     handleSend(response);
-  };
+  }, [handleSend]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback((e) => {
     e.preventDefault();
     handleSend();
-  };
+  }, [handleSend]);
 
-  const handlePause = async () => {
+  const handlePause = useCallback(async () => {
     try {
       await base44.entities.InterviewSession.update(sessionId, {
         status: "paused"
       });
-      navigate(createPageUrl("AdminDashboard"));
+      navigate(createPageUrl("InterviewDashboard"));
     } catch (err) {
       console.error("Error pausing session:", err);
     }
-  };
+  }, [sessionId, navigate]);
 
-  useEffect(() => {
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-    };
-  }, []);
+  // Memoize filtered messages to prevent re-filtering on every render
+  const displayMessages = useMemo(() => {
+    return messages.filter(message => 
+      message.content && 
+      message.content.trim() !== '' &&
+      !message.content.includes('[SHOW_CATEGORY_OVERVIEW]') &&
+      !message.content.includes('[SHOW_CATEGORY_TRANSITION:')
+    );
+  }, [messages]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">{initStatus}</p>
+          <p className="text-slate-300">Loading interview session...</p>
           {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -343,7 +350,7 @@ export default function Interview() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+      <header className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -366,34 +373,32 @@ export default function Interview() {
             </Button>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto pb-6">
+      <main className="flex-1 overflow-y-auto pb-6">
         <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
-          {messages.length === 0 ? (
+          {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
-              <p className="text-slate-400">Waiting for interviewer to start...</p>
+              <p className="text-slate-400">Starting interview...</p>
             </div>
           ) : (
-            messages
-              .filter(message => message.content && message.content.trim() !== '')
-              .map((message, index) => (
-                <MessageBubble 
-                  key={message.id || `${message.role}-${index}-${message.created_at}`}
-                  message={message} 
-                  onEditResponse={handleEditResponse}
-                  showWelcome={false}
-                />
-              ))
+            displayMessages.map((message, index) => (
+              <MessageBubble 
+                key={message.id || `msg-${message.created_at}-${index}`}
+                message={message} 
+                onEditResponse={handleEditResponse}
+                showWelcome={false}
+              />
+            ))
           )}
           <div ref={messagesEndRef} />
         </div>
-      </div>
+      </main>
 
       {/* Input Area */}
-      <div className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-6">
+      <footer className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-6">
         <div className="max-w-5xl mx-auto">
           {error && (
             <Alert variant="destructive" className="mb-4">
@@ -403,22 +408,22 @@ export default function Interview() {
           )}
           
           {showQuickButtons && !isSending ? (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex gap-3">
               <Button
                 onClick={() => handleQuickResponse("Yes")}
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                 size="lg"
               >
                 <Check className="w-5 h-5" />
-                Yes
+                <span className="font-semibold">Yes</span>
               </Button>
               <Button
                 onClick={() => handleQuickResponse("No")}
-                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 flex-1 min-w-[140px]"
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                 size="lg"
               >
                 <X className="w-5 h-5" />
-                No
+                <span className="font-semibold">No</span>
               </Button>
             </div>
           ) : (
@@ -427,13 +432,15 @@ export default function Interview() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your response..."
-                className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
+                className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 h-12"
                 disabled={isSending}
+                autoComplete="off"
               />
               <Button
                 type="submit"
                 disabled={isSending || !input.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                size="lg"
               >
                 {isSending ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -451,7 +458,7 @@ export default function Interview() {
             All responses are encrypted and will be reviewed by authorized investigators
           </p>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

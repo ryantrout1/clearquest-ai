@@ -1,13 +1,9 @@
 import { useState, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from "@/components/ui/button";
-import { Copy, Edit2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-const FunctionDisplay = ({ toolCall }) => {
-    return null; // Hide function calls from UI
-};
 
 // Extract question number from message content
 const extractQuestionNumber = (content) => {
@@ -30,7 +26,7 @@ const removeQuestionPrefix = (content) => {
     return content.replace(/^Q\d{1,3}:\s*/i, '');
 };
 
-const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) => {
+const MessageBubble = memo(({ message, onEditResponse }) => {
     const isUser = message.role === 'user';
     
     // Hide system command messages
@@ -40,20 +36,6 @@ const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) =>
         message.content === "Start with Q001"
     )) {
         return null;
-    }
-    
-    // Hide messages with markers (they're handled separately)
-    if (message.content) {
-        // Hide welcome message UNLESS showWelcome is true
-        if (message.content.includes('[SHOW_CATEGORY_OVERVIEW]') && !showWelcome) {
-            return null;
-        }
-        if (message.content.includes('[SHOW_CATEGORY_TRANSITION:')) {
-            return null;
-        }
-        if (message.content.includes('[SHOW_COMPLETION]')) {
-            return null;
-        }
     }
     
     // Clean content - remove ALL markers
@@ -128,7 +110,7 @@ const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) =>
                                         },
                                         a: ({ children, ...props }) => (
                                             <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200">{children}</a>
-                        ),
+                                        ),
                                         p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
                                         ul: ({ children }) => <ul className="my-1 ml-4 list-disc">{children}</ul>,
                                         ol: ({ children }) => <ol className="my-1 ml-4 list-decimal">{children}</ol>,
@@ -174,21 +156,13 @@ const MessageBubble = memo(({ message, onEditResponse, showWelcome = false }) =>
                         )}
                     </div>
                 )}
-                
-                {message.tool_calls?.length > 0 && (
-                    <div className="space-y-1">
-                        {message.tool_calls.map((toolCall, idx) => (
-                            <FunctionDisplay key={idx} toolCall={toolCall} />
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison function - only re-render if content actually changed
+    // Only re-render if content actually changed
     return prevProps.message.content === nextProps.message.content &&
-           prevProps.showWelcome === nextProps.showWelcome;
+           prevProps.message.id === nextProps.message.id;
 });
 
 MessageBubble.displayName = 'MessageBubble';
