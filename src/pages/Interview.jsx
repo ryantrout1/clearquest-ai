@@ -28,6 +28,7 @@ export default function Interview() {
   const [isCompletionView, setIsCompletionView] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState(null);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -266,11 +267,24 @@ export default function Interview() {
       await base44.entities.InterviewSession.update(sessionId, {
         status: "paused"
       });
-      navigate(createPageUrl("InterviewDashboard"));
+      setIsPaused(true);
     } catch (err) {
       console.error("Error pausing session:", err);
+      setError("Failed to pause interview. Please try again.");
     }
-  }, [sessionId, navigate]);
+  }, [sessionId]);
+
+  const handleResume = useCallback(async () => {
+    try {
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: "in_progress"
+      });
+      setIsPaused(false);
+    } catch (err) {
+      console.error("Error resuming session:", err);
+      setError("Failed to resume interview. Please try again.");
+    }
+  }, [sessionId]);
 
   // Handle completion
   const handleCompletion = useCallback(async () => {
@@ -353,6 +367,14 @@ export default function Interview() {
       ]);
       
       setSession(sessionData);
+
+      if (sessionData.status === 'paused') {
+        setIsPaused(true);
+        setIsLoading(false); // Make sure to stop loading if paused
+        return; // Exit early if session is paused
+      } else {
+        setIsPaused(false);
+      }
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
@@ -451,7 +473,7 @@ export default function Interview() {
         unsubscribeRef.current();
       }
     };
-  }, [sessionId, navigate, instantScrollToBottom]); // Added instantScrollToBottom to dependencies
+  }, [sessionId, navigate, instantScrollToBottom]);
 
   useEffect(() => {
     const updateFooterHeight = () => {
@@ -624,6 +646,64 @@ export default function Interview() {
           <Button onClick={() => navigate(createPageUrl("StartInterview"))} className="w-full">
             Start New Interview
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Paused State View
+  if (isPaused) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full">
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-8 md:p-12 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-4 rounded-full bg-blue-600/20">
+                <Pause className="w-12 h-12 text-blue-400" />
+              </div>
+            </div>
+            
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                Interview Paused
+              </h2>
+              <p className="text-lg text-slate-300 mb-4">
+                Your progress has been saved.
+              </p>
+              <p className="text-slate-400 leading-relaxed max-w-lg mx-auto">
+                You can come back anytime and pick up exactly where you left off. 
+                Your responses are securely stored and encrypted.
+              </p>
+            </div>
+
+            <div className="bg-slate-900/50 rounded-lg p-6 space-y-2 max-w-md mx-auto">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Session Code</span>
+                <span className="text-white font-semibold">{session?.session_code}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Questions Completed</span>
+                <span className="text-white font-semibold">{session?.total_questions_answered || 0} / 162</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleResume}
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full md:w-auto px-8"
+            >
+              Resume Interview
+            </Button>
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <p className="text-xs text-slate-500 pt-4">
+              All data is encrypted and compliant with CJIS standards
+            </p>
+          </div>
         </div>
       </div>
     );
