@@ -27,6 +27,7 @@ export default function Interview() {
   const [isCompletionView, setIsCompletionView] = useState(false);
   
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const hasTriggeredAgentRef = useRef(false);
   const lastMessageCountRef = useRef(0);
@@ -47,26 +48,33 @@ export default function Interview() {
     };
   }, [sessionId]);
 
-  // Scroll to bottom when messages change - with proper timing to ensure DOM is updated
+  // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = useCallback((instant = false) => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const scrollOptions = {
+        top: container.scrollHeight,
+        behavior: instant ? 'auto' : 'smooth'
+      };
+      container.scrollTo(scrollOptions);
+    }
+  }, []);
+
+  // Scroll when messages change
   useEffect(() => {
     if (messages.length > lastMessageCountRef.current) {
       lastMessageCountRef.current = messages.length;
       
-      // Immediate scroll on initial load, smooth scroll on updates
-      const behavior = initialLoadRef.current ? "instant" : "smooth";
+      // Use instant scroll on initial load, smooth on updates
+      const isInstant = initialLoadRef.current;
       
-      // Give DOM extra time to render and paint
-      // Use setTimeout to ensure scroll happens after all React updates
+      // Small delay to ensure DOM has rendered
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: behavior, 
-          block: "end",
-          inline: "nearest"
-        });
+        scrollToBottom(!isInstant);
         initialLoadRef.current = false;
-      }, 100);
+      }, 50);
     }
-  }, [messages.length]);
+  }, [messages.length, scrollToBottom]);
 
   // Optimized message state updates
   useEffect(() => {
@@ -133,7 +141,6 @@ export default function Interview() {
             setMessages(prevMessages => {
               // If adding messages, just append (don't replace)
               if (newCount > prevMessages.length) {
-                // Return new array with new messages appended
                 return newMessages;
               }
               
@@ -168,19 +175,13 @@ export default function Interview() {
         setShowQuickButtons(true);
         setIsLoading(false);
         
-        // Scroll to Q001 immediately after render
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ 
-            behavior: "instant", 
-            block: "end" 
-          });
-        }, 100);
+        // Scroll after render
+        setTimeout(() => scrollToBottom(true), 100);
         
         // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
           hasTriggeredAgentRef.current = true;
           
-          // Small delay to ensure UI renders first
           setTimeout(() => {
             base44.agents.addMessage(conversationData, {
               role: "user",
@@ -201,13 +202,8 @@ export default function Interview() {
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       setIsLoading(false);
       
-      // Scroll to the last question after messages render
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: "instant", 
-          block: "end" 
-        });
-      }, 100);
+      // Scroll to bottom after messages render
+      setTimeout(() => scrollToBottom(true), 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -269,7 +265,7 @@ export default function Interview() {
     } catch (err) {
       console.error("Error sending message:", err);
       setError("Failed to send message. Please try again.");
-      setShowQuickButtons(true); // Re-show buttons on error
+      setShowQuickButtons(true);
     } finally {
       setIsSending(false);
     }
@@ -373,7 +369,7 @@ export default function Interview() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-      {/* Header - Fixed */}
+      {/* Header - Fixed at Top */}
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
@@ -399,9 +395,12 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area - Scrollable with extra padding at bottom */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-64">
+      {/* Messages Area - Scrollable Middle Section */}
+      <main 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto"
+      >
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-96">
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
@@ -421,7 +420,7 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Input Area - Fixed at Bottom */}
+      {/* Footer - Fixed at Bottom */}
       <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl">
         <div className="max-w-5xl mx-auto">
           {error && (
