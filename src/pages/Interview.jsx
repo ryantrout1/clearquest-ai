@@ -280,11 +280,34 @@ export default function Interview() {
         status: "in_progress"
       });
       setIsPaused(false);
+      
+      // Refresh the conversation to ensure messages are loaded
+      if (conversation) {
+        const conversationData = await base44.agents.getConversation(conversation.id);
+        const existingMessages = conversationData.messages || [];
+        setMessages(existingMessages);
+        lastMessageCountRef.current = existingMessages.length;
+        lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
+        shouldAutoScrollRef.current = true;
+        
+        // Scroll to bottom after a brief delay
+        setTimeout(() => instantScrollToBottom(), 100);
+        
+        // Check if we need to show quick buttons
+        if (existingMessages.length > 0) {
+          const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
+          if (lastAssistantMessage?.content) {
+            const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+            const hasQuestion = content.includes('?');
+            setShowQuickButtons(hasQuestion);
+          }
+        }
+      }
     } catch (err) {
       console.error("Error resuming session:", err);
       setError("Failed to resume interview. Please try again.");
     }
-  }, [sessionId]);
+  }, [sessionId, conversation, instantScrollToBottom]);
 
   // Handle completion
   const handleCompletion = useCallback(async () => {
