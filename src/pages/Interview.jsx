@@ -348,9 +348,9 @@ export default function Interview() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
+      {/* Header - Fixed */}
+      <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -375,9 +375,9 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area */}
-      <main className="flex-1 overflow-y-auto pb-6">
-        <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
+      {/* Messages Area - Scrollable */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-8">
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
@@ -397,8 +397,8 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Input Area */}
-      <footer className="bg-slate-800/80 backdrop-blur-sm border-t border-slate-700 px-4 py-6">
+      {/* Input Area - Fixed at Bottom */}
+      <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl">
         <div className="max-w-5xl mx-auto">
           {error && (
             <Alert variant="destructive" className="mb-4">
@@ -408,7 +408,7 @@ export default function Interview() {
           )}
           
           {showQuickButtons && !isSending ? (
-            <div className="flex gap-3">
+            <div className="flex gap-3 mb-3">
               <Button
                 onClick={() => handleQuickResponse("Yes")}
                 className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
@@ -427,7 +427,7 @@ export default function Interview() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex gap-3">
+            <form onSubmit={handleSubmit} className="flex gap-3 mb-3">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -454,8 +454,8 @@ export default function Interview() {
             </form>
           )}
           
-          <p className="text-xs text-slate-500 mt-3 text-center">
-            All responses are encrypted and will be reviewed by authorized investigators
+          <p className="text-xs text-slate-400 text-center">
+            All responses are encrypted and reviewed by authorized investigators
           </p>
         </div>
       </footer>
