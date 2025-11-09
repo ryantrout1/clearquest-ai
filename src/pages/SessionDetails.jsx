@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SessionDetails() {
   const navigate = useNavigate();
@@ -23,6 +25,8 @@ export default function SessionDetails() {
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -33,30 +37,83 @@ export default function SessionDetails() {
   }, [sessionId]);
 
   const loadSessionData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    
     try {
-      const [sessionData, responsesData, followupsData, questionsData] = await Promise.all([
-        base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Response.filter({ session_id: sessionId }),
-        base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
-        base44.entities.Question.filter({ active: true })
-      ]);
+      console.log("🔍 Loading session:", sessionId);
+      
+      // First, get the session
+      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      console.log("✅ Session loaded:", sessionData);
+      setSession(sessionData);
 
-      console.log("📊 Session loaded:", {
-        session: sessionData.session_code,
-        responses: responsesData.length,
-        followups: followupsData.length,
-        questions: questionsData.length
+      // Try multiple query methods to find responses
+      console.log("🔍 Querying responses with session_id:", sessionId);
+      
+      // Method 1: Filter by session_id
+      let responsesData = await base44.entities.Response.filter({ session_id: sessionId });
+      console.log("📊 Method 1 (filter by session_id):", responsesData.length, "responses");
+      
+      // Method 2: List all and filter manually (fallback)
+      if (responsesData.length === 0) {
+        console.log("⚠️ No responses found with filter, trying list all...");
+        const allResponses = await base44.entities.Response.list();
+        responsesData = allResponses.filter(r => r.session_id === sessionId);
+        console.log("📊 Method 2 (manual filter):", responsesData.length, "responses from", allResponses.length, "total");
+        
+        // Debug: Show some sample session_id values
+        if (allResponses.length > 0) {
+          console.log("🔍 Sample session_ids from all responses:", 
+            allResponses.slice(0, 3).map(r => r.session_id)
+          );
+        }
+      }
+
+      // Get follow-ups
+      let followupsData = await base44.entities.FollowUpResponse.filter({ session_id: sessionId });
+      console.log("📊 Follow-ups found:", followupsData.length);
+      
+      if (followupsData.length === 0) {
+        const allFollowups = await base44.entities.FollowUpResponse.list();
+        followupsData = allFollowups.filter(f => f.session_id === sessionId);
+        console.log("📊 Follow-ups (manual filter):", followupsData.length, "from", allFollowups.length, "total");
+      }
+
+      // Get questions
+      const questionsData = await base44.entities.Question.filter({ active: true });
+      console.log("📊 Questions loaded:", questionsData.length);
+
+      // Store debug info
+      setDebugInfo({
+        sessionId: sessionId,
+        responsesFound: responsesData.length,
+        followupsFound: followupsData.length,
+        questionsFound: questionsData.length,
+        sessionStatus: sessionData.status,
+        sessionCode: sessionData.session_code
       });
 
-      setSession(sessionData);
       setResponses(responsesData);
       setFollowups(followupsData);
       setQuestions(questionsData);
+      
+      // Show warning if no responses but session shows progress
+      if (responsesData.length === 0 && sessionData.total_questions_answered > 0) {
+        setLoadError("Warning: Session metadata indicates answers exist, but no Response records found. This may be a data sync issue.");
+      }
+      
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading session:", err);
+      console.error("❌ Error loading session:", err);
+      setLoadError(`Failed to load session data: ${err.message}`);
       setIsLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    console.log("🔄 Manual refresh requested");
+    loadSessionData();
   };
 
   const generateReport = async () => {
@@ -341,19 +398,22 @@ export default function SessionDetails() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
+          <p className="text-slate-300">Loading session data...</p>
+        </div>
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
           <p className="text-slate-300">Session not found</p>
           <Link to={createPageUrl("InterviewDashboard")}>
-            <Button className="mt-4">Back to Dashboard</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700">Back to Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -380,12 +440,52 @@ export default function SessionDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <Link to={createPageUrl("InterviewDashboard")}>
-          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4 md:mb-6">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <Link to={createPageUrl("InterviewDashboard")}>
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="bg-slate-800/50 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
           </Button>
-        </Link>
+        </div>
+
+        {/* Error/Warning Alert */}
+        {loadError && (
+          <Alert className="mb-4 bg-yellow-950/20 border-yellow-800/30">
+            <AlertTriangle className="h-4 w-4 text-yellow-400" />
+            <AlertDescription className="text-yellow-300">
+              {loadError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Debug Info Alert */}
+        {debugInfo && responses.length === 0 && (
+          <Alert className="mb-4 bg-blue-950/20 border-blue-800/30">
+            <AlertDescription className="text-blue-300 text-xs space-y-1">
+              <p><strong>Debug Info:</strong></p>
+              <p>• Session ID: {debugInfo.sessionId}</p>
+              <p>• Session Code: {debugInfo.sessionCode}</p>
+              <p>• Session Status: {debugInfo.sessionStatus}</p>
+              <p>• Responses Found: {debugInfo.responsesFound}</p>
+              <p>• Follow-ups Found: {debugInfo.followupsFound}</p>
+              <p className="mt-2 text-yellow-300">
+                ℹ️ If this interview was completed, Response records may not have been created by the agent. 
+                This is likely a configuration issue with the agent's entity creation permissions.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Header Card */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
@@ -468,7 +568,7 @@ export default function SessionDetails() {
             <Button 
               onClick={generateReport} 
               disabled={isGeneratingReport || responses.length === 0}
-              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-sm"
+              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingReport ? (
                 <>
@@ -485,7 +585,14 @@ export default function SessionDetails() {
           </CardHeader>
           <CardContent>
             {responses.length === 0 ? (
-              <p className="text-slate-400 text-center py-8 text-sm">No responses yet</p>
+              <div className="text-center py-12 space-y-4">
+                <FileText className="w-16 h-16 text-slate-600 mx-auto" />
+                <p className="text-slate-400 text-sm">No response records found for this session</p>
+                <p className="text-slate-500 text-xs max-w-md mx-auto">
+                  If this interview was completed, the agent may not have created Response records. 
+                  Check the agent configuration and entity permissions.
+                </p>
+              </div>
             ) : (
               <div className="space-y-4">
                 {responses.map((response, idx) => (
