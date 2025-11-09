@@ -33,8 +33,10 @@ export default function Interview() {
   const hasTriggeredAgentRef = useRef(false);
   const lastMessageCountRef = useRef(0);
   const lastMessageContentRef = useRef('');
-  const shouldAutoScrollRef = useRef(true); // Track if we should auto-scroll
-  const userJustSentMessageRef = useRef(false); // Track if user just sent a message
+  const shouldAutoScrollRef = useRef(true);
+  const userJustSentMessageRef = useRef(false);
+  const previousScrollTopRef = useRef(0); // Track previous scroll position
+  const isUpdatingRef = useRef(false); // Prevent scroll jumps during updates
 
   useEffect(() => {
     if (!sessionId) {
@@ -75,27 +77,33 @@ export default function Interview() {
     if (!container) return;
 
     const handleScroll = () => {
+      // Don't update flags if we're in the middle of an update
+      if (isUpdatingRef.current) return;
+      
+      // Save current scroll position
+      previousScrollTopRef.current = container.scrollTop;
+      
       // Check if user is near bottom
       const threshold = 200;
       const position = container.scrollTop + container.clientHeight;
       const bottom = container.scrollHeight;
       const nearBottom = bottom - position < threshold;
       
-      // Update auto-scroll flag based on scroll position
+      // Update auto-scroll flag
       shouldAutoScrollRef.current = nearBottom;
     };
 
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Force scroll to bottom - simple and reliable
-  const forceScrollToBottom = useCallback(() => {
+  // Smooth scroll to bottom
+  const smoothScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
     
-    // Use requestAnimationFrame to ensure DOM is painted
+    // Double RAF for guaranteed DOM paint
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         container.scrollTo({
@@ -106,48 +114,84 @@ export default function Interview() {
     });
   }, []);
 
-  // Instant scroll to bottom (no animation)
+  // Instant scroll to bottom
   const instantScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
-    
     const container = messagesContainerRef.current;
     container.scrollTop = container.scrollHeight;
   }, []);
 
-  // Handle message updates and auto-scroll
+  // Restore scroll position (prevent jumps)
+  const restoreScrollPosition = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const container = messagesContainerRef.current;
+    container.scrollTop = previousScrollTopRef.current;
+  }, []);
+
+  // Handle message updates with scroll preservation
   useEffect(() => {
     const newMessageCount = messages.length;
     
-    // No messages yet, nothing to do
     if (newMessageCount === 0) return;
     
-    // Messages added
-    if (newMessageCount > lastMessageCountRef.current) {
-      const messagesAdded = newMessageCount - lastMessageCountRef.current;
+    const previousCount = lastMessageCountRef.current;
+    const messagesAdded = newMessageCount - previousCount;
+    
+    // Messages were added (not just updated)
+    if (messagesAdded > 0) {
       lastMessageCountRef.current = newMessageCount;
       
-      console.log(`📨 ${messagesAdded} new message(s) - User just sent: ${userJustSentMessageRef.current}, Auto-scroll: ${shouldAutoScrollRef.current}`);
+      console.log(`📨 ${messagesAdded} new message(s) added`);
+      console.log(`User sent: ${userJustSentMessageRef.current}, Auto-scroll enabled: ${shouldAutoScrollRef.current}`);
       
-      // Always scroll if user just sent a message (they expect to see response)
-      // OR if auto-scroll is enabled (user is at bottom)
-      if (userJustSentMessageRef.current || shouldAutoScrollRef.current) {
-        // Longer delay to ensure DOM is fully rendered with new messages
+      // Set updating flag to prevent scroll listener interference
+      isUpdatingRef.current = true;
+      
+      // Decide if we should auto-scroll
+      const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
+      
+      if (shouldScroll) {
+        // Wait for DOM to render new messages, then scroll
         setTimeout(() => {
-          forceScrollToBottom();
-          console.log('✅ Auto-scrolled to bottom');
+          smoothScrollToBottom();
+          isUpdatingRef.current = false;
+          console.log('✅ Auto-scrolled to show new messages');
         }, 150);
         
-        // Reset the flag after scrolling
+        // Reset user action flag
         if (userJustSentMessageRef.current) {
           setTimeout(() => {
             userJustSentMessageRef.current = false;
           }, 200);
         }
       } else {
-        console.log('⏸️ User scrolled up - not auto-scrolling');
+        // User scrolled up - don't auto-scroll
+        console.log('⏸️ User reviewing history - preserving position');
+        isUpdatingRef.current = false;
+      }
+    } 
+    // Same number of messages but content changed (streaming)
+    else if (messagesAdded === 0 && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      const lastContent = lastMessage?.content || '';
+      
+      // Content is being streamed (AI typing)
+      if (lastContent !== lastMessageContentRef.current) {
+        lastMessageContentRef.current = lastContent;
+        
+        // If user was at bottom, keep them at bottom during streaming
+        if (shouldAutoScrollRef.current) {
+          // Use RAF to prevent scroll jumps
+          requestAnimationFrame(() => {
+            if (messagesContainerRef.current && shouldAutoScrollRef.current) {
+              const container = messagesContainerRef.current;
+              container.scrollTop = container.scrollHeight;
+            }
+          });
+        }
       }
     }
-  }, [messages, forceScrollToBottom]);
+  }, [messages, smoothScrollToBottom]);
 
   // Optimized message state updates
   useEffect(() => {
@@ -165,7 +209,7 @@ export default function Interview() {
       return;
     }
 
-    // Show quick buttons for questions (only if not in special view)
+    // Show quick buttons for questions
     if (!showCategoryProgress) {
       const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
       const hasQuestion = content.includes('?');
@@ -175,7 +219,6 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
-      // Load session and Q001 in parallel for instant start
       const [sessionData, q001Data] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
@@ -187,36 +230,30 @@ export default function Interview() {
         throw new Error("No conversation linked to this session");
       }
 
-      // Load conversation
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
 
-      // OPTIMIZED SUBSCRIPTION - Only update when truly necessary
+      // Optimized subscription
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          
-          // Check if messages actually changed
           const newCount = newMessages.length;
           const lastContent = newMessages[newCount - 1]?.content || '';
           
-          // Only update if message count changed OR last message content changed (streaming)
+          // Only update if something actually changed
           if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
-            lastMessageContentRef.current = lastContent;
-            
             setMessages(newMessages);
           }
         }
       );
 
-      // Handle new session - show Q001 immediately
+      // Handle new session
       if (existingMessages.length === 0 && q001Data) {
-        console.log("✅ New session - showing Q001 immediately");
+        console.log("✅ New session - showing Q001");
         
-        // Create stable placeholder message with unique ID
         const q001Message = {
           id: 'q001-initial',
           role: 'assistant',
@@ -232,15 +269,10 @@ export default function Interview() {
         setShowQuickButtons(true);
         setIsLoading(false);
         
-        // Instant scroll after render
-        setTimeout(() => {
-          instantScrollToBottom();
-        }, 100);
+        setTimeout(() => instantScrollToBottom(), 100);
         
-        // Trigger agent in background ONCE
         if (!hasTriggeredAgentRef.current) {
           hasTriggeredAgentRef.current = true;
-          
           setTimeout(() => {
             base44.agents.addMessage(conversationData, {
               role: "user",
@@ -255,17 +287,14 @@ export default function Interview() {
         return;
       }
 
-      // Existing session - show messages immediately and scroll to bottom
+      // Existing session
       setMessages(existingMessages);
       lastMessageCountRef.current = existingMessages.length;
       lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       shouldAutoScrollRef.current = true;
       setIsLoading(false);
       
-      // Instant scroll to bottom after messages render
-      setTimeout(() => {
-        instantScrollToBottom();
-      }, 100);
+      setTimeout(() => instantScrollToBottom(), 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -319,11 +348,11 @@ export default function Interview() {
     setError(null);
     setShowQuickButtons(false);
     
-    // Flag that user just sent a message - ensure we scroll to show response
+    // User action - always scroll to show response
     userJustSentMessageRef.current = true;
     shouldAutoScrollRef.current = true;
 
-    console.log(`🚀 User sending: "${textToSend}"`);
+    console.log(`🚀 Sending: "${textToSend}"`);
 
     try {
       await base44.agents.addMessage(conversation, {
@@ -382,7 +411,6 @@ export default function Interview() {
     }
   }, [sessionId, navigate]);
 
-  // Memoize filtered messages to prevent re-filtering on every render
   const displayMessages = useMemo(() => {
     return messages.filter(message => 
       message.content && 
@@ -441,7 +469,7 @@ export default function Interview() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-      {/* Header - Fixed at Top */}
+      {/* Header */}
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
@@ -467,7 +495,7 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages Area - Scrollable with dynamic padding */}
+      {/* Messages */}
       <main 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto"
@@ -493,7 +521,7 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Footer - Fixed at Bottom */}
+      {/* Footer */}
       <footer 
         ref={footerRef}
         className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl z-50"
