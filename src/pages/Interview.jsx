@@ -29,6 +29,7 @@ export default function Interview() {
   const [lastFailedMessage, setLastFailedMessage] = useState(null);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [questions, setQuestions] = useState([]);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -41,6 +42,113 @@ export default function Interview() {
   const userJustSentMessageRef = useRef(false);
   const scrollLockRef = useRef(false);
   const retryCountRef = useRef(0);
+  const processedMessagesRef = useRef(new Set()); // Track which messages we've created Response records for
+
+  // Auto-create Response records from conversation messages
+  useEffect(() => {
+    if (!sessionId || !messages || messages.length === 0 || !questions || questions.length === 0) return;
+
+    const createMissingResponses = async () => {
+      console.log("🔍 Checking for missing Response records...");
+      
+      // Find pairs of assistant question + user answer
+      for (let i = 0; i < messages.length - 1; i++) {
+        const assistantMsg = messages[i];
+        const userMsg = messages[i + 1];
+        
+        // Skip if not the right pattern
+        if (assistantMsg.role !== 'assistant' || userMsg.role !== 'user') continue;
+        
+        // Skip if already processed
+        const pairKey = `${assistantMsg.id}-${userMsg.id}`;
+        if (processedMessagesRef.current.has(pairKey)) continue;
+        
+        // Extract question ID from assistant message (Q###)
+        const questionMatch = assistantMsg.content?.match(/\b(Q\d{1,3})\b/i);
+        if (!questionMatch) continue;
+        
+        const questionId = questionMatch[1].toUpperCase();
+        
+        // Find question details
+        const questionData = questions.find(q => q.question_id === questionId);
+        if (!questionData) {
+          console.warn(`⚠️ Question ${questionId} not found in database`);
+          continue;
+        }
+        
+        // Check if Response already exists for this question
+        const existingResponses = await base44.entities.Response.filter({
+          session_id: sessionId,
+          question_id: questionId
+        });
+        
+        if (existingResponses.length > 0) {
+          console.log(`✅ Response already exists for ${questionId}`);
+          processedMessagesRef.current.add(pairKey);
+          continue;
+        }
+        
+        // Extract user's answer
+        let userAnswer = userMsg.content?.trim() || '';
+        
+        // Skip system commands
+        if (userAnswer === "Ready to begin" || userAnswer === "Continue" || userAnswer === "Start with Q001") {
+          processedMessagesRef.current.add(pairKey);
+          continue;
+        }
+        
+        // Normalize Yes/No answers
+        const normalizedAnswer = userAnswer.toLowerCase();
+        if (normalizedAnswer === 'yes' || normalizedAnswer === 'no') {
+          userAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1).toLowerCase();
+        }
+        
+        console.log(`📝 Creating Response: ${questionId} = "${userAnswer}"`);
+        
+        try {
+          // Check if this answer should trigger a follow-up
+          const triggersFollowup = questionData.followup_pack && userAnswer.toLowerCase() === 'yes';
+          
+          await base44.entities.Response.create({
+            session_id: sessionId,
+            question_id: questionId,
+            question_text: questionData.question_text,
+            category: questionData.category,
+            answer: userAnswer,
+            answer_array: null,
+            triggered_followup: triggersFollowup,
+            followup_pack: triggersFollowup ? questionData.followup_pack : null,
+            is_flagged: false,
+            flag_reason: null,
+            response_timestamp: userMsg.created_at || new Date().toISOString()
+          });
+          
+          console.log(`✅ Response created for ${questionId}`);
+          
+          // Update session progress
+          const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
+          const progress = Math.round((allResponses.length / 162) * 100);
+          
+          await base44.entities.InterviewSession.update(sessionId, {
+            total_questions_answered: allResponses.length,
+            completion_percentage: progress
+          });
+          
+          console.log(`📊 Session progress: ${allResponses.length}/162 (${progress}%)`);
+          
+          // Mark as processed
+          processedMessagesRef.current.add(pairKey);
+          
+        } catch (err) {
+          console.error(`❌ Error creating Response for ${questionId}:`, err);
+        }
+      }
+    };
+
+    // Run with a slight delay to avoid hammering the API
+    const timeoutId = setTimeout(createMissingResponses, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [messages, sessionId, questions]);
 
   // Smooth scroll to bottom
   const smoothScrollToBottom = useCallback(() => {
@@ -281,7 +389,6 @@ export default function Interview() {
       });
       setIsPaused(false);
       
-      // Refresh the conversation to ensure messages are loaded
       if (conversation) {
         const conversationData = await base44.agents.getConversation(conversation.id);
         const existingMessages = conversationData.messages || [];
@@ -290,10 +397,8 @@ export default function Interview() {
         lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
         shouldAutoScrollRef.current = true;
         
-        // Scroll to bottom after a brief delay
         setTimeout(() => instantScrollToBottom(), 100);
         
-        // Check if we need to show quick buttons
         if (existingMessages.length > 0) {
           const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
           if (lastAssistantMessage?.content) {
@@ -309,7 +414,6 @@ export default function Interview() {
     }
   }, [sessionId, conversation, instantScrollToBottom]);
 
-  // Handle completion
   const handleCompletion = useCallback(async () => {
     try {
       const [categoriesData, responsesData, questionsData] = await Promise.all([
@@ -384,38 +488,36 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
-      const [sessionData, q001Data] = await Promise.all([
+      const [sessionData, q001Data, allQuestions] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
+        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0]),
+        base44.entities.Question.filter({ active: true })
       ]);
       
       setSession(sessionData);
+      setQuestions(allQuestions); // Store questions for Response auto-creation
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
       }
 
-      // ALWAYS load conversation - even for paused sessions
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
 
-      // Check if session is paused AFTER loading conversation
       if (sessionData.status === 'paused') {
         console.log("📍 Session is paused - conversation loaded, ready for resume");
         setIsPaused(true);
         setIsLoading(false);
-        // Set messages so they're available when resuming
         setMessages(existingMessages);
         lastMessageCountRef.current = existingMessages.length;
         lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
-        return; // Exit without subscribing or triggering agent
+        return;
       } else {
         setIsPaused(false);
       }
 
-      // Subscribe to conversation updates for active sessions
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
