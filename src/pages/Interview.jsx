@@ -38,95 +38,16 @@ export default function Interview() {
   const lastMessageContentRef = useRef('');
   const shouldAutoScrollRef = useRef(true);
   const userJustSentMessageRef = useRef(false);
-  const scrollLockRef = useRef(false); // Aggressive scroll lock
+  const scrollLockRef = useRef(false);
   const retryCountRef = useRef(0);
-
-  // Disable browser's automatic scroll restoration
-  useEffect(() => {
-    if ('scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual';
-    }
-    
-    return () => {
-      if ('scrollRestoration' in window.history) {
-        window.history.scrollRestoration = 'auto';
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!sessionId) {
-      navigate(createPageUrl("StartInterview"));
-      return;
-    }
-    loadSession();
-    
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-    };
-  }, [sessionId, navigate]);
-
-  // Measure footer height and set CSS variable
-  useEffect(() => {
-    const updateFooterHeight = () => {
-      if (footerRef.current) {
-        const height = footerRef.current.offsetHeight;
-        document.documentElement.style.setProperty('--footer-h', `${height}px`);
-      }
-    };
-
-    updateFooterHeight();
-    window.addEventListener('resize', updateFooterHeight);
-    const timer = setTimeout(updateFooterHeight, 100);
-
-    return () => {
-      window.removeEventListener('resize', updateFooterHeight);
-      clearTimeout(timer);
-    };
-  }, [showQuickButtons, error]);
-
-  // Monitor scroll with aggressive position locking
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    let savedScrollTop = 0;
-
-    const handleScroll = () => {
-      // If scroll is locked, restore position immediately
-      if (scrollLockRef.current) {
-        container.scrollTop = savedScrollTop;
-        return;
-      }
-      
-      // Save position
-      savedScrollTop = container.scrollTop;
-      
-      // Check if near bottom
-      const threshold = 200;
-      const position = container.scrollTop + container.clientHeight;
-      const bottom = container.scrollHeight;
-      const nearBottom = bottom - position < threshold;
-      
-      shouldAutoScrollRef.current = nearBottom;
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Smooth scroll to bottom
   const smoothScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
-    
-    // Release scroll lock before scrolling
     scrollLockRef.current = false;
     
-    // Triple RAF for maximum reliability
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -147,267 +68,7 @@ export default function Interview() {
     container.scrollTop = container.scrollHeight;
   }, []);
 
-  // Handle message updates with aggressive scroll locking
-  useEffect(() => {
-    const newMessageCount = messages.length;
-    
-    if (newMessageCount === 0) return;
-    
-    const previousCount = lastMessageCountRef.current;
-    const messagesAdded = newMessageCount - previousCount;
-    
-    // Messages were added
-    if (messagesAdded > 0) {
-      lastMessageCountRef.current = newMessageCount;
-      
-      console.log(`📨 ${messagesAdded} new message(s) - User action: ${userJustSentMessageRef.current}`);
-      
-      // LOCK SCROLL POSITION during update
-      const container = messagesContainerRef.current;
-      if (container) {
-        const savedPosition = container.scrollTop;
-        scrollLockRef.current = true;
-        
-        // Force scroll position to stay put during React re-render
-        const lockTimer = setInterval(() => {
-          if (scrollLockRef.current && container.scrollTop !== savedPosition) {
-            container.scrollTop = savedPosition;
-          }
-        }, 0);
-        
-        // Decide if we should auto-scroll
-        const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
-        
-        if (shouldScroll) {
-          // Release lock and scroll after DOM updates
-          setTimeout(() => {
-            clearInterval(lockTimer);
-            smoothScrollToBottom();
-            console.log('✅ Scrolled to bottom');
-          }, 200);
-          
-          // Reset user action flag
-          if (userJustSentMessageRef.current) {
-            setTimeout(() => {
-              userJustSentMessageRef.current = false;
-            }, 250);
-          }
-        } else {
-          // User scrolled up - maintain position
-          setTimeout(() => {
-            clearInterval(lockTimer);
-            scrollLockRef.current = false;
-            console.log('⏸️ Position maintained');
-          }, 100);
-        }
-      }
-    }
-    // Streaming content
-    else if (messagesAdded === 0 && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      const lastContent = lastMessage?.content || '';
-      
-      if (lastContent !== lastMessageContentRef.current) {
-        lastMessageContentRef.current = lastContent;
-        
-        // Keep at bottom during streaming without jumping
-        if (shouldAutoScrollRef.current && !scrollLockRef.current) {
-          const container = messagesContainerRef.current;
-          if (container) {
-            container.scrollTop = container.scrollHeight;
-          }
-        }
-      }
-    }
-  }, [messages, smoothScrollToBottom]);
-
-  // Optimized message state updates
-  useEffect(() => {
-    if (messages.length === 0) return;
-
-    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
-    
-    if (!lastAssistantMessage?.content) return;
-
-    // Check for completion
-    if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
-      if (!showCategoryProgress) {
-        handleCompletion();
-      }
-      return;
-    }
-
-    // Show quick buttons for questions
-    if (!showCategoryProgress) {
-      const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
-      const hasQuestion = content.includes('?');
-      setShowQuickButtons(hasQuestion);
-    }
-  }, [messages, showCategoryProgress, handleCompletion]);
-
-  const loadSession = async () => {
-    try {
-      const [sessionData, q001Data] = await Promise.all([
-        base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
-      ]);
-      
-      setSession(sessionData);
-
-      if (!sessionData.conversation_id) {
-        throw new Error("No conversation linked to this session");
-      }
-
-      const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
-      setConversation(conversationData);
-      
-      const existingMessages = conversationData.messages || [];
-
-      // Optimized subscription
-      unsubscribeRef.current = base44.agents.subscribeToConversation(
-        sessionData.conversation_id,
-        (data) => {
-          const newMessages = data.messages || [];
-          const newCount = newMessages.length;
-          const lastContent = newMessages[newCount - 1]?.content || '';
-          
-          // Only update if something actually changed
-          if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
-            setMessages(newMessages);
-          }
-        }
-      );
-
-      // Handle new session
-      if (existingMessages.length === 0 && q001Data) {
-        console.log("✅ New session - showing Q001");
-        
-        const q001Message = {
-          id: 'q001-initial',
-          role: 'assistant',
-          content: `Q001: ${q001Data.question_text}`,
-          tool_calls: [],
-          created_at: new Date().toISOString()
-        };
-        
-        setMessages([q001Message]);
-        lastMessageCountRef.current = 1;
-        lastMessageContentRef.current = q001Message.content;
-        shouldAutoScrollRef.current = true;
-        setShowQuickButtons(true);
-        setIsLoading(false);
-        
-        setTimeout(() => instantScrollToBottom(), 100);
-        
-        if (!hasTriggeredAgentRef.current) {
-          hasTriggeredAgentRef.current = true;
-          setTimeout(() => {
-            base44.agents.addMessage(conversationData, {
-              role: "user",
-              content: "Start with Q001"
-            }).catch(err => {
-              console.error("❌ Error starting interview:", err);
-              setError("Failed to start interview. Please refresh.");
-            });
-          }, 50);
-        }
-        
-        return;
-      }
-
-      // Existing session
-      setMessages(existingMessages);
-      lastMessageCountRef.current = existingMessages.length;
-      lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
-      shouldAutoScrollRef.current = true;
-      setIsLoading(false);
-      
-      setTimeout(() => instantScrollToBottom(), 100);
-
-    } catch (err) {
-      console.error("❌ Error loading session:", err);
-      setError(`Failed to load interview session: ${err.message}`);
-      setIsLoading(false);
-    }
-  };
-
-  const handleCompletion = useCallback(async () => {
-    try {
-      const [categoriesData, responsesData, questionsData] = await Promise.all([
-        base44.entities.Category.list('display_order'),
-        base44.entities.Response.filter({ session_id: sessionId }),
-        base44.entities.Question.filter({ active: true })
-      ]);
-
-      const categoryProgress = categoriesData.map(cat => {
-        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
-        const answeredInCategory = responsesData.filter(r => 
-          categoryQuestions.some(q => q.question_id === r.question_id)
-        );
-
-        return {
-          ...cat,
-          total_questions: categoryQuestions.length,
-          answered_questions: answeredInCategory.length
-        };
-      });
-
-      setCategories(categoryProgress);
-      setIsCompletionView(true);
-      setShowCategoryProgress(true);
-    } catch (err) {
-      console.error("Error loading completion data:", err);
-    }
-  }, [sessionId]);
-
-  const handleContinueFromCompletion = () => {
-    navigate(createPageUrl("InterviewDashboard"));
-  };
-
-  const handleDownloadReport = useCallback(async () => {
-    setIsDownloadingReport(true);
-    
-    try {
-      console.log("🔍 Generating report for session:", sessionId);
-      
-      // Fetch all data needed for the report
-      const [sessionData, responses, followups, questions] = await Promise.all([
-        base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Response.filter({ session_id: sessionId }),
-        base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
-        base44.entities.Question.filter({ active: true })
-      ]);
-
-      console.log(`📊 Loaded: ${responses.length} responses, ${followups.length} follow-ups`);
-
-      // Generate report content
-      const reportContent = generateReportHTML(sessionData, responses, followups, questions);
-
-      // Create a temporary container
-      const printContainer = document.createElement('div');
-      printContainer.innerHTML = reportContent;
-      printContainer.style.position = 'absolute';
-      printContainer.style.left = '-9999px';
-      document.body.appendChild(printContainer);
-
-      // Trigger print dialog (user can save as PDF)
-      window.print();
-
-      // Cleanup
-      setTimeout(() => {
-        document.body.removeChild(printContainer);
-      }, 100);
-
-      console.log("✅ Report generated successfully");
-      
-    } catch (err) {
-      console.error("❌ Error generating report:", err);
-      setError("Failed to generate report. Please try again.");
-    } finally {
-      setIsDownloadingReport(false);
-    }
-  }, [sessionId]);
-
+  // Generate report HTML content
   const generateReportHTML = (session, responses, followups, questions) => {
     const now = new Date().toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -415,26 +76,18 @@ export default function Interview() {
       day: 'numeric' 
     });
 
-    // Group responses by category
     const categorizedResponses = {};
     responses.forEach(response => {
       const question = questions.find(q => q.question_id === response.question_id);
-      const category = question?.category || 'Uncategorized'; // Fallback for uncategorized questions
+      const category = question?.category || 'Uncategorized';
       if (!categorizedResponses[category]) {
         categorizedResponses[category] = [];
       }
       categorizedResponses[category].push({ response, question });
     });
 
-    // Sort categories by a predefined order if possible, or alphabetically
-    const sortedCategories = Object.keys(categorizedResponses).sort((a, b) => {
-        // Example: If you have a specific order, implement it here.
-        // For now, simple alphabetical sort.
-        return a.localeCompare(b);
-    });
+    const sortedCategories = Object.keys(categorizedResponses).sort((a, b) => a.localeCompare(b));
 
-
-    // Generate HTML content
     return `
       <!DOCTYPE html>
       <html>
@@ -443,123 +96,25 @@ export default function Interview() {
         <title>Interview Report - ${session.session_code}</title>
         <style>
           @media print {
-            @page { 
-              margin: 0.75in;
-              size: letter;
-            }
+            @page { margin: 0.75in; size: letter; }
             body { margin: 0; padding: 0; }
           }
-          
-          body {
-            font-family: 'Times New Roman', serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #000;
-            max-width: 8.5in;
-            margin: 0 auto;
-            padding: 20px;
-          }
-          
-          .header {
-            text-align: center;
-            border-bottom: 3px solid #000;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-          }
-          
-          .header h1 {
-            font-size: 18pt;
-            font-weight: bold;
-            margin: 0 0 10px 0;
-            text-transform: uppercase;
-          }
-          
-          .header .session-info {
-            font-size: 10pt;
-            color: #333;
-          }
-          
-          .section {
-            margin-bottom: 25px;
-            page-break-inside: avoid;
-          }
-          
-          .section-title {
-            font-size: 13pt;
-            font-weight: bold;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-          }
-          
-          .question-block {
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #f9f9f9;
-            border-left: 3px solid #333;
-            break-inside: avoid; /* Ensure question block stays together */
-          }
-          
-          .question-id {
-            font-weight: bold;
-            color: #0066cc;
-            font-size: 10pt;
-          }
-          
-          .question-text {
-            font-weight: bold;
-            margin: 5px 0;
-          }
-          
-          .answer {
-            margin-left: 20px;
-            padding: 8px;
-            background: white;
-            border: 1px solid #ddd;
-          }
-          
-          .answer-label {
-            font-weight: bold;
-            font-size: 9pt;
-            color: #666;
-          }
-          
-          .timestamp {
-            font-size: 9pt;
-            color: #999;
-            margin-top: 3px;
-          }
-          
-          .follow-up {
-            margin-left: 40px;
-            margin-top: 10px;
-            padding: 10px;
-            background: #fff3cd;
-            border-left: 3px solid #ff9800;
-          }
-          
-          .follow-up-title {
-            font-weight: bold;
-            color: #ff6600;
-            font-size: 10pt;
-          }
-          
-          .summary-box {
-            background: #e8f4f8;
-            border: 2px solid #0066cc;
-            padding: 15px;
-            margin-bottom: 20px;
-          }
-          
-          .footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 2px solid #333;
-            text-align: center;
-            font-size: 9pt;
-            color: #666;
-          }
+          body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000; max-width: 8.5in; margin: 0 auto; padding: 20px; }
+          .header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+          .header h1 { font-size: 18pt; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase; }
+          .header .session-info { font-size: 10pt; color: #333; }
+          .section { margin-bottom: 25px; page-break-inside: avoid; }
+          .section-title { font-size: 13pt; font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; text-transform: uppercase; }
+          .question-block { margin-bottom: 20px; padding: 10px; background: #f9f9f9; border-left: 3px solid #333; break-inside: avoid; }
+          .question-id { font-weight: bold; color: #0066cc; font-size: 10pt; }
+          .question-text { font-weight: bold; margin: 5px 0; }
+          .answer { margin-left: 20px; padding: 8px; background: white; border: 1px solid #ddd; }
+          .answer-label { font-weight: bold; font-size: 9pt; color: #666; }
+          .timestamp { font-size: 9pt; color: #999; margin-top: 3px; }
+          .follow-up { margin-left: 40px; margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 3px solid #ff9800; }
+          .follow-up-title { font-weight: bold; color: #ff6600; font-size: 10pt; }
+          .summary-box { background: #e8f4f8; border: 2px solid #0066cc; padding: 15px; margin-bottom: 20px; }
+          .footer { margin-top: 30px; padding-top: 15px; border-top: 2px solid #333; text-align: center; font-size: 9pt; color: #666; }
         </style>
       </head>
       <body>
@@ -572,29 +127,25 @@ export default function Interview() {
             <strong>Follow-Ups Triggered:</strong> ${followups.length}
           </div>
         </div>
-
         <div class="summary-box">
           <strong>Interview Summary:</strong><br>
           Applicant completed ${responses.length} questions across ${sortedCategories.length} categories. 
           This report contains all responses provided during the interview session, including follow-up details where applicable.
         </div>
-
         ${sortedCategories.map(category => `
           <div class="section">
             <div class="section-title">${category}</div>
             ${categorizedResponses[category].map(({ response, question }) => {
               const relatedFollowups = followups.filter(f => f.response_id === response.id);
-              
               return `
                 <div class="question-block">
                   <div class="question-id">${response.question_id}</div>
                   <div class="question-text">${question?.question_text || response.question_text}</div>
                   <div class="answer">
                     <span class="answer-label">Response:</span> ${response.answer || 'N/A'}
-                    ${response.answer_array && response.answer_array.length > 0 ? `<br><strong>Details:</strong> ${response.answer_array.join(', ')}` : ''}
+                    ${response.answer_array?.length > 0 ? `<br><strong>Details:</strong> ${response.answer_array.join(', ')}` : ''}
                   </div>
                   <div class="timestamp">Answered: ${new Date(response.response_timestamp).toLocaleString()}</div>
-                  
                   ${relatedFollowups.map(followup => `
                     <div class="follow-up">
                       <div class="follow-up-title">Follow-Up: ${followup.followup_pack || 'N/A'}</div>
@@ -612,7 +163,6 @@ export default function Interview() {
             }).join('')}
           </div>
         `).join('')}
-
         <div class="footer">
           <strong>ClearQuest™ Interview System</strong><br>
           CJIS Compliant • All responses encrypted and secured<br>
@@ -722,7 +272,316 @@ export default function Interview() {
     }
   }, [sessionId, navigate]);
 
-  // Generate stable keys for messages
+  // Handle completion
+  const handleCompletion = useCallback(async () => {
+    try {
+      const [categoriesData, responsesData, questionsData] = await Promise.all([
+        base44.entities.Category.list('display_order'),
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.Question.filter({ active: true })
+      ]);
+
+      const categoryProgress = categoriesData.map(cat => {
+        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
+        const answeredInCategory = responsesData.filter(r => 
+          categoryQuestions.some(q => q.question_id === r.question_id)
+        );
+
+        return {
+          ...cat,
+          total_questions: categoryQuestions.length,
+          answered_questions: answeredInCategory.length
+        };
+      });
+
+      setCategories(categoryProgress);
+      setIsCompletionView(true);
+      setShowCategoryProgress(true);
+    } catch (err) {
+      console.error("Error loading completion data:", err);
+    }
+  }, [sessionId]);
+
+  const handleDownloadReport = useCallback(async () => {
+    setIsDownloadingReport(true);
+    
+    try {
+      console.log("🔍 Generating report for session:", sessionId);
+      
+      const [sessionData, responses, followups, questions] = await Promise.all([
+        base44.entities.InterviewSession.get(sessionId),
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
+        base44.entities.Question.filter({ active: true })
+      ]);
+
+      console.log(`📊 Loaded: ${responses.length} responses, ${followups.length} follow-ups`);
+
+      const reportContent = generateReportHTML(sessionData, responses, followups, questions);
+
+      const printContainer = document.createElement('div');
+      printContainer.innerHTML = reportContent;
+      printContainer.style.position = 'absolute';
+      printContainer.style.left = '-9999px';
+      document.body.appendChild(printContainer);
+
+      window.print();
+
+      setTimeout(() => {
+        document.body.removeChild(printContainer);
+      }, 100);
+
+      console.log("✅ Report generated successfully");
+      
+    } catch (err) {
+      console.error("❌ Error generating report:", err);
+      setError("Failed to generate report. Please try again.");
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  }, [sessionId, generateReportHTML]);
+
+  const handleContinueFromCompletion = () => {
+    navigate(createPageUrl("InterviewDashboard"));
+  };
+
+  const loadSession = async () => {
+    try {
+      const [sessionData, q001Data] = await Promise.all([
+        base44.entities.InterviewSession.get(sessionId),
+        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0])
+      ]);
+      
+      setSession(sessionData);
+
+      if (!sessionData.conversation_id) {
+        throw new Error("No conversation linked to this session");
+      }
+
+      const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
+      setConversation(conversationData);
+      
+      const existingMessages = conversationData.messages || [];
+
+      unsubscribeRef.current = base44.agents.subscribeToConversation(
+        sessionData.conversation_id,
+        (data) => {
+          const newMessages = data.messages || [];
+          const newCount = newMessages.length;
+          const lastContent = newMessages[newCount - 1]?.content || '';
+          
+          if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
+            setMessages(newMessages);
+          }
+        }
+      );
+
+      if (existingMessages.length === 0 && q001Data) {
+        console.log("✅ New session - showing Q001");
+        
+        const q001Message = {
+          id: 'q001-initial',
+          role: 'assistant',
+          content: `Q001: ${q001Data.question_text}`,
+          tool_calls: [],
+          created_at: new Date().toISOString()
+        };
+        
+        setMessages([q001Message]);
+        lastMessageCountRef.current = 1;
+        lastMessageContentRef.current = q001Message.content;
+        shouldAutoScrollRef.current = true;
+        setShowQuickButtons(true);
+        setIsLoading(false);
+        
+        setTimeout(() => instantScrollToBottom(), 100);
+        
+        if (!hasTriggeredAgentRef.current) {
+          hasTriggeredAgentRef.current = true;
+          setTimeout(() => {
+            base44.agents.addMessage(conversationData, {
+              role: "user",
+              content: "Start with Q001"
+            }).catch(err => {
+              console.error("❌ Error starting interview:", err);
+              setError("Failed to start interview. Please refresh.");
+            });
+          }, 50);
+        }
+        
+        return;
+      }
+
+      setMessages(existingMessages);
+      lastMessageCountRef.current = existingMessages.length;
+      lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
+      shouldAutoScrollRef.current = true;
+      setIsLoading(false);
+      
+      setTimeout(() => instantScrollToBottom(), 100);
+
+    } catch (err) {
+      console.error("❌ Error loading session:", err);
+      setError(`Failed to load interview session: ${err.message}`);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    
+    return () => {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'auto';
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) {
+      navigate(createPageUrl("StartInterview"));
+      return;
+    }
+    loadSession();
+    
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [sessionId, navigate, instantScrollToBottom]); // Added instantScrollToBottom to dependencies
+
+  useEffect(() => {
+    const updateFooterHeight = () => {
+      if (footerRef.current) {
+        const height = footerRef.current.offsetHeight;
+        document.documentElement.style.setProperty('--footer-h', `${height}px`);
+      }
+    };
+
+    updateFooterHeight();
+    window.addEventListener('resize', updateFooterHeight);
+    const timer = setTimeout(updateFooterHeight, 100);
+
+    return () => {
+      window.removeEventListener('resize', updateFooterHeight);
+      clearTimeout(timer);
+    };
+  }, [showQuickButtons, error]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    let savedScrollTop = 0;
+
+    const handleScroll = () => {
+      if (scrollLockRef.current) {
+        container.scrollTop = savedScrollTop;
+        return;
+      }
+      
+      savedScrollTop = container.scrollTop;
+      
+      const threshold = 200;
+      const position = container.scrollTop + container.clientHeight;
+      const bottom = container.scrollHeight;
+      const nearBottom = bottom - position < threshold;
+      
+      shouldAutoScrollRef.current = nearBottom;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const newMessageCount = messages.length;
+    
+    if (newMessageCount === 0) return;
+    
+    const previousCount = lastMessageCountRef.current;
+    const messagesAdded = newMessageCount - previousCount;
+    
+    if (messagesAdded > 0) {
+      lastMessageCountRef.current = newMessageCount;
+      
+      console.log(`📨 ${messagesAdded} new message(s) - User action: ${userJustSentMessageRef.current}`);
+      
+      const container = messagesContainerRef.current;
+      if (container) {
+        const savedPosition = container.scrollTop;
+        scrollLockRef.current = true;
+        
+        const lockTimer = setInterval(() => {
+          if (scrollLockRef.current && container.scrollTop !== savedPosition) {
+            container.scrollTop = savedPosition;
+          }
+        }, 0);
+        
+        const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
+        
+        if (shouldScroll) {
+          setTimeout(() => {
+            clearInterval(lockTimer);
+            smoothScrollToBottom();
+            console.log('✅ Scrolled to bottom');
+          }, 200);
+          
+          if (userJustSentMessageRef.current) {
+            setTimeout(() => {
+              userJustSentMessageRef.current = false;
+            }, 250);
+          }
+        } else {
+          setTimeout(() => {
+            clearInterval(lockTimer);
+            scrollLockRef.current = false;
+            console.log('⏸️ Position maintained');
+          }, 100);
+        }
+      }
+    }
+    else if (messagesAdded === 0 && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      const lastContent = lastMessage?.content || '';
+      
+      if (lastContent !== lastMessageContentRef.current) {
+        lastMessageContentRef.current = lastContent;
+        
+        if (shouldAutoScrollRef.current && !scrollLockRef.current) {
+          const container = messagesContainerRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+      }
+    }
+  }, [messages, smoothScrollToBottom]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    
+    if (!lastAssistantMessage?.content) return;
+
+    if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
+      if (!showCategoryProgress) {
+        handleCompletion();
+      }
+      return;
+    }
+
+    if (!showCategoryProgress) {
+      const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+      const hasQuestion = content.includes('?');
+      setShowQuickButtons(hasQuestion);
+    }
+  }, [messages, showCategoryProgress, handleCompletion]);
+
   const displayMessages = useMemo(() => {
     return messages
       .filter(message => 
@@ -820,7 +679,7 @@ export default function Interview() {
         className="flex-1 overflow-y-auto"
         style={{ 
           paddingBottom: 'var(--footer-h, 200px)',
-          overflowAnchor: 'auto' // Prevents scroll jumps
+          overflowAnchor: 'auto'
         }}
       >
         <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
