@@ -391,23 +391,31 @@ export default function Interview() {
       
       setSession(sessionData);
 
-      if (sessionData.status === 'paused') {
-        setIsPaused(true);
-        setIsLoading(false); // Make sure to stop loading if paused
-        return; // Exit early if session is paused
-      } else {
-        setIsPaused(false);
-      }
-
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
       }
 
+      // ALWAYS load conversation - even for paused sessions
       const conversationData = await base44.agents.getConversation(sessionData.conversation_id);
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
 
+      // Check if session is paused AFTER loading conversation
+      if (sessionData.status === 'paused') {
+        console.log("📍 Session is paused - conversation loaded, ready for resume");
+        setIsPaused(true);
+        setIsLoading(false);
+        // Set messages so they're available when resuming
+        setMessages(existingMessages);
+        lastMessageCountRef.current = existingMessages.length;
+        lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
+        return; // Exit without subscribing or triggering agent
+      } else {
+        setIsPaused(false);
+      }
+
+      // Subscribe to conversation updates for active sessions
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
