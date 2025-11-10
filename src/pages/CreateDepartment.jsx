@@ -1,18 +1,64 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Input }
- from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Building2, Loader2, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { generateDepartmentCode } from "@/utils/generateDepartmentCode";
+
+// Department code generation utility
+async function generateDepartmentCode(departmentName, zipCode) {
+  if (!departmentName || !zipCode) return "";
+
+  const words = departmentName.trim().split(/\s+/).filter(word => word.length > 0);
+  const generateRandomLetter = () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return letters[Math.floor(Math.random() * letters.length)];
+  };
+
+  let prefix = "";
+  if (words.length >= 3) {
+    prefix = words.slice(0, 3).map(word => word[0].toUpperCase()).join("");
+  } else if (words.length === 2) {
+    prefix = words[0].substring(0, 2).toUpperCase() + generateRandomLetter();
+  } else if (words.length === 1) {
+    prefix = words[0][0].toUpperCase() + generateRandomLetter() + generateRandomLetter();
+  } else {
+    prefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+  }
+
+  const baseCode = `${prefix}-${zipCode}`;
+
+  try {
+    const existingDepts = await base44.entities.Department.filter({ department_code: baseCode });
+    if (existingDepts.length === 0) return baseCode;
+
+    const firstTwoLetters = prefix.substring(0, 2);
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < alphabet.length; i++) {
+      const newCode = `${firstTwoLetters}${alphabet[i]}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const randomPrefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+      const newCode = `${randomPrefix}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+    
+    return `${prefix}-${zipCode}-${Date.now().toString().slice(-4)}`;
+  } catch (err) {
+    console.error("Error finding unique department code:", err);
+    return baseCode;
+  }
+}
 
 export default function CreateDepartment() {
   const navigate = useNavigate();
@@ -62,7 +108,7 @@ export default function CreateDepartment() {
       }
     };
 
-    const timeoutId = setTimeout(generateCode, 500); // Debounce
+    const timeoutId = setTimeout(generateCode, 500);
     return () => clearTimeout(timeoutId);
   }, [formData.department_name, formData.zip_code]);
 
@@ -100,8 +146,6 @@ export default function CreateDepartment() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    console.log("🚀 Form submitted", formData);
-    
     if (!formData.department_name || !formData.department_code || !formData.contact_email ||
         !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
       toast.error("Please fill in all required fields");
@@ -111,8 +155,6 @@ export default function CreateDepartment() {
     setIsSubmitting(true);
 
     try {
-      console.log("📝 Creating department...");
-      
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -132,16 +174,12 @@ export default function CreateDepartment() {
         color_accent: "#E6B980"
       };
 
-      console.log("📦 Department data:", departmentData);
-
       const newDept = await base44.entities.Department.create(departmentData);
-      
-      console.log("✅ Department created:", newDept);
       
       toast.success("Department created successfully!");
       navigate(createPageUrl(`DepartmentDashboard?id=${newDept.id}`));
     } catch (err) {
-      console.error("❌ Error creating department:", err);
+      console.error("Error creating department:", err);
       toast.error(`Failed to create department: ${err.message || 'Unknown error'}`);
       setIsSubmitting(false);
     }

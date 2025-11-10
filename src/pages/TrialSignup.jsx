@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -10,7 +9,55 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, CheckCircle, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { generateDepartmentCode } from "@/utils/generateDepartmentCode.js";
+
+// Department code generation utility
+async function generateDepartmentCode(departmentName, zipCode) {
+  if (!departmentName || !zipCode) return "";
+
+  const words = departmentName.trim().split(/\s+/).filter(word => word.length > 0);
+  const generateRandomLetter = () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return letters[Math.floor(Math.random() * letters.length)];
+  };
+
+  let prefix = "";
+  if (words.length >= 3) {
+    prefix = words.slice(0, 3).map(word => word[0].toUpperCase()).join("");
+  } else if (words.length === 2) {
+    prefix = words[0].substring(0, 2).toUpperCase() + generateRandomLetter();
+  } else if (words.length === 1) {
+    prefix = words[0][0].toUpperCase() + generateRandomLetter() + generateRandomLetter();
+  } else {
+    prefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+  }
+
+  const baseCode = `${prefix}-${zipCode}`;
+
+  try {
+    const existingDepts = await base44.entities.Department.filter({ department_code: baseCode });
+    if (existingDepts.length === 0) return baseCode;
+
+    const firstTwoLetters = prefix.substring(0, 2);
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < alphabet.length; i++) {
+      const newCode = `${firstTwoLetters}${alphabet[i]}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const randomPrefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+      const newCode = `${randomPrefix}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+    
+    return `${prefix}-${zipCode}-${Date.now().toString().slice(-4)}`;
+  } catch (err) {
+    console.error("Error finding unique department code:", err);
+    return baseCode;
+  }
+}
 
 export default function TrialSignup() {
   const navigate = useNavigate();
