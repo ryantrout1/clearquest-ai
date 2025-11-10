@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -102,6 +103,7 @@ export default function CreateDepartment() {
           setFormData(prev => ({ ...prev, department_code: code }));
         } catch (err) {
           console.error("Error generating code:", err);
+          toast.error("Failed to generate department code");
         } finally {
           setIsGeneratingCode(false);
         }
@@ -146,13 +148,32 @@ export default function CreateDepartment() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.department_name || !formData.department_code || !formData.contact_email ||
-        !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
-      toast.error("Please fill in all required fields");
+    console.log("🔵 Submit clicked - Form data:", formData);
+    console.log("🔵 isSubmitting:", isSubmitting, "isGeneratingCode:", isGeneratingCode);
+    
+    // Validation
+    if (!formData.department_name) {
+      toast.error("Department name is required");
+      return;
+    }
+    
+    if (!formData.department_code) {
+      toast.error("Department code is required - please wait for it to generate");
+      return;
+    }
+    
+    if (!formData.contact_email) {
+      toast.error("Contact email is required");
+      return;
+    }
+    
+    if (!formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
+      toast.error("Please fill in all required address fields");
       return;
     }
     
     setIsSubmitting(true);
+    console.log("🟢 Starting department creation...");
 
     try {
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
@@ -174,12 +195,16 @@ export default function CreateDepartment() {
         color_accent: "#E6B980"
       };
 
+      console.log("📦 Department data to create:", departmentData);
+
       const newDept = await base44.entities.Department.create(departmentData);
       
+      console.log("✅ Department created successfully:", newDept);
       toast.success("Department created successfully!");
       navigate(createPageUrl(`DepartmentDashboard?id=${newDept.id}`));
     } catch (err) {
-      console.error("Error creating department:", err);
+      console.error("❌ Error creating department:", err);
+      console.error("Error details:", err.message, err.stack);
       toast.error(`Failed to create department: ${err.message || 'Unknown error'}`);
       setIsSubmitting(false);
     }
@@ -459,6 +484,11 @@ export default function CreateDepartment() {
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Creating...
+                    </>
+                  ) : isGeneratingCode ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating Code...
                     </>
                   ) : (
                     <>
