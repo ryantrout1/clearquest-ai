@@ -418,6 +418,11 @@ function QuestionsDialog({ open, onOpenChange }) {
     setExpandedCategory(expandedCategory === index ? null : index);
   };
 
+  // Helper function to remove leading zeros from question_id (e.g., Q001 -> 1, Q010 -> 10)
+  const getQuestionNumber = (questionId) => {
+    return questionId.replace(/^Q0*/, '');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0">
@@ -478,7 +483,7 @@ function QuestionsDialog({ open, onOpenChange }) {
                               {categoryQuestions.map((question, qIdx) => (
                                 <div key={qIdx} className="flex items-start gap-2 text-sm">
                                   <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
-                                    {question.question_id}
+                                    {getQuestionNumber(question.question_id)}
                                   </span>
                                   <span className="text-slate-300">{question.question_text}</span>
                                 </div>
