@@ -21,7 +21,11 @@ export default function CreateDepartment() {
     department_code: "",
     department_type: "Law Enforcement",
     jurisdiction: "",
-    department_address: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    zip_code: "",
     phone_number: "",
     website_url: "",
     contact_name: "",
@@ -76,8 +80,9 @@ export default function CreateDepartment() {
     console.log("🚀 Form submitted", formData);
     
     // Validate required fields
-    if (!formData.department_name || !formData.department_code || !formData.contact_email) {
-      toast.error("Please fill in all required fields (Department Name, Department Code, and Contact Email)");
+    if (!formData.department_name || !formData.department_code || !formData.contact_email ||
+        !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
+      toast.error("Please fill in all required fields (Department Name, Department Code, Contact Email, Address Line 1, City, State, and ZIP Code)");
       return;
     }
     
@@ -219,17 +224,7 @@ export default function CreateDepartment() {
                     />
                   </div>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="department_address" className="text-white text-sm">Address</Label>
-                    <Input
-                      id="department_address"
-                      value={formData.department_address}
-                      onChange={(e) => setFormData({...formData, department_address: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-11"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="space-y-2">
                     <Label htmlFor="website_url" className="text-white text-sm">Website</Label>
                     <Input
                       id="website_url"
@@ -237,6 +232,65 @@ export default function CreateDepartment() {
                       value={formData.website_url}
                       onChange={(e) => setFormData({...formData, website_url: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="address_line1" className="text-white text-sm">Address Line 1 *</Label>
+                    <Input
+                      id="address_line1"
+                      value={formData.address_line1}
+                      onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      placeholder="Street address"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="address_line2" className="text-white text-sm">Address Line 2</Label>
+                    <Input
+                      id="address_line2"
+                      value={formData.address_line2}
+                      onChange={(e) => setFormData({...formData, address_line2: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      placeholder="Apt, Suite, Unit, etc. (optional)"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="city" className="text-white text-sm">City *</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => setFormData({...formData, city: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="state" className="text-white text-sm">State *</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      placeholder="e.g., CA"
+                      maxLength={2}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="zip_code" className="text-white text-sm">ZIP Code *</Label>
+                    <Input
+                      id="zip_code"
+                      value={formData.zip_code}
+                      onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      placeholder="e.g., 90210"
+                      required
                     />
                   </div>
                 </div>

@@ -109,6 +109,14 @@ export default function DepartmentDashboard() {
     ? Math.ceil((new Date(department.trial_end_date) - new Date()) / (1000 * 60 * 60 * 24))
     : null;
 
+  // Format full address
+  const fullAddress = [
+    department.address_line1,
+    department.address_line2,
+    [department.city, department.state].filter(Boolean).join(', '),
+    department.zip_code
+  ].filter(Boolean).join('\n');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -209,10 +217,10 @@ export default function DepartmentDashboard() {
               <CardTitle className="text-white text-lg">Department Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <InfoRow label="Department Code" value={department.department_code} /> {/* Added row */}
+              <InfoRow label="Department Code" value={department.department_code} />
               <InfoRow label="Department ID" value={department.department_id} />
               <InfoRow label="Jurisdiction" value={department.jurisdiction} />
-              <InfoRow label="Address" value={department.department_address} />
+              <InfoRow label="Address" value={fullAddress} multiline />
               <InfoRow label="Phone" value={department.phone_number} />
               <InfoRow label="Website" value={department.website_url} link />
               <InfoRow label="Contact" value={`${department.contact_name} (${department.contact_email})`} />
@@ -326,7 +334,7 @@ function StatCard({ title, value, icon: Icon, color }) {
   );
 }
 
-function InfoRow({ label, value, badge, link }) {
+function InfoRow({ label, value, badge, link, multiline }) {
   if (!value) return null;
 
   return (
@@ -340,6 +348,8 @@ function InfoRow({ label, value, badge, link }) {
         <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-right truncate min-w-0 flex-1">
           {value}
         </a>
+      ) : multiline ? (
+        <span className="text-white text-right whitespace-pre-line min-w-0 flex-1">{value}</span>
       ) : (
         <span className="text-white text-right break-words min-w-0 flex-1">{value}</span>
       )}

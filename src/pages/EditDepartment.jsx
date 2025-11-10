@@ -30,12 +30,10 @@ export default function EditDepartment() {
 
   const loadData = async () => {
     try {
-      // Check for mock admin authentication first
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
-          // Create mock super admin user
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
             first_name: auth.username,
@@ -53,14 +51,12 @@ export default function EditDepartment() {
           const dept = await base44.entities.Department.get(deptId);
           setDepartment(dept);
           setFormData(dept);
-          return; // Exit after successful mock admin auth and data load
+          return;
         } catch (err) {
           console.error("Error with mock admin auth:", err);
-          // If mock admin auth fails, proceed to normal Base44 authentication
         }
       }
 
-      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       setUser(currentUser);
 
@@ -71,7 +67,6 @@ export default function EditDepartment() {
 
       const dept = await base44.entities.Department.get(deptId);
       
-      // Check permissions
       const canEdit = currentUser.role === 'SUPER_ADMIN' || 
                      (currentUser.role === 'DEPT_ADMIN' && dept.id === currentUser.department_id);
       
@@ -95,10 +90,9 @@ export default function EditDepartment() {
     try {
       const updateData = { ...formData };
       
-      // Add activity log entry
       const activityLog = formData.activity_log || [];
       activityLog.unshift(`Department updated by ${user.email}`);
-      updateData.activity_log = activityLog.slice(0, 10); // Keep last 10
+      updateData.activity_log = activityLog.slice(0, 10);
 
       await base44.entities.Department.update(department.id, updateData);
       
@@ -160,7 +154,6 @@ export default function EditDepartment() {
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
-              {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Department Information
@@ -226,10 +219,72 @@ export default function EditDepartment() {
                       className="bg-slate-900/50 border-slate-600 text-white"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white">Website</Label>
+                    <Input
+                      value={formData.website_url || ""}
+                      onChange={(e) => setFormData({...formData, website_url: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-white">Address Line 1 *</Label>
+                    <Input
+                      value={formData.address_line1 || ""}
+                      onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      placeholder="Street address"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-white">Address Line 2</Label>
+                    <Input
+                      value={formData.address_line2 || ""}
+                      onChange={(e) => setFormData({...formData, address_line2: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      placeholder="Apt, Suite, Unit, etc. (optional)"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white">City *</Label>
+                    <Input
+                      value={formData.city || ""}
+                      onChange={(e) => setFormData({...formData, city: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white">State *</Label>
+                    <Input
+                      value={formData.state || ""}
+                      onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      placeholder="e.g., CA"
+                      maxLength={2}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-white">ZIP Code *</Label>
+                    <Input
+                      value={formData.zip_code || ""}
+                      onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      placeholder="e.g., 90210"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Branding (Paid plans only) */}
               {canEditBranding && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
@@ -304,7 +359,6 @@ export default function EditDepartment() {
                 </div>
               )}
 
-              {/* Security Settings */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Security & Compliance
@@ -353,7 +407,6 @@ export default function EditDepartment() {
                 </div>
               </div>
 
-              {/* Super Admin Only - Plan Management */}
               {isSuperAdmin && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">
@@ -409,7 +462,6 @@ export default function EditDepartment() {
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex flex-col-reverse md:flex-row justify-end gap-3 pt-4 border-t border-slate-700">
                 <Link to={createPageUrl(`DepartmentDashboard?id=${department.id}`)} className="w-full md:w-auto">
                   <Button type="button" variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white">
