@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -11,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Building2, Loader2, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { generateDepartmentCode } from "@/utils/generateDepartmentCode";
 
 export default function CreateDepartment() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [formData, setFormData] = useState({
     department_name: "",
     department_code: "",
@@ -42,6 +43,26 @@ export default function CreateDepartment() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Auto-generate department code when name or zip changes
+  useEffect(() => {
+    const generateCode = async () => {
+      if (formData.department_name && formData.zip_code) {
+        setIsGeneratingCode(true);
+        try {
+          const code = await generateDepartmentCode(formData.department_name, formData.zip_code);
+          setFormData(prev => ({ ...prev, department_code: code }));
+        } catch (err) {
+          console.error("Error generating code:", err);
+        } finally {
+          setIsGeneratingCode(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(generateCode, 500); // Debounce
+    return () => clearTimeout(timeoutId);
+  }, [formData.department_name, formData.zip_code]);
 
   const checkAuth = async () => {
     try {
@@ -79,10 +100,9 @@ export default function CreateDepartment() {
     
     console.log("🚀 Form submitted", formData);
     
-    // Validate required fields
     if (!formData.department_name || !formData.department_code || !formData.contact_email ||
         !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
-      toast.error("Please fill in all required fields (Department Name, Department Code, Contact Email, Address Line 1, City, State, and ZIP Code)");
+      toast.error("Please fill in all required fields");
       return;
     }
     
@@ -152,7 +172,6 @@ export default function CreateDepartment() {
 
           <CardContent className="p-6 md:p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Department Info */}
               <div className="space-y-4">
                 <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Department Information
@@ -171,17 +190,19 @@ export default function CreateDepartment() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="department_code" className="text-white text-sm">Department Code *</Label>
+                    <Label htmlFor="department_code" className="text-white text-sm">
+                      Department Code * {isGeneratingCode && <span className="text-blue-400 text-xs">(Generating...)</span>}
+                    </Label>
                     <Input
                       id="department_code"
                       value={formData.department_code}
-                      onChange={(e) => setFormData({...formData, department_code: e.target.value.toUpperCase()})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-11"
-                      placeholder="e.g., PD-2024"
-                      required
+                      className="bg-slate-900/70 border-slate-600 text-slate-400 h-11 cursor-not-allowed"
+                      placeholder="Auto-generated from name & zip"
+                      readOnly
+                      disabled
                     />
                     <p className="text-xs text-slate-400">
-                      Code used by applicants to start interviews
+                      Auto-generated from department name and zip code
                     </p>
                   </div>
 
@@ -292,11 +313,13 @@ export default function CreateDepartment() {
                       placeholder="e.g., 90210"
                       required
                     />
+                    <p className="text-xs text-slate-400">
+                      Used to generate department code
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Primary Contact */}
               <div className="space-y-4">
                 <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Primary Contact
@@ -348,7 +371,6 @@ export default function CreateDepartment() {
                 </div>
               </div>
 
-              {/* Account Settings */}
               <div className="space-y-4">
                 <h3 className="text-base md:text-lg font-semibold text-white border-b border-slate-700 pb-2">
                   Account Settings
@@ -382,7 +404,6 @@ export default function CreateDepartment() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col md:flex-row justify-end gap-3 pt-4 border-t border-slate-700">
                 <Link to={createPageUrl("SystemAdminDashboard")} className="w-full md:w-auto">
                   <Button type="button" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white h-11">
@@ -391,7 +412,7 @@ export default function CreateDepartment() {
                 </Link>
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isGeneratingCode}
                   className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 h-11"
                 >
                   {isSubmitting ? (
