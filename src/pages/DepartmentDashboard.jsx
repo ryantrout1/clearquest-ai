@@ -209,6 +209,7 @@ export default function DepartmentDashboard() {
               <CardTitle className="text-white text-lg">Department Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              <InfoRow label="Department Code" value={department.department_code} /> {/* Added row */}
               <InfoRow label="Department ID" value={department.department_id} />
               <InfoRow label="Jurisdiction" value={department.jurisdiction} />
               <InfoRow label="Address" value={department.department_address} />

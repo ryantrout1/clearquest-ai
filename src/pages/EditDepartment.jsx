@@ -178,6 +178,20 @@ export default function EditDepartment() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label className="text-white">Department Code *</Label>
+                    <Input
+                      value={formData.department_code || ""}
+                      onChange={(e) => setFormData({...formData, department_code: e.target.value.toUpperCase()})}
+                      className="bg-slate-900/50 border-slate-600 text-white"
+                      placeholder="e.g., PD-2024"
+                      required
+                    />
+                    <p className="text-xs text-slate-400">
+                      Code used by applicants to start interviews
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label className="text-white">Department Type</Label>
                     <Select
                       value={formData.department_type}

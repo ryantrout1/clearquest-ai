@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -10,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, ArrowLeft, Loader2, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 export default function StartInterview() {
   const navigate = useNavigate();
@@ -19,6 +19,42 @@ export default function StartInterview() {
   });
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [departmentCodeError, setDepartmentCodeError] = useState(false);
+
+  const validateDepartmentCode = async (code) => {
+    if (!code) {
+      setDepartmentCodeError(false);
+      return true;
+    }
+
+    try {
+      const departments = await base44.entities.Department.filter({ 
+        department_code: code.toUpperCase()
+      });
+      
+      if (departments.length === 0) {
+        setDepartmentCodeError(true);
+        return false;
+      }
+      
+      setDepartmentCodeError(false);
+      return true;
+    } catch (err) {
+      console.error("Error validating department code:", err);
+      return true; // Don't block on validation errors
+    }
+  };
+
+  const handleDepartmentCodeChange = async (value) => {
+    setFormData({...formData, departmentCode: value.toUpperCase()});
+    
+    // Validate on change with debounce
+    if (value.length >= 3) {
+      await validateDepartmentCode(value);
+    } else {
+      setDepartmentCodeError(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,31 +65,34 @@ export default function StartInterview() {
       return;
     }
 
+    // Final validation check
+    const isValid = await validateDepartmentCode(formData.departmentCode);
+    if (!isValid) {
+      setError("Invalid department code. Please check and try again.");
+      return;
+    }
+
     setIsCreating(true);
 
     try {
       const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
       
       console.log("Step 1: Checking for existing sessions...");
-      // Check if a session with this code already exists
       const existingSessions = await base44.entities.InterviewSession.filter({ 
         session_code: sessionCode 
       });
       
-      // If there's an existing in_progress or paused session, resume it
       const activeSession = existingSessions.find(s => 
         s.status === 'in_progress' || s.status === 'paused'
       );
       
       if (activeSession) {
         console.log("Found existing session, resuming...");
-        // Resume existing session
         navigate(createPageUrl(`Interview?session=${activeSession.id}`));
         return;
       }
 
       console.log("Step 2: Creating new session...");
-      // Create new session
       const sessionHash = await generateHash(sessionCode);
       
       const session = await base44.entities.InterviewSession.create({
@@ -75,7 +114,6 @@ export default function StartInterview() {
       console.log("Session created:", session.id);
 
       console.log("Step 3: Creating agent conversation...");
-      // Create agent conversation
       const conversation = await base44.agents.createConversation({
         agent_name: "clearquest_interviewer",
         metadata: {
@@ -87,14 +125,11 @@ export default function StartInterview() {
       console.log("Conversation created:", conversation.id);
 
       console.log("Step 4: Updating session with conversation ID...");
-      // Update session with conversation ID
       await base44.entities.InterviewSession.update(session.id, {
         conversation_id: conversation.id
       });
       console.log("Session updated with conversation ID");
 
-      // REMOVED: Don't send message here - let Interview page handle it
-      // Navigate to interview immediately
       navigate(createPageUrl(`Interview?session=${session.id}`));
     } catch (err) {
       console.error("Error creating session:", err);
@@ -163,12 +198,20 @@ export default function StartInterview() {
                   id="departmentCode"
                   placeholder="e.g., PD-2024"
                   value={formData.departmentCode}
-                  onChange={(e) => setFormData({...formData, departmentCode: e.target.value.toUpperCase()})}
-                  className="bg-slate-900/50 border-slate-600 text-white h-12"
+                  onChange={(e) => handleDepartmentCodeChange(e.target.value)}
+                  className={cn(
+                    "bg-slate-900/50 border-slate-600 text-white h-12",
+                    departmentCodeError && "border-red-500"
+                  )}
                   required
                 />
-                <p className="text-sm text-slate-400">
-                  Your department's identifying code
+                <p className={cn(
+                  "text-sm",
+                  departmentCodeError ? "text-red-400" : "text-slate-400"
+                )}>
+                  {departmentCodeError 
+                    ? "The department code you entered does not match, please enter a valid department code" 
+                    : "Your department's identifying code"}
                 </p>
               </div>
 
@@ -208,7 +251,7 @@ export default function StartInterview() {
                 type="submit"
                 size="lg"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 md:h-14 text-base md:text-lg"
-                disabled={isCreating}
+                disabled={isCreating || departmentCodeError}
               >
                 {isCreating ? (
                   <>
