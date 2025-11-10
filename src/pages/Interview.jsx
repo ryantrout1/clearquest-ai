@@ -41,113 +41,181 @@ export default function Interview() {
   const userJustSentMessageRef = useRef(false);
   const scrollLockRef = useRef(false);
   const retryCountRef = useRef(0);
-  const processedMessagesRef = useRef(new Set()); // Track which messages we've created Response records for
+  const processedPairsRef = useRef(new Set()); // Track Q+A pairs
+  const processedFollowupsRef = useRef(new Set()); // Track follow-up details
+  const lastProcessedIndexRef = useRef(0); // Track last processed message index
 
-  // Auto-create Response records from conversation messages
+  // CRITICAL: Auto-create Response AND FollowUpResponse records from conversation
   useEffect(() => {
     if (!sessionId || !messages || messages.length === 0 || !questions || questions.length === 0) return;
 
-    const createMissingResponses = async () => {
-      console.log("🔍 Checking for missing Response records...");
+    const processMessages = async () => {
+      console.log("🔍 Processing messages for Response/FollowUpResponse creation...");
       
-      // Find pairs of assistant question + user answer
-      for (let i = 0; i < messages.length - 1; i++) {
-        const assistantMsg = messages[i];
-        const userMsg = messages[i + 1];
+      // Process messages sequentially to maintain order
+      for (let i = lastProcessedIndexRef.current; i < messages.length; i++) {
+        const message = messages[i];
         
-        // Skip if not the right pattern
-        if (assistantMsg.role !== 'assistant' || userMsg.role !== 'user') continue;
-        
-        // Skip if already processed
-        const pairKey = `${assistantMsg.id}-${userMsg.id}`;
-        if (processedMessagesRef.current.has(pairKey)) continue;
-        
-        // Extract question ID from assistant message (Q###)
-        const questionMatch = assistantMsg.content?.match(/\b(Q\d{1,3})\b/i);
-        if (!questionMatch) continue;
-        
-        const questionId = questionMatch[1].toUpperCase();
-        
-        // Find question details
-        const questionData = questions.find(q => q.question_id === questionId);
-        if (!questionData) {
-          console.warn(`⚠️ Question ${questionId} not found in database`);
-          continue;
+        // CASE 1: Agent asks a Q### question
+        if (message.role === 'assistant') {
+          const questionMatch = message.content?.match(/\b(Q\d{1,3})\b/i);
+          if (questionMatch) {
+            const questionId = questionMatch[1].toUpperCase();
+            
+            // Look for user's answer in the NEXT message
+            const nextMessage = messages[i + 1];
+            if (nextMessage && nextMessage.role === 'user') {
+              const pairKey = `${questionId}-${nextMessage.id}`;
+              
+              if (!processedPairsRef.current.has(pairKey)) {
+                let userAnswer = nextMessage.content?.trim() || '';
+                
+                // Skip system commands
+                if (userAnswer === "Ready to begin" || userAnswer === "Continue" || userAnswer === "Start with Q001") {
+                  processedPairsRef.current.add(pairKey);
+                  i++; // Increment i to skip the user's message as it's a system command
+                  continue;
+                }
+                
+                // Normalize Yes/No
+                const normalized = userAnswer.toLowerCase();
+                if (normalized === 'yes' || normalized === 'no') {
+                  userAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1).toLowerCase();
+                }
+                
+                const questionData = questions.find(q => q.question_id === questionId);
+                if (!questionData) {
+                  console.warn(`⚠️ Question ${questionId} not found`);
+                  processedPairsRef.current.add(pairKey); // Mark as processed even if question data is missing to avoid re-checking
+                  i++; // Move past the user's message
+                  continue;
+                }
+                
+                // Check if Response already exists
+                const existing = await base44.entities.Response.filter({
+                  session_id: sessionId,
+                  question_id: questionId
+                });
+                
+                if (existing.length === 0) {
+                  console.log(`📝 Creating Response: ${questionId} = "${userAnswer}"`);
+                  
+                  const triggersFollowup = questionData.followup_pack && userAnswer.toLowerCase() === 'yes';
+                  
+                  try {
+                    await base44.entities.Response.create({
+                      session_id: sessionId,
+                      question_id: questionId,
+                      question_text: questionData.question_text,
+                      category: questionData.category,
+                      answer: userAnswer,
+                      answer_array: null,
+                      triggered_followup: triggersFollowup,
+                      followup_pack: triggersFollowup ? questionData.followup_pack : null,
+                      is_flagged: false,
+                      flag_reason: null,
+                      response_timestamp: nextMessage.created_at || new Date().toISOString()
+                    });
+                    
+                    console.log(`✅ Response created for ${questionId}`);
+                    
+                    // Update session progress
+                    const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
+                    const progress = Math.round((allResponses.length / 162) * 100);
+                    
+                    await base44.entities.InterviewSession.update(sessionId, {
+                      total_questions_answered: allResponses.length,
+                      completion_percentage: progress,
+                      followups_triggered: triggersFollowup ? (session?.followups_triggered || 0) + 1 : (session?.followups_triggered || 0)
+                    });
+                    
+                  } catch (err) {
+                    console.error(`❌ Error creating Response:`, err);
+                  }
+                } else {
+                  console.log(`✅ Response already exists for ${questionId}`);
+                }
+                
+                processedPairsRef.current.add(pairKey);
+                i++; // Increment i to skip the user's message as it's part of this pair
+              }
+            }
+          }
         }
         
-        // Check if Response already exists for this question
-        const existingResponses = await base44.entities.Response.filter({
-          session_id: sessionId,
-          question_id: questionId
-        });
-        
-        if (existingResponses.length > 0) {
-          console.log(`✅ Response already exists for ${questionId}`);
-          processedMessagesRef.current.add(pairKey);
-          continue;
-        }
-        
-        // Extract user's answer
-        let userAnswer = userMsg.content?.trim() || '';
-        
-        // Skip system commands
-        if (userAnswer === "Ready to begin" || userAnswer === "Continue" || userAnswer === "Start with Q001") {
-          processedMessagesRef.current.add(pairKey);
-          continue;
-        }
-        
-        // Normalize Yes/No answers
-        const normalizedAnswer = userAnswer.toLowerCase();
-        if (normalizedAnswer === 'yes' || normalizedAnswer === 'no') {
-          userAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1).toLowerCase();
-        }
-        
-        console.log(`📝 Creating Response: ${questionId} = "${userAnswer}"`);
-        
-        try {
-          // Check if this answer should trigger a follow-up
-          const triggersFollowup = questionData.followup_pack && userAnswer.toLowerCase() === 'yes';
+        // CASE 2: Agent asks follow-up questions (contains keywords like "date", "location", "what happened")
+        if (message.role === 'assistant' && message.content) {
+          const content = message.content.toLowerCase();
+          const isFollowupAssistantPrompt = 
+            (content.includes('tell me more') || content.includes('provide details') || 
+             content.includes('what happened') || content.includes('describe the incident') ||
+             content.includes('details about') || content.includes('can you explain')) &&
+            !content.match(/\b(q\d{1,3})\b/i) && // Not a primary Q### question
+            !content.includes('[show_completion]') && // Not a completion command
+            !content.includes('[show_category_overview]') &&
+            !content.includes('[show_category_transition:');
           
-          await base44.entities.Response.create({
-            session_id: sessionId,
-            question_id: questionId,
-            question_text: questionData.question_text,
-            category: questionData.category,
-            answer: userAnswer,
-            answer_array: null,
-            triggered_followup: triggersFollowup,
-            followup_pack: triggersFollowup ? questionData.followup_pack : null,
-            is_flagged: false,
-            flag_reason: null,
-            response_timestamp: userMsg.created_at || new Date().toISOString()
-          });
-          
-          console.log(`✅ Response created for ${questionId}`);
-          
-          // Update session progress
-          const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
-          const progress = Math.round((allResponses.length / 162) * 100);
-          
-          await base44.entities.InterviewSession.update(sessionId, {
-            total_questions_answered: allResponses.length,
-            completion_percentage: progress
-          });
-          
-          console.log(`📊 Session progress: ${allResponses.length}/162 (${progress}%)`);
-          
-          // Mark as processed
-          processedMessagesRef.current.add(pairKey);
-          
-        } catch (err) {
-          console.error(`❌ Error creating Response for ${questionId}:`, err);
+          if (isFollowupAssistantPrompt) {
+            const nextMessage = messages[i + 1];
+            if (nextMessage && nextMessage.role === 'user') {
+              const followupKey = `followup-prompt-${message.id}-user-answer-${nextMessage.id}`;
+              
+              if (!processedFollowupsRef.current.has(followupKey)) {
+                const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
+                const lastTriggeredResponse = allResponses.slice().reverse().find(r => r.triggered_followup);
+                
+                if (lastTriggeredResponse) {
+                  const existingFollowups = await base44.entities.FollowUpResponse.filter({
+                    session_id: sessionId,
+                    response_id: lastTriggeredResponse.id
+                  });
+
+                  const followupAlreadyRecorded = existingFollowups.some(f => f.incident_description);
+
+                  if (!followupAlreadyRecorded) {
+                    console.log(`📋 Creating FollowUpResponse for QID: ${lastTriggeredResponse.question_id}, Response ID: ${lastTriggeredResponse.id}`);
+                    
+                    try {
+                      const userAnswer = nextMessage.content;
+                      const incidentDescription = userAnswer; // Default to full answer for now
+
+                      await base44.entities.FollowUpResponse.create({
+                        session_id: sessionId,
+                        response_id: lastTriggeredResponse.id,
+                        question_id: lastTriggeredResponse.question_id,
+                        followup_pack: lastTriggeredResponse.followup_pack,
+                        instance_number: 1, 
+                        incident_description: incidentDescription, 
+                        completed: true, 
+                        completed_timestamp: nextMessage.created_at || new Date().toISOString()
+                      });
+                      
+                      console.log(`✅ FollowUpResponse created for ${lastTriggeredResponse.question_id}`);
+                    } catch (err) {
+                      console.error(`❌ Error creating FollowUpResponse:`, err);
+                    }
+                  } else {
+                    console.log(`✅ FollowUpResponse already recorded for Response ID: ${lastTriggeredResponse.id}`);
+                  }
+                } else {
+                  console.warn("⚠️ Assistant asked a follow-up question, but no recent 'triggered_followup' response found.");
+                }
+                
+                processedFollowupsRef.current.add(followupKey);
+                i++; // Increment i to skip the user's message
+              }
+            }
+          }
         }
       }
+      
+      // Update the last processed index
+      lastProcessedIndexRef.current = messages.length;
     };
 
-    // Run with a slight delay to avoid hammering the API
-    const timeoutId = setTimeout(createMissingResponses, 1000);
+    const timeoutId = setTimeout(processMessages, 1500);
     return () => clearTimeout(timeoutId);
-  }, [messages, sessionId, questions]);
+  }, [messages, sessionId, questions, session]);
 
   // Smooth scroll to bottom
   const smoothScrollToBottom = useCallback(() => {
@@ -422,7 +490,7 @@ export default function Interview() {
       ]);
 
       const categoryProgress = categoriesData.map(cat => {
-        const categoryQuestions = questionsData.filter(q => q.question_id && q.category === cat.category_label);
+        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
         const answeredInCategory = responsesData.filter(r => 
           categoryQuestions.some(q => q.question_id === r.question_id)
         );
