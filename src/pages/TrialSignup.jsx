@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, CheckCircle, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { generateDepartmentCode } from "@/utils/generateDepartmentCode";
+import { generateDepartmentCode } from "@/utils/generateDepartmentCode.js";
 
 export default function TrialSignup() {
   const navigate = useNavigate();
