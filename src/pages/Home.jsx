@@ -1,7 +1,8 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle } from "lucide-react";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label"; // Added Label import
+import { Label } from "@/components/ui/label";
 
 export default function Home() {
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
@@ -373,177 +374,45 @@ function SessionDialog({ open, onOpenChange }) {
 
 function QuestionsDialog({ open, onOpenChange }) {
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [allQuestions, setAllQuestions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        setIsLoading(true);
+        const questions = await base44.entities.Question.filter({ active: true });
+        setAllQuestions(questions.sort((a, b) => a.display_order - b.display_order));
+      } catch (err) {
+        console.error("Error loading questions:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (open) {
+      loadQuestions();
+    }
+  }, [open]);
 
   const categories = [
-    {
-      name: "Applications with Other LE Agencies",
-      count: "4 questions",
-      description: "Prior applications, hiring outcomes, and withdrawal reasons",
-      questions: [
-        "Have you ever applied to any other law enforcement agency?",
-        "Were you hired by any of these agencies?",
-        "Have you ever withdrawn from a hiring process?",
-        "Have you been denied employment by any law enforcement agency?"
-      ]
-    },
-    {
-      name: "Driving Record",
-      count: "17 questions",
-      description: "License history, DUIs, suspensions, accidents, and traffic violations",
-      questions: [
-        "Do you have a valid driver's license?",
-        "Has your license ever been suspended or revoked?",
-        "Have you ever been arrested for DUI/DWI?",
-        "Have you been involved in any at-fault accidents?",
-        "Do you have any outstanding traffic warrants?",
-        "Have you received more than 3 traffic citations in the past 3 years?",
-        "Have you ever fled from police during a traffic stop?"
-      ]
-    },
-    {
-      name: "Criminal Involvement / Police Contacts",
-      count: "44 questions",
-      description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations",
-      questions: [
-        "Have you ever been arrested for any reason?",
-        "Have you ever been charged with a crime?",
-        "Have you ever been convicted of a felony?",
-        "Do you have any outstanding warrants?",
-        "Have you ever been subject to a restraining order?",
-        "Have you ever been affiliated with a gang?",
-        "Have you illegally possessed or used a firearm?",
-        "Have you ever been questioned by police regarding criminal activity?",
-        "Have you ever provided false information to law enforcement?",
-        "...and 35 more comprehensive criminal history questions"
-      ]
-    },
-    {
-      name: "Extremist Organizations",
-      count: "4 questions",
-      description: "Membership or support of hate groups and extremist ideologies",
-      questions: [
-        "Have you ever been a member of any extremist organization?",
-        "Have you attended events or meetings of hate groups?",
-        "Have you financially supported any extremist causes?",
-        "Have you ever promoted extremist ideologies online or in person?"
-      ]
-    },
-    {
-      name: "Sexual Activities",
-      count: "18 questions",
-      description: "Prostitution, pornography, harassment, assault, and exploitation",
-      questions: [
-        "Have you ever engaged in prostitution or paid for sexual services?",
-        "Have you ever been involved in the creation or distribution of pornography?",
-        "Have you ever been accused of sexual harassment?",
-        "Have you ever committed sexual assault or misconduct?",
-        "Have you viewed or possessed illegal pornography?",
-        "Have you engaged in sexual activity with a minor?",
-        "...and 12 more questions covering all sexual misconduct areas"
-      ]
-    },
-    {
-      name: "Financial History",
-      count: "8 questions",
-      description: "Bankruptcy, foreclosure, liens, debt, and gambling issues",
-      questions: [
-        "Have you ever filed for bankruptcy?",
-        "Have you had any property foreclosed or repossessed?",
-        "Do you have any outstanding liens or judgments?",
-        "Are you currently in significant debt?",
-        "Have you defaulted on any loans?",
-        "Do you have any unpaid child support?",
-        "Have you engaged in illegal gambling?",
-        "Have you ever written bad checks?"
-      ]
-    },
-    {
-      name: "Illegal Drug / Narcotic History",
-      count: "18 questions",
-      description: "47-substance checklist covering use, sales, manufacturing, and prescriptions",
-      questions: [
-        "Have you ever used marijuana/cannabis?",
-        "Have you used cocaine or crack cocaine?",
-        "Have you used methamphetamine or amphetamines?",
-        "Have you used heroin or other opioids illegally?",
-        "Have you used hallucinogens (LSD, mushrooms, etc.)?",
-        "Have you sold or distributed illegal drugs?",
-        "Have you manufactured illegal drugs?",
-        "Have you misused prescription medications?",
-        "PLUS: Detailed 47-substance checklist including designer drugs, steroids, inhalants"
-      ]
-    },
-    {
-      name: "Alcohol History",
-      count: "3 questions",
-      description: "Alcohol dependency, treatment programs, and related incidents",
-      questions: [
-        "Have you ever been dependent on alcohol?",
-        "Have you participated in alcohol treatment or counseling?",
-        "Have you had alcohol-related incidents beyond DUIs?"
-      ]
-    },
-    {
-      name: "Military History",
-      count: "8 questions",
-      description: "Service branch, discharge status, discipline, and courts-martial",
-      questions: [
-        "Have you served in the military?",
-        "What type of discharge did you receive?",
-        "Were you ever court-martialed?",
-        "Did you receive any Article 15s or NJPs?",
-        "Were you denied a security clearance?",
-        "Did you go AWOL or desert?",
-        "Were you discharged for misconduct?",
-        "Have you received military discipline for integrity violations?"
-      ]
-    },
-    {
-      name: "Employment History",
-      count: "23 questions",
-      description: "Terminations, resignations, workplace investigations, and policy violations",
-      questions: [
-        "Have you ever been fired from a job?",
-        "Have you been asked to resign?",
-        "Were you ever investigated by an employer?",
-        "Have you violated company policies?",
-        "Have you been disciplined for misconduct at work?",
-        "Have you stolen from an employer?",
-        "Have you falsified work records or timesheets?",
-        "Have you been involved in workplace harassment?",
-        "...and 15 more employment integrity questions"
-      ]
-    },
-    {
-      name: "Prior Law Enforcement Employment",
-      count: "11 questions",
-      description: "LE work history, complaints, use of force, and integrity violations",
-      questions: [
-        "Have you worked in law enforcement before?",
-        "Have you received citizen complaints?",
-        "Were you ever suspended or disciplined?",
-        "Have you had excessive use of force incidents?",
-        "Were you investigated for integrity violations?",
-        "Have you falsified police reports?",
-        "Did you misuse your position or authority?",
-        "Were you involved in evidence tampering?",
-        "Have you violated department policies?",
-        "Were you terminated or forced to resign from LE?",
-        "Are you currently under investigation?"
-      ]
-    },
-    {
-      name: "General Disclosures & Eligibility",
-      count: "4 questions",
-      description: "Citizenship, visible tattoos, sworn statements, and final disclosures",
-      questions: [
-        "Are you a U.S. citizen or legal resident?",
-        "Do you have any visible tattoos or body markings?",
-        "Have you made false statements during this application process?",
-        "Is there anything else you'd like to disclose that wasn't covered?"
-      ]
-    }
+    { name: "Applications with Other LE Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
+    { name: "Driving Record", description: "License history, DUIs, suspensions, accidents, and traffic violations" },
+    { name: "Criminal Involvement / Police Contacts", description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations" },
+    { name: "Extremist Organizations", description: "Membership or support of hate groups and extremist ideologies" },
+    { name: "Sexual Activities", description: "Prostitution, pornography, harassment, assault, and exploitation" },
+    { name: "Financial History", description: "Bankruptcy, foreclosure, liens, debt, and gambling issues" },
+    { name: "Illegal Drug / Narcotic History", description: "47-substance checklist covering use, sales, manufacturing, and prescriptions" },
+    { name: "Alcohol History", description: "Alcohol dependency, treatment programs, and related incidents" },
+    { name: "Military History", description: "Service branch, discharge status, discipline, and courts-martial" },
+    { name: "Employment History", description: "Terminations, resignations, workplace investigations, and policy violations" },
+    { name: "Prior Law Enforcement", description: "LE work history, complaints, use of force, and integrity violations" },
+    { name: "General Disclosures & Eligibility", description: "Citizenship, visible tattoos, sworn statements, and final disclosures" }
   ];
+
+  const getCategoryQuestions = (categoryName) => {
+    return allQuestions.filter(q => q.category === categoryName);
+  };
 
   const toggleCategory = (index) => {
     setExpandedCategory(expandedCategory === index ? null : index);
@@ -558,54 +427,71 @@ function QuestionsDialog({ open, onOpenChange }) {
             162-Question Master Bank
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2">
-            Every question, organized by investigative domain. Click any section to see sample questions.
+            Every question, organized by investigative domain. Click any section to see all questions.
           </DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
           <div className="space-y-3 py-6">
-            {categories.map((category, idx) => (
-              <div 
-                key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden hover:border-blue-500/50 transition-colors"
-              >
-                <button
-                  onClick={() => toggleCategory(idx)}
-                  className="w-full p-4 text-left flex items-center justify-between gap-4 hover:bg-slate-800/70 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-white text-base">{category.name}</h3>
-                      <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap text-xs">
-                        {category.count}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-slate-400">
-                      {category.description}
-                    </p>
-                  </div>
-                  <ChevronRight 
-                    className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${
-                      expandedCategory === idx ? 'rotate-90' : ''
-                    }`}
-                  />
-                </button>
-
-                {expandedCategory === idx && (
-                  <div className="px-4 pb-4 border-t border-slate-700/50">
-                    <div className="pt-3 space-y-2">
-                      <p className="text-xs font-semibold text-blue-400 mb-2">Sample Questions:</p>
-                      {category.questions.map((question, qIdx) => (
-                        <div key={qIdx} className="flex items-start gap-2 text-sm">
-                          <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
-                          <span className="text-slate-300">{question}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {isLoading ? (
+              <div className="text-center py-12 text-slate-400">
+                Loading questions...
               </div>
-            ))}
+            ) : (
+              categories.map((category, idx) => {
+                const categoryQuestions = getCategoryQuestions(category.name);
+                const questionCount = categoryQuestions.length;
+
+                return (
+                  <div 
+                    key={idx}
+                    className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden hover:border-blue-500/50 transition-colors"
+                  >
+                    <button
+                      onClick={() => toggleCategory(idx)}
+                      className="w-full p-4 text-left flex items-center justify-between gap-4 hover:bg-slate-800/70 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-white text-base">{category.name}</h3>
+                          <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap text-xs">
+                            {questionCount} {questionCount === 1 ? 'question' : 'questions'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-slate-400">
+                          {category.description}
+                        </p>
+                      </div>
+                      <ChevronRight 
+                        className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${
+                          expandedCategory === idx ? 'rotate-90' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {expandedCategory === idx && (
+                      <div className="px-4 pb-4 border-t border-slate-700/50">
+                        <div className="pt-3">
+                          <p className="text-xs font-semibold text-blue-400 mb-3">All Questions in this Category:</p>
+                          <ScrollArea className="max-h-64">
+                            <div className="space-y-2 pr-4">
+                              {categoryQuestions.map((question, qIdx) => (
+                                <div key={qIdx} className="flex items-start gap-2 text-sm">
+                                  <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
+                                    {question.question_id}
+                                  </span>
+                                  <span className="text-slate-300">{question.question_text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </ScrollArea>
 
@@ -677,7 +563,7 @@ function FollowupsDialog({ open, onOpenChange }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="2xl font-bold flex items-center gap-3">
+          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-orange-400" />
             Automated Follow-Up Packs
           </DialogTitle>
