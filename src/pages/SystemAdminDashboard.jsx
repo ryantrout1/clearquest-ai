@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Building2, Users, DollarSign, Search, ArrowLeft, Plus, CheckCircle, XCircle } from "lucide-react";
+import { Shield, Building2, Users, DollarSign, Search, ArrowLeft, Plus, CheckCircle, XCircle, Rocket } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function SystemAdminDashboard() {
@@ -22,12 +22,10 @@ export default function SystemAdminDashboard() {
 
   const checkAuth = async () => {
     try {
-      // Check for mock admin authentication first
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
-          // Create mock super admin user
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
             first_name: auth.username,
@@ -42,7 +40,6 @@ export default function SystemAdminDashboard() {
         }
       }
 
-      // Otherwise check Base44 authentication
       const currentUser = await base44.auth.me();
       if (currentUser.role !== 'SUPER_ADMIN') {
         navigate(createPageUrl("HomeHub"));
@@ -74,13 +71,11 @@ export default function SystemAdminDashboard() {
 
   const handleApproveUpgrade = async (request) => {
     try {
-      // Update department plan level
       await base44.entities.Department.update(request.department_id, {
         plan_level: request.requested_plan_level,
         activity_log: [`Plan upgraded to ${request.requested_plan_level}`, ...(departments.find(d => d.id === request.department_id)?.activity_log || [])]
       });
 
-      // Update request status
       await base44.entities.UpgradeRequest.update(request.id, {
         status: 'Approved',
         resolved_date: new Date().toISOString(),
@@ -115,6 +110,7 @@ export default function SystemAdminDashboard() {
   const stats = {
     totalDepartments: departments.length,
     activeTrial: departments.filter(d => d.plan_level === 'Trial').length,
+    activePilot: departments.filter(d => d.plan_level === 'Pilot').length,
     paidAccounts: departments.filter(d => d.plan_level === 'Paid').length,
     totalUsers: allUsers.length
   };
@@ -124,7 +120,6 @@ export default function SystemAdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6 md:mb-8">
           <Link to={createPageUrl("HomeHub")}>
             <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
@@ -152,7 +147,6 @@ export default function SystemAdminDashboard() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatCard
             title="Total Departments"
@@ -167,11 +161,20 @@ export default function SystemAdminDashboard() {
             color="orange"
           />
           <StatCard
+            title="Active Pilots"
+            value={stats.activePilot}
+            icon={Rocket}
+            color="cyan"
+          />
+          <StatCard
             title="Paid Accounts"
             value={stats.paidAccounts}
             icon={CheckCircle}
             color="green"
           />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatCard
             title="Total Users"
             value={stats.totalUsers}
@@ -180,7 +183,6 @@ export default function SystemAdminDashboard() {
           />
         </div>
 
-        {/* Pending Upgrades */}
         {upgradeRequests.length > 0 && (
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
             <CardHeader>
@@ -224,7 +226,6 @@ export default function SystemAdminDashboard() {
           </Card>
         )}
 
-        {/* Departments Table */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
             <div className="flex flex-col gap-4">
@@ -289,6 +290,7 @@ function StatCard({ title, value, icon: Icon, color }) {
   const colorClasses = {
     blue: "from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400",
     orange: "from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-400",
+    cyan: "from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-400",
     green: "from-green-500/20 to-green-600/10 border-green-500/30 text-green-400",
     purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400"
   };
