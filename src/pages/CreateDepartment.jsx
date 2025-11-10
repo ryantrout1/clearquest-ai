@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -71,9 +72,20 @@ export default function CreateDepartment() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log("🚀 Form submitted", formData);
+    
+    // Validate required fields
+    if (!formData.department_name || !formData.department_code || !formData.contact_email) {
+      toast.error("Please fill in all required fields (Department Name, Department Code, and Contact Email)");
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
+      console.log("📝 Creating department...");
+      
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -93,12 +105,16 @@ export default function CreateDepartment() {
         color_accent: "#E6B980"
       };
 
+      console.log("📦 Department data:", departmentData);
+
       const newDept = await base44.entities.Department.create(departmentData);
+      
+      console.log("✅ Department created:", newDept);
       
       toast.success("Department created successfully!");
       navigate(createPageUrl(`DepartmentDashboard?id=${newDept.id}`));
     } catch (err) {
-      console.error("Error creating department:", err);
+      console.error("❌ Error creating department:", err);
       toast.error(`Failed to create department: ${err.message || 'Unknown error'}`);
       setIsSubmitting(false);
     }
