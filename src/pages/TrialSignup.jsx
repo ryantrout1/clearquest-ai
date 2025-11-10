@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -10,29 +9,54 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, CheckCircle, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { generateDepartmentCode } from "@/utils/generateDepartmentCode";
 
 export default function TrialSignup() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [formData, setFormData] = useState({
-    // Department info
     department_name: "",
+    department_code: "",
     department_type: "Law Enforcement",
     jurisdiction: "",
-    
-    // Contact user info (replaces old admin user info fields)
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    zip_code: "",
     contact_name: "", 
     contact_email: "",
-    phone_number: "", // Now a required contact field
+    phone_number: "",
   });
+
+  // Auto-generate department code when name or zip changes
+  useEffect(() => {
+    const generateCode = async () => {
+      if (formData.department_name && formData.zip_code) {
+        setIsGeneratingCode(true);
+        try {
+          const code = await generateDepartmentCode(formData.department_name, formData.zip_code);
+          setFormData(prev => ({ ...prev, department_code: code }));
+        } catch (err) {
+          console.error("Error generating code:", err);
+        } finally {
+          setIsGeneratingCode(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(generateCode, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData.department_name, formData.zip_code]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (step === 1) {
-      // Basic validation for step 1
-      if (!formData.department_name || !formData.department_type || !formData.jurisdiction) {
+      if (!formData.department_name || !formData.department_type || !formData.jurisdiction ||
+          !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
         toast.error("Please fill in all required department fields.");
         return;
       }
@@ -41,12 +65,10 @@ export default function TrialSignup() {
     }
 
     if (step === 2) {
-      // Basic validation for step 2
       if (!formData.contact_name || !formData.contact_email || !formData.phone_number) {
         toast.error("Please fill in all required contact fields.");
         return;
       }
-      // Simple email format validation
       if (!/\S+@\S+\.\S+/.test(formData.contact_email)) {
         toast.error("Please enter a valid email address.");
         return;
@@ -55,31 +77,30 @@ export default function TrialSignup() {
       return;
     }
 
-    // If step is 3, proceed with submission
     setIsSubmitting(true);
 
     try {
-      // Generate department ID
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
-      
-      // Calculate trial end date (30 days from now)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
 
-      // Extract first_name and last_name from contact_name
       const nameParts = formData.contact_name.split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // Create department
       const departmentData = {
         department_name: formData.department_name,
+        department_code: formData.department_code,
         department_type: formData.department_type,
         jurisdiction: formData.jurisdiction,
-        phone_number: formData.phone_number, // Now the contact's phone number
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2,
+        city: formData.city,
+        state: formData.state,
+        zip_code: formData.zip_code,
+        phone_number: formData.phone_number,
         contact_name: formData.contact_name,
         contact_email: formData.contact_email,
-        // contact_title is removed as there is no input for it anymore
         department_id: deptId,
         plan_type: "Free Trial",
         plan_level: "Trial",
@@ -99,7 +120,6 @@ export default function TrialSignup() {
 
       const newDept = await base44.entities.Department.create(departmentData);
 
-      // Create admin user
       await base44.entities.User.create({
         first_name: firstName,
         last_name: lastName,
@@ -112,7 +132,6 @@ export default function TrialSignup() {
 
       toast.success("Trial account created! Check your email for login instructions.");
       
-      // Redirect to a success page or login
       setTimeout(() => {
         navigate(createPageUrl("AdminLogin"));
       }, 2000);
@@ -150,7 +169,6 @@ export default function TrialSignup() {
           </CardHeader>
 
           <CardContent className="space-y-6 p-6 md:p-8">
-            {/* Progress Indicator */}
             <div className="flex items-center justify-center gap-2 mb-6">
               {[1, 2, 3].map((s) => (
                 <div
@@ -208,6 +226,82 @@ export default function TrialSignup() {
                       required
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address_line1" className="text-white text-sm">Address Line 1 *</Label>
+                    <Input
+                      id="address_line1"
+                      placeholder="Street address"
+                      value={formData.address_line1}
+                      onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-12"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address_line2" className="text-white text-sm">Address Line 2</Label>
+                    <Input
+                      id="address_line2"
+                      placeholder="Apt, Suite, Unit, etc. (optional)"
+                      value={formData.address_line2}
+                      onChange={(e) => setFormData({...formData, address_line2: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-12"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="city" className="text-white text-sm">City *</Label>
+                      <Input
+                        id="city"
+                        placeholder="City"
+                        value={formData.city}
+                        onChange={(e) => setFormData({...formData, city: e.target.value})}
+                        className="bg-slate-900/50 border-slate-600 text-white h-12"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="state" className="text-white text-sm">State *</Label>
+                      <Input
+                        id="state"
+                        placeholder="e.g., CA"
+                        value={formData.state}
+                        onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                        className="bg-slate-900/50 border-slate-600 text-white h-12"
+                        maxLength={2}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="zip_code" className="text-white text-sm">ZIP Code *</Label>
+                    <Input
+                      id="zip_code"
+                      placeholder="e.g., 90210"
+                      value={formData.zip_code}
+                      onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-12"
+                      required
+                    />
+                  </div>
+
+                  {formData.department_code && (
+                    <div className="bg-blue-950/30 border border-blue-800/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-300">Your Department Code:</span>
+                        <span className="text-lg font-mono font-bold text-blue-400">
+                          {isGeneratingCode ? "Generating..." : formData.department_code}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">
+                        Applicants will use this code to start interviews
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -271,12 +365,18 @@ export default function TrialSignup() {
                       <span className="text-white font-medium text-right">{formData.department_name}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-slate-400">Department Code:</span>
+                      <span className="text-white font-mono text-right">{formData.department_code}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-slate-400">Department Type:</span>
                       <span className="text-white text-right">{formData.department_type}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Jurisdiction:</span>
-                      <span className="text-white text-right">{formData.jurisdiction}</span>
+                      <span className="text-slate-400">Address:</span>
+                      <span className="text-white text-right">
+                        {formData.city}, {formData.state} {formData.zip_code}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Contact Name:</span>
@@ -285,10 +385,6 @@ export default function TrialSignup() {
                     <div className="flex justify-between">
                       <span className="text-slate-400">Contact Email:</span>
                       <span className="text-white text-right">{formData.contact_email}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Phone Number:</span>
-                      <span className="text-white text-right">{formData.phone_number}</span>
                     </div>
                   </div>
                 </div>
@@ -309,7 +405,7 @@ export default function TrialSignup() {
                 
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (step === 1 && isGeneratingCode)}
                   className={`flex-1 bg-blue-600 hover:bg-blue-700 text-white h-12 ${step === 1 ? "md:ml-auto" : ""}`}
                 >
                   {isSubmitting ? (
@@ -332,7 +428,6 @@ export default function TrialSignup() {
               </div>
             </form>
 
-            {/* Features */}
             <div className="mt-8 pt-8 border-t border-slate-700">
               <h4 className="font-semibold text-white mb-4 text-center text-sm">What's Included</h4>
               <div className="grid sm:grid-cols-2 gap-3 text-sm">

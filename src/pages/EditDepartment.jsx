@@ -174,13 +174,21 @@ export default function EditDepartment() {
                     <Label className="text-white">Department Code *</Label>
                     <Input
                       value={formData.department_code || ""}
-                      onChange={(e) => setFormData({...formData, department_code: e.target.value.toUpperCase()})}
-                      className="bg-slate-900/50 border-slate-600 text-white"
+                      className={`border-slate-600 ${
+                        isSuperAdmin 
+                          ? "bg-slate-900/50 text-white" 
+                          : "bg-slate-900/70 text-slate-400 cursor-not-allowed"
+                      }`}
+                      onChange={isSuperAdmin ? (e) => setFormData({...formData, department_code: e.target.value.toUpperCase()}) : undefined}
                       placeholder="e.g., PD-2024"
                       required
+                      disabled={!isSuperAdmin}
+                      readOnly={!isSuperAdmin}
                     />
                     <p className="text-xs text-slate-400">
-                      Code used by applicants to start interviews
+                      {isSuperAdmin 
+                        ? "Code used by applicants to start interviews" 
+                        : "Only System Administrators can edit the department code"}
                     </p>
                   </div>
 
