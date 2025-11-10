@@ -17,6 +17,7 @@ export default function CreateDepartment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     department_name: "",
+    department_code: "",
     department_type: "Law Enforcement",
     jurisdiction: "",
     department_address: "",
@@ -39,7 +40,6 @@ export default function CreateDepartment() {
 
   const checkAuth = async () => {
     try {
-      // Check for mock admin authentication first
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
         try {
@@ -93,13 +93,13 @@ export default function CreateDepartment() {
         color_accent: "#E6B980"
       };
 
-      await base44.entities.Department.create(departmentData);
+      const newDept = await base44.entities.Department.create(departmentData);
       
       toast.success("Department created successfully!");
-      navigate(createPageUrl("SystemAdminDashboard"));
+      navigate(createPageUrl(`DepartmentDashboard?id=${newDept.id}`));
     } catch (err) {
       console.error("Error creating department:", err);
-      toast.error("Failed to create department");
+      toast.error(`Failed to create department: ${err.message || 'Unknown error'}`);
       setIsSubmitting(false);
     }
   };
@@ -147,6 +147,21 @@ export default function CreateDepartment() {
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
                       required
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="department_code" className="text-white text-sm">Department Code *</Label>
+                    <Input
+                      id="department_code"
+                      value={formData.department_code}
+                      onChange={(e) => setFormData({...formData, department_code: e.target.value.toUpperCase()})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      placeholder="e.g., PD-2024"
+                      required
+                    />
+                    <p className="text-xs text-slate-400">
+                      Code used by applicants to start interviews
+                    </p>
                   </div>
 
                   <div className="space-y-2">
