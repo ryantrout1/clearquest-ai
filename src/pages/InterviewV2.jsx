@@ -13,7 +13,7 @@ import {
   getCurrentPrompt,
   getProgress,
   PERF_MONITOR
-} from "@/utils/interviewEngine";
+} from "../components/interviewEngine";
 
 /**
  * InterviewV2 - Deterministic, instant-response interview system
