@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine
  * Deterministic, zero-AI question routing with precomputed lookups
@@ -9,6 +10,12 @@
 // ============================================================================
 
 const FOLLOWUP_PACK_STEPS = {
+  'PACK_LE_APPS': [
+    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency you applied to?', Response_Type: 'text' },
+    { Field_Key: 'application_date', Prompt: 'When did you apply?', Response_Type: 'text' },
+    { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text' },
+    { Field_Key: 'reason_not_hired', Prompt: 'If not hired, what was the reason given?', Response_Type: 'text' }
+  ],
   'PACK_LE_PREV': [
     { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text' },
     { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text' },
