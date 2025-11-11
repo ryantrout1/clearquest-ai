@@ -12,6 +12,7 @@ import DepartmentDashboard from './pages/DepartmentDashboard';
 import TrialSignup from './pages/TrialSignup';
 import EditDepartment from './pages/EditDepartment';
 import InterviewDashboard from './pages/InterviewDashboard';
+import InterviewV2 from './pages/InterviewV2';
 import Layout from './Layout.jsx';
 
 
@@ -30,6 +31,7 @@ export const PAGES = {
     "TrialSignup": TrialSignup,
     "EditDepartment": EditDepartment,
     "InterviewDashboard": InterviewDashboard,
+    "InterviewV2": InterviewV2,
 }
 
 export const pagesConfig = {
