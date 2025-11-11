@@ -30,6 +30,7 @@ export default function Interview() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [questions, setQuestions] = useState([]);
+  const [isInitializingConversation, setIsInitializingConversation] = useState(false);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -44,6 +45,7 @@ export default function Interview() {
   const processedPairsRef = useRef(new Set()); // Track Q+A pairs
   const processedFollowupsRef = useRef(new Set()); // Track follow-up details
   const lastProcessedIndexRef = useRef(0); // Track last processed message index
+  const conversationInitializedRef = useRef(false);
 
   // CRITICAL: Auto-create Response AND FollowUpResponse records from conversation
   useEffect(() => {
@@ -555,9 +557,8 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
-      const [sessionData, q001Data, allQuestions] = await Promise.all([
+      const [sessionData, allQuestions] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Question.filter({ question_id: "Q001" }).then(q => q[0]),
         base44.entities.Question.filter({ active: true })
       ]);
       
@@ -592,31 +593,36 @@ export default function Interview() {
           const newCount = newMessages.length;
           const lastContent = newMessages[newCount - 1]?.content || '';
           
+          console.log(`📨 Subscription update: ${newCount} messages`);
+          
           if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
             setMessages(newMessages);
+            lastMessageCountRef.current = newCount;
+            lastMessageContentRef.current = lastContent;
           }
         }
       );
 
-      if (existingMessages.length === 0 && q001Data) {
-        console.log("✅ New session - showing Q001 INSTANTLY");
-        
-        const q001Message = {
-          id: 'q001-initial',
-          role: 'assistant',
-          content: `Q001: ${q001Data.question_text}`,
-          tool_calls: [],
-          created_at: new Date().toISOString()
-        };
-        
-        setMessages([q001Message]);
-        lastMessageCountRef.current = 1;
-        lastMessageContentRef.current = q001Message.content;
-        shouldAutoScrollRef.current = true;
-        setShowQuickButtons(true);
+      // NEW: If conversation is empty, initialize it with "Start with Q001"
+      if (existingMessages.length === 0 && !conversationInitializedRef.current) {
+        console.log("🚀 New session - initializing conversation with Q001 trigger");
+        conversationInitializedRef.current = true;
+        setIsInitializingConversation(true);
         setIsLoading(false);
         
-        setTimeout(() => instantScrollToBottom(), 100);
+        // Send the initial trigger message to start the conversation
+        try {
+          await base44.agents.addMessage(conversationData, {
+            role: "user",
+            content: "Start with Q001"
+          });
+          console.log("✅ Q001 initialization message sent");
+        } catch (err) {
+          console.error("❌ Error initializing conversation:", err);
+          setError("Failed to start interview. Please try again.");
+        } finally {
+          setIsInitializingConversation(false);
+        }
         
         return;
       }
@@ -628,6 +634,16 @@ export default function Interview() {
       setIsLoading(false);
       
       setTimeout(() => instantScrollToBottom(), 100);
+
+      // Check if we should show quick buttons
+      if (existingMessages.length > 0) {
+        const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
+        if (lastAssistantMessage?.content) {
+          const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+          const hasQuestion = content.includes('?');
+          setShowQuickButtons(hasQuestion);
+        }
+      }
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -797,7 +813,10 @@ export default function Interview() {
         message.content && 
         message.content.trim() !== '' &&
         !message.content.includes('[SHOW_CATEGORY_OVERVIEW]') &&
-        !message.content.includes('[SHOW_CATEGORY_TRANSITION:')
+        !message.content.includes('[SHOW_CATEGORY_TRANSITION:') &&
+        message.content !== 'Start with Q001' && // Filter out initial system trigger
+        message.content !== 'Ready to begin' && // Filter out user's 'Ready to begin' or similar system commands
+        message.content !== 'Continue' // Filter out user's 'Continue' or similar system commands
       )
       .map((msg, index) => ({
         ...msg,
@@ -810,7 +829,9 @@ export default function Interview() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Loading interview session...</p>
+          <p className="text-slate-300">
+            {isInitializingConversation ? "Starting interview..." : "Loading interview session..."}
+          </p>
           {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -953,7 +974,9 @@ export default function Interview() {
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
-              <p className="text-slate-400">Starting interview...</p>
+              <p className="text-slate-400">
+                {isInitializingConversation ? "Starting first question..." : "Waiting for first question..."}
+              </p>
             </div>
           ) : (
             displayMessages.map((message) => (
@@ -1025,16 +1048,16 @@ export default function Interview() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your response..."
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 h-12"
-                disabled={isSending}
+                disabled={isSending || isInitializingConversation}
                 autoComplete="off"
               />
               <Button
                 type="submit"
-                disabled={isSending || !input.trim()}
+                disabled={isSending || !input.trim() || isInitializingConversation}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                 size="lg"
               >
-                {isSending ? (
+                {isSending || isInitializingConversation ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
