@@ -1,4 +1,3 @@
-
 /**
  * ClearQuest Interview Engine
  * Deterministic, zero-AI question routing with precomputed lookups
@@ -7,42 +6,115 @@
 
 // ============================================================================
 // FOLLOW-UP PACK DEFINITIONS (Hardcoded for deterministic routing)
+// Based on ClearQuest Data Package v1 - README_v1.txt
 // ============================================================================
 
 const FOLLOWUP_PACK_STEPS = {
+  // ===== Applications with Other LE Agencies =====
   'PACK_LE_APPS': [
     { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency you applied to?', Response_Type: 'text' },
     { Field_Key: 'application_date', Prompt: 'When did you apply?', Response_Type: 'text' },
     { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text' },
     { Field_Key: 'reason_not_hired', Prompt: 'If not hired, what was the reason given?', Response_Type: 'text' }
   ],
+  
+  'PACK_WITHHOLD_INFO': [
+    { Field_Key: 'what_withheld', Prompt: 'What information did you withhold?', Response_Type: 'text' },
+    { Field_Key: 'which_agency', Prompt: 'Which agency or agencies?', Response_Type: 'text' },
+    { Field_Key: 'why_withheld', Prompt: 'Why did you withhold this information?', Response_Type: 'text' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this decision?', Response_Type: 'text' }
+  ],
+  
+  'PACK_DISQUALIFIED': [
+    { Field_Key: 'agency_name', Prompt: 'Which agency disqualified you?', Response_Type: 'text' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'reason_given', Prompt: 'What reason were you given for the disqualification?', Response_Type: 'text' },
+    { Field_Key: 'what_learned', Prompt: 'What have you learned or changed since then?', Response_Type: 'text' }
+  ],
+  
+  'PACK_CHEATING': [
+    { Field_Key: 'which_test', Prompt: 'Which test or portion did you cheat on?', Response_Type: 'text' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'how_cheated', Prompt: 'How did you cheat?', Response_Type: 'text' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+  ],
+
+  // ===== Driving Record =====
+  'PACK_COLLISION': [
+    { Field_Key: 'collision_date', Prompt: 'When did the collision occur?', Response_Type: 'text' },
+    { Field_Key: 'collision_location', Prompt: 'Where did it occur?', Response_Type: 'text' },
+    { Field_Key: 'at_fault', Prompt: 'Were you at fault?', Response_Type: 'text' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text' }
+  ],
+  
+  'PACK_COLLISION_INJURY': [
+    { Field_Key: 'injuries', Prompt: 'Describe the injuries sustained.', Response_Type: 'text' },
+    { Field_Key: 'fatalities', Prompt: 'Were there any fatalities?', Response_Type: 'text' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text' }
+  ],
+  
+  'PACK_ALCOHOL_COLLISION': [
+    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'bac_level', Prompt: 'What was your BAC level, if known?', Response_Type: 'text' },
+    { Field_Key: 'charges_filed', Prompt: 'Were any charges filed?', Response_Type: 'text' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+  ],
+  
+  'PACK_UNREPORTED_COLLISION': [
+    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'why_unreported', Prompt: 'Why was it not reported?', Response_Type: 'text' },
+    { Field_Key: 'damages', Prompt: 'Describe any damages or injuries.', Response_Type: 'text' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for not reporting it?', Response_Type: 'text' }
+  ],
+  
+  'PACK_HIT_RUN': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text' },
+    { Field_Key: 'why_left', Prompt: 'Why did you leave the scene?', Response_Type: 'text' },
+    { Field_Key: 'reported_later', Prompt: 'Did you report it later?', Response_Type: 'text' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+  ],
+  
+  'PACK_HIT_RUN_DAMAGE': [
+    { Field_Key: 'injuries', Prompt: 'Describe any injuries.', Response_Type: 'text' },
+    { Field_Key: 'property_damage', Prompt: 'Describe property damage.', Response_Type: 'text' },
+    { Field_Key: 'legal_consequences', Prompt: 'Were there legal consequences?', Response_Type: 'text' }
+  ],
+
+  // ===== Generic/Existing Packs =====
   'PACK_LE_PREV': [
     { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text' },
     { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text' },
     { Field_Key: 'reason_leaving', Prompt: 'What was your reason for leaving?', Response_Type: 'text' },
     { Field_Key: 'eligible_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text' }
   ],
+  
   'PACK_MIL_DISCHARGE': [
     { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive?', Response_Type: 'text' },
     { Field_Key: 'discharge_date', Prompt: 'When were you discharged?', Response_Type: 'text' },
     { Field_Key: 'discharge_reason', Prompt: 'What was the reason for your discharge?', Response_Type: 'text' }
   ],
+  
   'PACK_DISCIPLINE': [
     { Field_Key: 'incident_date', Prompt: 'When did this disciplinary action occur?', Response_Type: 'text' },
     { Field_Key: 'incident_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
     { Field_Key: 'incident_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
   ],
+  
   'PACK_ARREST': [
     { Field_Key: 'arrest_date', Prompt: 'When were you arrested?', Response_Type: 'text' },
     { Field_Key: 'arrest_location', Prompt: 'Where did this occur?', Response_Type: 'text' },
     { Field_Key: 'arrest_charge', Prompt: 'What were you charged with?', Response_Type: 'text' },
     { Field_Key: 'arrest_outcome', Prompt: 'What was the outcome of the case?', Response_Type: 'text' }
   ],
+  
   'PACK_TRAFFIC': [
     { Field_Key: 'traffic_date', Prompt: 'When did this traffic violation occur?', Response_Type: 'text' },
     { Field_Key: 'traffic_type', Prompt: 'What was the violation?', Response_Type: 'text' },
     { Field_Key: 'traffic_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
   ],
+  
   'PACK_DRUG_USE': [
     { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text' },
     { Field_Key: 'first_use_date', Prompt: 'When did you first use it?', Response_Type: 'text' },
@@ -50,18 +122,21 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text' },
     { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text' }
   ],
+  
   'PACK_THEFT': [
     { Field_Key: 'theft_date', Prompt: 'When did this occur?', Response_Type: 'text' },
     { Field_Key: 'theft_description', Prompt: 'What was taken?', Response_Type: 'text' },
     { Field_Key: 'theft_value', Prompt: 'What was the approximate value?', Response_Type: 'text' },
     { Field_Key: 'theft_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' }
   ],
+  
   'PACK_FINANCIAL': [
     { Field_Key: 'financial_issue', Prompt: 'What was the financial issue?', Response_Type: 'text' },
     { Field_Key: 'financial_date', Prompt: 'When did this occur?', Response_Type: 'text' },
     { Field_Key: 'financial_amount', Prompt: 'What was the amount involved?', Response_Type: 'text' },
     { Field_Key: 'financial_status', Prompt: 'What is the current status?', Response_Type: 'text' }
   ],
+  
   'PACK_DOMESTIC': [
     { Field_Key: 'domestic_date', Prompt: 'When did this incident occur?', Response_Type: 'text' },
     { Field_Key: 'domestic_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
@@ -113,7 +188,7 @@ export function parseQuestionsToMaps(questions) {
     }
   });
 
-  console.log(`📊 MatrixYesByQ built with ${Object.keys(MatrixYesByQ).length} mappings:`, MatrixYesByQ);
+  console.log(`📊 MatrixYesByQ built with ${Object.keys(MatrixYesByQ).length} mappings`);
 
   return { QById, NextById, ActiveOrdered, MatrixYesByQ };
 }
@@ -132,7 +207,7 @@ export function parseFollowUpPacks() {
     }));
   });
 
-  console.log(`📦 Loaded ${Object.keys(PackStepsById).length} follow-up packs`);
+  console.log(`📦 Loaded ${Object.keys(PackStepsById).length} follow-up packs:`, Object.keys(PackStepsById));
 
   return { PackStepsById };
 }
@@ -213,12 +288,10 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
  * Check if answer triggers follow-up
  */
 export function checkFollowUpTrigger(engine, questionId, answer) {
-  const { MatrixYesByQ, QById } = engine;
+  const { MatrixYesByQ, QById, PackStepsById } = engine;
   const question = QById[questionId];
 
   console.log(`🔍 Checking follow-up trigger for ${questionId}, answer="${answer}"`);
-  console.log(`   Question:`, question);
-  console.log(`   MatrixYesByQ[${questionId}]:`, MatrixYesByQ[questionId]);
 
   if (!question) {
     console.warn(`⚠️ Question ${questionId} not found in QById`);
@@ -229,6 +302,13 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
   if (question.response_type === 'yes_no' && answer === 'Yes') {
     const packId = MatrixYesByQ[questionId];
     console.log(`   ✅ Yes/No match - packId: ${packId}`);
+    
+    // Verify pack exists
+    if (packId && !PackStepsById[packId]) {
+      console.error(`❌ Pack ${packId} not found in PackStepsById! Available packs:`, Object.keys(PackStepsById));
+      return null;
+    }
+    
     return packId || null;
   }
 
@@ -247,7 +327,7 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
     return triggers.length > 0 ? triggers : null;
   }
 
-  console.log(`   ❌ No trigger found`);
+  console.log(`   ❌ No trigger found (answer was not "Yes" or question type not supported)`);
   return null;
 }
 
