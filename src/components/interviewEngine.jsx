@@ -102,8 +102,11 @@ export function parseQuestionsToMaps(questions) {
     // Matrix: Yes triggers
     if (q.followup_pack && q.response_type === 'yes_no') {
       MatrixYesByQ[q.question_id] = q.followup_pack;
+      console.log(`🗺️ Mapped ${q.question_id} -> ${q.followup_pack}`);
     }
   });
+
+  console.log(`📊 MatrixYesByQ built with ${Object.keys(MatrixYesByQ).length} mappings:`, MatrixYesByQ);
 
   return { QById, NextById, ActiveOrdered, MatrixYesByQ };
 }
@@ -121,6 +124,8 @@ export function parseFollowUpPacks() {
       FollowUpPack: packId
     }));
   });
+
+  console.log(`📦 Loaded ${Object.keys(PackStepsById).length} follow-up packs`);
 
   return { PackStepsById };
 }
@@ -204,11 +209,20 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
   const { MatrixYesByQ, QById } = engine;
   const question = QById[questionId];
 
-  if (!question) return null;
+  console.log(`🔍 Checking follow-up trigger for ${questionId}, answer="${answer}"`);
+  console.log(`   Question:`, question);
+  console.log(`   MatrixYesByQ[${questionId}]:`, MatrixYesByQ[questionId]);
+
+  if (!question) {
+    console.warn(`⚠️ Question ${questionId} not found in QById`);
+    return null;
+  }
 
   // Yes/No questions
   if (question.response_type === 'yes_no' && answer === 'Yes') {
-    return MatrixYesByQ[questionId] || null;
+    const packId = MatrixYesByQ[questionId];
+    console.log(`   ✅ Yes/No match - packId: ${packId}`);
+    return packId || null;
   }
 
   // Multi-select (Q113) - TODO
@@ -226,6 +240,7 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
     return triggers.length > 0 ? triggers : null;
   }
 
+  console.log(`   ❌ No trigger found`);
   return null;
 }
 
@@ -339,6 +354,8 @@ export function handlePrimaryAnswer(state, answer) {
     } else {
       newFollowUpQueue.push({ packId: followUpTrigger, vars: {} });
     }
+  } else {
+    console.log(`ℹ️ No follow-up triggered for ${currentQuestionId}`);
   }
 
   // Step 4: Determine next step (CRITICAL BRANCHING LOGIC)
@@ -350,17 +367,21 @@ export function handlePrimaryAnswer(state, answer) {
 
   if (newFollowUpQueue.length > 0) {
     // SWITCH TO FOLLOWUP MODE
-    console.log(`🔀 Switching to FOLLOWUP mode`);
+    console.log(`🔀 Switching to FOLLOWUP mode, queue length: ${newFollowUpQueue.length}`);
     nextMode = 'FOLLOWUP';
     nextPack = newFollowUpQueue.shift(); // Dequeue first pack
     nextPackIndex = 0;
     previousPrimary = currentQuestionId; // Remember where we were
     
+    console.log(`📦 Next pack:`, nextPack);
+    
     // CRITICAL FIX: Append first follow-up question to transcript immediately
     const firstPackSteps = engine.PackStepsById[nextPack.packId];
+    console.log(`📋 Pack steps for ${nextPack.packId}:`, firstPackSteps);
+    
     if (firstPackSteps && firstPackSteps.length > 0) {
       const firstStep = firstPackSteps[0];
-      console.log(`📋 Starting pack ${nextPack.packId} with first question`);
+      console.log(`📋 Starting pack ${nextPack.packId} with first question: "${firstStep.Prompt}"`);
       
       newState = appendToTranscript(newState, {
         type: 'followup_question',
@@ -368,6 +389,10 @@ export function handlePrimaryAnswer(state, answer) {
         fieldKey: firstStep.Field_Key,
         content: firstStep.Prompt
       });
+      
+      console.log(`✅ Added follow-up question to transcript`);
+    } else {
+      console.error(`❌ No steps found for pack ${nextPack.packId}`);
     }
   } else {
     // CONTINUE TO NEXT PRIMARY QUESTION
@@ -393,6 +418,7 @@ export function handlePrimaryAnswer(state, answer) {
 
   const elapsed = performance.now() - startTime;
   console.log(`⚡ Primary answer processed in ${elapsed.toFixed(2)}ms`);
+  console.log(`📊 New state - mode: ${newState.currentMode}, transcript length: ${newState.transcript.length}`);
 
   return newState;
 }
@@ -467,7 +493,7 @@ export function handleFollowUpAnswer(state, answer) {
       // MORE PACKS IN QUEUE
       console.log(`🔀 Starting next queued pack`);
       nextMode = 'FOLLOWUP';
-      nextPack = { ...state.followUpQueue.shift() }; // Dequeue and clone to avoid modifying original in queue
+      nextPack = state.followUpQueue.shift();
       nextPackIndex = 0;
       
       // Append first question of next pack
