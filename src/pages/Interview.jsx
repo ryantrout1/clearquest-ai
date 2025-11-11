@@ -30,22 +30,17 @@ export default function Interview() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [questions, setQuestions] = useState([]);
-  const [isInitializingConversation, setIsInitializingConversation] = useState(false);
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const footerRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const lastMessageCountRef = useRef(0);
-  const lastMessageContentRef = useRef('');
-  const shouldAutoScrollRef = useRef(true);
-  const userJustSentMessageRef = useRef(false);
-  const scrollLockRef = useRef(false);
   const retryCountRef = useRef(0);
   const processedPairsRef = useRef(new Set()); // Track Q+A pairs
   const processedFollowupsRef = useRef(new Set()); // Track follow-up details
   const lastProcessedIndexRef = useRef(0); // Track last processed message index
-  const conversationInitializedRef = useRef(false);
+  const isInitializedRef = useRef(false); // Replaced conversationInitializedRef
+  const shouldAutoScrollRef = useRef(true);
 
   // CRITICAL: Auto-create Response AND FollowUpResponse records from conversation
   useEffect(() => {
@@ -224,16 +219,11 @@ export default function Interview() {
     if (!messagesContainerRef.current) return;
     
     const container = messagesContainerRef.current;
-    scrollLockRef.current = false;
     
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'smooth'
-          });
-        });
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
       });
     });
   }, []);
@@ -241,7 +231,6 @@ export default function Interview() {
   // Instant scroll to bottom
   const instantScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
-    scrollLockRef.current = false;
     const container = messagesContainerRef.current;
     container.scrollTop = container.scrollHeight;
   }, []);
@@ -362,9 +351,7 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
-    
-    userJustSentMessageRef.current = true;
-    shouldAutoScrollRef.current = true;
+    shouldAutoScrollRef.current = true; // Ensure auto-scroll after user sends
 
     console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
 
@@ -376,6 +363,13 @@ export default function Interview() {
       
       retryCountRef.current = 0;
       setLastFailedMessage(null);
+      
+      // Auto-scroll after sending
+      setTimeout(() => {
+        if (shouldAutoScrollRef.current) {
+          smoothScrollToBottom();
+        }
+      }, 300);
       
     } catch (err) {
       console.error("❌ Error sending message:", err);
@@ -395,11 +389,10 @@ export default function Interview() {
       
       setError(errorMsg);
       setShowQuickButtons(true);
-      userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
     }
-  }, [input, isSending, conversation]);
+  }, [input, isSending, conversation, smoothScrollToBottom]);
 
   const handleRetry = useCallback(() => {
     if (lastFailedMessage) {
@@ -413,8 +406,7 @@ export default function Interview() {
     
     setIsSending(true);
     setError(null);
-    userJustSentMessageRef.current = true;
-    shouldAutoScrollRef.current = true;
+    shouldAutoScrollRef.current = true; // Ensure auto-scroll after edit
     
     try {
       await base44.agents.addMessage(conversation, {
@@ -424,7 +416,6 @@ export default function Interview() {
     } catch (err) {
       console.error("Error editing response:", err);
       setError("Failed to update answer. Please try again.");
-      userJustSentMessageRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -462,9 +453,7 @@ export default function Interview() {
         const conversationData = await base44.agents.getConversation(conversation.id);
         const existingMessages = conversationData.messages || [];
         setMessages(existingMessages);
-        lastMessageCountRef.current = existingMessages.length;
-        lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
-        shouldAutoScrollRef.current = true;
+        shouldAutoScrollRef.current = true; // Ensure auto-scroll after resume
         
         setTimeout(() => instantScrollToBottom(), 100);
         
@@ -557,13 +546,15 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
+      console.log("🔄 Loading session:", sessionId);
+      
       const [sessionData, allQuestions] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Question.filter({ active: true })
       ]);
       
       setSession(sessionData);
-      setQuestions(allQuestions); // Store questions for Response auto-creation
+      setQuestions(allQuestions);
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
@@ -573,77 +564,70 @@ export default function Interview() {
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
+      console.log(`📥 Loaded ${existingMessages.length} existing messages`);
 
       if (sessionData.status === 'paused') {
-        console.log("📍 Session is paused - conversation loaded, ready for resume");
+        console.log("📍 Session is paused");
         setIsPaused(true);
-        setIsLoading(false);
+        setIsLoading(false); // Session is paused, loading is complete.
         setMessages(existingMessages);
-        lastMessageCountRef.current = existingMessages.length;
-        lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
-        return;
+        return; // Exit early if paused
       } else {
         setIsPaused(false);
       }
 
+      // Set up ONE-TIME subscription
+      console.log("📡 Setting up message subscription");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          const newCount = newMessages.length;
-          const lastContent = newMessages[newCount - 1]?.content || '';
-          
-          console.log(`📨 Subscription update: ${newCount} messages`);
-          
-          if (newCount !== lastMessageCountRef.current || lastContent !== lastMessageContentRef.current) {
-            setMessages(newMessages);
-            lastMessageCountRef.current = newCount;
-            lastMessageContentRef.current = lastContent;
-          }
+          console.log(`📨 Subscription update: ${newMessages.length} messages`);
+          setMessages(newMessages);
         }
       );
 
-      // NEW: If conversation is empty, initialize it with "Start with Q001"
-      if (existingMessages.length === 0 && !conversationInitializedRef.current) {
-        console.log("🚀 New session - initializing conversation with Q001 trigger");
-        conversationInitializedRef.current = true;
-        setIsInitializingConversation(true);
-        setIsLoading(false);
+      // Set initial messages for rendering
+      setMessages(existingMessages);
+      
+      // If conversation is empty and not yet initialized, send Q001 trigger
+      if (existingMessages.length === 0 && !isInitializedRef.current) {
+        console.log("🎬 Initializing new conversation with Q001");
+        isInitializedRef.current = true; // Mark as initialized to prevent re-sending
         
-        // Send the initial trigger message to start the conversation
         try {
           await base44.agents.addMessage(conversationData, {
             role: "user",
             content: "Start with Q001"
           });
-          console.log("✅ Q001 initialization message sent");
+          console.log("✅ Q001 initialization sent");
+          // Keep isLoading true. The loader will disappear when the first agent message
+          // arrives via the subscription and triggers a re-render.
         } catch (err) {
           console.error("❌ Error initializing conversation:", err);
           setError("Failed to start interview. Please try again.");
-        } finally {
-          setIsInitializingConversation(false);
+          setIsLoading(false); // If initialization fails, hide loader and show error.
         }
-        
-        return;
+      } else {
+        // If there were existing messages, or it was already initialized, we are done with the initial load.
+        setIsLoading(false);
       }
 
-      setMessages(existingMessages);
-      lastMessageCountRef.current = existingMessages.length;
-      lastMessageContentRef.current = existingMessages[existingMessages.length - 1]?.content || '';
       shouldAutoScrollRef.current = true;
-      setIsLoading(false);
       
-      setTimeout(() => instantScrollToBottom(), 100);
-
-      // Check if we should show quick buttons
-      if (existingMessages.length > 0) {
-        const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
-        if (lastAssistantMessage?.content) {
-          const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
-          const hasQuestion = content.includes('?');
-          setShowQuickButtons(hasQuestion);
+      setTimeout(() => {
+        instantScrollToBottom();
+        
+        // Check for quick buttons based on last assistant message
+        if (existingMessages.length > 0) {
+          const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
+          if (lastAssistantMessage?.content) {
+            const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
+            const hasQuestion = content.includes('?');
+            setShowQuickButtons(hasQuestion);
+          }
         }
-      }
+      }, 100);
 
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -652,6 +636,24 @@ export default function Interview() {
     }
   };
 
+  // Mount effect - load session ONCE
+  useEffect(() => {
+    if (!sessionId) {
+      navigate(createPageUrl("StartInterview"));
+      return;
+    }
+    
+    loadSession();
+    
+    return () => {
+      console.log("🧹 Cleaning up subscription");
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [sessionId, navigate]);
+
+  // Scroll restoration
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
@@ -664,20 +666,7 @@ export default function Interview() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!sessionId) {
-      navigate(createPageUrl("StartInterview"));
-      return;
-    }
-    loadSession();
-    
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-    };
-  }, [sessionId, navigate, instantScrollToBottom]);
-
+  // Footer height tracking
   useEffect(() => {
     const updateFooterHeight = () => {
       if (footerRef.current) {
@@ -696,96 +685,32 @@ export default function Interview() {
     };
   }, [showQuickButtons, error]);
 
+  // Scroll listener to track if user has scrolled up
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    let savedScrollTop = 0;
-
     const handleScroll = () => {
-      if (scrollLockRef.current) {
-        container.scrollTop = savedScrollTop;
-        return;
-      }
-      
-      savedScrollTop = container.scrollTop;
-      
-      const threshold = 200;
+      const threshold = 200; // Pixels from bottom to consider "at bottom"
       const position = container.scrollTop + container.clientHeight;
       const bottom = container.scrollHeight;
-      const nearBottom = bottom - position < threshold;
-      
-      shouldAutoScrollRef.current = nearBottom;
+      shouldAutoScrollRef.current = (bottom - position < threshold);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Auto-scroll on new messages if user is at the bottom
   useEffect(() => {
-    const newMessageCount = messages.length;
-    
-    if (newMessageCount === 0) return;
-    
-    const previousCount = lastMessageCountRef.current;
-    const messagesAdded = newMessageCount - previousCount;
-    
-    if (messagesAdded > 0) {
-      lastMessageCountRef.current = newMessageCount;
-      
-      console.log(`📨 ${messagesAdded} new message(s) - User action: ${userJustSentMessageRef.current}`);
-      
-      const container = messagesContainerRef.current;
-      if (container) {
-        const savedPosition = container.scrollTop;
-        scrollLockRef.current = true;
-        
-        const lockTimer = setInterval(() => {
-          if (scrollLockRef.current && container.scrollTop !== savedPosition) {
-            container.scrollTop = savedPosition;
-          }
-        }, 0);
-        
-        const shouldScroll = userJustSentMessageRef.current || shouldAutoScrollRef.current;
-        
-        if (shouldScroll) {
-          setTimeout(() => {
-            clearInterval(lockTimer);
-            smoothScrollToBottom();
-            console.log('✅ Scrolled to bottom');
-          }, 200);
-          
-          if (userJustSentMessageRef.current) {
-            setTimeout(() => {
-              userJustSentMessageRef.current = false;
-            }, 250);
-          }
-        } else {
-          setTimeout(() => {
-            clearInterval(lockTimer);
-            scrollLockRef.current = false;
-            console.log('⏸️ Position maintained');
-          }, 100);
-        }
-      }
+    if (messages.length > 0 && shouldAutoScrollRef.current) {
+      setTimeout(() => {
+        smoothScrollToBottom();
+      }, 100);
     }
-    else if (messagesAdded === 0 && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      const lastContent = lastMessage?.content || '';
-      
-      if (lastContent !== lastMessageContentRef.current) {
-        lastMessageContentRef.current = lastContent;
-        
-        if (shouldAutoScrollRef.current && !scrollLockRef.current) {
-          const container = messagesContainerRef.current;
-          if (container) {
-            container.scrollTop = container.scrollHeight;
-          }
-        }
-      }
-    }
-  }, [messages, smoothScrollToBottom]);
+  }, [messages.length, smoothScrollToBottom]);
 
+  // Check for completion and quick buttons
   useEffect(() => {
     if (messages.length === 0) return;
 
@@ -829,9 +754,7 @@ export default function Interview() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">
-            {isInitializingConversation ? "Starting interview..." : "Loading interview session..."}
-          </p>
+          <p className="text-slate-300">Loading interview session...</p>
           {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -974,9 +897,7 @@ export default function Interview() {
           {displayMessages.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <Shield className="w-16 h-16 text-blue-400 mx-auto opacity-50 animate-pulse" />
-              <p className="text-slate-400">
-                {isInitializingConversation ? "Starting first question..." : "Waiting for first question..."}
-              </p>
+              <p className="text-slate-400">Starting interview...</p>
             </div>
           ) : (
             displayMessages.map((message) => (
@@ -1048,16 +969,16 @@ export default function Interview() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your response..."
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 h-12"
-                disabled={isSending || isInitializingConversation}
+                disabled={isSending}
                 autoComplete="off"
               />
               <Button
                 type="submit"
-                disabled={isSending || !input.trim() || isInitializingConversation}
+                disabled={isSending || !input.trim()}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                 size="lg"
               >
-                {isSending || isInitializingConversation ? (
+                {isSending ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
