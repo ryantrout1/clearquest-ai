@@ -20,12 +20,15 @@ import {
   handleFollowUpAnswer,
   getCurrentPrompt,
   getProgress,
+  appendToTranscript,
+  batchUpdate,
   PERF_MONITOR
 } from "../components/interviewEngine";
 
 /**
  * InterviewV2 - Zero-refresh, zero-AI question routing
  * Instant responses, pure deterministic flow
+ * SUPPORTS PAUSE/RESUME - restores from database
  */
 export default function InterviewV2() {
   const navigate = useNavigate();
@@ -46,7 +49,7 @@ export default function InterviewV2() {
   const isCommittingRef = useRef(false);
 
   // ============================================================================
-  // INITIALIZATION
+  // INITIALIZATION WITH RESUME SUPPORT
   // ============================================================================
 
   useEffect(() => {
@@ -82,12 +85,26 @@ export default function InterviewV2() {
       const engine = await bootstrapEngine(base44);
       console.log(`✅ Engine bootstrapped: ${engine.TotalQuestions} questions loaded`);
       
-      // Step 3: Create initial state
-      console.log('🎯 Step 3: Creating initial state...');
-      const initialState = createInitialState(engine);
-      console.log('✅ Initial state created, starting at:', initialState.currentQuestionId);
+      // Step 3: Load existing responses (for resume support)
+      console.log('📂 Step 3: Loading existing responses...');
+      const existingResponses = await base44.entities.Response.filter({ 
+        session_id: sessionId 
+      });
+      console.log(`✅ Found ${existingResponses.length} existing responses`);
       
-      setInterviewState(initialState);
+      // Step 4: Restore state from existing responses
+      let restoredState;
+      
+      if (existingResponses.length > 0) {
+        console.log('🔄 Restoring interview state from database...');
+        restoredState = await restoreStateFromResponses(engine, existingResponses);
+        console.log(`✅ State restored: ${restoredState.questionsAnswered} questions answered`);
+      } else {
+        console.log('🎯 Creating fresh initial state (no existing responses)');
+        restoredState = createInitialState(engine);
+      }
+      
+      setInterviewState(restoredState);
       setIsLoading(false);
 
       const elapsed = performance.now() - startTime;
@@ -98,6 +115,91 @@ export default function InterviewV2() {
       setError(`Failed to load interview: ${err.message}`);
       setIsLoading(false);
     }
+  };
+
+  // ============================================================================
+  // STATE RESTORATION LOGIC
+  // ============================================================================
+
+  const restoreStateFromResponses = async (engine, responses) => {
+    console.log('🔄 Rebuilding interview state from responses...');
+    
+    // Start with initial state
+    let state = createInitialState(engine);
+    
+    // Sort responses by timestamp to replay in order
+    const sortedResponses = responses.sort((a, b) => 
+      new Date(a.response_timestamp) - new Date(b.response_timestamp)
+    );
+    
+    // Replay each answer through the engine
+    for (const response of sortedResponses) {
+      console.log(`🔄 Replaying: ${response.question_id} = "${response.answer}"`);
+      
+      // Add question to transcript
+      const question = engine.QById[response.question_id];
+      if (question) {
+        state = appendToTranscript(state, {
+          type: 'question',
+          questionId: response.question_id,
+          content: question.question_text,
+          category: question.category
+        });
+      }
+      
+      // Add answer to transcript
+      state = appendToTranscript(state, {
+        type: 'answer',
+        questionId: response.question_id,
+        content: response.answer
+      });
+      
+      // Process the answer through the engine
+      state = handlePrimaryAnswer(state, response.answer);
+    }
+    
+    // Load follow-up responses if any exist
+    const followupResponses = await base44.entities.FollowUpResponse.filter({
+      session_id: sessionId
+    });
+    
+    if (followupResponses.length > 0) {
+      console.log(`🔄 Found ${followupResponses.length} follow-up responses to restore`);
+      
+      // Group by response_id and replay
+      const followupsByResponse = {};
+      followupResponses.forEach(fu => {
+        if (!followupsByResponse[fu.response_id]) {
+          followupsByResponse[fu.response_id] = [];
+        }
+        followupsByResponse[fu.response_id].push(fu);
+      });
+      
+      // For each follow-up pack, add to transcript
+      Object.values(followupsByResponse).forEach(fuGroup => {
+        fuGroup.forEach(fu => {
+          if (fu.incident_description) {
+            // Add follow-up question to transcript
+            state = appendToTranscript(state, {
+              type: 'followup_question',
+              packId: fu.followup_pack,
+              content: "Follow-up details"
+            });
+            
+            // Add follow-up answer to transcript
+            state = appendToTranscript(state, {
+              type: 'followup_answer',
+              packId: fu.followup_pack,
+              content: fu.incident_description
+            });
+          }
+        });
+      });
+    }
+    
+    console.log(`✅ State restored - Current mode: ${state.currentMode}, Current question: ${state.currentQuestionId}`);
+    
+    return state;
   };
 
   // ============================================================================
@@ -150,9 +252,17 @@ export default function InterviewV2() {
       if (interviewState.currentMode === 'QUESTION') {
         console.log(`📝 Primary answer: "${value}"`);
         newState = handlePrimaryAnswer(interviewState, value);
+        
+        // RULE: Save to DB async (non-blocking, no UI impact)
+        saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
+          console.error('⚠️ Database save failed (non-fatal):', err);
+        });
+        
       } else if (interviewState.currentMode === 'FOLLOWUP') {
         console.log(`📋 Follow-up answer: "${value}"`);
         newState = handleFollowUpAnswer(interviewState, value);
+        
+        // TODO: Save follow-up to database if needed
       } else {
         console.warn('⚠️ Unknown mode:', interviewState.currentMode);
         isCommittingRef.current = false;
@@ -167,13 +277,6 @@ export default function InterviewV2() {
 
       // RULE: Auto-scroll after commit
       setTimeout(autoScrollToBottom, 50);
-
-      // RULE: Save to DB async (non-blocking, no UI impact)
-      if (interviewState.currentMode === 'QUESTION') {
-        saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
-          console.error('⚠️ Database save failed (non-fatal):', err);
-        });
-      }
 
       const elapsed = performance.now() - startTime;
       console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
@@ -210,6 +313,17 @@ export default function InterviewV2() {
     try {
       const question = interviewState.engine.QById[questionId];
       
+      // Check if response already exists (in case of resume/replay)
+      const existingResponses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        question_id: questionId
+      });
+      
+      if (existingResponses.length > 0) {
+        console.log(`ℹ️ Response for ${questionId} already exists, skipping save`);
+        return;
+      }
+      
       await base44.entities.Response.create({
         session_id: sessionId,
         question_id: questionId,
@@ -219,6 +333,8 @@ export default function InterviewV2() {
         triggered_followup: false,
         response_timestamp: new Date().toISOString()
       });
+      
+      console.log(`✅ Saved response: ${questionId} = "${answer}"`);
 
       // Update session progress
       const progress = getProgress(interviewState);
@@ -269,6 +385,11 @@ export default function InterviewV2() {
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Loading interview engine...</p>
+          {session && (
+            <p className="text-slate-400 text-sm">
+              Restoring session: {session.session_code}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -330,6 +451,17 @@ export default function InterviewV2() {
           className="flex-1 overflow-y-auto"
         >
           <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+            {/* Show resume message if returning user */}
+            {progress.answered > 0 && interviewState.transcript.length > 0 && (
+              <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>Welcome back!</strong> You've completed {progress.answered} of {progress.total} questions. 
+                  Continuing from where you left off...
+                </AlertDescription>
+              </Alert>
+            )}
+            
             {/* Render transcript history */}
             {interviewState.transcript.map((entry) => (
               <TranscriptEntry key={entry.id} entry={entry} getQuestionNumber={getQuestionNumber} />
@@ -460,7 +592,7 @@ export default function InterviewV2() {
               {isFollowUpMode ? (
                 <>⚡ Follow-up mode • Zero AI • Instant responses</>
               ) : (
-                <>⚡ Instant responses • Zero AI routing • All data encrypted</>
+                <>⚡ You can leave anytime and continue later • All progress saved</>
               )}
             </p>
           </div>
