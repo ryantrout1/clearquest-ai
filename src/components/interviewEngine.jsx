@@ -5,6 +5,64 @@
  */
 
 // ============================================================================
+// FOLLOW-UP PACK DEFINITIONS (Hardcoded for deterministic routing)
+// ============================================================================
+
+const FOLLOWUP_PACK_STEPS = {
+  'PACK_LE_PREV': [
+    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text' },
+    { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text' },
+    { Field_Key: 'reason_leaving', Prompt: 'What was your reason for leaving?', Response_Type: 'text' },
+    { Field_Key: 'eligible_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text' }
+  ],
+  'PACK_MIL_DISCHARGE': [
+    { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive?', Response_Type: 'text' },
+    { Field_Key: 'discharge_date', Prompt: 'When were you discharged?', Response_Type: 'text' },
+    { Field_Key: 'discharge_reason', Prompt: 'What was the reason for your discharge?', Response_Type: 'text' }
+  ],
+  'PACK_DISCIPLINE': [
+    { Field_Key: 'incident_date', Prompt: 'When did this disciplinary action occur?', Response_Type: 'text' },
+    { Field_Key: 'incident_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
+    { Field_Key: 'incident_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
+  ],
+  'PACK_ARREST': [
+    { Field_Key: 'arrest_date', Prompt: 'When were you arrested?', Response_Type: 'text' },
+    { Field_Key: 'arrest_location', Prompt: 'Where did this occur?', Response_Type: 'text' },
+    { Field_Key: 'arrest_charge', Prompt: 'What were you charged with?', Response_Type: 'text' },
+    { Field_Key: 'arrest_outcome', Prompt: 'What was the outcome of the case?', Response_Type: 'text' }
+  ],
+  'PACK_TRAFFIC': [
+    { Field_Key: 'traffic_date', Prompt: 'When did this traffic violation occur?', Response_Type: 'text' },
+    { Field_Key: 'traffic_type', Prompt: 'What was the violation?', Response_Type: 'text' },
+    { Field_Key: 'traffic_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
+  ],
+  'PACK_DRUG_USE': [
+    { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text' },
+    { Field_Key: 'first_use_date', Prompt: 'When did you first use it?', Response_Type: 'text' },
+    { Field_Key: 'last_use_date', Prompt: 'When was the last time you used it?', Response_Type: 'text' },
+    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text' }
+  ],
+  'PACK_THEFT': [
+    { Field_Key: 'theft_date', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'theft_description', Prompt: 'What was taken?', Response_Type: 'text' },
+    { Field_Key: 'theft_value', Prompt: 'What was the approximate value?', Response_Type: 'text' },
+    { Field_Key: 'theft_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' }
+  ],
+  'PACK_FINANCIAL': [
+    { Field_Key: 'financial_issue', Prompt: 'What was the financial issue?', Response_Type: 'text' },
+    { Field_Key: 'financial_date', Prompt: 'When did this occur?', Response_Type: 'text' },
+    { Field_Key: 'financial_amount', Prompt: 'What was the amount involved?', Response_Type: 'text' },
+    { Field_Key: 'financial_status', Prompt: 'What is the current status?', Response_Type: 'text' }
+  ],
+  'PACK_DOMESTIC': [
+    { Field_Key: 'domestic_date', Prompt: 'When did this incident occur?', Response_Type: 'text' },
+    { Field_Key: 'domestic_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
+    { Field_Key: 'domestic_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' }
+  ]
+};
+
+// ============================================================================
 // A) DATA LOADING & CACHING
 // ============================================================================
 
@@ -51,41 +109,20 @@ export function parseQuestionsToMaps(questions) {
 }
 
 /**
- * Parse follow-up packs (placeholder - will load from DB)
+ * Parse follow-up packs (from hardcoded definitions)
  */
-export function parseFollowUpPacks(packs) {
+export function parseFollowUpPacks() {
   const PackStepsById = {};
 
-  // Group by pack name, sort by order
-  packs.forEach(pack => {
-    if (!PackStepsById[pack.pack_name]) {
-      PackStepsById[pack.pack_name] = [];
-    }
-    PackStepsById[pack.pack_name].push(pack);
-  });
-
-  // Sort each pack's steps
-  Object.keys(PackStepsById).forEach(packName => {
-    PackStepsById[packName].sort((a, b) => a.step_order - b.step_order);
+  Object.keys(FOLLOWUP_PACK_STEPS).forEach(packId => {
+    PackStepsById[packId] = FOLLOWUP_PACK_STEPS[packId].map((step, idx) => ({
+      ...step,
+      Order: idx,
+      FollowUpPack: packId
+    }));
   });
 
   return { PackStepsById };
-}
-
-/**
- * Build Q113 option map (multi-select drug question)
- */
-export function parseQ113Options(options) {
-  const Q113OptionMap = {};
-
-  options.forEach(opt => {
-    Q113OptionMap[opt.option_id] = {
-      packId: opt.followup_pack,
-      substanceLabel: opt.option_label
-    };
-  });
-
-  return { Q113OptionMap };
 }
 
 /**
@@ -109,10 +146,9 @@ export async function bootstrapEngine(base44) {
 
   // Parse into fast lookup structures
   const { QById, NextById, ActiveOrdered, MatrixYesByQ } = parseQuestionsToMaps(questions);
+  const { PackStepsById } = parseFollowUpPacks();
   
-  // Placeholder for follow-up packs (will implement later)
-  const PackStepsById = {};
-  const Q113OptionMap = {};
+  const Q113OptionMap = {}; // Placeholder for Q113 multi-select
 
   const engineState = {
     QById,
@@ -175,7 +211,7 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
     return MatrixYesByQ[questionId] || null;
   }
 
-  // Multi-select (Q113)
+  // Multi-select (Q113) - TODO
   if (question.response_type === 'multi_select' && Array.isArray(answer)) {
     const triggers = [];
     answer.forEach(optionId => {
@@ -210,11 +246,11 @@ export function createInitialState(engine) {
     currentQuestionId: engine.ActiveOrdered[0] || null,
     currentPack: null,
     currentPackIndex: 0,
-    currentIncidentIndex: 0,
+    previousPrimaryId: null, // Track where we were before follow-up
 
     // User data
     answers: {}, // { questionId: answer }
-    incidents: {}, // { packId: [{ field1: val, field2: val }] }
+    incidents: {}, // { packId: { field1: val, field2: val } }
     followUpQueue: [], // [{ packId, vars }]
 
     // Transcript
@@ -273,6 +309,8 @@ export function handlePrimaryAnswer(state, answer) {
     return state;
   }
 
+  console.log(`📝 Primary answer: ${currentQuestionId} = "${answer}"`);
+
   // Step 1: Append Q&A to transcript
   let newState = appendToTranscript(state, {
     type: 'question',
@@ -290,11 +328,12 @@ export function handlePrimaryAnswer(state, answer) {
   // Step 2: Save answer
   const newAnswers = { ...answers, [currentQuestionId]: answer };
 
-  // Step 3: Check for follow-ups
+  // Step 3: Check for follow-ups (NO AI)
   const followUpTrigger = checkFollowUpTrigger(engine, currentQuestionId, answer);
   let newFollowUpQueue = [...state.followUpQueue];
 
   if (followUpTrigger) {
+    console.log(`🔔 Follow-up triggered: ${followUpTrigger}`);
     if (Array.isArray(followUpTrigger)) {
       newFollowUpQueue.push(...followUpTrigger);
     } else {
@@ -302,17 +341,22 @@ export function handlePrimaryAnswer(state, answer) {
     }
   }
 
-  // Step 4: Determine next step
-  let nextMode = state.currentMode;
+  // Step 4: Determine next step (CRITICAL BRANCHING LOGIC)
+  let nextMode = 'QUESTION';
   let nextQuestionId = currentQuestionId;
   let nextPack = null;
+  let nextPackIndex = 0;
+  let previousPrimary = currentQuestionId;
 
-  if (newFollowUpQueue.length > 0 && nextMode !== 'FOLLOWUP') {
-    // Start follow-up
+  if (newFollowUpQueue.length > 0) {
+    // SWITCH TO FOLLOWUP MODE
+    console.log(`🔀 Switching to FOLLOWUP mode`);
     nextMode = 'FOLLOWUP';
-    nextPack = newFollowUpQueue.shift();
+    nextPack = newFollowUpQueue.shift(); // Dequeue first pack
+    nextPackIndex = 0;
+    previousPrimary = currentQuestionId; // Remember where we were
   } else {
-    // Continue to next question
+    // CONTINUE TO NEXT PRIMARY QUESTION
     nextQuestionId = computeNextQuestionId(engine, currentQuestionId, answer);
     if (!nextQuestionId) {
       nextMode = 'COMPLETE';
@@ -326,24 +370,120 @@ export function handlePrimaryAnswer(state, answer) {
     currentMode: nextMode,
     currentQuestionId: nextQuestionId,
     currentPack: nextPack,
+    currentPackIndex: nextPackIndex,
+    previousPrimaryId: previousPrimary,
     questionsAnswered: state.questionsAnswered + 1,
     isCommitting: false,
     isComplete: nextMode === 'COMPLETE'
   });
 
   const elapsed = performance.now() - startTime;
-  console.log(`⚡ Answer processed in ${elapsed.toFixed(2)}ms`);
+  console.log(`⚡ Primary answer processed in ${elapsed.toFixed(2)}ms`);
 
   return newState;
 }
 
 /**
- * Handle follow-up answer (placeholder)
+ * Handle follow-up answer (step through pack)
  */
 export function handleFollowUpAnswer(state, answer) {
-  console.log('📋 Follow-up answer:', answer);
-  // TODO: Implement follow-up logic
-  return state;
+  if (state.isCommitting) {
+    console.warn('⚠️ Already committing, ignoring duplicate submission');
+    return state;
+  }
+
+  const startTime = performance.now();
+  const { engine, currentPack, currentPackIndex, incidents } = state;
+
+  if (!currentPack) {
+    console.error('❌ No current pack in FOLLOWUP mode');
+    return state;
+  }
+
+  const steps = engine.PackStepsById[currentPack.packId];
+  if (!steps || currentPackIndex >= steps.length) {
+    console.error('❌ Invalid pack or index');
+    return state;
+  }
+
+  const step = steps[currentPackIndex];
+  console.log(`📋 Follow-up answer: ${currentPack.packId}:${step.Field_Key} = "${answer}"`);
+
+  // Step 1: Append FU Q&A to transcript
+  let newState = appendToTranscript(state, {
+    type: 'followup_question',
+    packId: currentPack.packId,
+    fieldKey: step.Field_Key,
+    content: step.Prompt
+  });
+
+  newState = appendToTranscript(newState, {
+    type: 'followup_answer',
+    packId: currentPack.packId,
+    fieldKey: step.Field_Key,
+    content: answer
+  });
+
+  // Step 2: Save to incidents
+  const packKey = currentPack.packId;
+  const newIncidents = {
+    ...incidents,
+    [packKey]: {
+      ...(incidents[packKey] || {}),
+      [step.Field_Key]: answer
+    }
+  };
+
+  // Step 3: Advance to next step or finish pack
+  let nextMode = state.currentMode;
+  let nextPackIndex = currentPackIndex;
+  let nextPack = currentPack;
+  let nextQuestionId = state.currentQuestionId;
+
+  if (currentPackIndex < steps.length - 1) {
+    // MORE STEPS IN THIS PACK
+    console.log(`➡️ Advancing to next step in pack`);
+    nextPackIndex = currentPackIndex + 1;
+  } else {
+    // PACK FINISHED
+    console.log(`✅ Pack finished: ${currentPack.packId}`);
+    
+    if (state.followUpQueue.length > 0) {
+      // MORE PACKS IN QUEUE
+      console.log(`🔀 Starting next queued pack`);
+      nextMode = 'FOLLOWUP';
+      nextPack = state.followUpQueue.shift();
+      nextPackIndex = 0;
+    } else {
+      // RETURN TO PRIMARY QUESTIONS
+      console.log(`🔀 Returning to primary questions`);
+      nextMode = 'QUESTION';
+      nextPack = null;
+      nextPackIndex = 0;
+      nextQuestionId = computeNextQuestionId(engine, state.previousPrimaryId, state.answers[state.previousPrimaryId]);
+      
+      if (!nextQuestionId) {
+        nextMode = 'COMPLETE';
+      }
+    }
+  }
+
+  // Step 4: Batch update
+  newState = batchUpdate(newState, {
+    incidents: newIncidents,
+    currentMode: nextMode,
+    currentPack: nextPack,
+    currentPackIndex: nextPackIndex,
+    currentQuestionId: nextQuestionId,
+    followUpQueue: nextMode === 'FOLLOWUP' ? [...state.followUpQueue] : state.followUpQueue,
+    isCommitting: false,
+    isComplete: nextMode === 'COMPLETE'
+  });
+
+  const elapsed = performance.now() - startTime;
+  console.log(`⚡ Follow-up answer processed in ${elapsed.toFixed(2)}ms`);
+
+  return newState;
 }
 
 // ============================================================================
@@ -366,11 +506,30 @@ export function getCurrentPrompt(state) {
   }
 
   if (state.currentMode === 'FOLLOWUP') {
-    // TODO: Get current follow-up step
+    if (!state.currentPack) return null;
+    
+    const steps = state.engine.PackStepsById[state.currentPack.packId];
+    if (!steps || state.currentPackIndex >= steps.length) return null;
+    
+    const step = steps[state.currentPackIndex];
+    
+    // Interpolate variables if needed
+    let promptText = step.Prompt;
+    if (state.currentPack.vars) {
+      Object.keys(state.currentPack.vars).forEach(key => {
+        promptText = promptText.replace(`{${key}}`, state.currentPack.vars[key]);
+      });
+    }
+    
     return {
       type: 'followup',
-      text: 'Follow-up question (placeholder)',
-      responseType: 'text'
+      id: `${state.currentPack.packId}:${step.Field_Key}`,
+      text: promptText,
+      responseType: step.Response_Type || 'text',
+      packId: state.currentPack.packId,
+      fieldKey: step.Field_Key,
+      stepNumber: state.currentPackIndex + 1,
+      totalSteps: steps.length
     };
   }
 

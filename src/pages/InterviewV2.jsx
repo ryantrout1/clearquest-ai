@@ -4,12 +4,13 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Send, Loader2, Check, X, AlertCircle } from "lucide-react";
+import { Shield, Send, Loader2, Check, X, AlertCircle, Layers } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   bootstrapEngine,
   createInitialState,
   handlePrimaryAnswer,
+  handleFollowUpAnswer,
   getCurrentPrompt,
   getProgress,
   PERF_MONITOR
@@ -29,7 +30,6 @@ export default function InterviewV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [input, setInput] = useState("");
-  const [debugInfo, setDebugInfo] = useState(null);
 
   // Refs
   const transcriptRef = useRef(null);
@@ -55,8 +55,8 @@ export default function InterviewV2() {
 
       // Step 1: Load session
       console.log('📋 Step 1: Loading session...');
-      const session = await base44.entities.InterviewSession.get(sessionId);
-      console.log('✅ Session loaded:', session.session_code);
+      await base44.entities.InterviewSession.get(sessionId);
+      console.log('✅ Session loaded');
       
       // Step 2: Bootstrap engine (loads questions, caches lookups)
       console.log('⚙️ Step 2: Bootstrapping engine...');
@@ -70,31 +70,13 @@ export default function InterviewV2() {
       
       setInterviewState(initialState);
       setIsLoading(false);
-      setDebugInfo({
-        sessionCode: session.session_code,
-        totalQuestions: engine.TotalQuestions,
-        firstQuestion: initialState.currentQuestionId
-      });
 
       const elapsed = performance.now() - startTime;
       console.log(`✅ Interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
       console.error('❌ Initialization failed:', err);
-      console.error('Error stack:', err.stack);
-      
-      // Detailed error for debugging
-      let errorMsg = `Failed to load interview: ${err.message}`;
-      
-      if (err.message?.includes('Question')) {
-        errorMsg += '\n\n💡 Tip: Make sure Question entities exist in the database.';
-      }
-      
-      setError(errorMsg);
-      setDebugInfo({
-        error: err.message,
-        stack: err.stack
-      });
+      setError(`Failed to load interview: ${err.message}`);
       setIsLoading(false);
     }
   };
@@ -134,11 +116,21 @@ export default function InterviewV2() {
     isCommittingRef.current = true;
     const startTime = performance.now();
 
-    console.log(`📝 Answer: "${value}"`);
-
     try {
-      // RULE: Process answer deterministically (NO AI)
-      const newState = handlePrimaryAnswer(interviewState, value);
+      // RULE: Route based on current mode
+      let newState;
+      
+      if (interviewState.currentMode === 'QUESTION') {
+        console.log(`📝 Primary answer: "${value}"`);
+        newState = handlePrimaryAnswer(interviewState, value);
+      } else if (interviewState.currentMode === 'FOLLOWUP') {
+        console.log(`📋 Follow-up answer: "${value}"`);
+        newState = handleFollowUpAnswer(interviewState, value);
+      } else {
+        console.warn('⚠️ Unknown mode:', interviewState.currentMode);
+        isCommittingRef.current = false;
+        return;
+      }
       
       // RULE: Single state commit
       setInterviewState(newState);
@@ -150,9 +142,11 @@ export default function InterviewV2() {
       setTimeout(autoScrollToBottom, 50);
 
       // RULE: Save to DB async (non-blocking, no UI impact)
-      saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
-        console.error('⚠️ Database save failed (non-fatal):', err);
-      });
+      if (interviewState.currentMode === 'QUESTION') {
+        saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
+          console.error('⚠️ Database save failed (non-fatal):', err);
+        });
+      }
 
       const elapsed = performance.now() - startTime;
       console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
@@ -221,12 +215,6 @@ export default function InterviewV2() {
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Loading interview engine...</p>
-          {debugInfo && (
-            <div className="text-xs text-slate-500 space-y-1">
-              <p>Session: {debugInfo.sessionCode}</p>
-              <p>Questions: {debugInfo.totalQuestions}</p>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -240,12 +228,6 @@ export default function InterviewV2() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
           </Alert>
-          {debugInfo?.stack && (
-            <details className="text-xs text-slate-400 bg-slate-900/50 p-4 rounded">
-              <summary className="cursor-pointer">Debug Info</summary>
-              <pre className="mt-2 overflow-auto">{debugInfo.stack}</pre>
-            </details>
-          )}
           <Button onClick={() => navigate(createPageUrl("StartInterview"))} className="w-full">
             Start New Interview
           </Button>
@@ -259,6 +241,7 @@ export default function InterviewV2() {
   const currentPrompt = getCurrentPrompt(interviewState);
   const progress = getProgress(interviewState);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
+  const isFollowUpMode = interviewState.currentMode === 'FOLLOWUP';
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
@@ -270,7 +253,14 @@ export default function InterviewV2() {
             <div>
               <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
               <p className="text-sm text-slate-400">
-                {currentPrompt?.category || 'Background Screening'}
+                {isFollowUpMode ? (
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" />
+                    Follow-up Details
+                  </span>
+                ) : (
+                  currentPrompt?.category || 'Background Screening'
+                )}
               </p>
             </div>
           </div>
@@ -301,17 +291,35 @@ export default function InterviewV2() {
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 animate-in fade-in duration-200">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-                  <Shield className="w-4 h-4 text-blue-400" />
+                  {isFollowUpMode ? (
+                    <Layers className="w-4 h-4 text-orange-400" />
+                  ) : (
+                    <Shield className="w-4 h-4 text-blue-400" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-blue-400">
-                      {currentPrompt.id}
-                    </span>
-                    <span className="text-xs text-slate-500">•</span>
-                    <span className="text-xs text-slate-400">
-                      {currentPrompt.category}
-                    </span>
+                    {isFollowUpMode ? (
+                      <>
+                        <span className="text-xs font-semibold text-orange-400">
+                          Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                        </span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-slate-400">
+                          {currentPrompt.packId}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-blue-400">
+                          {currentPrompt.id}
+                        </span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-slate-400">
+                          {currentPrompt.category}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-white text-lg leading-relaxed">
                     {currentPrompt.text}
@@ -328,17 +336,32 @@ export default function InterviewV2() {
         <div className="max-w-5xl mx-auto">
           {/* Show current question text at bottom */}
           {currentPrompt && interviewState.transcript.length > 0 && (
-            <div className="mb-3 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+            <div className={`mb-3 p-3 rounded-lg border ${
+              isFollowUpMode 
+                ? 'bg-orange-950/30 border-orange-800/50' 
+                : 'bg-slate-900/50 border-slate-700'
+            }`}>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-blue-400">{currentPrompt.id}</span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-xs text-slate-400">{currentPrompt.category}</span>
+                {isFollowUpMode ? (
+                  <>
+                    <Layers className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-xs font-semibold text-orange-400">
+                      Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs font-semibold text-blue-400">{currentPrompt.id}</span>
+                    <span className="text-xs text-slate-500">•</span>
+                    <span className="text-xs text-slate-400">{currentPrompt.category}</span>
+                  </>
+                )}
               </div>
               <p className="text-white text-sm">{currentPrompt.text}</p>
             </div>
           )}
 
-          {isYesNoQuestion ? (
+          {isYesNoQuestion && !isFollowUpMode ? (
             <div className="flex gap-3">
               <Button
                 type="button"
@@ -366,7 +389,7 @@ export default function InterviewV2() {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your response..."
+                placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
                 disabled={isCommittingRef.current}
                 autoComplete="off"
@@ -385,7 +408,11 @@ export default function InterviewV2() {
           )}
           
           <p className="text-xs text-slate-400 text-center mt-3">
-            ⚡ Instant responses • Zero AI routing • All data encrypted
+            {isFollowUpMode ? (
+              <>⚡ Follow-up mode • Zero AI • Instant responses</>
+            ) : (
+              <>⚡ Instant responses • Zero AI routing • All data encrypted</>
+            )}
           </p>
         </div>
       </footer>
@@ -428,6 +455,44 @@ function TranscriptEntry({ entry }) {
     return (
       <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">
+            {entry.content}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'followup_question') {
+    return (
+      <div className="bg-orange-950/20 border border-orange-800/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-orange-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-orange-400">
+                Follow-up
+              </span>
+              <span className="text-xs text-slate-500">•</span>
+              <span className="text-xs text-slate-400">
+                {entry.packId}
+              </span>
+            </div>
+            <p className="text-white leading-relaxed">
+              {entry.content}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'followup_answer') {
+    return (
+      <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="bg-orange-600 rounded-xl px-5 py-3 max-w-2xl">
           <p className="text-white font-medium">
             {entry.content}
           </p>
