@@ -29,6 +29,7 @@ export default function InterviewV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [input, setInput] = useState("");
+  const [debugInfo, setDebugInfo] = useState(null);
 
   // Refs
   const transcriptRef = useRef(null);
@@ -52,24 +53,48 @@ export default function InterviewV2() {
       console.log('🚀 Initializing deterministic interview engine...');
       const startTime = performance.now();
 
-      // Load session
-      await base44.entities.InterviewSession.get(sessionId);
+      // Step 1: Load session
+      console.log('📋 Step 1: Loading session...');
+      const session = await base44.entities.InterviewSession.get(sessionId);
+      console.log('✅ Session loaded:', session.session_code);
       
-      // Bootstrap engine (loads questions, caches lookups)
+      // Step 2: Bootstrap engine (loads questions, caches lookups)
+      console.log('⚙️ Step 2: Bootstrapping engine...');
       const engine = await bootstrapEngine(base44);
+      console.log(`✅ Engine bootstrapped: ${engine.TotalQuestions} questions loaded`);
       
-      // Create initial state
+      // Step 3: Create initial state
+      console.log('🎯 Step 3: Creating initial state...');
       const initialState = createInitialState(engine);
+      console.log('✅ Initial state created, starting at:', initialState.currentQuestionId);
       
       setInterviewState(initialState);
       setIsLoading(false);
+      setDebugInfo({
+        sessionCode: session.session_code,
+        totalQuestions: engine.TotalQuestions,
+        firstQuestion: initialState.currentQuestionId
+      });
 
       const elapsed = performance.now() - startTime;
       console.log(`✅ Interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
       console.error('❌ Initialization failed:', err);
-      setError(`Failed to load interview: ${err.message}`);
+      console.error('Error stack:', err.stack);
+      
+      // Detailed error for debugging
+      let errorMsg = `Failed to load interview: ${err.message}`;
+      
+      if (err.message?.includes('Question')) {
+        errorMsg += '\n\n💡 Tip: Make sure Question entities exist in the database.';
+      }
+      
+      setError(errorMsg);
+      setDebugInfo({
+        error: err.message,
+        stack: err.stack
+      });
       setIsLoading(false);
     }
   };
@@ -111,25 +136,32 @@ export default function InterviewV2() {
 
     console.log(`📝 Answer: "${value}"`);
 
-    // RULE: Process answer deterministically (NO AI)
-    const newState = handlePrimaryAnswer(interviewState, value);
-    
-    // RULE: Single state commit
-    setInterviewState(newState);
-    
-    // Reset commit guard
-    isCommittingRef.current = false;
+    try {
+      // RULE: Process answer deterministically (NO AI)
+      const newState = handlePrimaryAnswer(interviewState, value);
+      
+      // RULE: Single state commit
+      setInterviewState(newState);
+      
+      // Reset commit guard
+      isCommittingRef.current = false;
 
-    // RULE: Auto-scroll after commit
-    setTimeout(autoScrollToBottom, 50);
+      // RULE: Auto-scroll after commit
+      setTimeout(autoScrollToBottom, 50);
 
-    // RULE: Save to DB async (non-blocking, no UI impact)
-    saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
-      console.error('⚠️ Database save failed (non-fatal):', err);
-    });
+      // RULE: Save to DB async (non-blocking, no UI impact)
+      saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
+        console.error('⚠️ Database save failed (non-fatal):', err);
+      });
 
-    const elapsed = performance.now() - startTime;
-    console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
+      const elapsed = performance.now() - startTime;
+      console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
+
+    } catch (err) {
+      console.error('❌ Error processing answer:', err);
+      isCommittingRef.current = false;
+      setError(`Error processing answer: ${err.message}`);
+    }
 
   }, [interviewState, autoScrollToBottom]);
 
@@ -189,6 +221,12 @@ export default function InterviewV2() {
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Loading interview engine...</p>
+          {debugInfo && (
+            <div className="text-xs text-slate-500 space-y-1">
+              <p>Session: {debugInfo.sessionCode}</p>
+              <p>Questions: {debugInfo.totalQuestions}</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -200,8 +238,14 @@ export default function InterviewV2() {
         <div className="max-w-md space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
           </Alert>
+          {debugInfo?.stack && (
+            <details className="text-xs text-slate-400 bg-slate-900/50 p-4 rounded">
+              <summary className="cursor-pointer">Debug Info</summary>
+              <pre className="mt-2 overflow-auto">{debugInfo.stack}</pre>
+            </details>
+          )}
           <Button onClick={() => navigate(createPageUrl("StartInterview"))} className="w-full">
             Start New Interview
           </Button>

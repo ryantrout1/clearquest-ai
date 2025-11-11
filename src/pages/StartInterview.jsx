@@ -41,14 +41,13 @@ export default function StartInterview() {
       return true;
     } catch (err) {
       console.error("Error validating department code:", err);
-      return true; // Don't block on validation errors
+      return true;
     }
   };
 
   const handleDepartmentCodeChange = async (value) => {
     setFormData({...formData, departmentCode: value.toUpperCase()});
     
-    // Validate on change with debounce
     if (value.length >= 3) {
       await validateDepartmentCode(value);
     } else {
@@ -65,7 +64,6 @@ export default function StartInterview() {
       return;
     }
 
-    // Final validation check
     const isValid = await validateDepartmentCode(formData.departmentCode);
     if (!isValid) {
       setError("Invalid department code. Please check and try again.");
@@ -77,7 +75,7 @@ export default function StartInterview() {
     try {
       const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
       
-      console.log("Step 1: Checking for existing sessions...");
+      console.log("🔍 Checking for existing sessions...");
       const existingSessions = await base44.entities.InterviewSession.filter({ 
         session_code: sessionCode 
       });
@@ -87,14 +85,16 @@ export default function StartInterview() {
       );
       
       if (activeSession) {
-        console.log("Found existing session, resuming...");
-        navigate(createPageUrl(`Interview?session=${activeSession.id}`));
+        console.log("✅ Found existing session, resuming...");
+        // Route to NEW deterministic interview
+        navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
         return;
       }
 
-      console.log("Step 2: Creating new session...");
+      console.log("📝 Creating new session...");
       const sessionHash = await generateHash(sessionCode);
       
+      // Create session (NO conversation needed for V2)
       const session = await base44.entities.InterviewSession.create({
         session_code: sessionCode,
         department_code: formData.departmentCode,
@@ -108,32 +108,18 @@ export default function StartInterview() {
         followups_triggered: 0,
         metadata: {
           created_via: "web_interface",
-          user_agent: navigator.userAgent
+          user_agent: navigator.userAgent,
+          version: "v2_deterministic"
         }
       });
-      console.log("Session created:", session.id);
+      
+      console.log("✅ Session created:", session.id);
 
-      console.log("Step 3: Creating agent conversation...");
-      const conversation = await base44.agents.createConversation({
-        agent_name: "clearquest_interviewer",
-        metadata: {
-          session_id: session.id,
-          session_code: sessionCode,
-          type: "applicant_interview"
-        }
-      });
-      console.log("Conversation created:", conversation.id);
-
-      console.log("Step 4: Updating session with conversation ID...");
-      await base44.entities.InterviewSession.update(session.id, {
-        conversation_id: conversation.id
-      });
-      console.log("Session updated with conversation ID");
-
-      navigate(createPageUrl(`Interview?session=${session.id}`));
+      // Route to NEW deterministic interview (no conversation needed)
+      navigate(createPageUrl(`InterviewV2?session=${session.id}`));
+      
     } catch (err) {
-      console.error("Error creating session:", err);
-      console.error("Error details:", err.message, err.stack);
+      console.error("❌ Error creating session:", err);
       setError(`Failed to create interview session: ${err.message || 'Please try again.'}`);
       setIsCreating(false);
     }
