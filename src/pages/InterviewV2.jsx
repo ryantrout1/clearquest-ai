@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -242,6 +243,12 @@ export default function InterviewV2() {
   const progress = getProgress(interviewState);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = interviewState.currentMode === 'FOLLOWUP';
+  
+  // Helper to extract just the number from question ID (Q001 -> 1)
+  const getQuestionNumber = (questionId) => {
+    if (!questionId) return '';
+    return questionId.replace(/^Q0*/, '');
+  };
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
@@ -250,19 +257,7 @@ export default function InterviewV2() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Shield className="w-6 h-6 text-blue-400" />
-            <div>
-              <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
-              <p className="text-sm text-slate-400">
-                {isFollowUpMode ? (
-                  <span className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" />
-                    Follow-up Details
-                  </span>
-                ) : (
-                  currentPrompt?.category || 'Background Screening'
-                )}
-              </p>
-            </div>
+            <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
           </div>
           <div className="text-right">
             <div className="text-sm font-semibold text-white">
@@ -283,7 +278,7 @@ export default function InterviewV2() {
         <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
           {/* Render transcript history */}
           {interviewState.transcript.map((entry) => (
-            <TranscriptEntry key={entry.id} entry={entry} />
+            <TranscriptEntry key={entry.id} entry={entry} getQuestionNumber={getQuestionNumber} />
           ))}
 
           {/* Current Question (stays visible while answering) */}
@@ -312,7 +307,7 @@ export default function InterviewV2() {
                     ) : (
                       <>
                         <span className="text-xs font-semibold text-blue-400">
-                          {currentPrompt.id}
+                          {getQuestionNumber(currentPrompt.id)}
                         </span>
                         <span className="text-xs text-slate-500">•</span>
                         <span className="text-xs text-slate-400">
@@ -351,7 +346,7 @@ export default function InterviewV2() {
                   </>
                 ) : (
                   <>
-                    <span className="text-xs font-semibold text-blue-400">{currentPrompt.id}</span>
+                    <span className="text-xs font-semibold text-blue-400">{getQuestionNumber(currentPrompt.id)}</span>
                     <span className="text-xs text-slate-500">•</span>
                     <span className="text-xs text-slate-400">{currentPrompt.category}</span>
                   </>
@@ -424,7 +419,7 @@ export default function InterviewV2() {
 // TRANSCRIPT ENTRY COMPONENT
 // ============================================================================
 
-function TranscriptEntry({ entry }) {
+function TranscriptEntry({ entry, getQuestionNumber }) {
   if (entry.type === 'question') {
     return (
       <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -435,7 +430,7 @@ function TranscriptEntry({ entry }) {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs font-semibold text-blue-400">
-                {entry.questionId}
+                {getQuestionNumber(entry.questionId)}
               </span>
               <span className="text-xs text-slate-500">•</span>
               <span className="text-xs text-slate-400">
