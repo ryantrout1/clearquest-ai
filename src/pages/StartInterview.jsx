@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -41,17 +42,21 @@ export default function StartInterview() {
       return true;
     } catch (err) {
       console.error("Error validating department code:", err);
-      return true;
+      // If there's an error fetching departments, we might want to assume it's valid for now
+      // or handle it as an error to prevent proceeding. For now, let's allow it to proceed
+      // as the backend might be down, but department code could be valid.
+      // Revisit this logic if stricter validation is needed on network errors.
+      return true; 
     }
   };
 
   const handleDepartmentCodeChange = async (value) => {
     setFormData({...formData, departmentCode: value.toUpperCase()});
     
-    if (value.length >= 3) {
+    if (value.length >= 3) { // Trigger validation once enough characters are entered
       await validateDepartmentCode(value);
     } else {
-      setDepartmentCodeError(false);
+      setDepartmentCodeError(false); // Reset error if input is too short
     }
   };
 
@@ -88,6 +93,14 @@ export default function StartInterview() {
         console.log("✅ Found existing session, resuming...");
         // Route to NEW deterministic interview
         navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
+        return;
+      }
+      
+      // Check for completed session - don't allow re-access
+      const completedSession = existingSessions.find(s => s.status === 'completed');
+      if (completedSession) {
+        setError("This interview has already been completed and cannot be accessed again.");
+        setIsCreating(false);
         return;
       }
 
@@ -127,7 +140,7 @@ export default function StartInterview() {
 
   const generateHash = async (text) => {
     const encoder = new TextEncoder();
-    const data = encoder.encode(text + Date.now());
+    const data = encoder.encode(text + Date.now()); // Add Date.now() to ensure unique hash even for same text if called quickly
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');

@@ -1,12 +1,18 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Send, Loader2, Check, X, AlertCircle, Layers } from "lucide-react";
+import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   bootstrapEngine,
   createInitialState,
@@ -28,9 +34,12 @@ export default function InterviewV2() {
 
   // Core state
   const [interviewState, setInterviewState] = useState(null);
+  const [session, setSession] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [input, setInput] = useState("");
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [isCompletingInterview, setIsCompletingInterview] = useState(false);
 
   // Refs
   const transcriptRef = useRef(null);
@@ -56,8 +65,17 @@ export default function InterviewV2() {
 
       // Step 1: Load session
       console.log('📋 Step 1: Loading session...');
-      await base44.entities.InterviewSession.get(sessionId);
-      console.log('✅ Session loaded');
+      const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      console.log('✅ Session loaded:', loadedSession);
+      
+      // Check if session is already completed
+      if (loadedSession.status === 'completed') {
+        setError('This interview has already been completed and is no longer accessible.');
+        setIsLoading(false);
+        return;
+      }
+      
+      setSession(loadedSession);
       
       // Step 2: Bootstrap engine (loads questions, caches lookups)
       console.log('⚙️ Step 2: Bootstrapping engine...');
@@ -102,6 +120,14 @@ export default function InterviewV2() {
       autoScrollToBottom();
     }
   }, [interviewState?.transcript.length, autoScrollToBottom]);
+
+  // Check for completion
+  useEffect(() => {
+    if (interviewState?.isComplete && !showCompletionModal) {
+      console.log('🎉 Interview completed!');
+      setShowCompletionModal(true);
+    }
+  }, [interviewState?.isComplete, showCompletionModal]);
 
   // ============================================================================
   // ANSWER SUBMISSION (NO AI, NO REFRESH, PURE STATE UPDATE)
@@ -207,6 +233,33 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
+  // COMPLETION HANDLING
+  // ============================================================================
+
+  const handleCompletionConfirm = async () => {
+    setIsCompletingInterview(true);
+    
+    try {
+      // Mark session as completed in database
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: 'completed',
+        completed_date: new Date().toISOString(),
+        completion_percentage: 100
+      });
+
+      console.log('✅ Interview marked as completed');
+      
+      // Navigate to home page
+      navigate(createPageUrl("Home"));
+      
+    } catch (err) {
+      console.error('❌ Error completing interview:', err);
+      setError('Failed to complete interview. Please try again.');
+      setIsCompletingInterview(false);
+    }
+  };
+
+  // ============================================================================
   // RENDER
   // ============================================================================
 
@@ -229,8 +282,8 @@ export default function InterviewV2() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
           </Alert>
-          <Button onClick={() => navigate(createPageUrl("StartInterview"))} className="w-full">
-            Start New Interview
+          <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
+            Return to Home
           </Button>
         </div>
       </div>
@@ -251,167 +304,213 @@ export default function InterviewV2() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-blue-400" />
-            <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
-          </div>
-          <div className="text-right">
-            <div className="text-sm font-semibold text-white">
-              {progress.answered} / {progress.total}
+    <>
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Shield className="w-6 h-6 text-blue-400" />
+              <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
             </div>
-            <div className="text-xs text-slate-400">
-              {progress.percentage}% Complete
+            <div className="text-right">
+              <div className="text-sm font-semibold text-white">
+                {progress.answered} / {progress.total}
+              </div>
+              <div className="text-xs text-slate-400">
+                {progress.percentage}% Complete
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Transcript Panel (NO RE-MOUNT) */}
-      <main 
-        ref={transcriptRef}
-        className="flex-1 overflow-y-auto"
-      >
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-          {/* Render transcript history */}
-          {interviewState.transcript.map((entry) => (
-            <TranscriptEntry key={entry.id} entry={entry} getQuestionNumber={getQuestionNumber} />
-          ))}
+        {/* Transcript Panel (NO RE-MOUNT) */}
+        <main 
+          ref={transcriptRef}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+            {/* Render transcript history */}
+            {interviewState.transcript.map((entry) => (
+              <TranscriptEntry key={entry.id} entry={entry} getQuestionNumber={getQuestionNumber} />
+            ))}
 
-          {/* Current Question (stays visible while answering) */}
-          {currentPrompt && interviewState.transcript.length === 0 && (
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 animate-in fade-in duration-200">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-                  {isFollowUpMode ? (
-                    <Layers className="w-4 h-4 text-orange-400" />
-                  ) : (
-                    <Shield className="w-4 h-4 text-blue-400" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+            {/* Current Question (stays visible while answering) */}
+            {currentPrompt && interviewState.transcript.length === 0 && (
+              <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 animate-in fade-in duration-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
                     {isFollowUpMode ? (
-                      <>
-                        <span className="text-xs font-semibold text-orange-400">
-                          Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
-                        </span>
-                        <span className="text-xs text-slate-500">•</span>
-                        <span className="text-xs text-slate-400">
-                          {currentPrompt.packId}
-                        </span>
-                      </>
+                      <Layers className="w-4 h-4 text-orange-400" />
                     ) : (
-                      <>
-                        <span className="text-xs font-semibold text-blue-400">
-                          {getQuestionNumber(currentPrompt.id)}
-                        </span>
-                        <span className="text-xs text-slate-500">•</span>
-                        <span className="text-xs text-slate-400">
-                          {currentPrompt.category}
-                        </span>
-                      </>
+                      <Shield className="w-4 h-4 text-blue-400" />
                     )}
                   </div>
-                  <p className="text-white text-lg leading-relaxed">
-                    {currentPrompt.text}
-                  </p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {isFollowUpMode ? (
+                        <>
+                          <span className="text-xs font-semibold text-orange-400">
+                            Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                          </span>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-slate-400">
+                            {currentPrompt.packId}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs font-semibold text-blue-400">
+                            {getQuestionNumber(currentPrompt.id)}
+                          </span>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-slate-400">
+                            {currentPrompt.category}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-white text-lg leading-relaxed">
+                      {currentPrompt.text}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Prompt Panel (Fixed at Bottom) */}
-      <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
-          {/* Show current question text at bottom */}
-          {currentPrompt && interviewState.transcript.length > 0 && (
-            <div className={`mb-3 p-3 rounded-lg border ${
-              isFollowUpMode 
-                ? 'bg-orange-950/30 border-orange-800/50' 
-                : 'bg-slate-900/50 border-slate-700'
-            }`}>
-              <div className="flex items-center gap-2 mb-1">
-                {isFollowUpMode ? (
-                  <>
-                    <Layers className="w-3.5 h-3.5 text-orange-400" />
-                    <span className="text-xs font-semibold text-orange-400">
-                      Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs font-semibold text-blue-400">{getQuestionNumber(currentPrompt.id)}</span>
-                    <span className="text-xs text-slate-500">•</span>
-                    <span className="text-xs text-slate-400">{currentPrompt.category}</span>
-                  </>
-                )}
-              </div>
-              <p className="text-white text-sm">{currentPrompt.text}</p>
-            </div>
-          )}
-
-          {isYesNoQuestion && !isFollowUpMode ? (
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                onClick={() => handleAnswer("Yes")}
-                disabled={isCommittingRef.current}
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
-                size="lg"
-              >
-                <Check className="w-5 h-5" />
-                <span className="font-semibold">Yes</span>
-              </Button>
-              <Button
-                type="button"
-                onClick={() => handleAnswer("No")}
-                disabled={isCommittingRef.current}
-                className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
-                size="lg"
-              >
-                <X className="w-5 h-5" />
-                <span className="font-semibold">No</span>
-              </Button>
-            </div>
-          ) : (
-            <form onSubmit={handleTextSubmit} className="flex gap-3">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
-                className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
-                disabled={isCommittingRef.current}
-                autoComplete="off"
-                autoFocus
-              />
-              <Button
-                type="submit"
-                disabled={!input.trim() || isCommittingRef.current}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-                size="lg"
-              >
-                <Send className="w-5 h-5 mr-2" />
-                Send
-              </Button>
-            </form>
-          )}
-          
-          <p className="text-xs text-slate-400 text-center mt-3">
-            {isFollowUpMode ? (
-              <>⚡ Follow-up mode • Zero AI • Instant responses</>
-            ) : (
-              <>⚡ Instant responses • Zero AI routing • All data encrypted</>
             )}
-          </p>
-        </div>
-      </footer>
-    </div>
+          </div>
+        </main>
+
+        {/* Prompt Panel (Fixed at Bottom) */}
+        <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
+          <div className="max-w-5xl mx-auto">
+            {/* Show current question text at bottom */}
+            {currentPrompt && interviewState.transcript.length > 0 && (
+              <div className={`mb-3 p-3 rounded-lg border ${
+                isFollowUpMode 
+                  ? 'bg-orange-950/30 border-orange-800/50' 
+                  : 'bg-slate-900/50 border-slate-700'
+              }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  {isFollowUpMode ? (
+                    <>
+                      <Layers className="w-3.5 h-3.5 text-orange-400" />
+                      <span className="text-xs font-semibold text-orange-400">
+                        Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-semibold text-blue-400">{getQuestionNumber(currentPrompt.id)}</span>
+                      <span className="text-xs text-slate-500">•</span>
+                      <span className="text-xs text-slate-400">{currentPrompt.category}</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-white text-sm">{currentPrompt.text}</p>
+              </div>
+            )}
+
+            {isYesNoQuestion && !isFollowUpMode ? (
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => handleAnswer("Yes")}
+                  disabled={isCommittingRef.current}
+                  className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
+                  size="lg"
+                >
+                  <Check className="w-5 h-5" />
+                  <span className="font-semibold">Yes</span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleAnswer("No")}
+                  disabled={isCommittingRef.current}
+                  className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
+                  size="lg"
+                >
+                  <X className="w-5 h-5" />
+                  <span className="font-semibold">No</span>
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleTextSubmit} className="flex gap-3">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
+                  disabled={isCommittingRef.current}
+                  autoComplete="off"
+                  autoFocus
+                />
+                <Button
+                  type="submit"
+                  disabled={!input.trim() || isCommittingRef.current}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                  size="lg"
+                >
+                  <Send className="w-5 h-5 mr-2" />
+                  Send
+                </Button>
+              </form>
+            )}
+            
+            <p className="text-xs text-slate-400 text-center mt-3">
+              {isFollowUpMode ? (
+                <>⚡ Follow-up mode • Zero AI • Instant responses</>
+              ) : (
+                <>⚡ Instant responses • Zero AI routing • All data encrypted</>
+              )}
+            </p>
+          </div>
+        </footer>
+      </div>
+
+      {/* Completion Modal */}
+      <Dialog open={showCompletionModal} onOpenChange={() => {}}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md" hideClose>
+          <DialogHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-green-600/20">
+                <CheckCircle2 className="w-12 h-12 text-green-400" />
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold text-center">
+              Interview Complete
+            </DialogTitle>
+            <DialogDescription className="text-slate-300 text-center pt-4 space-y-3">
+              <p className="text-base leading-relaxed">
+                Thank you for completing your background interview.
+              </p>
+              <p className="text-base leading-relaxed">
+                Your responses have been securely recorded and encrypted. This interview will now be sent to the investigators for review.
+              </p>
+              <p className="text-sm text-slate-400 pt-2">
+                Session Code: <span className="font-mono text-slate-300">{session?.session_code}</span>
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-4">
+            <Button
+              onClick={handleCompletionConfirm}
+              disabled={isCompletingInterview}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12"
+              size="lg"
+            >
+              {isCompletingInterview ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Completing...
+                </>
+              ) : (
+                'OK'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
