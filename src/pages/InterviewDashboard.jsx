@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, MessageSquare } from "lucide-react";
+import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, MessageSquare, Building2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SessionCard from "../components/admin/SessionCard";
 import StatsCard from "../components/admin/StatsCard";
 
@@ -17,6 +18,7 @@ export default function InterviewDashboard() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -60,6 +62,21 @@ export default function InterviewDashboard() {
     enabled: !!currentUser
   });
 
+  // Extract unique department codes from sessions
+  const uniqueDepartments = useMemo(() => {
+    const deptSet = new Set();
+    sessions.forEach(session => {
+      if (session.session_code) {
+        // Extract department code (everything before the first "-")
+        const deptCode = session.session_code.split('-')[0];
+        if (deptCode) {
+          deptSet.add(deptCode);
+        }
+      }
+    });
+    return Array.from(deptSet).sort();
+  }, [sessions]);
+
   const handleLogout = () => {
     sessionStorage.removeItem("clearquest_admin_auth");
     window.location.href = createPageUrl("Home");
@@ -69,7 +86,12 @@ export default function InterviewDashboard() {
     const matchesSearch = session.session_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          session.department_code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || session.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // Department filter - extract department code from session_code
+    const sessionDeptCode = session.session_code?.split('-')[0] || '';
+    const matchesDepartment = departmentFilter === "all" || sessionDeptCode === departmentFilter;
+    
+    return matchesSearch && matchesStatus && matchesDepartment;
   });
 
   const stats = {
@@ -147,16 +169,35 @@ export default function InterviewDashboard() {
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
           <CardContent className="p-4 md:p-6">
             <div className="flex flex-col gap-4">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by session code or department..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-slate-900/50 border-slate-600 text-white"
-                />
+              {/* Search and Department Filter Row */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search by session code or department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-slate-900/50 border-slate-600 text-white"
+                  />
+                </div>
+                
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger className="w-full sm:w-[200px] bg-slate-900/50 border-slate-600 text-white">
+                    <Building2 className="w-4 h-4 mr-2 text-slate-400" />
+                    <SelectValue placeholder="All Departments" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="all" className="text-white">All Departments</SelectItem>
+                    {uniqueDepartments.map(dept => (
+                      <SelectItem key={dept} value={dept} className="text-white">
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
+              {/* Status Tabs */}
               <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
                 <TabsList className="bg-slate-900/50 w-full grid grid-cols-4">
                   <TabsTrigger value="all" className="text-xs md:text-sm">All</TabsTrigger>
@@ -174,6 +215,11 @@ export default function InterviewDashboard() {
           <CardHeader>
             <CardTitle className="text-white text-lg md:text-xl">
               Interview Sessions ({filteredSessions.length})
+              {departmentFilter !== "all" && (
+                <Badge className="ml-2 bg-blue-600/20 text-blue-300 border-blue-500/30">
+                  {departmentFilter}
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 md:p-6">
@@ -185,10 +231,23 @@ export default function InterviewDashboard() {
               <div className="text-center py-12 space-y-4">
                 <FileText className="w-16 h-16 text-slate-600 mx-auto" />
                 <p className="text-slate-400 text-sm">
-                  {searchTerm || statusFilter !== "all" 
+                  {searchTerm || statusFilter !== "all" || departmentFilter !== "all"
                     ? "No sessions match your filters" 
                     : "No interview sessions yet"}
                 </p>
+                {(searchTerm || statusFilter !== "all" || departmentFilter !== "all") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setStatusFilter("all");
+                      setDepartmentFilter("all");
+                    }}
+                    className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
