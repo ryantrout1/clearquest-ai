@@ -16,8 +16,8 @@ import {
 } from "../components/interviewEngine";
 
 /**
- * InterviewV2 - Deterministic, instant-response interview system
- * Zero AI for routing, minimal credits, max speed
+ * InterviewV2 - Zero-refresh, zero-AI question routing
+ * Instant responses, pure deterministic flow
  */
 export default function InterviewV2() {
   const navigate = useNavigate();
@@ -32,7 +32,7 @@ export default function InterviewV2() {
 
   // Refs
   const transcriptRef = useRef(null);
-  const submitDebounceRef = useRef(null);
+  const isCommittingRef = useRef(false);
 
   // ============================================================================
   // INITIALIZATION
@@ -53,7 +53,7 @@ export default function InterviewV2() {
       const startTime = performance.now();
 
       // Load session
-      const session = await base44.entities.InterviewSession.get(sessionId);
+      await base44.entities.InterviewSession.get(sessionId);
       
       // Bootstrap engine (loads questions, caches lookups)
       const engine = await bootstrapEngine(base44);
@@ -61,18 +61,10 @@ export default function InterviewV2() {
       // Create initial state
       const initialState = createInitialState(engine);
       
-      // Load existing answers if resuming
-      const existingAnswers = await base44.entities.Response.filter({ 
-        session_id: sessionId 
-      });
-
-      // TODO: Replay existing answers to restore state
-
       setInterviewState(initialState);
       setIsLoading(false);
 
       const elapsed = performance.now() - startTime;
-      PERF_MONITOR.log('Initialization time', `${elapsed.toFixed(2)}ms`);
       console.log(`✅ Interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
@@ -83,21 +75,20 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // AUTO-SCROLL
+  // AUTO-SCROLL (requestAnimationFrame)
   // ============================================================================
 
   const autoScrollToBottom = useCallback(() => {
     if (!transcriptRef.current) return;
     
     requestAnimationFrame(() => {
-      transcriptRef.current.scrollTo({
-        top: transcriptRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+      if (transcriptRef.current) {
+        transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+      }
     });
   }, []);
 
-  // Auto-scroll when transcript changes
+  // Auto-scroll after transcript updates
   useEffect(() => {
     if (interviewState?.transcript.length) {
       autoScrollToBottom();
@@ -105,49 +96,58 @@ export default function InterviewV2() {
   }, [interviewState?.transcript.length, autoScrollToBottom]);
 
   // ============================================================================
-  // ANSWER SUBMISSION (DEBOUNCED)
+  // ANSWER SUBMISSION (NO AI, NO REFRESH, PURE STATE UPDATE)
   // ============================================================================
 
-  const handleSubmit = useCallback((e) => {
-    e?.preventDefault();
-
-    // Debounce protection
-    if (submitDebounceRef.current) {
-      console.warn('⚠️ Submit debounced');
+  const handleAnswer = useCallback((value) => {
+    // RULE: Guard against double-submit
+    if (isCommittingRef.current || !interviewState) {
+      console.warn('⚠️ Already committing or no state');
       return;
     }
 
-    const answer = input.trim();
-    if (!answer || !interviewState) return;
-
-    submitDebounceRef.current = setTimeout(() => {
-      submitDebounceRef.current = null;
-    }, 300);
-
+    isCommittingRef.current = true;
     const startTime = performance.now();
-    console.log('📝 Submitting answer:', answer);
 
-    // Clear input immediately for instant feedback
-    setInput("");
+    console.log(`📝 Answer: "${value}"`);
 
-    // Process answer (instant, deterministic)
-    const newState = handlePrimaryAnswer(interviewState, answer);
+    // RULE: Process answer deterministically (NO AI)
+    const newState = handlePrimaryAnswer(interviewState, value);
+    
+    // RULE: Single state commit
     setInterviewState(newState);
+    
+    // Reset commit guard
+    isCommittingRef.current = false;
 
-    // Save to database (async, non-blocking)
-    saveAnswerToDatabase(interviewState.currentQuestionId, answer).catch(err => {
+    // RULE: Auto-scroll after commit
+    setTimeout(autoScrollToBottom, 50);
+
+    // RULE: Save to DB async (non-blocking, no UI impact)
+    saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
       console.error('⚠️ Database save failed (non-fatal):', err);
     });
 
     const elapsed = performance.now() - startTime;
-    PERF_MONITOR.trackSubmit(elapsed);
+    console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
 
-  }, [input, interviewState]);
+  }, [interviewState, autoScrollToBottom]);
 
-  const handleQuickResponse = useCallback((response) => {
-    setInput(response);
-    setTimeout(() => handleSubmit(), 50);
-  }, [handleSubmit]);
+  // Text input submit handler
+  const handleTextSubmit = useCallback((e) => {
+    // RULE: Prevent default FIRST
+    e.preventDefault();
+
+    const answer = input.trim();
+    if (!answer) return;
+
+    // Clear input immediately for instant feedback
+    setInput("");
+
+    // Process answer
+    handleAnswer(answer);
+
+  }, [input, handleAnswer]);
 
   // ============================================================================
   // DATABASE PERSISTENCE (ASYNC, NON-BLOCKING)
@@ -168,9 +168,10 @@ export default function InterviewV2() {
       });
 
       // Update session progress
+      const progress = getProgress(interviewState);
       await base44.entities.InterviewSession.update(sessionId, {
-        total_questions_answered: interviewState.questionsAnswered,
-        completion_percentage: getProgress(interviewState).percentage
+        total_questions_answered: progress.answered,
+        completion_percentage: progress.percentage
       });
 
     } catch (err) {
@@ -240,19 +241,20 @@ export default function InterviewV2() {
         </div>
       </header>
 
-      {/* Transcript */}
+      {/* Transcript Panel (NO RE-MOUNT) */}
       <main 
         ref={transcriptRef}
         className="flex-1 overflow-y-auto"
       >
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+          {/* Render transcript history */}
           {interviewState.transcript.map((entry) => (
             <TranscriptEntry key={entry.id} entry={entry} />
           ))}
 
-          {/* Current Question */}
-          {currentPrompt && (
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+          {/* Current Question (stays visible while answering) */}
+          {currentPrompt && interviewState.transcript.length === 0 && (
+            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 animate-in fade-in duration-200">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
                   <Shield className="w-4 h-4 text-blue-400" />
@@ -277,13 +279,27 @@ export default function InterviewV2() {
         </div>
       </main>
 
-      {/* Input Footer */}
+      {/* Prompt Panel (Fixed at Bottom) */}
       <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
+          {/* Show current question text at bottom */}
+          {currentPrompt && interviewState.transcript.length > 0 && (
+            <div className="mb-3 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-blue-400">{currentPrompt.id}</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-xs text-slate-400">{currentPrompt.category}</span>
+              </div>
+              <p className="text-white text-sm">{currentPrompt.text}</p>
+            </div>
+          )}
+
           {isYesNoQuestion ? (
             <div className="flex gap-3">
               <Button
-                onClick={() => handleQuickResponse("Yes")}
+                type="button"
+                onClick={() => handleAnswer("Yes")}
+                disabled={isCommittingRef.current}
                 className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                 size="lg"
               >
@@ -291,7 +307,9 @@ export default function InterviewV2() {
                 <span className="font-semibold">Yes</span>
               </Button>
               <Button
-                onClick={() => handleQuickResponse("No")}
+                type="button"
+                onClick={() => handleAnswer("No")}
+                disabled={isCommittingRef.current}
                 className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                 size="lg"
               >
@@ -300,19 +318,19 @@ export default function InterviewV2() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="flex gap-3">
+            <form onSubmit={handleTextSubmit} className="flex gap-3">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type your response..."
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
-                disabled={interviewState.isCommitting}
+                disabled={isCommittingRef.current}
                 autoComplete="off"
                 autoFocus
               />
               <Button
                 type="submit"
-                disabled={!input.trim() || interviewState.isCommitting}
+                disabled={!input.trim() || isCommittingRef.current}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                 size="lg"
               >
@@ -338,7 +356,7 @@ export default function InterviewV2() {
 function TranscriptEntry({ entry }) {
   if (entry.type === 'question') {
     return (
-      <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-5">
+      <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="flex items-start gap-3">
           <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
             <Shield className="w-3.5 h-3.5 text-blue-400" />
@@ -364,7 +382,7 @@ function TranscriptEntry({ entry }) {
 
   if (entry.type === 'answer') {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-2xl">
           <p className="text-white font-medium">
             {entry.content}
