@@ -355,6 +355,20 @@ export function handlePrimaryAnswer(state, answer) {
     nextPack = newFollowUpQueue.shift(); // Dequeue first pack
     nextPackIndex = 0;
     previousPrimary = currentQuestionId; // Remember where we were
+    
+    // CRITICAL FIX: Append first follow-up question to transcript immediately
+    const firstPackSteps = engine.PackStepsById[nextPack.packId];
+    if (firstPackSteps && firstPackSteps.length > 0) {
+      const firstStep = firstPackSteps[0];
+      console.log(`📋 Starting pack ${nextPack.packId} with first question`);
+      
+      newState = appendToTranscript(newState, {
+        type: 'followup_question',
+        packId: nextPack.packId,
+        fieldKey: firstStep.Field_Key,
+        content: firstStep.Prompt
+      });
+    }
   } else {
     // CONTINUE TO NEXT PRIMARY QUESTION
     nextQuestionId = computeNextQuestionId(engine, currentQuestionId, answer);
@@ -409,15 +423,8 @@ export function handleFollowUpAnswer(state, answer) {
   const step = steps[currentPackIndex];
   console.log(`📋 Follow-up answer: ${currentPack.packId}:${step.Field_Key} = "${answer}"`);
 
-  // Step 1: Append FU Q&A to transcript
+  // Step 1: Append FU answer to transcript (question already there)
   let newState = appendToTranscript(state, {
-    type: 'followup_question',
-    packId: currentPack.packId,
-    fieldKey: step.Field_Key,
-    content: step.Prompt
-  });
-
-  newState = appendToTranscript(newState, {
     type: 'followup_answer',
     packId: currentPack.packId,
     fieldKey: step.Field_Key,
@@ -441,9 +448,17 @@ export function handleFollowUpAnswer(state, answer) {
   let nextQuestionId = state.currentQuestionId;
 
   if (currentPackIndex < steps.length - 1) {
-    // MORE STEPS IN THIS PACK
+    // MORE STEPS IN THIS PACK - append next question
     console.log(`➡️ Advancing to next step in pack`);
     nextPackIndex = currentPackIndex + 1;
+    
+    const nextStep = steps[nextPackIndex];
+    newState = appendToTranscript(newState, {
+      type: 'followup_question',
+      packId: currentPack.packId,
+      fieldKey: nextStep.Field_Key,
+      content: nextStep.Prompt
+    });
   } else {
     // PACK FINISHED
     console.log(`✅ Pack finished: ${currentPack.packId}`);
@@ -452,8 +467,20 @@ export function handleFollowUpAnswer(state, answer) {
       // MORE PACKS IN QUEUE
       console.log(`🔀 Starting next queued pack`);
       nextMode = 'FOLLOWUP';
-      nextPack = state.followUpQueue.shift();
+      nextPack = { ...state.followUpQueue.shift() }; // Dequeue and clone to avoid modifying original in queue
       nextPackIndex = 0;
+      
+      // Append first question of next pack
+      const nextPackSteps = engine.PackStepsById[nextPack.packId];
+      if (nextPackSteps && nextPackSteps.length > 0) {
+        const firstStep = nextPackSteps[0];
+        newState = appendToTranscript(newState, {
+          type: 'followup_question',
+          packId: nextPack.packId,
+          fieldKey: firstStep.Field_Key,
+          content: firstStep.Prompt
+        });
+      }
     } else {
       // RETURN TO PRIMARY QUESTIONS
       console.log(`🔀 Returning to primary questions`);
