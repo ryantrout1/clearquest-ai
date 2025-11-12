@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -120,7 +121,7 @@ export default function InterviewV2() {
   // Refs
   const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
-  const displayOrderRef = useRef(0);
+  const displayOrderRef.current = 0;
   const inputRef = useRef(null);
 
   // ============================================================================
@@ -182,9 +183,9 @@ export default function InterviewV2() {
         await restoreFromResponses(engineData, existingResponses);
       } else {
         console.log('🎯 Starting fresh interview');
-        // Initialize with first question
+        // FIXED: Initialize with EMPTY queue, only set currentItem
         const firstQuestionId = engineData.ActiveOrdered[0];
-        setQueue([{ id: firstQuestionId, type: 'question' }]);
+        setQueue([]); // Queue is empty at start
         setCurrentItem({ id: firstQuestionId, type: 'question' });
       }
       
@@ -239,7 +240,8 @@ export default function InterviewV2() {
     if (lastQuestionId && lastAnswer) {
       const nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
       if (nextQuestionId) {
-        setQueue([{ id: nextQuestionId, type: 'question' }]);
+        // FIXED: Empty queue, only set currentItem
+        setQueue([]);
         setCurrentItem({ id: nextQuestionId, type: 'question' });
       } else {
         // Interview complete
@@ -327,15 +329,22 @@ export default function InterviewV2() {
         
         // Then add next primary question
         const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+        console.log(`➡️ Next question ID: ${nextQuestionId}`);
         if (nextQuestionId) {
           nextIds.push({ id: nextQuestionId, type: 'question' });
         }
 
-        // Update queue and current item
-        const newQueue = [...queue, ...nextIds];
-        const nextItem = newQueue.shift() || null;
+        console.log(`📋 Next items to queue:`, nextIds);
+
+        // FIXED: Update queue and dequeue next item properly
+        // Add new items to EXISTING queue, then shift
+        const updatedQueue = [...queue, ...nextIds];
+        const nextItem = updatedQueue.shift() || null;
         
-        setQueue(newQueue);
+        console.log(`✅ Next item:`, nextItem);
+        console.log(`✅ Remaining queue:`, updatedQueue);
+        
+        setQueue(updatedQueue);
         setCurrentItem(nextItem);
         
         if (!nextItem) {
@@ -381,9 +390,9 @@ export default function InterviewV2() {
         // Save to database
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value);
 
-        // Move to next in queue
+        // FIXED: Move to next in queue properly
         const nextItem = queue.shift() || null;
-        setQueue([...queue]);
+        setQueue([...queue]); // Update queue state after shift
         setCurrentItem(nextItem);
         
         if (!nextItem) {
