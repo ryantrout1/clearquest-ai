@@ -901,6 +901,165 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'when_occurred', Prompt: 'When did you fail to appear for jury duty?', Response_Type: 'text', Expected_Type: 'DATE' },
     { Field_Key: 'why_missed', Prompt: 'Why did you not appear?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'consequences', Prompt: 'Were there any consequences?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  // Q40-Q99 Additional Packs
+  'PACK_OTHER_CRIME': [
+    { Field_Key: 'crime_description', Prompt: 'Describe the crime or incident.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ILLEGAL_DRUG': [
+    { Field_Key: 'drug_type', Prompt: 'What type of illegal drug?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was there any legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SEX_REGISTRY': [
+    { Field_Key: 'registration_date', Prompt: 'When were you required to register?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'offense', Prompt: 'What was the offense?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'jurisdiction', Prompt: 'In what jurisdiction?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'current_status', Prompt: 'What is your current registration status?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SOCIAL_MEDIA_DELETE': [
+    { Field_Key: 'when_deleted', Prompt: 'When did you delete the content?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'content_type', Prompt: 'What type of content was it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_delete', Prompt: 'Why did you delete it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for the original content?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_MINOR_SEXUAL': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'ages_involved', Prompt: 'What were the ages involved (yours and the other person\'s)?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was there any legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_NON_CONSENT': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'victim_relationship', Prompt: 'What was your relationship to the person?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ADULT_ENTERTAINMENT': [
+    { Field_Key: 'when_involved', Prompt: 'When were you involved in adult entertainment?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'type_involvement', Prompt: 'What type of involvement?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_STUDENT_RELATIONSHIP': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this relationship occur?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'student_age', Prompt: 'How old was the student?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_position', Prompt: 'What was your position or role?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_LOAN_DEFAULT': [
+    { Field_Key: 'loan_type', Prompt: 'What type of loan?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'lender', Prompt: 'Who was the lender?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'amount', Prompt: 'What was the loan amount?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'when_defaulted', Prompt: 'When did you default?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'current_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CHILD_SUPPORT': [
+    { Field_Key: 'amount_owed', Prompt: 'How much is owed?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'when_fell_behind', Prompt: 'When did you fall behind?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'why_behind', Prompt: 'Why are you behind?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'payment_plan', Prompt: 'Do you have a payment plan?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'current_status', Prompt: 'What is your current status?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_GARNISHMENT': [
+    { Field_Key: 'when_garnished', Prompt: 'When was your pay garnished?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'creditor', Prompt: 'Who garnished your wages?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'amount', Prompt: 'What was the amount?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'reason', Prompt: 'What was the reason?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'resolution', Prompt: 'Has it been resolved?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_NSF': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'frequency', Prompt: 'How many times?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'resolved', Prompt: 'Have they been resolved?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
+  ],
+
+  'PACK_COLLECTIONS': [
+    { Field_Key: 'creditor', Prompt: 'Who is the creditor?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'amount', Prompt: 'What is the amount?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'when_sent', Prompt: 'When was it sent to collections?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'reason', Prompt: 'What was the debt for?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'payment_plan', Prompt: 'Do you have a payment plan?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
+  ],
+
+  'PACK_OTHER_FINANCIAL': [
+    { Field_Key: 'issue_description', Prompt: 'Describe the financial issue.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'amount', Prompt: 'What amount is involved?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'current_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_MARIJUANA': [
+    { Field_Key: 'first_use', Prompt: 'When did you first use marijuana?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'last_use', Prompt: 'When was the last time you used it?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_MARIJUANA_BUY': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you buy marijuana?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'frequency', Prompt: 'How often?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'source', Prompt: 'From whom did you purchase it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_MARIJUANA_SELL': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you sell marijuana?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'frequency', Prompt: 'How often did you sell it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'quantity', Prompt: 'What quantities were involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was there any legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_MARIJUANA_GROW': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you grow or manufacture marijuana?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'quantity', Prompt: 'How much did you grow?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'purpose', Prompt: 'What was the purpose?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was there any legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PRESCRIPTION_FRAUD': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'medication', Prompt: 'What medication?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_obtained', Prompt: 'How did you obtain fraudulent prescriptions?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was there any legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_INHALANT': [
+    { Field_Key: 'substance', Prompt: 'What inhalant did you use?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'first_use', Prompt: 'When did you first use it?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'last_use', Prompt: 'When was the last time?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_STEROID': [
+    { Field_Key: 'when_used', Prompt: 'When did you use steroids?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'type', Prompt: 'What type of steroids?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'source', Prompt: 'How did you obtain them?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'purpose', Prompt: 'What was the purpose?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'prescription', Prompt: 'Did you have a prescription?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
   ]
 };
 
