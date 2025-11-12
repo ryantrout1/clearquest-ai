@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -262,7 +263,16 @@ export default function InterviewV2() {
         console.log(`📋 Follow-up answer: "${value}"`);
         newState = handleFollowUpAnswer(interviewState, value);
         
-        // TODO: Save follow-up to database if needed
+        // Check if we need AI probe (after 1 failed attempt and max 2 probes)
+        if (newState.currentStepRetries >= 1 && newState.currentStepProbes < 2 && 
+            newState.currentPackIndex === interviewState.currentPackIndex) {
+          // Still on same step after validation failure - trigger AI probe
+          console.log(`🤖 Triggering AI probe (retry: ${newState.currentStepRetries}, probes: ${newState.currentStepProbes})`);
+          triggerAIProbe(newState, value).catch(err => {
+            console.error('⚠️ AI probe failed:', err);
+          });
+        }
+        
       } else {
         console.warn('⚠️ Unknown mode:', interviewState.currentMode);
         isCommittingRef.current = false;
@@ -345,6 +355,74 @@ export default function InterviewV2() {
 
     } catch (err) {
       console.error('Database save error:', err);
+    }
+  };
+
+  // ============================================================================
+  // AI PROBE FOR FOLLOW-UP VALIDATION (MINIMAL CREDITS)
+  // ============================================================================
+
+  const triggerAIProbe = async (state, failedValue) => {
+    try {
+      const { engine, currentPack, currentPackIndex } = state;
+      const steps = engine.PackStepsById[currentPack.packId];
+      const step = steps[currentPackIndex];
+      
+      console.log(`🤖 Calling AI probe for ${step.Field_Key} (type: ${step.Expected_Type})`);
+      
+      // Build micro-prompt
+      const probePrompt = {
+        fieldKey: step.Field_Key,
+        expectedType: step.Expected_Type || 'TEXT',
+        userInput: failedValue,
+        examples: {
+          "DATE": ["06/15/2022", "2022-06-15", "Jun 2022"],
+          "DATERANGE": ["06/2022 to 08/2022", "2022-06-01 to 2022-08-15"],
+          "BOOLEAN": ["Yes", "No"],
+          "NUMBER": ["1", "2", "3.5"],
+          "LOCATION": ["Phoenix, AZ", "Seattle, WA"],
+          "TEXT": ["I rear-ended a vehicle at a stoplight."],
+          "ENUM": step.Options || []
+        }
+      };
+      
+      // Call LLM with strict JSON-only, temp 0
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt: `You help collect a single missing field. Output ONLY JSON: {"question": "..."}.
+Pick ONE short, plain-English question that will elicit a valid value for the specified field type.
+Do not provide answers. Do not add keys. Be concise.
+
+Field details: ${JSON.stringify(probePrompt)}`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            question: { type: "string" }
+          },
+          required: ["question"]
+        }
+      });
+      
+      console.log(`🤖 AI probe response:`, response);
+      
+      if (response?.question) {
+        // Append AI clarification question to transcript
+        let newState = appendToTranscript(state, {
+          type: 'ai_clarification',
+          content: response.question
+        });
+        
+        // Increment probe counter
+        newState = batchUpdate(newState, {
+          currentStepProbes: state.currentStepProbes + 1
+        });
+        
+        setInterviewState(newState);
+        setTimeout(autoScrollToBottom, 50);
+      }
+      
+    } catch (err) {
+      console.error('❌ AI probe error:', err);
+      // Fallback to deterministic nudge already shown
     }
   };
 
@@ -722,6 +800,43 @@ function TranscriptEntry({ entry, getQuestionNumber }) {
           <p className="text-white font-medium">
             {entry.content}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // NEW: Validation hint
+  if (entry.type === 'validation_hint') {
+    return (
+      <div className="flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl px-4 py-2 max-w-xl">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <p className="text-yellow-200 text-sm">{entry.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // NEW: AI clarification
+  if (entry.type === 'ai_clarification') {
+    return (
+      <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-purple-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-purple-400">
+                Clarification
+              </span>
+            </div>
+            <p className="text-white leading-relaxed">
+              {entry.content}
+            </p>
+          </div>
         </div>
       </div>
     );

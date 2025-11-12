@@ -13,137 +13,293 @@
 const FOLLOWUP_PACK_STEPS = {
   // ===== Applications with Other LE Agencies =====
   'PACK_LE_APPS': [
-    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency you applied to?', Response_Type: 'text' },
-    { Field_Key: 'application_date', Prompt: 'When did you apply?', Response_Type: 'text' },
-    { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text' },
-    { Field_Key: 'reason_not_hired', Prompt: 'If not hired, what was the reason given?', Response_Type: 'text' }
+    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency you applied to?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'application_date', Prompt: 'When did you apply?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason_not_hired', Prompt: 'If not hired, what was the reason given?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_WITHHOLD_INFO': [
-    { Field_Key: 'what_withheld', Prompt: 'What information did you withhold?', Response_Type: 'text' },
-    { Field_Key: 'which_agency', Prompt: 'Which agency or agencies?', Response_Type: 'text' },
-    { Field_Key: 'why_withheld', Prompt: 'Why did you withhold this information?', Response_Type: 'text' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this decision?', Response_Type: 'text' }
+    { Field_Key: 'what_withheld', Prompt: 'What information did you withhold?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'which_agency', Prompt: 'Which agency or agencies?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_withheld', Prompt: 'Why did you withhold this information?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this decision?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_DISQUALIFIED': [
-    { Field_Key: 'agency_name', Prompt: 'Which agency disqualified you?', Response_Type: 'text' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'reason_given', Prompt: 'What reason were you given for the disqualification?', Response_Type: 'text' },
-    { Field_Key: 'what_learned', Prompt: 'What have you learned or changed since then?', Response_Type: 'text' }
+    { Field_Key: 'agency_name', Prompt: 'Which agency disqualified you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'reason_given', Prompt: 'What reason were you given for the disqualification?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_learned', Prompt: 'What have you learned or changed since then?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_CHEATING': [
-    { Field_Key: 'which_test', Prompt: 'Which test or portion did you cheat on?', Response_Type: 'text' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'how_cheated', Prompt: 'How did you cheat?', Response_Type: 'text' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+    { Field_Key: 'which_test', Prompt: 'Which test or portion did you cheat on?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'how_cheated', Prompt: 'How did you cheat?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   // ===== Driving Record =====
   'PACK_COLLISION': [
-    { Field_Key: 'collision_date', Prompt: 'When did the collision occur?', Response_Type: 'text' },
-    { Field_Key: 'collision_location', Prompt: 'Where did it occur?', Response_Type: 'text' },
-    { Field_Key: 'at_fault', Prompt: 'Were you at fault?', Response_Type: 'text' },
-    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text' }
+    { Field_Key: 'collision_date', Prompt: 'When did the collision occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'collision_location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'at_fault', Prompt: 'Were you at fault?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_COLLISION_INJURY': [
-    { Field_Key: 'injuries', Prompt: 'Describe the injuries sustained.', Response_Type: 'text' },
-    { Field_Key: 'fatalities', Prompt: 'Were there any fatalities?', Response_Type: 'text' },
-    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text' }
+    { Field_Key: 'injuries', Prompt: 'Describe the injuries sustained.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'fatalities', Prompt: 'Were there any fatalities?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_ALCOHOL_COLLISION': [
-    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'bac_level', Prompt: 'What was your BAC level, if known?', Response_Type: 'text' },
-    { Field_Key: 'charges_filed', Prompt: 'Were any charges filed?', Response_Type: 'text' },
-    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'bac_level', Prompt: 'What was your BAC level, if known?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'charges_filed', Prompt: 'Were any charges filed?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_UNREPORTED_COLLISION': [
-    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'why_unreported', Prompt: 'Why was it not reported?', Response_Type: 'text' },
-    { Field_Key: 'damages', Prompt: 'Describe any damages or injuries.', Response_Type: 'text' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for not reporting it?', Response_Type: 'text' }
+    { Field_Key: 'collision_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'why_unreported', Prompt: 'Why was it not reported?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'damages', Prompt: 'Describe any damages or injuries.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for not reporting it?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_HIT_RUN': [
-    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text' },
-    { Field_Key: 'why_left', Prompt: 'Why did you leave the scene?', Response_Type: 'text' },
-    { Field_Key: 'reported_later', Prompt: 'Did you report it later?', Response_Type: 'text' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text' }
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'why_left', Prompt: 'Why did you leave the scene?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reported_later', Prompt: 'Did you report it later?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_HIT_RUN_DAMAGE': [
-    { Field_Key: 'injuries', Prompt: 'Describe any injuries.', Response_Type: 'text' },
-    { Field_Key: 'property_damage', Prompt: 'Describe property damage.', Response_Type: 'text' },
-    { Field_Key: 'legal_consequences', Prompt: 'Were there legal consequences?', Response_Type: 'text' }
+    { Field_Key: 'injuries', Prompt: 'Describe any injuries.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'property_damage', Prompt: 'Describe property damage.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_consequences', Prompt: 'Were there legal consequences?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   // ===== Generic/Existing Packs =====
   'PACK_LE_PREV': [
-    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text' },
-    { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text' },
-    { Field_Key: 'reason_leaving', Prompt: 'What was your reason for leaving?', Response_Type: 'text' },
-    { Field_Key: 'eligible_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text' }
+    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'reason_leaving', Prompt: 'What was your reason for leaving?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'eligible_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
   ],
   
   'PACK_MIL_DISCHARGE': [
-    { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive?', Response_Type: 'text' },
-    { Field_Key: 'discharge_date', Prompt: 'When were you discharged?', Response_Type: 'text' },
-    { Field_Key: 'discharge_reason', Prompt: 'What was the reason for your discharge?', Response_Type: 'text' }
+    { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discharge_date', Prompt: 'When were you discharged?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'discharge_reason', Prompt: 'What was the reason for your discharge?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_DISCIPLINE': [
-    { Field_Key: 'incident_date', Prompt: 'When did this disciplinary action occur?', Response_Type: 'text' },
-    { Field_Key: 'incident_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
-    { Field_Key: 'incident_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
+    { Field_Key: 'incident_date', Prompt: 'When did this disciplinary action occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'incident_description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'incident_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_ARREST': [
-    { Field_Key: 'arrest_date', Prompt: 'When were you arrested?', Response_Type: 'text' },
-    { Field_Key: 'arrest_location', Prompt: 'Where did this occur?', Response_Type: 'text' },
-    { Field_Key: 'arrest_charge', Prompt: 'What were you charged with?', Response_Type: 'text' },
-    { Field_Key: 'arrest_outcome', Prompt: 'What was the outcome of the case?', Response_Type: 'text' }
+    { Field_Key: 'arrest_date', Prompt: 'When were you arrested?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'arrest_location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'arrest_charge', Prompt: 'What were you charged with?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'arrest_outcome', Prompt: 'What was the outcome of the case?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_TRAFFIC': [
-    { Field_Key: 'traffic_date', Prompt: 'When did this traffic violation occur?', Response_Type: 'text' },
-    { Field_Key: 'traffic_type', Prompt: 'What was the violation?', Response_Type: 'text' },
-    { Field_Key: 'traffic_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text' }
+    { Field_Key: 'traffic_date', Prompt: 'When did this traffic violation occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'traffic_type', Prompt: 'What was the violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'traffic_outcome', Prompt: 'What was the outcome or penalty?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_DRUG_USE': [
-    { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text' },
-    { Field_Key: 'first_use_date', Prompt: 'When did you first use it?', Response_Type: 'text' },
-    { Field_Key: 'last_use_date', Prompt: 'When was the last time you used it?', Response_Type: 'text' },
-    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text' }
+    { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'first_use_date', Prompt: 'When did you first use it?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'last_use_date', Prompt: 'When was the last time you used it?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_THEFT': [
-    { Field_Key: 'theft_date', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'theft_description', Prompt: 'What was taken?', Response_Type: 'text' },
-    { Field_Key: 'theft_value', Prompt: 'What was the approximate value?', Response_Type: 'text' },
-    { Field_Key: 'theft_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' }
+    { Field_Key: 'theft_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'theft_description', Prompt: 'What was taken?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'theft_value', Prompt: 'What was the approximate value?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'theft_outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_FINANCIAL': [
-    { Field_Key: 'financial_issue', Prompt: 'What was the financial issue?', Response_Type: 'text' },
-    { Field_Key: 'financial_date', Prompt: 'When did this occur?', Response_Type: 'text' },
-    { Field_Key: 'financial_amount', Prompt: 'What was the amount involved?', Response_Type: 'text' },
-    { Field_Key: 'financial_status', Prompt: 'What is the current status?', Response_Type: 'text' }
+    { Field_Key: 'financial_issue', Prompt: 'What was the financial issue?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'financial_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'financial_amount', Prompt: 'What was the amount involved?', Response_Type: 'text', Expected_Type: 'NUMBER' },
+    { Field_Key: 'financial_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
   
   'PACK_DOMESTIC': [
-    { Field_Key: 'domestic_date', Prompt: 'When did this incident occur?', Response_Type: 'text' },
-    { Field_Key: 'domestic_description', Prompt: 'Describe what happened.', Response_Type: 'text' },
-    { Field_Key: 'domestic_outcome', Prompt: 'What was the outcome?', Response_Type: 'text' }
+    { Field_Key: 'domestic_date', Prompt: 'When did this incident occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'domestic_description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'domestic_outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ]
 };
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate answer based on expected type
+ */
+export function validateFollowUpAnswer(value, expectedType, options = []) {
+  const val = (value || '').trim();
+  
+  if (!val) return { valid: false, hint: 'Please provide an answer.' };
+  
+  switch (expectedType) {
+    case 'DATE':
+      return validateDate(val);
+    case 'DATERANGE':
+      return validateDateRange(val);
+    case 'BOOLEAN':
+      return validateBoolean(val);
+    case 'NUMBER':
+      return validateNumber(val);
+    case 'LOCATION':
+      return validateLocation(val);
+    case 'ENUM':
+      return validateEnum(val, options);
+    case 'TEXT':
+    default:
+      return validateText(val);
+  }
+}
+
+function validateDate(val) {
+  // ISO: YYYY-MM-DD
+  const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(val);
+  
+  // US: MM/DD/YYYY or M/D/YYYY
+  const usMatch = /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val);
+  
+  // Month Year: Jun 2022, June 2022, 06/2022
+  const monthYearMatch = /^([A-Za-z]{3,9})\s+\d{4}$/.test(val) || /^\d{1,2}\/\d{4}$/.test(val);
+  
+  if (isoMatch || usMatch || monthYearMatch) {
+    return { valid: true, normalized: normalizeDate(val) };
+  }
+  
+  return { 
+    valid: false, 
+    hint: 'Please enter a date (MM/DD/YYYY, YYYY-MM-DD, or Month YYYY).'
+  };
+}
+
+function validateDateRange(val) {
+  // Look for two dates separated by "to", "-", or "–"
+  const separators = [' to ', ' - ', '–', ' – '];
+  let found = false;
+  let parts = [];
+  
+  for (const sep of separators) {
+    if (val.includes(sep)) {
+      parts = val.split(sep).map(p => p.trim());
+      found = true;
+      break;
+    }
+  }
+  
+  if (!found || parts.length !== 2) {
+    return {
+      valid: false,
+      hint: 'Please enter a date range like "06/2023 to 08/2023" or "2023-06-01 - 2023-08-15".'
+    };
+  }
+  
+  const date1 = validateDate(parts[0]);
+  const date2 = validateDate(parts[1]);
+  
+  if (date1.valid && date2.valid) {
+    return { valid: true, normalized: `${date1.normalized} to ${date2.normalized}` };
+  }
+  
+  return {
+    valid: false,
+    hint: 'Please enter a valid date range like "06/2023 to 08/2023" or "2023-06-01 - 2023-08-15".'
+  };
+}
+
+function validateBoolean(val) {
+  const lower = val.toLowerCase();
+  if (lower === 'yes' || lower === 'no') {
+    return { valid: true, normalized: lower.charAt(0).toUpperCase() + lower.slice(1) };
+  }
+  return { valid: false, hint: 'Please answer "Yes" or "No".' };
+}
+
+function validateNumber(val) {
+  if (/^-?\d+(\.\d+)?$/.test(val)) {
+    return { valid: true, normalized: val };
+  }
+  return { valid: false, hint: 'Please enter a number (digits only, e.g., 100 or 10.50).' };
+}
+
+function validateLocation(val) {
+  if (val.length >= 3) {
+    return { valid: true, normalized: val };
+  }
+  return { valid: false, hint: 'Please enter the city, state, or best location details you can provide.' };
+}
+
+function validateEnum(val, options) {
+  const lower = val.toLowerCase();
+  const optionsLower = options.map(o => o.toLowerCase());
+  
+  if (optionsLower.includes(lower)) {
+    return { valid: true, normalized: val };
+  }
+  
+  return { valid: false, hint: `Please choose one of the listed options: ${options.join(', ')}.` };
+}
+
+function validateText(val) {
+  if (val.length >= 1) {
+    return { valid: true, normalized: val };
+  }
+  return { valid: false, hint: 'Please add a short sentence with the details.' };
+}
+
+function normalizeDate(val) {
+  // Try to normalize to YYYY-MM-DD if possible
+  
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    return val;
+  }
+  
+  // US format: MM/DD/YYYY
+  const usMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (usMatch) {
+    const [, month, day, year] = usMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
+  // Month/Year: 06/2022
+  const monthYearMatch = val.match(/^(\d{1,2})\/(\d{4})$/);
+  if (monthYearMatch) {
+    const [, month, year] = monthYearMatch;
+    return `${year}-${month.padStart(2, '0')}`;
+  }
+  
+  // Month name: Jun 2022
+  const textMonthMatch = val.match(/^([A-Za-z]{3,9})\s+(\d{4})$/);
+  if (textMonthMatch) {
+    return val; // Keep as-is, hard to parse precisely without locale knowledge
+  }
+  
+  return val;
+}
 
 // ============================================================================
 // A) DATA LOADING & CACHING
@@ -350,6 +506,10 @@ export function createInitialState(engine) {
     currentPack: null,
     currentPackIndex: 0,
     previousPrimaryId: null, // Track where we were before follow-up
+    
+    // Validation tracking
+    currentStepRetries: 0,
+    currentStepProbes: 0,
 
     // User data
     answers: {}, // { questionId: answer }
@@ -500,6 +660,8 @@ export function handlePrimaryAnswer(state, answer) {
     currentPackIndex: nextPackIndex,
     previousPrimaryId: previousPrimary,
     questionsAnswered: state.questionsAnswered + 1,
+    currentStepRetries: 0, // Reset retry counter for new step
+    currentStepProbes: 0,
     isCommitting: false,
     isComplete: nextMode === 'COMPLETE'
   });
@@ -512,7 +674,7 @@ export function handlePrimaryAnswer(state, answer) {
 }
 
 /**
- * Handle follow-up answer (step through pack)
+ * Handle follow-up answer with validation (DOES NOT ADVANCE ON INVALID)
  */
 export function handleFollowUpAnswer(state, answer) {
   if (state.isCommitting) {
@@ -537,12 +699,38 @@ export function handleFollowUpAnswer(state, answer) {
   const step = steps[currentPackIndex];
   console.log(`📋 Follow-up answer: ${currentPack.packId}:${step.Field_Key} = "${answer}"`);
 
+  // VALIDATION: Check if answer matches expected type
+  const validation = validateFollowUpAnswer(answer, step.Expected_Type || 'TEXT', step.Options);
+  
+  if (!validation.valid) {
+    console.log(`❌ Validation failed: ${validation.hint}`);
+    
+    // Append validation hint to transcript
+    let newState = appendToTranscript(state, {
+      type: 'validation_hint',
+      content: validation.hint
+    });
+    
+    // Increment retry counter
+    newState = batchUpdate(newState, {
+      currentStepRetries: state.currentStepRetries + 1,
+      isCommitting: false
+    });
+    
+    const elapsed = performance.now() - startTime;
+    console.log(`⚡ Validation failed in ${elapsed.toFixed(2)}ms - STAYING ON SAME STEP`);
+    
+    return newState;
+  }
+  
+  console.log(`✅ Validation passed: "${validation.normalized}"`);
+
   // Step 1: Append FU answer to transcript (question already there)
   let newState = appendToTranscript(state, {
     type: 'followup_answer',
     packId: currentPack.packId,
     fieldKey: step.Field_Key,
-    content: answer
+    content: validation.normalized || answer
   });
 
   // Step 2: Save to incidents
@@ -551,7 +739,7 @@ export function handleFollowUpAnswer(state, answer) {
     ...incidents,
     [packKey]: {
       ...(incidents[packKey] || {}),
-      [step.Field_Key]: answer
+      [step.Field_Key]: validation.normalized || answer
     }
   };
 
@@ -617,6 +805,8 @@ export function handleFollowUpAnswer(state, answer) {
     currentPackIndex: nextPackIndex,
     currentQuestionId: nextQuestionId,
     followUpQueue: nextMode === 'FOLLOWUP' ? [...state.followUpQueue] : state.followUpQueue,
+    currentStepRetries: 0, // Reset retry counter for new step
+    currentStepProbes: 0,
     isCommitting: false,
     isComplete: nextMode === 'COMPLETE'
   });
@@ -667,6 +857,7 @@ export function getCurrentPrompt(state) {
       id: `${state.currentPack.packId}:${step.Field_Key}`,
       text: promptText,
       responseType: step.Response_Type || 'text',
+      expectedType: step.Expected_Type || 'TEXT',
       packId: state.currentPack.packId,
       fieldKey: step.Field_Key,
       stepNumber: state.currentPackIndex + 1,
