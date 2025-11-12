@@ -10,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Building2, Users, FileText, Settings, ArrowLeft, 
-  AlertCircle, Calendar, Shield, TrendingUp 
+  AlertCircle, Calendar, Shield, TrendingUp, PlayCircle, Download
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 
 export default function DepartmentDashboard() {
   const navigate = useNavigate();
@@ -85,11 +85,88 @@ export default function DepartmentDashboard() {
     }
   };
 
+  // Fetch department users
   const { data: departmentUsers = [] } = useQuery({
     queryKey: ['department-users', department?.id],
     queryFn: () => base44.entities.User.filter({ department_id: department.id }),
     enabled: !!department
   });
+
+  // Fetch all sessions for this department
+  const { data: allSessions = [] } = useQuery({
+    queryKey: ['department-sessions', department?.department_code],
+    queryFn: () => base44.entities.InterviewSession.filter({ department_code: department.department_code }),
+    enabled: !!department?.department_code
+  });
+
+  // Fetch all responses for this department
+  const { data: allResponses = [] } = useQuery({
+    queryKey: ['department-responses', department?.department_code],
+    queryFn: async () => {
+      const sessions = await base44.entities.InterviewSession.filter({ department_code: department.department_code });
+      const sessionIds = sessions.map(s => s.id);
+      
+      // Fetch responses for all sessions
+      const responsePromises = sessionIds.map(id => 
+        base44.entities.Response.filter({ session_id: id })
+      );
+      const responsesArrays = await Promise.all(responsePromises);
+      return responsesArrays.flat();
+    },
+    enabled: !!department?.department_code
+  });
+
+  // Computed metrics
+  const metrics = React.useMemo(() => {
+    if (!allSessions.length) {
+      return {
+        openInterviews: 0,
+        completed7d: 0,
+        avgCompletion: 0,
+        followupsPending: 0
+      };
+    }
+
+    const sevenDaysAgo = subDays(new Date(), 7);
+
+    const openInterviews = allSessions.filter(s => s.status === 'in_progress').length;
+    
+    const completed7d = allSessions.filter(s => {
+      if (s.status !== 'completed') return false;
+      const updatedDate = new Date(s.updated_date || s.completed_date);
+      return updatedDate >= sevenDaysAgo;
+    }).length;
+
+    const completionPercentages = allSessions
+      .filter(s => s.completion_percentage != null)
+      .map(s => s.completion_percentage);
+    const avgCompletion = completionPercentages.length > 0
+      ? Math.round(completionPercentages.reduce((a, b) => a + b, 0) / completionPercentages.length)
+      : 0;
+
+    const followupsPending = allResponses.filter(r => r.triggered_followup && !r.is_flagged).length;
+
+    return {
+      openInterviews,
+      completed7d,
+      avgCompletion,
+      followupsPending
+    };
+  }, [allSessions, allResponses]);
+
+  // Compute department risk level
+  const deptRiskLevel = React.useMemo(() => {
+    const riskCounts = allSessions.reduce((acc, s) => {
+      if (s.risk_rating) {
+        acc[s.risk_rating] = (acc[s.risk_rating] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    if (riskCounts.elevated > 0) return 'High';
+    if (riskCounts.moderate > 2) return 'Medium';
+    return 'Low';
+  }, [allSessions]);
 
   if (!user || !department) {
     return (
@@ -117,58 +194,249 @@ export default function DepartmentDashboard() {
     department.zip_code
   ].filter(Boolean).join('\n');
 
+  // Get initials for avatar
+  const getInitials = (name) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 md:mb-8">
+        {/* Back Button */}
+        <div className="mb-4">
           <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
+            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
             </Button>
           </Link>
+        </div>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start gap-3 md:gap-4">
-              {department.logo_url && !department.use_default_branding ? (
-                <img 
-                  src={department.logo_url} 
-                  alt={department.department_name}
-                  className="w-12 h-12 md:w-16 md:h-16 object-contain flex-shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
-                  <Building2 className="w-6 h-6 md:w-8 md:h-8 text-blue-400" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white break-words">
-                  {department.department_name}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <Badge className={getPlanBadgeColor(department.plan_level)}>
-                    {department.plan_level}
-                  </Badge>
-                  <Badge variant="outline" className="text-slate-400 border-slate-600">
-                    {department.department_type}
-                  </Badge>
-                  <span className="text-slate-400 text-xs md:text-sm">
-                    {departmentUsers.length} users • {department.seats_allocated} seats
-                  </span>
-                </div>
+        {/* Department Header Card */}
+        <style>{`
+          :root { 
+            --brand: ${department.color_primary || 'rgba(120,160,255,.25)'}; 
+          }
+          .dept-header-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            background: rgba(20,24,44,.9);
+            border: 1px solid rgba(255,255,255,.08);
+            box-shadow: 0 8px 28px rgba(0,0,0,.35), 0 0 0 2px var(--brand) inset;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+          }
+          .dept-header-left {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            min-width: 0;
+            flex: 1;
+          }
+          .dept-header-logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+            border-radius: 6px;
+            background: #0e1325;
+            flex-shrink: 0;
+          }
+          .dept-header-logo-initials {
+            width: 42px;
+            height: 42px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: rgb(96, 165, 250);
+            flex-shrink: 0;
+          }
+          .dept-header-titles {
+            min-width: 0;
+            flex: 1;
+          }
+          .dept-header-name {
+            font-weight: 700;
+            font-size: 18px;
+            color: white;
+            margin-bottom: 4px;
+          }
+          .dept-header-meta, .dept-header-contact {
+            opacity: 0.8;
+            font-size: 12px;
+            color: rgb(203, 213, 225);
+          }
+          .dept-header-right {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            flex-wrap: wrap;
+          }
+          .dept-header-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .dept-header-stat-key {
+            opacity: 0.7;
+            font-size: 11px;
+            color: rgb(148, 163, 184);
+          }
+          .dept-header-stat-value {
+            font-weight: 700;
+            font-size: 16px;
+            color: white;
+          }
+          .dept-header-badges {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+          }
+          .dept-header-badge {
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            border: 1px solid rgba(255,255,255,.12);
+          }
+          .dept-header-badge.status-Active {
+            background: rgba(46,204,113,.15);
+            color: rgb(74, 222, 128);
+          }
+          .dept-header-badge.status-Suspended {
+            background: rgba(231,76,60,.15);
+            color: rgb(248, 113, 113);
+          }
+          .dept-header-badge.risk-Low {
+            background: rgba(39,174,96,.15);
+            color: rgb(74, 222, 128);
+          }
+          .dept-header-badge.risk-Medium {
+            background: rgba(241,196,15,.15);
+            color: rgb(250, 204, 21);
+          }
+          .dept-header-badge.risk-High {
+            background: rgba(231,76,60,.15);
+            color: rgb(248, 113, 113);
+          }
+          .dept-actions {
+            margin-top: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+          }
+          @media (max-width: 768px) {
+            .dept-header-card {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .dept-header-right {
+              width: 100%;
+            }
+          }
+        `}</style>
+
+        <div className="dept-header-card">
+          <div className="dept-header-left">
+            {department.logo_url && !department.use_default_branding ? (
+              <img 
+                src={department.logo_url} 
+                alt={department.department_name}
+                className="dept-header-logo"
+              />
+            ) : (
+              <div className="dept-header-logo-initials">
+                {getInitials(department.department_name)}
+              </div>
+            )}
+            <div className="dept-header-titles">
+              <div className="dept-header-name">{department.department_name}</div>
+              <div className="dept-header-meta">
+                Dept Code: {department.department_code} • Tier: {department.plan_level} • Users: {departmentUsers.length}
+              </div>
+              <div className="dept-header-contact">
+                {department.phone_number} • {department.contact_email}
               </div>
             </div>
-
-            {canEdit && (
-              <Link to={createPageUrl(`EditDepartment?id=${department.id}`)} className="w-full md:w-auto">
-                <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </Button>
-              </Link>
-            )}
           </div>
+          <div className="dept-header-right">
+            <div className="dept-header-stat">
+              <span className="dept-header-stat-key">Open</span>
+              <span className="dept-header-stat-value">{metrics.openInterviews}</span>
+            </div>
+            <div className="dept-header-stat">
+              <span className="dept-header-stat-key">Completed (7d)</span>
+              <span className="dept-header-stat-value">{metrics.completed7d}</span>
+            </div>
+            <div className="dept-header-stat">
+              <span className="dept-header-stat-key">Avg Completion</span>
+              <span className="dept-header-stat-value">{metrics.avgCompletion}%</span>
+            </div>
+            <div className="dept-header-stat">
+              <span className="dept-header-stat-key">Follow-ups</span>
+              <span className="dept-header-stat-value">{metrics.followupsPending}</span>
+            </div>
+            <div className="dept-header-badges">
+              <span className={`dept-header-badge status-${department.active_status || 'Active'}`}>
+                {department.active_status || 'Active'}
+              </span>
+              <span className={`dept-header-badge risk-${deptRiskLevel}`}>
+                {deptRiskLevel} Risk
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions Row */}
+        <div className="dept-actions">
+          <Link to={createPageUrl("InterviewDashboard")}>
+            <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
+              <FileText className="w-4 h-4 mr-2" />
+              Interviews
+            </Button>
+          </Link>
+          
+          <Button 
+            variant="outline" 
+            className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+            onClick={() => alert('User management coming soon')}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Manage Users
+          </Button>
+          
+          {canEdit && (
+            <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
+              <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
+            </Link>
+          )}
+          
+          <Link to={createPageUrl("StartInterview")}>
+            <Button variant="outline" className="bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30">
+              <PlayCircle className="w-4 h-4 mr-2" />
+              Start Interview
+            </Button>
+          </Link>
+          
+          <Button 
+            variant="outline" 
+            className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+            onClick={() => alert('Export functionality coming soon')}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
         </div>
 
         {/* Trial Expiring Warning */}
@@ -192,7 +460,7 @@ export default function DepartmentDashboard() {
           />
           <StatCard
             title="Active Users"
-            value={departmentUsers.filter(u => u.is_active).length}
+            value={departmentUsers.filter(u => u.is_active !== false).length}
             icon={Users}
             color="green"
           />
@@ -269,7 +537,7 @@ export default function DepartmentDashboard() {
                         <p className="text-slate-400 text-xs truncate">{u.email}</p>
                       </div>
                       <Badge variant="outline" className="text-xs text-slate-300 border-slate-600 whitespace-nowrap">
-                        {u.role.replace('DEPT_', '')}
+                        {u.role ? u.role.replace('DEPT_', '') : 'USER'}
                       </Badge>
                     </div>
                   ))}
