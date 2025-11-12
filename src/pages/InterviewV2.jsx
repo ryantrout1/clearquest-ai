@@ -132,6 +132,8 @@ export default function InterviewV2() {
   const historyRef = useRef(null);
   const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
+  const yesButtonRef = useRef(null);
+  const noButtonRef = useRef(null);
 
   // ============================================================================
   // INITIALIZATION
@@ -156,12 +158,14 @@ export default function InterviewV2() {
     initializeInterview();
   }, [sessionId, navigate]);
 
-  // NEW: Autofocus input when currentItem changes
+  // NEW: Enhanced autofocus - prefers Y/N buttons if present
   useEffect(() => {
-    if (currentItem && inputRef.current && !isCommitting) {
-      // Use requestAnimationFrame to ensure DOM is ready and prevent scroll issues
+    if (currentItem && !isCommitting) {
       requestAnimationFrame(() => {
-        if (inputRef.current) {
+        // Prefer Y/N buttons for yes_no questions
+        if (yesButtonRef.current) {
+          yesButtonRef.current.focus({ preventScroll: false });
+        } else if (inputRef.current) {
           inputRef.current.focus({ preventScroll: false });
         }
       });
@@ -174,6 +178,37 @@ export default function InterviewV2() {
       setTimeout(autoScrollToBottom, 150);
     }
   }, [transcript.length, autoScrollToBottom]);
+
+  // NEW: Keyboard navigation for Y/N buttons
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only apply if Yes/No buttons are currently rendered
+      if (yesButtonRef.current && noButtonRef.current) {
+        
+        // Arrow keys to switch focus between Y/N
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault(); // Prevent default scroll behavior
+          if (document.activeElement === yesButtonRef.current) {
+            noButtonRef.current.focus();
+          } else if (document.activeElement === noButtonRef.current) {
+            yesButtonRef.current.focus();
+          } else {
+            // If neither is focused, focus 'Yes' by default when arrow key is pressed
+            yesButtonRef.current.focus();
+          }
+        }
+        
+        // Space key to activate focused button
+        if (e.key === ' ' && (document.activeElement === yesButtonRef.current || document.activeElement === noButtonRef.current)) {
+          e.preventDefault(); // Prevent default space bar scroll
+          document.activeElement.click(); // Simulate a click
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [currentItem]); // Re-attach event listener if currentItem changes (e.g., from text to Y/N or vice-versa)
 
   const initializeInterview = async () => {
     try {
@@ -995,56 +1030,62 @@ export default function InterviewV2() {
           )}
         </main>
 
-        {/* Prompt Panel */}
-        <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
-          <div className="max-w-5xl mx-auto">
+        {/* UPGRADED Footer - Mobile-First Response Composer */}
+        <footer 
+          className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
+          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          role="form"
+          aria-label="Response area"
+        >
+          <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
             {isYesNoQuestion && !isFollowUpMode ? (
-              <div className="flex gap-3 mb-3">
-                <Button
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
+                <button
+                  ref={yesButtonRef}
                   type="button"
                   onClick={() => handleAnswer("Yes")}
                   disabled={isCommitting || showPauseModal}
-                  className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-                  size="lg"
+                  className="btn-yn btn-yes flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label="Answer Yes"
                 >
-                  <Check className="w-5 h-5" />
-                  <span className="font-semibold">Yes</span>
-                </Button>
-                <Button
+                  <Check className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <span>Yes</span>
+                </button>
+                <button
+                  ref={noButtonRef}
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14 focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-                  size="lg"
+                  className="btn-yn btn-no flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-red-500 hover:bg-red-600 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label="Answer No"
                 >
-                  <X className="w-5 h-5" />
-                  <span className="font-semibold">No</span>
-                </Button>
+                  <X className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <span>No</span>
+                </button>
               </div>
             ) : (
-              <form onSubmit={handleTextSubmit} className="flex gap-3 mb-3">
+              <form onSubmit={handleTextSubmit} className="flex gap-2 sm:gap-3 mb-3">
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={getPlaceholder()}
-                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900 focus:border-green-400"
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 sm:h-12 md:h-14 text-base sm:text-base md:text-lg focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-[#121c33] focus:border-green-400"
                   disabled={isCommitting || showPauseModal}
                   autoComplete="off"
                 />
                 <Button
                   type="submit"
                   disabled={!input.trim() || isCommitting || showPauseModal}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900"
-                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 h-12 sm:h-12 md:h-14 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#121c33]"
                 >
-                  <Send className="w-5 h-5 mr-2" />
-                  Send
+                  <Send className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Send</span>
                 </Button>
               </form>
             )}
             
-            <p className="text-xs text-slate-400 text-center leading-relaxed">
+            <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
             </p>
           </div>
