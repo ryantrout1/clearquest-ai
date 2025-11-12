@@ -519,8 +519,58 @@ const SKIP_RULES = {
 };
 
 // ============================================================================
-// VALIDATION HELPERS
+// VALIDATION HELPERS - ENHANCED WITH FLEXIBLE DATE PARSING
 // ============================================================================
+
+/**
+ * Flexible date parser - supports MM/DD/YYYY, YYYY-MM-DD, and "Month YYYY"
+ */
+function parseDateFlexible(raw) {
+  const s = String(raw).trim();
+
+  // 1) MM/DD/YYYY or M/D/YYYY
+  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+  
+  // 2) YYYY-MM-DD
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/;
+  
+  // 3) Month YYYY (case-insensitive) - full month names
+  const monYr = /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i;
+  
+  // 4) Short month format: Jan 2023, Feb 2023, etc. (with optional dot)
+  const shortMonYr = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\.?\s+(\d{4})$/i;
+  
+  // 5) MM/YYYY
+  const monthYear = /^(\d{1,2})\/(\d{4})$/;
+
+  let d = null;
+  
+  if (mdy.test(s)) {
+    const [, mm, dd, yyyy] = s.match(mdy);
+    d = new Date(`${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`);
+  } else if (iso.test(s)) {
+    d = new Date(s);
+  } else if (monYr.test(s)) {
+    const [, mon, yyyy] = s.match(monYr);
+    d = new Date(`${mon} 01, ${yyyy}`);
+  } else if (shortMonYr.test(s)) {
+    const [, mon, yyyy] = s.match(shortMonYr);
+    // Convert short month to full
+    const monthMap = {
+      'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
+      'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August',
+      'sep': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
+    };
+    const fullMonth = monthMap[mon.toLowerCase().slice(0, 3)];
+    // Fallback to current year if fullMonth not found (shouldn't happen with regex)
+    d = new Date(`${fullMonth || 'January'} 01, ${yyyy}`);
+  } else if (monthYear.test(s)) {
+    const [, mm, yyyy] = s.match(monthYear);
+    d = new Date(`${yyyy}-${mm.padStart(2,'0')}-01`);
+  }
+  
+  return Number.isNaN(d?.getTime()) ? null : d;
+}
 
 /**
  * Validate answer based on expected type
@@ -550,22 +600,21 @@ export function validateFollowUpAnswer(value, expectedType, options = []) {
 }
 
 function validateDate(val) {
-  // ISO: YYYY-MM-DD
-  const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(val);
+  const parsed = parseDateFlexible(val);
   
-  // US: MM/DD/YYYY or M/D/YYYY
-  const usMatch = /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val);
-  
-  // Month Year: Jun 2022, June 2022, 06/2022
-  const monthYearMatch = /^([A-Za-z]{3,9})\s+\d{4}$/.test(val) || /^\d{1,2}\/\d{4}$/.test(val);
-  
-  if (isoMatch || usMatch || monthYearMatch) {
-    return { valid: true, normalized: normalizeDate(val) };
+  if (parsed) {
+    // Normalize to YYYY-MM-DD format
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const normalized = `${year}-${month}-${day}`;
+    
+    return { valid: true, normalized };
   }
   
   return { 
     valid: false, 
-    hint: 'Please enter a date (MM/DD/YYYY, YYYY-MM-DD, or Month YYYY).'
+    hint: 'Please enter a date in MM/DD/YYYY, YYYY-MM-DD, or "Month YYYY" format (e.g., "June 2023").'
   };
 }
 
@@ -586,7 +635,7 @@ function validateDateRange(val) {
   if (!found || parts.length !== 2) {
     return {
       valid: false,
-      hint: 'Please enter a date range like "06/2023 to 08/2023" or "2023-06-01 - 2023-08-15".'
+      hint: 'Please enter a date range like "06/2023 to 08/2023" or "June 2023 - August 2023".'
     };
   }
   
@@ -599,7 +648,7 @@ function validateDateRange(val) {
   
   return {
     valid: false,
-    hint: 'Please enter a valid date range like "06/2023 to 08/2023" or "2023-06-01 - 2023-08-15".'
+    hint: 'Please enter a valid date range like "06/2023 to 08/2023" or "June 2023 - August 2023".'
   };
 }
 
@@ -612,10 +661,12 @@ function validateBoolean(val) {
 }
 
 function validateNumber(val) {
-  if (/^-?\d+(\.\d+)?$/.test(val)) {
-    return { valid: true, normalized: val };
+  // Remove commas and dollar signs for flexibility
+  const cleaned = val.replace(/[$,]/g, '');
+  if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
+    return { valid: true, normalized: cleaned };
   }
-  return { valid: false, hint: 'Please enter a number (digits only, e.g., 100 or 10.50).' };
+  return { valid: false, hint: 'Please enter a number (e.g., 100 or 10.50).' };
 }
 
 function validateLocation(val) {
@@ -641,37 +692,6 @@ function validateText(val) {
     return { valid: true, normalized: val };
   }
   return { valid: false, hint: 'Please add a short sentence with the details.' };
-}
-
-function normalizeDate(val) {
-  // Try to normalize to YYYY-MM-DD if possible
-  
-  // Already ISO
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
-    return val;
-  }
-  
-  // US format: MM/DD/YYYY
-  const usMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (usMatch) {
-    const [, month, day, year] = usMatch;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-  
-  // Month/Year: 06/2022
-  const monthYearMatch = val.match(/^(\d{1,2})\/(\d{4})$/);
-  if (monthYearMatch) {
-    const [, month, year] = monthYearMatch;
-    return `${year}-${month.padStart(2, '0')}`;
-  }
-  
-  // Month name: Jun 2022
-  const textMonthMatch = val.match(/^([A-Za-z]{3,9})\s+(\d{4})$/);
-  if (textMonthMatch) {
-    return val; // Keep as-is, hard to parse precisely without locale knowledge
-  }
-  
-  return val;
 }
 
 // ============================================================================

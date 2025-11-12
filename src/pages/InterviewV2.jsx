@@ -113,12 +113,13 @@ export default function InterviewV2() {
   const [input, setInput] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
+  const [validationHint, setValidationHint] = useState(null); // NEW: Track active validation hint
 
   // Refs
   const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
   const displayOrderRef = useRef(0); // Track display order for responses
-  const inputRef = useRef(null); // NEW: Ref for input field
+  const inputRef = useRef(null); // Ref for input field
 
   // ============================================================================
   // INITIALIZATION WITH RESUME SUPPORT
@@ -269,21 +270,33 @@ export default function InterviewV2() {
       
       // For each follow-up pack, add to transcript
       Object.values(followupsByResponse).forEach(fuGroup => {
+        // Sort follow-up responses by their step_index to replay in order
+        fuGroup.sort((a, b) => (a.additional_details?.step_index || 0) - (b.additional_details?.step_index || 0));
+
         fuGroup.forEach(fu => {
-          if (fu.incident_description) {
-            // Add follow-up question to transcript
-            state = appendToTranscript(state, {
-              type: 'followup_question',
-              packId: fu.followup_pack,
-              content: "Follow-up details"
-            });
-            
-            // Add follow-up answer to transcript
-            state = appendToTranscript(state, {
-              type: 'followup_answer',
-              packId: fu.followup_pack,
-              content: fu.incident_description
-            });
+          // Reconstruct the individual answer for each step
+          const stepIndex = fu.additional_details?.step_index;
+          const stepField = fu.additional_details?.step_field;
+          const stepAnswer = stepField ? fu.additional_details?.[stepField] : fu.incident_description;
+
+          if (stepAnswer !== undefined) { // Check for undefined, null might be a valid answer
+            const pack = engine.PackStepsById[fu.followup_pack];
+            const step = pack?.[stepIndex];
+            if (step) {
+              // Add follow-up question to transcript
+              state = appendToTranscript(state, {
+                type: 'followup_question',
+                packId: fu.followup_pack,
+                content: step.Question_Text
+              });
+              
+              // Add follow-up answer to transcript
+              state = appendToTranscript(state, {
+                type: 'followup_answer',
+                packId: fu.followup_pack,
+                content: stepAnswer
+              });
+            }
           }
         });
       });
@@ -320,7 +333,7 @@ export default function InterviewV2() {
   // ANSWER SUBMISSION (NO AI, NO REFRESH, PURE STATE UPDATE)
   // ============================================================================
 
-  const handleAnswer = useCallback(async (value) => { // Made async here
+  const handleAnswer = useCallback(async (value) => {
     // RULE: Guard against double-submit
     if (isCommittingRef.current || !interviewState) {
       console.warn('⚠️ Already committing or no state');
@@ -331,6 +344,9 @@ export default function InterviewV2() {
     const startTime = performance.now();
 
     try {
+      // Clear any previous validation hint
+      setValidationHint(null);
+      
       // RULE: Route based on current mode
       let newState;
       
@@ -338,16 +354,40 @@ export default function InterviewV2() {
         console.log(`📝 Primary answer: "${value}"`);
         newState = handlePrimaryAnswer(interviewState, value);
         
-        // CRITICAL FIX: Save to DB immediately (with display order)
+        // Save to DB immediately
         await saveAnswerToDatabase(interviewState.currentQuestionId, value, 'primary').catch(err => {
           console.error('⚠️ Database save failed (non-fatal):', err);
         });
         
       } else if (interviewState.currentMode === 'FOLLOWUP') {
         console.log(`📋 Follow-up answer: "${value}"`);
+        
+        // Get validation result before processing
+        const { currentPack, currentPackIndex } = interviewState;
+        const steps = interviewState.engine.PackStepsById[currentPack.packId];
+        const step = steps[currentPackIndex];
+        const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
+        
+        if (!validation.valid) {
+          // NEW: Set validation hint state instead of adding to transcript
+          console.log(`❌ Validation failed - showing hint in active card`);
+          setValidationHint(validation.hint);
+          isCommittingRef.current = false;
+          
+          // Refocus input after a short delay
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.focus();
+            }
+          }, 100);
+          
+          return; // Don't process further
+        }
+        
+        // Valid answer - process normally
         newState = handleFollowUpAnswer(interviewState, value);
         
-        // CRITICAL FIX: Save follow-up to DB immediately
+        // Save follow-up to DB
         await saveFollowUpAnswer(value).catch(err => {
           console.error('⚠️ Follow-up save failed (non-fatal):', err);
         });
@@ -355,7 +395,6 @@ export default function InterviewV2() {
         // Check if we need AI probe (after 1 failed attempt and max 2 probes)
         if (newState.currentStepRetries >= 1 && newState.currentStepProbes < 2 && 
             newState.currentPackIndex === interviewState.currentPackIndex) {
-          // Still on same step after validation failure - trigger AI probe
           console.log(`🤖 Triggering AI probe (retry: ${newState.currentStepRetries}, probes: ${newState.currentStepProbes})`);
           triggerAIProbe(newState, value).catch(err => {
             console.error('⚠️ AI probe failed:', err);
@@ -402,7 +441,7 @@ export default function InterviewV2() {
     // Process answer
     handleAnswer(answer);
     
-    // NEW: Refocus input after a short delay to ensure it's ready for next question
+    // Refocus input after a short delay to ensure it's ready for next question
     setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.focus();
@@ -704,6 +743,7 @@ Field details: ${JSON.stringify(probePrompt)}`,
   const progress = getProgress(interviewState);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = interviewState.currentMode === 'FOLLOWUP';
+  const requiresClarification = validationHint !== null; // NEW: Check if we need to show clarification
   
   // Helper to extract just the number from question ID (e.g., Q001 -> 1)
   const getQuestionNumber = (questionId) => {
@@ -778,15 +818,17 @@ Field details: ${JSON.stringify(probePrompt)}`,
                 </Alert>
               )}
               
-              {/* Render transcript history */}
-              {interviewState.transcript.map((entry) => (
-                <TranscriptEntry 
-                  key={entry.id} 
-                  entry={entry} 
-                  getQuestionNumber={getQuestionNumber}
-                  getFollowUpPackName={getFollowUpPackName}
-                />
-              ))}
+              {/* Render transcript history - FILTER OUT validation hints */}
+              {interviewState.transcript
+                .filter(entry => entry.type !== 'validation_hint' && entry.type !== 'ai_clarification')
+                .map((entry) => (
+                  <TranscriptEntry 
+                    key={entry.id} 
+                    entry={entry} 
+                    getQuestionNumber={getQuestionNumber}
+                    getFollowUpPackName={getFollowUpPackName}
+                  />
+                ))}
             </div>
           </div>
 
@@ -795,14 +837,27 @@ Field details: ${JSON.stringify(probePrompt)}`,
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
-                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl"
+                  className={requiresClarification 
+                    ? "bg-purple-950/95 border-2 border-purple-500/50 rounded-xl p-6 shadow-2xl"
+                    : "bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl"
+                  }
                   style={{
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(59, 130, 246, 0.2) inset'
+                    boxShadow: requiresClarification
+                      ? '0 12px 36px rgba(0,0,0,0.55), 0 0 0 3px rgba(200,160,255,0.30) inset'
+                      : '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(59, 130, 246, 0.2) inset'
                   }}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-600/30 flex items-center justify-center flex-shrink-0 border border-blue-500/50">
-                      {isFollowUpMode ? (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                      requiresClarification 
+                        ? 'bg-purple-600/30 border-purple-500/50'
+                        : isFollowUpMode 
+                          ? 'bg-orange-600/30 border-orange-500/50'
+                          : 'bg-blue-600/30 border-blue-500/50'
+                    }`}>
+                      {requiresClarification ? (
+                        <AlertCircle className="w-4 h-4 text-purple-400" />
+                      ) : isFollowUpMode ? (
                         <Layers className="w-4 h-4 text-orange-400" />
                       ) : (
                         <Shield className="w-4 h-4 text-blue-400" />
@@ -810,7 +865,17 @@ Field details: ${JSON.stringify(probePrompt)}`,
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        {isFollowUpMode ? (
+                        {requiresClarification ? (
+                          <>
+                            <span className="text-xs font-semibold text-purple-400">
+                              Clarification Needed
+                            </span>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-purple-300">
+                              {getFollowUpPackName(currentPrompt.packId)}
+                            </span>
+                          </>
+                        ) : isFollowUpMode ? (
                           <>
                             <span className="text-xs font-semibold text-orange-400">
                               Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
@@ -835,6 +900,16 @@ Field details: ${JSON.stringify(probePrompt)}`,
                       <p className="text-white text-lg font-semibold leading-relaxed">
                         {currentPrompt.text}
                       </p>
+                      
+                      {/* NEW: Show validation hint directly in active card */}
+                      {validationHint && (
+                        <div className="mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3" role="alert">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-yellow-200 text-sm leading-relaxed">{validationHint}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -949,6 +1024,55 @@ Field details: ${JSON.stringify(probePrompt)}`,
 }
 
 // ============================================================================
+// CLIENT-SIDE VALIDATION FOR FOLLOW-UP ANSWERS
+// ============================================================================
+const validateFollowUpAnswer = (value, expectedType, options) => {
+  if (!value.trim()) {
+    return { valid: false, hint: 'Please provide a response.' };
+  }
+
+  switch (expectedType) {
+    case 'TEXT':
+    case 'LOCATION':
+      return { valid: true }; // Any text is valid
+    case 'NUMBER':
+      if (!/^\d+(\.\d+)?$/.test(value.trim())) { // Allows integers and decimals
+        return { valid: false, hint: 'Please enter a valid number (e.g., "10", "3.5").' };
+      }
+      return { valid: true };
+    case 'DATE':
+      // Basic date validation: checks if it can be parsed as a date
+      // This is lenient, a real application might use a date picker or more strict regex
+      const date = new Date(value.trim());
+      if (isNaN(date.getTime())) { // getTime() returns NaN for invalid dates
+        return { valid: false, hint: 'Please enter a valid date (e.g., "MM/DD/YYYY" or "YYYY-MM-DD").' };
+      }
+      return { valid: true };
+    case 'BOOLEAN':
+      const lowerValue = value.toLowerCase();
+      if (lowerValue !== 'yes' && lowerValue !== 'no') {
+        return { valid: false, hint: 'Please answer "Yes" or "No".' };
+      }
+      return { valid: true };
+    case 'DATERANGE':
+      // Basic date range validation: checks for common separators like 'to' or '-'
+      // This could be made more robust with regex for specific date formats
+      if (!/(to|-)/i.test(value.trim())) {
+        return { valid: false, hint: 'Please enter a valid date range (e.g., "MM/YYYY to MM/YYYY" or "YYYY-MM-DD - YYYY-MM-DD").' };
+      }
+      return { valid: true };
+    case 'ENUM':
+      if (options && !options.map(o => o.toLowerCase()).includes(value.toLowerCase())) {
+        return { valid: false, hint: `Please select one of the following: ${options.join(', ')}.` };
+      }
+      return { valid: true };
+    default:
+      return { valid: true }; // Default to valid if type is unknown or not explicitly handled
+  }
+};
+
+
+// ============================================================================
 // TRANSCRIPT ENTRY COMPONENT
 // ============================================================================
 
@@ -1029,42 +1153,6 @@ function TranscriptEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
     );
   }
 
-  // NEW: Validation hint
-  if (entry.type === 'validation_hint') {
-    return (
-      <div className="flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl px-4 py-2 max-w-xl">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-            <p className="text-yellow-200 text-sm">{entry.content}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // NEW: AI clarification
-  if (entry.type === 'ai_clarification') {
-    return (
-      <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <div className="flex items-start gap-3">
-          <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-            <Layers className="w-3.5 h-3.5 text-purple-400" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-semibold text-purple-400">
-                Clarification
-              </span>
-            </div>
-            <p className="text-white leading-relaxed">
-              {entry.content}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // validation_hint and ai_clarification are now handled by the active question card.
   return null;
 }
