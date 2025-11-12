@@ -616,7 +616,7 @@ Field details: ${JSON.stringify(probePrompt)}`,
                     </>
                   )}
                 </div>
-                <p className="text-white text-sm">{currentPrompt.text}</p>
+                <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
               </div>
             )}
 
