@@ -1060,6 +1060,92 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'source', Prompt: 'How did you obtain them?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'purpose', Prompt: 'What was the purpose?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'prescription', Prompt: 'Did you have a prescription?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
+  ],
+
+  // Q100-Q162 Remaining Packs
+  'PACK_WORKERS_COMP': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'employer', Prompt: 'Which employer?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_falsified', Prompt: 'What information did you falsify?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_OTHER_EMPLOYMENT': [
+    { Field_Key: 'issue_description', Prompt: 'Describe the employment issue.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'employer', Prompt: 'Which employer?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PRIOR_LE': [
+    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'dates_employed', Prompt: 'What were the dates you were employed there?', Response_Type: 'text', Expected_Type: 'DATERANGE' },
+    { Field_Key: 'position', Prompt: 'What was your position?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason_leaving', Prompt: 'What was your reason for leaving?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'eligible_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
+  ],
+
+  'PACK_LE_TERMINATED': [
+    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'termination_date', Prompt: 'When were you terminated?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'reason', Prompt: 'What was the reason for termination?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_LE_RESIGNED': [
+    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'resignation_date', Prompt: 'When did you resign?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'reason', Prompt: 'What was the reason for resignation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation_pending', Prompt: 'Was there an investigation pending?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_LE_DISCIPLINE': [
+    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'nature_discipline', Prompt: 'What type of discipline?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'What was the reason?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_USE_FORCE_REVIEW': [
+    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'review_outcome', Prompt: 'What was the outcome of the review?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CITIZENSHIP_ISSUE': [
+    { Field_Key: 'issue_description', Prompt: 'Describe the citizenship issue.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'current_status', Prompt: 'What is your current citizenship status?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'resolution', Prompt: 'How is this being resolved?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DISHONORABLE_CONDUCT': [
+    { Field_Key: 'conduct_description', Prompt: 'Describe the conduct that could cause embarrassment.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SWORN_STATEMENT': [
+    { Field_Key: 'statement_description', Prompt: 'Describe the statement you need to correct or clarify.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_made', Prompt: 'When was the statement made?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'what_incorrect', Prompt: 'What was incorrect or needs clarification?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_incorrect', Prompt: 'Why was it incorrect?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_REFERENCE_ISSUE': [
+    { Field_Key: 'reference_name', Prompt: 'Who is the reference?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'issue_description', Prompt: 'What issue might they mention?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_explanation', Prompt: 'What is your explanation?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ADDITIONAL_INFO': [
+    { Field_Key: 'information_description', Prompt: 'What additional information do you need to provide?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_relevant', Prompt: 'Why is this information relevant?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ]
 };
 
