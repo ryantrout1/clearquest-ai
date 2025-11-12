@@ -121,7 +121,7 @@ export default function InterviewV2() {
   // Refs
   const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
-  const displayOrderRef.current = 0;
+  const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
 
   // ============================================================================
