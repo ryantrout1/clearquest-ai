@@ -118,6 +118,7 @@ export default function InterviewV2() {
   const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
   const displayOrderRef = useRef(0); // Track display order for responses
+  const inputRef = useRef(null); // NEW: Ref for input field
 
   // ============================================================================
   // INITIALIZATION WITH RESUME SUPPORT
@@ -400,6 +401,13 @@ export default function InterviewV2() {
 
     // Process answer
     handleAnswer(answer);
+    
+    // NEW: Refocus input after a short delay to ensure it's ready for next question
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 100);
 
   }, [input, handleAnswer]);
 
@@ -864,6 +872,7 @@ Field details: ${JSON.stringify(probePrompt)}`,
             ) : (
               <form onSubmit={handleTextSubmit} className="flex gap-3 mb-3">
                 <Input
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
