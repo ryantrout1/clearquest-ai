@@ -550,30 +550,20 @@ export default function InterviewV2() {
   const saveFollowUpAnswer = async (packId, fieldKey, answer) => {
     try {
       // Find the *original* triggering response to associate this follow-up with.
-      // This is a bit tricky with the new snapshot logic. We assume the last primary question
-      // that triggered this pack is the one.
-      const primaryResponses = transcript.filter(t => t.type === 'question' && engine?.QById[t.questionId]?.followup_pack === packId);
-      
-      if (primaryResponses.length === 0) {
-        console.error(`❌ No triggering primary question found in transcript for pack ${packId}`);
-        return;
-      }
-
-      // We need the actual DB entity ID of the triggering primary question, not just its transcript ID.
-      // This implies we should ideally query for it based on session_id and question_id
-      const dbTriggeringResponses = await base44.entities.Response.filter({
+      // This is a bit tricky with the new snapshot logic. We query for it based on session_id
+      // and the packId, assuming the latest such response is the correct trigger.
+      const responses = await base44.entities.Response.filter({
         session_id: sessionId,
-        question_id: primaryResponses[primaryResponses.length - 1].questionId, // Get questionId from last primary response in transcript
         followup_pack: packId,
         triggered_followup: true
       });
       
-      if (dbTriggeringResponses.length === 0) {
-        console.error(`❌ No triggering response entity found in DB for pack ${packId} and question ID ${primaryResponses[primaryResponses.length - 1].questionId}`);
+      if (responses.length === 0) {
+        console.error(`❌ No triggering response found for pack ${packId}`);
         return;
       }
-
-      const triggeringResponse = dbTriggeringResponses[dbTriggeringResponses.length - 1]; // Use the latest one if multiple for some reason
+      
+      const triggeringResponse = responses[responses.length - 1]; // Use the latest one
       
       // Now check if a FollowUpResponse for this pack and triggering response already exists
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
@@ -649,18 +639,12 @@ export default function InterviewV2() {
   };
 
   const handleCopyDetails = async () => {
-    const text = `Dept Code: ${session?.department_code}\nFile Number: ${session?.file_number}`;
+    const text = `Dept Code: ${session?.department_code} | File: ${session?.file_number}`;
     try {
       await navigator.clipboard.writeText(text);
-      toast.success('Details copied to clipboard', {
-        duration: 2000,
-        icon: <Copy className="w-4 h-4" />
-      });
+      toast.success('Details copied to clipboard');
     } catch (err) {
-      toast.error('Failed to copy to clipboard', {
-        duration: 2000,
-        icon: <XCircle className="w-4 h-4" />
-      });
+      toast.error('Failed to copy to clipboard');
     }
   };
 
@@ -672,10 +656,7 @@ export default function InterviewV2() {
       // If window.close() actually closed the window, this line won't be reached.
     } catch (e) {
       // If window.close() failed (e.g., due to browser security), show a toast.
-      toast.info('You can now safely close this browser tab. Use your Dept Code and File Number to resume later.', {
-        duration: 5000,
-        icon: <XCircle className="w-4 h-4" />
-      });
+      toast.info('You can now close this tab. Use your Dept Code and File Number to resume later.');
     }
   };
 
@@ -773,37 +754,29 @@ export default function InterviewV2() {
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        {/* Header with Pause Button */}
+        {/* REDESIGNED Header - Clean & Informative */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-2">
+            {/* Top Row: Logo + Pause Button */}
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <Shield className="w-6 h-6 text-blue-400" />
                 <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
               </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handlePauseClick}
-                  className="text-slate-300 hover:text-white hover:bg-slate-700 flex items-center gap-2"
-                >
-                  <Pause className="w-4 h-4" />
-                  <span className="hidden sm:inline">Pause</span>
-                </Button>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-white">
-                    {answeredCount} / {totalQuestions}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {progress}% Complete
-                  </div>
-                </div>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePauseClick}
+                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-2"
+              >
+                <Pause className="w-4 h-4" />
+                <span>Pause</span>
+              </Button>
             </div>
             
+            {/* Department Info Row */}
             {department && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2 pb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="font-medium text-slate-300">{department.department_name}</span>
                 </div>
@@ -821,7 +794,7 @@ export default function InterviewV2() {
             )}
             
             {/* Progress Bar */}
-            <div className="mt-3">
+            <div className="mt-2">
               <div 
                 className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
@@ -838,10 +811,12 @@ export default function InterviewV2() {
                   }}
                 />
               </div>
-              <div className="flex justify-between items-center mt-1.5">
+              {/* Progress Stats - Right Aligned */}
+              <div className="flex justify-end items-center gap-2 mt-1.5">
                 <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
-                <span className="text-xs text-slate-500">Question {answeredCount} of {totalQuestions}</span>
                 <span className="text-xs font-medium text-green-400">{progress}% Complete</span>
+                <span className="text-xs text-green-400">•</span>
+                <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
               </div>
             </div>
           </div>
