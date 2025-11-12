@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -26,6 +25,74 @@ import {
   PERF_MONITOR
 } from "../components/interviewEngine";
 
+// Follow-up pack display names
+const FOLLOWUP_PACK_NAMES = {
+  'PACK_LE_APPS': 'Applications with Other Law Enforcement Agencies',
+  'PACK_WITHHOLD_INFO': 'Withheld Information',
+  'PACK_DISQUALIFIED': 'Prior Disqualification',
+  'PACK_CHEATING': 'Test Cheating',
+  'PACK_DUI': 'DUI Incident',
+  'PACK_LICENSE_SUSPENSION': 'License Suspension',
+  'PACK_RECKLESS_DRIVING': 'Reckless Driving',
+  'PACK_DRIVE_NO_INSURANCE': 'Driving Without Insurance',
+  'PACK_COLLISION': 'Vehicle Collision',
+  'PACK_COLLISION_INJURY': 'Collision with Injuries',
+  'PACK_ALCOHOL_COLLISION': 'Alcohol-Related Collision',
+  'PACK_UNREPORTED_COLLISION': 'Unreported Collision',
+  'PACK_HIT_RUN': 'Hit and Run Incident',
+  'PACK_HIT_RUN_DAMAGE': 'Hit and Run Damage Details',
+  'PACK_FIGHT': 'Physical Fight Incident',
+  'PACK_ARREST': 'Arrest History',
+  'PACK_CRIMINAL_CHARGE': 'Criminal Charge',
+  'PACK_FELONY': 'Felony History',
+  'PACK_WARRANT': 'Outstanding Warrant',
+  'PACK_PROTECTIVE_ORDER': 'Protective Order',
+  'PACK_GANG': 'Gang Affiliation',
+  'PACK_WEAPON_VIOLATION': 'Weapons Violation',
+  'PACK_EXTREMIST': 'Extremist Organization Involvement',
+  'PACK_PROSTITUTION': 'Prostitution Involvement',
+  'PACK_PORNOGRAPHY': 'Pornography Involvement',
+  'PACK_HARASSMENT': 'Sexual Harassment',
+  'PACK_ASSAULT': 'Sexual Assault',
+  'PACK_MINOR_CONTACT': 'Contact with Minor',
+  'PACK_FINANCIAL': 'Financial Issue',
+  'PACK_BANKRUPTCY': 'Bankruptcy',
+  'PACK_FORECLOSURE': 'Foreclosure',
+  'PACK_REPOSSESSION': 'Property Repossession',
+  'PACK_LAWSUIT': 'Civil Lawsuit',
+  'PACK_LATE_PAYMENT': 'Late Payments',
+  'PACK_GAMBLING': 'Gambling Problem',
+  'PACK_DRUG_USE': 'Drug Use History',
+  'PACK_DRUG_SALE': 'Drug Sales',
+  'PACK_PRESCRIPTION_MISUSE': 'Prescription Medication Misuse',
+  'PACK_ALCOHOL_DEPENDENCY': 'Alcohol Dependency',
+  'PACK_ALCOHOL_INCIDENT': 'Alcohol-Related Incident',
+  'PACK_MIL_DISCHARGE': 'Military Discharge',
+  'PACK_MIL_DISCIPLINE': 'Military Discipline',
+  'PACK_DISCIPLINE': 'Workplace Discipline',
+  'PACK_WORK_DISCIPLINE': 'Employment Discipline',
+  'PACK_FIRED': 'Employment Termination',
+  'PACK_QUIT_AVOID': 'Resignation to Avoid Discipline',
+  'PACK_DRUG_TEST_CHEAT': 'Drug Test Tampering',
+  'PACK_FALSE_APPLICATION': 'False Employment Application',
+  'PACK_MISUSE_RESOURCES': 'Misuse of Employer Resources',
+  'PACK_THEFT': 'Theft Incident',
+  'PACK_UNEMPLOYMENT_FRAUD': 'Unemployment Fraud',
+  'PACK_LE_PREV': 'Prior Law Enforcement Employment',
+  'PACK_ACCUSED_FORCE': 'Excessive Force Accusation',
+  'PACK_GRATUITY': 'Gratuity Acceptance',
+  'PACK_FALSIFY_REPORT': 'Falsified Report',
+  'PACK_INTERNAL_AFFAIRS': 'Internal Affairs Investigation',
+  'PACK_LYING_LE': 'Untruthfulness in Law Enforcement',
+  'PACK_LE_COMPLAINT': 'Law Enforcement Complaint',
+  'PACK_OTHER_PRIOR_LE': 'Other Prior Law Enforcement Issues',
+  'PACK_EMBARRASSMENT': 'Potential Embarrassment',
+  'PACK_TATTOO': 'Visible Tattoo',
+  'PACK_SOCIAL_MEDIA': 'Social Media Content',
+  'PACK_DOMESTIC': 'Domestic Violence',
+  'PACK_TRAFFIC': 'Traffic Violation'
+};
+
 /**
  * InterviewV2 - Zero-refresh, zero-AI question routing
  * Instant responses, pure deterministic flow
@@ -46,7 +113,7 @@ export default function InterviewV2() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
 
   // Refs
-  const transcriptRef = useRef(null);
+  const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
 
   // ============================================================================
@@ -204,25 +271,18 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // AUTO-SCROLL (requestAnimationFrame)
+  // AUTO-SCROLL
   // ============================================================================
 
   const autoScrollToBottom = useCallback(() => {
-    if (!transcriptRef.current) return;
+    if (!historyRef.current) return;
     
     requestAnimationFrame(() => {
-      if (transcriptRef.current) {
-        transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+      if (historyRef.current) {
+        historyRef.current.scrollTop = historyRef.current.scrollHeight;
       }
     });
   }, []);
-
-  // Auto-scroll after transcript updates
-  useEffect(() => {
-    if (interviewState?.transcript.length) {
-      autoScrollToBottom();
-    }
-  }, [interviewState?.transcript.length, autoScrollToBottom]);
 
   // Check for completion
   useEffect(() => {
@@ -286,7 +346,7 @@ export default function InterviewV2() {
       isCommittingRef.current = false;
 
       // RULE: Auto-scroll after commit
-      setTimeout(autoScrollToBottom, 50);
+      setTimeout(autoScrollToBottom, 100);
 
       const elapsed = performance.now() - startTime;
       console.log(`⚡ Processed in ${elapsed.toFixed(2)}ms`);
@@ -496,10 +556,15 @@ Field details: ${JSON.stringify(probePrompt)}`,
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = interviewState.currentMode === 'FOLLOWUP';
   
-  // Helper to extract just the number from question ID (Q001 -> 1)
+  // Helper to extract just the number from question ID (e.g., Q001 -> 1)
   const getQuestionNumber = (questionId) => {
     if (!questionId) return '';
     return questionId.replace(/^Q0*/, '');
+  };
+
+  // Get follow-up pack display name
+  const getFollowUpPackName = (packId) => {
+    return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
   };
 
   return (
@@ -523,105 +588,96 @@ Field details: ${JSON.stringify(probePrompt)}`,
           </div>
         </header>
 
-        {/* Transcript Panel (NO RE-MOUNT) */}
-        <main 
-          ref={transcriptRef}
-          className="flex-1 overflow-y-auto"
-        >
-          <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
-            {/* Show resume message if returning user */}
-            {progress.answered > 0 && interviewState.transcript.length > 0 && (
-              <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  <strong>Welcome back!</strong> You've completed {progress.answered} of {progress.total} questions. 
-                  Continuing from where you left off...
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {/* Render transcript history */}
-            {interviewState.transcript.map((entry) => (
-              <TranscriptEntry key={entry.id} entry={entry} getQuestionNumber={getQuestionNumber} />
-            ))}
+        {/* Main Content - Split into History + Active Question */}
+        <main className="flex-1 overflow-hidden flex flex-col">
+          {/* Chat History (Scrollable) */}
+          <div 
+            ref={historyRef}
+            className="flex-1 overflow-y-auto px-4 py-6"
+            style={{ paddingBottom: '24px' }}
+          >
+            <div className="max-w-5xl mx-auto space-y-4">
+              {/* Show resume message if returning user */}
+              {progress.answered > 0 && interviewState.transcript.length > 0 && (
+                <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>Welcome back!</strong> You've completed {progress.answered} of {progress.total} questions. 
+                    Continuing from where you left off...
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Render transcript history */}
+              {interviewState.transcript.map((entry) => (
+                <TranscriptEntry 
+                  key={entry.id} 
+                  entry={entry} 
+                  getQuestionNumber={getQuestionNumber}
+                  getFollowUpPackName={getFollowUpPackName}
+                />
+              ))}
+            </div>
+          </div>
 
-            {/* Current Question (stays visible while answering) */}
-            {currentPrompt && interviewState.transcript.length === 0 && (
-              <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 animate-in fade-in duration-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-                    {isFollowUpMode ? (
-                      <Layers className="w-4 h-4 text-orange-400" />
-                    ) : (
-                      <Shield className="w-4 h-4 text-blue-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+          {/* Active Question (Fixed at Bottom) */}
+          {currentPrompt && (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(59, 130, 246, 0.2) inset'
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-600/30 flex items-center justify-center flex-shrink-0 border border-blue-500/50">
                       {isFollowUpMode ? (
-                        <>
-                          <span className="text-xs font-semibold text-orange-400">
-                            Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
-                          </span>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-slate-400">
-                            {currentPrompt.packId}
-                          </span>
-                        </>
+                        <Layers className="w-4 h-4 text-orange-400" />
                       ) : (
-                        <>
-                          <span className="text-xs font-semibold text-blue-400">
-                            {getQuestionNumber(currentPrompt.id)}
-                          </span>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-slate-400">
-                            {currentPrompt.category}
-                          </span>
-                        </>
+                        <Shield className="w-4 h-4 text-blue-400" />
                       )}
                     </div>
-                    <p className="text-white text-lg leading-relaxed">
-                      {currentPrompt.text}
-                    </p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {isFollowUpMode ? (
+                          <>
+                            <span className="text-xs font-semibold text-orange-400">
+                              Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                            </span>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-orange-300">
+                              {getFollowUpPackName(currentPrompt.packId)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs font-semibold text-blue-400">
+                              Question {getQuestionNumber(currentPrompt.id)}
+                            </span>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-slate-400">
+                              {currentPrompt.category}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-white text-lg font-semibold leading-relaxed">
+                        {currentPrompt.text}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </main>
 
         {/* Prompt Panel (Fixed at Bottom) */}
         <footer className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4">
           <div className="max-w-5xl mx-auto">
-            {/* Show current question text at bottom */}
-            {currentPrompt && interviewState.transcript.length > 0 && (
-              <div className={`mb-3 p-3 rounded-lg border ${
-                isFollowUpMode 
-                  ? 'bg-orange-950/30 border-orange-800/50' 
-                  : 'bg-slate-900/50 border-slate-700'
-              }`}>
-                <div className="flex items-center gap-2 mb-1">
-                  {isFollowUpMode ? (
-                    <>
-                      <Layers className="w-3.5 h-3.5 text-orange-400" />
-                      <span className="text-xs font-semibold text-orange-400">
-                        Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs font-semibold text-blue-400">{getQuestionNumber(currentPrompt.id)}</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-slate-400">{currentPrompt.category}</span>
-                    </>
-                  )}
-                </div>
-                <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
-              </div>
-            )}
-
             {isYesNoQuestion && !isFollowUpMode ? (
-              <div className="flex gap-3">
+              <div className="flex gap-3 mb-3">
                 <Button
                   type="button"
                   onClick={() => handleAnswer("Yes")}
@@ -644,7 +700,7 @@ Field details: ${JSON.stringify(probePrompt)}`,
                 </Button>
               </div>
             ) : (
-              <form onSubmit={handleTextSubmit} className="flex gap-3">
+              <form onSubmit={handleTextSubmit} className="flex gap-3 mb-3">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -666,12 +722,9 @@ Field details: ${JSON.stringify(probePrompt)}`,
               </form>
             )}
             
-            <p className="text-xs text-slate-400 text-center mt-3">
-              {isFollowUpMode ? (
-                <>⚡ Follow-up mode • Zero AI • Instant responses</>
-              ) : (
-                <>⚡ You can leave anytime and continue later • All progress saved</>
-              )}
+            <p className="text-xs text-slate-400 text-center leading-relaxed">
+              Once you submit an answer, it cannot be changed.<br />
+              Please contact your assigned investigator after the interview if any corrections are needed.
             </p>
           </div>
         </footer>
@@ -728,10 +781,10 @@ Field details: ${JSON.stringify(probePrompt)}`,
 // TRANSCRIPT ENTRY COMPONENT
 // ============================================================================
 
-function TranscriptEntry({ entry, getQuestionNumber }) {
+function TranscriptEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
-      <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85 animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="flex items-start gap-3">
           <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
             <Shield className="w-3.5 h-3.5 text-blue-400" />
@@ -739,7 +792,7 @@ function TranscriptEntry({ entry, getQuestionNumber }) {
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-xs font-semibold text-blue-400">
-                {getQuestionNumber(entry.questionId)}
+                Question {getQuestionNumber(entry.questionId)}
               </span>
               <span className="text-xs text-slate-500">•</span>
               <span className="text-xs text-slate-400">
@@ -769,7 +822,7 @@ function TranscriptEntry({ entry, getQuestionNumber }) {
 
   if (entry.type === 'followup_question') {
     return (
-      <div className="bg-orange-950/20 border border-orange-800/50 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className="bg-orange-950/30 border border-orange-800/50 rounded-xl p-5 opacity-85 animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="flex items-start gap-3">
           <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
             <Layers className="w-3.5 h-3.5 text-orange-400" />
@@ -780,8 +833,8 @@ function TranscriptEntry({ entry, getQuestionNumber }) {
                 Follow-up
               </span>
               <span className="text-xs text-slate-500">•</span>
-              <span className="text-xs text-slate-400">
-                {entry.packId}
+              <span className="text-xs text-orange-300">
+                {getFollowUpPackName(entry.packId)}
               </span>
             </div>
             <p className="text-white leading-relaxed">
