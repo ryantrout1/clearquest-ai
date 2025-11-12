@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -124,6 +123,7 @@ export default function InterviewV2() {
 
   // Refs
   const historyRef = useRef(null);
+  const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
 
   // ============================================================================
@@ -181,6 +181,7 @@ export default function InterviewV2() {
         });
         
         if (existingResponses.length > 0) {
+          displayOrderRef.current = existingResponses.length;
           console.log('🔄 Restoring from Response entities...');
           await restoreFromResponses(engineData, existingResponses);
         } else {
@@ -406,7 +407,8 @@ export default function InterviewV2() {
         setQueue(updatedQueue);
         setCurrentItem(nextItem);
         
-        // Save to Response entity (for backwards compatibility)
+        // Save to DB via snapshots (primary) AND Response entity (for backwards compatibility)
+        await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         await saveAnswerToDatabase(currentItem.id, value, question);
         
         if (!nextItem) {
@@ -459,16 +461,14 @@ export default function InterviewV2() {
         setQueue(updatedQueue);
         setCurrentItem(nextItem);
         
-        // Save to FollowUpResponse entity (for backwards compatibility)
+        // Save to DB via snapshots (primary) AND FollowUpResponse entity (for backwards compatibility)
+        await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value);
         
         if (!nextItem) {
           setShowCompletionModal(true);
         }
       }
-
-      // PERSIST STATE TO DATABASE (atomic) after successful state updates
-      await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
 
       setIsCommitting(false);
       setInput("");
@@ -506,6 +506,7 @@ export default function InterviewV2() {
         return;
       }
       
+      const currentDisplayOrder = displayOrderRef.current++;
       const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
       
       await base44.entities.Response.create({
@@ -520,6 +521,7 @@ export default function InterviewV2() {
         is_flagged: false,
         flag_reason: null,
         response_timestamp: new Date().toISOString(),
+        display_order: currentDisplayOrder
       });
 
     } catch (err) {
@@ -706,7 +708,7 @@ export default function InterviewV2() {
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        {/* Header */}
+        {/* Header with Progress Bar */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-2">
@@ -741,6 +743,31 @@ export default function InterviewV2() {
                 </div>
               </div>
             )}
+            
+            {/* Progress Bar */}
+            <div className="mt-3">
+              <div 
+                className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+                aria-label={`Interview progress: ${progress}% complete`}
+              >
+                <div 
+                  className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-500 ease-out"
+                  style={{ 
+                    width: `${progress}%`,
+                    boxShadow: progress > 0 ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none'
+                  }}
+                />
+              </div>
+              <div className="flex justify-between items-center mt-1.5">
+                <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
+                <span className="text-xs text-slate-500">Question {answeredCount} of {totalQuestions}</span>
+                <span className="text-xs font-medium text-green-400">{progress}% Complete</span>
+              </div>
+            </div>
           </div>
         </header>
 
