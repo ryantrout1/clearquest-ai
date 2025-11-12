@@ -794,15 +794,15 @@ export async function bootstrapEngine(base44) {
 // ============================================================================
 
 /**
- * Compute next question ID deterministically
+ * Compute next question ID deterministically with skip rule support
  */
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
   const { NextById, ActiveOrdered } = engine;
 
-  // Check for skip rules first
+  // NEW: Check skip rules first
   const skipRule = SKIP_RULES[currentQuestionId];
-  if (skipRule && String(answer).toLowerCase() === skipRule.skipIfAnswer.toLowerCase()) {
-    console.log(`⏭️ Skipping from ${currentQuestionId} to ${skipRule.skipToQuestion} due to rule.`);
+  if (skipRule && answer === skipRule.skipIfAnswer) {
+    console.log(`⏭️ Skip rule triggered: ${currentQuestionId} -> ${skipRule.skipToQuestion} (answer: "${answer}")`);
     return skipRule.skipToQuestion;
   }
 
