@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2 } from "lucide-react";
+import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2, Pause, Copy, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   checkFollowUpTrigger,
   computeNextQuestionId
 } from "../components/interviewEngine";
+import { toast } from "sonner";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -121,6 +123,11 @@ export default function InterviewV2() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
 
+  // NEW: Pause modal and resume banner state
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showResumeBanner, setShowResumeBanner] = useState(false);
+  const [wasPaused, setWasPaused] = useState(false);
+
   // Refs
   const historyRef = useRef(null);
   const displayOrderRef = useRef(0);
@@ -152,6 +159,17 @@ export default function InterviewV2() {
         return;
       }
       
+      // Check if session was paused
+      if (loadedSession.status === 'paused') {
+        setWasPaused(true);
+        setShowResumeBanner(true);
+        // Update status to in_progress when resuming
+        await base44.entities.InterviewSession.update(sessionId, {
+          status: 'in_progress'
+        });
+        loadedSession.status = 'in_progress'; // Update local state for immediate use
+      }
+
       setSession(loadedSession);
       
       // Step 1.5: Load department info
@@ -615,6 +633,53 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
+  // PAUSE HANDLING (NEW)
+  // ============================================================================
+  const handlePauseClick = async () => {
+    try {
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: 'paused'
+      });
+      setShowPauseModal(true);
+      console.log('⏸️ Interview paused');
+    } catch (err) {
+      console.error('❌ Error pausing interview:', err);
+      toast.error('Failed to pause interview');
+    }
+  };
+
+  const handleCopyDetails = async () => {
+    const text = `Dept Code: ${session?.department_code}\nFile Number: ${session?.file_number}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Details copied to clipboard', {
+        duration: 2000,
+        icon: <Copy className="w-4 h-4" />
+      });
+    } catch (err) {
+      toast.error('Failed to copy to clipboard', {
+        duration: 2000,
+        icon: <XCircle className="w-4 h-4" />
+      });
+    }
+  };
+
+  const handleCloseWindow = () => {
+    // Attempt to close the window. Some browsers prevent this if not opened by script.
+    // If it fails, inform the user they can close it manually.
+    try {
+      window.close();
+      // If window.close() actually closed the window, this line won't be reached.
+    } catch (e) {
+      // If window.close() failed (e.g., due to browser security), show a toast.
+      toast.info('You can now safely close this browser tab. Use your Dept Code and File Number to resume later.', {
+        duration: 5000,
+        icon: <XCircle className="w-4 h-4" />
+      });
+    }
+  };
+
+  // ============================================================================
   // RENDER HELPERS
   // ============================================================================
 
@@ -708,7 +773,7 @@ export default function InterviewV2() {
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        {/* Header with Progress Bar */}
+        {/* Header with Pause Button */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-2">
@@ -716,12 +781,23 @@ export default function InterviewV2() {
                 <Shield className="w-6 h-6 text-blue-400" />
                 <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-semibold text-white">
-                  {answeredCount} / {totalQuestions}
-                </div>
-                <div className="text-xs text-slate-400">
-                  {progress}% Complete
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePauseClick}
+                  className="text-slate-300 hover:text-white hover:bg-slate-700 flex items-center gap-2"
+                >
+                  <Pause className="w-4 h-4" />
+                  <span className="hidden sm:inline">Pause</span>
+                </Button>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-white">
+                    {answeredCount} / {totalQuestions}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {progress}% Complete
+                  </div>
                 </div>
               </div>
             </div>
@@ -770,6 +846,35 @@ export default function InterviewV2() {
             </div>
           </div>
         </header>
+
+        {/* Resume Banner */}
+        {showResumeBanner && (
+          <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-4 py-3">
+            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <div className="flex flex-wrap items-center gap-2 text-sm text-emerald-100">
+                  <span>Welcome back! Resuming interview with</span>
+                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
+                    {session?.department_code}
+                  </span>
+                  <span>•</span>
+                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
+                    {session?.file_number}
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResumeBanner(false)}
+                className="text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/30"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 overflow-hidden flex flex-col">
@@ -829,32 +934,33 @@ export default function InterviewV2() {
                       )}
                     </div>
                     <div className="flex-1">
+                      {/* ENLARGED Question Meta */}
                       <div className="flex items-center gap-2 mb-2">
                         {requiresClarification ? (
                           <>
-                            <span className="text-xs font-semibold text-purple-400">Clarification Needed</span>
+                            <span className="text-sm font-semibold text-purple-400">Clarification Needed</span>
                             <span className="text-xs text-slate-500">•</span>
-                            <span className="text-xs text-purple-300">
+                            <span className="text-sm text-purple-300">
                               {getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : isFollowUpMode ? (
                           <>
-                            <span className="text-xs font-semibold text-orange-400">
+                            <span className="text-sm font-semibold text-orange-400">
                               Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
                             </span>
                             <span className="text-xs text-slate-500">•</span>
-                            <span className="text-xs text-orange-300">
+                            <span className="text-sm text-orange-300">
                               {getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : (
                           <>
-                            <span className="text-xs font-semibold text-blue-400">
+                            <span className="text-lg font-bold text-blue-400">
                               Question {getQuestionNumber(currentPrompt.id)}
                             </span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-xs text-slate-400">{currentPrompt.category}</span>
+                            <span className="text-sm text-slate-500">•</span>
+                            <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
                           </>
                         )}
                       </div>
@@ -886,7 +992,7 @@ export default function InterviewV2() {
                 <Button
                   type="button"
                   onClick={() => handleAnswer("Yes")}
-                  disabled={isCommitting}
+                  disabled={isCommitting || showPauseModal}
                   className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                   size="lg"
                 >
@@ -896,7 +1002,7 @@ export default function InterviewV2() {
                 <Button
                   type="button"
                   onClick={() => handleAnswer("No")}
-                  disabled={isCommitting}
+                  disabled={isCommitting || showPauseModal}
                   className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                   size="lg"
                 >
@@ -912,13 +1018,13 @@ export default function InterviewV2() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
                   className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
-                  disabled={isCommitting}
+                  disabled={isCommitting || showPauseModal}
                   autoComplete="off"
                   autoFocus
                 />
                 <Button
                   type="submit"
-                  disabled={!input.trim() || isCommitting}
+                  disabled={!input.trim() || isCommitting || showPauseModal}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                   size="lg"
                 >
@@ -934,6 +1040,58 @@ export default function InterviewV2() {
           </div>
         </footer>
       </div>
+
+      {/* Pause Modal */}
+      <Dialog open={showPauseModal} onOpenChange={setShowPauseModal}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Pause className="w-5 h-5 text-blue-400" />
+              Interview Paused
+            </DialogTitle>
+            <DialogDescription className="text-slate-300 pt-3 space-y-3">
+              <p>Your interview is paused. You can close this window and come back anytime to continue.</p>
+              <p>You will need your <strong className="text-white">Dept Code</strong> and <strong className="text-white">File Number</strong> to resume.</p>
+              
+              <div className="flex flex-wrap gap-2 pt-2">
+                <div className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+                  <span className="text-xs text-slate-400 block mb-1">Dept Code</span>
+                  <span className="font-mono text-sm text-slate-200">{session?.department_code}</span>
+                </div>
+                <div className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg">
+                  <span className="text-xs text-slate-400 block mb-1">File Number</span>
+                  <span className="font-mono text-sm text-slate-200">{session?.file_number}</span>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={handleCopyDetails}
+              className="w-full bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy Details
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCloseWindow}
+              className="w-full bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              Close Window
+            </Button>
+            <Button
+              onClick={() => setShowPauseModal(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Keep Working
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Completion Modal */}
       <Dialog open={showCompletionModal} onOpenChange={() => {}}>
@@ -980,10 +1138,7 @@ export default function InterviewV2() {
   );
 }
 
-// ============================================================================
-// HISTORY ENTRY COMPONENT (Answered Q&A Only)
-// ============================================================================
-
+// UPDATED: Enlarged typography in history entries
 function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
@@ -995,11 +1150,11 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-semibold text-blue-400">
+                <span className="text-sm font-bold text-blue-400">
                   Question {getQuestionNumber(entry.questionId)}
                 </span>
                 <span className="text-xs text-slate-500">•</span>
-                <span className="text-xs text-slate-400">{entry.category}</span>
+                <span className="text-sm font-medium text-slate-300">{entry.category}</span>
               </div>
               <p className="text-white leading-relaxed">{entry.questionText}</p>
             </div>
@@ -1024,9 +1179,9 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-semibold text-orange-400">Follow-up</span>
+                <span className="text-sm font-semibold text-orange-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
-                <span className="text-xs text-orange-300">
+                <span className="text-sm text-orange-300">
                   {getFollowUpPackName(entry.packId)}
                 </span>
               </div>
