@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -106,6 +107,7 @@ export default function InterviewV2() {
   // Core state
   const [interviewState, setInterviewState] = useState(null);
   const [session, setSession] = useState(null);
+  const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [input, setInput] = useState("");
@@ -147,6 +149,21 @@ export default function InterviewV2() {
       }
       
       setSession(loadedSession);
+      
+      // Step 1.5: Load department info
+      console.log('🏢 Step 1.5: Loading department info...');
+      try {
+        const departments = await base44.entities.Department.filter({ 
+          department_code: loadedSession.department_code 
+        });
+        if (departments.length > 0) {
+          setDepartment(departments[0]);
+          console.log('✅ Department loaded:', departments[0].department_name);
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not load department info:', err);
+        // Non-fatal, continue with interview
+      }
       
       // Step 2: Bootstrap engine (loads questions, caches lookups)
       console.log('⚙️ Step 2: Bootstrapping engine...');
@@ -572,17 +589,38 @@ Field details: ${JSON.stringify(probePrompt)}`,
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
-          <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Shield className="w-6 h-6 text-blue-400" />
-              <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-semibold text-white">
-                {progress.answered} / {progress.total}
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <Shield className="w-6 h-6 text-blue-400" />
+                <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
               </div>
-              <div className="text-xs text-slate-400">
-                {progress.percentage}% Complete
+              <div className="text-right">
+                <div className="text-sm font-semibold text-white">
+                  {progress.answered} / {progress.total}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {progress.percentage}% Complete
+                </div>
+              </div>
+            </div>
+            
+            {/* Department & Session Info */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2">
+              {department && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-slate-300">{department.department_name}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-500">Dept Code:</span>
+                <span className="font-mono text-slate-300">{session?.department_code}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-500">File:</span>
+                <span className="font-mono text-slate-300">{session?.file_number}</span>
               </div>
             </div>
           </div>
