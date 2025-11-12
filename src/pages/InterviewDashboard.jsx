@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -62,20 +63,35 @@ export default function InterviewDashboard() {
     enabled: !!currentUser
   });
 
-  // Extract unique department codes from sessions
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => base44.entities.Department.list(),
+    enabled: !!currentUser,
+    staleTime: 60000
+  });
+
   const uniqueDepartments = useMemo(() => {
-    const deptSet = new Set();
+    const deptMap = new Map();
     sessions.forEach(session => {
-      if (session.session_code) {
-        // Extract department code (everything before the first "-")
-        const deptCode = session.session_code.split('-')[0];
-        if (deptCode) {
-          deptSet.add(deptCode);
+      if (session.department_code) {
+        // Find matching department for this code
+        const dept = departments.find(d => d.department_code === session.department_code);
+        if (dept) {
+          deptMap.set(session.department_code, {
+            code: session.department_code,
+            name: dept.department_name
+          });
+        } else {
+          // Fallback to just code if department not found
+          deptMap.set(session.department_code, {
+            code: session.department_code,
+            name: session.department_code
+          });
         }
       }
     });
-    return Array.from(deptSet).sort();
-  }, [sessions]);
+    return Array.from(deptMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [sessions, departments]);
 
   const handleLogout = () => {
     sessionStorage.removeItem("clearquest_admin_auth");
@@ -87,9 +103,8 @@ export default function InterviewDashboard() {
                          session.department_code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || session.status === statusFilter;
     
-    // Department filter - extract department code from session_code
-    const sessionDeptCode = session.session_code?.split('-')[0] || '';
-    const matchesDepartment = departmentFilter === "all" || sessionDeptCode === departmentFilter;
+    // Department filter - match by department code
+    const matchesDepartment = departmentFilter === "all" || session.department_code === departmentFilter;
     
     return matchesSearch && matchesStatus && matchesDepartment;
   });
@@ -182,15 +197,15 @@ export default function InterviewDashboard() {
                 </div>
                 
                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px] bg-slate-900/50 border-slate-600 text-white">
+                  <SelectTrigger className="w-full sm:w-[280px] bg-slate-900/50 border-slate-600 text-white">
                     <Building2 className="w-4 h-4 mr-2 text-slate-400" />
                     <SelectValue placeholder="All Departments" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-700">
                     <SelectItem value="all" className="text-white">All Departments</SelectItem>
                     {uniqueDepartments.map(dept => (
-                      <SelectItem key={dept} value={dept} className="text-white">
-                        {dept}
+                      <SelectItem key={dept.code} value={dept.code} className="text-white">
+                        {dept.name} ({dept.code})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -217,7 +232,7 @@ export default function InterviewDashboard() {
               Interview Sessions ({filteredSessions.length})
               {departmentFilter !== "all" && (
                 <Badge className="ml-2 bg-blue-600/20 text-blue-300 border-blue-500/30">
-                  {departmentFilter}
+                  {uniqueDepartments.find(d => d.code === departmentFilter)?.name || departmentFilter}
                 </Badge>
               )}
             </CardTitle>

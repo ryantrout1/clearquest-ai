@@ -7,12 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -22,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Eye, MoreVertical, Trash2, Clock } from "lucide-react";
+import { Eye, Trash2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -121,39 +115,31 @@ export default function SessionCard({ session }) {
               </p>
             </div>
             
-            {/* Action Menu - Mobile & Desktop */}
+            {/* Status Badge & Action Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
                 {statusConfig[session.status]?.label}
               </Badge>
               
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
-                  <DropdownMenuItem
-                    onClick={handleViewDetails}
-                    className="cursor-pointer text-blue-400 hover:text-blue-300 hover:bg-slate-700 focus:text-blue-300 focus:bg-slate-700"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Details
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-950/20 focus:text-red-300 focus:bg-red-950/20"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleViewDetails}
+                className="h-8 px-3 text-xs text-blue-400 hover:text-blue-300 hover:bg-slate-800"
+              >
+                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                View
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                className="h-8 px-3 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Delete
+              </Button>
             </div>
           </div>
 
