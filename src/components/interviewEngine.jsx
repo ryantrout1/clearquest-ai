@@ -889,6 +889,127 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
 }
 
 // ============================================================================
+// NEW: COMPLETENESS VERIFICATION FUNCTIONS (No AI)
+// ============================================================================
+
+/**
+ * Verify that a follow-up pack has been completed
+ * Returns: { complete: boolean, missing: string[] }
+ */
+export function verifyPackCompletion(packId, transcript, engine) {
+  const packSteps = engine.PackStepsById[packId];
+  if (!packSteps) {
+    console.warn(`⚠️ Pack ${packId} not found for verification.`);
+    return { complete: true, missing: [] };
+  }
+
+  const missing = [];
+  const followupAnswers = transcript.filter(t => t.type === 'followup_answer' && t.packId === packId);
+  
+  // Check each required field was answered
+  packSteps.forEach(step => {
+    const answered = followupAnswers.find(a => a.fieldKey === step.Field_Key);
+    // An answer is considered valid if it exists and its content is not empty.
+    if (!answered || !answered.content || String(answered.content).trim() === '') {
+      missing.push(step.Prompt); // Report the prompt text as the missing detail
+    }
+  });
+
+  return {
+    complete: missing.length === 0,
+    missing
+  };
+}
+
+/**
+ * Generate final audit summary before completion
+ * Returns comprehensive report of interview completeness
+ */
+export function generateCompletionAudit(engine, transcript) {
+  const totalQuestions = engine.TotalQuestions;
+  
+  // Filter for primary question answers
+  const primaryAnswers = transcript.filter(t => t.type === 'answer');
+  const questionsAnsweredCount = primaryAnswers.length; // Count of primary questions answered
+
+  // Find all triggered follow-up packs based on primary question answers
+  const triggeredPacks = new Set();
+  
+  primaryAnswers.forEach(answerEntry => {
+    const questionId = answerEntry.questionId;
+    const answerContent = answerEntry.content; // This is the answer to the primary question
+    const question = engine.QById[questionId];
+
+    if (question && question.response_type === 'yes_no' && answerContent === 'Yes') {
+      const packId = engine.MatrixYesByQ[questionId]; // Get packId from MatrixYesByQ
+      if (packId) {
+        triggeredPacks.add(packId);
+      }
+    }
+    // Future: Add logic here for other question types like multi_select if they trigger packs.
+  });
+
+  const completedPacks = [];
+  const incompletePacks = [];
+  
+  // Verify each triggered pack
+  triggeredPacks.forEach(packId => {
+    const verification = verifyPackCompletion(packId, transcript, engine);
+    if (verification.complete) {
+      completedPacks.push(packId);
+    } else {
+      incompletePacks.push({
+        packId,
+        missing: verification.missing
+      });
+    }
+  });
+  
+  const allPrimaryQuestionsAnswered = questionsAnsweredCount === totalQuestions;
+  const allTriggeredPacksCompleted = incompletePacks.length === 0;
+
+  return {
+    total_primary_questions: totalQuestions,
+    answered_primary_questions: questionsAnsweredCount,
+    primary_completion_percentage: totalQuestions > 0 ? Math.round((questionsAnsweredCount / totalQuestions) * 100) : 100,
+    followup_packs_triggered: triggeredPacks.size,
+    followup_packs_completed: completedPacks.length,
+    incomplete_followup_packs: incompletePacks,
+    is_complete: allPrimaryQuestionsAnswered && allTriggeredPacksCompleted,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Preflight validation - check engine configuration integrity
+ * Returns: { valid: boolean, errors: string[] }
+ */
+export function validateEngineConfiguration(engine) {
+  const errors = [];
+  
+  // Validate all questions with followup_pack have valid packs
+  Object.keys(engine.MatrixYesByQ).forEach(questionId => {
+    const packId = engine.MatrixYesByQ[questionId];
+    if (!engine.PackStepsById[packId]) {
+      errors.push(`Question ${questionId} references undefined pack: ${packId}`);
+    }
+  });
+  
+  // Validate all packs have at least one field
+  Object.keys(engine.PackStepsById).forEach(packId => {
+    const steps = engine.PackStepsById[packId];
+    if (!steps || steps.length === 0) {
+      errors.push(`Pack ${packId} has no steps defined`);
+    }
+  });
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+// ============================================================================
 // C) STATE MANAGEMENT (IMMUTABLE UPDATES)
 // ============================================================================
 
