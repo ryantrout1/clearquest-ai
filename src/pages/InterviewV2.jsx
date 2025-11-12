@@ -115,14 +115,15 @@ export default function InterviewV2() {
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
   
+  // FIXED: Use state instead of ref for isCommitting so UI updates properly
+  const [isCommitting, setIsCommitting] = useState(false);
+  
   // Modal state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
 
   // Refs
   const historyRef = useRef(null);
-  const isCommittingRef = useRef(false);
-  const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
 
   // ============================================================================
@@ -180,7 +181,6 @@ export default function InterviewV2() {
         });
         
         if (existingResponses.length > 0) {
-          displayOrderRef.current = existingResponses.length;
           console.log('🔄 Restoring from Response entities...');
           await restoreFromResponses(engineData, existingResponses);
         } else {
@@ -320,15 +320,12 @@ export default function InterviewV2() {
     try {
       console.log('💾 Persisting state to database...');
       
-      const totalPrimaryQuestionsAnswered = newTranscript.filter(t => t.type === 'question').length;
-      const completionPercentage = Math.round((totalPrimaryQuestionsAnswered / (engine?.TotalQuestions || 162)) * 100);
-
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: newTranscript,
         queue_snapshot: newQueue,
         current_item_snapshot: newCurrentItem,
-        total_questions_answered: totalPrimaryQuestionsAnswered,
-        completion_percentage: completionPercentage,
+        total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
+        completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / 162) * 100),
         data_version: 'v1.0' // Versioning for future schema changes
       });
       
@@ -344,20 +341,16 @@ export default function InterviewV2() {
   // ============================================================================
 
   const handleAnswer = useCallback(async (value) => {
-    if (isCommittingRef.current || !currentItem || !engine) {
+    if (isCommitting || !currentItem || !engine) {
       console.warn('⚠️ Already committing or no current item');
       return;
     }
 
-    isCommittingRef.current = true;
+    setIsCommitting(true);
     setValidationHint(null);
 
     try {
       console.log(`📝 Processing answer for ${currentItem.type}:`, value);
-
-      let newTranscript;
-      let newQueue;
-      let nextItem;
 
       if (currentItem.type === 'question') {
         // PRIMARY QUESTION
@@ -377,7 +370,7 @@ export default function InterviewV2() {
           timestamp: new Date().toISOString()
         };
         
-        newTranscript = [...transcript, transcriptEntry];
+        const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
         // Determine next items (deterministic routing)
@@ -407,10 +400,10 @@ export default function InterviewV2() {
         }
 
         // Update queue and current item
-        newQueue = [...queue, ...nextIds];
-        nextItem = newQueue.shift() || null;
+        const updatedQueue = [...queue, ...nextIds];
+        const nextItem = updatedQueue.shift() || null;
         
-        setQueue(newQueue);
+        setQueue(updatedQueue);
         setCurrentItem(nextItem);
         
         // Save to Response entity (for backwards compatibility)
@@ -424,6 +417,9 @@ export default function InterviewV2() {
         // FOLLOW-UP QUESTION
         const { packId, stepIndex } = currentItem;
         const packSteps = engine.PackStepsById[packId];
+        if (!packSteps || !packSteps[stepIndex]) {
+          throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
+        }
         const step = packSteps[stepIndex];
 
         // Validate answer
@@ -432,7 +428,7 @@ export default function InterviewV2() {
         if (!validation.valid) {
           console.log(`❌ Validation failed: ${validation.hint}`);
           setValidationHint(validation.hint);
-          isCommittingRef.current = false;
+          setIsCommitting(false);
           
           setTimeout(() => {
             if (inputRef.current) {
@@ -453,14 +449,14 @@ export default function InterviewV2() {
           timestamp: new Date().toISOString()
         };
         
-        newTranscript = [...transcript, transcriptEntry];
+        const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
         // Move to next in queue
-        newQueue = [...queue];
-        nextItem = newQueue.shift() || null;
+        const updatedQueue = [...queue];
+        const nextItem = updatedQueue.shift() || null;
         
-        setQueue(newQueue);
+        setQueue(updatedQueue);
         setCurrentItem(nextItem);
         
         // Save to FollowUpResponse entity (for backwards compatibility)
@@ -472,19 +468,19 @@ export default function InterviewV2() {
       }
 
       // PERSIST STATE TO DATABASE (atomic) after successful state updates
-      await persistStateToDatabase(newTranscript, newQueue, nextItem);
+      await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
 
-      isCommittingRef.current = false;
+      setIsCommitting(false);
       setInput("");
       setTimeout(autoScrollToBottom, 100);
 
     } catch (err) {
       console.error('❌ Error processing answer:', err);
-      isCommittingRef.current = false;
+      setIsCommitting(false);
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, autoScrollToBottom, sessionId]);
+  }, [currentItem, engine, queue, transcript, autoScrollToBottom, sessionId, isCommitting]);
 
   // Text input submit handler
   const handleTextSubmit = useCallback((e) => {
@@ -506,11 +502,10 @@ export default function InterviewV2() {
       });
       
       if (existing.length > 0) {
-        console.log(`ℹ️ Response for ${questionId} already exists, skipping old entity creation`);
+        console.log(`ℹ️ Response for ${questionId} already exists, skipping`);
         return;
       }
       
-      const currentDisplayOrder = displayOrderRef.current++;
       const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
       
       await base44.entities.Response.create({
@@ -525,11 +520,10 @@ export default function InterviewV2() {
         is_flagged: false,
         flag_reason: null,
         response_timestamp: new Date().toISOString(),
-        display_order: currentDisplayOrder
       });
 
     } catch (err) {
-      console.error('❌ Database (old Response entity) save error:', err);
+      console.error('❌ Database save error:', err);
     }
   };
 
@@ -606,10 +600,6 @@ export default function InterviewV2() {
         status: 'completed',
         completed_date: new Date().toISOString(),
         completion_percentage: 100,
-        // Clear snapshots upon completion
-        transcript_snapshot: [],
-        queue_snapshot: [],
-        current_item_snapshot: null
       });
 
       console.log('✅ Interview marked as completed');
@@ -707,8 +697,8 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const totalQuestions = engine?.TotalQuestions || 162;
-  const answeredPrimaryQuestions = transcript.filter(t => t.type === 'question').length;
-  const progress = Math.round((answeredPrimaryQuestions / totalQuestions) * 100);
+  const answeredCount = transcript.length;
+  const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
@@ -726,7 +716,7 @@ export default function InterviewV2() {
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-white">
-                  {answeredPrimaryQuestions} / {totalQuestions}
+                  {answeredCount} / {totalQuestions}
                 </div>
                 <div className="text-xs text-slate-400">
                   {progress}% Complete
@@ -762,11 +752,11 @@ export default function InterviewV2() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {answeredPrimaryQuestions > 0 && (
+              {answeredCount > 0 && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
-                    You've completed {answeredPrimaryQuestions} of {totalQuestions} questions. Keep going!
+                    You've completed {answeredCount} of {totalQuestions} questions. Keep going!
                   </AlertDescription>
                 </Alert>
               )}
@@ -869,7 +859,7 @@ export default function InterviewV2() {
                 <Button
                   type="button"
                   onClick={() => handleAnswer("Yes")}
-                  disabled={isCommittingRef.current}
+                  disabled={isCommitting}
                   className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                   size="lg"
                 >
@@ -879,7 +869,7 @@ export default function InterviewV2() {
                 <Button
                   type="button"
                   onClick={() => handleAnswer("No")}
-                  disabled={isCommittingRef.current}
+                  disabled={isCommitting}
                   className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
                   size="lg"
                 >
@@ -895,13 +885,13 @@ export default function InterviewV2() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
                   className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
-                  disabled={isCommittingRef.current}
+                  disabled={isCommitting}
                   autoComplete="off"
                   autoFocus
                 />
                 <Button
                   type="submit"
-                  disabled={!input.trim() || isCommittingRef.current}
+                  disabled={!input.trim() || isCommitting}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                   size="lg"
                 >
