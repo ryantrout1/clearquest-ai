@@ -820,6 +820,87 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  // Q20-Q39 Additional Packs
+  'PACK_POLICE_CALLED': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'reason_called', Prompt: 'Why was law enforcement called?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'arrests_made', Prompt: 'Were any arrests made?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_INVESTIGATION': [
+    { Field_Key: 'investigation_date', Prompt: 'When did this investigation occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'agency', Prompt: 'Which law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'allegations', Prompt: 'What were the allegations?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DOMESTIC_VIOLENCE': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'victim_relationship', Prompt: 'What was your relationship to the person?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'injuries', Prompt: 'Were there any injuries?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'police_called', Prompt: 'Was law enforcement called?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CRIME_AGAINST_CHILD': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'child_age', Prompt: 'How old was the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'relationship', Prompt: 'What was your relationship to the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'description', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ACCUSED_CHILD_CRIME': [
+    { Field_Key: 'when_accused', Prompt: 'When were you accused?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'child_age', Prompt: 'How old was the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'relationship', Prompt: 'What was your relationship to the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'allegations', Prompt: 'What were the allegations?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation', Prompt: 'Was there an investigation?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CHILD_PROTECTION': [
+    { Field_Key: 'interview_date', Prompt: 'When were you interviewed?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'agency', Prompt: 'Which agency interviewed you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'allegations', Prompt: 'What were the allegations or concerns?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_THEFT_QUESTIONED': [
+    { Field_Key: 'incident_date', Prompt: 'When were you questioned?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'allegations', Prompt: 'What were you questioned about?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_JUVENILE_RECORD': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'charge_description', Prompt: 'What were you charged with as a juvenile?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'adjudication', Prompt: 'What was the adjudication or outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'sealed_expunged', Prompt: 'Was the record sealed or expunged?', Response_Type: 'text', Expected_Type: 'BOOLEAN' }
+  ],
+
+  'PACK_MISSING_COURT': [
+    { Field_Key: 'court_date_missed', Prompt: 'When did you miss the court appearance?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'case_type', Prompt: 'What type of case?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_missed', Prompt: 'Why did you miss it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'warrant_issued', Prompt: 'Was a warrant issued?', Response_Type: 'text', Expected_Type: 'BOOLEAN' },
+    { Field_Key: 'resolution', Prompt: 'How was it resolved?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_JURY_DUTY': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you fail to appear for jury duty?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'why_missed', Prompt: 'Why did you not appear?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'consequences', Prompt: 'Were there any consequences?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ]
 };
 
