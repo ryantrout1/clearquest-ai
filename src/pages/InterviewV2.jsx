@@ -145,6 +145,25 @@ export default function InterviewV2() {
     initializeInterview();
   }, [sessionId, navigate]);
 
+  // NEW: Autofocus input when currentItem changes
+  useEffect(() => {
+    if (currentItem && inputRef.current && !isCommitting) {
+      // Use requestAnimationFrame to ensure DOM is ready and prevent scroll issues
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus({ preventScroll: false });
+        }
+      });
+    }
+  }, [currentItem, isCommitting]);
+
+  // NEW: Auto-scroll after transcript updates
+  useEffect(() => {
+    if (transcript.length > 0) {
+      setTimeout(autoScrollToBottom, 150);
+    }
+  }, [transcript.length, autoScrollToBottom]);
+
   const initializeInterview = async () => {
     try {
       console.log('🚀 Initializing single-active interview flow with persistent resume...');
@@ -490,7 +509,7 @@ export default function InterviewV2() {
 
       setIsCommitting(false);
       setInput("");
-      setTimeout(autoScrollToBottom, 100);
+      // autoScrollToBottom is now handled by a dedicated useEffect on transcript.length
 
     } catch (err) {
       console.error('❌ Error processing answer:', err);
@@ -498,7 +517,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, autoScrollToBottom, sessionId, isCommitting]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting]);
 
   // Text input submit handler
   const handleTextSubmit = useCallback((e) => {
@@ -651,11 +670,8 @@ export default function InterviewV2() {
   const handleCloseWindow = () => {
     // Attempt to close the window. Some browsers prevent this if not opened by script.
     // If it fails, inform the user they can close it manually.
-    try {
-      window.close();
-      // If window.close() actually closed the window, this line won't be reached.
-    } catch (e) {
-      // If window.close() failed (e.g., due to browser security), show a toast.
+    const canClose = window.close();
+    if (!canClose) {
       toast.info('You can now close this tab. Use your Dept Code and File Number to resume later.');
     }
   };
@@ -712,6 +728,26 @@ export default function InterviewV2() {
     return null;
   };
 
+  // NEW: Get contextual placeholder based on expected type
+  const getPlaceholder = () => {
+    if (!currentPrompt) return "Type your answer...";
+    
+    if (currentPrompt.type === 'followup') {
+      const expectedType = currentPrompt.expectedType;
+      if (expectedType === 'DATE' || expectedType === 'DATERANGE') {
+        return "MM/DD/YYYY or Month YYYY (e.g., June 2023)";
+      }
+      if (expectedType === 'NUMBER') {
+        return "Enter a number";
+      }
+      if (expectedType === 'BOOLEAN') {
+        return "Yes or No";
+      }
+    }
+    
+    return "Type your answer...";
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -745,7 +781,7 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const totalQuestions = engine?.TotalQuestions || 162;
-  const answeredCount = transcript.length;
+  const answeredCount = transcript.filter(t => t.type === 'question').length; // Only count main questions for progress
   const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
@@ -893,6 +929,9 @@ export default function InterviewV2() {
                       ? '0 12px 36px rgba(0,0,0,0.55), 0 0 0 3px rgba(200,160,255,0.30) inset'
                       : '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(59, 130, 246, 0.2) inset'
                   }}
+                  data-active-question="true"
+                  role="region"
+                  aria-live="polite"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
@@ -968,7 +1007,7 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("Yes")}
                   disabled={isCommitting || showPauseModal}
-                  className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
+                  className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 flex-1 h-14 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900"
                   size="lg"
                 >
                   <Check className="w-5 h-5" />
@@ -978,7 +1017,7 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14"
+                  className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2 flex-1 h-14 focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-900"
                   size="lg"
                 >
                   <X className="w-5 h-5" />
@@ -991,16 +1030,15 @@ export default function InterviewV2() {
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={isFollowUpMode ? "Type your follow-up response..." : "Type your response..."}
-                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12"
+                  placeholder={getPlaceholder()}
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900 focus:border-green-400"
                   disabled={isCommitting || showPauseModal}
                   autoComplete="off"
-                  autoFocus
                 />
                 <Button
                   type="submit"
                   disabled={!input.trim() || isCommitting || showPauseModal}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900"
                   size="lg"
                 >
                   <Send className="w-5 h-5 mr-2" />
