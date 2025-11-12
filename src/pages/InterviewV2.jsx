@@ -137,6 +137,17 @@ export default function InterviewV2() {
   // INITIALIZATION
   // ============================================================================
 
+  // Auto-scroll function - DEFINED BEFORE useEffect hooks that use it
+  const autoScrollToBottom = useCallback(() => {
+    if (!historyRef.current) return;
+    
+    requestAnimationFrame(() => {
+      if (historyRef.current) {
+        historyRef.current.scrollTop = historyRef.current.scrollHeight;
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
@@ -335,20 +346,6 @@ export default function InterviewV2() {
     
     console.log(`✅ Restored ${restoredTranscript.length} answered questions from Response entities`);
   };
-
-  // ============================================================================
-  // AUTO-SCROLL
-  // ============================================================================
-
-  const autoScrollToBottom = useCallback(() => {
-    if (!historyRef.current) return;
-    
-    requestAnimationFrame(() => {
-      if (historyRef.current) {
-        historyRef.current.scrollTop = historyRef.current.scrollHeight;
-      }
-    });
-  }, []);
 
   // ============================================================================
   // PERSIST STATE TO DATABASE (Atomic Write)
@@ -781,7 +778,7 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const totalQuestions = engine?.TotalQuestions || 162;
-  const answeredCount = transcript.filter(t => t.type === 'question').length; // Only count main questions for progress
+  const answeredCount = transcript.length; // Modified: Now counts all entries in transcript
   const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
