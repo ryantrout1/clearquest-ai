@@ -90,8 +90,9 @@ const FOLLOWUP_PACK_NAMES = {
 };
 
 /**
- * InterviewV2 - Single-Active Question Flow (No AI)
+ * InterviewV2 - Single-Active Question Flow (No AI) with Persistent Resume
  * Queue-based system: only show current question, hide future questions
+ * State persisted to database for seamless resume
  */
 export default function InterviewV2() {
   const navigate = useNavigate();
@@ -105,7 +106,7 @@ export default function InterviewV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // NEW: Queue-based state (no transcript stored, only answered pairs)
+  // NEW: Queue-based state (persisted to DB for resume)
   const [transcript, setTranscript] = useState([]); // Array<{id, questionId, questionText, answer, category, type}>
   const [queue, setQueue] = useState([]); // Array<{id, type: 'question'|'followup', packId?, stepIndex?}>
   const [currentItem, setCurrentItem] = useState(null); // Current active question
@@ -138,7 +139,7 @@ export default function InterviewV2() {
 
   const initializeInterview = async () => {
     try {
-      console.log('🚀 Initializing single-active interview flow...');
+      console.log('🚀 Initializing single-active interview flow with persistent resume...');
       const startTime = performance.now();
 
       // Step 1: Load session
@@ -168,25 +169,26 @@ export default function InterviewV2() {
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
       
-      // Step 3: Load existing responses (for resume support)
-      const existingResponses = await base44.entities.Response.filter({ 
-        session_id: sessionId 
-      });
-      
-      if (existingResponses.length > 0) {
-        displayOrderRef.current = existingResponses.length;
-      }
-      
-      // Step 4: Initialize queue-based state
-      if (existingResponses.length > 0) {
-        console.log('🔄 Restoring from existing responses...');
-        await restoreFromResponses(engineData, existingResponses);
+      // Step 3: Try to restore from snapshots first, then fall back to responses
+      if (loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0 || loadedSession.current_item_snapshot) {
+        console.log('🔄 Restoring from session snapshots...');
+        restoreFromSnapshots(engineData, loadedSession);
       } else {
-        console.log('🎯 Starting fresh interview');
-        // FIXED: Initialize with EMPTY queue, only set currentItem
-        const firstQuestionId = engineData.ActiveOrdered[0];
-        setQueue([]); // Queue is empty at start
-        setCurrentItem({ id: firstQuestionId, type: 'question' });
+        // Fallback: Load from Response entities
+        const existingResponses = await base44.entities.Response.filter({ 
+          session_id: sessionId 
+        });
+        
+        if (existingResponses.length > 0) {
+          displayOrderRef.current = existingResponses.length;
+          console.log('🔄 Restoring from Response entities...');
+          await restoreFromResponses(engineData, existingResponses);
+        } else {
+          console.log('🎯 Starting fresh interview');
+          const firstQuestionId = engineData.ActiveOrdered[0];
+          setQueue([]);
+          setCurrentItem({ id: firstQuestionId, type: 'question' });
+        }
       }
       
       setIsLoading(false);
@@ -201,11 +203,51 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // RESTORE FROM DATABASE
+  // RESTORE FROM SNAPSHOTS (Preferred Method)
+  // ============================================================================
+
+  const restoreFromSnapshots = (engineData, loadedSession) => {
+    console.log('📸 Restoring from snapshots...');
+    
+    // Restore transcript directly from snapshot
+    const restoredTranscript = loadedSession.transcript_snapshot || [];
+    setTranscript(restoredTranscript);
+    
+    // Restore queue directly from snapshot
+    const restoredQueue = loadedSession.queue_snapshot || [];
+    setQueue(restoredQueue);
+    
+    // Restore current item from snapshot
+    const restoredCurrentItem = loadedSession.current_item_snapshot || null;
+    setCurrentItem(restoredCurrentItem);
+    
+    console.log(`✅ Restored ${restoredTranscript.length} transcript entries`);
+    console.log(`✅ Restored queue with ${restoredQueue.length} pending items`);
+    console.log(`✅ Current item:`, restoredCurrentItem);
+    
+    // If no current item but queue has items, something went wrong - self-heal
+    if (!restoredCurrentItem && restoredQueue.length > 0) {
+      console.warn('⚠️ No current item but queue exists - self-healing...');
+      const nextItem = restoredQueue[0];
+      setCurrentItem(nextItem);
+      setQueue(restoredQueue.slice(1)); // Remove the first item as it's now current
+    }
+    
+    // If we're complete
+    if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
+      console.log('✅ Interview appears complete based on snapshots.');
+      setShowCompletionModal(true);
+    }
+    
+    setTimeout(() => autoScrollToBottom(), 100);
+  };
+
+  // ============================================================================
+  // RESTORE FROM RESPONSE ENTITIES (Fallback)
   // ============================================================================
 
   const restoreFromResponses = async (engineData, responses) => {
-    console.log('🔄 Rebuilding state from database...');
+    console.log('🔄 Rebuilding state from Response entities (fallback)...');
     
     // Sort responses by timestamp
     const sortedResponses = responses.sort((a, b) => 
@@ -240,17 +282,20 @@ export default function InterviewV2() {
     if (lastQuestionId && lastAnswer) {
       const nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
       if (nextQuestionId) {
-        // FIXED: Empty queue, only set currentItem
         setQueue([]);
         setCurrentItem({ id: nextQuestionId, type: 'question' });
       } else {
-        // Interview complete
         setCurrentItem(null);
         setShowCompletionModal(true);
       }
+    } else if (restoredTranscript.length === 0) {
+        // If no responses, start fresh
+        const firstQuestionId = engineData.ActiveOrdered[0];
+        setQueue([]);
+        setCurrentItem({ id: firstQuestionId, type: 'question' });
     }
     
-    console.log(`✅ Restored ${restoredTranscript.length} answered questions`);
+    console.log(`✅ Restored ${restoredTranscript.length} answered questions from Response entities`);
   };
 
   // ============================================================================
@@ -268,7 +313,34 @@ export default function InterviewV2() {
   }, []);
 
   // ============================================================================
-  // ANSWER SUBMISSION - QUEUE-BASED FLOW
+  // PERSIST STATE TO DATABASE (Atomic Write)
+  // ============================================================================
+
+  const persistStateToDatabase = async (newTranscript, newQueue, newCurrentItem) => {
+    try {
+      console.log('💾 Persisting state to database...');
+      
+      const totalPrimaryQuestionsAnswered = newTranscript.filter(t => t.type === 'question').length;
+      const completionPercentage = Math.round((totalPrimaryQuestionsAnswered / (engine?.TotalQuestions || 162)) * 100);
+
+      await base44.entities.InterviewSession.update(sessionId, {
+        transcript_snapshot: newTranscript,
+        queue_snapshot: newQueue,
+        current_item_snapshot: newCurrentItem,
+        total_questions_answered: totalPrimaryQuestionsAnswered,
+        completion_percentage: completionPercentage,
+        data_version: 'v1.0' // Versioning for future schema changes
+      });
+      
+      console.log('✅ State persisted successfully');
+    } catch (err) {
+      console.error('❌ Failed to persist state:', err);
+      // Non-fatal - continue anyway
+    }
+  };
+
+  // ============================================================================
+  // ANSWER SUBMISSION - QUEUE-BASED FLOW WITH PERSISTENCE
   // ============================================================================
 
   const handleAnswer = useCallback(async (value) => {
@@ -282,6 +354,10 @@ export default function InterviewV2() {
 
     try {
       console.log(`📝 Processing answer for ${currentItem.type}:`, value);
+
+      let newTranscript;
+      let newQueue;
+      let nextItem;
 
       if (currentItem.type === 'question') {
         // PRIMARY QUESTION
@@ -301,10 +377,8 @@ export default function InterviewV2() {
           timestamp: new Date().toISOString()
         };
         
-        setTranscript(prev => [...prev, transcriptEntry]);
-
-        // Save to database
-        await saveAnswerToDatabase(currentItem.id, value, question);
+        newTranscript = [...transcript, transcriptEntry];
+        setTranscript(newTranscript);
 
         // Determine next items (deterministic routing)
         const nextIds = [];
@@ -315,7 +389,6 @@ export default function InterviewV2() {
           console.log(`🔔 Follow-up triggered: ${followUpTrigger}`);
           const packSteps = engine.PackStepsById[followUpTrigger];
           if (packSteps && packSteps.length > 0) {
-            // Add all follow-up steps to queue
             for (let i = 0; i < packSteps.length; i++) {
               nextIds.push({
                 id: `${followUpTrigger}:${i}`,
@@ -329,26 +402,21 @@ export default function InterviewV2() {
         
         // Then add next primary question
         const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-        console.log(`➡️ Next question ID: ${nextQuestionId}`);
         if (nextQuestionId) {
           nextIds.push({ id: nextQuestionId, type: 'question' });
         }
 
-        console.log(`📋 Next items to queue:`, nextIds);
-
-        // FIXED: Update queue and dequeue next item properly
-        // Add new items to EXISTING queue, then shift
-        const updatedQueue = [...queue, ...nextIds];
-        const nextItem = updatedQueue.shift() || null;
+        // Update queue and current item
+        newQueue = [...queue, ...nextIds];
+        nextItem = newQueue.shift() || null;
         
-        console.log(`✅ Next item:`, nextItem);
-        console.log(`✅ Remaining queue:`, updatedQueue);
-        
-        setQueue(updatedQueue);
+        setQueue(newQueue);
         setCurrentItem(nextItem);
         
+        // Save to Response entity (for backwards compatibility)
+        await saveAnswerToDatabase(currentItem.id, value, question);
+        
         if (!nextItem) {
-          // Interview complete
           setShowCompletionModal(true);
         }
 
@@ -385,23 +453,29 @@ export default function InterviewV2() {
           timestamp: new Date().toISOString()
         };
         
-        setTranscript(prev => [...prev, transcriptEntry]);
+        newTranscript = [...transcript, transcriptEntry];
+        setTranscript(newTranscript);
 
-        // Save to database
-        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value);
-
-        // FIXED: Move to next in queue properly
-        const nextItem = queue.shift() || null;
-        setQueue([...queue]); // Update queue state after shift
+        // Move to next in queue
+        newQueue = [...queue];
+        nextItem = newQueue.shift() || null;
+        
+        setQueue(newQueue);
         setCurrentItem(nextItem);
+        
+        // Save to FollowUpResponse entity (for backwards compatibility)
+        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value);
         
         if (!nextItem) {
           setShowCompletionModal(true);
         }
       }
 
+      // PERSIST STATE TO DATABASE (atomic) after successful state updates
+      await persistStateToDatabase(newTranscript, newQueue, nextItem);
+
       isCommittingRef.current = false;
-      setInput(""); // Clear input
+      setInput("");
       setTimeout(autoScrollToBottom, 100);
 
     } catch (err) {
@@ -410,7 +484,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, autoScrollToBottom]);
+  }, [currentItem, engine, queue, transcript, autoScrollToBottom, sessionId]);
 
   // Text input submit handler
   const handleTextSubmit = useCallback((e) => {
@@ -421,19 +495,18 @@ export default function InterviewV2() {
   }, [input, handleAnswer]);
 
   // ============================================================================
-  // DATABASE PERSISTENCE
+  // DATABASE PERSISTENCE (Response/FollowUpResponse entities for backwards compat)
   // ============================================================================
 
   const saveAnswerToDatabase = async (questionId, answer, question) => {
     try {
-      // Check if already exists
       const existing = await base44.entities.Response.filter({
         session_id: sessionId,
         question_id: questionId
       });
       
       if (existing.length > 0) {
-        console.log(`ℹ️ Response for ${questionId} already exists, skipping`);
+        console.log(`ℹ️ Response for ${questionId} already exists, skipping old entity creation`);
         return;
       }
       
@@ -454,36 +527,41 @@ export default function InterviewV2() {
         response_timestamp: new Date().toISOString(),
         display_order: currentDisplayOrder
       });
-      
-      // Update session progress
-      const totalAnswered = transcript.length + 1;
-      const percentage = Math.round((totalAnswered / engine.TotalQuestions) * 100);
-      
-      await base44.entities.InterviewSession.update(sessionId, {
-        total_questions_answered: totalAnswered,
-        completion_percentage: percentage,
-        followups_triggered: triggersFollowup ? (session?.followups_triggered || 0) + 1 : (session?.followups_triggered || 0)
-      });
 
     } catch (err) {
-      console.error('❌ Database save error:', err);
+      console.error('❌ Database (old Response entity) save error:', err);
     }
   };
 
   const saveFollowUpAnswer = async (packId, fieldKey, answer) => {
     try {
-      const responses = await base44.entities.Response.filter({
+      // Find the *original* triggering response to associate this follow-up with.
+      // This is a bit tricky with the new snapshot logic. We assume the last primary question
+      // that triggered this pack is the one.
+      const primaryResponses = transcript.filter(t => t.type === 'question' && engine?.QById[t.questionId]?.followup_pack === packId);
+      
+      if (primaryResponses.length === 0) {
+        console.error(`❌ No triggering primary question found in transcript for pack ${packId}`);
+        return;
+      }
+
+      // We need the actual DB entity ID of the triggering primary question, not just its transcript ID.
+      // This implies we should ideally query for it based on session_id and question_id
+      const dbTriggeringResponses = await base44.entities.Response.filter({
         session_id: sessionId,
+        question_id: primaryResponses[primaryResponses.length - 1].questionId, // Get questionId from last primary response in transcript
         followup_pack: packId,
         triggered_followup: true
       });
       
-      if (responses.length === 0) {
-        console.error(`❌ No triggering response found for pack ${packId}`);
+      if (dbTriggeringResponses.length === 0) {
+        console.error(`❌ No triggering response entity found in DB for pack ${packId} and question ID ${primaryResponses[primaryResponses.length - 1].questionId}`);
         return;
       }
+
+      const triggeringResponse = dbTriggeringResponses[dbTriggeringResponses.length - 1]; // Use the latest one if multiple for some reason
       
-      const triggeringResponse = responses[responses.length - 1];
+      // Now check if a FollowUpResponse for this pack and triggering response already exists
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: triggeringResponse.id,
@@ -496,8 +574,8 @@ export default function InterviewV2() {
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
           followup_pack: packId,
-          instance_number: 1,
-          incident_description: answer,
+          instance_number: 1, // Assuming one instance per pack for now
+          incident_description: answer, // Could be generic, specific key is in additional_details
           completed: false,
           additional_details: { [fieldKey]: answer }
         });
@@ -512,7 +590,7 @@ export default function InterviewV2() {
       }
 
     } catch (err) {
-      console.error('❌ Follow-up save error:', err);
+      console.error('❌ Follow-up (old FollowUpResponse entity) save error:', err);
     }
   };
 
@@ -527,7 +605,11 @@ export default function InterviewV2() {
       await base44.entities.InterviewSession.update(sessionId, {
         status: 'completed',
         completed_date: new Date().toISOString(),
-        completion_percentage: 100
+        completion_percentage: 100,
+        // Clear snapshots upon completion
+        transcript_snapshot: [],
+        queue_snapshot: [],
+        current_item_snapshot: null
       });
 
       console.log('✅ Interview marked as completed');
@@ -546,7 +628,11 @@ export default function InterviewV2() {
 
   const getQuestionNumber = (questionId) => {
     if (!questionId) return '';
-    return questionId.replace(/^Q0*/, '');
+    // This is a generic number extraction, might need to be specific to 'Q' questions
+    if (questionId.startsWith('Q')) {
+      return questionId.replace(/^Q0*/, '');
+    }
+    return ''; // Follow-up questions don't have a distinct question number like Q1, Q2.
   };
 
   const getFollowUpPackName = (packId) => {
@@ -621,8 +707,8 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const totalQuestions = engine?.TotalQuestions || 162;
-  const answeredCount = transcript.length;
-  const progress = Math.round((answeredCount / totalQuestions) * 100);
+  const answeredPrimaryQuestions = transcript.filter(t => t.type === 'question').length;
+  const progress = Math.round((answeredPrimaryQuestions / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
@@ -640,7 +726,7 @@ export default function InterviewV2() {
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-white">
-                  {answeredCount} / {totalQuestions}
+                  {answeredPrimaryQuestions} / {totalQuestions}
                 </div>
                 <div className="text-xs text-slate-400">
                   {progress}% Complete
@@ -676,11 +762,11 @@ export default function InterviewV2() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {answeredCount > 0 && (
+              {answeredPrimaryQuestions > 0 && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
-                    You've completed {answeredCount} of {totalQuestions} questions. Keep going!
+                    You've completed {answeredPrimaryQuestions} of {totalQuestions} questions. Keep going!
                   </AlertDescription>
                 </Alert>
               )}
