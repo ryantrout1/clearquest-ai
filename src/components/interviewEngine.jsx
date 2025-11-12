@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine
  * Deterministic, zero-AI question routing with precomputed lookups
@@ -506,6 +507,18 @@ const FOLLOWUP_PACK_STEPS = {
 };
 
 // ============================================================================
+// SKIP RULES - Special routing logic for specific questions
+// ============================================================================
+
+const SKIP_RULES = {
+  'Q001': {
+    // If Q001 (Have you applied with other LE agencies?) is "No", skip to Driving Record
+    skipIfAnswer: 'No',
+    skipToQuestion: 'Q005' // First question in Driving Record section
+  }
+};
+
+// ============================================================================
 // VALIDATION HELPERS
 // ============================================================================
 
@@ -786,7 +799,14 @@ export async function bootstrapEngine(base44) {
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
   const { NextById, ActiveOrdered } = engine;
 
-  // Check explicit next pointer first
+  // Check for skip rules first
+  const skipRule = SKIP_RULES[currentQuestionId];
+  if (skipRule && String(answer).toLowerCase() === skipRule.skipIfAnswer.toLowerCase()) {
+    console.log(`⏭️ Skipping from ${currentQuestionId} to ${skipRule.skipToQuestion} due to rule.`);
+    return skipRule.skipToQuestion;
+  }
+
+  // Check explicit next pointer
   if (NextById[currentQuestionId]) {
     return NextById[currentQuestionId];
   }
