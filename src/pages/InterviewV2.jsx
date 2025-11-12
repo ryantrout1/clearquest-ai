@@ -117,6 +117,7 @@ export default function InterviewV2() {
   // Refs
   const historyRef = useRef(null);
   const isCommittingRef = useRef(false);
+  const displayOrderRef = useRef(0); // Track display order for responses
 
   // ============================================================================
   // INITIALIZATION WITH RESUME SUPPORT
@@ -176,6 +177,11 @@ export default function InterviewV2() {
         session_id: sessionId 
       });
       console.log(`✅ Found ${existingResponses.length} existing responses`);
+      
+      // Initialize display order from existing responses
+      if (existingResponses.length > 0) {
+        displayOrderRef.current = existingResponses.length;
+      }
       
       // Step 4: Restore state from existing responses
       let restoredState;
@@ -313,7 +319,7 @@ export default function InterviewV2() {
   // ANSWER SUBMISSION (NO AI, NO REFRESH, PURE STATE UPDATE)
   // ============================================================================
 
-  const handleAnswer = useCallback((value) => {
+  const handleAnswer = useCallback(async (value) => { // Made async here
     // RULE: Guard against double-submit
     if (isCommittingRef.current || !interviewState) {
       console.warn('⚠️ Already committing or no state');
@@ -331,14 +337,19 @@ export default function InterviewV2() {
         console.log(`📝 Primary answer: "${value}"`);
         newState = handlePrimaryAnswer(interviewState, value);
         
-        // RULE: Save to DB async (non-blocking, no UI impact)
-        saveAnswerToDatabase(interviewState.currentQuestionId, value).catch(err => {
+        // CRITICAL FIX: Save to DB immediately (with display order)
+        await saveAnswerToDatabase(interviewState.currentQuestionId, value, 'primary').catch(err => {
           console.error('⚠️ Database save failed (non-fatal):', err);
         });
         
       } else if (interviewState.currentMode === 'FOLLOWUP') {
         console.log(`📋 Follow-up answer: "${value}"`);
         newState = handleFollowUpAnswer(interviewState, value);
+        
+        // CRITICAL FIX: Save follow-up to DB immediately
+        await saveFollowUpAnswer(value).catch(err => {
+          console.error('⚠️ Follow-up save failed (non-fatal):', err);
+        });
         
         // Check if we need AI probe (after 1 failed attempt and max 2 probes)
         if (newState.currentStepRetries >= 1 && newState.currentStepProbes < 2 && 
@@ -393,12 +404,17 @@ export default function InterviewV2() {
   }, [input, handleAnswer]);
 
   // ============================================================================
-  // DATABASE PERSISTENCE (ASYNC, NON-BLOCKING)
+  // DATABASE PERSISTENCE (ASYNC, NON-BLOCKING) - FIXED VERSION
   // ============================================================================
 
-  const saveAnswerToDatabase = async (questionId, answer) => {
+  const saveAnswerToDatabase = async (questionId, answer, type = 'primary') => {
     try {
       const question = interviewState.engine.QById[questionId];
+      
+      if (!question) {
+        console.error(`❌ Question ${questionId} not found in engine`);
+        return;
+      }
       
       // Check if response already exists (in case of resume/replay)
       const existingResponses = await base44.entities.Response.filter({
@@ -411,27 +427,135 @@ export default function InterviewV2() {
         return;
       }
       
+      // Increment display order
+      const currentDisplayOrder = displayOrderRef.current++;
+      
+      // Determine if this triggers a follow-up
+      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
+      
+      console.log(`💾 Saving response: ${questionId} = "${answer}" (display_order: ${currentDisplayOrder})`);
+      
       await base44.entities.Response.create({
         session_id: sessionId,
         question_id: questionId,
         question_text: question.question_text,
         category: question.category,
         answer: answer,
-        triggered_followup: false,
-        response_timestamp: new Date().toISOString()
+        answer_array: null, // Not used for simple text answers
+        triggered_followup: triggersFollowup,
+        followup_pack: triggersFollowup ? question.followup_pack : null,
+        is_flagged: false, // Default
+        flag_reason: null, // Default
+        response_timestamp: new Date().toISOString(),
+        display_order: currentDisplayOrder
       });
       
-      console.log(`✅ Saved response: ${questionId} = "${answer}"`);
+      console.log(`✅ Saved response for ${questionId}`);
 
       // Update session progress
       const progress = getProgress(interviewState);
-      await base44.entities.InterviewSession.update(sessionId, {
+      const updatedSession = await base44.entities.InterviewSession.update(sessionId, {
         total_questions_answered: progress.answered,
-        completion_percentage: progress.percentage
+        completion_percentage: progress.percentage,
+        followups_triggered: triggersFollowup ? (session?.followups_triggered || 0) + 1 : (session?.followups_triggered || 0)
       });
+      setSession(prev => ({...prev, ...updatedSession})); // Update local session state
 
     } catch (err) {
-      console.error('Database save error:', err);
+      console.error('❌ Database save error:', err);
+      throw err; // Re-throw to handle upstream
+    }
+  };
+
+  // NEW: Save follow-up responses properly
+  const saveFollowUpAnswer = async (answer) => {
+    try {
+      const { currentPack, currentPackIndex } = interviewState;
+      
+      if (!currentPack) {
+        console.error('❌ No current pack in follow-up mode');
+        return;
+      }
+      
+      const steps = interviewState.engine.PackStepsById[currentPack.packId];
+      if (!steps || currentPackIndex >= steps.length) {
+        console.error('❌ Invalid pack or index');
+        return;
+      }
+      
+      const step = steps[currentPackIndex];
+      
+      // Find the Response record that triggered this follow-up
+      // We assume the most recent 'yes' response that triggered this pack is the one we're currently processing follow-ups for.
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        followup_pack: currentPack.packId,
+        triggered_followup: true
+      });
+      
+      if (responses.length === 0) {
+        console.error(`❌ No triggering response found for pack ${currentPack.packId}`);
+        return;
+      }
+      
+      // Sort to get the most recent one that triggered it, if multiple existed
+      const triggeringResponse = responses.sort((a, b) => new Date(a.response_timestamp) - new Date(b.response_timestamp)).pop();
+
+      if (!triggeringResponse) {
+        console.error(`❌ Could not identify triggering response for pack ${currentPack.packId}`);
+        return;
+      }
+
+      // Check if FollowUpResponse already exists for this specific instance (response_id + pack)
+      // Note: A single Response can trigger one FOLLOWUP_PACK.
+      // The current system assumes one "incident" per triggered pack,
+      // and details for that incident are collected in the FollowUpResponse's additional_details.
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: triggeringResponse.id,
+        followup_pack: currentPack.packId
+      });
+      
+      console.log(`💾 Saving follow-up: ${currentPack.packId}:${step.Field_Key} = "${answer}"`);
+      
+      if (existingFollowups.length === 0) {
+        // Create new FollowUpResponse
+        await base44.entities.FollowUpResponse.create({
+          session_id: sessionId,
+          response_id: triggeringResponse.id,
+          question_id: triggeringResponse.question_id,
+          followup_pack: currentPack.packId,
+          instance_number: 1, // Assuming one instance per triggered pack for now
+          incident_description: currentPackIndex === 0 ? answer : null, // Store first answer as overall description
+          completed: currentPackIndex === steps.length - 1, // Mark complete on last step
+          completed_timestamp: currentPackIndex === steps.length - 1 ? new Date().toISOString() : null,
+          additional_details: {
+            [step.Field_Key]: answer,
+            step_index: currentPackIndex,
+            step_field: step.Field_Key
+          }
+        });
+      } else {
+        // Update existing FollowUpResponse with new field
+        const existing = existingFollowups[0];
+        const updatedDetails = {
+          ...(existing.additional_details || {}),
+          [step.Field_Key]: answer,
+        };
+        
+        await base44.entities.FollowUpResponse.update(existing.id, {
+          additional_details: updatedDetails,
+          incident_description: existing.incident_description || (currentPackIndex === 0 ? answer : null), // Only set if not already set by first step
+          completed: currentPackIndex === steps.length - 1,
+          completed_timestamp: currentPackIndex === steps.length - 1 ? new Date().toISOString() : existing.completed_timestamp
+        });
+      }
+      
+      console.log(`✅ Saved follow-up answer for ${currentPack.packId}:${step.Field_Key}`);
+      
+    } catch (err) {
+      console.error('❌ Follow-up save error:', err);
+      throw err;
     }
   };
 
