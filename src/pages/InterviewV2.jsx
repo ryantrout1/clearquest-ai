@@ -98,7 +98,7 @@ const FOLLOWUP_PACK_NAMES = {
  * Deterministic base questions + follow-up packs (UI-driven) with conditional logic
  * AI agent handles probing + closure (after follow-up packs complete)
  * State persisted to database for seamless resume
- * PATCH: Dates stored as plain text, hired outcomes skip probing
+ * PATCH: Smooth chat UI for investigator follow-ups (no refresh)
  */
 export default function InterviewV2() {
   const navigate = useNavigate();
@@ -194,6 +194,7 @@ export default function InterviewV2() {
     }
   }, [currentItem, isCommitting, isWaitingForAgent]);
 
+  // ENHANCED: Scroll when agent messages update
   useEffect(() => {
     if (transcript.length > 0 || agentMessages.length > 0) {
       setTimeout(autoScrollToBottom, 150);
@@ -1019,7 +1020,7 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // RENDER HELPERS
+  // RENDER HELPERS - OPTIMIZED FOR SMOOTH CHAT
   // ============================================================================
 
   const getQuestionNumber = (questionId) => {
@@ -1110,21 +1111,7 @@ export default function InterviewV2() {
     return "Type your answer...";
   };
   
-  // Get all displayable agent messages (filter out system messages only)
-  const getDisplayableAgentMessages = useCallback(() => {
-    if (!isWaitingForAgent || agentMessages.length === 0) return [];
-    
-    return agentMessages.filter(msg => {
-      // Filter out system summary messages
-      if (msg.content?.includes('Follow-up pack completed')) return false;
-      // Filter out base question signals (Q###)
-      if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
-      // Keep everything else (both assistant and user messages)
-      return true;
-    });
-  }, [agentMessages, isWaitingForAgent]);
-
-  // Get last unanswered agent question (only for active question box)
+  // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
     
@@ -1177,13 +1164,24 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const lastAgentQuestion = getLastAgentQuestion();
-  const displayableAgentMessages = getDisplayableAgentMessages();
   const totalQuestions = engine?.TotalQuestions || 198;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
+
+  // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
+  const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
+    ? agentMessages.filter(msg => {
+        // Filter out system summary messages
+        if (msg.content?.includes('Follow-up pack completed')) return false;
+        // Filter out base question signals (Q###)
+        if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+        // Keep everything else (both assistant and user messages)
+        return true;
+      })
+    : [];
 
   return (
     <>
@@ -1306,7 +1304,7 @@ export default function InterviewV2() {
                 />
               ))}
               
-              {/* Show ALL agent messages as continuous thread */}
+              {/* Show ALL agent messages as continuous thread (NO REFRESH) */}
               {displayableAgentMessages.length > 0 && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
@@ -1315,7 +1313,7 @@ export default function InterviewV2() {
                   </div>
                   {displayableAgentMessages.map((msg, idx) => (
                     <AgentMessageBubble 
-                      key={`agent-${msg.id || idx}`} 
+                      key={msg.id || `msg-${idx}`} 
                       message={msg} 
                     />
                   ))}
