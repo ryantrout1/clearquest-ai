@@ -1,20 +1,44 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Building2, Users, DollarSign, Search, ArrowLeft, Plus, CheckCircle, XCircle, Rocket } from "lucide-react";
+import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { format, differenceInDays } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export default function SystemAdminDashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [systemMetrics, setSystemMetrics] = useState({
+    totalDepartments: 0,
+    activeTrials: 0,
+    trialsExpiringSoon: 0,
+    totalInterviewsStarted: 0,
+    totalInterviewsCompleted: 0,
+    followUpsTriggeredLast30Days: 0
+  });
+  const [departmentStats, setDepartmentStats] = useState({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [departmentToDelete, setDepartmentToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -51,15 +75,21 @@ export default function SystemAdminDashboard() {
     }
   };
 
-  const { data: departments = [] } = useQuery({
+  const { data: departments = [], isLoading: departmentsLoading } = useQuery({
     queryKey: ['departments'],
     queryFn: () => base44.entities.Department.list('-created_date'),
     enabled: !!user
   });
 
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
+  const { data: allSessions = [] } = useQuery({
+    queryKey: ['all-sessions'],
+    queryFn: () => base44.entities.InterviewSession.list(),
+    enabled: !!user
+  });
+
+  const { data: allFollowUps = [] } = useQuery({
+    queryKey: ['all-followups'],
+    queryFn: () => base44.entities.FollowUpResponse.list(),
     enabled: !!user
   });
 
@@ -68,6 +98,108 @@ export default function SystemAdminDashboard() {
     queryFn: () => base44.entities.UpgradeRequest.filter({ status: 'Open' }),
     enabled: !!user
   });
+
+  // Calculate system-wide metrics
+  useEffect(() => {
+    if (!departments.length || !allSessions.length) return;
+
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Active departments (not deleted)
+    const activeDepts = departments.filter(d => !d.is_deleted && !d.deleted_at);
+
+    // Active trials (trial_ends_at in future)
+    const activeTrials = activeDepts.filter(d => {
+      if (d.plan_level !== 'Trial') return false;
+      if (!d.trial_ends_at && !d.trial_end_date) return false;
+      const endDate = new Date(d.trial_ends_at || d.trial_end_date);
+      return endDate > now;
+    });
+
+    // Trials expiring soon (within 7 days)
+    const expiringSoon = activeDepts.filter(d => {
+      if (d.plan_level !== 'Trial') return false;
+      if (!d.trial_ends_at && !d.trial_end_date) return false;
+      const endDate = new Date(d.trial_ends_at || d.trial_end_date);
+      return endDate > now && endDate <= sevenDaysFromNow;
+    });
+
+    // Interview stats
+    const completedSessions = allSessions.filter(s => s.status === 'completed');
+
+    // Follow-ups in last 30 days
+    const recentFollowUps = allFollowUps.filter(f => {
+      if (!f.created_date) return false;
+      return new Date(f.created_date) >= thirtyDaysAgo;
+    });
+
+    setSystemMetrics({
+      totalDepartments: activeDepts.length,
+      activeTrials: activeTrials.length,
+      trialsExpiringSoon: expiringSoon.length,
+      totalInterviewsStarted: allSessions.length,
+      totalInterviewsCompleted: completedSessions.length,
+      followUpsTriggeredLast30Days: recentFollowUps.length
+    });
+  }, [departments, allSessions, allFollowUps]);
+
+  // Calculate per-department stats
+  useEffect(() => {
+    if (!departments.length || !allSessions.length) return;
+
+    const stats = {};
+    
+    departments.forEach(dept => {
+      const deptSessions = allSessions.filter(s => s.department_code === dept.department_code);
+      const completedSessions = deptSessions.filter(s => s.status === 'completed');
+      
+      // Get follow-ups for this department's sessions
+      const sessionIds = deptSessions.map(s => s.id);
+      const deptFollowUps = allFollowUps.filter(f => sessionIds.includes(f.session_id));
+      
+      // Calculate average completion time (simplified - could use started_date and completed_date)
+      let avgCompletionMinutes = null;
+      if (completedSessions.length > 0) {
+        const durationsInMinutes = completedSessions
+          .filter(s => s.started_date && s.completed_date)
+          .map(s => {
+            const start = new Date(s.started_date);
+            const end = new Date(s.completed_date);
+            return (end - start) / 1000 / 60; // minutes
+          });
+        
+        if (durationsInMinutes.length > 0) {
+          const sum = durationsInMinutes.reduce((a, b) => a + b, 0);
+          avgCompletionMinutes = Math.round(sum / durationsInMinutes.length);
+        }
+      }
+      
+      // Last activity
+      let lastActivityAt = null;
+      if (deptSessions.length > 0) {
+        const timestamps = deptSessions
+          .map(s => s.updated_date || s.created_date)
+          .filter(t => t)
+          .map(t => new Date(t));
+        
+        if (timestamps.length > 0) {
+          lastActivityAt = new Date(Math.max(...timestamps));
+        }
+      }
+      
+      stats[dept.id] = {
+        interviewsCount: deptSessions.length,
+        completedInterviewsCount: completedSessions.length,
+        avgCompletionMinutes,
+        followUpsCount: deptFollowUps.length,
+        lastActivityAt
+      };
+    });
+    
+    setDepartmentStats(stats);
+  }, [departments, allSessions, allFollowUps]);
 
   const handleApproveUpgrade = async (request) => {
     try {
@@ -82,10 +214,12 @@ export default function SystemAdminDashboard() {
         resolved_by_user_id: user.id
       });
 
-      alert('Upgrade approved successfully');
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      queryClient.invalidateQueries({ queryKey: ['upgrade-requests'] });
+      toast.success('Upgrade approved successfully');
     } catch (err) {
       console.error('Error approving upgrade:', err);
-      alert('Failed to approve upgrade');
+      toast.error('Failed to approve upgrade');
     }
   };
 
@@ -96,23 +230,78 @@ export default function SystemAdminDashboard() {
         resolved_date: new Date().toISOString(),
         resolved_by_user_id: user.id
       });
-      alert('Upgrade request declined');
+      
+      queryClient.invalidateQueries({ queryKey: ['upgrade-requests'] });
+      toast.success('Upgrade request declined');
     } catch (err) {
       console.error('Error declining upgrade:', err);
+      toast.error('Failed to decline upgrade');
+    }
+  };
+
+  const initiateDeleteDepartment = (dept) => {
+    // Prevent deletion of paid departments
+    if (dept.plan_level === 'Paid') {
+      toast.error('Cannot delete paid departments. Contact support for assistance.');
+      return;
+    }
+    
+    setDepartmentToDelete(dept);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteDepartment = async () => {
+    if (!departmentToDelete) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      console.log(`🗑️ Deleting department: ${departmentToDelete.department_name}`);
+      
+      // Delete all sessions for this department
+      const deptSessions = allSessions.filter(s => s.department_code === departmentToDelete.department_code);
+      for (const session of deptSessions) {
+        try {
+          await base44.entities.InterviewSession.delete(session.id);
+        } catch (err) {
+          console.error(`Error deleting session ${session.id}:`, err);
+        }
+      }
+      
+      // Delete the department
+      await base44.entities.Department.delete(departmentToDelete.id);
+      
+      console.log(`✅ Department deleted successfully`);
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      
+      toast.success(`Department "${departmentToDelete.department_name}" deleted successfully`);
+      
+      setDeleteDialogOpen(false);
+      setDepartmentToDelete(null);
+    } catch (err) {
+      console.error('Error deleting department:', err);
+      toast.error('Failed to delete department. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const filteredDepartments = departments.filter(dept =>
     dept.department_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    dept.department_id?.toLowerCase().includes(searchTerm.toLowerCase())
+    dept.department_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    dept.department_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const stats = {
-    totalDepartments: departments.length,
-    activeTrial: departments.filter(d => d.plan_level === 'Trial').length,
-    activePilot: departments.filter(d => d.plan_level === 'Pilot').length,
-    paidAccounts: departments.filter(d => d.plan_level === 'Paid').length,
-    totalUsers: allUsers.length
+  const getTrialDaysRemaining = (dept) => {
+    if (dept.plan_level !== 'Trial') return null;
+    const endDate = dept.trial_ends_at || dept.trial_end_date;
+    if (!endDate) return null;
+    
+    const days = differenceInDays(new Date(endDate), new Date());
+    return days > 0 ? days : 0;
   };
 
   if (!user) return null;
@@ -128,9 +317,9 @@ export default function SystemAdminDashboard() {
             </Button>
           </Link>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white flex items-center gap-2 md:gap-3 break-words">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white flex items-center gap-2 md:gap-3">
                 <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-400 flex-shrink-0" />
                 <span>System Admin Dashboard</span>
               </h1>
@@ -147,42 +336,47 @@ export default function SystemAdminDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+        {/* Enhanced System Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
           <StatCard
             title="Total Departments"
-            value={stats.totalDepartments}
+            value={systemMetrics.totalDepartments}
             icon={Building2}
             color="blue"
           />
           <StatCard
             title="Active Trials"
-            value={stats.activeTrial}
-            icon={DollarSign}
+            value={systemMetrics.activeTrials}
+            icon={Rocket}
             color="orange"
           />
           <StatCard
-            title="Active Pilots"
-            value={stats.activePilot}
-            icon={Rocket}
+            title="Trials Expiring (7 Days)"
+            value={systemMetrics.trialsExpiringSoon}
+            icon={AlertTriangle}
+            color="red"
+          />
+          <StatCard
+            title="Interviews Started"
+            value={systemMetrics.totalInterviewsStarted}
+            icon={FileText}
             color="cyan"
           />
           <StatCard
-            title="Paid Accounts"
-            value={stats.paidAccounts}
+            title="Interviews Completed"
+            value={systemMetrics.totalInterviewsCompleted}
             icon={CheckCircle}
             color="green"
           />
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
           <StatCard
-            title="Total Users"
-            value={stats.totalUsers}
-            icon={Users}
+            title="Follow-Ups (30 Days)"
+            value={systemMetrics.followUpsTriggeredLast30Days}
+            icon={ArrowUpCircle}
             color="purple"
           />
         </div>
 
+        {/* Upgrade Requests */}
         {upgradeRequests.length > 0 && (
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
             <CardHeader>
@@ -192,9 +386,9 @@ export default function SystemAdminDashboard() {
               {upgradeRequests.map(request => {
                 const dept = departments.find(d => d.id === request.department_id);
                 return (
-                  <div key={request.id} className="border border-slate-700 rounded-lg p-4 flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-white font-medium">{dept?.department_name}</h3>
+                  <div key={request.id} className="border border-slate-700 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-medium break-words">{dept?.department_name}</h3>
                       <p className="text-slate-400 text-sm">
                         {request.current_plan_level} → {request.requested_plan_level}
                       </p>
@@ -226,6 +420,7 @@ export default function SystemAdminDashboard() {
           </Card>
         )}
 
+        {/* Departments List with Enhanced Cards */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardHeader>
             <div className="flex flex-col gap-4">
@@ -243,45 +438,128 @@ export default function SystemAdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredDepartments.map(dept => (
-                <div
-                  key={dept.id}
-                  className="border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
-                >
-                  <div className="flex flex-col gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="text-white font-medium text-sm md:text-base break-words">{dept.department_name}</h3>
-                        <Badge className={getPlanBadgeColor(dept.plan_level)}>
-                          {dept.plan_level}
-                        </Badge>
-                        <Badge variant="outline" className="text-slate-400 border-slate-600 text-xs">
-                          {dept.department_type}
-                        </Badge>
+              {departmentsLoading ? (
+                <div className="text-center py-8 text-slate-400">Loading departments...</div>
+              ) : filteredDepartments.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No departments found</div>
+              ) : (
+                filteredDepartments.map(dept => {
+                  const stats = departmentStats[dept.id] || {};
+                  const daysRemaining = getTrialDaysRemaining(dept);
+                  
+                  return (
+                    <div
+                      key={dept.id}
+                      className="border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
+                    >
+                      <div className="flex flex-col lg:flex-row gap-4">
+                        {/* Left Side - Department Info */}
+                        <div className="flex-1 min-w-0">
+                          {/* Top Row - Name & Badges */}
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h3 className="text-white font-medium text-sm md:text-base break-words">{dept.department_name}</h3>
+                            <Badge className={getPlanBadgeColor(dept.plan_level)}>
+                              {dept.plan_level}
+                            </Badge>
+                            {daysRemaining !== null && (
+                              <Badge variant="outline" className={daysRemaining <= 3 ? "border-red-500 text-red-400" : "border-orange-500 text-orange-400"}>
+                                {daysRemaining} days left
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {/* Stats Row */}
+                          <div className="flex flex-wrap gap-3 md:gap-4 text-xs text-slate-400 mb-2">
+                            <span>Interviews: <span className="text-slate-300 font-medium">{stats.interviewsCount || 0}</span></span>
+                            <span>•</span>
+                            <span>Completed: <span className="text-slate-300 font-medium">{stats.completedInterviewsCount || 0}</span></span>
+                            <span>•</span>
+                            <span>Avg Time: <span className="text-slate-300 font-medium">{stats.avgCompletionMinutes ? `${stats.avgCompletionMinutes} min` : '-'}</span></span>
+                            <span>•</span>
+                            <span>Follow-Ups: <span className="text-slate-300 font-medium">{stats.followUpsCount || 0}</span></span>
+                            {stats.lastActivityAt && (
+                              <>
+                                <span>•</span>
+                                <span>Last Activity: <span className="text-slate-300 font-medium">{format(stats.lastActivityAt, 'MMM d, yyyy')}</span></span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Contact Info */}
+                          {dept.contact_name && (
+                            <div className="text-xs text-slate-500 mt-2">
+                              <span>{dept.contact_name}</span>
+                              {dept.contact_email && <span> • {dept.contact_email}</span>}
+                              {dept.contact_phone && <span> • {dept.contact_phone}</span>}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Right Side - Actions */}
+                        <div className="flex lg:flex-col gap-2 lg:ml-auto flex-shrink-0">
+                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1 lg:flex-none">
+                            <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 text-xs">
+                              View
+                            </Button>
+                          </Link>
+                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1 lg:flex-none">
+                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs">
+                              Edit
+                            </Button>
+                          </Link>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => initiateDeleteDepartment(dept)}
+                            disabled={dept.plan_level === 'Paid'}
+                            className={`flex-1 lg:flex-none text-xs ${
+                              dept.plan_level === 'Paid' 
+                                ? 'opacity-50 cursor-not-allowed border-slate-600 text-slate-500' 
+                                : 'border-red-600 text-red-400 hover:bg-red-950/30'
+                            }`}
+                            title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : 'Delete department'}
+                          >
+                            <Trash2 className="w-3 h-3 lg:mr-1" />
+                            <span className="hidden lg:inline">Delete</span>
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-slate-400 text-xs md:text-sm">
-                        {dept.applicants_processed || 0} applicants • {dept.seats_allocated} seats
-                      </p>
                     </div>
-                    <div className="flex gap-2 w-full">
-                      <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1">
-                        <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 hover:text-white hover:border-slate-500 text-xs md:text-sm">
-                          View
-                        </Button>
-                      </Link>
-                      <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1">
-                        <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs md:text-sm">
-                          Edit
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-slate-800 border-slate-700 max-w-md mx-4">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete Department?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300">
+              Are you sure you want to delete <span className="font-semibold text-white break-all">{departmentToDelete?.department_name}</span>? 
+              This will also delete all associated interview sessions and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isDeleting}
+              className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDepartment}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Delete Department"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -292,7 +570,8 @@ function StatCard({ title, value, icon: Icon, color }) {
     orange: "from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-400",
     cyan: "from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-400",
     green: "from-green-500/20 to-green-600/10 border-green-500/30 text-green-400",
-    purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400"
+    purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400",
+    red: "from-red-500/20 to-red-600/10 border-red-500/30 text-red-400"
   };
 
   return (
