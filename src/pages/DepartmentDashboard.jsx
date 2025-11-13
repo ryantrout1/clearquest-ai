@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -7,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Building2, Users, FileText, Settings, ArrowLeft, 
+import {
+  Building2, Users, FileText, Settings, ArrowLeft,
   AlertCircle, Calendar, Shield, TrendingUp, PlayCircle, Download, Mail, Phone, User
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -18,7 +19,7 @@ export default function DepartmentDashboard() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const deptId = urlParams.get('id');
-  
+
   const [user, setUser] = useState(null);
   const [department, setDepartment] = useState(null);
 
@@ -45,7 +46,7 @@ export default function DepartmentDashboard() {
 
           // Load department by ID from URL
           if (!deptId) {
-            navigate(createPageUrl("HomeHub"));
+            navigate(createPageUrl("SystemAdminDashboard"));
             return;
           }
 
@@ -65,15 +66,15 @@ export default function DepartmentDashboard() {
       // Load department
       const deptIdToLoad = deptId || currentUser.department_id;
       if (!deptIdToLoad) {
-        navigate(createPageUrl("HomeHub"));
+        navigate(createPageUrl("SystemAdminDashboard"));
         return;
       }
 
       const dept = await base44.entities.Department.get(deptIdToLoad);
-      
+
       // Check access - users can only see their own department unless super admin
       if (currentUser.role !== 'SUPER_ADMIN' && dept.id !== currentUser.department_id) {
-        navigate(createPageUrl("HomeHub"));
+        navigate(createPageUrl("SystemAdminDashboard"));
         return;
       }
 
@@ -83,6 +84,13 @@ export default function DepartmentDashboard() {
       navigate(createPageUrl("AdminLogin"));
     }
   };
+
+  // Fetch department users
+  const { data: departmentUsers = [] } = useQuery({
+    queryKey: ['department-users', department?.id],
+    queryFn: () => base44.entities.DepartmentUser.filter({ department_id: department.id }),
+    enabled: !!department
+  });
 
   // Fetch all sessions for this department
   const { data: allSessions = [] } = useQuery({
@@ -97,9 +105,9 @@ export default function DepartmentDashboard() {
     queryFn: async () => {
       const sessions = await base44.entities.InterviewSession.filter({ department_code: department.department_code });
       const sessionIds = sessions.map(s => s.id);
-      
+
       // Fetch responses for all sessions
-      const responsePromises = sessionIds.map(id => 
+      const responsePromises = sessionIds.map(id =>
         base44.entities.Response.filter({ session_id: id })
       );
       const responsesArrays = await Promise.all(responsePromises);
@@ -122,7 +130,7 @@ export default function DepartmentDashboard() {
     const sevenDaysAgo = subDays(new Date(), 7);
 
     const openInterviews = allSessions.filter(s => s.status === 'in_progress').length;
-    
+
     const completed7d = allSessions.filter(s => {
       if (s.status !== 'completed') return false;
       const updatedDate = new Date(s.updated_date || s.completed_date);
@@ -174,7 +182,7 @@ export default function DepartmentDashboard() {
 
   // Check trial status
   const isTrialExpiring = department.plan_level === 'Trial' && department.trial_end_date;
-  const daysUntilExpiry = isTrialExpiring 
+  const daysUntilExpiry = isTrialExpiring
     ? Math.ceil((new Date(department.trial_end_date) - new Date()) / (1000 * 60 * 60 * 24))
     : null;
 
@@ -191,26 +199,26 @@ export default function DepartmentDashboard() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  // Check if primary contact exists
-  const hasPrimaryContact = department.contact_name && department.contact_email && department.contact_phone;
+  // Get primary contact
+  const primaryContact = departmentUsers.find(u => u.is_primary) || departmentUsers[0];
+  const additionalContacts = departmentUsers.filter(u => !u.is_primary && u.id !== primaryContact?.id);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Back Button */}
+        {/* Back Button - Fixed to go to SystemAdminDashboard */}
         <div className="mb-4">
-          <Link to={createPageUrl("HomeHub")}>
+          <Link to={createPageUrl("SystemAdminDashboard")}>
             <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
+              Back to System Admin Dashboard
             </Button>
           </Link>
         </div>
 
-        {/* Department Header Card */}
         <style>{`
-          :root { 
-            --brand: ${department.color_primary || 'rgba(120,160,255,.25)'}; 
+          :root {
+            --brand: ${department.color_primary || 'rgba(120,160,255,.25)'};
           }
           .dept-header-card {
             display: flex;
@@ -342,8 +350,8 @@ export default function DepartmentDashboard() {
         <div className="dept-header-card">
           <div className="dept-header-left">
             {department.logo_url && !department.use_default_branding ? (
-              <img 
-                src={department.logo_url} 
+              <img
+                src={department.logo_url}
                 alt={department.department_name}
                 className="dept-header-logo"
               />
@@ -398,7 +406,7 @@ export default function DepartmentDashboard() {
               Interviews
             </Button>
           </Link>
-          
+
           {canEdit && (
             <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
               <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
@@ -407,16 +415,16 @@ export default function DepartmentDashboard() {
               </Button>
             </Link>
           )}
-          
+
           <Link to={createPageUrl("StartInterview")}>
             <Button variant="outline" className="bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30">
               <PlayCircle className="w-4 h-4 mr-2" />
               Start Interview
             </Button>
           </Link>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
             onClick={() => alert('Export functionality coming soon')}
           >
@@ -428,7 +436,7 @@ export default function DepartmentDashboard() {
         {/* Trial Expiring Warning */}
         {isTrialExpiring && daysUntilExpiry <= 7 && (
           <Alert className="mb-6 bg-orange-950/20 border-orange-800/50 text-orange-200">
-            <AlertCircle className="h-4 h-4" />
+            <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-sm">
               <strong>Trial Ending Soon:</strong> Your trial expires in {daysUntilExpiry} days.
               {isDeptAdmin && " Contact support to upgrade your plan."}
@@ -446,7 +454,7 @@ export default function DepartmentDashboard() {
           />
           <StatCard
             title="Active Users"
-            value={hasPrimaryContact ? 1 : 0}
+            value={departmentUsers.length}
             icon={Users}
             color="green"
           />
@@ -477,7 +485,10 @@ export default function DepartmentDashboard() {
               <InfoRow label="Address" value={fullAddress} multiline />
               <InfoRow label="Phone" value={department.phone_number} />
               <InfoRow label="Website" value={department.website_url} link />
-              <InfoRow label="Contact" value={`${department.contact_name} (${department.contact_email})`} />
+              {/* Keeping department.contact_name/email for now, but these should be phased out if DepartmentUser is canonical */}
+              {department.contact_name && department.contact_email && (
+                <InfoRow label="Contact" value={`${department.contact_name} (${department.contact_email})`} />
+              )}
             </CardContent>
           </Card>
 
@@ -490,13 +501,13 @@ export default function DepartmentDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <InfoRow 
-                label="CJIS Compliance" 
+              <InfoRow
+                label="CJIS Compliance"
                 value={department.cjis_compliance ? "Enabled" : "Disabled"}
                 badge={department.cjis_compliance ? "success" : "warning"}
               />
-              <InfoRow 
-                label="Anonymity Mode" 
+              <InfoRow
+                label="Anonymity Mode"
                 value={department.anonymity_mode ? "Enabled" : "Disabled"}
                 badge={department.anonymity_mode ? "success" : "warning"}
               />
@@ -506,60 +517,98 @@ export default function DepartmentDashboard() {
             </CardContent>
           </Card>
 
-          {/* Primary Contact (Department Users) */}
+          {/* Department Users - NEW IMPLEMENTATION */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white text-lg">Department Users</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white text-lg">Department Users</CardTitle>
+                <Link to={createPageUrl(`ManageDepartmentUsers?id=${department.id}`)}>
+                  <Button size="sm" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 text-xs">
+                    Manage Contacts
+                  </Button>
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
-              {!hasPrimaryContact ? (
+              {departmentUsers.length === 0 ? (
                 <div className="text-center py-6">
                   <AlertCircle className="w-12 h-12 text-orange-400 mx-auto mb-3" />
                   <p className="text-slate-400 text-sm mb-4">
-                    No primary contact is on file for this department. Please add one in Department Settings.
+                    No contacts are on file for this department. Please add at least one contact in Department Contacts.
                   </p>
-                  <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
+                  <Link to={createPageUrl(`ManageDepartmentUsers?id=${department.id}`)}>
                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                      Edit Department
+                      Manage Contacts
                     </Button>
                   </Link>
                 </div>
               ) : (
-                <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
-                        <User className="w-5 h-5 text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-white font-medium text-sm break-words">
-                            {department.contact_name}
-                            {department.contact_title && <span className="text-slate-400 font-normal"> — {department.contact_title}</span>}
-                          </p>
+                <div className="space-y-4">
+                  {/* Primary Contact */}
+                  {primaryContact && (
+                    <div className="p-4 rounded-lg bg-slate-900/30 border border-blue-500/30">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-white font-medium text-sm break-words">
+                                {primaryContact.full_name}
+                                {primaryContact.title && <span className="text-slate-400 font-normal"> — {primaryContact.title}</span>}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-1 text-xs text-slate-400">
+                              <a
+                                href={`mailto:${primaryContact.email}`}
+                                className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
+                              >
+                                <Mail className="w-3 h-3" />
+                                {primaryContact.email}
+                              </a>
+                              <a
+                                href={`tel:${primaryContact.phone}`}
+                                className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
+                              >
+                                <Phone className="w-3 h-3" />
+                                {primaryContact.phone}
+                              </a>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-1 text-xs text-slate-400">
-                          <a 
-                            href={`mailto:${department.contact_email}`}
-                            className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
-                          >
-                            <Mail className="w-3 h-3" />
-                            {department.contact_email}
-                          </a>
-                          <a 
-                            href={`tel:${department.contact_phone}`}
-                            className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
-                          >
-                            <Phone className="w-3 h-3" />
-                            {department.contact_phone}
-                          </a>
-                        </div>
+                        <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 text-xs whitespace-nowrap flex-shrink-0">
+                          Primary Contact
+                        </Badge>
                       </div>
                     </div>
-                    <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 text-xs whitespace-nowrap flex-shrink-0">
-                      Primary Contact
-                    </Badge>
-                  </div>
+                  )}
+
+                  {/* Additional Contacts */}
+                  {additionalContacts.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400 mb-2">Additional Contacts</p>
+                      <div className="space-y-2">
+                        {additionalContacts.map(contact => (
+                          <div key={contact.id} className="p-3 rounded-lg bg-slate-900/20 border border-slate-700">
+                            <div className="flex items-start gap-2">
+                              <User className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-white text-sm break-words">
+                                  {contact.full_name}
+                                  {contact.title && <span className="text-slate-400"> — {contact.title}</span>}
+                                </p>
+                                <div className="flex flex-col gap-0.5 text-xs text-slate-400 mt-1">
+                                  <span>{contact.email}</span>
+                                  <span>{contact.phone}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -642,14 +691,4 @@ function InfoRow({ label, value, badge, link, multiline }) {
       )}
     </div>
   );
-}
-
-function getPlanBadgeColor(plan) {
-  switch (plan) {
-    case 'Trial': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-    case 'Pilot': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-    case 'Paid': return 'bg-green-500/20 text-green-300 border-green-500/30';
-    case 'Suspended': return 'bg-red-500/20 text-red-300 border-red-500/30';
-    default: return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
-  }
 }

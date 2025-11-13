@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -210,8 +209,30 @@ export default function CreateDepartment() {
       console.log("📦 Department data to create:", departmentData);
 
       const newDept = await base44.entities.Department.create(departmentData);
-      
       console.log("✅ Department created successfully:", newDept);
+      
+      // Create primary contact as DepartmentUser
+      try {
+        const primaryContactData = {
+          department_id: newDept.id,
+          full_name: formData.contact_name,
+          email: formData.contact_email,
+          phone: formData.contact_phone,
+          title: formData.contact_title || "",
+          is_primary: true,
+          role: "primary_contact",
+          can_login: false
+        };
+        
+        console.log("👤 Creating primary contact:", primaryContactData);
+        await base44.entities.DepartmentUser.create(primaryContactData);
+        console.log("✅ Primary contact created successfully");
+      } catch (contactErr) {
+        console.error("⚠️ Failed to create primary contact:", contactErr);
+        // Department is created, so don't block - admin can add contact later
+        toast.warning("Department created but primary contact failed. Please add via Manage Contacts.");
+      }
+      
       toast.success("Department created successfully!");
       navigate(createPageUrl(`DepartmentDashboard?id=${newDept.id}`));
     } catch (err) {

@@ -13,6 +13,7 @@ import TrialSignup from './pages/TrialSignup';
 import EditDepartment from './pages/EditDepartment';
 import InterviewDashboard from './pages/InterviewDashboard';
 import InterviewV2 from './pages/InterviewV2';
+import ManageDepartmentUsers from './pages/ManageDepartmentUsers';
 import Layout from './Layout.jsx';
 
 
@@ -32,6 +33,7 @@ export const PAGES = {
     "EditDepartment": EditDepartment,
     "InterviewDashboard": InterviewDashboard,
     "InterviewV2": InterviewV2,
+    "ManageDepartmentUsers": ManageDepartmentUsers,
 }
 
 export const pagesConfig = {

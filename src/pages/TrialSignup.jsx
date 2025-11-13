@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -196,6 +197,27 @@ export default function TrialSignup() {
       console.log("📝 Creating trial department:", departmentData);
       const newDept = await base44.entities.Department.create(departmentData);
       console.log("✅ Trial department created successfully:", newDept);
+      
+      // Create primary contact as DepartmentUser
+      try {
+        const primaryContactData = {
+          department_id: newDept.id, // Use the ID of the newly created department
+          full_name: formData.contact_name,
+          email: formData.contact_email,
+          phone: formData.contact_phone,
+          title: "", // Title not collected in signup, can be added later
+          is_primary: true,
+          role: "primary_contact",
+          can_login: false // For trial signup, login is not immediately enabled
+        };
+        
+        console.log("👤 Creating primary contact:", primaryContactData);
+        await base44.entities.DepartmentUser.create(primaryContactData);
+        console.log("✅ Primary contact created successfully");
+      } catch (contactErr) {
+        console.error("⚠️ Failed to create primary contact:", contactErr);
+        // Department is created, so don't block the success - show success with a warning if needed
+      }
 
       setCreatedDepartment(newDept);
       setShowSuccessModal(true);
