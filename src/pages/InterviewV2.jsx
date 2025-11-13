@@ -742,7 +742,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, handoffToAgentForProbing]);
 
   // NEW: Handle agent probing questions
   const handleAgentAnswer = useCallback(async (value) => {
@@ -1011,19 +1011,54 @@ export default function InterviewV2() {
     
     return "Type your answer...";
   };
+  
+  // Get answered agent messages (only show in history after user has responded)
+  const getAnsweredAgentMessages = useCallback(() => {
+    if (!isWaitingForAgent || agentMessages.length === 0) return [];
+    
+    const answered = [];
+    
+    // Find all agent-user pairs (agent asks, user responds)
+    for (let i = 0; i < agentMessages.length - 1; i++) {
+      const current = agentMessages[i];
+      const next = agentMessages[i + 1];
+      
+      if (current.role === 'assistant' && next.role === 'user') {
+        // Filter out system messages and base questions
+        if (!current.content.includes('Follow-up pack completed') && 
+            !current.content.match(/\b(Q\d{1,3})\b/i)) {
+          answered.push(current);
+          answered.push(next);
+        }
+      }
+    }
+    
+    return answered;
+  }, [agentMessages, isWaitingForAgent]);
 
-  // Get last agent probing question
-  const getLastAgentQuestion = () => {
+  // Get last unanswered agent question
+  const getLastAgentQuestion = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
     
-    const lastMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
-    if (!lastMessage?.content) return null;
+    const lastAssistantMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistantMessage?.content) return null;
     
-    // Filter out base questions (Q###)
-    if (lastMessage.content.match(/\b(Q\d{1,3})\b/i)) return false; // Fixed: return false if it's a base question.
+    // Filter out base questions (Q###) and system messages that are not actual questions
+    if (lastAssistantMessage.content.match(/\b(Q\d{1,3})\b/i)) return null; // This is a base question signal, not a probing question
+    if (lastAssistantMessage.content.includes('Follow-up pack completed')) return null; // This is a system message to the agent
+
+    // Check if this specific assistant message has already been answered by the user
+    // We need to find its index in the original array to check the next message
+    const lastAssistantMessageIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
+
+    // If there's a message after this assistant message AND it's a user message, then this assistant message has been answered
+    if (lastAssistantMessageIndex !== -1 && agentMessages[lastAssistantMessageIndex + 1]?.role === 'user') {
+        return null; // This question has been answered, it will be part of 'answeredAgentMessages'
+    }
     
-    return lastMessage.content;
-  };
+    // If it's an assistant message that hasn't been answered and is not a system/base question
+    return lastAssistantMessage.content;
+  }, [agentMessages, isWaitingForAgent]);
 
   // ============================================================================
   // RENDER
@@ -1058,6 +1093,7 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const lastAgentQuestion = getLastAgentQuestion();
+  const answeredAgentMessages = getAnsweredAgentMessages();
   const totalQuestions = engine?.TotalQuestions || 198;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = Math.round((answeredCount / totalQuestions) * 100);
@@ -1186,24 +1222,16 @@ export default function InterviewV2() {
                 />
               ))}
               
-              {/* Show agent probing messages */}
-              {isWaitingForAgent && agentMessages.length > 0 && (
+              {/* Show ONLY answered agent probing messages */}
+              {answeredAgentMessages.length > 0 && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
-                    Investigator Follow-Up Questions
+                    Investigator Follow-up Conversations
                   </div>
-                  {agentMessages
-                    .filter(m => m.role === 'assistant' || m.role === 'user')
-                    .filter(m => {
-                      // Filter out system messages and base questions
-                      if (m.content.includes('Follow-up pack completed')) return false;
-                      if (m.content.match(/\b(Q\d{1,3})\b/i)) return false;
-                      return true;
-                    })
-                    .map((msg, idx) => (
-                      <AgentMessageBubble key={idx} message={msg} />
-                    ))}
+                  {answeredAgentMessages.map((msg, idx) => (
+                    <AgentMessageBubble key={`answered-${idx}`} message={msg} />
+                  ))}
                 </div>
               )}
             </div>
