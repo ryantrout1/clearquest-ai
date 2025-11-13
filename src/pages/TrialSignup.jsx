@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -8,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Shield, CheckCircle, Loader2, ArrowLeft, Copy, X } from "lucide-react";
+import { Shield, CheckCircle, Loader2, ArrowLeft, Copy, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -16,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Department code generation utility - SAME as CreateDepartment.js
 async function generateDepartmentCode(departmentName, zipCode) {
@@ -131,6 +131,30 @@ export default function TrialSignup() {
     setIsSubmitting(true);
 
     try {
+      // Normalize for duplicate checking
+      const normalizedDeptName = formData.department_name.trim().toLowerCase();
+      const normalizedState = formData.state.trim().toUpperCase();
+
+      console.log("🔍 Checking for duplicate department:", { normalizedDeptName, normalizedState });
+
+      // Check for existing department with same normalized values
+      const existing = await base44.entities.Department.filter({
+        name_normalized: normalizedDeptName,
+        state_normalized: normalizedState
+      });
+
+      if (existing.length > 0) {
+        console.log("⚠️ Duplicate department found:", existing[0]);
+        setError(
+          "This department is already on file. A ClearQuest trial has already been created for a department matching what you entered. Please contact your internal ClearQuest point of contact or email support@clearquest.ai so we can help connect you to the existing trial."
+        );
+        setIsSubmitting(false);
+        return; // Stop here - do not create
+      }
+
+      console.log("✅ No duplicate found, proceeding with create...");
+
+      // No duplicate - proceed with create
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
       const now = new Date().toISOString();
       const trialEndDate = new Date();
@@ -138,6 +162,8 @@ export default function TrialSignup() {
 
       const departmentData = {
         department_name: formData.department_name,
+        name_normalized: normalizedDeptName,
+        state_normalized: normalizedState,
         department_code: formData.department_code,
         department_type: "Law Enforcement",
         city: formData.city,
@@ -177,7 +203,7 @@ export default function TrialSignup() {
       
     } catch (err) {
       console.error("❌ Error creating trial department:", err);
-      setError("We couldn't start your trial right now. Please check your connection or try again in a few minutes.");
+      setError("We couldn't start your trial right now. Please check your connection or try again, or email support@clearquest.ai for help.");
       setIsSubmitting(false);
     }
   };
@@ -233,9 +259,12 @@ What the applicant needs to do:
 
           <CardContent className="space-y-6 p-6 md:p-8">
             {error && (
-              <div className="bg-red-950/30 border border-red-800/50 rounded-lg p-4">
-                <p className="text-red-300 text-sm">{error}</p>
-              </div>
+              <Alert variant="destructive" className="bg-red-950/30 border-red-800/50">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-red-300 text-sm leading-relaxed">
+                  {error}
+                </AlertDescription>
+              </Alert>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -510,7 +539,7 @@ What the applicant needs to do:
                 </Button>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Button */}
               <div className="flex justify-center pt-4 border-t border-slate-700">
                 <Button
                   onClick={() => setShowSuccessModal(false)}
