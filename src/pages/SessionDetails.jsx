@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { 
-  ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2, 
+import {
+  ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2,
   ChevronDown, ChevronRight, Search, Eye, Trash2,
   ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
 } from "lucide-react";
@@ -26,7 +26,7 @@ import {
 
 // Keywords that trigger "Needs Review" badge
 const REVIEW_KEYWORDS = [
-  'arrest', 'fired', 'failed', 'polygraph', 'investigated', 
+  'arrest', 'fired', 'failed', 'polygraph', 'investigated',
   'suspended', 'terminated', 'dui', 'drugs', 'felony', 'charge',
   'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
@@ -47,6 +47,7 @@ export default function SessionDetails() {
   const [followups, setFollowups] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [department, setDepartment] = useState(null);
+  const [conversation, setConversation] = useState(null); // Added conversation state
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
@@ -54,7 +55,7 @@ export default function SessionDetails() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
   const [viewMode, setViewMode] = useState("structured");
-  const [selectedCategory, setSelectedCategory] = useState("all"); 
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [collapsedSections, setCollapsedSections] = useState(new Set());
 
   // Refs for scroll-to functionality
@@ -70,19 +71,31 @@ export default function SessionDetails() {
 
   const loadSessionData = async () => {
     setIsLoading(true);
-    
+
     try {
       console.log("🔍 Loading session:", sessionId);
-      
+
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
 
       if (sessionData.department_code) {
-        const depts = await base44.entities.Department.filter({ 
-          department_code: sessionData.department_code 
+        const depts = await base44.entities.Department.filter({
+          department_code: sessionData.department_code
         });
         if (depts.length > 0) {
           setDepartment(depts[0]);
+        }
+      }
+
+      // Load conversation if it exists
+      let conversationData = null;
+      if (sessionData.conversation_id) {
+        try {
+          conversationData = await base44.agents.getConversation(sessionData.conversation_id);
+          setConversation(conversationData);
+          console.log("✅ Loaded conversation with", conversationData.messages?.length || 0, "messages");
+        } catch (err) {
+          console.warn("⚠️ Could not load conversation:", err);
         }
       }
 
@@ -92,12 +105,12 @@ export default function SessionDetails() {
         base44.entities.Question.filter({ active: true })
       ]);
 
-      setResponses(responsesData.sort((a, b) => 
+      setResponses(responsesData.sort((a, b) =>
         new Date(a.response_timestamp) - new Date(b.response_timestamp)
       ));
       setFollowups(followupsData);
       setQuestions(questionsData);
-      
+
       setIsLoading(false);
     } catch (err) {
       console.error("❌ Error loading session:", err);
@@ -108,13 +121,13 @@ export default function SessionDetails() {
 
   // Filter logic - MOVED UP before handlers that use it
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
-  
+
   const filteredResponses = responses.filter(response => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      followups.some(f => 
-        f.response_id === response.id && 
+      followups.some(f =>
+        f.response_id === response.id &&
         JSON.stringify(f.additional_details || {}).toLowerCase().includes(searchTerm.toLowerCase())
       );
 
@@ -127,7 +140,7 @@ export default function SessionDetails() {
   // Group by category for structured view AND assign display numbers
   const responsesByCategory = {};
   let globalDisplayNumber = 1;
-  
+
   filteredResponses.forEach(r => {
     const cat = r.category || 'Other';
     if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
@@ -161,38 +174,38 @@ export default function SessionDetails() {
   const handleCategoryJump = (category) => {
     setSelectedCategory(category);
     if (category !== "all" && categoryRefs.current[category]) {
-      categoryRefs.current[category].scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
+      categoryRefs.current[category].scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
       });
     }
   };
 
   const handleDeleteLastResponse = async () => {
     if (responses.length === 0) return;
-    
+
     const lastResponse = responses[responses.length - 1];
-    
+
     if (!window.confirm(`Delete last response: "${lastResponse.question_text}"?`)) {
       return;
     }
 
     try {
       await base44.entities.Response.delete(lastResponse.id);
-      
+
       const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
       for (const fu of relatedFollowups) {
         await base44.entities.FollowUpResponse.delete(fu.id);
       }
-      
+
       console.log('🔄 Updating session snapshots after deletion...');
-      
+
       const currentSession = await base44.entities.InterviewSession.get(sessionId);
-      
+
       let updatedTranscript = (currentSession.transcript_snapshot || []).filter(
         entry => entry.questionId !== lastResponse.question_id
       );
-      
+
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: updatedTranscript,
         queue_snapshot: [],
@@ -200,9 +213,9 @@ export default function SessionDetails() {
         total_questions_answered: updatedTranscript.filter(t => t.type === 'question').length,
         completion_percentage: Math.round((updatedTranscript.filter(t => t.type === 'question').length / 198) * 100)
       });
-      
+
       console.log('✅ Session snapshots updated - interview will resume from correct position');
-      
+
       toast.success("Response deleted and session updated");
       loadSessionData();
     } catch (err) {
@@ -213,9 +226,9 @@ export default function SessionDetails() {
 
   const generateReport = async () => {
     setIsGeneratingReport(true);
-    
+
     try {
-      const reportContent = generateReportHTML(session, responses, followups, questions, department);
+      const reportContent = generateReportHTML(session, responses, followups, questions, department, conversation);
       const printContainer = document.createElement('div');
       printContainer.innerHTML = reportContent;
       printContainer.style.position = 'absolute';
@@ -399,15 +412,15 @@ export default function SessionDetails() {
               )}
               <span>Show Only Questions with Follow-Ups</span>
             </button>
-            
+
             <div className="flex items-center gap-3 flex-wrap">
               {searchTerm && (
                 <span className="text-xs text-slate-400">
                   Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
                 </span>
               )}
-              <Button 
-                onClick={generateReport} 
+              <Button
+                onClick={generateReport}
                 disabled={isGeneratingReport || responses.length === 0}
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white h-9"
@@ -461,6 +474,7 @@ export default function SessionDetails() {
           <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
             followups={followups}
+            conversation={conversation}
             categoryRefs={categoryRefs}
             collapsedSections={collapsedSections}
             toggleSection={toggleSection}
@@ -469,6 +483,7 @@ export default function SessionDetails() {
           <TranscriptView
             responses={filteredResponses}
             followups={followups}
+            conversation={conversation}
           />
         )}
 
@@ -501,16 +516,16 @@ function CompactMetric({ label, value, color = "blue" }) {
 }
 
 // Two-Column Stream Layout matching "Layout 3" mockup
-function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, collapsedSections, toggleSection }) {
+function TwoColumnStreamView({ responsesByCategory, followups, conversation, categoryRefs, collapsedSections, toggleSection }) {
   return (
     <div className="space-y-0">
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
-        
+
         return (
           <div key={category} className="mb-6">
             {/* Section Header - Dark bar with white all-caps text */}
-            <div 
+            <div
               ref={el => categoryRefs.current[category] = el}
               className="sticky top-28 md:top-32 bg-slate-800 border-l-4 border-blue-500 py-3 px-4 mb-0 z-10 flex items-center justify-between"
             >
@@ -528,7 +543,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
                 )}
               </Button>
             </div>
-            
+
             {!isSectionCollapsed && (
               <div className="bg-slate-900/30 border border-slate-700 border-t-0">
                 {/* Two-column grid layout */}
@@ -536,7 +551,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
                   {/* Split questions into left and right columns */}
                   {[0, 1].map(colIndex => {
                     const columnQuestions = categoryResponses.filter((_, idx) => idx % 2 === colIndex);
-                    
+
                     return (
                       <div key={colIndex} className="divide-y divide-slate-700/50">
                         {columnQuestions.map(response => (
@@ -544,6 +559,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
                             key={response.id}
                             response={response}
                             followups={followups.filter(f => f.response_id === response.id)}
+                            conversation={conversation}
                           />
                         ))}
                       </div>
@@ -560,16 +576,19 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
 }
 
 // Compact inline question row
-function CompactQuestionRow({ response, followups }) {
+function CompactQuestionRow({ response, followups, conversation }) {
   const hasFollowups = followups.length > 0;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
-  
+
   // Format question ID as "Q001" style
   const questionNumber = response.display_number.toString().padStart(3, '0');
-  
+
+  // Extract AI probing Q&A pairs from conversation for this specific question
+  const aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
-      {/* Question row: Q### + Y/N + truncated question */}
+      {/* Question row: Q### + Y/N + full question text */}
       <div className="flex items-start gap-3 text-sm">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(
@@ -582,14 +601,15 @@ function CompactQuestionRow({ response, followups }) {
           {response.question_text}
         </span>
       </div>
-      
+
       {/* YES answer detail box - light gray box underneath */}
       {hasFollowups && response.answer === "Yes" && (
         <div className="mt-2 ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
-          <div className="space-y-2">
+          <div className="space-y-3">
+            {/* Initial Structured Follow-Up Fields */}
             {followups.map((followup, idx) => {
               const details = followup.additional_details || {};
-              
+
               return (
                 <div key={idx} className="space-y-1.5">
                   {followup.substance_name && (
@@ -603,7 +623,7 @@ function CompactQuestionRow({ response, followups }) {
                       )}
                     </div>
                   )}
-                  
+
                   {Object.entries(details).map(([key, value]) => {
                     const requiresReview = needsReview(value);
                     return (
@@ -611,7 +631,7 @@ function CompactQuestionRow({ response, followups }) {
                         <span className="text-slate-400">
                           {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                         </span>
-                        <span className="text-slate-200 ml-2">{value}</span>
+                        <span className="text-slate-200 ml-2 break-words">{value}</span>
                         {requiresReview && (
                           <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
                             Needs Review
@@ -623,6 +643,27 @@ function CompactQuestionRow({ response, followups }) {
                 </div>
               );
             })}
+
+            {/* AI Probing Exchanges */}
+            {aiProbingExchanges.length > 0 && (
+              <div className="border-t border-slate-600/50 pt-3 space-y-2">
+                <div className="text-xs font-semibold text-purple-400 mb-2">
+                  🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
+                </div>
+                {aiProbingExchanges.map((exchange, idx) => (
+                  <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
+                    <div className="text-xs">
+                      <span className="text-purple-400 font-medium">Follow-Up Question:</span>
+                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.question}</p>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-purple-400 font-medium">Candidate Response:</span>
+                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.answer}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -630,28 +671,99 @@ function CompactQuestionRow({ response, followups }) {
   );
 }
 
-function TranscriptView({ responses, followups }) {
+// Helper function to extract AI probing Q&A pairs for a specific question
+function extractAIProbingForQuestion(conversation, questionId, followupPack) {
+  if (!conversation?.messages || !followupPack) {
+    return [];
+  }
+
+  const exchanges = [];
+  const messages = conversation.messages;
+
+  // Find the "Follow-up pack completed" message that marks the start of probing for this pack
+  let startIndex = -1;
+  let endIndex = -1;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    // Check if this is the start of probing for our pack
+    if (msg.role === 'user' &&
+        typeof msg.content === 'string' && // Ensure content is a string
+        msg.content.includes('Follow-up pack completed') &&
+        msg.content.includes(`Question ID: ${questionId}`) &&
+        msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
+      startIndex = i + 1; // Start from next message (AI's first probing question)
+    }
+
+    // Check if this is the end (next base question sent by AI)
+    // This assumes base questions are usually assistant messages containing 'Q' followed by digits.
+    if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
+      endIndex = i;
+      break;
+    }
+  }
+
+  // Extract Q&A pairs from the probing section
+  if (startIndex !== -1) {
+    const probingMessages = endIndex !== -1
+      ? messages.slice(startIndex, endIndex)
+      : messages.slice(startIndex);
+
+    for (let i = 0; i < probingMessages.length; i++) {
+      const currentMsg = probingMessages[i];
+      const nextMsg = probingMessages[i + 1];
+
+      // Look for assistant question followed by user answer
+      if (currentMsg.role === 'assistant' &&
+          typeof currentMsg.content === 'string' &&
+          !currentMsg.content.includes('Follow-up pack completed') && // Exclude system messages
+          nextMsg?.role === 'user' &&
+          typeof nextMsg.content === 'string') {
+
+        // Clean up the question text (remove any system markers)
+        const cleanQuestion = currentMsg.content
+          .replace(/Follow-up pack completed[\s\S]*?Please evaluate/i, '')
+          .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '') // Remove timestamp markers
+          .trim();
+
+        if (cleanQuestion && nextMsg.content) {
+          exchanges.push({
+            question: cleanQuestion,
+            answer: nextMsg.content
+          });
+        }
+
+        i++; // Skip the answer message in next iteration
+      }
+    }
+  }
+
+  return exchanges;
+}
+
+function TranscriptView({ responses, followups, conversation }) {
   const timeline = [];
-  
+
   responses.forEach(response => {
     timeline.push({ type: 'question', data: response });
-    
+
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
     relatedFollowups.forEach(fu => {
-      timeline.push({ type: 'followup', data: fu });
+      timeline.push({ type: 'followup', data: fu, questionId: response.question_id, followupPack: response.followup_pack });
     });
   });
 
   return (
     <div className="space-y-2">
       {timeline.map((item, idx) => (
-        <TranscriptEntry key={idx} item={item} />
+        <TranscriptEntry key={idx} item={item} conversation={conversation} />
       ))}
     </div>
   );
 }
 
-function TranscriptEntry({ item }) {
+function TranscriptEntry({ item, conversation }) {
   if (item.type === 'question') {
     const response = item.data;
     return (
@@ -677,7 +789,10 @@ function TranscriptEntry({ item }) {
   if (item.type === 'followup') {
     const followup = item.data;
     const details = followup.additional_details || {};
-    
+
+    // Extract AI probing exchanges for this follow-up
+    const aiProbingExchanges = extractAIProbingForQuestion(conversation, item.questionId, item.followupPack);
+
     return (
       <div className="ml-4 md:ml-8 space-y-2">
         {followup.substance_name && (
@@ -692,10 +807,10 @@ function TranscriptEntry({ item }) {
             </div>
           </>
         )}
-        
+
         {Object.entries(details).map(([key, value]) => {
           const requiresReview = needsReview(value);
-          
+
           return (
             <React.Fragment key={key}>
               <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
@@ -718,6 +833,28 @@ function TranscriptEntry({ item }) {
             </React.Fragment>
           );
         })}
+
+        {/* AI Probing Exchanges in Transcript View */}
+        {aiProbingExchanges.length > 0 && (
+          <div className="space-y-2 mt-3 pt-3 border-t border-purple-500/30">
+            <div className="text-xs font-semibold text-purple-400 mb-2">
+              🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
+            </div>
+            {aiProbingExchanges.map((exchange, idx) => (
+              <React.Fragment key={idx}>
+                <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
+                  <p className="text-xs text-purple-400">Follow-Up Question {idx + 1}</p>
+                  <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.question}</p>
+                </div>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
+                    <p className="text-white text-sm break-words">{exchange.answer}</p>
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -725,11 +862,11 @@ function TranscriptEntry({ item }) {
   return null;
 }
 
-function generateReportHTML(session, responses, followups, questions, department) {
-  const now = new Date().toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
+function generateReportHTML(session, responses, followups, questions, department, conversation) {
+  const now = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
   });
 
   const categorizedResponses = {};
@@ -752,7 +889,7 @@ function generateReportHTML(session, responses, followups, questions, department
           @page { margin: 0.75in; size: letter; }
           body { margin: 0; padding: 0; }
         }
-        
+
         body {
           font-family: 'Times New Roman', serif;
           font-size: 10pt;
@@ -762,32 +899,32 @@ function generateReportHTML(session, responses, followups, questions, department
           margin: 0 auto;
           padding: 20px;
         }
-        
+
         .header {
           text-align: center;
           border-bottom: 3px solid #000;
           padding-bottom: 12px;
           margin-bottom: 16px;
         }
-        
+
         .header h1 {
           font-size: 16pt;
           font-weight: bold;
           margin: 0 0 8px 0;
           text-transform: uppercase;
         }
-        
+
         .header .session-info {
           font-size: 9pt;
           color: #333;
           line-height: 1.6;
         }
-        
+
         .section {
           margin-bottom: 20px;
           page-break-inside: avoid;
         }
-        
+
         .section-title {
           font-size: 11pt;
           font-weight: bold;
@@ -796,7 +933,7 @@ function generateReportHTML(session, responses, followups, questions, department
           margin-bottom: 10px;
           text-transform: uppercase;
         }
-        
+
         .question-block {
           margin-bottom: 14px;
           padding: 8px;
@@ -804,32 +941,32 @@ function generateReportHTML(session, responses, followups, questions, department
           border-left: 3px solid #333;
           page-break-inside: avoid;
         }
-        
+
         .question-id {
           font-weight: bold;
           color: #0066cc;
           font-size: 9pt;
         }
-        
+
         .question-text {
           font-weight: bold;
           margin: 3px 0;
           font-size: 10pt;
         }
-        
+
         .answer {
           margin-left: 16px;
           padding: 6px;
           background: white;
           border: 1px solid #ddd;
         }
-        
+
         .answer-label {
           font-weight: bold;
           font-size: 8pt;
           color: #666;
         }
-        
+
         .follow-up {
           margin-left: 32px;
           margin-top: 8px;
@@ -838,19 +975,54 @@ function generateReportHTML(session, responses, followups, questions, department
           border-left: 3px solid #ff9800;
           page-break-inside: avoid;
         }
-        
+
         .follow-up-title {
           font-weight: bold;
           color: #ff6600;
           font-size: 9pt;
           margin-bottom: 4px;
         }
-        
+
         .follow-up-item {
           margin: 4px 0;
           font-size: 9pt;
         }
-        
+
+        .probing-section {
+          margin-left: 32px;
+          margin-top: 12px;
+          padding: 8px;
+          background: #f3e8ff;
+          border-left: 3px solid #9333ea;
+          page-break-inside: avoid;
+        }
+
+        .probing-title {
+          font-weight: bold;
+          color: #7c3aed;
+          font-size: 9pt;
+          margin-bottom: 6px;
+        }
+
+        .probing-exchange {
+          margin: 6px 0;
+          padding: 4px;
+          background: white;
+          border: 1px solid #e9d5ff;
+        }
+
+        .probing-question {
+          font-weight: bold;
+          font-size: 8pt;
+          color: #7c3aed;
+        }
+
+        .probing-answer {
+          font-size: 9pt;
+          margin-left: 12px;
+          margin-top: 2px;
+        }
+
         .summary-box {
           background: #e8f4f8;
           border: 2px solid #0066cc;
@@ -858,7 +1030,7 @@ function generateReportHTML(session, responses, followups, questions, department
           margin-bottom: 16px;
           font-size: 9pt;
         }
-        
+
         .footer {
           margin-top: 24px;
           padding-top: 12px;
@@ -885,7 +1057,7 @@ function generateReportHTML(session, responses, followups, questions, department
 
       <div class="summary-box">
         <strong>Interview Summary:</strong><br>
-        Applicant completed ${responses.length} questions across ${Object.keys(categorizedResponses).length} categories. 
+        Applicant completed ${responses.length} questions across ${Object.keys(categorizedResponses).length} categories.
         ${followups.length} follow-up packs were triggered and completed.
         ${session.red_flags?.length > 0 ? `<br><strong style="color: #cc0000;">Red Flags Identified: ${session.red_flags.length}</strong>` : ''}
       </div>
@@ -895,7 +1067,8 @@ function generateReportHTML(session, responses, followups, questions, department
           <div class="section-title">${category}</div>
           ${categoryResponses.map(response => {
             const relatedFollowups = followups.filter(f => f.response_id === response.id);
-            
+            const aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+
             return `
               <div class="question-block">
                 <div class="question-id">${response.question_id}</div>
@@ -903,7 +1076,7 @@ function generateReportHTML(session, responses, followups, questions, department
                 <div class="answer">
                   <span class="answer-label">Response:</span> <strong>${response.answer}</strong>
                 </div>
-                
+
                 ${relatedFollowups.map(followup => {
                   const details = followup.additional_details || {};
                   return `
@@ -917,6 +1090,20 @@ function generateReportHTML(session, responses, followups, questions, department
                     </div>
                   `;
                 }).join('')}
+
+                ${aiProbingExchanges.length > 0 ? `
+                  <div class="probing-section">
+                    <div class="probing-title">🔍 Investigator Probing (${aiProbingExchanges.length} exchanges)</div>
+                    ${aiProbingExchanges.map((exchange, idx) => `
+                      <div class="probing-exchange">
+                        <div class="probing-question">Follow-Up Question ${idx + 1}:</div>
+                        <div style="margin-left: 12px; margin-bottom: 4px;">${exchange.question}</div>
+                        <div class="probing-question">Candidate Response:</div>
+                        <div class="probing-answer">${exchange.answer}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
               </div>
             `;
           }).join('')}
