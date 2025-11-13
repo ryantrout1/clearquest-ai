@@ -20,13 +20,14 @@ import {
   checkFollowUpTrigger,
   computeNextQuestionId,
   injectSubstanceIntoPackSteps,
-  shouldSkipFollowUpStep
+  shouldSkipFollowUpStep,
+  shouldSkipProbingForHired
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
-  'PACK_LE_APPS': 'Applications with Other Law Enforcement Agencies',
+  'PACK_LE_APPS': 'Applications with other Law Enforcement Agencies',
   'PACK_WITHHOLD_INFO': 'Withheld Information',
   'PACK_DISQUALIFIED': 'Prior Disqualification',
   'PACK_CHEATING': 'Test Cheating',
@@ -94,9 +95,10 @@ const FOLLOWUP_PACK_NAMES = {
 
 /**
  * InterviewV2 - HYBRID FLOW (v2.5)
- * Deterministic base questions + follow-up packs (UI-driven)
+ * Deterministic base questions + follow-up packs (UI-driven) with conditional logic
  * AI agent handles probing + closure (after follow-up packs complete)
  * State persisted to database for seamless resume
+ * PATCH: Dates stored as plain text, hired outcomes skip probing
  */
 export default function InterviewV2() {
   const navigate = useNavigate();
@@ -704,12 +706,12 @@ export default function InterviewV2() {
           return;
         }
 
-        // Add to transcript
+        // Add to transcript - store answer exactly as entered (no date normalization)
         const transcriptEntry = {
           id: `fu-${Date.now()}`,
           questionId: currentItem.id,
           questionText: step.Prompt,
-          answer: validation.normalized || value,
+          answer: validation.normalized || value, // Plain text, no date conversion
           packId: packId,
           substanceName: substanceName,
           type: 'followup',
@@ -726,7 +728,7 @@ export default function InterviewV2() {
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
-        // Save to database
+        // Save to database - dates stored as plain text
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
         
         // Check if there are more steps in the queue
@@ -752,36 +754,71 @@ export default function InterviewV2() {
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
         if (isLastFollowUp) {
-          console.log(`🎯 Last follow-up in ${packId} completed — preparing for AI agent handoff`);
+          console.log(`🎯 Last follow-up in ${packId} completed`);
           
-          // Reset follow-up answers tracker
-          setCurrentFollowUpAnswers({});
-          
-          // Collect all follow-up answers for this pack
-          const packAnswers = newTranscript.filter(t => 
-            t.type === 'followup' && t.packId === packId
-          );
-          
-          // Find the original question that triggered this pack
-          const triggeringQuestion = [...newTranscript].reverse().find(t => 
-            t.type === 'question' && 
-            engine.QById[t.questionId]?.followup_pack === packId &&
-            t.answer === 'Yes'
-          );
-          
-          if (triggeringQuestion) {
-            // Clear current item and queue - we're handing off to AI
-            setCurrentItem(null);
-            setQueue([]);
-            await persistStateToDatabase(newTranscript, [], null);
+          // NEW: Check if we should skip probing for PACK_LE_APPS when hired
+          if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
+            console.log(`✅ Skipping AI probing for PACK_LE_APPS (outcome: hired) - moving to next base question`);
             
-            // Hand off to AI agent
-            await handoffToAgentForProbing(
-              triggeringQuestion.questionId,
-              packId,
-              substanceName,
-              packAnswers
+            // Find the original question that triggered this pack
+            const triggeringQuestion = [...newTranscript].reverse().find(t => 
+              t.type === 'question' && 
+              engine.QById[t.questionId]?.followup_pack === packId &&
+              t.answer === 'Yes'
             );
+            
+            if (triggeringQuestion) {
+              // Compute next base question
+              const nextQuestionId = computeNextQuestionId(engine, triggeringQuestion.questionId, 'Yes');
+              
+              // Reset follow-up answers tracker
+              setCurrentFollowUpAnswers({});
+              
+              if (nextQuestionId) {
+                setQueue([]);
+                setCurrentItem({ id: nextQuestionId, type: 'question' });
+                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+              } else {
+                setShowCompletionModal(true);
+              }
+            } else {
+              // If triggering question not found (error case), fallback to showing completion modal.
+              console.error(`❌ Could not find triggering question for pack ${packId} when trying to skip probing.`);
+              setShowCompletionModal(true);
+            }
+          } else {
+            // Normal flow: hand off to AI for probing
+            const packAnswers = newTranscript.filter(t => 
+              t.type === 'followup' && t.packId === packId
+            );
+            
+            const triggeringQuestion = [...newTranscript].reverse().find(t => 
+              t.type === 'question' && 
+              engine.QById[t.questionId]?.followup_pack === packId &&
+              t.answer === 'Yes'
+            );
+            
+            if (triggeringQuestion) {
+              // Reset follow-up answers tracker
+              setCurrentFollowUpAnswers({});
+              
+              // Clear current item and queue - we're handing off to AI
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
+              
+              // Hand off to AI agent
+              await handoffToAgentForProbing(
+                triggeringQuestion.questionId,
+                packId,
+                substanceName,
+                packAnswers
+              );
+            } else {
+              // If triggering question not found (error case), fallback to showing completion modal.
+              console.error(`❌ Could not find triggering question for pack ${packId} when trying to hand off to AI.`);
+              setShowCompletionModal(true);
+            }
           }
         } else {
           // More follow-ups remain - continue with deterministic engine
@@ -906,7 +943,7 @@ export default function InterviewV2() {
           followup_pack: packId,
           instance_number: 1,
           substance_name: substanceName || null,
-          incident_description: answer,
+          incident_description: answer, // This field is less dynamic, using `additional_details` for specific keys
           completed: false,
           additional_details: { [fieldKey]: answer }
         });

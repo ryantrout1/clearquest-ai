@@ -31,29 +31,6 @@ const REVIEW_KEYWORDS = [
   'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
 
-// Date formatting helper
-function formatDisplayDate(value) {
-  if (!value || typeof value !== 'string') return value;
-  
-  const val = value.trim();
-  
-  // Check for YYYY-MM-DD format
-  const isoMatch = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return `${month}-${day}-${year}`;
-  }
-  
-  // Check for date ranges like "YYYY-MM-DD to YYYY-MM-DD"
-  const rangeMatch = val.match(/^(\d{4})-(\d{2})-(\d{2})\s+to\s+(\d{4})-(\d{2})-(\d{2})$/);
-  if (rangeMatch) {
-    const [, y1, m1, d1, y2, m2, d2] = rangeMatch;
-    return `${m1}-${d1}-${y1} to ${m2}-${d2}-${y2}`;
-  }
-  
-  // If it's already in a readable format like "June 2023", keep it
-  return value;
-}
 
 export default function SessionDetails() {
   const navigate = useNavigate();
@@ -600,7 +577,6 @@ function FollowUpThread({ followup }) {
       
       {entries.map(([key, value]) => {
         const requiresReview = needsReview(value);
-        const displayValue = formatDisplayDate(value);
         
         return (
           <div key={key} className="bg-slate-800/30 rounded-lg p-2 md:p-3">
@@ -614,7 +590,7 @@ function FollowUpThread({ followup }) {
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{displayValue}</p>
+            <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{value}</p>
           </div>
         );
       })}
@@ -692,7 +668,6 @@ function TranscriptEntry({ item }) {
         
         {Object.entries(details).map(([key, value]) => {
           const requiresReview = needsReview(value);
-          const displayValue = formatDisplayDate(value);
           
           return (
             <React.Fragment key={key}>
@@ -710,7 +685,7 @@ function TranscriptEntry({ item }) {
               </div>
               <div className="flex justify-end">
                 <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                  <p className="text-white text-sm break-words">{displayValue}</p>
+                  <p className="text-white text-sm break-words">{value}</p>
                 </div>
               </div>
             </React.Fragment>
@@ -909,7 +884,7 @@ function generateReportHTML(session, responses, followups, questions, department
                       <div class="follow-up-title">📋 Follow-Up Details${followup.substance_name ? `: ${followup.substance_name}` : ''}</div>
                       ${Object.entries(details).map(([key, value]) => `
                         <div class="follow-up-item">
-                          <strong>${key.replace(/_/g, ' ')}:</strong> ${formatDisplayDate(value)}
+                          <strong>${key.replace(/_/g, ' ')}:</strong> ${value}
                         </div>
                       `).join('')}
                     </div>
