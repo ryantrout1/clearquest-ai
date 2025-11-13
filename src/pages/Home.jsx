@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -104,42 +103,42 @@ export default function Home() {
             icon={<Lock className="w-8 h-8" />}
             title="CJIS-Compliant Security"
             description="256-bit AES encryption, 7-day auto-retention options, and anonymous sessions for total data integrity."
-            detailedDescription="ClearQuest meets full CJIS standards with encrypted data storage, secure access controls, and automatic data retention to protect investigator integrity."
+            detailedDescription="Secure by design. ClearQuest uses encrypted data storage, access controls, and automatic retention rules to protect sensitive background information and maintain investigative integrity."
             color="blue"
           />
           <FeatureCard
             icon={<MessageSquare className="w-8 h-8" />}
             title="Built for Investigators"
             description="You're the expert — ClearQuest handles the structure so you can focus on professional judgment and accuracy."
-            detailedDescription="ClearQuest handles sequencing, consistency, and documentation — allowing investigators to focus on professional judgment instead of administrative tasks."
+            detailedDescription="ClearQuest handles structure, sequencing, and documentation so investigators can focus on evaluating information, clarifying concerns, and making informed hiring decisions."
             color="purple"
           />
           <FeatureCard
             icon={<FileCheck className="w-8 h-8" />}
             title={`${totalQuestions}-Question Master Bank`}
             description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
-            detailedDescription="Your full structured question bank, covering every major background domain — criminal history, drug use, financial issues, employment record, military service, law enforcement contacts, and more. Each section is standardized and sequence-controlled for consistent screening across every applicant."
+            detailedDescription="A complete, standardized question bank covering criminal history, financial issues, employment record, military service, substance use, and law-enforcement contacts. Built to ensure every applicant receives a consistent, legally defensible interview."
             color="green"
           />
           <FeatureCard
             icon={<Clock className="w-8 h-8" />}
             title="Time-Saving Workflow"
             description="Streamlined data capture reduces admin tasks while maintaining thoroughness and compliance."
-            detailedDescription="Automates repetitive interview steps so investigators can focus on analysis and decision-making, not manual data entry."
+            detailedDescription="Reduces repetitive questioning, manual typing, and administrative review. ClearQuest captures details in real time and builds the report for you—saving hours per case while improving consistency."
             color="orange"
           />
           <FeatureCard
             icon={<CheckCircle className="w-8 h-8" />}
             title="Automated Follow-Ups"
             description='Every "Yes" triggers structured follow-up packs so no detail is ever missed.'
-            detailedDescription='Every "Yes" answer launches the required structured follow-up questions instantly — capturing dates, circumstances, context, and outcomes for investigator-ready documentation. When additional detail is needed, ClearQuest guides the applicant with targeted clarification prompts to ensure each incident is fully explained and no important information is missed.'
+            detailedDescription='Every "Yes" answer triggers the correct structured follow-up questions automatically—capturing dates, circumstances, context, and outcomes with no missed detail. Ensures full documentation for every incident.'
             color="indigo"
           />
           <FeatureCard
             icon={<Shield className="w-8 h-8" />}
             title="Ready-to-Submit Reports"
             description="Instant PDF summaries with transcripts, risk notes, and verification sections ready for submission."
-            detailedDescription="Instant investigator-ready summaries that include full transcripts, risk notes, incident breakdowns, and verification sections — formatted for background review and case file submission."
+            detailedDescription="ClearQuest generates clean, consistent summaries with transcripts, incident details, risk notes, and verification sections—ready for background review or command-level decision-making."
             color="red"
           />
         </div>
@@ -267,13 +266,14 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
-            transform: "rotateY(180deg)"
+            transform: "rotateY(180deg)",
+            minHeight: "auto"
           }}
         >
           <div className="relative space-y-4 flex flex-col h-full">
             <div className={`${colorClasses[color].split(' ')[3]} mb-2`}>{icon}</div>
             <h3 className="text-xl font-semibold text-white">{title}</h3>
-            <p className="text-slate-300 text-sm leading-relaxed flex-1">{detailedDescription}</p>
+            <p className="text-slate-300 text-[14px] leading-[1.35] flex-1">{detailedDescription}</p>
             <div className="flex items-center gap-1 text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
               <span>Back</span>
