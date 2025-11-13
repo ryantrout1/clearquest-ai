@@ -81,6 +81,24 @@ const SKIP_RULES = {
   'Q001': {
     skipIfAnswer: 'No',
     skipToQuestion: 'Q005'
+  },
+  // NEW: Gateway for Other Law Enforcement Applications section
+  // If user has never applied to other LE agencies, skip to next section
+  'Q002': {
+    skipIfAnswer: 'No',
+    skipToQuestion: 'Q006'
+  },
+  // NEW: Gateway for Prior Law Enforcement Employment section  
+  // If user has never worked for LE, skip to next section
+  'Q163': {
+    skipIfAnswer: 'No',
+    skipToQuestion: 'Q181'
+  },
+  // NEW: Gateway for Military History section
+  // If user never served in military, skip military questions
+  'Q145': {
+    skipIfAnswer: 'No',
+    skipToQuestion: 'Q163'
   }
 };
 
