@@ -571,38 +571,38 @@ function FollowupsDialog({ open, onOpenChange }) {
   const followupPacks = [
     {
       name: "Drug Use / Controlled Substances",
-      trigger: "Any 'Yes' to Q096-Q113 drug questions",
-      collects: "Substance name, frequency, dates (first/last use), context, how obtained, who with, accountability, changes since"
+      trigger: "Any \"Yes\" related to drug use, possession, or influence",
+      collects: "Substance name • Frequency and timeline (first use, last use, peak use) • Source & method of obtaining • Context of use • Impact on work, school, or legal standing • Accountability & changes since"
     },
     {
       name: "Criminal Charges & Arrests",
-      trigger: "Any 'Yes' to arrest/charge questions",
-      collects: "Date, location, charge description, legal outcome, penalties, property damage, injuries, accountability, current status"
+      trigger: "\"Yes\" responses involving charges, arrests, detentions, warrants",
+      collects: "Charge description • Date & location • Legal outcome • Penalties, restitution, probation • Injuries or property damage • Current status & accountability"
     },
     {
       name: "Driving Incidents",
-      trigger: "'Yes' to DUI, suspensions, or major violations",
-      collects: "Date, location, BAC (if DUI), outcome, penalties, license impact, insurance impact, circumstances"
+      trigger: "DUI, suspensions, reckless driving, major violations",
+      collects: "Date & location • BAC (if applicable) • Outcome & penalties • License impact & reinstatement • Insurance impact • Contributing circumstances"
     },
     {
       name: "Employment Terminations",
-      trigger: "'Yes' to being fired or forced to resign",
-      collects: "Employer, dates, reason for termination, circumstances, disciplinary history, accountability, references"
+      trigger: "Termination, resignation in lieu of termination, or major discipline",
+      collects: "Employer & position • Date & reason for separation • Circumstances • Prior discipline history • References or follow-on contact • Accountability"
     },
     {
       name: "Financial Issues",
-      trigger: "'Yes' to bankruptcy, foreclosure, major debt",
-      collects: "Type of issue, date, amount, resolution status, current financial standing, plan to address"
+      trigger: "Bankruptcy, foreclosure, collections, major debt problems",
+      collects: "Type of issue • Amount involved • Timeline & resolution status • Current financial standing • Steps taken to prevent recurrence"
     },
     {
-      name: "Sexual Misconduct",
-      trigger: "'Yes' to prostitution, harassment, assault questions",
-      collects: "Date, nature of incident, legal consequences, accountability, counseling/treatment, changes made"
+      name: "Sexual Misconduct or Exploitation",
+      trigger: "Prostitution, harassment, assault, exploitation, or related behavior",
+      collects: "Nature of incident • Individuals involved (non-identifying) • Consequences • Counseling/treatment (if any) • Accountability & behavior change"
     },
     {
       name: "Weapons Violations",
-      trigger: "'Yes' to illegal weapon possession or use",
-      collects: "Date, type of weapon, circumstances, legal outcome, current weapon access, accountability"
+      trigger: "Illegal possession, improper use, unsafe discharge, or threats",
+      collects: "Weapon type • Date & location • Circumstances • Impact on others • Outcome or legal action • Accountability"
     },
     {
       name: "Gang Affiliation",
@@ -623,35 +623,35 @@ function FollowupsDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            <AlertTriangle className="w-6 h-6 text-orange-400" />
-            Automated Follow-Up Packs
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0 flex flex-col">
+        <DialogHeader className="p-4 md:p-6 pb-0 flex-shrink-0">
+          <DialogTitle className="text-xl md:text-2xl font-bold flex items-center gap-2 md:gap-3">
+            <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-orange-400 flex-shrink-0" />
+            <span>Automated Follow-Up Packs</span>
           </DialogTitle>
-          <DialogDescription className="text-slate-300 mt-2">
+          <DialogDescription className="text-slate-300 mt-2 text-sm md:text-base">
             Every "Yes" answer triggers a structured deep-dive. No detail missed, no investigator guesswork.
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
-          <div className="space-y-4 py-6">
+        <ScrollArea className="flex-1 overflow-y-auto px-4 md:px-6">
+          <div className="space-y-3 md:space-y-4 py-4 md:py-6">
             {followupPacks.map((pack, idx) => (
               <div 
                 key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-orange-500/50 transition-colors"
+                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 hover:border-orange-500/50 transition-colors"
               >
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-sm font-bold text-orange-400">{idx + 1}</span>
+                <div className="flex items-start gap-2 md:gap-3">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs md:text-sm font-bold text-orange-400">{idx + 1}</span>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-white text-base mb-1">{pack.name}</h3>
-                    <p className="text-xs text-orange-300 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-white text-sm md:text-base mb-1 md:mb-2 break-words">{pack.name}</h3>
+                    <p className="text-xs md:text-sm text-orange-300 mb-2">
                       <strong>Triggered by:</strong> {pack.trigger}
                     </p>
-                    <p className="text-sm text-slate-300">
-                      <strong>Data collected:</strong> {pack.collects}
+                    <p className="text-xs md:text-sm text-slate-300 leading-relaxed break-words">
+                      <strong>Documentation captured:</strong> {pack.collects}
                     </p>
                   </div>
                 </div>
@@ -660,13 +660,13 @@ function FollowupsDialog({ open, onOpenChange }) {
           </div>
         </ScrollArea>
 
-        <div className="px-6 pb-4">
+        <div className="px-4 md:px-6 py-3 md:py-4 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
             ClearQuest AI also provides investigator-grade clarification when additional detail is needed, ensuring every incident is fully documented.
           </p>
         </div>
 
-        <div className="p-6 pt-0 border-t border-slate-700">
+        <div className="p-4 md:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center">
             <strong>Investigator Note:</strong> ClearQuest handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
           </p>
