@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -418,7 +419,7 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
   // Category configuration with display labels and descriptions
   const categoryConfig = [
-    { name: "Applications with other Law Enforcement Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
+    { name: "Applications with Other Law Enforcement Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
     { name: "Driving Record", description: "License history, DUIs, suspensions, accidents, and traffic violations" },
     { name: "Criminal Involvement / Police Contacts", description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations" },
     { name: "Extremist Organizations", description: "Membership or support of hate groups and extremist ideologies" },
