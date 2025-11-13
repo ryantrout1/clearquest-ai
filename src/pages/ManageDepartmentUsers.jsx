@@ -333,7 +333,7 @@ export default function ManageDepartmentUsers() {
                           {primaryContact.phone}
                         </a>
                       </div>
-                      <Badge className="mt-3 bg-blue-600/20 text-blue-300 border-blue-500/30 text-xs">
+                      <Badge className="mt-3 bg-slate-700/50 text-slate-300 border-slate-600 text-xs">
                         Login access: Not enabled
                       </Badge>
                     </div>

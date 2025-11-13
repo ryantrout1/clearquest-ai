@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -51,6 +50,7 @@ export default function SessionDetails() {
   const [viewMode, setViewMode] = useState("structured");
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [collapsedSections, setCollapsedSections] = useState(new Set()); // NEW: Track collapsed sections
 
   // Refs for scroll-to functionality
   const categoryRefs = useRef({});
@@ -102,13 +102,29 @@ export default function SessionDetails() {
     }
   };
 
+  // NEW: Global expand/collapse handlers - now also control section state
   const handleExpandAll = () => {
     const allIds = new Set(responses.map(r => r.id));
     setExpandedQuestions(allIds);
+    setCollapsedSections(new Set()); // Expand all sections
   };
 
   const handleCollapseAll = () => {
     setExpandedQuestions(new Set());
+    // Collapse all sections (add all category names to collapsedSections)
+    const allCategories = Object.keys(responsesByCategory);
+    setCollapsedSections(new Set(allCategories));
+  };
+
+  // NEW: Toggle individual section
+  const toggleSection = (category) => {
+    const newCollapsed = new Set(collapsedSections);
+    if (newCollapsed.has(category)) {
+      newCollapsed.delete(category);
+    } else {
+      newCollapsed.add(category);
+    }
+    setCollapsedSections(newCollapsed);
   };
 
   const toggleQuestion = (responseId) => {
@@ -463,6 +479,8 @@ export default function SessionDetails() {
             expandedQuestions={expandedQuestions}
             toggleQuestion={toggleQuestion}
             categoryRefs={categoryRefs}
+            collapsedSections={collapsedSections}
+            toggleSection={toggleSection}
           />
         ) : (
           <TranscriptView
@@ -499,31 +517,55 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function StructuredView({ responsesByCategory, responses, followups, expandedQuestions, toggleQuestion, categoryRefs }) {
+function StructuredView({ responsesByCategory, responses, followups, expandedQuestions, toggleQuestion, categoryRefs, collapsedSections, toggleSection }) {
   return (
     <div className="space-y-6">
-      {Object.entries(responsesByCategory).map(([category, categoryResponses]) => (
-        <div key={category}>
-          <div 
-            ref={el => categoryRefs.current[category] = el}
-            className="sticky top-28 md:top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-3 z-10"
-          >
-            <h2 className="text-base md:text-lg font-bold text-blue-400">{category}</h2>
+      {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
+        const isSectionCollapsed = collapsedSections.has(category);
+        
+        return (
+          <div key={category}>
+            <div 
+              ref={el => categoryRefs.current[category] = el}
+              className="sticky top-28 md:top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-3 z-10 flex items-center justify-between gap-3"
+            >
+              <h2 className="text-base md:text-lg font-bold text-blue-400">{category}</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleSection(category)}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
+              >
+                {isSectionCollapsed ? (
+                  <>
+                    <ChevronRight className="w-4 h-4 mr-1" />
+                    <span className="text-xs hidden sm:inline">Expand</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4 mr-1" />
+                    <span className="text-xs hidden sm:inline">Collapse</span>
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {!isSectionCollapsed && (
+              <div className="space-y-2 transition-all duration-200 ease-in-out">
+                {categoryResponses.map(response => (
+                  <QuestionCard
+                    key={response.id}
+                    response={response}
+                    followups={followups.filter(f => f.response_id === response.id)}
+                    isExpanded={expandedQuestions.has(response.id)}
+                    onToggle={() => toggleQuestion(response.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          
-          <div className="space-y-2">
-            {categoryResponses.map(response => (
-              <QuestionCard
-                key={response.id}
-                response={response}
-                followups={followups.filter(f => f.response_id === response.id)}
-                isExpanded={expandedQuestions.has(response.id)}
-                onToggle={() => toggleQuestion(response.id)}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
