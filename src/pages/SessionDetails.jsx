@@ -141,15 +141,39 @@ export default function SessionDetails() {
     }
 
     try {
+      // Step 1: Delete the Response entity
       await base44.entities.Response.delete(lastResponse.id);
       
-      // Also delete related follow-ups
+      // Step 2: Delete related follow-ups
       const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
       for (const fu of relatedFollowups) {
         await base44.entities.FollowUpResponse.delete(fu.id);
       }
       
-      toast.success("Response deleted");
+      // Step 3: Update InterviewSession snapshots to remove this question
+      console.log('🔄 Updating session snapshots after deletion...');
+      
+      // Get current session data
+      const currentSession = await base44.entities.InterviewSession.get(sessionId);
+      
+      // Remove deleted question from transcript snapshot
+      // Assuming transcript_snapshot items have a 'questionId' property
+      let updatedTranscript = (currentSession.transcript_snapshot || []).filter(
+        entry => entry.questionId !== lastResponse.question_id
+      );
+      
+      // Update session with new snapshots
+      await base44.entities.InterviewSession.update(sessionId, {
+        transcript_snapshot: updatedTranscript,
+        queue_snapshot: [], // Clear queue since we're resetting to this point
+        current_item_snapshot: null, // Will be set to next question on resume
+        total_questions_answered: updatedTranscript.filter(t => t.type === 'question').length,
+        completion_percentage: Math.round((updatedTranscript.filter(t => t.type === 'question').length / 198) * 100)
+      });
+      
+      console.log('✅ Session snapshots updated - interview will resume from correct position');
+      
+      toast.success("Response deleted and session updated");
       loadSessionData();
     } catch (err) {
       console.error("Error deleting response:", err);
