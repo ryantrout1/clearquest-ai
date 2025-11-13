@@ -572,10 +572,11 @@ export default function InterviewV2() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
-        // Check for follow-ups
-        const { packId, substanceName } = checkFollowUpTrigger(engine, currentItem.id, value);
+        // Check for follow-ups - FIXED: handle null result
+        const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
         
-        if (packId) {
+        if (followUpResult) {
+          const { packId, substanceName } = followUpResult;
           console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
           
           const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
