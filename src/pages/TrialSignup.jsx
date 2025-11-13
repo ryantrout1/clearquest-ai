@@ -7,52 +7,74 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Shield, CheckCircle, Loader2, ArrowLeft, Copy, FileDown, X } from "lucide-react";
+import { Shield, CheckCircle, Loader2, ArrowLeft, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Simplified department code generation (3 letters + hyphen + 5-digit number)
-function generateDepartmentCode(departmentName) {
-  if (!departmentName) return "";
+// Department code generation utility - SAME as CreateDepartment.js
+async function generateDepartmentCode(departmentName, zipCode) {
+  if (!departmentName || !zipCode) return "";
 
-  // Extract first 3 letters from department name
-  const cleanName = departmentName.trim().replace(/[^a-zA-Z\s]/g, '');
-  const words = cleanName.split(/\s+/).filter(word => word.length > 0);
-  
+  const words = departmentName.trim().split(/\s+/).filter(word => word.length > 0);
+  const generateRandomLetter = () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return letters[Math.floor(Math.random() * letters.length)];
+  };
+
   let prefix = "";
-  if (words.length >= 1) {
-    const firstWord = words[0];
-    if (firstWord.length >= 3) {
-      prefix = firstWord.substring(0, 3).toUpperCase();
-    } else if (firstWord.length === 2) {
-      prefix = (firstWord + (words[1]?.[0] || 'X')).toUpperCase();
-    } else {
-      prefix = (firstWord + 'XX').substring(0, 3).toUpperCase();
-    }
+  if (words.length >= 3) {
+    prefix = words.slice(0, 3).map(word => word[0].toUpperCase()).join("");
+  } else if (words.length === 2) {
+    prefix = words[0].substring(0, 2).toUpperCase() + generateRandomLetter();
+  } else if (words.length === 1) {
+    prefix = words[0][0].toUpperCase() + generateRandomLetter() + generateRandomLetter();
   } else {
-    prefix = "DEP";
+    prefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
   }
 
-  // Generate 5-digit random number
-  const randomNum = Math.floor(10000 + Math.random() * 90000);
-  
-  return `${prefix}-${randomNum}`;
+  const baseCode = `${prefix}-${zipCode}`;
+
+  try {
+    const existingDepts = await base44.entities.Department.filter({ department_code: baseCode });
+    if (existingDepts.length === 0) return baseCode;
+
+    const firstTwoLetters = prefix.substring(0, 2);
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < alphabet.length; i++) {
+      const newCode = `${firstTwoLetters}${alphabet[i]}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const randomPrefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+      const newCode = `${randomPrefix}-${zipCode}`;
+      const exists = await base44.entities.Department.filter({ department_code: newCode });
+      if (exists.length === 0) return newCode;
+    }
+    
+    return `${prefix}-${zipCode}-${Date.now().toString().slice(-4)}`;
+  } catch (err) {
+    console.error("Error finding unique department code:", err);
+    return baseCode;
+  }
 }
 
 export default function TrialSignup() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdDepartment, setCreatedDepartment] = useState(null);
   
   const [formData, setFormData] = useState({
     department_name: "",
+    department_code: "",
     city: "",
     state: "",
     zip_code: "",
@@ -60,6 +82,26 @@ export default function TrialSignup() {
     contact_name: "", 
     contact_email: "",
   });
+
+  // Auto-generate department code when name and zip change - SAME logic as CreateDepartment
+  useEffect(() => {
+    const generateCode = async () => {
+      if (formData.department_name && formData.zip_code) {
+        setIsGeneratingCode(true);
+        try {
+          const code = await generateDepartmentCode(formData.department_name, formData.zip_code);
+          setFormData(prev => ({ ...prev, department_code: code }));
+        } catch (err) {
+          console.error("Error generating code:", err);
+        } finally {
+          setIsGeneratingCode(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(generateCode, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData.department_name, formData.zip_code]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -77,10 +119,14 @@ export default function TrialSignup() {
       return;
     }
 
+    if (!formData.department_code) {
+      toast.error("Department code is still generating, please wait a moment.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const deptCode = generateDepartmentCode(formData.department_name);
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -91,7 +137,7 @@ export default function TrialSignup() {
 
       const departmentData = {
         department_name: formData.department_name,
-        department_code: deptCode,
+        department_code: formData.department_code,
         department_type: "Law Enforcement", // Default value
         city: formData.city,
         state: formData.state,
@@ -291,13 +337,18 @@ What the applicant needs to do:
 
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGeneratingCode}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Creating Account...
+                  </>
+                ) : isGeneratingCode ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Generating Code...
                   </>
                 ) : (
                   <>
