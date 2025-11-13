@@ -31,6 +31,11 @@ const REVIEW_KEYWORDS = [
   'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
 
+// Helper function to check if text needs review
+const needsReview = (text) => {
+  const lower = String(text || '').toLowerCase();
+  return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
+};
 
 export default function SessionDetails() {
   const navigate = useNavigate();
@@ -48,9 +53,7 @@ export default function SessionDetails() {
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
-  const [viewMode, setViewMode] = useState("structured");
-  const [expandedQuestions, setExpandedQuestions] = useState(new Set());
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [viewMode, setViewMode] = useState("structured"); // structured or transcript
   const [collapsedSections, setCollapsedSections] = useState(new Set()); // Track collapsed sections
 
   // Refs for scroll-to functionality
@@ -105,13 +108,10 @@ export default function SessionDetails() {
 
   // Global expand/collapse handlers - now also control section state
   const handleExpandAll = () => {
-    const allIds = new Set(responses.map(r => r.id));
-    setExpandedQuestions(allIds);
     setCollapsedSections(new Set()); // Expand all sections
   };
 
   const handleCollapseAll = () => {
-    setExpandedQuestions(new Set());
     // Collapse all sections (add all category names to collapsedSections)
     const allCategories = Object.keys(responsesByCategory);
     setCollapsedSections(new Set(allCategories));
@@ -126,16 +126,6 @@ export default function SessionDetails() {
       newCollapsed.add(category);
     }
     setCollapsedSections(newCollapsed);
-  };
-
-  const toggleQuestion = (responseId) => {
-    const newExpanded = new Set(expandedQuestions);
-    if (newExpanded.has(responseId)) {
-      newExpanded.delete(responseId);
-    } else {
-      newExpanded.add(responseId);
-    }
-    setExpandedQuestions(newExpanded);
   };
 
   const handleCategoryJump = (category) => {
@@ -158,32 +148,25 @@ export default function SessionDetails() {
     }
 
     try {
-      // Step 1: Delete the Response entity
       await base44.entities.Response.delete(lastResponse.id);
       
-      // Step 2: Delete related follow-ups
       const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
       for (const fu of relatedFollowups) {
         await base44.entities.FollowUpResponse.delete(fu.id);
       }
       
-      // Step 3: Update InterviewSession snapshots to remove this question
       console.log('🔄 Updating session snapshots after deletion...');
       
-      // Get current session data
       const currentSession = await base44.entities.InterviewSession.get(sessionId);
       
-      // Remove deleted question from transcript snapshot
-      // Assuming transcript_snapshot items have a 'questionId' property
       let updatedTranscript = (currentSession.transcript_snapshot || []).filter(
         entry => entry.questionId !== lastResponse.question_id
       );
       
-      // Update session with new snapshots
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: updatedTranscript,
-        queue_snapshot: [], // Clear queue since we're resetting to this point
-        current_item_snapshot: null, // Will be set to next question on resume
+        queue_snapshot: [],
+        current_item_snapshot: null,
         total_questions_answered: updatedTranscript.filter(t => t.type === 'question').length,
         completion_percentage: Math.round((updatedTranscript.filter(t => t.type === 'question').length / 198) * 100)
       });
@@ -478,12 +461,9 @@ export default function SessionDetails() {
             </CardContent>
           </Card>
         ) : viewMode === "structured" ? (
-          <StructuredView
+          <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
-            responses={filteredResponses}
             followups={followups}
-            expandedQuestions={expandedQuestions}
-            toggleQuestion={toggleQuestion}
             categoryRefs={categoryRefs}
             collapsedSections={collapsedSections}
             toggleSection={toggleSection}
@@ -523,50 +503,56 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function StructuredView({ responsesByCategory, responses, followups, expandedQuestions, toggleQuestion, categoryRefs, collapsedSections, toggleSection }) {
+// Two-Column Stream Layout matching "Layout 3" mockup
+function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, collapsedSections, toggleSection }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
         
         return (
-          <div key={category}>
+          <div key={category} className="mb-6">
+            {/* Section Header - Dark bar with white all-caps text */}
             <div 
               ref={el => categoryRefs.current[category] = el}
-              className="sticky top-28 md:top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-3 z-10 flex items-center justify-between gap-3"
+              className="sticky top-28 md:top-32 bg-slate-800 border-l-4 border-blue-500 py-3 px-4 mb-0 z-10 flex items-center justify-between"
             >
-              <h2 className="text-base md:text-lg font-bold text-blue-400">{category}</h2>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wide">{category}</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => toggleSection(category)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
+                className="text-slate-300 hover:text-white hover:bg-slate-700 h-8 px-2"
               >
                 {isSectionCollapsed ? (
-                  <>
-                    <ChevronRight className="w-4 h-4 mr-1" />
-                    <span className="text-xs hidden sm:inline">Expand</span>
-                  </>
+                  <ChevronRight className="w-4 h-4" />
                 ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4 mr-1" />
-                    <span className="text-xs hidden sm:inline">Collapse</span>
-                  </>
+                  <ChevronDown className="w-4 h-4" />
                 )}
               </Button>
             </div>
             
             {!isSectionCollapsed && (
-              <div className="space-y-2 transition-all duration-200 ease-in-out">
-                {categoryResponses.map(response => (
-                  <QuestionCard
-                    key={response.id}
-                    response={response}
-                    followups={followups.filter(f => f.response_id === response.id)}
-                    isExpanded={expandedQuestions.has(response.id)}
-                    onToggle={() => toggleQuestion(response.id)}
-                  />
-                ))}
+              <div className="bg-slate-900/30 border border-slate-700 border-t-0">
+                {/* Two-column grid layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
+                  {/* Split questions into left and right columns */}
+                  {[0, 1].map(colIndex => {
+                    const columnQuestions = categoryResponses.filter((_, idx) => idx % 2 === colIndex);
+                    
+                    return (
+                      <div key={colIndex} className="divide-y divide-slate-700/50">
+                        {columnQuestions.map(response => (
+                          <CompactQuestionRow
+                            key={response.id}
+                            response={response}
+                            followups={followups.filter(f => f.response_id === response.id)}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -576,96 +562,79 @@ function StructuredView({ responsesByCategory, responses, followups, expandedQue
   );
 }
 
-function QuestionCard({ response, followups, isExpanded, onToggle }) {
+// Compact inline question row
+function CompactQuestionRow({ response, followups }) {
   const hasFollowups = followups.length > 0;
+  const answerLetter = response.answer === "Yes" ? "Y" : "N";
   
-  return (
-    <Card className="bg-slate-900/30 border-slate-700 hover:border-slate-600 transition-colors">
-      <CardContent className="p-3 md:p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
-                Question {response.display_number}
-              </Badge>
-              <span className="text-xs text-slate-500">{response.category}</span>
-              {response.is_flagged && (
-                <Badge className="text-xs bg-red-500/20 text-red-300 border-red-500/30">
-                  Flagged
-                </Badge>
-              )}
-            </div>
-            <p className="text-white text-sm font-medium mb-2">{response.question_text}</p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Answer:</span>
-              <Badge className={response.answer === "Yes" ? "bg-blue-600 text-xs" : "bg-slate-700 text-xs"}>
-                {response.answer}
-              </Badge>
-            </div>
-          </div>
-
-          {hasFollowups && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggle}
-              className="text-slate-400 hover:text-white flex-shrink-0"
-            >
-              {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-            </Button>
-          )}
-        </div>
-
-        {isExpanded && hasFollowups && (
-          <div className="mt-3 pl-2 md:pl-4 border-l-2 border-orange-500/30 space-y-2">
-            <p className="text-xs font-semibold text-orange-400 mb-2">Follow-Up Thread</p>
-            {followups.map((followup, idx) => (
-              <FollowUpThread key={idx} followup={followup} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function FollowUpThread({ followup }) {
-  const additionalDetails = followup.additional_details || {};
-  const entries = Object.entries(additionalDetails);
+  // Format question ID as "Q001" style
+  const questionNumber = response.display_number.toString().padStart(3, '0');
   
-  const needsReview = (text) => {
-    const lower = String(text || '').toLowerCase();
-    return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
+  // Truncate question text for inline display
+  const truncateText = (text, maxLength = 80) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
   
   return (
-    <div className="space-y-2">
-      {followup.substance_name && (
-        <div className="bg-slate-800/50 rounded-lg p-2 md:p-3 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-0.5">Substance</p>
-          <p className="text-sm text-white font-medium">{followup.substance_name}</p>
+    <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
+      {/* Question row: Q### + Y/N + truncated question */}
+      <div className="flex items-start gap-3 text-sm">
+        <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
+        <span className={cn(
+          "font-bold flex-shrink-0 w-5",
+          response.answer === "Yes" ? "text-green-400" : "text-slate-500"
+        )}>
+          {answerLetter}
+        </span>
+        <span className="text-slate-300 flex-1 min-w-0">
+          {truncateText(response.question_text)}
+        </span>
+      </div>
+      
+      {/* YES answer detail box - light gray box underneath */}
+      {hasFollowups && response.answer === "Yes" && (
+        <div className="mt-2 ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
+          <div className="space-y-2">
+            {followups.map((followup, idx) => {
+              const details = followup.additional_details || {};
+              
+              return (
+                <div key={idx} className="space-y-1.5">
+                  {followup.substance_name && (
+                    <div className="text-xs flex items-center">
+                      <span className="text-orange-400 font-medium">Substance:</span>
+                      <span className="text-slate-200 ml-2">{followup.substance_name}</span>
+                      {needsReview(followup.substance_name) && (
+                        <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                          Needs Review
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                  
+                  {Object.entries(details).map(([key, value]) => {
+                    const requiresReview = needsReview(value);
+                    return (
+                      <div key={key} className="text-xs flex items-start">
+                        <span className="text-slate-400">
+                          {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                        </span>
+                        <span className="text-slate-200 ml-2">{value}</span>
+                        {requiresReview && (
+                          <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                            Needs Review
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
-      
-      {entries.map(([key, value]) => {
-        const requiresReview = needsReview(value);
-        
-        return (
-          <div key={key} className="bg-slate-800/30 rounded-lg p-2 md:p-3">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <p className="text-xs text-orange-300 font-medium">
-                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </p>
-              {requiresReview && (
-                <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                  Needs Review
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{value}</p>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -717,11 +686,6 @@ function TranscriptEntry({ item }) {
   if (item.type === 'followup') {
     const followup = item.data;
     const details = followup.additional_details || {};
-    
-    const needsReview = (text) => {
-      const lower = String(text || '').toLowerCase();
-      return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
-    };
     
     return (
       <div className="ml-4 md:ml-8 space-y-2">
