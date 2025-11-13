@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Building2, Users, FileText, Settings, ArrowLeft, 
-  AlertCircle, Calendar, Shield, TrendingUp, PlayCircle, Download
+  AlertCircle, Calendar, Shield, TrendingUp, PlayCircle, Download, Mail, Phone, User
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, subDays } from "date-fns";
@@ -84,13 +83,6 @@ export default function DepartmentDashboard() {
       navigate(createPageUrl("AdminLogin"));
     }
   };
-
-  // Fetch department users
-  const { data: departmentUsers = [] } = useQuery({
-    queryKey: ['department-users', department?.id],
-    queryFn: () => base44.entities.User.filter({ department_id: department.id }),
-    enabled: !!department
-  });
 
   // Fetch all sessions for this department
   const { data: allSessions = [] } = useQuery({
@@ -198,6 +190,9 @@ export default function DepartmentDashboard() {
   const getInitials = (name) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+  // Check if primary contact exists
+  const hasPrimaryContact = department.contact_name && department.contact_email && department.contact_phone;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
@@ -360,7 +355,7 @@ export default function DepartmentDashboard() {
             <div className="dept-header-titles">
               <div className="dept-header-name">{department.department_name}</div>
               <div className="dept-header-meta">
-                Dept Code: {department.department_code} • Tier: {department.plan_level} • Users: {departmentUsers.length}
+                Dept Code: {department.department_code} • Tier: {department.plan_level}
               </div>
               <div className="dept-header-contact">
                 {department.phone_number} • {department.contact_email}
@@ -403,15 +398,6 @@ export default function DepartmentDashboard() {
               Interviews
             </Button>
           </Link>
-          
-          <Button 
-            variant="outline" 
-            className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
-            onClick={() => alert('User management coming soon')}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Manage Users
-          </Button>
           
           {canEdit && (
             <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
@@ -460,7 +446,7 @@ export default function DepartmentDashboard() {
           />
           <StatCard
             title="Active Users"
-            value={departmentUsers.filter(u => u.is_active !== false).length}
+            value={hasPrimaryContact ? 1 : 0}
             icon={Users}
             color="green"
           />
@@ -520,27 +506,60 @@ export default function DepartmentDashboard() {
             </CardContent>
           </Card>
 
-          {/* Users */}
+          {/* Primary Contact (Department Users) */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
               <CardTitle className="text-white text-lg">Department Users</CardTitle>
             </CardHeader>
             <CardContent>
-              {departmentUsers.length === 0 ? (
-                <p className="text-slate-400 text-sm text-center py-4">No users yet</p>
+              {!hasPrimaryContact ? (
+                <div className="text-center py-6">
+                  <AlertCircle className="w-12 h-12 text-orange-400 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm mb-4">
+                    No primary contact is on file for this department. Please add one in Department Settings.
+                  </p>
+                  <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                      Edit Department
+                    </Button>
+                  </Link>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  {departmentUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-slate-700 gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-white font-medium text-sm truncate">{u.first_name} {u.last_name}</p>
-                        <p className="text-slate-400 text-xs truncate">{u.email}</p>
+                <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-blue-400" />
                       </div>
-                      <Badge variant="outline" className="text-xs text-slate-300 border-slate-600 whitespace-nowrap">
-                        {u.role ? u.role.replace('DEPT_', '') : 'USER'}
-                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-white font-medium text-sm break-words">
+                            {department.contact_name}
+                            {department.contact_title && <span className="text-slate-400 font-normal"> — {department.contact_title}</span>}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-1 text-xs text-slate-400">
+                          <a 
+                            href={`mailto:${department.contact_email}`}
+                            className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
+                          >
+                            <Mail className="w-3 h-3" />
+                            {department.contact_email}
+                          </a>
+                          <a 
+                            href={`tel:${department.contact_phone}`}
+                            className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
+                          >
+                            <Phone className="w-3 h-3" />
+                            {department.contact_phone}
+                          </a>
+                        </div>
+                      </div>
                     </div>
-                  ))}
+                    <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 text-xs whitespace-nowrap flex-shrink-0">
+                      Primary Contact
+                    </Badge>
+                  </div>
                 </div>
               )}
             </CardContent>

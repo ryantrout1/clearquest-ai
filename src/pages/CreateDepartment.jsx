@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -161,13 +162,15 @@ export default function CreateDepartment() {
       return;
     }
     
-    if (!formData.contact_email) {
-      toast.error("Contact email is required");
+    // Primary contact validation
+    if (!formData.contact_name || !formData.contact_email || !formData.contact_phone) {
+      toast.error("Please provide a primary contact name, email, and phone for this department.");
       return;
     }
     
-    if (!formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
-      toast.error("Please fill in all required address fields");
+    // Address validation - address_line1 is now optional, but city, state, zip are required
+    if (!formData.city || !formData.state || !formData.zip_code) {
+      toast.error("Please fill in city, state, and ZIP code");
       return;
     }
     
@@ -176,14 +179,24 @@ export default function CreateDepartment() {
 
     try {
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
+      const now = new Date().toISOString();
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
+
+      // Normalize for duplicate checking
+      const normalizedDeptName = formData.department_name.trim().toLowerCase();
+      const normalizedState = formData.state.trim().toUpperCase();
 
       const departmentData = {
         ...formData,
         department_id: deptId,
-        date_joined: new Date().toISOString(),
+        date_joined: now,
         trial_end_date: trialEndDate.toISOString(),
+        trial_status: "active",
+        trial_started_at: now,
+        trial_ends_at: trialEndDate.toISOString(),
+        name_normalized: normalizedDeptName,
+        state_normalized: normalizedState,
         activity_log: [`Department created by ${user.email}`],
         applicants_processed: 0,
         avg_processing_time: 0,
@@ -299,7 +312,7 @@ export default function CreateDepartment() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone_number" className="text-white text-sm">Phone Number</Label>
+                    <Label htmlFor="phone_number" className="text-white text-sm">Department Phone</Label>
                     <Input
                       id="phone_number"
                       type="tel"
@@ -321,14 +334,13 @@ export default function CreateDepartment() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address_line1" className="text-white text-sm">Address Line 1 *</Label>
+                    <Label htmlFor="address_line1" className="text-white text-sm">Address Line 1</Label>
                     <Input
                       id="address_line1"
                       value={formData.address_line1}
                       onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
-                      placeholder="Street address"
-                      required
+                      placeholder="Street address (optional)"
                     />
                   </div>
 
@@ -347,6 +359,7 @@ export default function CreateDepartment() {
                     <Label htmlFor="city" className="text-white text-sm">City *</Label>
                     <Input
                       id="city"
+                      placeholder="e.g., Buckeye"
                       value={formData.city}
                       onChange={(e) => setFormData({...formData, city: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
@@ -361,7 +374,7 @@ export default function CreateDepartment() {
                       value={formData.state}
                       onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
-                      placeholder="e.g., CA"
+                      placeholder="e.g., AZ"
                       maxLength={2}
                       required
                     />
@@ -374,7 +387,7 @@ export default function CreateDepartment() {
                       value={formData.zip_code}
                       onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
-                      placeholder="e.g., 90210"
+                      placeholder="e.g., 85326"
                       required
                     />
                     <p className="text-xs text-slate-400">
@@ -391,12 +404,14 @@ export default function CreateDepartment() {
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="contact_name" className="text-white text-sm">Contact Name</Label>
+                    <Label htmlFor="contact_name" className="text-white text-sm">Contact Name *</Label>
                     <Input
                       id="contact_name"
+                      placeholder="e.g., Sgt. Jane Smith"
                       value={formData.contact_name}
                       onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      required
                     />
                   </div>
 
@@ -404,6 +419,7 @@ export default function CreateDepartment() {
                     <Label htmlFor="contact_title" className="text-white text-sm">Title</Label>
                     <Input
                       id="contact_title"
+                      placeholder="e.g., Background Investigator"
                       value={formData.contact_title}
                       onChange={(e) => setFormData({...formData, contact_title: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
@@ -415,6 +431,7 @@ export default function CreateDepartment() {
                     <Input
                       id="contact_email"
                       type="email"
+                      placeholder="e.g., jane.smith@metroPD.gov"
                       value={formData.contact_email}
                       onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
@@ -423,13 +440,15 @@ export default function CreateDepartment() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="contact_phone" className="text-white text-sm">Phone</Label>
+                    <Label htmlFor="contact_phone" className="text-white text-sm">Phone *</Label>
                     <Input
                       id="contact_phone"
                       type="tel"
+                      placeholder="e.g., 623-555-0123"
                       value={formData.contact_phone}
                       onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-11"
+                      required
                     />
                   </div>
                 </div>
