@@ -117,10 +117,10 @@ export default function InterviewV2() {
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
   
-  // NEW: Track answers within current follow-up pack for conditional logic
+  // Track answers within current follow-up pack for conditional logic
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
-  // NEW: AI agent integration
+  // AI agent integration
   const [conversation, setConversation] = useState(null);
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
@@ -1110,51 +1110,37 @@ export default function InterviewV2() {
     return "Type your answer...";
   };
   
-  // Get answered agent messages (only show in history after user has responded)
-  const getAnsweredAgentMessages = useCallback(() => {
+  // Get all displayable agent messages (filter out system messages only)
+  const getDisplayableAgentMessages = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return [];
     
-    const answered = [];
-    
-    // Find all agent-user pairs (agent asks, user responds)
-    for (let i = 0; i < agentMessages.length - 1; i++) {
-      const current = agentMessages[i];
-      const next = agentMessages[i + 1];
-      
-      if (current.role === 'assistant' && next.role === 'user') {
-        // Filter out system messages and base questions
-        if (!current.content.includes('Follow-up pack completed') && 
-            !current.content.match(/\b(Q\d{1,3})\b/i)) {
-          answered.push(current);
-          answered.push(next);
-        }
-      }
-    }
-    
-    return answered;
+    return agentMessages.filter(msg => {
+      // Filter out system summary messages
+      if (msg.content?.includes('Follow-up pack completed')) return false;
+      // Filter out base question signals (Q###)
+      if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+      // Keep everything else (both assistant and user messages)
+      return true;
+    });
   }, [agentMessages, isWaitingForAgent]);
 
-  // Get last unanswered agent question
+  // Get last unanswered agent question (only for active question box)
   const getLastAgentQuestion = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
     
     const lastAssistantMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAssistantMessage?.content) return null;
     
-    // Filter out base questions (Q###) and system messages that are not actual questions
-    if (lastAssistantMessage.content.match(/\b(Q\d{1,3})\b/i)) return null; // This is a base question signal, not a probing question
-    if (lastAssistantMessage.content.includes('Follow-up pack completed')) return null; // This is a system message to the agent
+    // Filter out base questions and system messages
+    if (lastAssistantMessage.content.match(/\b(Q\d{1,3})\b/i)) return null;
+    if (lastAssistantMessage.content.includes('Follow-up pack completed')) return null;
 
-    // Check if this specific assistant message has already been answered by the user
-    // We need to find its index in the original array to check the next message
-    const lastAssistantMessageIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
-
-    // If there's a message after this assistant message AND it's a user message, then this assistant message has been answered
-    if (lastAssistantMessageIndex !== -1 && agentMessages[lastAssistantMessageIndex + 1]?.role === 'user') {
-        return null; // This question has been answered, it will be part of 'answeredAgentMessages'
+    // Check if already answered (has user message after it)
+    const lastIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
+    if (lastIndex !== -1 && agentMessages[lastIndex + 1]?.role === 'user') {
+      return null; // Already answered
     }
     
-    // If it's an assistant message that hasn't been answered and is not a system/base question
     return lastAssistantMessage.content;
   }, [agentMessages, isWaitingForAgent]);
 
@@ -1191,7 +1177,7 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const lastAgentQuestion = getLastAgentQuestion();
-  const answeredAgentMessages = getAnsweredAgentMessages();
+  const displayableAgentMessages = getDisplayableAgentMessages();
   const totalQuestions = engine?.TotalQuestions || 198;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = Math.round((answeredCount / totalQuestions) * 100);
@@ -1320,15 +1306,18 @@ export default function InterviewV2() {
                 />
               ))}
               
-              {/* Show ONLY answered agent probing messages */}
-              {answeredAgentMessages.length > 0 && (
+              {/* Show ALL agent messages as continuous thread */}
+              {displayableAgentMessages.length > 0 && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     Investigator Follow-up Conversations
                   </div>
-                  {answeredAgentMessages.map((msg, idx) => (
-                    <AgentMessageBubble key={`answered-${idx}`} message={msg} />
+                  {displayableAgentMessages.map((msg, idx) => (
+                    <AgentMessageBubble 
+                      key={`agent-${msg.id || idx}`} 
+                      message={msg} 
+                    />
                   ))}
                 </div>
               )}
@@ -1670,7 +1659,7 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   return null;
 }
 
-// NEW: Agent message bubbles (for probing questions)
+// Agent message bubbles (for probing questions)
 function AgentMessageBubble({ message }) {
   const isUser = message.role === 'user';
   
