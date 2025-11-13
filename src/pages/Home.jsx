@@ -111,14 +111,14 @@ export default function Home() {
             icon={<MessageSquare className="w-8 h-8" />}
             title="Built for Investigators"
             description="You're the expert — ClearQuest handles the structure so you can focus on professional judgment and accuracy."
-            detailedDescription="Designed around real investigator workflows — you stay in control while ClearQuest handles structure, documentation, and follow-up precision."
+            detailedDescription="ClearQuest handles sequencing, consistency, and documentation — allowing investigators to focus on professional judgment instead of administrative tasks."
             color="purple"
           />
           <FeatureCard
             icon={<FileCheck className="w-8 h-8" />}
             title={`${totalQuestions}-Question Master Bank`}
             description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
-            detailedDescription="Covers every investigative domain from employment to criminal history, ensuring every applicant is evaluated consistently and completely."
+            detailedDescription="Your full structured question bank, covering every major background domain — criminal history, drug use, financial issues, employment record, military service, law enforcement contacts, and more. Each section is standardized and sequence-controlled for consistent screening across every applicant."
             color="green"
           />
           <FeatureCard
@@ -132,14 +132,14 @@ export default function Home() {
             icon={<CheckCircle className="w-8 h-8" />}
             title="Automated Follow-Ups"
             description='Every "Yes" triggers structured follow-up packs so no detail is ever missed.'
-            detailedDescription='Every "Yes" answer launches the correct follow-up pack instantly — guaranteeing no missed detail and standardized documentation.'
+            detailedDescription='Every "Yes" answer launches the required structured follow-up questions instantly — capturing dates, circumstances, context, and outcomes for investigator-ready documentation. When additional detail is needed, ClearQuest guides the applicant with targeted clarification prompts to ensure each incident is fully explained and no important information is missed.'
             color="indigo"
           />
           <FeatureCard
             icon={<Shield className="w-8 h-8" />}
             title="Ready-to-Submit Reports"
             description="Instant PDF summaries with transcripts, risk notes, and verification sections ready for submission."
-            detailedDescription="One-click generation of full reports with transcripts, notes, and risk summaries formatted for easy departmental submission."
+            detailedDescription="Instant investigator-ready summaries that include full transcripts, risk notes, incident breakdowns, and verification sections — formatted for background review and case file submission."
             color="red"
           />
         </div>
