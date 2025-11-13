@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -290,12 +291,12 @@ export default function SessionDetails() {
           </CardContent>
         </Card>
 
-        {/* Controls Bar (Sticky) */}
+        {/* Controls Bar (Sticky) - FIXED LAYOUT */}
         <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
-          {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            {/* Search */}
-            <div className="md:col-span-5 relative">
+          {/* First Row - Responsive Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-3 items-center">
+            {/* Search - Full width on mobile, larger on desktop */}
+            <div className="lg:col-span-4 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
               <Input
                 placeholder="Search questions or answers..."
@@ -306,9 +307,9 @@ export default function SessionDetails() {
             </div>
 
             {/* Category Jump */}
-            <div className="md:col-span-3">
+            <div className="lg:col-span-3">
               <Select value={selectedCategory} onValueChange={handleCategoryJump}>
-                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9">
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
                   <SelectValue placeholder="Jump to Category" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-700">
@@ -323,37 +324,37 @@ export default function SessionDetails() {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="md:col-span-2">
+            <div className="lg:col-span-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
                 className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
               >
-                {viewMode === "structured" ? <FileText className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                {viewMode === "structured" ? <FileText className="w-4 h-4 mr-1 md:mr-2" /> : <Eye className="w-4 h-4 mr-1 md:mr-2" />}
                 {viewMode === "structured" ? "Transcript" : "Structured"}
               </Button>
             </div>
 
-            {/* Expand/Collapse */}
-            <div className="md:col-span-2 flex gap-2">
+            {/* Expand/Collapse - Single row on all screens */}
+            <div className="lg:col-span-3 grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleExpandAll}
-                className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
               >
-                <ChevronsDown className="w-4 h-4 md:mr-1" />
-                <span className="hidden md:inline">Expand</span>
+                <ChevronsDown className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Expand</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleCollapseAll}
-                className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
               >
-                <ChevronsUp className="w-4 h-4 md:mr-1" />
-                <span className="hidden md:inline">Collapse</span>
+                <ChevronsUp className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Collapse</span>
               </Button>
             </div>
           </div>
@@ -372,7 +373,7 @@ export default function SessionDetails() {
               <span>Show Only Questions with Follow-Ups</span>
             </button>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {searchTerm && (
                 <span className="text-xs text-slate-400">
                   Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
@@ -392,8 +393,8 @@ export default function SessionDetails() {
                 ) : (
                   <>
                     <Download className="w-4 h-4 mr-2" />
-                    <span className="hidden md:inline">Generate PDF</span>
-                    <span className="md:hidden">PDF</span>
+                    <span className="hidden sm:inline">Generate PDF</span>
+                    <span className="sm:hidden">PDF</span>
                   </>
                 )}
               </Button>
