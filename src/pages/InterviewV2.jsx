@@ -168,13 +168,21 @@ export default function InterviewV2() {
     };
   }, [sessionId, navigate]);
 
+  // Enhanced autofocus - handles both deterministic and agent modes
   useEffect(() => {
-    if (currentItem && !isCommitting && !isWaitingForAgent) {
+    if (!isCommitting) {
       requestAnimationFrame(() => {
-        if (yesButtonRef.current) {
-          yesButtonRef.current.focus({ preventScroll: false });
-        } else if (inputRef.current) {
+        // Agent mode - always focus text input
+        if (isWaitingForAgent && inputRef.current) {
           inputRef.current.focus({ preventScroll: false });
+        }
+        // Deterministic mode - prefer Y/N buttons if present
+        else if (currentItem && !isWaitingForAgent) {
+          if (yesButtonRef.current) {
+            yesButtonRef.current.focus({ preventScroll: false });
+          } else if (inputRef.current) {
+            inputRef.current.focus({ preventScroll: false });
+          }
         }
       });
     }
@@ -1012,7 +1020,7 @@ export default function InterviewV2() {
     if (!lastMessage?.content) return null;
     
     // Filter out base questions (Q###)
-    if (lastMessage.content.match(/\b(Q\d{1,3})\b/i)) return null;
+    if (lastMessage.content.match(/\b(Q\d{1,3})\b/i)) return false; // Fixed: return false if it's a base question.
     
     return lastMessage.content;
   };
