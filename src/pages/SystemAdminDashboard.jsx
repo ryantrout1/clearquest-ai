@@ -10,16 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 export default function SystemAdminDashboard() {
@@ -36,8 +26,7 @@ export default function SystemAdminDashboard() {
     followUpsTriggeredLast30Days: 0
   });
   const [departmentStats, setDepartmentStats] = useState({});
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [departmentToDelete, setDepartmentToDelete] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // Track which dept is in confirm state
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -239,27 +228,35 @@ export default function SystemAdminDashboard() {
     }
   };
 
-  const initiateDeleteDepartment = (dept) => {
+  const handleDeleteClick = (dept) => {
     // Prevent deletion of paid departments
     if (dept.plan_level === 'Paid') {
       toast.error('Cannot delete paid departments. Contact support for assistance.');
       return;
     }
     
-    setDepartmentToDelete(dept);
-    setDeleteDialogOpen(true);
+    // If this department is already in confirm state, proceed with delete
+    if (confirmDeleteId === dept.id) {
+      handleDeleteDepartment(dept);
+    } else {
+      // Enter confirm state
+      setConfirmDeleteId(dept.id);
+      
+      // Auto-cancel confirmation after 5 seconds
+      setTimeout(() => {
+        setConfirmDeleteId(prevId => prevId === dept.id ? null : prevId);
+      }, 5000);
+    }
   };
 
-  const handleDeleteDepartment = async () => {
-    if (!departmentToDelete) return;
-    
+  const handleDeleteDepartment = async (dept) => {
     setIsDeleting(true);
     
     try {
-      console.log(`🗑️ Deleting department: ${departmentToDelete.department_name}`);
+      console.log(`🗑️ Deleting department: ${dept.department_name}`);
       
       // Delete all sessions for this department
-      const deptSessions = allSessions.filter(s => s.department_code === departmentToDelete.department_code);
+      const deptSessions = allSessions.filter(s => s.department_code === dept.department_code);
       for (const session of deptSessions) {
         try {
           await base44.entities.InterviewSession.delete(session.id);
@@ -269,7 +266,7 @@ export default function SystemAdminDashboard() {
       }
       
       // Delete the department
-      await base44.entities.Department.delete(departmentToDelete.id);
+      await base44.entities.Department.delete(dept.id);
       
       console.log(`✅ Department deleted successfully`);
       
@@ -277,10 +274,9 @@ export default function SystemAdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       
-      toast.success(`Department "${departmentToDelete.department_name}" deleted successfully`);
+      toast.success(`Department "${dept.department_name}" deleted successfully`);
       
-      setDeleteDialogOpen(false);
-      setDepartmentToDelete(null);
+      setConfirmDeleteId(null);
     } catch (err) {
       console.error('Error deleting department:', err);
       toast.error('Failed to delete department. Please try again.');
@@ -446,6 +442,7 @@ export default function SystemAdminDashboard() {
                 filteredDepartments.map(dept => {
                   const stats = departmentStats[dept.id] || {};
                   const daysRemaining = getTrialDaysRemaining(dept);
+                  const isInConfirmState = confirmDeleteId === dept.id;
                   
                   return (
                     <div
@@ -510,17 +507,19 @@ export default function SystemAdminDashboard() {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => initiateDeleteDepartment(dept)}
-                            disabled={dept.plan_level === 'Paid'}
+                            onClick={() => handleDeleteClick(dept)}
+                            disabled={dept.plan_level === 'Paid' || isDeleting}
                             className={`flex-1 lg:flex-none text-xs ${
                               dept.plan_level === 'Paid' 
                                 ? 'opacity-50 cursor-not-allowed border-slate-600 text-slate-500' 
+                                : isInConfirmState
+                                ? 'border-red-600 bg-red-950/30 text-red-300 hover:bg-red-950/50 animate-pulse'
                                 : 'border-red-600 text-red-400 hover:bg-red-950/30'
                             }`}
-                            title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : 'Delete department'}
+                            title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm deletion' : 'Delete department'}
                           >
                             <Trash2 className="w-3 h-3 lg:mr-1" />
-                            <span className="hidden lg:inline">Delete</span>
+                            <span className="hidden lg:inline">{isInConfirmState ? 'Confirm?' : 'Delete'}</span>
                           </Button>
                         </div>
                       </div>
@@ -532,34 +531,6 @@ export default function SystemAdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-slate-800 border-slate-700 max-w-md mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete Department?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-300">
-              Are you sure you want to delete <span className="font-semibold text-white break-all">{departmentToDelete?.department_name}</span>? 
-              This will also delete all associated interview sessions and cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              disabled={isDeleting}
-              className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteDepartment}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
-            >
-              {isDeleting ? "Deleting..." : "Delete Department"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
