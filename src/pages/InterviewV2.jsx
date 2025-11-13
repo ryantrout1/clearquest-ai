@@ -18,7 +18,8 @@ import {
   bootstrapEngine,
   validateFollowUpAnswer,
   checkFollowUpTrigger,
-  computeNextQuestionId
+  computeNextQuestionId,
+  injectSubstanceIntoPackSteps
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 
@@ -108,8 +109,8 @@ export default function InterviewV2() {
   const [error, setError] = useState(null);
   
   // NEW: Queue-based state (persisted to DB for resume)
-  const [transcript, setTranscript] = useState([]); // Array<{id, questionId, questionText, answer, category, type}>
-  const [queue, setQueue] = useState([]); // Array<{id, type: 'question'|'followup', packId?, stepIndex?}>
+  const [transcript, setTranscript] = useState([]); // Array<{id, questionId, questionText, answer, category, type, substanceName?}>
+  const [queue, setQueue] = useState([]); // Array<{id, type: 'question'|'followup', packId?, stepIndex?, substanceName?}>
   const [currentItem, setCurrentItem] = useState(null); // Current active question
   
   // Input state
@@ -395,7 +396,7 @@ export default function InterviewV2() {
         queue_snapshot: newQueue,
         current_item_snapshot: newCurrentItem,
         total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
-        completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / 162) * 100),
+        completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100),
         data_version: 'v1.0' // Versioning for future schema changes
       });
       
@@ -407,7 +408,7 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // ANSWER SUBMISSION - QUEUE-BASED FLOW WITH PERSISTENCE
+  // ANSWER SUBMISSION - UPDATED WITH SUBSTANCE INJECTION
   // ============================================================================
 
   const handleAnswer = useCallback(async (value) => {
@@ -446,18 +447,22 @@ export default function InterviewV2() {
         // Determine next items (deterministic routing)
         const nextIds = [];
         
-        // Check for follow-ups
-        const followUpTrigger = checkFollowUpTrigger(engine, currentItem.id, value);
-        if (followUpTrigger) {
-          console.log(`🔔 Follow-up triggered: ${followUpTrigger}`);
-          const packSteps = engine.PackStepsById[followUpTrigger];
+        // Check for follow-ups (UPDATED: now returns {packId, substanceName})
+        const { packId, substanceName } = checkFollowUpTrigger(engine, currentItem.id, value);
+        if (packId) {
+          console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
+          
+          // NEW: Inject substance name into pack steps
+          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+          
           if (packSteps && packSteps.length > 0) {
             for (let i = 0; i < packSteps.length; i++) {
               nextIds.push({
-                id: `${followUpTrigger}:${i}`,
+                id: `${packId}:${i}`,
                 type: 'followup',
-                packId: followUpTrigger,
-                stepIndex: i
+                packId: packId,
+                stepIndex: i,
+                substanceName: substanceName // Pass substance through queue
               });
             }
           }
@@ -485,13 +490,54 @@ export default function InterviewV2() {
         }
 
       } else if (currentItem.type === 'followup') {
-        // FOLLOW-UP QUESTION
-        const { packId, stepIndex } = currentItem;
-        const packSteps = engine.PackStepsById[packId];
+        // FOLLOW-UP QUESTION (UPDATED: Handle substance injection)
+        const { packId, stepIndex, substanceName } = currentItem;
+        
+        // NEW: Get injected pack steps if substance exists
+        const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+        
         if (!packSteps || !packSteps[stepIndex]) {
           throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
         }
         const step = packSteps[stepIndex];
+
+        // NEW: Auto-fill substance_name field if prefilled
+        if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
+          console.log(`💉 Auto-filling substance_name: ${step.PrefilledAnswer}`);
+          
+          const transcriptEntry = {
+            id: `fu-${Date.now()}`,
+            questionId: currentItem.id,
+            questionText: step.Prompt,
+            answer: step.PrefilledAnswer,
+            packId: packId,
+            substanceName: substanceName,
+            type: 'followup',
+            timestamp: new Date().toISOString()
+          };
+          
+          const newTranscript = [...transcript, transcriptEntry];
+          setTranscript(newTranscript);
+
+          // Move to next in queue WITHOUT requiring user input
+          const updatedQueue = [...queue];
+          const nextItem = updatedQueue.shift() || null;
+          
+          setQueue(updatedQueue);
+          setCurrentItem(nextItem);
+          
+          await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+          
+          setIsCommitting(false);
+          setInput("");
+          
+          if (!nextItem) {
+            setShowCompletionModal(true);
+          }
+          
+          return; // Exit early - no user input needed
+        }
 
         // Validate answer
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
@@ -516,6 +562,7 @@ export default function InterviewV2() {
           questionText: step.Prompt,
           answer: validation.normalized || value,
           packId: packId,
+          substanceName: substanceName,
           type: 'followup',
           timestamp: new Date().toISOString()
         };
@@ -532,7 +579,7 @@ export default function InterviewV2() {
         
         // Save to DB via snapshots (primary) AND FollowUpResponse entity (for backwards compatibility)
         await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
-        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value);
+        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
         
         if (!nextItem) {
           setShowCompletionModal(true);
@@ -549,7 +596,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, handleAnswer]); // Added handleAnswer to dependency array for auto-fill case
 
   // Text input submit handler
   const handleTextSubmit = useCallback((e) => {
@@ -598,11 +645,9 @@ export default function InterviewV2() {
     }
   };
 
-  const saveFollowUpAnswer = async (packId, fieldKey, answer) => {
+  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName) => {
     try {
       // Find the *original* triggering response to associate this follow-up with.
-      // This is a bit tricky with the new snapshot logic. We query for it based on session_id
-      // and the packId, assuming the latest such response is the correct trigger.
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
         followup_pack: packId,
@@ -629,7 +674,8 @@ export default function InterviewV2() {
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
           followup_pack: packId,
-          instance_number: 1, // Assuming one instance per pack for now
+          instance_number: 1,
+          substance_name: substanceName || null, // NEW: Store substance name
           incident_description: answer, // Could be generic, specific key is in additional_details
           completed: false,
           additional_details: { [fieldKey]: answer }
@@ -637,6 +683,7 @@ export default function InterviewV2() {
       } else {
         const existing = existingFollowups[0];
         await base44.entities.FollowUpResponse.update(existing.id, {
+          substance_name: substanceName || existing.substance_name, // NEW: Update substance if provided
           additional_details: {
             ...(existing.additional_details || {}),
             [fieldKey]: answer
@@ -740,11 +787,22 @@ export default function InterviewV2() {
     }
 
     if (currentItem.type === 'followup') {
-      const { packId, stepIndex } = currentItem;
-      const packSteps = engine.PackStepsById[packId];
+      const { packId, stepIndex, substanceName } = currentItem;
+      
+      // NEW: Use injected pack steps with substance name
+      const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
       if (!packSteps) return null;
       
       const step = packSteps[stepIndex];
+      
+      // NEW: Skip auto-filled questions in UI (they're added to transcript automatically)
+      if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
+        console.log(`⏩ Skipping auto-filled question in UI: ${step.Field_Key}`);
+        // Trigger auto-fill immediately
+        setTimeout(() => handleAnswer(step.PrefilledAnswer), 100);
+        return null; // Don't render this step
+      }
+      
       return {
         type: 'followup',
         id: currentItem.id,
@@ -752,6 +810,7 @@ export default function InterviewV2() {
         responseType: step.Response_Type || 'text',
         expectedType: step.Expected_Type || 'TEXT',
         packId: packId,
+        substanceName: substanceName,
         stepNumber: stepIndex + 1,
         totalSteps: packSteps.length
       };
@@ -812,8 +871,8 @@ export default function InterviewV2() {
   }
 
   const currentPrompt = getCurrentPrompt();
-  const totalQuestions = engine?.TotalQuestions || 162;
-  const answeredCount = transcript.length; // Modified: Now counts all entries in transcript
+  const totalQuestions = engine?.TotalQuestions || 198; // Updated from 162 to include new drug questions
+  const answeredCount = transcript.length; // Now counts all entries in transcript
   const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
@@ -997,7 +1056,7 @@ export default function InterviewV2() {
                             </span>
                             <span className="text-xs text-slate-500">•</span>
                             <span className="text-sm text-orange-300">
-                              {getFollowUpPackName(currentPrompt.packId)}
+                              {currentPrompt.substanceName ? `${currentPrompt.substanceName} Use` : getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : (
@@ -1189,7 +1248,7 @@ export default function InterviewV2() {
   );
 }
 
-// UPDATED: Enlarged typography in history entries
+// UPDATED: Show substance name in follow-up history entries
 function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
@@ -1233,7 +1292,7 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
                 <span className="text-sm font-semibold text-orange-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
                 <span className="text-sm text-orange-300">
-                  {getFollowUpPackName(entry.packId)}
+                  {entry.substanceName ? `${entry.substanceName} Use` : getFollowUpPackName(entry.packId)}
                 </span>
               </div>
               <p className="text-white leading-relaxed">{entry.questionText}</p>
