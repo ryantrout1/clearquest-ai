@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ArrowLeft, Loader2, Lock } from "lucide-react";
+import { Shield, ArrowLeft, Loader2, Lock, Bug } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 export default function StartInterview() {
   const navigate = useNavigate();
@@ -21,6 +22,10 @@ export default function StartInterview() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [departmentCodeError, setDepartmentCodeError] = useState(false);
+  
+  // NEW: Debug mode toggle (visible only for admins/testing)
+  const [debugMode, setDebugMode] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const validateDepartmentCode = async (code) => {
     if (!code) {
@@ -107,7 +112,7 @@ export default function StartInterview() {
       console.log("📝 Creating new session...");
       const sessionHash = await generateHash(sessionCode);
       
-      // Create session (NO conversation needed for V2)
+      // Create session with debug mode setting
       const session = await base44.entities.InterviewSession.create({
         session_code: sessionCode,
         department_code: formData.departmentCode,
@@ -122,11 +127,16 @@ export default function StartInterview() {
         metadata: {
           created_via: "web_interface",
           user_agent: navigator.userAgent,
-          version: "v2_deterministic"
+          version: "v2_deterministic",
+          debug_mode: debugMode, // NEW: Store debug mode setting
+          probing_strength: "production_standard"
         }
       });
       
       console.log("✅ Session created:", session.id);
+      if (debugMode) {
+        console.log("🐛 Debug mode enabled for this session");
+      }
 
       // Route to NEW deterministic interview (no conversation needed)
       navigate(createPageUrl(`InterviewV2?session=${session.id}`));
@@ -229,6 +239,48 @@ export default function StartInterview() {
                 <p className="text-sm text-slate-400">
                   Applicant case or file number
                 </p>
+              </div>
+
+              {/* NEW: Advanced Settings Toggle */}
+              <div className="border-t border-slate-700 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="text-sm text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-2"
+                >
+                  <Bug className="w-4 h-4" />
+                  {showAdvanced ? 'Hide' : 'Show'} Advanced Settings (For Testing)
+                </button>
+                
+                {showAdvanced && (
+                  <div className="mt-4 p-4 bg-slate-900/50 border border-slate-700 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="debug-mode" className="text-white text-sm">
+                          Debug Mode
+                        </Label>
+                        <p className="text-xs text-slate-400">
+                          Show AI reasoning, probing logic, and scoring details
+                        </p>
+                      </div>
+                      <Switch
+                        id="debug-mode"
+                        checked={debugMode}
+                        onCheckedChange={setDebugMode}
+                      />
+                    </div>
+                    
+                    {debugMode && (
+                      <Alert className="bg-yellow-950/30 border-yellow-800/50 text-yellow-200">
+                        <Bug className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>Debug Mode Enabled:</strong> The AI will show internal reasoning after each follow-up event. 
+                          This is for testing/development only and should NOT be used in production interviews.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="bg-slate-900/30 border border-slate-700 rounded-lg p-4 md:p-6 space-y-3">
