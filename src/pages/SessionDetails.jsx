@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -50,7 +51,7 @@ export default function SessionDetails() {
   const [viewMode, setViewMode] = useState("structured");
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [collapsedSections, setCollapsedSections] = useState(new Set()); // NEW: Track collapsed sections
+  const [collapsedSections, setCollapsedSections] = useState(new Set()); // Track collapsed sections
 
   // Refs for scroll-to functionality
   const categoryRefs = useRef({});
@@ -102,7 +103,7 @@ export default function SessionDetails() {
     }
   };
 
-  // NEW: Global expand/collapse handlers - now also control section state
+  // Global expand/collapse handlers - now also control section state
   const handleExpandAll = () => {
     const allIds = new Set(responses.map(r => r.id));
     setExpandedQuestions(allIds);
@@ -116,7 +117,7 @@ export default function SessionDetails() {
     setCollapsedSections(new Set(allCategories));
   };
 
-  // NEW: Toggle individual section
+  // Toggle individual section
   const toggleSection = (category) => {
     const newCollapsed = new Set(collapsedSections);
     if (newCollapsed.has(category)) {
@@ -238,12 +239,17 @@ export default function SessionDetails() {
     return matchesSearch && matchesFollowUpFilter;
   });
 
-  // Group by category for structured view
+  // Group by category for structured view AND assign display numbers
   const responsesByCategory = {};
+  let globalDisplayNumber = 1; // Start sequential numbering
+  
   filteredResponses.forEach(r => {
     const cat = r.category || 'Other';
     if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
-    responsesByCategory[cat].push(r);
+    responsesByCategory[cat].push({
+      ...r,
+      display_number: globalDisplayNumber++
+    });
   });
 
   if (isLoading) {
@@ -580,7 +586,7 @@ function QuestionCard({ response, followups, isExpanded, onToggle }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
-                {response.question_id}
+                Question {response.display_number}
               </Badge>
               <span className="text-xs text-slate-500">{response.category}</span>
               {response.is_flagged && (

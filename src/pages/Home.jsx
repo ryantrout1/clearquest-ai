@@ -435,11 +435,21 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
   // Group questions by category and compute counts dynamically
   const categoriesWithCounts = useMemo(() => {
+    // Create a global display number counter
+    let globalDisplayNumber = 1;
+    
     const result = categoryConfig.map(config => {
       const categoryQuestions = allQuestions.filter(q => q.category === config.name);
+      
+      // Assign display numbers to questions in this category
+      const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
+        ...q,
+        display_number: globalDisplayNumber++
+      }));
+      
       return {
         ...config,
-        questions: categoryQuestions,
+        questions: questionsWithDisplayNumbers,
         count: categoryQuestions.length
       };
     });
@@ -460,10 +470,15 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
       // Add unmapped categories to the end
       unmappedCategories.forEach(catName => {
         const categoryQuestions = allQuestions.filter(q => q.category === catName);
+        const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
+          ...q,
+          display_number: globalDisplayNumber++
+        }));
+        
         result.push({
           name: catName,
           description: "Additional category",
-          questions: categoryQuestions,
+          questions: questionsWithDisplayNumbers,
           count: categoryQuestions.length
         });
       });
@@ -474,11 +489,6 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
   const toggleCategory = (index) => {
     setExpandedCategory(expandedCategory === index ? null : index);
-  };
-
-  // Helper function to remove leading zeros from question_id (e.g., Q001 -> 1, Q010 -> 10)
-  const getQuestionNumber = (questionId) => {
-    return questionId.replace(/^Q0*/, '');
   };
 
   return (
@@ -537,10 +547,10 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
                           <p className="text-xs font-semibold text-blue-400 mb-3">All Questions in this Category:</p>
                           <div className="max-h-64 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
                             <div className="space-y-2">
-                              {category.questions.map((question, qIdx) => (
-                                <div key={qIdx} className="flex items-start gap-2 text-sm">
+                              {category.questions.map((question) => (
+                                <div key={question.question_id} className="flex items-start gap-2 text-sm">
                                   <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
-                                    {getQuestionNumber(question.question_id)}
+                                    {question.display_number}
                                   </span>
                                   <span className="text-slate-300">{question.question_text}</span>
                                 </div>

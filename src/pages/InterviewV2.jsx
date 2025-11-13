@@ -145,6 +145,9 @@ export default function InterviewV2() {
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  
+  // NEW: Track global display numbers for questions
+  const displayNumberMapRef = useRef({}); // Map question_id -> display number
 
   // ============================================================================
   // INITIALIZATION
@@ -1023,13 +1026,26 @@ export default function InterviewV2() {
   // RENDER HELPERS - OPTIMIZED FOR SMOOTH CHAT
   // ============================================================================
 
-  const getQuestionNumber = (questionId) => {
-    if (!questionId) return '';
-    if (questionId.startsWith('Q')) {
-      return questionId.replace(/^Q0*/, '');
+  // NEW: Generate display number based on position in active questions list
+  const getQuestionDisplayNumber = useCallback((questionId) => {
+    if (!engine) return '';
+    
+    // Check if already mapped
+    if (displayNumberMapRef.current[questionId]) {
+      return displayNumberMapRef.current[questionId];
     }
-    return '';
-  };
+    
+    // Find position in ordered list
+    const index = engine.ActiveOrdered.indexOf(questionId);
+    if (index !== -1) {
+      const displayNum = index + 1;
+      displayNumberMapRef.current[questionId] = displayNum;
+      return displayNum;
+    }
+    
+    // Fallback - shouldn't happen
+    return questionId.replace(/^Q0*/, '');
+  }, [engine]);
 
   const getFollowUpPackName = (packId) => {
     return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
@@ -1299,7 +1315,7 @@ export default function InterviewV2() {
                 <HistoryEntry 
                   key={entry.id} 
                   entry={entry}
-                  getQuestionNumber={getQuestionNumber}
+                  getQuestionDisplayNumber={getQuestionDisplayNumber}
                   getFollowUpPackName={getFollowUpPackName}
                 />
               ))}
@@ -1406,7 +1422,7 @@ export default function InterviewV2() {
                         ) : (
                           <>
                             <span className="text-lg font-bold text-blue-400">
-                              Question {getQuestionNumber(currentPrompt.id)}
+                              Question {getQuestionDisplayNumber(currentPrompt.id)}
                             </span>
                             <span className="text-sm text-slate-500">•</span>
                             <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
@@ -1595,7 +1611,7 @@ export default function InterviewV2() {
 }
 
 // Deterministic transcript entries
-function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
+function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
       <div className="space-y-3">
@@ -1607,7 +1623,7 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-sm font-bold text-blue-400">
-                  Question {getQuestionNumber(entry.questionId)}
+                  Question {getQuestionDisplayNumber(entry.questionId)}
                 </span>
                 <span className="text-xs text-slate-500">•</span>
                 <span className="text-sm font-medium text-slate-300">{entry.category}</span>
