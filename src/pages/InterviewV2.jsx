@@ -396,7 +396,7 @@ export default function InterviewV2() {
       
       // Build transcript from responses
       const restoredTranscript = [];
-      const answeredQuestionIds = new Set();
+      // const answeredQuestionIds = new Set(); // This variable was declared but not used. Removing.
       
       for (const response of sortedResponses) {
         const question = engineData.QById[response.question_id];
@@ -410,7 +410,7 @@ export default function InterviewV2() {
             type: 'question',
             timestamp: response.response_timestamp
           });
-          answeredQuestionIds.add(response.question_id);
+          // answeredQuestionIds.add(response.question_id); // This was not used. Removing.
         }
       }
       
@@ -435,8 +435,25 @@ export default function InterviewV2() {
         nextQuestionId = engineData.ActiveOrdered[0];
       }
       
-      // Check if we found a next question
-      if (nextQuestionId && engineData.QById[nextQuestionId]) {
+      // CRITICAL FIX: If nextQuestionId is null OR question doesn't exist, mark complete
+      if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
+        console.log('✅ No next question found (end of interview) - marking as completed');
+        
+        setCurrentItem(null);
+        setQueue([]);
+        
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: null,
+          total_questions_answered: restoredTranscript.length,
+          completion_percentage: 100,
+          status: 'completed',
+          completed_date: new Date().toISOString()
+        });
+        
+        setShowCompletionModal(true);
+      } else {
         console.log(`✅ Next unanswered question: ${nextQuestionId}`);
         
         const nextItem = { id: nextQuestionId, type: 'question' };
@@ -454,24 +471,6 @@ export default function InterviewV2() {
         });
         
         console.log('✅ Session rebuilt and persisted successfully');
-      } else {
-        // All questions answered - mark as completed
-        console.log('✅ All questions answered - marking session as completed');
-        
-        setCurrentItem(null);
-        setQueue([]);
-        
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: restoredTranscript,
-          queue_snapshot: [],
-          current_item_snapshot: null,
-          total_questions_answered: restoredTranscript.length,
-          completion_percentage: 100,
-          status: 'completed',
-          completed_date: new Date().toISOString()
-        });
-        
-        setShowCompletionModal(true);
       }
       
     } catch (err) {
@@ -629,6 +628,17 @@ export default function InterviewV2() {
     if (questionMatch) {
       const nextQuestionId = questionMatch[1].toUpperCase();
       
+      // CRITICAL FIX: Verify question exists before setting it
+      if (!engine.QById[nextQuestionId]) {
+        console.error(`❌ Agent sent invalid question ID: ${nextQuestionId} - marking interview complete`);
+        setIsWaitingForAgent(false);
+        setCurrentFollowUpPack(null);
+        setCurrentItem(null);
+        setQueue([]);
+        setShowCompletionModal(true);
+        return;
+      }
+
       console.log(`✅ Agent sent next base question: ${nextQuestionId}`);
       
       // Clear waiting state and continue with deterministic engine
@@ -642,7 +652,7 @@ export default function InterviewV2() {
       // Persist state
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
-  }, [agentMessages, isWaitingForAgent, transcript]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine]);
 
   // ============================================================================
   // ANSWER SUBMISSION - HYBRID LOGIC WITH CONDITIONAL FOLLOW-UPS
@@ -681,49 +691,88 @@ export default function InterviewV2() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
-        // Check for follow-ups - FIXED: handle null result
-        const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
-        
-        if (followUpResult) {
-          const { packId, substanceName } = followUpResult;
-          console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
+        // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
+        if (value === 'Yes') {
+          const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
           
-          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-          
-          if (packSteps && packSteps.length > 0) {
-            // Reset follow-up answers tracker for new pack
-            setCurrentFollowUpAnswers({});
+          if (followUpResult) {
+            const { packId, substanceName } = followUpResult;
+            console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
             
-            // Queue all follow-up steps
-            const followupQueue = [];
-            for (let i = 0; i < packSteps.length; i++) {
-              followupQueue.push({
-                id: `${packId}:${i}`,
-                type: 'followup',
-                packId: packId,
-                stepIndex: i,
-                substanceName: substanceName,
-                totalSteps: packSteps.length
-              });
+            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+            
+            if (packSteps && packSteps.length > 0) {
+              // Reset follow-up answers tracker for new pack
+              setCurrentFollowUpAnswers({});
+              
+              // Queue all follow-up steps
+              const followupQueue = [];
+              for (let i = 0; i < packSteps.length; i++) {
+                followupQueue.push({
+                  id: `${packId}:${i}`,
+                  type: 'followup',
+                  packId: packId,
+                  stepIndex: i,
+                  substanceName: substanceName,
+                  totalSteps: packSteps.length
+                });
+              }
+              
+              // Set current to first item, queue to rest
+              const firstItem = followupQueue[0];
+              const remainingQueue = followupQueue.slice(1);
+              
+              setQueue(remainingQueue);
+              setCurrentItem(firstItem);
+              
+              await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+            } else {
+              // Empty or invalid pack - advance to next question
+              console.warn(`⚠️ Follow-up pack ${packId} has no steps or is invalid - advancing to next question`);
+              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+              if (nextQuestionId && engine.QById[nextQuestionId]) {
+                setQueue([]);
+                setCurrentItem({ id: nextQuestionId, type: 'question' });
+                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+              } else {
+                // No next question - interview complete
+                console.log('✅ No next question after empty/invalid follow-up pack - marking interview complete');
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                setShowCompletionModal(true);
+              }
             }
-            
-            // Set current to first item, queue to rest
-            const firstItem = followupQueue[0];
-            const remainingQueue = followupQueue.slice(1);
-            
-            setQueue(remainingQueue);
-            setCurrentItem(firstItem);
-            
-            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+          } else {
+            // No follow-up triggered - advance to next question
+            const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+            if (nextQuestionId && engine.QById[nextQuestionId]) {
+              setQueue([]);
+              setCurrentItem({ id: nextQuestionId, type: 'question' });
+              await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+            } else {
+              // No next question - interview complete
+              console.log('✅ No next question after "Yes" answer with no follow-up - marking interview complete');
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
+              setShowCompletionModal(true);
+            }
           }
         } else {
-          // No follow-up, move to next question
+          // CRITICAL FIX: "No" answer - ALWAYS advance to next question, NEVER trigger follow-ups
+          console.log(`➡️ Answer is "No" - skipping any follow-ups and advancing to next question`);
           const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-          if (nextQuestionId) {
+          if (nextQuestionId && engine.QById[nextQuestionId]) {
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
           } else {
+            // No next question - interview complete
+            console.log('✅ No next question after "No" answer - marking interview complete');
+            setCurrentItem(null);
+            setQueue([]);
+            await persistStateToDatabase(newTranscript, [], null);
             setShowCompletionModal(true);
           }
         }
@@ -884,16 +933,23 @@ export default function InterviewV2() {
               // Reset follow-up answers tracker
               setCurrentFollowUpAnswers({});
               
-              if (nextQuestionId) {
+              if (nextQuestionId && engine.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
               } else {
+                console.log('✅ No next base question after skipping AI probing - marking interview complete');
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
                 setShowCompletionModal(true);
               }
             } else {
               // If triggering question not found (error case), fallback to showing completion modal.
-              console.error(`❌ Could not find triggering question for pack ${packId} when trying to skip probing.`);
+              console.error(`❌ Could not find triggering question for pack ${packId} when trying to skip probing. Marking interview complete.`);
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
               setShowCompletionModal(true);
             }
           } else {
@@ -926,7 +982,10 @@ export default function InterviewV2() {
               );
             } else {
               // If triggering question not found (error case), fallback to showing completion modal.
-              console.error(`❌ Could not find triggering question for pack ${packId} when trying to hand off to AI.`);
+              console.error(`❌ Could not find triggering question for pack ${packId} when trying to hand off to AI. Marking interview complete.`);
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
               setShowCompletionModal(true);
             }
           }
@@ -1166,13 +1225,23 @@ export default function InterviewV2() {
 
     if (currentItem.type === 'question') {
       const question = engine.QById[currentItem.id];
-      return question ? {
+      
+      // CRITICAL FIX: If question doesn't exist, mark interview complete
+      if (!question) {
+        console.error(`❌ Question ${currentItem.id} not found in engine - marking interview complete`);
+        setCurrentItem(null);
+        setQueue([]);
+        setShowCompletionModal(true);
+        return null;
+      }
+      
+      return {
         type: 'question',
         id: question.question_id,
         text: question.question_text,
         responseType: question.response_type,
         category: question.category
-      } : null;
+      };
     }
 
     if (currentItem.type === 'followup') {
@@ -1288,7 +1357,13 @@ export default function InterviewV2() {
   const totalQuestions = engine?.TotalQuestions || 198;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = Math.round((answeredCount / totalQuestions) * 100);
-  const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
+  
+  // CRITICAL FIX: Only show Y/N buttons if:
+  // 1. Current item exists
+  // 2. Current prompt exists AND is of type 'question'
+  // 3. Question response_type is 'yes_no'
+  // 4. NOT in agent mode
+  const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
@@ -1562,7 +1637,7 @@ export default function InterviewV2() {
           aria-label="Response area"
         >
           <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-            {isYesNoQuestion && !isFollowUpMode && !isWaitingForAgent ? (
+            {isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
