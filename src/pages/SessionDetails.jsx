@@ -1,18 +1,35 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { 
+  ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2, 
+  ChevronDown, ChevronRight, Search, Eye, FileDown, Trash2,
+  ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Keywords that trigger "Needs Review" badge
+const REVIEW_KEYWORDS = [
+  'arrest', 'fired', 'failed', 'polygraph', 'investigated', 
+  'suspended', 'terminated', 'dui', 'drugs', 'felony', 'charge',
+  'conviction', 'probation', 'parole', 'violence', 'assault'
+];
 
 export default function SessionDetails() {
   const navigate = useNavigate();
@@ -23,10 +40,19 @@ export default function SessionDetails() {
   const [responses, setResponses] = useState([]);
   const [followups, setFollowups] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [loadError, setLoadError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState(null);
+
+  // UI State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
+  const [viewMode, setViewMode] = useState("structured"); // "structured" or "transcript"
+  const [expandedQuestions, setExpandedQuestions] = useState(new Set());
+  const [selectedCategory, setSelectedCategory] = useState("all");
+
+  // Refs for scroll-to functionality
+  const categoryRefs = useRef({});
 
   useEffect(() => {
     if (!sessionId) {
@@ -38,363 +64,146 @@ export default function SessionDetails() {
 
   const loadSessionData = async () => {
     setIsLoading(true);
-    setLoadError(null);
     
     try {
       console.log("🔍 Loading session:", sessionId);
       
-      // First, get the session
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
-      console.log("✅ Session loaded:", sessionData);
       setSession(sessionData);
 
-      // Try multiple query methods to find responses
-      console.log("🔍 Querying responses with session_id:", sessionId);
-      
-      // Method 1: Filter by session_id
-      let responsesData = await base44.entities.Response.filter({ session_id: sessionId });
-      console.log("📊 Method 1 (filter by session_id):", responsesData.length, "responses");
-      
-      // Method 2: List all and filter manually (fallback)
-      if (responsesData.length === 0) {
-        console.log("⚠️ No responses found with filter, trying list all...");
-        const allResponses = await base44.entities.Response.list();
-        responsesData = allResponses.filter(r => r.session_id === sessionId);
-        console.log("📊 Method 2 (manual filter):", responsesData.length, "responses from", allResponses.length, "total");
-        
-        // Debug: Show some sample session_id values
-        if (allResponses.length > 0) {
-          console.log("🔍 Sample session_ids from all responses:", 
-            allResponses.slice(0, 3).map(r => r.session_id)
-          );
+      // Load department info
+      if (sessionData.department_code) {
+        const depts = await base44.entities.Department.filter({ 
+          department_code: sessionData.department_code 
+        });
+        if (depts.length > 0) {
+          setDepartment(depts[0]);
         }
       }
 
-      // Get follow-ups
-      let followupsData = await base44.entities.FollowUpResponse.filter({ session_id: sessionId });
-      console.log("📊 Follow-ups found:", followupsData.length);
-      
-      if (followupsData.length === 0) {
-        const allFollowups = await base44.entities.FollowUpResponse.list();
-        followupsData = allFollowups.filter(f => f.session_id === sessionId);
-        console.log("📊 Follow-ups (manual filter):", followupsData.length, "from", allFollowups.length, "total");
-      }
+      const [responsesData, followupsData, questionsData] = await Promise.all([
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
+        base44.entities.Question.filter({ active: true })
+      ]);
 
-      // Get questions
-      const questionsData = await base44.entities.Question.filter({ active: true });
-      console.log("📊 Questions loaded:", questionsData.length);
-
-      // Store debug info
-      setDebugInfo({
-        sessionId: sessionId,
-        responsesFound: responsesData.length,
-        followupsFound: followupsData.length,
-        questionsFound: questionsData.length,
-        sessionStatus: sessionData.status,
-        sessionCode: sessionData.session_code
-      });
-
-      setResponses(responsesData);
+      setResponses(responsesData.sort((a, b) => 
+        new Date(a.response_timestamp) - new Date(b.response_timestamp)
+      ));
       setFollowups(followupsData);
       setQuestions(questionsData);
-      
-      // Show warning if no responses but session shows progress
-      if (responsesData.length === 0 && sessionData.total_questions_answered > 0) {
-        setLoadError("Warning: Session metadata indicates answers exist, but no Response records found. This may be a data sync issue.");
-      }
       
       setIsLoading(false);
     } catch (err) {
       console.error("❌ Error loading session:", err);
-      setLoadError(`Failed to load session data: ${err.message}`);
+      toast.error("Failed to load session data");
       setIsLoading(false);
     }
   };
 
-  const handleRefresh = () => {
-    console.log("🔄 Manual refresh requested");
-    loadSessionData();
+  const handleExpandAll = () => {
+    const allIds = new Set(responses.map(r => r.id));
+    setExpandedQuestions(allIds);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedQuestions(new Set());
+  };
+
+  const toggleQuestion = (responseId) => {
+    const newExpanded = new Set(expandedQuestions);
+    if (newExpanded.has(responseId)) {
+      newExpanded.delete(responseId);
+    } else {
+      newExpanded.add(responseId);
+    }
+    setExpandedQuestions(newExpanded);
+  };
+
+  const handleCategoryJump = (category) => {
+    setSelectedCategory(category);
+    if (category !== "all" && categoryRefs.current[category]) {
+      categoryRefs.current[category].scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }
+  };
+
+  const handleDeleteLastResponse = async () => {
+    if (responses.length === 0) return;
+    
+    const lastResponse = responses[responses.length - 1];
+    
+    if (!window.confirm(`Delete last response: "${lastResponse.question_text}"?`)) {
+      return;
+    }
+
+    try {
+      await base44.entities.Response.delete(lastResponse.id);
+      
+      // Also delete related follow-ups
+      const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
+      for (const fu of relatedFollowups) {
+        await base44.entities.FollowUpResponse.delete(fu.id);
+      }
+      
+      toast.success("Response deleted");
+      loadSessionData();
+    } catch (err) {
+      console.error("Error deleting response:", err);
+      toast.error("Failed to delete response");
+    }
   };
 
   const generateReport = async () => {
     setIsGeneratingReport(true);
     
     try {
-      console.log("🔍 Generating report for session:", sessionId);
-      
-      // Generate report content
-      const reportContent = generateReportHTML(session, responses, followups, questions);
-
-      // Create a temporary container
+      const reportContent = generateReportHTML(session, responses, followups, questions, department);
       const printContainer = document.createElement('div');
       printContainer.innerHTML = reportContent;
       printContainer.style.position = 'absolute';
       printContainer.style.left = '-9999px';
       document.body.appendChild(printContainer);
-
-      // Trigger print dialog (user can save as PDF)
       window.print();
-
-      // Cleanup
-      setTimeout(() => {
-        document.body.removeChild(printContainer);
-      }, 100);
-
-      console.log("✅ Report generated successfully");
+      setTimeout(() => document.body.removeChild(printContainer), 100);
       toast.success("Report ready - use your browser's print dialog to save as PDF");
-      
     } catch (err) {
-      console.error("❌ Error generating report:", err);
-      toast.error("Failed to generate report. Please try again.");
+      console.error("Error generating report:", err);
+      toast.error("Failed to generate report");
     } finally {
       setIsGeneratingReport(false);
     }
   };
 
-  const generateReportHTML = (session, responses, followups, questions) => {
-    const now = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+  // Filter logic
+  const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
+  
+  const filteredResponses = responses.filter(response => {
+    // Search filter
+    const matchesSearch = !searchTerm || 
+      response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      followups.some(f => 
+        f.response_id === response.id && 
+        JSON.stringify(f.additional_details || {}).toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
-    // Group responses by category
-    const categorizedResponses = {};
-    responses.forEach(response => {
-      const category = response.category || 'Other';
-      if (!categorizedResponses[category]) {
-        categorizedResponses[category] = [];
-      }
-      categorizedResponses[category].push(response);
-    });
+    // Follow-up filter
+    const hasFollowups = followups.some(f => f.response_id === response.id);
+    const matchesFollowUpFilter = !showOnlyFollowUps || hasFollowups;
 
-    // Generate HTML content
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Interview Report - ${session.session_code}</title>
-        <style>
-          @media print {
-            @page { 
-              margin: 0.75in;
-              size: letter;
-            }
-            body { margin: 0; padding: 0; }
-          }
-          
-          body {
-            font-family: 'Times New Roman', serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #000;
-            max-width: 8.5in;
-            margin: 0 auto;
-            padding: 20px;
-          }
-          
-          .header {
-            text-align: center;
-            border-bottom: 3px solid #000;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-          }
-          
-          .header h1 {
-            font-size: 18pt;
-            font-weight: bold;
-            margin: 0 0 10px 0;
-            text-transform: uppercase;
-          }
-          
-          .header .session-info {
-            font-size: 10pt;
-            color: #333;
-          }
-          
-          .section {
-            margin-bottom: 25px;
-            page-break-inside: avoid;
-          }
-          
-          .section-title {
-            font-size: 13pt;
-            font-weight: bold;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-          }
-          
-          .question-block {
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #f9f9f9;
-            border-left: 3px solid #333;
-            page-break-inside: avoid;
-          }
-          
-          .question-id {
-            font-weight: bold;
-            color: #0066cc;
-            font-size: 10pt;
-          }
-          
-          .question-text {
-            font-weight: bold;
-            margin: 5px 0;
-          }
-          
-          .answer {
-            margin-left: 20px;
-            padding: 8px;
-            background: white;
-            border: 1px solid #ddd;
-          }
-          
-          .answer-label {
-            font-weight: bold;
-            font-size: 9pt;
-            color: #666;
-          }
-          
-          .timestamp {
-            font-size: 9pt;
-            color: #999;
-            margin-top: 3px;
-          }
-          
-          .follow-up {
-            margin-left: 40px;
-            margin-top: 10px;
-            padding: 10px;
-            background: #fff3cd;
-            border-left: 3px solid #ff9800;
-            page-break-inside: avoid;
-          }
-          
-          .follow-up-title {
-            font-weight: bold;
-            color: #ff6600;
-            font-size: 10pt;
-            margin-bottom: 5px;
-          }
-          
-          .summary-box {
-            background: #e8f4f8;
-            border: 2px solid #0066cc;
-            padding: 15px;
-            margin-bottom: 20px;
-          }
-          
-          .footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 2px solid #333;
-            text-align: center;
-            font-size: 9pt;
-            color: #666;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Applicant Background Interview Report</h1>
-          <div class="session-info">
-            <strong>Session Code:</strong> ${session.session_code}<br>
-            <strong>Department:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number}<br>
-            <strong>Report Generated:</strong> ${now}<br>
-            <strong>Questions Answered:</strong> ${responses.length} / 162<br>
-            <strong>Follow-Ups Triggered:</strong> ${followups.length}<br>
-            <strong>Status:</strong> ${session.status.toUpperCase()}<br>
-            <strong>Risk Level:</strong> ${session.risk_rating?.toUpperCase() || 'N/A'}
-          </div>
-        </div>
+    return matchesSearch && matchesFollowUpFilter;
+  });
 
-        <div class="summary-box">
-          <strong>Interview Summary:</strong><br>
-          Applicant completed ${responses.length} questions across ${Object.keys(categorizedResponses).length} categories. 
-          This report contains all responses provided during the interview session, including follow-up details where applicable.
-          ${session.red_flags?.length > 0 ? `<br><strong style="color: #cc0000;">Red Flags Identified: ${session.red_flags.length}</strong>` : ''}
-        </div>
-
-        ${Object.entries(categorizedResponses).map(([category, categoryResponses]) => `
-          <div class="section">
-            <div class="section-title">${category}</div>
-            ${categoryResponses.map(response => {
-              const question = questions.find(q => q.question_id === response.question_id);
-              const relatedFollowups = followups.filter(f => f.response_id === response.id);
-              
-              return `
-                <div class="question-block">
-                  <div class="question-id">${response.question_id}</div>
-                  <div class="question-text">${question?.question_text || response.question_text}</div>
-                  <div class="answer">
-                    <span class="answer-label">Response:</span> <strong>${response.answer}</strong>
-                    ${response.answer_array?.length > 0 ? `<br><strong>Selected Options:</strong> ${response.answer_array.join(', ')}` : ''}
-                  </div>
-                  <div class="timestamp">Answered: ${new Date(response.response_timestamp).toLocaleString('en-US', { 
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}</div>
-                  
-                  ${relatedFollowups.map(followup => `
-                    <div class="follow-up">
-                      <div class="follow-up-title">📋 Follow-Up: ${followup.followup_pack?.replace(/_/g, ' ') || 'Additional Details'}</div>
-                      ${followup.substance_name ? `<strong>Substance:</strong> ${followup.substance_name}<br>` : ''}
-                      ${followup.incident_date ? `<strong>Date of Incident:</strong> ${followup.incident_date}<br>` : ''}
-                      ${followup.incident_location ? `<strong>Location:</strong> ${followup.incident_location}<br>` : ''}
-                      ${followup.incident_description ? `<strong>Description:</strong> ${followup.incident_description}<br>` : ''}
-                      ${followup.frequency ? `<strong>Frequency:</strong> ${followup.frequency}<br>` : ''}
-                      ${followup.last_occurrence ? `<strong>Last Occurrence:</strong> ${followup.last_occurrence}<br>` : ''}
-                      ${followup.circumstances ? `<strong>Circumstances:</strong> ${followup.circumstances}<br>` : ''}
-                      ${followup.accountability_response ? `<strong>Accountability Statement:</strong> ${followup.accountability_response}<br>` : ''}
-                      ${followup.changes_since ? `<strong>Changes Since:</strong> ${followup.changes_since}<br>` : ''}
-                      ${followup.legal_outcome ? `<strong>Legal Outcome:</strong> ${followup.legal_outcome}<br>` : ''}
-                      ${followup.penalties ? `<strong>Penalties:</strong> ${followup.penalties}` : ''}
-                    </div>
-                  `).join('')}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `).join('')}
-
-        ${session.red_flags?.length > 0 ? `
-          <div class="section">
-            <div class="section-title" style="color: #cc0000;">⚠️ Red Flags Identified</div>
-            ${session.red_flags.map((flag, idx) => `
-              <div class="question-block" style="border-left-color: #cc0000;">
-                <strong>${idx + 1}.</strong> ${flag}
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
-
-        <div class="footer">
-          <strong>ClearQuest™ Interview System</strong><br>
-          CJIS Compliant • All responses encrypted and secured<br>
-          Session Hash: ${session.session_hash || 'N/A'}<br>
-          Report generated: ${new Date().toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-          })}<br>
-          <em>This report is confidential and intended for authorized investigators only.</em>
-        </div>
-      </body>
-      </html>
-    `;
-  };
+  // Group by category for structured view
+  const responsesByCategory = {};
+  filteredResponses.forEach(r => {
+    const cat = r.category || 'Other';
+    if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
+    responsesByCategory[cat].push(r);
+  });
 
   if (isLoading) {
     return (
@@ -432,143 +241,220 @@ export default function SessionDetails() {
     elevated: { label: "Elevated Risk", color: "bg-red-500/20 text-red-300 border-red-500/30" }
   };
 
-  // Calculate actual counts from loaded data
   const actualQuestionsAnswered = responses.length;
   const actualFollowupsTriggered = followups.length;
-  const actualCompletion = Math.round((actualQuestionsAnswered / 162) * 100);
+  const actualCompletion = Math.round((actualQuestionsAnswered / 198) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-4 md:mb-6">
-          <Link to={createPageUrl("InterviewDashboard")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="bg-slate-800/50 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="flex">
+        {/* Main Content */}
+        <div className="flex-1 p-6 pr-80">
+          <div className="max-w-6xl">
+            {/* Back Button */}
+            <Link to={createPageUrl("InterviewDashboard")}>
+              <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            </Link>
 
-        {/* Error/Warning Alert */}
-        {loadError && (
-          <Alert className="mb-4 bg-yellow-950/20 border-yellow-800/30">
-            <AlertTriangle className="h-4 w-4 text-yellow-400" />
-            <AlertDescription className="text-yellow-300">
-              {loadError}
-            </AlertDescription>
-          </Alert>
-        )}
+            {/* Consolidated Header */}
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h1 className="text-2xl font-bold text-white mb-1">
+                      {department?.department_name || session.department_code}
+                    </h1>
+                    <div className="flex items-center gap-3 text-sm text-slate-400">
+                      <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
+                      <span>•</span>
+                      <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge className={cn("border", statusConfig[session.status]?.color)}>
+                      {statusConfig[session.status]?.label}
+                    </Badge>
+                    <Badge className={cn("border", riskConfig[session.risk_rating]?.color)}>
+                      {riskConfig[session.risk_rating]?.label}
+                    </Badge>
+                  </div>
+                </div>
 
-        {/* Debug Info Alert */}
-        {debugInfo && responses.length === 0 && (
-          <Alert className="mb-4 bg-blue-950/20 border-blue-800/30">
-            <AlertDescription className="text-blue-300 text-xs space-y-1">
-              <p><strong>Debug Info:</strong></p>
-              <p>• Session ID: {debugInfo.sessionId}</p>
-              <p>• Session Code: {debugInfo.sessionCode}</p>
-              <p>• Session Status: {debugInfo.sessionStatus}</p>
-              <p>• Responses Found: {debugInfo.responsesFound}</p>
-              <p>• Follow-ups Found: {debugInfo.followupsFound}</p>
-              <p className="mt-2 text-yellow-300">
-                ℹ️ If this interview was completed, Response records may not have been created by the agent. 
-                This is likely a configuration issue with the agent's entity creation permissions.
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
+                <div className="grid grid-cols-4 gap-4 pt-4 border-t border-slate-700">
+                  <MetricBox label="Questions" value={actualQuestionsAnswered} />
+                  <MetricBox label="Follow-Ups" value={actualFollowupsTriggered} />
+                  <MetricBox label="Red Flags" value={session.red_flags?.length || 0} color="red" />
+                  <MetricBox label="Completion" value={`${actualCompletion}%`} />
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Header Card */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
-          <CardHeader>
-            <div className="flex flex-col gap-4">
-              <div>
-                <CardTitle className="text-xl md:text-2xl text-white flex items-center gap-2 md:gap-3 break-all">
-                  <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
-                  <span className="break-all">{session.session_code}</span>
-                </CardTitle>
-                <p className="text-slate-400 mt-2 text-sm">
-                  Department: {session.department_code} • File: {session.file_number}
-                </p>
+            {/* Controls Bar (Sticky) */}
+            <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-4 mb-6">
+              <div className="grid grid-cols-12 gap-3 items-center">
+                {/* Search */}
+                <div className="col-span-4 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search questions or answers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
+                  />
+                </div>
+
+                {/* Category Jump */}
+                <div className="col-span-3">
+                  <Select value={selectedCategory} onValueChange={handleCategoryJump}>
+                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9">
+                      <SelectValue placeholder="Jump to Category" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-700">
+                      <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat} className="text-white text-sm">
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* View Mode Toggle */}
+                <div className="col-span-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
+                    className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                  >
+                    {viewMode === "structured" ? <FileText className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                    {viewMode === "structured" ? "Transcript" : "Structured"}
+                  </Button>
+                </div>
+
+                {/* Expand/Collapse */}
+                <div className="col-span-3 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExpandAll}
+                    className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                  >
+                    <ChevronsDown className="w-4 h-4 mr-1" />
+                    Expand All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCollapseAll}
+                    className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                  >
+                    <ChevronsUp className="w-4 h-4 mr-1" />
+                    Collapse
+                  </Button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge className={cn("border text-xs md:text-sm", statusConfig[session.status]?.color)}>
-                  {statusConfig[session.status]?.label}
-                </Badge>
-                <Badge className={cn("text-xs md:text-sm", riskConfig[session.risk_rating]?.color)}>
-                  {riskConfig[session.risk_rating]?.label}
-                </Badge>
+
+              {/* Second Row - Filters */}
+              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-700">
+                <button
+                  onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
+                  className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+                >
+                  {showOnlyFollowUps ? (
+                    <ToggleRight className="w-5 h-5 text-blue-400" />
+                  ) : (
+                    <ToggleLeft className="w-5 h-5 text-slate-500" />
+                  )}
+                  <span>Show Only Questions with Follow-Ups</span>
+                </button>
+                {searchTerm && (
+                  <span className="text-xs text-slate-400">
+                    Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </div>
-          </CardHeader>
-        </Card>
 
-        {/* Stats Grid - Using actual counts */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-          <StatCard label="Questions Answered" value={actualQuestionsAnswered} />
-          <StatCard label="Follow-ups Triggered" value={actualFollowupsTriggered} />
-          <StatCard label="Red Flags" value={session.red_flags?.length || 0} color="red" />
-          <StatCard label="Completion" value={`${actualCompletion}%`} />
-        </div>
-
-        {/* Timeline */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
-          <CardHeader>
-            <CardTitle className="text-white text-lg">Timeline</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <TimelineItem
-              label="Session Started"
-              date={session.created_date}
-            />
-            {session.completed_date && (
-              <TimelineItem
-                label="Session Completed"
-                date={session.completed_date}
+            {/* Responses Display */}
+            {responses.length === 0 ? (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardContent className="p-12 text-center">
+                  <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                  <p className="text-slate-400">No responses recorded yet</p>
+                </CardContent>
+              </Card>
+            ) : viewMode === "structured" ? (
+              <StructuredView
+                responsesByCategory={responsesByCategory}
+                responses={filteredResponses}
+                followups={followups}
+                expandedQuestions={expandedQuestions}
+                toggleQuestion={toggleQuestion}
+                categoryRefs={categoryRefs}
+              />
+            ) : (
+              <TranscriptView
+                responses={filteredResponses}
+                followups={followups}
               />
             )}
-          </CardContent>
-        </Card>
 
-        {/* Red Flags */}
-        {session.red_flags?.length > 0 && (
-          <Card className="bg-red-950/20 border-red-800/30 mb-4 md:mb-6">
-            <CardHeader>
-              <CardTitle className="text-white text-lg flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                <span>Red Flags ({session.red_flags.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {session.red_flags.map((flag, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-red-300 text-sm">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-2 flex-shrink-0" />
-                    <span className="break-words">{flag}</span>
-                  </div>
-                ))}
+            {/* Delete Last Response */}
+            {responses.length > 0 && (
+              <div className="mt-6">
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteLastResponse}
+                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Last Response
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </div>
+        </div>
 
-        {/* Responses */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4 md:mb-6">
-          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <CardTitle className="text-white text-lg">Responses ({responses.length})</CardTitle>
+        {/* Sticky Right Sidebar */}
+        <div className="fixed right-0 top-0 h-screen w-80 bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 p-6 overflow-y-auto">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-400" />
+                Session Summary
+              </h2>
+              
+              <div className="space-y-3">
+                <SummaryRow label="Department" value={department?.department_name || session.department_code} />
+                <SummaryRow label="File Number" value={session.file_number} mono />
+                <SummaryRow label="Status">
+                  <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
+                    {statusConfig[session.status]?.label}
+                  </Badge>
+                </SummaryRow>
+                <SummaryRow label="Risk Level">
+                  <Badge className={cn("text-xs", riskConfig[session.risk_rating]?.color)}>
+                    {riskConfig[session.risk_rating]?.label}
+                  </Badge>
+                </SummaryRow>
+                <div className="border-t border-slate-700 pt-3 mt-3">
+                  <SummaryRow label="Questions" value={actualQuestionsAnswered} />
+                  <SummaryRow label="Follow-Ups" value={actualFollowupsTriggered} />
+                  <SummaryRow label="Red Flags" value={session.red_flags?.length || 0} />
+                  <SummaryRow label="Completion" value={`${actualCompletion}%`} />
+                </div>
+              </div>
+            </div>
+
             <Button 
               onClick={generateReport} 
               disabled={isGeneratingReport || responses.length === 0}
-              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isGeneratingReport ? (
                 <>
@@ -578,106 +464,553 @@ export default function SessionDetails() {
               ) : (
                 <>
                   <Download className="w-4 h-4 mr-2" />
-                  Generate Report
+                  Generate PDF Report
                 </>
               )}
             </Button>
-          </CardHeader>
-          <CardContent>
-            {responses.length === 0 ? (
-              <div className="text-center py-12 space-y-4">
-                <FileText className="w-16 h-16 text-slate-600 mx-auto" />
-                <p className="text-slate-400 text-sm">No response records found for this session</p>
-                <p className="text-slate-500 text-xs max-w-md mx-auto">
-                  If this interview was completed, the agent may not have created Response records. 
-                  Check the agent configuration and entity permissions.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {responses.map((response, idx) => (
-                  <ResponseCard key={idx} response={response} followups={followups} />
-                ))}
+
+            {session.red_flags?.length > 0 && (
+              <div className="border border-red-800/30 bg-red-950/20 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Red Flags ({session.red_flags.length})
+                </h3>
+                <div className="space-y-2">
+                  {session.red_flags.map((flag, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 flex-shrink-0" />
+                      <p className="text-xs text-red-300">{flag}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-slate-500 text-xs">
-            © 2025 ClearQuest AI™ • CJIS Compliant
-          </p>
+            <div className="border-t border-slate-700 pt-4 text-xs text-slate-500 space-y-1">
+              <p>Started: {format(new Date(session.created_date), "MMM d, yyyy h:mm a")}</p>
+              {session.completed_date && (
+                <p>Completed: {format(new Date(session.completed_date), "MMM d, yyyy h:mm a")}</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value, color = "blue" }) {
+function MetricBox({ label, value, color = "blue" }) {
   const colorClass = color === "red" ? "text-red-400" : "text-blue-400";
   return (
-    <Card className="bg-slate-900/30 border-slate-700">
-      <CardContent className="p-3 md:p-4">
-        <p className="text-slate-400 text-xs md:text-sm truncate">{label}</p>
-        <p className={cn("text-2xl md:text-3xl font-bold mt-1", colorClass)}>{value}</p>
+    <div>
+      <p className="text-xs text-slate-400 mb-1">{label}</p>
+      <p className={cn("text-2xl font-bold", colorClass)}>{value}</p>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, mono = false, children }) {
+  return (
+    <div className="flex justify-between items-center text-sm py-1">
+      <span className="text-slate-400">{label}</span>
+      {children || <span className={cn("text-white", mono && "font-mono")}>{value}</span>}
+    </div>
+  );
+}
+
+function StructuredView({ responsesByCategory, responses, followups, expandedQuestions, toggleQuestion, categoryRefs }) {
+  return (
+    <div className="space-y-6">
+      {Object.entries(responsesByCategory).map(([category, categoryResponses]) => (
+        <div key={category}>
+          <div 
+            ref={el => categoryRefs.current[category] = el}
+            className="sticky top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-4 z-10"
+          >
+            <h2 className="text-lg font-bold text-blue-400">{category}</h2>
+          </div>
+          
+          <div className="space-y-3">
+            {categoryResponses.map(response => (
+              <QuestionCard
+                key={response.id}
+                response={response}
+                followups={followups.filter(f => f.response_id === response.id)}
+                isExpanded={expandedQuestions.has(response.id)}
+                onToggle={() => toggleQuestion(response.id)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function QuestionCard({ response, followups, isExpanded, onToggle }) {
+  const hasFollowups = followups.length > 0;
+  
+  return (
+    <Card className="bg-slate-900/30 border-slate-700 hover:border-slate-600 transition-colors">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
+                {response.question_id}
+              </Badge>
+              {response.is_flagged && (
+                <Badge className="text-xs bg-red-500/20 text-red-300 border-red-500/30">
+                  Flagged
+                </Badge>
+              )}
+            </div>
+            <p className="text-white text-sm font-medium mb-2">{response.question_text}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Answer:</span>
+              <Badge className={response.answer === "Yes" ? "bg-blue-600 text-xs" : "bg-slate-700 text-xs"}>
+                {response.answer}
+              </Badge>
+            </div>
+          </div>
+
+          {hasFollowups && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggle}
+              className="text-slate-400 hover:text-white"
+            >
+              {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+            </Button>
+          )}
+        </div>
+
+        {isExpanded && hasFollowups && (
+          <div className="mt-4 pl-4 border-l-2 border-orange-500/30 space-y-3">
+            <p className="text-xs font-semibold text-orange-400 mb-3">Follow-Up Thread</p>
+            {followups.map((followup, idx) => (
+              <FollowUpThread key={idx} followup={followup} />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function TimelineItem({ label, date }) {
+function FollowUpThread({ followup }) {
+  const additionalDetails = followup.additional_details || {};
+  const entries = Object.entries(additionalDetails);
+  
+  const needsReview = (text) => {
+    const lower = String(text || '').toLowerCase();
+    return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
+  };
+  
   return (
-    <div className="flex items-start gap-3 text-xs md:text-sm">
-      <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
-      <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 flex-1 min-w-0">
-        <span className="text-slate-300">{label}</span>
-        <span className="text-slate-500 hidden md:inline">•</span>
-        <span className="text-slate-400 break-words">
-          {format(new Date(date), "MMM d, yyyy 'at' h:mm a")}
-        </span>
-      </div>
+    <div className="space-y-2">
+      {followup.substance_name && (
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-1">Substance</p>
+          <p className="text-sm text-white font-medium">{followup.substance_name}</p>
+        </div>
+      )}
+      
+      {entries.map(([key, value]) => {
+        const requiresReview = needsReview(value);
+        return (
+          <div key={key} className="bg-slate-800/30 rounded-lg p-3">
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <p className="text-xs text-orange-300 font-medium">
+                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </p>
+              {requiresReview && (
+                <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+                  Needs Review
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-slate-200 whitespace-pre-wrap">{value}</p>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ResponseCard({ response, followups }) {
-  const relatedFollowups = followups.filter(f => f.response_id === response.id);
+function TranscriptView({ responses, followups }) {
+  const timeline = [];
   
-  return (
-    <div className="border border-slate-700 rounded-lg p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <Badge variant="outline" className="text-xs text-slate-400 border-slate-600 mb-2">
-            {response.category}
-          </Badge>
-          <p className="text-white font-medium text-sm md:text-base break-words">{response.question_text}</p>
-        </div>
-        {response.is_flagged && (
-          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
-        )}
-      </div>
-      
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-slate-400 text-xs md:text-sm">Answer:</span>
-        <Badge className={response.answer === "Yes" ? "bg-blue-600 text-xs md:text-sm" : "bg-slate-700 text-xs md:text-sm"}>
-          {response.answer}
-        </Badge>
-      </div>
+  responses.forEach(response => {
+    timeline.push({ type: 'question', data: response });
+    
+    const relatedFollowups = followups.filter(f => f.response_id === response.id);
+    relatedFollowups.forEach(fu => {
+      timeline.push({ type: 'followup', data: fu });
+    });
+  });
 
-      {relatedFollowups.length > 0 && (
-        <div className="mt-4 pl-4 border-l-2 border-blue-500/30 space-y-2">
-          <p className="text-xs md:text-sm font-medium text-blue-400">Follow-up Details</p>
-          {relatedFollowups.map((followup, idx) => (
-            <div key={idx} className="text-xs md:text-sm text-slate-300 space-y-1 break-words">
-              {followup.substance_name && <p>• Substance: {followup.substance_name}</p>}
-              {followup.incident_date && <p>• Date: {followup.incident_date}</p>}
-              {followup.incident_description && <p>• Description: {followup.incident_description}</p>}
-              {followup.frequency && <p>• Frequency: {followup.frequency}</p>}
-            </div>
-          ))}
-        </div>
-      )}
+  return (
+    <div className="space-y-3">
+      {timeline.map((item, idx) => (
+        <TranscriptEntry key={idx} item={item} />
+      ))}
     </div>
   );
+}
+
+function TranscriptEntry({ item }) {
+  if (item.type === 'question') {
+    const response = item.data;
+    return (
+      <div className="space-y-2">
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
+              {response.question_id}
+            </Badge>
+            <span className="text-xs text-slate-400">{response.category}</span>
+          </div>
+          <p className="text-white text-sm">{response.question_text}</p>
+        </div>
+        <div className="flex justify-end">
+          <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
+            <p className="text-white text-sm font-medium">{response.answer}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (item.type === 'followup') {
+    const followup = item.data;
+    const details = followup.additional_details || {};
+    
+    return (
+      <div className="ml-8 space-y-2">
+        {Object.entries(details).map(([key, value]) => (
+          <React.Fragment key={key}>
+            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
+              <p className="text-xs text-orange-400 mb-1">
+                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                <p className="text-white text-sm">{value}</p>
+              </div>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function generateReportHTML(session, responses, followups, questions, department) {
+  const now = new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+
+  const categorizedResponses = {};
+  responses.forEach(response => {
+    const category = response.category || 'Other';
+    if (!categorizedResponses[category]) {
+      categorizedResponses[category] = [];
+    }
+    categorizedResponses[category].push(response);
+  });
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Interview Report - ${session.session_code}</title>
+      <style>
+        @media print {
+          @page { margin: 0.75in; size: letter; }
+          body { margin: 0; padding: 0; }
+        }
+        
+        body {
+          font-family: 'Times New Roman', serif;
+          font-size: 10pt;
+          line-height: 1.4;
+          color: #000;
+          max-width: 8.5in;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        
+        .header {
+          text-align: center;
+          border-bottom: 3px solid #000;
+          padding-bottom: 12px;
+          margin-bottom: 16px;
+        }
+        
+        .header h1 {
+          font-size: 16pt;
+          font-weight: bold;
+          margin: 0 0 8px 0;
+          text-transform: uppercase;
+        }
+        
+        .header .session-info {
+          font-size: 9pt;
+          color: #333;
+          line-height: 1.6;
+        }
+        
+        .section {
+          margin-bottom: 20px;
+          page-break-inside: avoid;
+        }
+        
+        .section-title {
+          font-size: 11pt;
+          font-weight: bold;
+          border-bottom: 2px solid #333;
+          padding-bottom: 3px;
+          margin-bottom: 10px;
+          text-transform: uppercase;
+        }
+        
+        .question-block {
+          margin-bottom: 14px;
+          padding: 8px;
+          background: #f9f9f9;
+          border-left: 3px solid #333;
+          page-break-inside: avoid;
+        }
+        
+        .question-id {
+          font-weight: bold;
+          color: #0066cc;
+          font-size: 9pt;
+        }
+        
+        .question-text {
+          font-weight: bold;
+          margin: 3px 0;
+          font-size: 10pt;
+        }
+        
+        .answer {
+          margin-left: 16px;
+          padding: 6px;
+          background: white;
+          border: 1px solid #ddd;
+        }
+        
+        .answer-label {
+          font-weight: bold;
+          font-size: 8pt;
+          color: #666;
+        }
+        
+        .follow-up {
+          margin-left: 32px;
+          margin-top: 8px;
+          padding: 8px;
+          background: #fff3cd;
+          border-left: 3px solid #ff9800;
+          page-break-inside: avoid;
+        }
+        
+        .follow-up-title {
+          font-weight: bold;
+          color: #ff6600;
+          font-size: 9pt;
+          margin-bottom: 4px;
+        }
+        
+        .follow-up-item {
+          margin: 4px 0;
+          font-size: 9pt;
+        }
+        
+        .summary-box {
+          background: #e8f4f8;
+          border: 2px solid #0066cc;
+          padding: 12px;
+          margin-bottom: 16px;
+          font-size: 9pt;
+        }
+        
+        .footer {
+          margin-top: 24px;
+          padding-top: 12px;
+          border-top: 2px solid #333;
+          text-align: center;
+          font-size: 8pt;
+          color: #666;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Applicant Background Interview Report</h1>
+        <div class="session-info">
+          <strong>Department:</strong> ${department?.department_name || session.department_code}<br>
+          <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number}<br>
+          <strong>Report Generated:</strong> ${now}<br>
+          <strong>Questions Answered:</strong> ${responses.length} / 198<br>
+          <strong>Follow-Ups:</strong> ${followups.length}<br>
+          <strong>Status:</strong> ${session.status.toUpperCase()}<br>
+          <strong>Risk Level:</strong> ${session.risk_rating?.toUpperCase() || 'N/A'}
+        </div>
+      </div>
+
+      <div class="summary-box">
+        <strong>Interview Summary:</strong><br>
+        Applicant completed ${responses.length} questions across ${Object.keys(categorizedResponses).length} categories. 
+        ${followups.length} follow-up packs were triggered and completed.
+        ${session.red_flags?.length > 0 ? `<br><strong style="color: #cc0000;">Red Flags Identified: ${session.red_flags.length}</strong>` : ''}
+      </div>
+
+      ${Object.entries(categorizedResponses).map(([category, categoryResponses]) => `
+        <div class="section">
+          <div class="section-title">${category}</div>
+          ${categoryResponses.map(response => {
+            const relatedFollowups = followups.filter(f => f.response_id === response.id);
+            
+            return `
+              <div class="question-block">
+                <div class="question-id">${response.question_id}</div>
+                <div class="question-text">${response.question_text}</div>
+                <div class="answer">
+                  <span class="answer-label">Response:</span> <strong>${response.answer}</strong>
+                </div>
+                
+                ${relatedFollowups.map(followup => {
+                  const details = followup.additional_details || {};
+                  return `
+                    <div class="follow-up">
+                      <div class="follow-up-title">📋 Follow-Up Details${followup.substance_name ? `: ${followup.substance_name}` : ''}</div>
+                      ${Object.entries(details).map(([key, value]) => `
+                        <div class="follow-up-item">
+                          <strong>${key.replace(/_/g, ' ')}:</strong> ${value}
+                        </div>
+                      `).join('')}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `).join('')}
+
+      ${session.red_flags?.length > 0 ? `
+        <div class="section">
+          <div class="section-title" style="color: #cc0000;">⚠️ Red Flags Identified</div>
+          ${session.red_flags.map((flag, idx) => `
+            <div class="question-block" style="border-left-color: #cc0000;">
+              <strong>${idx + 1}.</strong> ${flag}
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <div class="footer">
+        <strong>ClearQuest™ Interview System</strong><br>
+        CJIS Compliant • All responses encrypted and secured<br>
+        Session Hash: ${session.session_hash || 'N/A'}<br>
+        Report generated: ${new Date().toLocaleString('en-US')}<br>
+        <em>This report is confidential and intended for authorized investigators only.</em>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+function TranscriptView({ responses, followups }) {
+  const timeline = [];
+  
+  responses.forEach(response => {
+    timeline.push({ type: 'question', data: response });
+    
+    const relatedFollowups = followups.filter(f => f.response_id === response.id);
+    relatedFollowups.forEach(fu => {
+      timeline.push({ type: 'followup', data: fu });
+    });
+  });
+
+  return (
+    <div className="space-y-3">
+      {timeline.map((item, idx) => (
+        <TranscriptEntry key={idx} item={item} />
+      ))}
+    </div>
+  );
+}
+
+function TranscriptEntry({ item }) {
+  if (item.type === 'question') {
+    const response = item.data;
+    return (
+      <div className="space-y-2">
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
+              {response.question_id}
+            </Badge>
+            <span className="text-xs text-slate-400">{response.category}</span>
+          </div>
+          <p className="text-white text-sm">{response.question_text}</p>
+        </div>
+        <div className="flex justify-end">
+          <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
+            <p className="text-white text-sm font-medium">{response.answer}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (item.type === 'followup') {
+    const followup = item.data;
+    const details = followup.additional_details || {};
+    
+    return (
+      <div className="ml-8 space-y-2">
+        {followup.substance_name && (
+          <>
+            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
+              <p className="text-xs text-orange-400">Substance</p>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                <p className="text-white text-sm font-medium">{followup.substance_name}</p>
+              </div>
+            </div>
+          </>
+        )}
+        
+        {Object.entries(details).map(([key, value]) => (
+          <React.Fragment key={key}>
+            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
+              <p className="text-xs text-orange-400">
+                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                <p className="text-white text-sm">{value}</p>
+              </div>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
 }
