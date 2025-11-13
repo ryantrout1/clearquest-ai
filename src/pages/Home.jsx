@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -658,7 +659,13 @@ function FollowupsDialog({ open, onOpenChange }) {
           </div>
         </ScrollArea>
 
-        <div className="p-6 pt-0 border-t border-slate-700 mt-4">
+        <div className="px-6 pb-4">
+          <p className="text-xs text-slate-400 text-center leading-relaxed">
+            ClearQuest AI also provides investigator-grade clarification when additional detail is needed, ensuring every incident is fully documented.
+          </p>
+        </div>
+
+        <div className="p-6 pt-0 border-t border-slate-700">
           <p className="text-xs text-slate-400 text-center">
             <strong>Investigator Note:</strong> ClearQuest handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
           </p>
