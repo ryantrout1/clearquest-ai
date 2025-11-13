@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -20,7 +19,28 @@ export default function Home() {
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
   const [followupsDialogOpen, setFollowupsDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [sessionDialogOpen, setSessionDialogOpen] = useState(false); // New state for session dialog
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  
+  // NEW: Dynamic question count loading
+  const [totalQuestions, setTotalQuestions] = useState(162); // Default fallback
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+
+  useEffect(() => {
+    loadQuestionCount();
+  }, []);
+
+  const loadQuestionCount = async () => {
+    try {
+      setIsLoadingQuestions(true);
+      const questions = await base44.entities.Question.filter({ active: true });
+      setTotalQuestions(questions.length);
+    } catch (err) {
+      console.error("Error loading question count:", err);
+      // Keep default value of 162
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -95,7 +115,7 @@ export default function Home() {
           />
           <FeatureCard
             icon={<FileCheck className="w-8 h-8" />}
-            title="162-Question Master Bank"
+            title={`${totalQuestions}-Question Master Bank`}
             description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
             detailedDescription="Covers every investigative domain from employment to criminal history, ensuring every applicant is evaluated consistently and completely."
             color="green"
@@ -124,11 +144,11 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats Section - DYNAMIC QUESTION COUNT */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <StatCard number="162" label="Questions" />
+            <StatCard number={totalQuestions} label="Questions" />
             <StatCard number="10" label="Follow-Up Packs" />
             <StatCard number="256-bit" label="AES Encryption" />
             <StatCard number="CJIS" label="Compliant" />
@@ -184,13 +204,13 @@ export default function Home() {
       <SessionDialog open={sessionDialogOpen} onOpenChange={setSessionDialogOpen} />
       
       {/* Questions Dialog */}
-      <QuestionsDialog open={questionsDialogOpen} onOpenChange={setQuestionsDialogOpen} />
+      <QuestionsDialog open={questionsDialogOpen} onOpenChange={setQuestionsDialogOpen} totalQuestions={totalQuestions} />
       
       {/* Follow-ups Dialog */}
       <FollowupsDialog open={followupsDialogOpen} onOpenChange={setFollowupsDialogOpen} />
       
       {/* Report Dialog */}
-      <ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} />
+      <ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} totalQuestions={totalQuestions} />
     </div>
   );
 }
@@ -372,7 +392,7 @@ function SessionDialog({ open, onOpenChange }) {
   );
 }
 
-function QuestionsDialog({ open, onOpenChange }) {
+function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [allQuestions, setAllQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -395,8 +415,9 @@ function QuestionsDialog({ open, onOpenChange }) {
     }
   }, [open]);
 
-  const categories = [
-    { name: "Applications with Other LE Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
+  // Category configuration with display labels and descriptions
+  const categoryConfig = [
+    { name: "Applications with other Law Enforcement Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
     { name: "Driving Record", description: "License history, DUIs, suspensions, accidents, and traffic violations" },
     { name: "Criminal Involvement / Police Contacts", description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations" },
     { name: "Extremist Organizations", description: "Membership or support of hate groups and extremist ideologies" },
@@ -410,9 +431,44 @@ function QuestionsDialog({ open, onOpenChange }) {
     { name: "General Disclosures & Eligibility", description: "Citizenship, visible tattoos, sworn statements, and final disclosures" }
   ];
 
-  const getCategoryQuestions = (categoryName) => {
-    return allQuestions.filter(q => q.category === categoryName);
-  };
+  // Group questions by category and compute counts dynamically
+  const categoriesWithCounts = useMemo(() => {
+    const result = categoryConfig.map(config => {
+      const categoryQuestions = allQuestions.filter(q => q.category === config.name);
+      return {
+        ...config,
+        questions: categoryQuestions,
+        count: categoryQuestions.length
+      };
+    });
+
+    // Check for unmapped categories
+    const mappedCategories = new Set(categoryConfig.map(c => c.name));
+    const unmappedCategories = new Set();
+    
+    allQuestions.forEach(q => {
+      if (q.category && !mappedCategories.has(q.category)) {
+        unmappedCategories.add(q.category);
+      }
+    });
+
+    if (unmappedCategories.size > 0) {
+      console.warn('⚠️ Unmapped categories found in Question entity:', Array.from(unmappedCategories));
+      
+      // Add unmapped categories to the end
+      unmappedCategories.forEach(catName => {
+        const categoryQuestions = allQuestions.filter(q => q.category === catName);
+        result.push({
+          name: catName,
+          description: "Additional category",
+          questions: categoryQuestions,
+          count: categoryQuestions.length
+        });
+      });
+    }
+
+    return result;
+  }, [allQuestions]);
 
   const toggleCategory = (index) => {
     setExpandedCategory(expandedCategory === index ? null : index);
@@ -429,7 +485,7 @@ function QuestionsDialog({ open, onOpenChange }) {
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-2xl font-bold flex items-center gap-3">
             <FileText className="w-6 h-6 text-blue-400" />
-            162-Question Master Bank
+            {totalQuestions}-Question Master Bank
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2">
             Every question, organized by investigative domain. Click any section to see all questions.
@@ -443,9 +499,8 @@ function QuestionsDialog({ open, onOpenChange }) {
                 Loading questions...
               </div>
             ) : (
-              categories.map((category, idx) => {
-                const categoryQuestions = getCategoryQuestions(category.name);
-                const questionCount = categoryQuestions.length;
+              categoriesWithCounts.map((category, idx) => {
+                const questionCount = category.count;
 
                 return (
                   <div 
@@ -480,7 +535,7 @@ function QuestionsDialog({ open, onOpenChange }) {
                           <p className="text-xs font-semibold text-blue-400 mb-3">All Questions in this Category:</p>
                           <div className="max-h-64 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
                             <div className="space-y-2">
-                              {categoryQuestions.map((question, qIdx) => (
+                              {category.questions.map((question, qIdx) => (
                                 <div key={qIdx} className="flex items-start gap-2 text-sm">
                                   <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
                                     {getQuestionNumber(question.question_id)}
@@ -613,7 +668,7 @@ function FollowupsDialog({ open, onOpenChange }) {
   );
 }
 
-function ReportDialog({ open, onOpenChange }) {
+function ReportDialog({ open, onOpenChange, totalQuestions }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-5xl max-h-[90vh] p-0">
@@ -635,7 +690,7 @@ function ReportDialog({ open, onOpenChange }) {
 
         <div className="p-6 pt-0 border-t border-slate-700 mt-4">
           <p className="text-xs text-slate-400 text-center">
-            <strong>Investigator Note:</strong> This is a simulated example. Actual reports contain complete 162-question transcripts and all triggered follow-up conversations.
+            <strong>Investigator Note:</strong> This is a simulated example. Actual reports contain complete {totalQuestions}-question transcripts and all triggered follow-up conversations.
           </p>
         </div>
       </DialogContent>
