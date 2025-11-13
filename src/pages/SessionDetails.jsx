@@ -53,8 +53,9 @@ export default function SessionDetails() {
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
-  const [viewMode, setViewMode] = useState("structured"); // structured or transcript
-  const [collapsedSections, setCollapsedSections] = useState(new Set()); // Track collapsed sections
+  const [viewMode, setViewMode] = useState("structured");
+  const [selectedCategory, setSelectedCategory] = useState("all"); // FIXED: Added missing state
+  const [collapsedSections, setCollapsedSections] = useState(new Set());
 
   // Refs for scroll-to functionality
   const categoryRefs = useRef({});
@@ -76,7 +77,6 @@ export default function SessionDetails() {
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
 
-      // Load department info
       if (sessionData.department_code) {
         const depts = await base44.entities.Department.filter({ 
           department_code: sessionData.department_code 
@@ -106,18 +106,48 @@ export default function SessionDetails() {
     }
   };
 
-  // Global expand/collapse handlers - now also control section state
+  // Filter logic - MOVED UP before handlers that use it
+  const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
+  
+  const filteredResponses = responses.filter(response => {
+    const matchesSearch = !searchTerm || 
+      response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      followups.some(f => 
+        f.response_id === response.id && 
+        JSON.stringify(f.additional_details || {}).toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+    const hasFollowups = followups.some(f => f.response_id === response.id);
+    const matchesFollowUpFilter = !showOnlyFollowUps || hasFollowups;
+
+    return matchesSearch && matchesFollowUpFilter;
+  });
+
+  // Group by category for structured view AND assign display numbers
+  const responsesByCategory = {};
+  let globalDisplayNumber = 1;
+  
+  filteredResponses.forEach(r => {
+    const cat = r.category || 'Other';
+    if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
+    responsesByCategory[cat].push({
+      ...r,
+      display_number: globalDisplayNumber++
+    });
+  });
+
+  // Global expand/collapse handlers
   const handleExpandAll = () => {
-    setCollapsedSections(new Set()); // Expand all sections
+    setCollapsedSections(new Set());
   };
 
   const handleCollapseAll = () => {
-    // Collapse all sections (add all category names to collapsedSections)
+    // FIXED: Use categories from responsesByCategory which is now defined above
     const allCategories = Object.keys(responsesByCategory);
     setCollapsedSections(new Set(allCategories));
   };
 
-  // Toggle individual section
   const toggleSection = (category) => {
     const newCollapsed = new Set(collapsedSections);
     if (newCollapsed.has(category)) {
@@ -201,39 +231,6 @@ export default function SessionDetails() {
       setIsGeneratingReport(false);
     }
   };
-
-  // Filter logic
-  const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
-  
-  const filteredResponses = responses.filter(response => {
-    // Search filter
-    const matchesSearch = !searchTerm || 
-      response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      followups.some(f => 
-        f.response_id === response.id && 
-        JSON.stringify(f.additional_details || {}).toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-    // Follow-up filter
-    const hasFollowups = followups.some(f => f.response_id === response.id);
-    const matchesFollowUpFilter = !showOnlyFollowUps || hasFollowups;
-
-    return matchesSearch && matchesFollowUpFilter;
-  });
-
-  // Group by category for structured view AND assign display numbers
-  const responsesByCategory = {};
-  let globalDisplayNumber = 1; // Start sequential numbering
-  
-  filteredResponses.forEach(r => {
-    const cat = r.category || 'Other';
-    if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
-    responsesByCategory[cat].push({
-      ...r,
-      display_number: globalDisplayNumber++
-    });
-  });
 
   if (isLoading) {
     return (
