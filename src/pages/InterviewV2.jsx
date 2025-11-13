@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -92,8 +91,9 @@ const FOLLOWUP_PACK_NAMES = {
 };
 
 /**
- * InterviewV2 - Single-Active Question Flow (No AI) with Persistent Resume
- * Queue-based system: only show current question, hide future questions
+ * InterviewV2 - HYBRID FLOW (v2.5)
+ * Deterministic base questions + follow-up packs (UI-driven)
+ * AI agent handles probing + closure (after follow-up packs complete)
  * State persisted to database for seamless resume
  */
 export default function InterviewV2() {
@@ -101,30 +101,32 @@ export default function InterviewV2() {
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
 
-  // Core state - REFACTORED FOR SINGLE-ACTIVE FLOW
+  // Core state
   const [engine, setEngine] = useState(null);
   const [session, setSession] = useState(null);
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // NEW: Queue-based state (persisted to DB for resume)
-  const [transcript, setTranscript] = useState([]); // Array<{id, questionId, questionText, answer, category, type, substanceName?}>
-  const [queue, setQueue] = useState([]); // Array<{id, type: 'question'|'followup', packId?, stepIndex?, substanceName?}>
-  const [currentItem, setCurrentItem] = useState(null); // Current active question
+  // Queue-based state (persisted to DB for resume)
+  const [transcript, setTranscript] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [currentItem, setCurrentItem] = useState(null);
+  
+  // NEW: AI agent integration
+  const [conversation, setConversation] = useState(null);
+  const [agentMessages, setAgentMessages] = useState([]);
+  const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
+  const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null); // Track active pack for handoff
   
   // Input state
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
-  
-  // FIXED: Use state instead of ref for isCommitting so UI updates properly
   const [isCommitting, setIsCommitting] = useState(false);
   
   // Modal state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
-
-  // NEW: Pause modal and resume banner state
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [wasPaused, setWasPaused] = useState(false);
@@ -135,12 +137,12 @@ export default function InterviewV2() {
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
+  const unsubscribeRef = useRef(null);
 
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
 
-  // Auto-scroll function - DEFINED BEFORE useEffect hooks that use it
   const autoScrollToBottom = useCallback(() => {
     if (!historyRef.current) return;
     
@@ -157,13 +159,17 @@ export default function InterviewV2() {
       return;
     }
     initializeInterview();
+    
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
   }, [sessionId, navigate]);
 
-  // NEW: Enhanced autofocus - prefers Y/N buttons if present
   useEffect(() => {
-    if (currentItem && !isCommitting) {
+    if (currentItem && !isCommitting && !isWaitingForAgent) {
       requestAnimationFrame(() => {
-        // Prefer Y/N buttons for yes_no questions
         if (yesButtonRef.current) {
           yesButtonRef.current.focus({ preventScroll: false });
         } else if (inputRef.current) {
@@ -171,49 +177,42 @@ export default function InterviewV2() {
         }
       });
     }
-  }, [currentItem, isCommitting]);
+  }, [currentItem, isCommitting, isWaitingForAgent]);
 
-  // NEW: Auto-scroll after transcript updates
   useEffect(() => {
-    if (transcript.length > 0) {
+    if (transcript.length > 0 || agentMessages.length > 0) {
       setTimeout(autoScrollToBottom, 150);
     }
-  }, [transcript.length, autoScrollToBottom]);
+  }, [transcript.length, agentMessages.length, autoScrollToBottom]);
 
-  // NEW: Keyboard navigation for Y/N buttons
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only apply if Yes/No buttons are currently rendered
       if (yesButtonRef.current && noButtonRef.current) {
-        
-        // Arrow keys to switch focus between Y/N
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-          e.preventDefault(); // Prevent default scroll behavior
+          e.preventDefault();
           if (document.activeElement === yesButtonRef.current) {
             noButtonRef.current.focus();
           } else if (document.activeElement === noButtonRef.current) {
             yesButtonRef.current.focus();
           } else {
-            // If neither is focused, focus 'Yes' by default when arrow key is pressed
             yesButtonRef.current.focus();
           }
         }
         
-        // Space key to activate focused button
         if (e.key === ' ' && (document.activeElement === yesButtonRef.current || document.activeElement === noButtonRef.current)) {
-          e.preventDefault(); // Prevent default space bar scroll
-          document.activeElement.click(); // Simulate a click
+          e.preventDefault();
+          document.activeElement.click();
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [currentItem]); // Re-attach event listener if currentItem changes (e.g., from text to Y/N or vice-versa)
+  }, [currentItem]);
 
   const initializeInterview = async () => {
     try {
-      console.log('🚀 Initializing single-active interview flow with persistent resume...');
+      console.log('🚀 Initializing HYBRID interview flow (v2.5) - Deterministic + AI Probing...');
       const startTime = performance.now();
 
       // Step 1: Load session
@@ -229,11 +228,10 @@ export default function InterviewV2() {
       if (loadedSession.status === 'paused') {
         setWasPaused(true);
         setShowResumeBanner(true);
-        // Update status to in_progress when resuming
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
         });
-        loadedSession.status = 'in_progress'; // Update local state for immediate use
+        loadedSession.status = 'in_progress';
       }
 
       setSession(loadedSession);
@@ -254,12 +252,50 @@ export default function InterviewV2() {
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
       
-      // Step 3: Try to restore from snapshots first, then fall back to responses
+      // Step 3: Initialize or restore AI conversation
+      if (!loadedSession.conversation_id) {
+        console.log('🤖 Creating new AI conversation...');
+        const newConversation = await base44.agents.createConversation({
+          agent_name: 'clearquest_interviewer',
+          metadata: {
+            session_id: sessionId,
+            department_code: loadedSession.department_code,
+            file_number: loadedSession.file_number,
+            debug_mode: loadedSession.metadata?.debug_mode || false
+          }
+        });
+        
+        await base44.entities.InterviewSession.update(sessionId, {
+          conversation_id: newConversation.id
+        });
+        
+        setConversation(newConversation);
+        loadedSession.conversation_id = newConversation.id;
+      } else {
+        console.log('🤖 Loading existing AI conversation...');
+        const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
+        setConversation(existingConversation);
+        
+        // Load agent messages if any
+        if (existingConversation.messages) {
+          setAgentMessages(existingConversation.messages);
+        }
+      }
+      
+      // Step 4: Subscribe to agent conversation updates
+      unsubscribeRef.current = base44.agents.subscribeToConversation(
+        loadedSession.conversation_id,
+        (data) => {
+          console.log('📨 Agent message update');
+          setAgentMessages(data.messages || []);
+        }
+      );
+      
+      // Step 5: Restore state from snapshots
       if (loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0 || loadedSession.current_item_snapshot) {
         console.log('🔄 Restoring from session snapshots...');
         restoreFromSnapshots(engineData, loadedSession);
       } else {
-        // Fallback: Load from Response entities
         const existingResponses = await base44.entities.Response.filter({ 
           session_id: sessionId 
         });
@@ -278,7 +314,7 @@ export default function InterviewV2() {
       
       setIsLoading(false);
       const elapsed = performance.now() - startTime;
-      console.log(`✅ Interview ready in ${elapsed.toFixed(2)}ms`);
+      console.log(`✅ Hybrid interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
       console.error('❌ Initialization failed:', err);
@@ -288,21 +324,18 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // RESTORE FROM SNAPSHOTS (Preferred Method)
+  // RESTORE FUNCTIONS
   // ============================================================================
 
   const restoreFromSnapshots = (engineData, loadedSession) => {
     console.log('📸 Restoring from snapshots...');
     
-    // Restore transcript directly from snapshot
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     setTranscript(restoredTranscript);
     
-    // Restore queue directly from snapshot
     const restoredQueue = loadedSession.queue_snapshot || [];
     setQueue(restoredQueue);
     
-    // Restore current item from snapshot
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
     setCurrentItem(restoredCurrentItem);
     
@@ -310,15 +343,13 @@ export default function InterviewV2() {
     console.log(`✅ Restored queue with ${restoredQueue.length} pending items`);
     console.log(`✅ Current item:`, restoredCurrentItem);
     
-    // If no current item but queue has items, something went wrong - self-heal
     if (!restoredCurrentItem && restoredQueue.length > 0) {
       console.warn('⚠️ No current item but queue exists - self-healing...');
       const nextItem = restoredQueue[0];
       setCurrentItem(nextItem);
-      setQueue(restoredQueue.slice(1)); // Remove the first item as it's now current
+      setQueue(restoredQueue.slice(1));
     }
     
-    // If we're complete
     if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
       console.log('✅ Interview appears complete based on snapshots.');
       setShowCompletionModal(true);
@@ -327,14 +358,9 @@ export default function InterviewV2() {
     setTimeout(() => autoScrollToBottom(), 100);
   };
 
-  // ============================================================================
-  // RESTORE FROM RESPONSE ENTITIES (Fallback)
-  // ============================================================================
-
   const restoreFromResponses = async (engineData, responses) => {
     console.log('🔄 Rebuilding state from Response entities (fallback)...');
     
-    // Sort responses by timestamp
     const sortedResponses = responses.sort((a, b) => 
       new Date(a.response_timestamp) - new Date(b.response_timestamp)
     );
@@ -343,7 +369,6 @@ export default function InterviewV2() {
     let lastQuestionId = null;
     let lastAnswer = null;
     
-    // Build transcript from responses
     for (const response of sortedResponses) {
       const question = engineData.QById[response.question_id];
       if (question) {
@@ -363,7 +388,6 @@ export default function InterviewV2() {
     
     setTranscript(restoredTranscript);
     
-    // Compute next question from last answered
     if (lastQuestionId && lastAnswer) {
       const nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
       if (nextQuestionId) {
@@ -374,7 +398,6 @@ export default function InterviewV2() {
         setShowCompletionModal(true);
       }
     } else if (restoredTranscript.length === 0) {
-        // If no responses, start fresh
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
@@ -384,7 +407,7 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // PERSIST STATE TO DATABASE (Atomic Write)
+  // PERSIST STATE TO DATABASE
   // ============================================================================
 
   const persistStateToDatabase = async (newTranscript, newQueue, newCurrentItem) => {
@@ -397,18 +420,104 @@ export default function InterviewV2() {
         current_item_snapshot: newCurrentItem,
         total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
         completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100),
-        data_version: 'v1.0' // Versioning for future schema changes
+        data_version: 'v2.5-hybrid'
       });
       
       console.log('✅ State persisted successfully');
     } catch (err) {
       console.error('❌ Failed to persist state:', err);
-      // Non-fatal - continue anyway
     }
   };
 
   // ============================================================================
-  // ANSWER SUBMISSION - UPDATED WITH SUBSTANCE INJECTION
+  // NEW: AI AGENT HANDOFF AFTER FOLLOW-UP PACK COMPLETION
+  // ============================================================================
+
+  const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers) => {
+    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — handing off to agent for probing...`);
+    
+    if (!conversation) {
+      console.error('❌ No conversation available for agent handoff');
+      return false;
+    }
+    
+    // Build summary message for the agent
+    const question = engine.QById[questionId];
+    const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+    
+    let summaryLines = [
+      `Follow-up pack completed.`,
+      ``,
+      `Question ID: ${questionId}`,
+      `Question: ${question.question_text}`,
+      `Base Answer: Yes`,
+      `Follow-up Pack: ${packId}`,
+      ``,
+      `Deterministic Follow-Up Answers:`
+    ];
+    
+    // Add each follow-up answer
+    followUpAnswers.forEach((answer, idx) => {
+      const step = packSteps[idx];
+      summaryLines.push(`- ${step.Prompt}: ${answer.answer}`);
+    });
+    
+    summaryLines.push(``);
+    summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
+    
+    const summaryMessage = summaryLines.join('\n');
+    
+    console.log('📤 Sending follow-up summary to agent:', summaryMessage);
+    
+    try {
+      await base44.agents.addMessage(conversation, {
+        role: 'user',
+        content: summaryMessage
+      });
+      
+      setIsWaitingForAgent(true);
+      setCurrentFollowUpPack({ questionId, packId, substanceName });
+      
+      return true;
+    } catch (err) {
+      console.error('❌ Error sending to agent:', err);
+      toast.error('Failed to connect to AI agent');
+      return false;
+    }
+  };
+
+  // ============================================================================
+  // NEW: DETECT WHEN AGENT SENDS NEXT BASE QUESTION
+  // ============================================================================
+
+  useEffect(() => {
+    if (!isWaitingForAgent || agentMessages.length === 0) return;
+    
+    const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
+    if (!lastAgentMessage?.content) return;
+    
+    // Check if agent sent a new base question (Q###)
+    const questionMatch = lastAgentMessage.content.match(/\b(Q\d{1,3})\b/i);
+    if (questionMatch) {
+      const nextQuestionId = questionMatch[1].toUpperCase();
+      
+      console.log(`✅ Agent sent next base question: ${nextQuestionId}`);
+      
+      // Clear waiting state and continue with deterministic engine
+      setIsWaitingForAgent(false);
+      setCurrentFollowUpPack(null);
+      
+      // Set next question as current item
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      setQueue([]);
+      
+      // Persist state
+      persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+    }
+  }, [agentMessages, isWaitingForAgent, transcript]);
+
+  // ============================================================================
+  // ANSWER SUBMISSION - HYBRID LOGIC
   // ============================================================================
 
   const handleAnswer = useCallback(async (value) => {
@@ -444,56 +553,51 @@ export default function InterviewV2() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
-        // Determine next items (deterministic routing)
-        const nextIds = [];
-        
-        // Check for follow-ups (UPDATED: now returns {packId, substanceName})
+        // Check for follow-ups
         const { packId, substanceName } = checkFollowUpTrigger(engine, currentItem.id, value);
+        
         if (packId) {
           console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
           
-          // NEW: Inject substance name into pack steps
           const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
           
           if (packSteps && packSteps.length > 0) {
+            // Queue all follow-up steps
+            const followupQueue = [];
             for (let i = 0; i < packSteps.length; i++) {
-              nextIds.push({
+              followupQueue.push({
                 id: `${packId}:${i}`,
                 type: 'followup',
                 packId: packId,
                 stepIndex: i,
-                substanceName: substanceName // Pass substance through queue
+                substanceName: substanceName,
+                totalSteps: packSteps.length
               });
             }
+            
+            setQueue(followupQueue);
+            setCurrentItem(followupQueue[0]);
+            
+            await persistStateToDatabase(newTranscript, followupQueue.slice(1), followupQueue[0]);
+          }
+        } else {
+          // No follow-up, move to next question
+          const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+          if (nextQuestionId) {
+            setQueue([]);
+            setCurrentItem({ id: nextQuestionId, type: 'question' });
+            await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+          } else {
+            setShowCompletionModal(true);
           }
         }
         
-        // Then add next primary question
-        const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-        if (nextQuestionId) {
-          nextIds.push({ id: nextQuestionId, type: 'question' });
-        }
-
-        // Update queue and current item
-        const updatedQueue = [...queue, ...nextIds];
-        const nextItem = updatedQueue.shift() || null;
-        
-        setQueue(updatedQueue);
-        setCurrentItem(nextItem);
-        
-        // Save to DB via snapshots (primary) AND Response entity (for backwards compatibility)
-        await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         await saveAnswerToDatabase(currentItem.id, value, question);
-        
-        if (!nextItem) {
-          setShowCompletionModal(true);
-        }
 
       } else if (currentItem.type === 'followup') {
-        // FOLLOW-UP QUESTION (UPDATED: Handle substance injection)
-        const { packId, stepIndex, substanceName } = currentItem;
+        // FOLLOW-UP QUESTION
+        const { packId, stepIndex, substanceName, totalSteps } = currentItem;
         
-        // NEW: Get injected pack steps if substance exists
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         
         if (!packSteps || !packSteps[stepIndex]) {
@@ -501,7 +605,7 @@ export default function InterviewV2() {
         }
         const step = packSteps[stepIndex];
 
-        // NEW: Auto-fill substance_name field if prefilled
+        // Auto-fill substance_name field if prefilled
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
           console.log(`💉 Auto-filling substance_name: ${step.PrefilledAnswer}`);
           
@@ -519,7 +623,6 @@ export default function InterviewV2() {
           const newTranscript = [...transcript, transcriptEntry];
           setTranscript(newTranscript);
 
-          // Move to next in queue WITHOUT requiring user input
           const updatedQueue = [...queue];
           const nextItem = updatedQueue.shift() || null;
           
@@ -536,7 +639,7 @@ export default function InterviewV2() {
             setShowCompletionModal(true);
           }
           
-          return; // Exit early - no user input needed
+          return;
         }
 
         // Validate answer
@@ -570,25 +673,55 @@ export default function InterviewV2() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
-        // Move to next in queue
-        const updatedQueue = [...queue];
-        const nextItem = updatedQueue.shift() || null;
-        
-        setQueue(updatedQueue);
-        setCurrentItem(nextItem);
-        
-        // Save to DB via snapshots (primary) AND FollowUpResponse entity (for backwards compatibility)
-        await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+        // Save to database
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
         
-        if (!nextItem) {
-          setShowCompletionModal(true);
+        // Check if this was the LAST follow-up in the pack
+        const isLastFollowUp = stepIndex === totalSteps - 1;
+        
+        if (isLastFollowUp) {
+          console.log(`🎯 Last follow-up in ${packId} completed — preparing for AI agent handoff`);
+          
+          // Collect all follow-up answers for this pack
+          const packAnswers = newTranscript.filter(t => 
+            t.type === 'followup' && t.packId === packId
+          );
+          
+          // Find the original question that triggered this pack
+          const triggeringQuestion = [...newTranscript].reverse().find(t => 
+            t.type === 'question' && 
+            engine.QById[t.questionId]?.followup_pack === packId &&
+            t.answer === 'Yes'
+          );
+          
+          if (triggeringQuestion) {
+            // Clear current item and queue - we're handing off to AI
+            setCurrentItem(null);
+            setQueue([]);
+            await persistStateToDatabase(newTranscript, [], null);
+            
+            // Hand off to AI agent
+            await handoffToAgentForProbing(
+              triggeringQuestion.questionId,
+              packId,
+              substanceName,
+              packAnswers
+            );
+          }
+        } else {
+          // More follow-ups remain - continue with deterministic engine
+          const updatedQueue = [...queue];
+          const nextItem = updatedQueue.shift() || null;
+          
+          setQueue(updatedQueue);
+          setCurrentItem(nextItem);
+          
+          await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
       }
 
       setIsCommitting(false);
       setInput("");
-      // autoScrollToBottom is now handled by a dedicated useEffect on transcript.length
 
     } catch (err) {
       console.error('❌ Error processing answer:', err);
@@ -596,18 +729,45 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting]); // Removed handleAnswer from dependency array
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation]);
 
-  // Text input submit handler
+  // NEW: Handle agent probing questions
+  const handleAgentAnswer = useCallback(async (value) => {
+    if (!conversation || isCommitting || !isWaitingForAgent) return;
+    
+    setIsCommitting(true);
+    setInput("");
+    
+    try {
+      console.log('📤 Sending answer to AI agent:', value);
+      
+      await base44.agents.addMessage(conversation, {
+        role: 'user',
+        content: value
+      });
+      
+      setIsCommitting(false);
+    } catch (err) {
+      console.error('❌ Error sending to agent:', err);
+      setError('Failed to send message to AI agent');
+      setIsCommitting(false);
+    }
+  }, [conversation, isCommitting, isWaitingForAgent]);
+
   const handleTextSubmit = useCallback((e) => {
     e.preventDefault();
     const answer = input.trim();
     if (!answer) return;
-    handleAnswer(answer);
-  }, [input, handleAnswer]);
+    
+    if (isWaitingForAgent) {
+      handleAgentAnswer(answer);
+    } else {
+      handleAnswer(answer);
+    }
+  }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
 
   // ============================================================================
-  // DATABASE PERSISTENCE (Response/FollowUpResponse entities for backwards compat)
+  // DATABASE PERSISTENCE
   // ============================================================================
 
   const saveAnswerToDatabase = async (questionId, answer, question) => {
@@ -647,7 +807,6 @@ export default function InterviewV2() {
 
   const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName) => {
     try {
-      // Find the *original* triggering response to associate this follow-up with.
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
         followup_pack: packId,
@@ -659,9 +818,8 @@ export default function InterviewV2() {
         return;
       }
       
-      const triggeringResponse = responses[responses.length - 1]; // Use the latest one
+      const triggeringResponse = responses[responses.length - 1];
       
-      // Now check if a FollowUpResponse for this pack and triggering response already exists
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: triggeringResponse.id,
@@ -675,15 +833,15 @@ export default function InterviewV2() {
           question_id: triggeringResponse.question_id,
           followup_pack: packId,
           instance_number: 1,
-          substance_name: substanceName || null, // NEW: Store substance name
-          incident_description: answer, // Could be generic, specific key is in additional_details
+          substance_name: substanceName || null,
+          incident_description: answer,
           completed: false,
           additional_details: { [fieldKey]: answer }
         });
       } else {
         const existing = existingFollowups[0];
         await base44.entities.FollowUpResponse.update(existing.id, {
-          substance_name: substanceName || existing.substance_name, // NEW: Update substance if provided
+          substance_name: substanceName || existing.substance_name,
           additional_details: {
             ...(existing.additional_details || {}),
             [fieldKey]: answer
@@ -692,12 +850,12 @@ export default function InterviewV2() {
       }
 
     } catch (err) {
-      console.error('❌ Follow-up (old FollowUpResponse entity) save error:', err);
+      console.error('❌ Follow-up save error:', err);
     }
   };
 
   // ============================================================================
-  // COMPLETION HANDLING
+  // COMPLETION & PAUSE HANDLING
   // ============================================================================
 
   const handleCompletionConfirm = async () => {
@@ -720,9 +878,6 @@ export default function InterviewV2() {
     }
   };
 
-  // ============================================================================
-  // PAUSE HANDLING (NEW)
-  // ============================================================================
   const handlePauseClick = async () => {
     try {
       await base44.entities.InterviewSession.update(sessionId, {
@@ -747,8 +902,6 @@ export default function InterviewV2() {
   };
 
   const handleCloseWindow = () => {
-    // Attempt to close the window. Some browsers prevent this if not opened by script.
-    // If it fails, inform the user they can close it manually.
     const canClose = window.close();
     if (!canClose) {
       toast.info('You can now close this tab. Use your Dept Code and File Number to resume later.');
@@ -761,11 +914,10 @@ export default function InterviewV2() {
 
   const getQuestionNumber = (questionId) => {
     if (!questionId) return '';
-    // This is a generic number extraction, might need to be specific to 'Q' questions
     if (questionId.startsWith('Q')) {
       return questionId.replace(/^Q0*/, '');
     }
-    return ''; // Follow-up questions don't have a distinct question number like Q1, Q2.
+    return '';
   };
 
   const getFollowUpPackName = (packId) => {
@@ -773,6 +925,11 @@ export default function InterviewV2() {
   };
 
   const getCurrentPrompt = () => {
+    if (isWaitingForAgent) {
+      // Show last agent message
+      return null; // Agent messages will be rendered separately
+    }
+    
     if (!currentItem || !engine) return null;
 
     if (currentItem.type === 'question') {
@@ -789,21 +946,18 @@ export default function InterviewV2() {
     if (currentItem.type === 'followup') {
       const { packId, stepIndex, substanceName } = currentItem;
       
-      // NEW: Use injected pack steps with substance name
       const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
       if (!packSteps) return null;
       
       const step = packSteps[stepIndex];
       
-      // NEW: Skip auto-filled questions in UI (they're added to transcript automatically)
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
         console.log(`⏩ Skipping auto-filled question in UI: ${step.Field_Key}`);
-        // Trigger auto-fill immediately - FIXED: using setTimeout to avoid calling during render
         const triggerAutoFill = () => {
           handleAnswer(step.PrefilledAnswer);
         };
         setTimeout(triggerAutoFill, 100);
-        return null; // Don't render this step
+        return null;
       }
       
       return {
@@ -822,8 +976,11 @@ export default function InterviewV2() {
     return null;
   };
 
-  // NEW: Get contextual placeholder based on expected type
   const getPlaceholder = () => {
+    if (isWaitingForAgent) {
+      return "Respond to investigator's question...";
+    }
+    
     if (!currentPrompt) return "Type your answer...";
     
     if (currentPrompt.type === 'followup') {
@@ -842,6 +999,19 @@ export default function InterviewV2() {
     return "Type your answer...";
   };
 
+  // Get last agent probing question
+  const getLastAgentQuestion = () => {
+    if (!isWaitingForAgent || agentMessages.length === 0) return null;
+    
+    const lastMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
+    if (!lastMessage?.content) return null;
+    
+    // Filter out base questions (Q###)
+    if (lastMessage.content.match(/\b(Q\d{1,3})\b/i)) return null;
+    
+    return lastMessage.content;
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -851,7 +1021,7 @@ export default function InterviewV2() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-300">Loading interview engine...</p>
+          <p className="text-slate-300">Loading hybrid interview engine...</p>
         </div>
       </div>
     );
@@ -874,8 +1044,9 @@ export default function InterviewV2() {
   }
 
   const currentPrompt = getCurrentPrompt();
-  const totalQuestions = engine?.TotalQuestions || 198; // Updated from 162 to include new drug questions
-  const answeredCount = transcript.length; // Now counts all entries in transcript
+  const lastAgentQuestion = getLastAgentQuestion();
+  const totalQuestions = engine?.TotalQuestions || 198;
+  const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = Math.round((answeredCount / totalQuestions) * 100);
   const isYesNoQuestion = currentPrompt?.responseType === 'yes_no';
   const isFollowUpMode = currentPrompt?.type === 'followup';
@@ -884,10 +1055,9 @@ export default function InterviewV2() {
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        {/* REDESIGNED Header - Clean & Informative */}
+        {/* Header */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
           <div className="max-w-5xl mx-auto">
-            {/* Top Row: Logo + Pause Button */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <Shield className="w-6 h-6 text-blue-400" />
@@ -904,7 +1074,6 @@ export default function InterviewV2() {
               </Button>
             </div>
             
-            {/* Department Info Row */}
             {department && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2 pb-2">
                 <div className="flex items-center gap-1.5">
@@ -923,7 +1092,6 @@ export default function InterviewV2() {
               </div>
             )}
             
-            {/* Progress Bar */}
             <div className="mt-2">
               <div 
                 className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
@@ -941,7 +1109,6 @@ export default function InterviewV2() {
                   }}
                 />
               </div>
-              {/* Progress Stats - Right Aligned */}
               <div className="flex justify-end items-center gap-2 mt-1.5">
                 <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
                 <span className="text-xs font-medium text-green-400">{progress}% Complete</span>
@@ -952,7 +1119,6 @@ export default function InterviewV2() {
           </div>
         </header>
 
-        {/* Resume Banner */}
         {showResumeBanner && (
           <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-4 py-3">
             <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -983,7 +1149,6 @@ export default function InterviewV2() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-hidden flex flex-col">
-          {/* History (Answered Q&A Only) */}
           <div 
             ref={historyRef}
             className="flex-1 overflow-y-auto px-4 py-6"
@@ -998,6 +1163,7 @@ export default function InterviewV2() {
                 </Alert>
               )}
               
+              {/* Show deterministic transcript */}
               {transcript.map((entry) => (
                 <HistoryEntry 
                   key={entry.id} 
@@ -1006,11 +1172,61 @@ export default function InterviewV2() {
                   getFollowUpPackName={getFollowUpPackName}
                 />
               ))}
+              
+              {/* Show agent probing messages */}
+              {isWaitingForAgent && agentMessages.length > 0 && (
+                <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
+                  <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Investigator Follow-Up Questions
+                  </div>
+                  {agentMessages
+                    .filter(m => m.role === 'assistant' || m.role === 'user')
+                    .filter(m => {
+                      // Filter out system messages and base questions
+                      if (m.content.includes('Follow-up pack completed')) return false;
+                      if (m.content.match(/\b(Q\d{1,3})\b/i)) return false;
+                      return true;
+                    })
+                    .map((msg, idx) => (
+                      <AgentMessageBubble key={idx} message={msg} />
+                    ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Active Question (Single, Fixed at Bottom) */}
-          {currentPrompt && (
+          {/* Active Question (Deterministic) or Agent Probing */}
+          {lastAgentQuestion && isWaitingForAgent ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-purple-950/95 border-2 border-purple-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 12px 36px rgba(0,0,0,0.55), 0 0 0 3px rgba(200,160,255,0.30) inset'
+                  }}
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-purple-600/30 border-purple-500/50">
+                      <AlertCircle className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-purple-400">Investigator Question</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-sm text-purple-300">Story Clarification</span>
+                      </div>
+                      <p className="text-white text-lg font-semibold leading-relaxed">
+                        {lastAgentQuestion}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : currentPrompt ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -1042,7 +1258,6 @@ export default function InterviewV2() {
                       )}
                     </div>
                     <div className="flex-1">
-                      {/* ENLARGED Question Meta */}
                       <div className="flex items-center gap-2 mb-2">
                         {requiresClarification ? (
                           <>
@@ -1089,10 +1304,10 @@ export default function InterviewV2() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </main>
 
-        {/* UPGRADED Footer - Mobile-First Response Composer */}
+        {/* Footer */}
         <footer 
           className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
           style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
@@ -1100,7 +1315,7 @@ export default function InterviewV2() {
           aria-label="Response area"
         >
           <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-            {isYesNoQuestion && !isFollowUpMode ? (
+            {isYesNoQuestion && !isFollowUpMode && !isWaitingForAgent ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
@@ -1148,7 +1363,9 @@ export default function InterviewV2() {
             )}
             
             <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
-              Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
+              {isWaitingForAgent 
+                ? "Responding to investigator's probing questions..." 
+                : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
             </p>
           </div>
         </footer>
@@ -1251,7 +1468,7 @@ export default function InterviewV2() {
   );
 }
 
-// UPDATED: Show substance name in follow-up history entries
+// Deterministic transcript entries
 function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
@@ -1312,4 +1529,38 @@ function HistoryEntry({ entry, getQuestionNumber, getFollowUpPackName }) {
   }
 
   return null;
+}
+
+// NEW: Agent message bubbles (for probing questions)
+function AgentMessageBubble({ message }) {
+  const isUser = message.role === 'user';
+  
+  return (
+    <div className="space-y-3">
+      <div className={`${isUser ? 'flex justify-end' : ''}`}>
+        <div className={`${
+          isUser 
+            ? 'bg-purple-600 rounded-xl px-5 py-3 max-w-2xl'
+            : 'bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85'
+        }`}>
+          {!isUser && (
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-sm font-semibold text-purple-400">Investigator</span>
+                </div>
+                <p className="text-white leading-relaxed">{message.content}</p>
+              </div>
+            </div>
+          )}
+          {isUser && (
+            <p className="text-white font-medium">{message.content}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
