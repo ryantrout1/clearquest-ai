@@ -142,12 +142,19 @@ export default function InterviewDashboard() {
     return filtered;
   }, [sessions, searchTerm, statusFilter, departmentFilter, sortBy]);
 
-  const stats = {
-    total: sessions.length,
-    inProgress: sessions.filter(s => s.status === "in_progress").length,
-    completed: sessions.filter(s => s.status === "completed").length,
-    flagged: sessions.filter(s => s.red_flags?.length > 0).length
-  };
+  // Calculate stats based on department filter (not search/status filters)
+  const stats = useMemo(() => {
+    const filteredByDepartment = departmentFilter === "all" 
+      ? sessions 
+      : sessions.filter(s => s.department_code === departmentFilter);
+    
+    return {
+      total: filteredByDepartment.length,
+      inProgress: filteredByDepartment.filter(s => s.status === "in_progress").length,
+      completed: filteredByDepartment.filter(s => s.status === "completed").length,
+      flagged: filteredByDepartment.filter(s => s.red_flags?.length > 0).length
+    };
+  }, [sessions, departmentFilter]);
 
   const selectedDepartmentName = uniqueDepartments.find(d => d.code === departmentFilter)?.name;
 
