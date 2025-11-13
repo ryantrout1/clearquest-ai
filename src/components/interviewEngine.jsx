@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -59,7 +60,15 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
-  // ... keep all other existing FOLLOWUP_PACK_STEPS unchanged (note: all date fields should now use Expected_Type: 'TEXT' instead of 'DATE' or 'DATERANGE') ...
+  // Criminal Involvement / Police Contacts
+  'PACK_TRESPASSING': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this take place?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'property_type', Prompt: 'What type of property was it? (building, residence, land, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'What were the circumstances? Why did you enter?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were you arrested or charged? If so, what was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
 };
 
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
