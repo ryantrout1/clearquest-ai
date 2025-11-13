@@ -8,14 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2, 
-  ChevronDown, ChevronRight, Search, Eye, FileDown, Trash2,
+  ChevronDown, ChevronRight, Search, Eye, Trash2,
   ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -47,7 +46,7 @@ export default function SessionDetails() {
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
-  const [viewMode, setViewMode] = useState("structured"); // "structured" or "transcript"
+  const [viewMode, setViewMode] = useState("structured");
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   const [selectedCategory, setSelectedCategory] = useState("all");
 
@@ -689,10 +688,23 @@ function TranscriptEntry({ item }) {
     
     return (
       <div className="ml-8 space-y-2">
+        {followup.substance_name && (
+          <>
+            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
+              <p className="text-xs text-orange-400">Substance</p>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                <p className="text-white text-sm font-medium">{followup.substance_name}</p>
+              </div>
+            </div>
+          </>
+        )}
+        
         {Object.entries(details).map(([key, value]) => (
           <React.Fragment key={key}>
             <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-xs text-orange-400 mb-1">
+              <p className="text-xs text-orange-400">
                 {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </p>
             </div>
@@ -929,88 +941,4 @@ function generateReportHTML(session, responses, followups, questions, department
     </body>
     </html>
   `;
-}
-
-function TranscriptView({ responses, followups }) {
-  const timeline = [];
-  
-  responses.forEach(response => {
-    timeline.push({ type: 'question', data: response });
-    
-    const relatedFollowups = followups.filter(f => f.response_id === response.id);
-    relatedFollowups.forEach(fu => {
-      timeline.push({ type: 'followup', data: fu });
-    });
-  });
-
-  return (
-    <div className="space-y-3">
-      {timeline.map((item, idx) => (
-        <TranscriptEntry key={idx} item={item} />
-      ))}
-    </div>
-  );
-}
-
-function TranscriptEntry({ item }) {
-  if (item.type === 'question') {
-    const response = item.data;
-    return (
-      <div className="space-y-2">
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
-              {response.question_id}
-            </Badge>
-            <span className="text-xs text-slate-400">{response.category}</span>
-          </div>
-          <p className="text-white text-sm">{response.question_text}</p>
-        </div>
-        <div className="flex justify-end">
-          <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
-            <p className="text-white text-sm font-medium">{response.answer}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (item.type === 'followup') {
-    const followup = item.data;
-    const details = followup.additional_details || {};
-    
-    return (
-      <div className="ml-8 space-y-2">
-        {followup.substance_name && (
-          <>
-            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-xs text-orange-400">Substance</p>
-            </div>
-            <div className="flex justify-end">
-              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                <p className="text-white text-sm font-medium">{followup.substance_name}</p>
-              </div>
-            </div>
-          </>
-        )}
-        
-        {Object.entries(details).map(([key, value]) => (
-          <React.Fragment key={key}>
-            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-xs text-orange-400">
-                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                <p className="text-white text-sm">{value}</p>
-              </div>
-            </div>
-          </React.Fragment>
-        ))}
-      </div>
-    );
-  }
-
-  return null;
 }
