@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -575,10 +576,14 @@ export default function InterviewV2() {
               });
             }
             
-            setQueue(followupQueue);
-            setCurrentItem(followupQueue[0]);
+            // FIXED: Set current to first item, queue to rest
+            const firstItem = followupQueue[0];
+            const remainingQueue = followupQueue.slice(1);
             
-            await persistStateToDatabase(newTranscript, followupQueue.slice(1), followupQueue[0]);
+            setQueue(remainingQueue);
+            setCurrentItem(firstItem);
+            
+            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
           }
         } else {
           // No follow-up, move to next question
