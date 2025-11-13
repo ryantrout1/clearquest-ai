@@ -416,7 +416,7 @@ function InterviewSessionCard({ session, departments }) {
       toast.success("Session deleted successfully");
       setIsDeleteDialogOpen(false);
       
-      // FIXED: Use React Query invalidation instead of page reload
+      // Use React Query invalidation instead of page reload
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       
     } catch (err) {
