@@ -54,7 +54,7 @@ export default function SessionDetails() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
   const [viewMode, setViewMode] = useState("structured");
-  const [selectedCategory, setSelectedCategory] = useState("all"); // FIXED: Added missing state
+  const [selectedCategory, setSelectedCategory] = useState("all"); 
   const [collapsedSections, setCollapsedSections] = useState(new Set());
 
   // Refs for scroll-to functionality
@@ -567,12 +567,6 @@ function CompactQuestionRow({ response, followups }) {
   // Format question ID as "Q001" style
   const questionNumber = response.display_number.toString().padStart(3, '0');
   
-  // Truncate question text for inline display
-  const truncateText = (text, maxLength = 80) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
-  
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
       {/* Question row: Q### + Y/N + truncated question */}
@@ -584,8 +578,8 @@ function CompactQuestionRow({ response, followups }) {
         )}>
           {answerLetter}
         </span>
-        <span className="text-slate-300 flex-1 min-w-0">
-          {truncateText(response.question_text)}
+        <span className="text-slate-300 flex-1 break-words leading-relaxed">
+          {response.question_text}
         </span>
       </div>
       
