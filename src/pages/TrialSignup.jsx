@@ -71,6 +71,7 @@ export default function TrialSignup() {
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdDepartment, setCreatedDepartment] = useState(null);
+  const [error, setError] = useState(null);
   
   const [formData, setFormData] = useState({
     department_name: "",
@@ -78,12 +79,13 @@ export default function TrialSignup() {
     city: "",
     state: "",
     zip_code: "",
-    phone_number: "",
+    department_phone: "",
     contact_name: "", 
     contact_email: "",
+    contact_phone: "",
   });
 
-  // Auto-generate department code when name and zip change - SAME logic as CreateDepartment
+  // Auto-generate department code when name and zip change
   useEffect(() => {
     const generateCode = async () => {
       if (formData.department_name && formData.zip_code) {
@@ -105,22 +107,23 @@ export default function TrialSignup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
 
     // Validation
     if (!formData.department_name || !formData.city || !formData.state || 
-        !formData.zip_code || !formData.phone_number || !formData.contact_name || 
-        !formData.contact_email) {
-      toast.error("Please fill in all required fields.");
+        !formData.zip_code || !formData.contact_name || !formData.contact_email || 
+        !formData.contact_phone) {
+      setError("Please fill in all required fields.");
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(formData.contact_email)) {
-      toast.error("Please enter a valid email address.");
+      setError("Please enter a valid email address.");
       return;
     }
 
     if (!formData.department_code) {
-      toast.error("Department code is still generating, please wait a moment.");
+      setError("Department code is still generating, please wait a moment.");
       return;
     }
 
@@ -128,31 +131,32 @@ export default function TrialSignup() {
 
     try {
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
+      const now = new Date().toISOString();
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
-
-      const nameParts = formData.contact_name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
 
       const departmentData = {
         department_name: formData.department_name,
         department_code: formData.department_code,
-        department_type: "Law Enforcement", // Default value
+        department_type: "Law Enforcement",
         city: formData.city,
         state: formData.state,
         zip_code: formData.zip_code,
-        phone_number: formData.phone_number,
+        phone_number: formData.department_phone || null,
         contact_name: formData.contact_name,
         contact_email: formData.contact_email,
+        contact_phone: formData.contact_phone,
         department_id: deptId,
         plan_type: "Free Trial",
         plan_level: "Trial",
         active_status: "Active",
         seats_allocated: 5,
         retention_period: 30,
-        date_joined: new Date().toISOString(),
+        date_joined: now,
         trial_end_date: trialEndDate.toISOString(),
+        trial_status: "active",
+        trial_started_at: now,
+        trial_ends_at: trialEndDate.toISOString(),
         activity_log: ["Trial account created via self-service signup"],
         use_default_branding: true,
         cjis_compliance: true,
@@ -162,26 +166,17 @@ export default function TrialSignup() {
         color_accent: "#E6B980"
       };
 
+      console.log("📝 Creating trial department:", departmentData);
       const newDept = await base44.entities.Department.create(departmentData);
+      console.log("✅ Trial department created successfully:", newDept);
 
-      await base44.entities.User.create({
-        first_name: firstName,
-        last_name: lastName,
-        email: formData.contact_email,
-        role: "DEPT_ADMIN",
-        department_id: newDept.id,
-        is_active: true,
-        last_login: new Date().toISOString()
-      });
-
-      console.log("✅ Trial department created:", newDept);
       setCreatedDepartment(newDept);
       setShowSuccessModal(true);
       setIsSubmitting(false);
       
     } catch (err) {
-      console.error("Error creating trial:", err);
-      toast.error("Failed to create trial account. Please try again.");
+      console.error("❌ Error creating trial department:", err);
+      setError("We couldn't start your trial right now. Please check your connection or try again in a few minutes.");
       setIsSubmitting(false);
     }
   };
@@ -236,6 +231,12 @@ What the applicant needs to do:
           </CardHeader>
 
           <CardContent className="space-y-6 p-6 md:p-8">
+            {error && (
+              <div className="bg-red-950/30 border border-red-800/50 rounded-lg p-4">
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <h3 className="text-lg font-semibold text-white">Department Information</h3>
               
@@ -256,7 +257,7 @@ What the applicant needs to do:
                   <Label htmlFor="city" className="text-white text-sm">City *</Label>
                   <Input
                     id="city"
-                    placeholder="City"
+                    placeholder="e.g., Buckeye"
                     value={formData.city}
                     onChange={(e) => setFormData({...formData, city: e.target.value})}
                     className="bg-slate-900/50 border-slate-600 text-white h-12"
@@ -268,7 +269,7 @@ What the applicant needs to do:
                   <Label htmlFor="state" className="text-white text-sm">State *</Label>
                   <Input
                     id="state"
-                    placeholder="e.g., CA"
+                    placeholder="e.g., AZ"
                     value={formData.state}
                     onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
                     className="bg-slate-900/50 border-slate-600 text-white h-12"
@@ -282,7 +283,7 @@ What the applicant needs to do:
                 <Label htmlFor="zip_code" className="text-white text-sm">ZIP Code *</Label>
                 <Input
                   id="zip_code"
-                  placeholder="e.g., 90210"
+                  placeholder="e.g., 85326"
                   value={formData.zip_code}
                   onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
                   className="bg-slate-900/50 border-slate-600 text-white h-12"
@@ -291,17 +292,16 @@ What the applicant needs to do:
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone_number" className="text-white text-sm">Phone Number *</Label>
+                <Label htmlFor="department_phone" className="text-white text-sm">Department Phone</Label>
                 <Input
-                  id="phone_number"
+                  id="department_phone"
                   type="tel"
-                  placeholder="(555) 555-5555"
-                  value={formData.phone_number}
-                  onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                  placeholder="e.g., 623-555-0100"
+                  value={formData.department_phone}
+                  onChange={(e) => setFormData({...formData, department_phone: e.target.value})}
                   className="bg-slate-900/50 border-slate-600 text-white h-12"
-                  required
                 />
-                <p className="text-xs text-slate-400">Primary contact number for your department</p>
+                <p className="text-xs text-slate-400">Primary main line for your department (optional)</p>
               </div>
 
               <div className="border-t border-slate-700 pt-6 mt-6">
@@ -312,7 +312,7 @@ What the applicant needs to do:
                     <Label htmlFor="contact_name" className="text-white text-sm">Your Full Name *</Label>
                     <Input
                       id="contact_name"
-                      placeholder="John Doe"
+                      placeholder="e.g., Sgt. Jane Smith"
                       value={formData.contact_name}
                       onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-12"
@@ -325,12 +325,26 @@ What the applicant needs to do:
                     <Input
                       id="contact_email"
                       type="email"
-                      placeholder="your.name@department.gov"
+                      placeholder="e.g., jane.smith@metroPD.gov"
                       value={formData.contact_email}
                       onChange={(e) => setFormData({...formData, contact_email: e.target.value})}
                       className="bg-slate-900/50 border-slate-600 text-white h-12"
                       required
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="contact_phone" className="text-white text-sm">Contact Phone *</Label>
+                    <Input
+                      id="contact_phone"
+                      type="tel"
+                      placeholder="e.g., 623-555-0123"
+                      value={formData.contact_phone}
+                      onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+                      className="bg-slate-900/50 border-slate-600 text-white h-12"
+                      required
+                    />
+                    <p className="text-xs text-slate-400">Direct line for the primary contact during the trial</p>
                   </div>
                 </div>
               </div>
@@ -364,7 +378,7 @@ What the applicant needs to do:
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Full structured interview system</span>
+                  <span className="text-slate-300">Full structured background interview system</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
@@ -376,7 +390,7 @@ What the applicant needs to do:
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Complete PDF summaries</span>
+                  <span className="text-slate-300">Printable investigation-ready reports</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
@@ -390,13 +404,6 @@ What the applicant needs to do:
             </div>
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-slate-400 mt-6">
-          Already have an account?{" "}
-          <Link to={createPageUrl("AdminLogin")} className="text-blue-400 hover:text-blue-300">
-            Sign in
-          </Link>
-        </p>
       </div>
 
       {/* Success Modal */}
