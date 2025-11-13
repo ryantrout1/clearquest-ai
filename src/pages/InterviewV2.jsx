@@ -237,10 +237,9 @@ export default function InterviewV2() {
       // Step 1: Load session
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
       
+      // FIXED: Only block if status is 'completed' - check will happen later after rebuild
       if (loadedSession.status === 'completed') {
-        setError('This interview has already been completed and is no longer accessible.');
-        setIsLoading(false);
-        return;
+        console.log('ℹ️ Session marked completed - will verify after loading data...');
       }
       
       // Check if session was paused
@@ -310,25 +309,25 @@ export default function InterviewV2() {
         }
       );
       
-      // Step 5: Restore state from snapshots
-      if (loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0 || loadedSession.current_item_snapshot) {
+      // Step 5: Restore state from snapshots or rebuild from responses
+      const hasValidSnapshots = loadedSession.transcript_snapshot && 
+                                 loadedSession.transcript_snapshot.length > 0;
+      
+      // FIXED: Check if snapshots are missing/inconsistent for in_progress sessions
+      const needsRebuild = loadedSession.status === 'in_progress' && 
+                           (!loadedSession.current_item_snapshot || !hasValidSnapshots);
+      
+      if (needsRebuild) {
+        console.log('🔧 Session in_progress but snapshots missing - rebuilding from Response entities...');
+        await rebuildSessionFromResponses(engineData, loadedSession);
+      } else if (hasValidSnapshots) {
         console.log('🔄 Restoring from session snapshots...');
         restoreFromSnapshots(engineData, loadedSession);
       } else {
-        const existingResponses = await base44.entities.Response.filter({ 
-          session_id: sessionId 
-        });
-        
-        if (existingResponses.length > 0) {
-          displayOrderRef.current = existingResponses.length;
-          console.log('🔄 Restoring from Response entities...');
-          await restoreFromResponses(engineData, existingResponses);
-        } else {
-          console.log('🎯 Starting fresh interview');
-          const firstQuestionId = engineData.ActiveOrdered[0];
-          setQueue([]);
-          setCurrentItem({ id: firstQuestionId, type: 'question' });
-        }
+        console.log('🎯 Starting fresh interview');
+        const firstQuestionId = engineData.ActiveOrdered[0];
+        setQueue([]);
+        setCurrentItem({ id: firstQuestionId, type: 'question' });
       }
       
       setIsLoading(false);
@@ -369,16 +368,122 @@ export default function InterviewV2() {
       setQueue(restoredQueue.slice(1));
     }
     
+    // FIXED: Only show completion if status is actually 'completed'
     if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
-      console.log('✅ Interview appears complete based on snapshots.');
-      setShowCompletionModal(true);
+      if (loadedSession.status === 'completed') {
+        console.log('✅ Interview marked as completed - showing completion modal.');
+        setShowCompletionModal(true);
+      } else {
+        console.warn('⚠️ No current item or queue, but status is not completed. This should have been caught by rebuild logic.');
+      }
     }
     
     setTimeout(() => autoScrollToBottom(), 100);
   };
 
+  // ENHANCED: Rebuild session queue from Response entities
+  const rebuildSessionFromResponses = async (engineData, loadedSession) => {
+    console.log('🔧 Rebuilding session queue from Response entities...');
+    
+    try {
+      const responses = await base44.entities.Response.filter({ 
+        session_id: sessionId 
+      });
+      
+      const sortedResponses = responses.sort((a, b) => 
+        new Date(a.response_timestamp) - new Date(b.response_timestamp)
+      );
+      
+      // Build transcript from responses
+      const restoredTranscript = [];
+      const answeredQuestionIds = new Set();
+      
+      for (const response of sortedResponses) {
+        const question = engineData.QById[response.question_id];
+        if (question) {
+          restoredTranscript.push({
+            id: `q-${response.id}`,
+            questionId: response.question_id,
+            questionText: question.question_text,
+            answer: response.answer,
+            category: question.category,
+            type: 'question',
+            timestamp: response.response_timestamp
+          });
+          answeredQuestionIds.add(response.question_id);
+        }
+      }
+      
+      setTranscript(restoredTranscript);
+      displayOrderRef.current = restoredTranscript.length;
+      
+      console.log(`✅ Rebuilt transcript with ${restoredTranscript.length} answered questions`);
+      
+      // Find next unanswered question
+      let nextQuestionId = null;
+      
+      if (sortedResponses.length > 0) {
+        // Get last answered question and compute what should come next
+        const lastResponse = sortedResponses[sortedResponses.length - 1];
+        const lastQuestionId = lastResponse.question_id;
+        const lastAnswer = lastResponse.answer;
+        
+        // Use engine logic to determine next question
+        nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
+      } else {
+        // No responses yet - start from first question
+        nextQuestionId = engineData.ActiveOrdered[0];
+      }
+      
+      // Check if we found a next question
+      if (nextQuestionId && engineData.QById[nextQuestionId]) {
+        console.log(`✅ Next unanswered question: ${nextQuestionId}`);
+        
+        const nextItem = { id: nextQuestionId, type: 'question' };
+        setCurrentItem(nextItem);
+        setQueue([]);
+        
+        // Persist rebuilt state to database
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: nextItem,
+          total_questions_answered: restoredTranscript.length,
+          completion_percentage: Math.round((restoredTranscript.length / engineData.TotalQuestions) * 100),
+          status: 'in_progress' // Ensure status is in_progress
+        });
+        
+        console.log('✅ Session rebuilt and persisted successfully');
+      } else {
+        // All questions answered - mark as completed
+        console.log('✅ All questions answered - marking session as completed');
+        
+        setCurrentItem(null);
+        setQueue([]);
+        
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: null,
+          total_questions_answered: restoredTranscript.length,
+          completion_percentage: 100,
+          status: 'completed',
+          completed_date: new Date().toISOString()
+        });
+        
+        setShowCompletionModal(true);
+      }
+      
+    } catch (err) {
+      console.error('❌ Error rebuilding session:', err);
+      throw err;
+    }
+  };
+
+  // DEPRECATED: Old restoreFromResponses - replaced by rebuildSessionFromResponses
+  // Keeping for reference but not used anymore
   const restoreFromResponses = async (engineData, responses) => {
-    console.log('🔄 Rebuilding state from Response entities (fallback)...');
+    console.log('🔄 Rebuilding state from Response entities (legacy fallback)...');
     
     const sortedResponses = responses.sort((a, b) => 
       new Date(a.response_timestamp) - new Date(b.response_timestamp)
