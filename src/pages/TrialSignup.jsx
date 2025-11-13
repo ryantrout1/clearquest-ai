@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -510,19 +511,12 @@ What the applicant needs to do:
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-700">
+              <div className="flex justify-center pt-4 border-t border-slate-700">
                 <Button
-                  variant="outline"
                   onClick={() => setShowSuccessModal(false)}
-                  className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8"
                 >
                   Close
-                </Button>
-                <Button
-                  onClick={() => navigate(createPageUrl(`DepartmentDashboard?id=${createdDepartment.id}`))}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Go to Dashboard
                 </Button>
               </div>
             </div>
