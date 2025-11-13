@@ -596,7 +596,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, handleAnswer]); // Added handleAnswer to dependency array for auto-fill case
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting]); // Removed handleAnswer from dependency array
 
   // Text input submit handler
   const handleTextSubmit = useCallback((e) => {
@@ -798,8 +798,11 @@ export default function InterviewV2() {
       // NEW: Skip auto-filled questions in UI (they're added to transcript automatically)
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
         console.log(`⏩ Skipping auto-filled question in UI: ${step.Field_Key}`);
-        // Trigger auto-fill immediately
-        setTimeout(() => handleAnswer(step.PrefilledAnswer), 100);
+        // Trigger auto-fill immediately - FIXED: using setTimeout to avoid calling during render
+        const triggerAutoFill = () => {
+          handleAnswer(step.PrefilledAnswer);
+        };
+        setTimeout(triggerAutoFill, 100);
         return null; // Don't render this step
       }
       
