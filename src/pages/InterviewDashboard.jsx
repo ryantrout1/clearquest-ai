@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -381,6 +382,7 @@ function StatusChip({ label, active, onClick }) {
 // Interview Session Card Component
 function InterviewSessionCard({ session, departments }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -414,8 +416,9 @@ function InterviewSessionCard({ session, departments }) {
       toast.success("Session deleted successfully");
       setIsDeleteDialogOpen(false);
       
-      // Trigger refetch by reloading (simple approach)
-      window.location.reload();
+      // FIXED: Use React Query invalidation instead of page reload
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      
     } catch (err) {
       console.error("Error deleting session:", err);
       toast.error("Failed to delete session");
