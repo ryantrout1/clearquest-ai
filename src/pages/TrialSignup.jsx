@@ -5,129 +5,82 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, CheckCircle, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
+import { Shield, CheckCircle, Loader2, ArrowLeft, Copy, FileDown, X } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-// Department code generation utility
-async function generateDepartmentCode(departmentName, zipCode) {
-  if (!departmentName || !zipCode) return "";
+// Simplified department code generation (3 letters + hyphen + 5-digit number)
+function generateDepartmentCode(departmentName) {
+  if (!departmentName) return "";
 
-  const words = departmentName.trim().split(/\s+/).filter(word => word.length > 0);
-  const generateRandomLetter = () => {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return letters[Math.floor(Math.random() * letters.length)];
-  };
-
+  // Extract first 3 letters from department name
+  const cleanName = departmentName.trim().replace(/[^a-zA-Z\s]/g, '');
+  const words = cleanName.split(/\s+/).filter(word => word.length > 0);
+  
   let prefix = "";
-  if (words.length >= 3) {
-    prefix = words.slice(0, 3).map(word => word[0].toUpperCase()).join("");
-  } else if (words.length === 2) {
-    prefix = words[0].substring(0, 2).toUpperCase() + generateRandomLetter();
-  } else if (words.length === 1) {
-    prefix = words[0][0].toUpperCase() + generateRandomLetter() + generateRandomLetter();
+  if (words.length >= 1) {
+    const firstWord = words[0];
+    if (firstWord.length >= 3) {
+      prefix = firstWord.substring(0, 3).toUpperCase();
+    } else if (firstWord.length === 2) {
+      prefix = (firstWord + (words[1]?.[0] || 'X')).toUpperCase();
+    } else {
+      prefix = (firstWord + 'XX').substring(0, 3).toUpperCase();
+    }
   } else {
-    prefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
+    prefix = "DEP";
   }
 
-  const baseCode = `${prefix}-${zipCode}`;
-
-  try {
-    const existingDepts = await base44.entities.Department.filter({ department_code: baseCode });
-    if (existingDepts.length === 0) return baseCode;
-
-    const firstTwoLetters = prefix.substring(0, 2);
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    for (let i = 0; i < alphabet.length; i++) {
-      const newCode = `${firstTwoLetters}${alphabet[i]}-${zipCode}`;
-      const exists = await base44.entities.Department.filter({ department_code: newCode });
-      if (exists.length === 0) return newCode;
-    }
-
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const randomPrefix = generateRandomLetter() + generateRandomLetter() + generateRandomLetter();
-      const newCode = `${randomPrefix}-${zipCode}`;
-      const exists = await base44.entities.Department.filter({ department_code: newCode });
-      if (exists.length === 0) return newCode;
-    }
-    
-    return `${prefix}-${zipCode}-${Date.now().toString().slice(-4)}`;
-  } catch (err) {
-    console.error("Error finding unique department code:", err);
-    return baseCode;
-  }
+  // Generate 5-digit random number
+  const randomNum = Math.floor(10000 + Math.random() * 90000);
+  
+  return `${prefix}-${randomNum}`;
 }
 
 export default function TrialSignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdDepartment, setCreatedDepartment] = useState(null);
+  
   const [formData, setFormData] = useState({
     department_name: "",
-    department_code: "",
-    department_type: "Law Enforcement",
-    jurisdiction: "",
-    address_line1: "",
-    address_line2: "",
     city: "",
     state: "",
     zip_code: "",
+    phone_number: "",
     contact_name: "", 
     contact_email: "",
-    phone_number: "",
   });
-
-  // Auto-generate department code when name or zip changes
-  useEffect(() => {
-    const generateCode = async () => {
-      if (formData.department_name && formData.zip_code) {
-        setIsGeneratingCode(true);
-        try {
-          const code = await generateDepartmentCode(formData.department_name, formData.zip_code);
-          setFormData(prev => ({ ...prev, department_code: code }));
-        } catch (err) {
-          console.error("Error generating code:", err);
-        } finally {
-          setIsGeneratingCode(false);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(generateCode, 500);
-    return () => clearTimeout(timeoutId);
-  }, [formData.department_name, formData.zip_code]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (step === 1) {
-      if (!formData.department_name || !formData.department_type || !formData.jurisdiction ||
-          !formData.address_line1 || !formData.city || !formData.state || !formData.zip_code) {
-        toast.error("Please fill in all required department fields.");
-        return;
-      }
-      setStep(2);
+
+    // Validation
+    if (!formData.department_name || !formData.city || !formData.state || 
+        !formData.zip_code || !formData.phone_number || !formData.contact_name || 
+        !formData.contact_email) {
+      toast.error("Please fill in all required fields.");
       return;
     }
 
-    if (step === 2) {
-      if (!formData.contact_name || !formData.contact_email || !formData.phone_number) {
-        toast.error("Please fill in all required contact fields.");
-        return;
-      }
-      if (!/\S+@\S+\.\S+/.test(formData.contact_email)) {
-        toast.error("Please enter a valid email address.");
-        return;
-      }
-      setStep(3);
+    if (!/\S+@\S+\.\S+/.test(formData.contact_email)) {
+      toast.error("Please enter a valid email address.");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      const deptCode = generateDepartmentCode(formData.department_name);
       const deptId = `DEPT-${Date.now().toString(36).toUpperCase()}`;
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -138,11 +91,8 @@ export default function TrialSignup() {
 
       const departmentData = {
         department_name: formData.department_name,
-        department_code: formData.department_code,
-        department_type: formData.department_type,
-        jurisdiction: formData.jurisdiction,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
+        department_code: deptCode,
+        department_type: "Law Enforcement", // Default value
         city: formData.city,
         state: formData.state,
         zip_code: formData.zip_code,
@@ -178,17 +128,40 @@ export default function TrialSignup() {
         last_login: new Date().toISOString()
       });
 
-      toast.success("Trial account created! Check your email for login instructions.");
+      console.log("✅ Trial department created:", newDept);
+      setCreatedDepartment(newDept);
+      setShowSuccessModal(true);
+      setIsSubmitting(false);
       
-      setTimeout(() => {
-        navigate(createPageUrl("AdminLogin"));
-      }, 2000);
     } catch (err) {
       console.error("Error creating trial:", err);
       toast.error("Failed to create trial account. Please try again.");
       setIsSubmitting(false);
     }
   };
+
+  const interviewLink = typeof window !== 'undefined' 
+    ? `${window.location.origin}${createPageUrl("StartInterview")}`
+    : '';
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
+  };
+
+  const instructionsText = createdDepartment ? `ClearQuest Applicant Instructions
+
+Department Code: ${createdDepartment.department_code}
+
+Interview Link:
+${interviewLink}
+
+What the applicant needs to do:
+• Enter the Department Code
+• Enter the File Number you provide (e.g., case number or applicant ID)
+• Complete all questions truthfully and completely
+• The interview can be started, paused, and resumed on any device
+• No personal identifying information is collected` : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
@@ -212,151 +185,83 @@ export default function TrialSignup() {
             </div>
             <CardTitle className="text-2xl md:text-3xl text-white">Start Your Free Trial</CardTitle>
             <CardDescription className="text-slate-300 text-sm md:text-base">
-              30 days of full access • No credit card required • CJIS compliant
+              30 days of full access • No credit card required • CJIS aligned
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6 p-6 md:p-8">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={`h-2 rounded-full transition-all ${
-                    s === step ? 'w-8 bg-blue-500' : s < step ? 'w-2 bg-blue-400' : 'w-2 bg-slate-600'
-                  }`}
-                />
-              ))}
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
-              {step === 1 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white mb-4">Department Information</h3>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="department_name" className="text-white text-sm">Department Name *</Label>
-                    <Input
-                      id="department_name"
-                      placeholder="e.g., Metro Police Department"
-                      value={formData.department_name}
-                      onChange={(e) => setFormData({...formData, department_name: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                      required
-                    />
-                  </div>
+              <h3 className="text-lg font-semibold text-white">Department Information</h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="department_name" className="text-white text-sm">Department Name *</Label>
+                <Input
+                  id="department_name"
+                  placeholder="e.g., Metro Police Department"
+                  value={formData.department_name}
+                  onChange={(e) => setFormData({...formData, department_name: e.target.value})}
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
+                  required
+                />
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="department_type" className="text-white text-sm">Department Type *</Label>
-                    <Select
-                      value={formData.department_type}
-                      onValueChange={(value) => setFormData({...formData, department_type: value})}
-                    >
-                      <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white h-12">
-                        <SelectValue placeholder="Select a department type" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 text-white border-slate-700">
-                        <SelectItem value="Law Enforcement">Law Enforcement</SelectItem>
-                        <SelectItem value="Fire">Fire</SelectItem>
-                        <SelectItem value="Corrections">Corrections</SelectItem>
-                        <SelectItem value="Civil Service">Civil Service</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="jurisdiction" className="text-white text-sm">Jurisdiction *</Label>
-                    <Input
-                      id="jurisdiction"
-                      placeholder="e.g., City of Springfield"
-                      value={formData.jurisdiction}
-                      onChange={(e) => setFormData({...formData, jurisdiction: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address_line1" className="text-white text-sm">Address Line 1 *</Label>
-                    <Input
-                      id="address_line1"
-                      placeholder="Street address"
-                      value={formData.address_line1}
-                      onChange={(e) => setFormData({...formData, address_line1: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address_line2" className="text-white text-sm">Address Line 2</Label>
-                    <Input
-                      id="address_line2"
-                      placeholder="Apt, Suite, Unit, etc. (optional)"
-                      value={formData.address_line2}
-                      onChange={(e) => setFormData({...formData, address_line2: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city" className="text-white text-sm">City *</Label>
-                      <Input
-                        id="city"
-                        placeholder="City"
-                        value={formData.city}
-                        onChange={(e) => setFormData({...formData, city: e.target.value})}
-                        className="bg-slate-900/50 border-slate-600 text-white h-12"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="state" className="text-white text-sm">State *</Label>
-                      <Input
-                        id="state"
-                        placeholder="e.g., CA"
-                        value={formData.state}
-                        onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
-                        className="bg-slate-900/50 border-slate-600 text-white h-12"
-                        maxLength={2}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="zip_code" className="text-white text-sm">ZIP Code *</Label>
-                    <Input
-                      id="zip_code"
-                      placeholder="e.g., 90210"
-                      value={formData.zip_code}
-                      onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                      required
-                    />
-                  </div>
-
-                  {formData.department_code && (
-                    <div className="bg-blue-950/30 border border-blue-800/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-300">Your Department Code:</span>
-                        <span className="text-lg font-mono font-bold text-blue-400">
-                          {isGeneratingCode ? "Generating..." : formData.department_code}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-2">
-                        Applicants will use this code to start interviews
-                      </p>
-                    </div>
-                  )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city" className="text-white text-sm">City *</Label>
+                  <Input
+                    id="city"
+                    placeholder="City"
+                    value={formData.city}
+                    onChange={(e) => setFormData({...formData, city: e.target.value})}
+                    className="bg-slate-900/50 border-slate-600 text-white h-12"
+                    required
+                  />
                 </div>
-              )}
 
-              {step === 2 && (
+                <div className="space-y-2">
+                  <Label htmlFor="state" className="text-white text-sm">State *</Label>
+                  <Input
+                    id="state"
+                    placeholder="e.g., CA"
+                    value={formData.state}
+                    onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                    className="bg-slate-900/50 border-slate-600 text-white h-12"
+                    maxLength={2}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="zip_code" className="text-white text-sm">ZIP Code *</Label>
+                <Input
+                  id="zip_code"
+                  placeholder="e.g., 90210"
+                  value={formData.zip_code}
+                  onChange={(e) => setFormData({...formData, zip_code: e.target.value})}
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone_number" className="text-white text-sm">Phone Number *</Label>
+                <Input
+                  id="phone_number"
+                  type="tel"
+                  placeholder="(555) 555-5555"
+                  value={formData.phone_number}
+                  onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                  className="bg-slate-900/50 border-slate-600 text-white h-12"
+                  required
+                />
+                <p className="text-xs text-slate-400">Primary contact number for your department</p>
+              </div>
+
+              <div className="border-t border-slate-700 pt-6 mt-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Contact Information</h3>
+                
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white mb-4">Contact Information</h3>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="contact_name" className="text-white text-sm">Your Full Name *</Label>
                     <Input
@@ -381,127 +286,54 @@ export default function TrialSignup() {
                       required
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone_number" className="text-white text-sm">Work Phone Number *</Label>
-                    <Input
-                      id="phone_number"
-                      type="tel"
-                      placeholder="(555) 555-5555"
-                      value={formData.phone_number}
-                      onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
-                      className="bg-slate-900/50 border-slate-600 text-white h-12"
-                      required
-                    />
-                  </div>
                 </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6">
-                  <div className="text-center space-y-4">
-                    <CheckCircle className="w-16 h-16 text-green-400 mx-auto" />
-                    <h3 className="text-xl font-semibold text-white">Ready to Start Your Trial!</h3>
-                    <p className="text-slate-300 text-sm">
-                      Review your information and click "Start Trial" to begin your 30-day free access.
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-900/30 border border-slate-700 rounded-lg p-4 space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Department Name:</span>
-                      <span className="text-white font-medium text-right">{formData.department_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Department Code:</span>
-                      <span className="text-white font-mono text-right">{formData.department_code}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Department Type:</span>
-                      <span className="text-white text-right">{formData.department_type}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Address:</span>
-                      <span className="text-white text-right">
-                        {formData.city}, {formData.state} {formData.zip_code}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Contact Name:</span>
-                      <span className="text-white text-right">{formData.contact_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Contact Email:</span>
-                      <span className="text-white text-right">{formData.contact_email}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-col md:flex-row gap-3 pt-4">
-                {step > 1 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setStep(step - 1)}
-                    className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 h-12"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back
-                  </Button>
-                )}
-                
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || (step === 1 && isGeneratingCode)}
-                  className={`flex-1 bg-blue-600 hover:bg-blue-700 text-white h-12 ${step === 1 ? "md:ml-auto" : ""}`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Creating Account...
-                    </>
-                  ) : step === 3 ? (
-                    <>
-                      <CheckCircle className="w-5 h-5 mr-2" />
-                      Start Trial
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ChevronRight className="w-5 h-5 ml-2" />
-                    </>
-                  )}
-                </Button>
               </div>
+
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Creating Account...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Start Trial
+                  </>
+                )}
+              </Button>
             </form>
 
             <div className="mt-8 pt-8 border-t border-slate-700">
-              <h4 className="font-semibold text-white mb-4 text-center text-sm">What's Included</h4>
+              <h4 className="font-semibold text-white mb-4 text-center text-sm">What's Included in Your Free Trial</h4>
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Full 162-question interview system</span>
+                  <span className="text-slate-300">Full structured interview system</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">AI-powered follow-ups</span>
+                  <span className="text-slate-300">Automated follow-up packs</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">CJIS-compliant security</span>
+                  <span className="text-slate-300">CJIS-aligned security and encryption</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Complete PDF reports</span>
+                  <span className="text-slate-300">Complete PDF summaries</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">5 User Seats Included</span>
+                  <span className="text-slate-300">Applicant tracking & progress history</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-300">Detailed Applicant Tracking</span>
+                  <span className="text-slate-300">5 user seats included</span>
                 </div>
               </div>
             </div>
@@ -515,6 +347,130 @@ export default function TrialSignup() {
           </Link>
         </p>
       </div>
+
+      {/* Success Modal */}
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-[90vw] md:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl font-bold text-white">
+                Your Trial Is Ready – Here's How to Get Started
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSuccessModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </DialogHeader>
+          
+          {createdDepartment && (
+            <div className="space-y-6 pt-4">
+              {/* Department Code */}
+              <div className="bg-blue-950/30 border border-blue-800/50 rounded-lg p-4">
+                <Label className="text-sm text-slate-300 mb-2 block">Department Code</Label>
+                <div className="flex items-center gap-3">
+                  <code className="flex-1 text-2xl font-bold text-blue-400 font-mono">
+                    {createdDepartment.department_code}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(createdDepartment.department_code)}
+                    className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  Use this code to identify all applicant interviews. Share it only within your department.
+                </p>
+              </div>
+
+              {/* Interview Link */}
+              <div>
+                <Label className="text-sm text-slate-300 mb-2 block">Interview Link to Send to Applicants</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    value={interviewLink}
+                    readOnly
+                    className="bg-slate-800 border-slate-600 text-white h-10 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(interviewLink)}
+                    className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 flex-shrink-0"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy
+                  </Button>
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-3 text-sm">What Investigators Need To Do</h4>
+                <ol className="space-y-2 text-sm text-slate-300 list-decimal list-inside">
+                  <li>Give the applicant your Department Code: <code className="text-blue-400 font-mono">{createdDepartment.department_code}</code></li>
+                  <li>Give them a File Number (any number your agency uses, such as a case number or applicant ID).</li>
+                  <li>Send them the interview link shown above.</li>
+                  <li>The applicant completes the interview on their own device.</li>
+                  <li>You will automatically receive a structured transcript, follow-up details, and a ready-to-review report.</li>
+                </ol>
+              </div>
+
+              {/* No PII Statement */}
+              <div className="bg-green-950/20 border border-green-800/50 rounded-lg p-3">
+                <p className="text-sm text-green-300">
+                  <strong>Privacy Notice:</strong> ClearQuest does not collect any personally identifiable information. 
+                  All sessions are anonymous and encrypted end-to-end.
+                </p>
+              </div>
+
+              {/* Copy-Paste Instructions */}
+              <div>
+                <Label className="text-sm text-slate-300 mb-2 block">Copy & Paste Instructions for Applicants</Label>
+                <Textarea
+                  value={instructionsText}
+                  readOnly
+                  className="bg-slate-800 border-slate-600 text-white text-xs font-mono h-48"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(instructionsText)}
+                  className="mt-2 bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Instructions
+                </Button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-700">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSuccessModal(false)}
+                  className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => navigate(createPageUrl(`DepartmentDashboard?id=${createdDepartment.id}`))}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Go to Dashboard
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
