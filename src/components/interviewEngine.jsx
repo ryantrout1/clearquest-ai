@@ -637,15 +637,15 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'current_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
-  // Drug Use (ALL 47 substances use same PACK_DRUG_USE)
+  // Drug Use (NEW: DYNAMIC substance injection from Question.substance_name field)
   'PACK_DRUG_USE': [
-    { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'first_use_date', Prompt: 'When did you first use it?', Response_Type: 'text', Expected_Type: 'DATE' },
-    { Field_Key: 'last_use_date', Prompt: 'When was the last time you used it?', Response_Type: 'text', Expected_Type: 'DATE' },
-    { Field_Key: 'frequency', Prompt: 'How often did you use it?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'how_obtained', Prompt: 'How did you obtain it?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your use.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+    { Field_Key: 'substance_name', Prompt: 'What substance did you use?', Response_Type: 'text', Expected_Type: 'TEXT', Auto_Fill: true },
+    { Field_Key: 'first_use_date', Prompt: 'When did you first use {substance}?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'last_use_date', Prompt: 'When was the last time you used {substance}?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'frequency', Prompt: 'How often did you use {substance}?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_obtained', Prompt: 'How did you obtain {substance}?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances of your {substance} use.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for your {substance} use?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   'PACK_DRUG_SALE': [
@@ -1389,8 +1389,9 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   return null;
 }
 
+// UPDATED: Now extracts substance_name from Question entity and injects it into prompts
 export function checkFollowUpTrigger(engine, questionId, answer) {
-  const { MatrixYesByQ, PackStepsById } = engine;
+  const { MatrixYesByQ, PackStepsById, QById } = engine;
 
   console.log(`🔍 Entity-driven follow-up check for ${questionId}, answer="${answer}"`);
 
@@ -1404,12 +1405,51 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
       return null;
     }
     
+    // NEW: Extract substance_name from Question entity if it exists
+    const question = QById[questionId];
+    const substanceName = question?.substance_name || null;
+    
     console.log(`   ✅ Follow-up triggered: ${packId} (${PackStepsById[packId].length} steps)`);
-    return packId;
+    if (substanceName) {
+      console.log(`   💊 Substance detected: ${substanceName} - will inject into PACK_DRUG_USE prompts`);
+    }
+    
+    return { packId, substanceName };
   }
 
   console.log(`   ℹ️ No follow-up for this question`);
   return null;
+}
+
+// NEW: Function to inject substance name into follow-up pack steps
+export function injectSubstanceIntoPackSteps(engine, packId, substanceName) {
+  if (packId !== 'PACK_DRUG_USE' || !substanceName) {
+    return engine.PackStepsById[packId];
+  }
+  
+  console.log(`💉 Injecting "${substanceName}" into PACK_DRUG_USE prompts`);
+  
+  const originalSteps = engine.PackStepsById[packId];
+  const injectedSteps = originalSteps.map(step => {
+    // Replace {substance} placeholder with actual substance name
+    const injectedPrompt = step.Prompt.replace(/\{substance\}/g, substanceName);
+    
+    // Auto-fill the substance_name field if it's the first step
+    if (step.Field_Key === 'substance_name' && step.Auto_Fill) {
+      return {
+        ...step,
+        Prompt: injectedPrompt,
+        PrefilledAnswer: substanceName
+      };
+    }
+    
+    return {
+      ...step,
+      Prompt: injectedPrompt
+    };
+  });
+  
+  return injectedSteps;
 }
 
 // ============================================================================
@@ -1444,7 +1484,8 @@ export function runEntityFollowupSelfTest(engine) {
   
   Object.keys(MatrixYesByQ).forEach(questionId => {
     const expectedPack = MatrixYesByQ[questionId];
-    const triggeredPack = checkFollowUpTrigger(engine, questionId, 'Yes');
+    const triggerResult = checkFollowUpTrigger(engine, questionId, 'Yes');
+    const triggeredPack = triggerResult?.packId || null;
     
     if (triggeredPack !== expectedPack) {
       console.error(`❌ MISMATCH: ${questionId} expected ${expectedPack}, got ${triggeredPack}`);
