@@ -27,7 +27,7 @@ import {
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated', 
   'suspended', 'terminated', 'dui', 'drugs', 'felony', 'charge',
-  'conviction', 'probation', 'parole', 'violence', 'assault'
+  'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
 
 export default function SessionDetails() {
@@ -246,273 +246,229 @@ export default function SessionDetails() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <div className="flex">
-        {/* Main Content */}
-        <div className="flex-1 p-6 pr-80">
-          <div className="max-w-6xl">
-            {/* Back Button */}
-            <Link to={createPageUrl("InterviewDashboard")}>
-              <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        {/* Back Button */}
+        <Link to={createPageUrl("InterviewDashboard")}>
+          <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </Link>
 
-            {/* Consolidated Header */}
-            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h1 className="text-2xl font-bold text-white mb-1">
-                      {department?.department_name || session.department_code}
-                    </h1>
-                    <div className="flex items-center gap-3 text-sm text-slate-400">
-                      <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
-                      <span>•</span>
-                      <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge className={cn("border", statusConfig[session.status]?.color)}>
-                      {statusConfig[session.status]?.label}
-                    </Badge>
-                    <Badge className={cn("border", riskConfig[session.risk_rating]?.color)}>
-                      {riskConfig[session.risk_rating]?.label}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-4 pt-4 border-t border-slate-700">
-                  <MetricBox label="Questions" value={actualQuestionsAnswered} />
-                  <MetricBox label="Follow-Ups" value={actualFollowupsTriggered} />
-                  <MetricBox label="Red Flags" value={session.red_flags?.length || 0} color="red" />
-                  <MetricBox label="Completion" value={`${actualCompletion}%`} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Controls Bar (Sticky) */}
-            <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-4 mb-6">
-              <div className="grid grid-cols-12 gap-3 items-center">
-                {/* Search */}
-                <div className="col-span-4 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search questions or answers..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
-                  />
-                </div>
-
-                {/* Category Jump */}
-                <div className="col-span-3">
-                  <Select value={selectedCategory} onValueChange={handleCategoryJump}>
-                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9">
-                      <SelectValue placeholder="Jump to Category" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-700">
-                      <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
-                      {categories.map(cat => (
-                        <SelectItem key={cat} value={cat} className="text-white text-sm">
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* View Mode Toggle */}
-                <div className="col-span-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
-                    className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                  >
-                    {viewMode === "structured" ? <FileText className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-                    {viewMode === "structured" ? "Transcript" : "Structured"}
-                  </Button>
-                </div>
-
-                {/* Expand/Collapse */}
-                <div className="col-span-3 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExpandAll}
-                    className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                  >
-                    <ChevronsDown className="w-4 h-4 mr-1" />
-                    Expand All
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCollapseAll}
-                    className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                  >
-                    <ChevronsUp className="w-4 h-4 mr-1" />
-                    Collapse
-                  </Button>
+        {/* Compact Header - Mobile Friendly */}
+        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
+          <CardContent className="p-4">
+            {/* Top Row */}
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+              <div className="flex-1">
+                <h1 className="text-xl md:text-2xl font-bold text-white mb-1">
+                  {department?.department_name || session.department_code}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-slate-400">
+                  <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
+                  <span>•</span>
+                  <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
                 </div>
               </div>
-
-              {/* Second Row - Filters */}
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-700">
-                <button
-                  onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
-                  className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
-                >
-                  {showOnlyFollowUps ? (
-                    <ToggleRight className="w-5 h-5 text-blue-400" />
-                  ) : (
-                    <ToggleLeft className="w-5 h-5 text-slate-500" />
-                  )}
-                  <span>Show Only Questions with Follow-Ups</span>
-                </button>
-                {searchTerm && (
-                  <span className="text-xs text-slate-400">
-                    Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
-                  </span>
-                )}
+              <div className="flex gap-2 flex-wrap">
+                <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
+                  {statusConfig[session.status]?.label}
+                </Badge>
+                <Badge className={cn("text-xs", riskConfig[session.risk_rating]?.color)}>
+                  {riskConfig[session.risk_rating]?.label}
+                </Badge>
               </div>
             </div>
 
-            {/* Responses Display */}
-            {responses.length === 0 ? (
-              <Card className="bg-slate-800/50 border-slate-700">
-                <CardContent className="p-12 text-center">
-                  <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">No responses recorded yet</p>
-                </CardContent>
-              </Card>
-            ) : viewMode === "structured" ? (
-              <StructuredView
-                responsesByCategory={responsesByCategory}
-                responses={filteredResponses}
-                followups={followups}
-                expandedQuestions={expandedQuestions}
-                toggleQuestion={toggleQuestion}
-                categoryRefs={categoryRefs}
-              />
-            ) : (
-              <TranscriptView
-                responses={filteredResponses}
-                followups={followups}
-              />
-            )}
+            {/* Metrics Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-700">
+              <CompactMetric label="Questions" value={actualQuestionsAnswered} />
+              <CompactMetric label="Follow-Ups" value={actualFollowupsTriggered} />
+              <CompactMetric label="Red Flags" value={session.red_flags?.length || 0} color="red" />
+              <CompactMetric label="Completion" value={`${actualCompletion}%`} />
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Delete Last Response */}
-            {responses.length > 0 && (
-              <div className="mt-6">
-                <Button
-                  variant="outline"
-                  onClick={handleDeleteLastResponse}
-                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Last Response
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sticky Right Sidebar */}
-        <div className="fixed right-0 top-0 h-screen w-80 bg-slate-800/95 backdrop-blur-sm border-l border-slate-700 p-6 overflow-y-auto">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-400" />
-                Session Summary
-              </h2>
-              
-              <div className="space-y-3">
-                <SummaryRow label="Department" value={department?.department_name || session.department_code} />
-                <SummaryRow label="File Number" value={session.file_number} mono />
-                <SummaryRow label="Status">
-                  <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
-                    {statusConfig[session.status]?.label}
-                  </Badge>
-                </SummaryRow>
-                <SummaryRow label="Risk Level">
-                  <Badge className={cn("text-xs", riskConfig[session.risk_rating]?.color)}>
-                    {riskConfig[session.risk_rating]?.label}
-                  </Badge>
-                </SummaryRow>
-                <div className="border-t border-slate-700 pt-3 mt-3">
-                  <SummaryRow label="Questions" value={actualQuestionsAnswered} />
-                  <SummaryRow label="Follow-Ups" value={actualFollowupsTriggered} />
-                  <SummaryRow label="Red Flags" value={session.red_flags?.length || 0} />
-                  <SummaryRow label="Completion" value={`${actualCompletion}%`} />
-                </div>
-              </div>
+        {/* Controls Bar (Sticky) */}
+        <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
+          {/* First Row */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+            {/* Search */}
+            <div className="md:col-span-5 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search questions or answers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
+              />
             </div>
 
-            <Button 
-              onClick={generateReport} 
-              disabled={isGeneratingReport || responses.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isGeneratingReport ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-2" />
-                  Generate PDF Report
-                </>
-              )}
-            </Button>
-
-            {session.red_flags?.length > 0 && (
-              <div className="border border-red-800/30 bg-red-950/20 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  Red Flags ({session.red_flags.length})
-                </h3>
-                <div className="space-y-2">
-                  {session.red_flags.map((flag, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 flex-shrink-0" />
-                      <p className="text-xs text-red-300">{flag}</p>
-                    </div>
+            {/* Category Jump */}
+            <div className="md:col-span-3">
+              <Select value={selectedCategory} onValueChange={handleCategoryJump}>
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9">
+                  <SelectValue placeholder="Jump to Category" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat} className="text-white text-sm">
+                      {cat}
+                    </SelectItem>
                   ))}
-                </div>
-              </div>
-            )}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <div className="border-t border-slate-700 pt-4 text-xs text-slate-500 space-y-1">
-              <p>Started: {format(new Date(session.created_date), "MMM d, yyyy h:mm a")}</p>
-              {session.completed_date && (
-                <p>Completed: {format(new Date(session.completed_date), "MMM d, yyyy h:mm a")}</p>
+            {/* View Mode Toggle */}
+            <div className="md:col-span-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
+                className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+              >
+                {viewMode === "structured" ? <FileText className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                {viewMode === "structured" ? "Transcript" : "Structured"}
+              </Button>
+            </div>
+
+            {/* Expand/Collapse */}
+            <div className="md:col-span-2 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExpandAll}
+                className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+              >
+                <ChevronsDown className="w-4 h-4 md:mr-1" />
+                <span className="hidden md:inline">Expand</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCollapseAll}
+                className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+              >
+                <ChevronsUp className="w-4 h-4 md:mr-1" />
+                <span className="hidden md:inline">Collapse</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Second Row - Filters & Actions */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-3 pt-3 border-t border-slate-700">
+            <button
+              onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
+              className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
+            >
+              {showOnlyFollowUps ? (
+                <ToggleRight className="w-5 h-5 text-blue-400" />
+              ) : (
+                <ToggleLeft className="w-5 h-5 text-slate-500" />
               )}
+              <span>Show Only Questions with Follow-Ups</span>
+            </button>
+            
+            <div className="flex items-center gap-3">
+              {searchTerm && (
+                <span className="text-xs text-slate-400">
+                  Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
+                </span>
+              )}
+              <Button 
+                onClick={generateReport} 
+                disabled={isGeneratingReport || responses.length === 0}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white h-9"
+              >
+                {isGeneratingReport ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    <span className="hidden md:inline">Generate PDF</span>
+                    <span className="md:hidden">PDF</span>
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
+
+        {/* Red Flags Alert (if any) */}
+        {session.red_flags?.length > 0 && (
+          <Card className="bg-red-950/20 border-red-800/50 mb-4">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Red Flags Identified ({session.red_flags.length})
+              </h3>
+              <div className="space-y-1">
+                {session.red_flags.map((flag, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 flex-shrink-0" />
+                    <p className="text-xs text-red-300">{flag}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Responses Display */}
+        {responses.length === 0 ? (
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardContent className="p-12 text-center">
+              <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400">No responses recorded yet</p>
+            </CardContent>
+          </Card>
+        ) : viewMode === "structured" ? (
+          <StructuredView
+            responsesByCategory={responsesByCategory}
+            responses={filteredResponses}
+            followups={followups}
+            expandedQuestions={expandedQuestions}
+            toggleQuestion={toggleQuestion}
+            categoryRefs={categoryRefs}
+          />
+        ) : (
+          <TranscriptView
+            responses={filteredResponses}
+            followups={followups}
+          />
+        )}
+
+        {/* Delete Last Response */}
+        {responses.length > 0 && (
+          <div className="mt-6">
+            <Button
+              variant="outline"
+              onClick={handleDeleteLastResponse}
+              className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Last Response
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function MetricBox({ label, value, color = "blue" }) {
+function CompactMetric({ label, value, color = "blue" }) {
   const colorClass = color === "red" ? "text-red-400" : "text-blue-400";
   return (
-    <div>
-      <p className="text-xs text-slate-400 mb-1">{label}</p>
-      <p className={cn("text-2xl font-bold", colorClass)}>{value}</p>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value, mono = false, children }) {
-  return (
-    <div className="flex justify-between items-center text-sm py-1">
-      <span className="text-slate-400">{label}</span>
-      {children || <span className={cn("text-white", mono && "font-mono")}>{value}</span>}
+    <div className="text-center md:text-left">
+      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+      <p className={cn("text-lg md:text-xl font-bold", colorClass)}>{value}</p>
     </div>
   );
 }
@@ -524,12 +480,12 @@ function StructuredView({ responsesByCategory, responses, followups, expandedQue
         <div key={category}>
           <div 
             ref={el => categoryRefs.current[category] = el}
-            className="sticky top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-4 z-10"
+            className="sticky top-28 md:top-32 bg-slate-900/95 backdrop-blur-sm border-b-2 border-blue-500/30 py-2 mb-3 z-10"
           >
-            <h2 className="text-lg font-bold text-blue-400">{category}</h2>
+            <h2 className="text-base md:text-lg font-bold text-blue-400">{category}</h2>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2">
             {categoryResponses.map(response => (
               <QuestionCard
                 key={response.id}
@@ -551,13 +507,14 @@ function QuestionCard({ response, followups, isExpanded, onToggle }) {
   
   return (
     <Card className="bg-slate-900/30 border-slate-700 hover:border-slate-600 transition-colors">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-3 md:p-4">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
                 {response.question_id}
               </Badge>
+              <span className="text-xs text-slate-500">{response.category}</span>
               {response.is_flagged && (
                 <Badge className="text-xs bg-red-500/20 text-red-300 border-red-500/30">
                   Flagged
@@ -578,7 +535,7 @@ function QuestionCard({ response, followups, isExpanded, onToggle }) {
               variant="ghost"
               size="sm"
               onClick={onToggle}
-              className="text-slate-400 hover:text-white"
+              className="text-slate-400 hover:text-white flex-shrink-0"
             >
               {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
             </Button>
@@ -586,8 +543,8 @@ function QuestionCard({ response, followups, isExpanded, onToggle }) {
         </div>
 
         {isExpanded && hasFollowups && (
-          <div className="mt-4 pl-4 border-l-2 border-orange-500/30 space-y-3">
-            <p className="text-xs font-semibold text-orange-400 mb-3">Follow-Up Thread</p>
+          <div className="mt-3 pl-2 md:pl-4 border-l-2 border-orange-500/30 space-y-2">
+            <p className="text-xs font-semibold text-orange-400 mb-2">Follow-Up Thread</p>
             {followups.map((followup, idx) => (
               <FollowUpThread key={idx} followup={followup} />
             ))}
@@ -610,8 +567,8 @@ function FollowUpThread({ followup }) {
   return (
     <div className="space-y-2">
       {followup.substance_name && (
-        <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-1">Substance</p>
+        <div className="bg-slate-800/50 rounded-lg p-2 md:p-3 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-0.5">Substance</p>
           <p className="text-sm text-white font-medium">{followup.substance_name}</p>
         </div>
       )}
@@ -619,18 +576,18 @@ function FollowUpThread({ followup }) {
       {entries.map(([key, value]) => {
         const requiresReview = needsReview(value);
         return (
-          <div key={key} className="bg-slate-800/30 rounded-lg p-3">
+          <div key={key} className="bg-slate-800/30 rounded-lg p-2 md:p-3">
             <div className="flex items-start justify-between gap-2 mb-1">
               <p className="text-xs text-orange-300 font-medium">
                 {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </p>
               {requiresReview && (
-                <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+                <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
                   Needs Review
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-slate-200 whitespace-pre-wrap">{value}</p>
+            <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{value}</p>
           </div>
         );
       })}
@@ -651,7 +608,7 @@ function TranscriptView({ responses, followups }) {
   });
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {timeline.map((item, idx) => (
         <TranscriptEntry key={idx} item={item} />
       ))}
@@ -664,8 +621,8 @@ function TranscriptEntry({ item }) {
     const response = item.data;
     return (
       <div className="space-y-2">
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-1.5">
             <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
               {response.question_id}
             </Badge>
@@ -686,8 +643,13 @@ function TranscriptEntry({ item }) {
     const followup = item.data;
     const details = followup.additional_details || {};
     
+    const needsReview = (text) => {
+      const lower = String(text || '').toLowerCase();
+      return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
+    };
+    
     return (
-      <div className="ml-8 space-y-2">
+      <div className="ml-4 md:ml-8 space-y-2">
         {followup.substance_name && (
           <>
             <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
@@ -701,20 +663,30 @@ function TranscriptEntry({ item }) {
           </>
         )}
         
-        {Object.entries(details).map(([key, value]) => (
-          <React.Fragment key={key}>
-            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-xs text-orange-400">
-                {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                <p className="text-white text-sm">{value}</p>
+        {Object.entries(details).map(([key, value]) => {
+          const requiresReview = needsReview(value);
+          return (
+            <React.Fragment key={key}>
+              <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-orange-400">
+                    {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </p>
+                  {requiresReview && (
+                    <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                      Needs Review
+                    </Badge>
+                  )}
+                </div>
               </div>
-            </div>
-          </React.Fragment>
-        ))}
+              <div className="flex justify-end">
+                <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                  <p className="text-white text-sm break-words">{value}</p>
+                </div>
+              </div>
+            </React.Fragment>
+          );
+        })}
       </div>
     );
   }
