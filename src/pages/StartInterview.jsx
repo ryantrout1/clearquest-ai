@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -23,9 +22,30 @@ export default function StartInterview() {
   const [error, setError] = useState(null);
   const [departmentCodeError, setDepartmentCodeError] = useState(false);
   
-  // NEW: Debug mode toggle (visible only for admins/testing)
+  // Debug mode toggle
   const [debugMode, setDebugMode] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // Dynamic question count
+  const [totalQuestions, setTotalQuestions] = useState(198); // Default fallback
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+
+  useEffect(() => {
+    loadQuestionCount();
+  }, []);
+
+  const loadQuestionCount = async () => {
+    try {
+      setIsLoadingQuestions(true);
+      const questions = await base44.entities.Question.filter({ active: true });
+      setTotalQuestions(questions.length);
+    } catch (err) {
+      console.error("Error loading question count:", err);
+      // Keep default value of 198
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
 
   const validateDepartmentCode = async (code) => {
     if (!code) {
@@ -47,10 +67,6 @@ export default function StartInterview() {
       return true;
     } catch (err) {
       console.error("Error validating department code:", err);
-      // If there's an error fetching departments, we might want to assume it's valid for now
-      // or handle it as an error to prevent proceeding. For now, let's allow it to proceed
-      // as the backend might be down, but department code could be valid.
-      // Revisit this logic if stricter validation is needed on network errors.
       return true; 
     }
   };
@@ -58,10 +74,10 @@ export default function StartInterview() {
   const handleDepartmentCodeChange = async (value) => {
     setFormData({...formData, departmentCode: value.toUpperCase()});
     
-    if (value.length >= 3) { // Trigger validation once enough characters are entered
+    if (value.length >= 3) {
       await validateDepartmentCode(value);
     } else {
-      setDepartmentCodeError(false); // Reset error if input is too short
+      setDepartmentCodeError(false);
     }
   };
 
@@ -96,12 +112,10 @@ export default function StartInterview() {
       
       if (activeSession) {
         console.log("✅ Found existing session, resuming...");
-        // Route to NEW deterministic interview
         navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
         return;
       }
       
-      // Check for completed session - don't allow re-access
       const completedSession = existingSessions.find(s => s.status === 'completed');
       if (completedSession) {
         setError("This interview has already been completed and cannot be accessed again.");
@@ -112,7 +126,6 @@ export default function StartInterview() {
       console.log("📝 Creating new session...");
       const sessionHash = await generateHash(sessionCode);
       
-      // Create session with debug mode setting
       const session = await base44.entities.InterviewSession.create({
         session_code: sessionCode,
         department_code: formData.departmentCode,
@@ -128,7 +141,7 @@ export default function StartInterview() {
           created_via: "web_interface",
           user_agent: navigator.userAgent,
           version: "v2_deterministic",
-          debug_mode: debugMode, // NEW: Store debug mode setting
+          debug_mode: debugMode,
           probing_strength: "production_standard"
         }
       });
@@ -138,7 +151,6 @@ export default function StartInterview() {
         console.log("🐛 Debug mode enabled for this session");
       }
 
-      // Route to NEW deterministic interview (no conversation needed)
       navigate(createPageUrl(`InterviewV2?session=${session.id}`));
       
     } catch (err) {
@@ -150,7 +162,7 @@ export default function StartInterview() {
 
   const generateHash = async (text) => {
     const encoder = new TextEncoder();
-    const data = encoder.encode(text + Date.now()); // Add Date.now() to ensure unique hash even for same text if called quickly
+    const data = encoder.encode(text + Date.now());
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -178,7 +190,7 @@ export default function StartInterview() {
             </div>
             <CardTitle className="text-2xl md:text-3xl text-white">Start New Interview</CardTitle>
             <CardDescription className="text-slate-300 text-sm md:text-base">
-              Begin a confidential CJIS-compliant background interview session
+              Begin a confidential CJIS-aligned background interview session.
             </CardDescription>
           </CardHeader>
 
@@ -191,10 +203,10 @@ export default function StartInterview() {
 
             <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
               <Lock className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <strong>Privacy Notice:</strong> This interview is completely anonymous. 
-                No personally identifiable information is collected. Sessions are identified 
-                only by department code and file number. All data is encrypted end-to-end.
+              <AlertDescription className="text-sm leading-relaxed">
+                <strong>Privacy Notice:</strong> This interview is anonymous. No personally identifiable information is collected. 
+                Sessions are identified only by department code and file number. 
+                All responses are encrypted end-to-end and auto-purged based on retention settings.
               </AlertDescription>
             </Alert>
 
@@ -241,7 +253,7 @@ export default function StartInterview() {
                 </p>
               </div>
 
-              {/* NEW: Advanced Settings Toggle */}
+              {/* Advanced Settings Toggle */}
               <div className="border-t border-slate-700 pt-4">
                 <button
                   type="button"
@@ -288,13 +300,13 @@ export default function StartInterview() {
                   <Shield className="w-4 h-4 text-blue-400" />
                   What to Expect
                 </h4>
-                <ul className="space-y-2 text-xs md:text-sm text-slate-300">
-                  <li>• <strong>162 questions</strong> covering your complete background</li>
-                  <li>• Questions are asked <strong>one at a time</strong> conversationally</li>
-                  <li>• Some "Yes" answers will trigger <strong>detailed follow-ups</strong></li>
-                  <li>• Be honest and factual - investigators review all responses</li>
-                  <li>• You can pause and resume at any time</li>
-                  <li>• Average completion time: <strong>45-90 minutes</strong></li>
+                <ul className="space-y-2 text-xs md:text-sm text-slate-300 leading-relaxed">
+                  <li>• You will answer <strong>{totalQuestions} structured background questions</strong>.</li>
+                  <li>• Questions appear <strong>one at a time</strong> in a conversational, easy-to-read format.</li>
+                  <li>• A "Yes" answer may trigger additional follow-up questions to capture facts clearly.</li>
+                  <li>• You can <strong>pause, leave, and resume at any time</strong> — even on a different device.</li>
+                  <li>• Your progress is saved automatically.</li>
+                  <li>• Average completion time varies: <strong>40–90 minutes</strong> depending on your background.</li>
                 </ul>
               </div>
 
@@ -317,9 +329,9 @@ export default function StartInterview() {
                 )}
               </Button>
 
-              <p className="text-xs text-center text-slate-400 px-2">
-                By starting this interview, you acknowledge that all responses will be reviewed 
-                by authorized investigators and may be used in background screening decisions.
+              <p className="text-xs text-center text-slate-400 px-2 leading-relaxed">
+                By starting this interview, you agree that your responses may be reviewed by authorized investigators 
+                and may be used in official background screening decisions.
               </p>
             </form>
           </CardContent>
