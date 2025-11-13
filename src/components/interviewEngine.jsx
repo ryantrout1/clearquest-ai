@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -13,12 +14,19 @@
 const FOLLOWUP_PACK_STEPS = {
   // THESE PACK IDS MATCH THE Question.followup_pack FIELD VALUES EXACTLY
   
-  // Applications with Other LE Agencies
+  // Applications with Other LE Agencies - CONDITIONAL LOGIC
   'PACK_LE_APPS': [
-    { Field_Key: 'agency_name', Prompt: 'What was the name of the law enforcement agency you applied to?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'application_date', Prompt: 'When did you apply?', Response_Type: 'text', Expected_Type: 'DATE' },
+    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency did you apply to?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'application_date', Prompt: 'When did you apply? (Month and year is fine.)', Response_Type: 'text', Expected_Type: 'DATE' },
     { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'reason_not_hired', Prompt: 'If not hired, what was the reason given?', Response_Type: 'text', Expected_Type: 'TEXT' }
+    { 
+      Field_Key: 'official_reason_not_hired', 
+      Prompt: 'What was the official reason the agency gave you for not selecting you?', 
+      Response_Type: 'text', 
+      Expected_Type: 'TEXT',
+      Conditional_On: 'application_outcome',
+      Conditional_Skip_If: ['hired', 'Hired', 'HIRED', 'was hired', 'I was hired']
+    }
   ],
   
   'PACK_WITHHOLD_INFO': [
@@ -1260,8 +1268,8 @@ function validateText(val) {
     return { valid: true, normalized: val };
   }
   return { valid: false, hint: 'Please add a short sentence with the details.' };
-}
 
+}
 // ============================================================================
 // DATA LOADING & CACHING (ENTITY-DRIVEN)
 // ============================================================================
@@ -1452,6 +1460,36 @@ export function injectSubstanceIntoPackSteps(engine, packId, substanceName) {
   return injectedSteps;
 }
 
+// NEW: Function to check if a follow-up step should be skipped based on conditional logic
+export function shouldSkipFollowUpStep(step, previousAnswers) {
+  // Check if this step has conditional logic
+  if (!step.Conditional_On || !step.Conditional_Skip_If) {
+    return false; // No conditional logic, don't skip
+  }
+  
+  // Find the answer to the conditional field
+  const conditionalAnswer = previousAnswers[step.Conditional_On];
+  
+  if (conditionalAnswer === undefined || conditionalAnswer === null || conditionalAnswer.trim() === '') {
+    return false; // No answer yet, don't skip
+  }
+  
+  // Check if the answer matches any of the skip values
+  const skipValues = Array.isArray(step.Conditional_Skip_If) ? step.Conditional_Skip_If : [step.Conditional_Skip_If];
+  const normalizedAnswer = String(conditionalAnswer).trim().toLowerCase();
+  
+  const shouldSkip = skipValues.some(skipValue => 
+    normalizedAnswer === String(skipValue).trim().toLowerCase() ||
+    normalizedAnswer.includes(String(skipValue).trim().toLowerCase())
+  );
+  
+  if (shouldSkip) {
+    console.log(`⏭️ Skipping conditional step: ${step.Field_Key} because ${step.Conditional_On} = "${conditionalAnswer}"`);
+  }
+  
+  return shouldSkip;
+}
+
 // ============================================================================
 // ENTITY-BASED SELF-TEST (Console-Runnable)
 // ============================================================================
@@ -1542,12 +1580,21 @@ export function verifyPackCompletion(packId, transcript) {
   const missing = [];
   const followupAnswers = transcript.filter(t => t.type === 'followup' && t.packId === packId);
   
-  packSteps.forEach(step => {
-    const answered = followupAnswers.find(a => a.questionText === step.Prompt);
-    if (!answered || !answered.answer || answered.answer.trim() === '') {
+  const previousAnswers = {}; // To store answers for conditional skipping
+  for (const step of packSteps) {
+    const answeredEntry = followupAnswers.find(a => a.fieldKey === step.Field_Key);
+    if (answeredEntry && answeredEntry.answer !== undefined) {
+      previousAnswers[step.Field_Key] = answeredEntry.answer;
+    }
+
+    if (shouldSkipFollowUpStep(step, previousAnswers)) {
+      continue; // Skip this step due to conditional logic
+    }
+
+    if (!answeredEntry || answeredEntry.answer === undefined || answeredEntry.answer === null || String(answeredEntry.answer).trim() === '') {
       missing.push(step.Prompt);
     }
-  });
+  }
 
   return {
     complete: missing.length === 0,

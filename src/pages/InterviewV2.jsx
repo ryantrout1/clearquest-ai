@@ -19,7 +19,8 @@ import {
   validateFollowUpAnswer,
   checkFollowUpTrigger,
   computeNextQuestionId,
-  injectSubstanceIntoPackSteps
+  injectSubstanceIntoPackSteps,
+  shouldSkipFollowUpStep
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 
@@ -113,6 +114,9 @@ export default function InterviewV2() {
   const [transcript, setTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
+  
+  // NEW: Track answers within current follow-up pack for conditional logic
+  const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
   // NEW: AI agent integration
   const [conversation, setConversation] = useState(null);
@@ -467,8 +471,12 @@ export default function InterviewV2() {
     
     // Add each follow-up answer
     followUpAnswers.forEach((answer, idx) => {
-      const step = packSteps[idx];
-      summaryLines.push(`- ${step.Prompt}: ${answer.answer}`);
+      const step = packSteps.find(s => s.Prompt === answer.questionText); // Find by prompt as index might be off due to skipping
+      if (step) {
+        summaryLines.push(`- ${step.Prompt}: ${answer.answer}`);
+      } else {
+        summaryLines.push(`- ${answer.questionText}: ${answer.answer}`); // Fallback if step not found (shouldn't happen)
+      }
     });
     
     summaryLines.push(``);
@@ -526,7 +534,7 @@ export default function InterviewV2() {
   }, [agentMessages, isWaitingForAgent, transcript]);
 
   // ============================================================================
-  // ANSWER SUBMISSION - HYBRID LOGIC
+  // ANSWER SUBMISSION - HYBRID LOGIC WITH CONDITIONAL FOLLOW-UPS
   // ============================================================================
 
   const handleAnswer = useCallback(async (value) => {
@@ -571,6 +579,9 @@ export default function InterviewV2() {
           const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
           
           if (packSteps && packSteps.length > 0) {
+            // Reset follow-up answers tracker for new pack
+            setCurrentFollowUpAnswers({});
+            
             // Queue all follow-up steps
             const followupQueue = [];
             for (let i = 0; i < packSteps.length; i++) {
@@ -584,7 +595,7 @@ export default function InterviewV2() {
               });
             }
             
-            // FIXED: Set current to first item, queue to rest
+            // Set current to first item, queue to rest
             const firstItem = followupQueue[0];
             const remainingQueue = followupQueue.slice(1);
             
@@ -636,8 +647,30 @@ export default function InterviewV2() {
           const newTranscript = [...transcript, transcriptEntry];
           setTranscript(newTranscript);
 
-          const updatedQueue = [...queue];
-          const nextItem = updatedQueue.shift() || null;
+          // Update follow-up answers tracker
+          const updatedFollowUpAnswers = {
+            ...currentFollowUpAnswers,
+            [step.Field_Key]: step.PrefilledAnswer
+          };
+          setCurrentFollowUpAnswers(updatedFollowUpAnswers);
+
+          let updatedQueue = [...queue];
+          let nextItem = updatedQueue.shift() || null;
+          
+          // NEW: Skip conditional follow-ups based on previous answers
+          while (nextItem && nextItem.type === 'followup') {
+            const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+            const nextStep = nextPackSteps[nextItem.stepIndex];
+            
+            if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+              console.log(`⏭️ Skipping conditional step: ${nextStep.Field_Key}`);
+              // Skip this step and move to next
+              nextItem = updatedQueue.shift() || null;
+            } else {
+              // This step should be asked
+              break;
+            }
+          }
           
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
@@ -686,14 +719,43 @@ export default function InterviewV2() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
+        // Update follow-up answers tracker
+        const updatedFollowUpAnswers = {
+          ...currentFollowUpAnswers,
+          [step.Field_Key]: validation.normalized || value
+        };
+        setCurrentFollowUpAnswers(updatedFollowUpAnswers);
+
         // Save to database
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
         
-        // Check if this was the LAST follow-up in the pack
-        const isLastFollowUp = stepIndex === totalSteps - 1;
+        // Check if there are more steps in the queue
+        let updatedQueue = [...queue];
+        let nextItem = updatedQueue.shift() || null;
+        
+        // NEW: Skip conditional follow-ups based on previous answers
+        while (nextItem && nextItem.type === 'followup') {
+          const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+          const nextStep = nextPackSteps[nextItem.stepIndex];
+          
+          if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+            console.log(`⏭️ Skipping conditional step: ${nextStep.Field_Key}`);
+            // Skip this step and move to next
+            nextItem = updatedQueue.shift() || null;
+          } else {
+            // This step should be asked
+            break;
+          }
+        }
+        
+        // Check if this was the LAST follow-up in the pack (or all remaining were skipped)
+        const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
         if (isLastFollowUp) {
           console.log(`🎯 Last follow-up in ${packId} completed — preparing for AI agent handoff`);
+          
+          // Reset follow-up answers tracker
+          setCurrentFollowUpAnswers({});
           
           // Collect all follow-up answers for this pack
           const packAnswers = newTranscript.filter(t => 
@@ -723,9 +785,6 @@ export default function InterviewV2() {
           }
         } else {
           // More follow-ups remain - continue with deterministic engine
-          const updatedQueue = [...queue];
-          const nextItem = updatedQueue.shift() || null;
-          
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
           
@@ -742,7 +801,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, handoffToAgentForProbing]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing]);
 
   // NEW: Handle agent probing questions
   const handleAgentAnswer = useCallback(async (value) => {
@@ -994,6 +1053,7 @@ export default function InterviewV2() {
       return "Respond to investigator's question...";
     }
     
+    const currentPrompt = getCurrentPrompt(); // Get current prompt in this function context
     if (!currentPrompt) return "Type your answer...";
     
     if (currentPrompt.type === 'followup') {
