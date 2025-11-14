@@ -782,24 +782,39 @@ export default function InterviewV2() {
       fullObject: conversation
     });
 
-    if (!conversation) {
-      console.error("[TEST] No conversation object available");
+    if (!conversation || !conversation.id) {
+      console.error("[TEST] No valid conversation object");
       return;
     }
 
     try {
-      // Use EXACT same signature as working Interview.js (line 359-362)
+      // CRITICAL: Fetch fresh conversation before adding message
+      // This matches what happens in Interview.js when resuming
+      console.log("[TEST] Fetching fresh conversation data...");
+      const freshConversation = await base44.agents.getConversation(conversation.id);
+      
+      console.log("[TEST] Fresh conversation retrieved:", {
+        id: freshConversation.id,
+        hasMessages: !!freshConversation.messages,
+        messageCount: freshConversation.messages?.length || 0,
+        keys: Object.keys(freshConversation)
+      });
+
       const messagePayload = {
         role: "user",
         content: "TEST MESSAGE from InterviewV2 debug button"
       };
 
-      console.log("[TEST] Calling addMessage with:", {
-        conversationArg: conversation,
+      console.log("[TEST] Calling addMessage with fresh conversation:", {
+        conversationArg: {
+          id: freshConversation.id,
+          agent_name: freshConversation.agent_name,
+          hasMessages: !!freshConversation.messages
+        },
         messagePayload
       });
 
-      const result = await base44.agents.addMessage(conversation, messagePayload);
+      const result = await base44.agents.addMessage(freshConversation, messagePayload);
 
       console.log("[TEST] ✅ addMessage SUCCESS - result:", result);
       toast.success("Test message sent successfully");
