@@ -687,7 +687,16 @@ function CompactQuestionRow({ response, followups, conversation }) {
 
 // Helper function to extract AI probing Q&A pairs for a specific question
 function extractAIProbingForQuestion(conversation, questionId, followupPack) {
+  // CRITICAL DEBUG: Log what we receive
+  console.log('🔍 extractAIProbingForQuestion called:', {
+    hasConversation: !!conversation,
+    messageCount: conversation?.messages?.length || 0,
+    questionId,
+    followupPack
+  });
+
   if (!conversation?.messages || !followupPack) {
+    console.log('⚠️ Missing conversation data or followup pack - returning empty array');
     return [];
   }
 
@@ -708,12 +717,14 @@ function extractAIProbingForQuestion(conversation, questionId, followupPack) {
         msg.content.includes(`Question ID: ${questionId}`) &&
         msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
       startIndex = i + 1; // Start from next message (AI's first probing question)
+      console.log(`✅ Found start of probing for ${questionId} / ${followupPack} at message ${i}`);
     }
 
     // Check if this is the end (next base question sent by AI)
     // This assumes base questions are usually assistant messages containing 'Q' followed by digits.
     if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
       endIndex = i;
+      console.log(`✅ Found end of probing at message ${i} (next base question)`);
       break;
     }
   }
@@ -723,6 +734,8 @@ function extractAIProbingForQuestion(conversation, questionId, followupPack) {
     const probingMessages = endIndex !== -1
       ? messages.slice(startIndex, endIndex)
       : messages.slice(startIndex);
+
+    console.log(`📊 Extracting from ${probingMessages.length} probing messages`);
 
     for (let i = 0; i < probingMessages.length; i++) {
       const currentMsg = probingMessages[i];
@@ -752,6 +765,10 @@ function extractAIProbingForQuestion(conversation, questionId, followupPack) {
         i++; // Skip the answer message in next iteration
       }
     }
+
+    console.log(`✅ Extracted ${exchanges.length} Q&A exchanges for ${questionId}`);
+  } else {
+    console.log(`⚠️ No start marker found for ${questionId} / ${followupPack}`);
   }
 
   return exchanges;
