@@ -486,14 +486,16 @@ function InterviewSessionCard({ session, departments }) {
               <div className="flex flex-col sm:flex-row md:flex-col gap-2">
                 <Button
                   onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm h-9 w-full"
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
                 >
                   View Interview
                 </Button>
                 <Button
                   onClick={() => setIsDeleteDialogOpen(true)}
                   variant="outline"
-                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200 text-sm h-9 w-full"
+                  size="sm"
+                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200 text-xs h-8 w-full"
                 >
                   Delete
                 </Button>
