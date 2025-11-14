@@ -772,14 +772,17 @@ export default function InterviewV2() {
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
   const handleSendTestAIMsg = useCallback(async () => {
-    console.log("[TEST] Button clicked");
-    console.log("[TEST] Conversation object:", {
+    console.log("[TEST] ========== START TEST ==========");
+    console.log("[TEST] Conversation state:", {
       exists: !!conversation,
       type: typeof conversation,
       id: conversation?.id,
       agent_name: conversation?.agent_name,
-      keys: conversation ? Object.keys(conversation) : [],
-      fullObject: conversation
+      hasMessages: !!conversation?.messages,
+      messagesType: typeof conversation?.messages,
+      messagesIsArray: Array.isArray(conversation?.messages),
+      messagesLength: conversation?.messages?.length,
+      conversationKeys: conversation ? Object.keys(conversation) : []
     });
 
     if (!conversation || !conversation.id) {
@@ -788,43 +791,91 @@ export default function InterviewV2() {
     }
 
     try {
-      // CRITICAL: Fetch fresh conversation before adding message
-      // This matches what happens in Interview.js when resuming
-      console.log("[TEST] Fetching fresh conversation data...");
+      // Fetch fresh conversation to ensure we have all properties
+      console.log("[TEST] Step 1: Fetching fresh conversation...");
       const freshConversation = await base44.agents.getConversation(conversation.id);
       
-      console.log("[TEST] Fresh conversation retrieved:", {
-        id: freshConversation.id,
-        hasMessages: !!freshConversation.messages,
-        messageCount: freshConversation.messages?.length || 0,
-        keys: Object.keys(freshConversation)
+      console.log("[TEST] Step 2: Fresh conversation structure:", {
+        id: freshConversation?.id,
+        agent_name: freshConversation?.agent_name,
+        hasMessages: !!freshConversation?.messages,
+        messagesType: typeof freshConversation?.messages,
+        messagesIsArray: Array.isArray(freshConversation?.messages),
+        messagesLength: freshConversation?.messages?.length || 0,
+        allKeys: freshConversation ? Object.keys(freshConversation) : []
       });
 
-      const messagePayload = {
-        role: "user",
-        content: "TEST MESSAGE from InterviewV2 debug button"
-      };
+      // Ensure messages array exists
+      if (!freshConversation.messages) {
+        console.warn("[TEST] Fresh conversation missing messages array, adding empty array");
+        freshConversation.messages = [];
+      }
 
-      console.log("[TEST] Calling addMessage with fresh conversation:", {
-        conversationArg: {
+      // Try multiple payload formats to find which one works
+      const testPayloads = [
+        // Format 1: Simple object (Interview.js style)
+        {
+          name: "Simple object",
+          payload: {
+            role: "user",
+            content: "TEST 1: Simple format"
+          }
+        },
+        // Format 2: Wrapped in messages array
+        {
+          name: "Messages array",
+          payload: {
+            messages: [{
+              role: "user",
+              content: "TEST 2: Messages array format"
+            }]
+          }
+        },
+        // Format 3: Content as array with type
+        {
+          name: "Content array with type",
+          payload: {
+            role: "user",
+            content: [
+              { type: "text", text: "TEST 3: Content array format" }
+            ]
+          }
+        }
+      ];
+
+      for (const test of testPayloads) {
+        console.log(`[TEST] Trying format: ${test.name}`);
+        console.log("[TEST] Conversation arg:", JSON.stringify({
           id: freshConversation.id,
           agent_name: freshConversation.agent_name,
-          hasMessages: !!freshConversation.messages
-        },
-        messagePayload
-      });
+          messages_length: freshConversation.messages?.length
+        }, null, 2));
+        console.log("[TEST] Message payload:", JSON.stringify(test.payload, null, 2));
 
-      const result = await base44.agents.addMessage(freshConversation, messagePayload);
+        try {
+          const result = await base44.agents.addMessage(freshConversation, test.payload);
+          console.log(`[TEST] ✅ SUCCESS with format: ${test.name}`);
+          console.log("[TEST] Result:", result);
+          toast.success(`Test succeeded with format: ${test.name}`);
+          return; // Exit on first success
+        } catch (err) {
+          console.error(`[TEST] ❌ FAILED with format: ${test.name}`);
+          console.error("[TEST] Error:", err?.message);
+          console.error("[TEST] Full error:", err);
+        }
+      }
 
-      console.log("[TEST] ✅ addMessage SUCCESS - result:", result);
-      toast.success("Test message sent successfully");
+      toast.error("All payload formats failed - see console");
+      
     } catch (err) {
-      console.error("[TEST] ❌ addMessage FAILED");
+      console.error("[TEST] ❌ Outer try-catch error:");
       console.error("[TEST] Error:", err);
-      console.error("[TEST] Error message:", err.message);
-      console.error("[TEST] Error stack:", err.stack);
-      toast.error(`Test failed: ${err.message}`);
+      console.error("[TEST] Error message:", err?.message);
+      console.error("[TEST] Error stack:", err?.stack);
+      toast.error(`Outer error: ${err.message}`);
     }
+    
+    console.log("[TEST] ========== END TEST ==========");
   }, [conversation]);
 
   const handleTextSubmit = useCallback((e) => {
