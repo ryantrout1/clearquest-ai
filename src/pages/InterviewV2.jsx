@@ -340,14 +340,16 @@ export default function InterviewV2() {
           questionId,
           packId,
           hasConversation: !!conversation,
+          conversationType: typeof conversation,
+          conversationKeys: conversation ? Object.keys(conversation) : [],
           answersType: typeof followUpAnswers,
           isArray: Array.isArray(followUpAnswers),
           answersLength: Array.isArray(followUpAnswers) ? followUpAnswers.length : 0,
         });
 
         // If there is no conversation, just fall back to next main question
-        if (!conversation) {
-          console.log('[handoffToAI] No conversation - skipping to next question');
+        if (!conversation || !conversation.id) {
+          console.log('[handoffToAI] No valid conversation - skipping to next question');
           const nextQuestionId = computeNextQuestionId(engine, questionId, "Yes");
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             setCurrentItem({ id: nextQuestionId, type: "question" });
@@ -393,17 +395,23 @@ export default function InterviewV2() {
         setCurrentAIProbePackId(aiProbePackId);
         setAIProbeCount(0);
 
-        console.log("[addMessage] Sending to conversation:", {
-          conversationId: conversation.id,
-          messageRole: "user",
-          summaryLength: summary.length
+        const messagePayload = {
+          role: "user",
+          content: summary
+        };
+
+        console.log("[addMessage] About to send:", {
+          conversationObject: {
+            id: conversation.id,
+            agent_name: conversation.agent_name,
+            hasMessages: !!conversation.messages,
+            messagesLength: conversation.messages?.length || 0
+          },
+          messagePayload
         });
 
-        // Send the message to the AI conversation using the conversation object
-        await base44.agents.addMessage(conversation, {
-          role: "user",
-          content: summary,
-        });
+        // Send the message to the AI conversation - matching Interview.js signature
+        await base44.agents.addMessage(conversation, messagePayload);
 
         console.log("[handoffToAI] Message sent successfully");
 
@@ -418,7 +426,8 @@ export default function InterviewV2() {
         });
 
       } catch (err) {
-        console.error("[handoffToAI] Error:", err);
+        console.error("[handoffToAI] Full error object:", err);
+        console.error("[handoffToAI] Error stack:", err.stack);
       }
     },
     [conversation, engine, persistState]
@@ -730,7 +739,7 @@ export default function InterviewV2() {
   }, [currentItem, engine, queue, sessionId, conversation, currentFollowUpAnswers, session, chatHistory, refreshChatHistory, isCommitting, handoffToAI, persistState]);
 
   const handleAgentAnswer = useCallback(async (value) => {
-    if (!conversation || isCommitting || !isWaitingForAgent) return;
+    if (!conversation || !conversation.id || isCommitting || !isWaitingForAgent) return;
     setIsCommitting(true);
     setInput("");
     lastActivityRef.current = Date.now();
@@ -742,19 +751,22 @@ export default function InterviewV2() {
     });
     
     try {
-      console.log("[handleAgentAnswer] Sending probe answer:", {
+      const messagePayload = {
+        role: 'user',
+        content: value
+      };
+
+      console.log("[handleAgentAnswer] About to send:", {
         conversationId: conversation.id,
-        answerLength: value.length
+        messagePayload
       });
 
-      await base44.agents.addMessage(conversation, {
-        role: 'user',
-        content: value,
-      });
+      await base44.agents.addMessage(conversation, messagePayload);
       
       setIsCommitting(false);
     } catch (err) {
-      console.error('❌ Error:', err);
+      console.error('❌ [handleAgentAnswer] Error:', err);
+      console.error('❌ [handleAgentAnswer] Error stack:', err.stack);
       setIsCommitting(false);
     }
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
