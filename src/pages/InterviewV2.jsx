@@ -118,7 +118,7 @@ export default function InterviewV2() {
   const [currentItem, setCurrentItem] = useState(null);
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
-  const [conversation, setConversation] = useState(null);
+  const [conversation, setConversation] = useState(null); // This will now store the conversation ID string
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
@@ -268,7 +268,7 @@ export default function InterviewV2() {
             await base44.entities.InterviewSession.update(sessionId, {
               conversation_id: newConversation.id
             });
-            setConversation(newConversation);
+            setConversation(newConversation.id); // Store only the ID
           } else {
             setConversation(null);
           }
@@ -277,16 +277,14 @@ export default function InterviewV2() {
           setConversation(null);
         }
       } else {
+        setConversation(loadedSession.conversation_id); // Store the existing ID
         try {
           const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
-          if (existingConversation?.id) {
-            setConversation(existingConversation);
-            if (existingConversation.messages) {
-              setAgentMessages(existingConversation.messages);
-            }
+          if (existingConversation?.messages) {
+            setAgentMessages(existingConversation.messages);
           }
         } catch (convError) {
-          setConversation(null);
+          console.warn('⚠️ Could not load existing messages');
         }
       }
       
@@ -339,17 +337,12 @@ export default function InterviewV2() {
         console.log("[handoffToAI] Called with:", {
           questionId,
           packId,
-          hasConversation: !!conversation,
-          conversationType: typeof conversation,
-          conversationKeys: conversation ? Object.keys(conversation) : [],
-          answersType: typeof followUpAnswers,
-          isArray: Array.isArray(followUpAnswers),
-          answersLength: Array.isArray(followUpAnswers) ? followUpAnswers.length : 0,
+          conversationId: conversation // Reflects that `conversation` is now an ID
         });
 
-        // If there is no conversation, just fall back to next main question
-        if (!conversation || !conversation.id) {
-          console.log('[handoffToAI] No valid conversation - skipping to next question');
+        // If there is no conversation ID, just fall back to next main question
+        if (!conversation) { // Check if conversation ID is null
+          console.log('[handoffToAI] No conversation - skipping to next question');
           const nextQuestionId = computeNextQuestionId(engine, questionId, "Yes");
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             setCurrentItem({ id: nextQuestionId, type: "question" });
@@ -401,16 +394,12 @@ export default function InterviewV2() {
         };
 
         console.log("[addMessage] About to send:", {
-          conversationObject: {
-            id: conversation.id,
-            agent_name: conversation.agent_name,
-            hasMessages: !!conversation.messages,
-            messagesLength: conversation.messages?.length || 0
-          },
+          conversationId: conversation, // Now an ID string
           messagePayload
         });
 
         // Send the message to the AI conversation - matching Interview.js signature
+        // Assuming base44.agents.addMessage can take the conversation ID directly
         await base44.agents.addMessage(conversation, messagePayload);
 
         console.log("[handoffToAI] Message sent successfully");
@@ -739,7 +728,8 @@ export default function InterviewV2() {
   }, [currentItem, engine, queue, sessionId, conversation, currentFollowUpAnswers, session, chatHistory, refreshChatHistory, isCommitting, handoffToAI, persistState]);
 
   const handleAgentAnswer = useCallback(async (value) => {
-    if (!conversation || !conversation.id || isCommitting || !isWaitingForAgent) return;
+    // Check if conversation ID is available
+    if (!conversation || isCommitting || !isWaitingForAgent) return;
     setIsCommitting(true);
     setInput("");
     lastActivityRef.current = Date.now();
@@ -751,17 +741,11 @@ export default function InterviewV2() {
     });
     
     try {
-      const messagePayload = {
+      console.log("[handleAgentAnswer] Sending to conversation:", conversation); // Now using conversation ID
+      await base44.agents.addMessage(conversation, { // Assuming base44.agents.addMessage can take conversation ID
         role: 'user',
         content: value
-      };
-
-      console.log("[handleAgentAnswer] About to send:", {
-        conversationId: conversation.id,
-        messagePayload
       });
-
-      await base44.agents.addMessage(conversation, messagePayload);
       
       setIsCommitting(false);
     } catch (err) {
@@ -774,8 +758,8 @@ export default function InterviewV2() {
   const handleSendTestAIMsg = useCallback(async () => {
     console.log("[TEST] ========== START TEST ==========");
 
-    if (!conversation || !conversation.id) {
-      console.error("[TEST] No valid conversation object");
+    if (!conversation) { // Check if conversation ID exists
+      console.error("[TEST] No valid conversation ID");
       toast.error("No conversation available");
       return;
     }
@@ -783,15 +767,14 @@ export default function InterviewV2() {
     try {
       // CRITICAL: Always fetch a fresh conversation object right before addMessage
       // This ensures we have the complete, uncorrupted structure the SDK expects
-      console.log("[TEST] Fetching fresh conversation object...");
-      const freshConversation = await base44.agents.getConversation(conversation.id);
+      console.log("[TEST] Fetching fresh conversation object for ID:", conversation);
+      const freshConversation = await base44.agents.getConversation(conversation); // Pass ID directly
       
       console.log("[TEST] Fresh conversation:", {
         id: freshConversation.id,
         agent_name: freshConversation.agent_name,
         hasMessages: !!freshConversation.messages,
-        messagesLength: freshConversation.messages?.length || 0,
-        allKeys: Object.keys(freshConversation)
+        messagesLength: freshConversation.messages?.length || 0
       });
 
       const messagePayload = {
@@ -800,17 +783,17 @@ export default function InterviewV2() {
       };
 
       console.log("[TEST] Message payload:", messagePayload);
-      console.log("[TEST] Calling base44.agents.addMessage...");
+      console.log("[TEST] Calling base44.agents.addMessage with conversation ID:", freshConversation.id);
 
-      // Use the fresh conversation object directly
-      const result = await base44.agents.addMessage(freshConversation, messagePayload);
+      // Use the fresh conversation's ID to send the message, consistent with `conversation` state
+      const result = await base44.agents.addMessage(freshConversation.id, messagePayload);
 
       console.log("[TEST] ✅ SUCCESS!");
       console.log("[TEST] Result:", result);
       toast.success("Test message sent successfully");
       
-      // Update state with the fresh conversation
-      setConversation(freshConversation);
+      // Update state with the fresh conversation ID
+      setConversation(freshConversation.id);
       
     } catch (err) {
       console.error("[TEST] ❌ FAILED");
