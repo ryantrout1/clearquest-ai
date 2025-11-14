@@ -521,7 +521,7 @@ export default function InterviewV2() {
             const nextStep = packSteps[nextItem.stepIndex];
             if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
               nextItem = updatedQueue[0] || null;
-              updatedQueue = updatedQueue.slice(1);
+              updatedQueue = updatedQueue.splice(0,1);
             } else {
               break;
             }
@@ -641,16 +641,19 @@ export default function InterviewV2() {
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
   const handleTextSubmit = useCallback((e) => {
-    if (e) e.preventDefault();
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
+
     const answer = input.trim();
     if (!answer || isCommitting) return;
-    
+
     if (isWaitingForAgent) {
       handleAgentAnswer(answer);
     } else {
       handleAnswer(answer);
     }
-  }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer, isCommitting]);
+  }, [input, isCommitting, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -948,9 +951,8 @@ export default function InterviewV2() {
               </div>
             ) : (
               <form onSubmit={handleTextSubmit} className="flex gap-3">
-                <input
+                <Input
                   ref={inputRef}
-                  type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -958,7 +960,11 @@ export default function InterviewV2() {
                   className="flex-1 bg-slate-800 border border-slate-600 text-white h-14 text-lg px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isCommitting}
                 />
-                <Button type="submit" disabled={!input.trim() || isCommitting} className="bg-blue-600 hover:bg-blue-700 h-14 px-6">
+                <Button
+                  type="submit"
+                  disabled={!input.trim() || isCommitting}
+                  className="bg-blue-600 hover:bg-blue-700 h-14 px-6"
+                >
                   <Send className="w-5 h-5" />
                 </Button>
               </form>
