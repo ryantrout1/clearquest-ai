@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -562,7 +563,7 @@ export default function InterviewV2() {
             nextItem = updatedQueue[0] || null;
             updatedQueue = updatedQueue.slice(1);
           } else {
-            break;
+              break;
           }
         }
         
@@ -945,7 +946,7 @@ export default function InterviewV2() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Type your answer..."
-                  className="flex-1 bg-slate-800 border-slate-600 text-white h-14 text-base"
+                  className="flex-1 bg-slate-800 border-slate-600 text-white h-14 text-lg"
                   disabled={isCommitting}
                 />
                 <Button type="submit" disabled={!input.trim() || isCommitting} className="bg-blue-600 hover:bg-blue-700 h-14 px-6">
