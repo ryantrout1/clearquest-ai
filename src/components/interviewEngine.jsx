@@ -203,6 +203,18 @@ const FOLLOWUP_PACK_STEPS = {
   ],
 
   // ========== Criminal Involvement / Police Contacts ==========
+  
+  // NEW: Missing pack for Q044 - Stolen vehicle involvement
+  'PACK_STOLEN_VEHICLE': [
+    { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances. How did you know the vehicle was stolen?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_role', Prompt: 'What was your involvement? Were you a passenger, driver, or otherwise involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+  
   'PACK_ARREST': [
     { Field_Key: 'arrest_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
