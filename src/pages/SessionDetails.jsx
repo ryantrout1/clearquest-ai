@@ -733,7 +733,8 @@ function extractAIProbingForQuestion(conversation, questionId, followupPack) {
           typeof currentMsg.content === 'string' &&
           !currentMsg.content.includes('Follow-up pack completed') && // Exclude system messages
           nextMsg?.role === 'user' &&
-          typeof nextMsg.content === 'string') {
+          typeof nextMsg.content === 'string' &&
+          !nextMsg.content.includes('Follow-up pack completed')) { // CRITICAL FIX: Exclude system handoff messages from user responses
 
         // Clean up the question text (remove any system markers)
         const cleanQuestion = currentMsg.content
