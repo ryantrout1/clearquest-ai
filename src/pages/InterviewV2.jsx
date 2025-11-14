@@ -641,7 +641,7 @@ export default function InterviewV2() {
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
   const handleTextSubmit = useCallback((e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const answer = input.trim();
     if (!answer || isCommitting) return;
     
