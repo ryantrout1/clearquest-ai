@@ -573,21 +573,112 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
   );
 }
 
-// CRITICAL FIX: Read probing from database instead of extracting from conversation
+// PRODUCTION FIX: Hybrid data source - database first, conversation fallback
+function extractAIProbingForQuestion(conversation, questionId, followupPack) {
+  if (!conversation?.messages || !followupPack) {
+    return [];
+  }
+
+  const exchanges = [];
+  const messages = conversation.messages;
+
+  let startIndex = -1;
+  let endIndex = -1;
+
+  // Attempt to find the specific follow-up pack completion message
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === 'user' &&
+        typeof msg.content === 'string' &&
+        msg.content.includes('Follow-up pack completed') &&
+        msg.content.includes(`Question ID: ${questionId}`) &&
+        msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
+      startIndex = i + 1; // Probing starts *after* this message
+      // Find where the next primary question begins
+      for (let j = startIndex; j < messages.length; j++) {
+        if (messages[j].role === 'assistant' && typeof messages[j].content === 'string' && messages[j].content.match(/\bQ\d{1,3}\b/i)) {
+          endIndex = j;
+          break;
+        }
+      }
+      break; // Found the start, no need to search further
+    }
+  }
+
+  // Fallback: If not found by "Follow-up pack completed", try to locate using questionId or followupPack
+  if (startIndex === -1) {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'user' && 
+          typeof msg.content === 'string' && 
+          (msg.content.includes(questionId) || msg.content.includes(followupPack))) {
+        startIndex = i + 1; // Probing starts *after* this message
+        
+        // Find where the next primary question begins
+        for (let j = i + 1; j < messages.length; j++) {
+          if (messages[j].role === 'assistant' && 
+              typeof messages[j].content === 'string' && 
+              messages[j].content.match(/\bQ\d{1,3}\b/i)) {
+            endIndex = j;
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  if (startIndex !== -1) {
+    const probingMessages = endIndex !== -1
+      ? messages.slice(startIndex, endIndex)
+      : messages.slice(startIndex); // If no end found, go to the end of conversation
+
+    for (let i = 0; i < probingMessages.length; i++) {
+      const currentMsg = probingMessages[i];
+      const nextMsg = probingMessages[i + 1];
+
+      // An exchange consists of an assistant's probing question followed by a user's candidate response
+      if (currentMsg.role === 'assistant' &&
+          typeof currentMsg.content === 'string' &&
+          !currentMsg.content.includes('Follow-up pack completed') && // Exclude these system messages
+          !currentMsg.content.match(/\bQ\d{1,3}\b/i) && // Exclude primary questions
+          nextMsg?.role === 'user' &&
+          typeof nextMsg.content === 'string' &&
+          !nextMsg.content.includes('Follow-up pack completed')) { // Exclude system messages
+
+        const cleanQuestion = currentMsg.content
+          .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '') // Remove timestamps
+          .trim();
+
+        // Ensure both question and response are substantial before adding
+        if (cleanQuestion && nextMsg.content && cleanQuestion.length > 5) { // Basic length check
+          exchanges.push({
+            probing_question: cleanQuestion,
+            candidate_response: nextMsg.content
+          });
+        }
+
+        i++; // Skip the user's response as it's already processed
+      }
+    }
+  }
+
+  return exchanges;
+}
+
 function CompactQuestionRow({ response, followups, conversation }) {
   const hasFollowups = followups.length > 0;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const questionNumber = response.display_number.toString().padStart(3, '0');
 
-  // PRODUCTION FIX: Read probing exchanges directly from Response.investigator_probing field
-  const aiProbingExchanges = response.investigator_probing || [];
-
-  // DEBUG: Log what we have
-  // console.log(`🔍 Question ${response.question_id}:`, {
-  //   hasFollowups,
-  //   probingCount: aiProbingExchanges.length,
-  //   probingSource: 'database'
-  // });
+  // HYBRID: Try database first, fall back to conversation extraction
+  let aiProbingExchanges = response.investigator_probing || [];
+  
+  // FALLBACK: If database is empty but we have conversation, try extracting
+  if (aiProbingExchanges.length === 0 && conversation && response.followup_pack) {
+    aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+  }
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -644,7 +735,6 @@ function CompactQuestionRow({ response, followups, conversation }) {
               );
             })}
 
-            {/* PRODUCTION FIX: Always render from database field */}
             {aiProbingExchanges.length > 0 && (
               <div className="border-t border-slate-600/50 pt-3 space-y-2">
                 <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -696,8 +786,12 @@ function TranscriptEntry({ item, conversation }) {
   if (item.type === 'question') {
     const response = item.data;
     
-    // PRODUCTION FIX: Read probing from database
-    const aiProbingExchanges = response.investigator_probing || [];
+    // HYBRID: Database first, conversation fallback
+    let aiProbingExchanges = response.investigator_probing || [];
+    
+    if (aiProbingExchanges.length === 0 && conversation && response.followup_pack) {
+      aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+    }
     
     return (
       <div className="space-y-2">
@@ -716,7 +810,6 @@ function TranscriptEntry({ item, conversation }) {
           </div>
         </div>
         
-        {/* Show probing in transcript view as well */}
         {aiProbingExchanges.length > 0 && (
           <div className="ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30">
             <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -999,7 +1092,12 @@ function generateReportHTML(session, responses, followups, questions, department
           <div class="section-title">${category}</div>
           ${categoryResponses.map(response => {
             const relatedFollowups = followups.filter(f => f.response_id === response.id);
-            const aiProbingExchanges = response.investigator_probing || [];
+            
+            // HYBRID: Try database first, fall back to conversation extraction for report
+            let aiProbingExchanges = response.investigator_probing || [];
+            if (aiProbingExchanges.length === 0 && conversation && response.followup_pack) {
+              aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+            }
 
             return `
               <div class="question-block">
@@ -1016,7 +1114,7 @@ function generateReportHTML(session, responses, followups, questions, department
                       <div class="follow-up-title">📋 Follow-Up Details${followup.substance_name ? `: ${followup.substance_name}` : ''}</div>
                       ${Object.entries(details).map(([key, value]) => `
                         <div class="follow-up-item">
-                          <strong>${key.replace(/_/g, ' ')}:</strong> ${value}
+                          <strong>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong> ${value}
                         </div>
                       `).join('')}
                     </div>
