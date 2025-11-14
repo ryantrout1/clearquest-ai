@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -23,12 +22,10 @@ export default function StartInterview() {
   const [error, setError] = useState(null);
   const [departmentCodeError, setDepartmentCodeError] = useState(false);
   
-  // Debug mode toggle
   const [debugMode, setDebugMode] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
-  // Dynamic question count
-  const [totalQuestions, setTotalQuestions] = useState(198); // Default fallback
+  const [totalQuestions, setTotalQuestions] = useState(198);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
   useEffect(() => {
@@ -42,7 +39,6 @@ export default function StartInterview() {
       setTotalQuestions(questions.length);
     } catch (err) {
       console.error("Error loading question count:", err);
-      // Keep default value of 198
     } finally {
       setIsLoadingQuestions(false);
     }
@@ -102,17 +98,19 @@ export default function StartInterview() {
     try {
       const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
       
-      console.log("🔍 Checking for existing sessions...");
+      console.log("🔍 Checking for existing sessions with code:", sessionCode);
       const existingSessions = await base44.entities.InterviewSession.filter({ 
         session_code: sessionCode 
       });
+      
+      console.log(`   Found ${existingSessions.length} existing session(s)`);
       
       const activeSession = existingSessions.find(s => 
         s.status === 'in_progress' || s.status === 'paused'
       );
       
       if (activeSession) {
-        console.log("✅ Found existing session, resuming...");
+        console.log("✅ Found existing active session, resuming:", activeSession.id);
         navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
         return;
       }
@@ -124,7 +122,7 @@ export default function StartInterview() {
         return;
       }
 
-      console.log("📝 Creating new session...");
+      console.log("📝 Creating new session with code:", sessionCode);
       const sessionHash = await generateHash(sessionCode);
       
       const newSession = await base44.entities.InterviewSession.create({
@@ -142,22 +140,46 @@ export default function StartInterview() {
         transcript_snapshot: [],
         queue_snapshot: [],
         current_item_snapshot: null,
+        current_question_id: null,
+        current_category: null,
+        conversation_id: null,
         data_version: "v2.5-hybrid",
         metadata: {
           created_via: "web_interface",
           user_agent: navigator.userAgent,
           version: "v2_deterministic",
           debug_mode: debugMode,
-          probing_strength: "production_standard"
+          probing_strength: "production_standard",
+          created_timestamp: new Date().toISOString()
         }
       });
       
-      console.log("✅ Session created successfully:", newSession);
-      console.log("   - Session ID:", newSession.id);
-      console.log("   - Session Code:", newSession.session_code);
+      console.log("✅ Session created successfully");
+      console.log("   - Session object:", newSession);
+      console.log("   - Session ID:", newSession?.id);
+      console.log("   - Session Code:", newSession?.session_code);
       
-      if (!newSession || !newSession.id) {
-        throw new Error("Session creation returned invalid object - missing ID");
+      // CRITICAL: Validate session was created properly
+      if (!newSession) {
+        throw new Error("Session creation returned null/undefined");
+      }
+      
+      if (!newSession.id) {
+        console.error("❌ Session object missing ID field:", newSession);
+        throw new Error("Session creation returned object without ID field");
+      }
+      
+      // PRODUCTION FIX: Verify session exists in database before redirecting
+      console.log("🔍 Verifying session exists in database...");
+      try {
+        const verifySession = await base44.entities.InterviewSession.get(newSession.id);
+        if (!verifySession) {
+          throw new Error("Session created but verification lookup failed");
+        }
+        console.log("✅ Session verified in database");
+      } catch (verifyError) {
+        console.error("❌ Session verification failed:", verifyError);
+        throw new Error(`Session created but cannot be retrieved: ${verifyError.message}`);
       }
       
       if (debugMode) {
@@ -168,11 +190,11 @@ export default function StartInterview() {
       navigate(createPageUrl(`InterviewV2?session=${newSession.id}`));
       
     } catch (err) {
-      console.error("❌ Error creating session:", err);
+      console.error("❌ Error in session creation flow:");
       console.error("   - Error type:", err.constructor.name);
       console.error("   - Error message:", err.message);
-      console.error("   - Stack:", err.stack);
-      setError(`Failed to create interview session: ${err.message || 'Please try again.'}`);
+      console.error("   - Full error:", err);
+      setError(`Failed to create interview session: ${err.message || 'Unknown error. Please try again.'}`);
       setIsCreating(false);
     }
   };
@@ -270,7 +292,6 @@ export default function StartInterview() {
                 </p>
               </div>
 
-              {/* Advanced Settings Toggle */}
               <div className="border-t border-slate-700 pt-4">
                 <button
                   type="button"
@@ -356,4 +377,174 @@ export default function StartInterview() {
       </div>
     </div>
   );
+
+  async function generateHash(text) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(text + Date.now() + Math.random());
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (err) {
+      console.error("Hash generation error:", err);
+      return `hash-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+
+    if (!formData.departmentCode || !formData.fileNumber) {
+      setError("Both department code and file number are required");
+      return;
+    }
+
+    const isValid = await validateDepartmentCode(formData.departmentCode);
+    if (!isValid) {
+      setError("Invalid department code. Please check and try again.");
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      const sessionCode = `${formData.departmentCode}-${formData.fileNumber}`;
+      
+      console.log("🔍 [PRODUCTION] Checking for existing sessions with code:", sessionCode);
+      
+      let existingSessions = [];
+      try {
+        existingSessions = await base44.entities.InterviewSession.filter({ 
+          session_code: sessionCode 
+        });
+        console.log(`   [PRODUCTION] Found ${existingSessions.length} existing session(s)`);
+      } catch (filterErr) {
+        console.warn("⚠️ [PRODUCTION] Error checking existing sessions:", filterErr);
+      }
+      
+      const activeSession = existingSessions.find(s => 
+        s.status === 'in_progress' || s.status === 'paused'
+      );
+      
+      if (activeSession && activeSession.id) {
+        console.log("✅ [PRODUCTION] Found existing active session:", activeSession.id);
+        navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
+        return;
+      }
+      
+      const completedSession = existingSessions.find(s => s.status === 'completed');
+      if (completedSession) {
+        setError("This interview has already been completed and cannot be accessed again.");
+        setIsCreating(false);
+        return;
+      }
+
+      console.log("📝 [PRODUCTION] Creating new session...");
+      console.log("   - Session Code:", sessionCode);
+      console.log("   - Department Code:", formData.departmentCode);
+      console.log("   - File Number:", formData.fileNumber);
+      
+      const sessionHash = await generateHash(sessionCode);
+      
+      const sessionData = {
+        session_code: sessionCode,
+        department_code: formData.departmentCode,
+        file_number: formData.fileNumber,
+        status: "in_progress",
+        started_date: new Date().toISOString(),
+        session_hash: sessionHash,
+        red_flags: [],
+        total_questions_answered: 0,
+        completion_percentage: 0,
+        followups_triggered: 0,
+        risk_rating: "low",
+        transcript_snapshot: [],
+        queue_snapshot: [],
+        current_item_snapshot: null,
+        current_question_id: null,
+        current_category: null,
+        conversation_id: null,
+        data_version: "v2.5-hybrid",
+        metadata: {
+          created_via: "web_interface",
+          user_agent: navigator.userAgent,
+          version: "v2.5-hybrid",
+          debug_mode: debugMode,
+          probing_strength: "production_standard",
+          created_timestamp: new Date().toISOString()
+        }
+      };
+      
+      console.log("📤 [PRODUCTION] Sending create request with data:", sessionData);
+      
+      const newSession = await base44.entities.InterviewSession.create(sessionData);
+      
+      console.log("📥 [PRODUCTION] Create response received:", newSession);
+      console.log("   - Type:", typeof newSession);
+      console.log("   - Is null:", newSession === null);
+      console.log("   - Is undefined:", newSession === undefined);
+      console.log("   - Has id:", !!newSession?.id);
+      
+      if (!newSession) {
+        console.error("❌ [PRODUCTION] Session creation returned null/undefined");
+        throw new Error("Session creation failed - API returned null");
+      }
+      
+      if (!newSession.id) {
+        console.error("❌ [PRODUCTION] Session object missing ID:", JSON.stringify(newSession, null, 2));
+        throw new Error("Session creation failed - no ID in response");
+      }
+      
+      console.log("✅ [PRODUCTION] Session created successfully");
+      console.log("   - Session ID:", newSession.id);
+      console.log("   - Session Code:", newSession.session_code);
+      
+      // PRODUCTION FIX: Small delay + verification before redirect
+      console.log("⏳ [PRODUCTION] Waiting for database commit...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log("🔍 [PRODUCTION] Verifying session exists in database...");
+      let verifyAttempts = 0;
+      let verifiedSession = null;
+      
+      while (verifyAttempts < 3 && !verifiedSession) {
+        try {
+          verifiedSession = await base44.entities.InterviewSession.get(newSession.id);
+          if (verifiedSession && verifiedSession.id) {
+            console.log("✅ [PRODUCTION] Session verified in database");
+            break;
+          }
+        } catch (verifyError) {
+          console.warn(`⚠️ [PRODUCTION] Verification attempt ${verifyAttempts + 1} failed:`, verifyError);
+        }
+        verifyAttempts++;
+        if (verifyAttempts < 3) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+      
+      if (!verifiedSession) {
+        console.error("❌ [PRODUCTION] Could not verify session after 3 attempts");
+        throw new Error("Session was created but could not be verified. Please try again.");
+      }
+      
+      if (debugMode) {
+        console.log("🐛 Debug mode enabled for this session");
+      }
+
+      console.log("🔄 [PRODUCTION] Navigating to InterviewV2 with session ID:", newSession.id);
+      navigate(createPageUrl(`InterviewV2?session=${newSession.id}`));
+      
+    } catch (err) {
+      console.error("❌ [PRODUCTION] Error in session creation flow:");
+      console.error("   - Error type:", err?.constructor?.name || 'Unknown');
+      console.error("   - Error message:", err?.message || 'No message');
+      console.error("   - Full error object:", err);
+      
+      const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
+      setError(`Failed to create interview session: ${errorMessage}. Please try again or contact support.`);
+      setIsCreating(false);
+    }
+  }
 }

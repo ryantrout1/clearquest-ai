@@ -231,11 +231,35 @@ export default function InterviewV2() {
 
   const initializeInterview = async () => {
     try {
-      console.log('🚀 Initializing HYBRID interview flow (v2.5) - Deterministic + AI Probing...');
+      console.log('🚀 [PRODUCTION] Initializing HYBRID interview flow (v2.5)...');
+      console.log('   - Session ID from URL:', sessionId);
       const startTime = performance.now();
 
-      // Step 1: Load session
+      // Step 1: Load session with validation
+      console.log('📡 [PRODUCTION] Fetching session from database...');
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      
+      console.log('📥 [PRODUCTION] Session fetch response:', loadedSession);
+      console.log('   - Type:', typeof loadedSession);
+      console.log('   - Is null:', loadedSession === null);
+      console.log('   - Is undefined:', loadedSession === undefined);
+      console.log('   - Has id:', !!loadedSession?.id);
+      
+      // PRODUCTION FIX: Handle null/undefined session
+      if (!loadedSession) {
+        console.error('❌ [PRODUCTION] Session not found in database');
+        throw new Error(`Session not found: ${sessionId}. It may have been deleted or never created.`);
+      }
+      
+      if (!loadedSession.id) {
+        console.error('❌ [PRODUCTION] Session object missing ID field:', loadedSession);
+        throw new Error('Invalid session object returned from database');
+      }
+      
+      console.log('✅ [PRODUCTION] Session loaded successfully');
+      console.log('   - Session ID:', loadedSession.id);
+      console.log('   - Session Code:', loadedSession.session_code);
+      console.log('   - Status:', loadedSession.status);
       
       // FIXED: Only block if status is 'completed' - check will happen later after rebuild
       if (loadedSession.status === 'completed') {
@@ -267,12 +291,14 @@ export default function InterviewV2() {
       }
       
       // Step 2: Bootstrap engine
+      console.log('⚙️ [PRODUCTION] Bootstrapping engine...');
       const engineData = await bootstrapEngine(base44);
+      console.log('✅ [PRODUCTION] Engine bootstrapped');
       setEngine(engineData);
       
       // Step 3: Initialize or restore AI conversation
       if (!loadedSession.conversation_id) {
-        console.log('🤖 Creating new AI conversation...');
+        console.log('🤖 [PRODUCTION] Creating new AI conversation...');
         const newConversation = await base44.agents.createConversation({
           agent_name: 'clearquest_interviewer',
           metadata: {
@@ -283,6 +309,8 @@ export default function InterviewV2() {
           }
         });
         
+        console.log('✅ [PRODUCTION] Conversation created:', newConversation.id);
+        
         await base44.entities.InterviewSession.update(sessionId, {
           conversation_id: newConversation.id
         });
@@ -290,7 +318,7 @@ export default function InterviewV2() {
         setConversation(newConversation);
         loadedSession.conversation_id = newConversation.id;
       } else {
-        console.log('🤖 Loading existing AI conversation...');
+        console.log('🤖 [PRODUCTION] Loading existing AI conversation:', loadedSession.conversation_id);
         const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
         setConversation(existingConversation);
         
@@ -301,6 +329,7 @@ export default function InterviewV2() {
       }
       
       // Step 4: Subscribe to agent conversation updates
+      console.log('📡 [PRODUCTION] Subscribing to conversation updates...');
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         loadedSession.conversation_id,
         (data) => {
@@ -318,13 +347,13 @@ export default function InterviewV2() {
                            (!loadedSession.current_item_snapshot || !hasValidSnapshots);
       
       if (needsRebuild) {
-        console.log('🔧 Session in_progress but snapshots missing - rebuilding from Response entities...');
+        console.log('🔧 [PRODUCTION] Session needs rebuild - rebuilding from Response entities...');
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
-        console.log('🔄 Restoring from session snapshots...');
+        console.log('🔄 [PRODUCTION] Restoring from session snapshots...');
         restoreFromSnapshots(engineData, loadedSession);
       } else {
-        console.log('🎯 Starting fresh interview');
+        console.log('🎯 [PRODUCTION] Starting fresh interview');
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
@@ -332,11 +361,16 @@ export default function InterviewV2() {
       
       setIsLoading(false);
       const elapsed = performance.now() - startTime;
-      console.log(`✅ Hybrid interview ready in ${elapsed.toFixed(2)}ms`);
+      console.log(`✅ [PRODUCTION] Hybrid interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
-      console.error('❌ Initialization failed:', err);
-      setError(`Failed to load interview: ${err.message}`);
+      console.error('❌ [PRODUCTION] Initialization failed:', err);
+      console.error('   - Error type:', err?.constructor?.name || 'Unknown');
+      console.error('   - Error message:', err?.message || 'No message');
+      console.error('   - Stack:', err?.stack);
+      
+      const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
+      setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
     }
   };
