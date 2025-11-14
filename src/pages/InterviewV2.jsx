@@ -1157,19 +1157,17 @@ export default function InterviewV2() {
               {isWaitingForAgent ? `Probing question ${aiProbeCount + 1} of 5` : "Once submitted, answers cannot be changed"}
             </p>
 
-            {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
-              <div className="mt-2 flex justify-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSendTestAIMsg}
-                  disabled={!conversation}
-                  className="text-xs text-yellow-400 border-yellow-600 hover:bg-yellow-950"
-                >
-                  🧪 Send Test AI Message
-                </Button>
-              </div>
-            )}
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendTestAIMsg}
+                disabled={!conversation}
+                className="text-xs border-yellow-400 text-yellow-300 hover:bg-yellow-950"
+              >
+                Dev: Send Test AI Message
+              </Button>
+            </div>
           </div>
         </footer>
       </div>
