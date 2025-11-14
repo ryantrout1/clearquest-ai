@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -126,7 +127,7 @@ export default function StartInterview() {
       console.log("📝 Creating new session...");
       const sessionHash = await generateHash(sessionCode);
       
-      const session = await base44.entities.InterviewSession.create({
+      const newSession = await base44.entities.InterviewSession.create({
         session_code: sessionCode,
         department_code: formData.departmentCode,
         file_number: formData.fileNumber,
@@ -137,6 +138,11 @@ export default function StartInterview() {
         total_questions_answered: 0,
         completion_percentage: 0,
         followups_triggered: 0,
+        risk_rating: "low",
+        transcript_snapshot: [],
+        queue_snapshot: [],
+        current_item_snapshot: null,
+        data_version: "v2.5-hybrid",
         metadata: {
           created_via: "web_interface",
           user_agent: navigator.userAgent,
@@ -146,15 +152,26 @@ export default function StartInterview() {
         }
       });
       
-      console.log("✅ Session created:", session.id);
+      console.log("✅ Session created successfully:", newSession);
+      console.log("   - Session ID:", newSession.id);
+      console.log("   - Session Code:", newSession.session_code);
+      
+      if (!newSession || !newSession.id) {
+        throw new Error("Session creation returned invalid object - missing ID");
+      }
+      
       if (debugMode) {
         console.log("🐛 Debug mode enabled for this session");
       }
 
-      navigate(createPageUrl(`InterviewV2?session=${session.id}`));
+      console.log("🔄 Navigating to InterviewV2 with session ID:", newSession.id);
+      navigate(createPageUrl(`InterviewV2?session=${newSession.id}`));
       
     } catch (err) {
       console.error("❌ Error creating session:", err);
+      console.error("   - Error type:", err.constructor.name);
+      console.error("   - Error message:", err.message);
+      console.error("   - Stack:", err.stack);
       setError(`Failed to create interview session: ${err.message || 'Please try again.'}`);
       setIsCreating(false);
     }
