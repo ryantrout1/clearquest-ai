@@ -921,6 +921,11 @@ export async function bootstrapEngine(base44) {
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
   const { NextById, ActiveOrdered } = engine;
 
+  console.log(`🔍 computeNextQuestionId called for ${currentQuestionId}, answer: ${answer}`);
+  console.log(`   - Skip rules defined: ${!!SKIP_RULES[currentQuestionId]}`);
+  console.log(`   - Has explicit next_question_id: ${!!NextById[currentQuestionId]}`);
+  console.log(`   - Position in ActiveOrdered: ${ActiveOrdered.indexOf(currentQuestionId)} of ${ActiveOrdered.length}`);
+
   // Check skip rules first
   const skipRule = SKIP_RULES[currentQuestionId];
   if (skipRule && answer === skipRule.skipIfAnswer) {
@@ -930,13 +935,23 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
 
   // Use explicit next_question_id if defined
   if (NextById[currentQuestionId]) {
+    console.log(`✅ Using explicit next_question_id: ${NextById[currentQuestionId]}`);
     return NextById[currentQuestionId];
   }
 
   // Fall back to display order
   const currentIndex = ActiveOrdered.indexOf(currentQuestionId);
   if (currentIndex >= 0 && currentIndex < ActiveOrdered.length - 1) {
-    return ActiveOrdered[currentIndex + 1];
+    const nextId = ActiveOrdered[currentIndex + 1];
+    console.log(`✅ Using display order - next question: ${nextId}`);
+    return nextId;
+  }
+  
+  // CRITICAL: If we're at the last position in ActiveOrdered, that's expected
+  if (currentIndex === ActiveOrdered.length - 1) {
+    console.log(`✅ At last question in ActiveOrdered (position ${currentIndex + 1}/${ActiveOrdered.length}) - no next question`);
+  } else {
+    console.error(`❌ Question ${currentQuestionId} not found in ActiveOrdered array!`);
   }
 
   return null;
