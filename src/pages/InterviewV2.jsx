@@ -334,7 +334,10 @@ export default function InterviewV2() {
   }, [sessionId]);
 
   const handoffToAI = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
+    console.log('[handoffToAI] Called', { questionId, packId, hasConversation: !!conversation });
+    
     if (!conversation) {
+      console.log('[handoffToAI] No conversation - skipping to next question');
       const nextQuestionId = computeNextQuestionId(engine, questionId, 'Yes');
       if (nextQuestionId && engine.QById[nextQuestionId]) {
         setCurrentItem({ id: nextQuestionId, type: 'question' });
@@ -351,11 +354,18 @@ export default function InterviewV2() {
     
     const question = engine.QById[questionId];
     
-    let summary = `Follow-up pack completed.\n\nQuestion: ${question.question_text}\nBase Answer: Yes\n\nFollow-Up Answers:\n`;
-    followUpAnswers.forEach(a => {
+    let summary = `Follow-up pack completed for question ${questionId}.\n\n` +
+      `Question: ${question.question_text}\n` +
+      `Base Answer: Yes\n\n` +
+      `Follow-Up Answers:\n`;
+    
+    followUpAnswers.forEach((a) => {
       summary += `- ${a.questionText}: ${a.answer}\n`;
     });
-    summary += `\nAsk up to 5 probing questions, then send the next base question.`;
+    
+    summary += `\nAsk up to 5 probing questions, then send the next base question as "Qxxx: [question text]".`;
+    
+    console.log('[handoffToAI] Sending summary to AI:', summary);
     
     try {
       await base44.agents.addMessage(conversation, {
@@ -365,8 +375,9 @@ export default function InterviewV2() {
       
       setIsWaitingForAgent(true);
       setCurrentFollowUpPack({ questionId, packId, substanceName, aiProbePackId, category: question.category });
+      console.log('[handoffToAI] AI handoff complete - waiting for agent');
     } catch (err) {
-      console.error('❌ Error:', err);
+      console.error('❌ [handoffToAI] Error:', err);
     }
   }, [conversation, engine, persistState]);
 
@@ -466,7 +477,8 @@ export default function InterviewV2() {
                 stepIndex: i,
                 substanceName,
                 totalSteps: packSteps.length,
-                category: question.category
+                category: question.category,
+                parentQuestionId: currentItem.id
               }));
               
               setCurrentItem(followupQueue[0]);
@@ -620,41 +632,40 @@ export default function InterviewV2() {
           } else {
             console.log("[investigator] Starting AI probing after follow-up pack");
             
-            // CRITICAL FIX: Load chat history directly instead of using state
-            const freshChatHistory = await loadChatHistory(sessionId);
-            console.log("[investigator] Fresh chat history loaded:", freshChatHistory.length, "messages");
-            
-            // Build pack answers for AI context
-            const packAnswers = freshChatHistory.filter(h => 
-              h.followup_id === packId && h.message_type === 'followup_answer'
-            ).map(h => ({ 
-              questionText: '', 
-              answer: h.content 
-            }));
-            
-            console.log("[investigator] Collected pack answers:", packAnswers.length);
-            
-            const triggeringQuestion = [...freshChatHistory].reverse().find(h => 
-              h.question_id && engine.QById[h.question_id]?.followup_pack === packId
-            );
-            
-            console.log("[investigator] Found triggering question:", triggeringQuestion?.question_id);
-            
-            if (triggeringQuestion && packAnswers.length > 0) {
+            // Build structured list of Q/A pairs from state
+            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+            const followUpSummary = packSteps
+              .map((step) => ({
+                questionText: step.Prompt,
+                answer: updatedFollowUpAnswers[step.Field_Key],
+              }))
+              .filter((item) => item.answer != null && item.answer !== "");
+
+            console.log("[investigator] Collected pack answers from state:", followUpSummary.length);
+
+            // Use parentQuestionId from current item or queue
+            const parentQuestionId = currentItem.parentQuestionId ||
+              queue.find((q) => q.type === "followup" && q.packId === packId)?.parentQuestionId;
+
+            console.log("[investigator] Parent question ID for AI handoff:", parentQuestionId);
+
+            if (parentQuestionId && followUpSummary.length > 0) {
               setCurrentFollowUpAnswers({});
-              await handoffToAI(triggeringQuestion.question_id, packId, substanceName, packAnswers);
-              // Update state after handoff
-              setChatHistory(freshChatHistory);
+              await handoffToAI(parentQuestionId, packId, substanceName, followUpSummary);
+              await refreshChatHistory();
             } else {
-              console.error("[followup] Could not find triggering question or no answers found", {
-                triggeringQuestion: triggeringQuestion?.question_id,
-                packAnswersCount: packAnswers.length
+              console.error("[followup] Missing parentQuestionId or no follow-up answers", {
+                parentQuestionId,
+                followUpSummaryCount: followUpSummary.length,
               });
-              // Fallback: move to next question
-              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, 'Yes');
+
+              // Fallback: advance to next main question
+              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, "Yes");
               if (nextQuestionId && engine.QById[nextQuestionId]) {
-                setCurrentItem({ id: nextQuestionId, type: 'question' });
-                await persistState({ id: nextQuestionId, type: 'question' }, []);
+                setCurrentItem({ id: nextQuestionId, type: "question" });
+                await persistState({ id: nextQuestionId, type: "question" }, []);
+              } else {
+                setShowCompletionModal(true);
               }
             }
           }
