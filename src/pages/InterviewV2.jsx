@@ -620,23 +620,36 @@ export default function InterviewV2() {
           } else {
             console.log("[investigator] Starting AI probing after follow-up pack");
             
+            // CRITICAL FIX: Load chat history directly instead of using state
+            const freshChatHistory = await loadChatHistory(sessionId);
+            console.log("[investigator] Fresh chat history loaded:", freshChatHistory.length, "messages");
+            
             // Build pack answers for AI context
-            const packAnswers = chatHistory.filter(h => 
+            const packAnswers = freshChatHistory.filter(h => 
               h.followup_id === packId && h.message_type === 'followup_answer'
             ).map(h => ({ 
-              questionText: h.content || '', 
+              questionText: '', 
               answer: h.content 
             }));
             
-            const triggeringQuestion = [...chatHistory].reverse().find(h => 
+            console.log("[investigator] Collected pack answers:", packAnswers.length);
+            
+            const triggeringQuestion = [...freshChatHistory].reverse().find(h => 
               h.question_id && engine.QById[h.question_id]?.followup_pack === packId
             );
             
-            if (triggeringQuestion) {
+            console.log("[investigator] Found triggering question:", triggeringQuestion?.question_id);
+            
+            if (triggeringQuestion && packAnswers.length > 0) {
               setCurrentFollowUpAnswers({});
               await handoffToAI(triggeringQuestion.question_id, packId, substanceName, packAnswers);
+              // Update state after handoff
+              setChatHistory(freshChatHistory);
             } else {
-              console.error("[followup] Could not find triggering question for pack:", packId);
+              console.error("[followup] Could not find triggering question or no answers found", {
+                triggeringQuestion: triggeringQuestion?.question_id,
+                packAnswersCount: packAnswers.length
+              });
               // Fallback: move to next question
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, 'Yes');
               if (nextQuestionId && engine.QById[nextQuestionId]) {
