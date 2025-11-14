@@ -646,21 +646,33 @@ export default function InterviewV2() {
     }
 
     const answer = input.trim();
-    if (!answer || isCommitting) return;
+    if (!answer || isCommitting) {
+      console.log("[handleTextSubmit] Blocked submit", { answer, isCommitting });
+      return;
+    }
+
+    console.log("[handleTextSubmit] SUBMIT", {
+      answer,
+      isWaitingForAgent,
+    });
 
     if (isWaitingForAgent) {
       handleAgentAnswer(answer);
     } else {
       handleAnswer(answer);
     }
+
+    setInput("");
   }, [input, isCommitting, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
 
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleTextSubmit();
+  const handleInputKeyDown = useCallback((e) => {
+    console.log("[handleInputKeyDown]", { key: e.key, input });
+
+    // Submit on Enter (but not Shift+Enter), if we have a value and we're not committing
+    if (e.key === "Enter" && !e.shiftKey && !isCommitting && input.trim()) {
+      handleTextSubmit(e);
     }
-  }, [handleTextSubmit]);
+  }, [handleTextSubmit, input, isCommitting]);
 
   const handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
@@ -955,10 +967,10 @@ export default function InterviewV2() {
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
                   placeholder="Type your answer..."
                   className="flex-1 bg-slate-800 border border-slate-600 text-white h-14 text-lg px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isCommitting}
+                  onKeyDown={handleInputKeyDown}
                 />
                 <Button
                   type="submit"
