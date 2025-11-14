@@ -333,53 +333,88 @@ export default function InterviewV2() {
     }
   }, [sessionId]);
 
-  const handoffToAI = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
-    console.log('[handoffToAI] Called', { questionId, packId, hasConversation: !!conversation });
-    
-    if (!conversation) {
-      console.log('[handoffToAI] No conversation - skipping to next question');
-      const nextQuestionId = computeNextQuestionId(engine, questionId, 'Yes');
-      if (nextQuestionId && engine.QById[nextQuestionId]) {
-        setCurrentItem({ id: nextQuestionId, type: 'question' });
-        await persistState({ id: nextQuestionId, type: 'question' }, []);
-      } else {
-        setShowCompletionModal(true);
+  const handoffToAI = useCallback(
+    async (questionId, packId, substanceName, followUpAnswers) => {
+      try {
+        console.log("[handoffToAI] Called with:", {
+          questionId,
+          packId,
+          hasConversation: !!conversation,
+          answersType: typeof followUpAnswers,
+          isArray: Array.isArray(followUpAnswers),
+          answersLength: Array.isArray(followUpAnswers) ? followUpAnswers.length : 0,
+        });
+
+        // If there is no conversation, just fall back to next main question
+        if (!conversation) {
+          console.log('[handoffToAI] No conversation - skipping to next question');
+          const nextQuestionId = computeNextQuestionId(engine, questionId, "Yes");
+          if (nextQuestionId && engine.QById[nextQuestionId]) {
+            setCurrentItem({ id: nextQuestionId, type: "question" });
+            await persistState({ id: nextQuestionId, type: "question" }, []);
+          } else {
+            setShowCompletionModal(true);
+          }
+          return;
+        }
+
+        // Always work with a safe array
+        const safeAnswers =
+          Array.isArray(followUpAnswers) && followUpAnswers.length > 0
+            ? followUpAnswers
+            : [];
+
+        const question = engine.QById[questionId];
+        if (!question) {
+          console.error("[handoffToAI] Question not found in engine:", questionId);
+          return;
+        }
+
+        // Build the summary message for the AI
+        let summary =
+          `Follow-up pack completed for question ${questionId}.\n\n` +
+          `Question: ${question.question_text}\n` +
+          `Base Answer: Yes\n\n` +
+          `Follow-Up Answers:\n`;
+
+        safeAnswers.forEach((a, idx) => {
+          summary += `  ${idx + 1}. ${a.questionText}: ${a.answer}\n`;
+        });
+
+        summary +=
+          `\nUse these answers to probe for more detail.\n` +
+          `Ask up to 5 short, focused follow-up questions to clarify any risks, inconsistencies, or missing context.\n` +
+          `When you are done, send the next base question as "Qxxx: [question text]".`;
+
+        console.log("[handoffToAI] Summary being sent to AI:\n", summary);
+
+        // Generate and store probe pack id
+        const aiProbePackId = generateAIProbePackId(questionId, packId);
+        setCurrentAIProbePackId(aiProbePackId);
+        setAIProbeCount(0);
+
+        // Send the message to the AI conversation
+        await base44.agents.addMessage(conversation, {
+          role: "user",
+          content: summary,
+        });
+
+        // Mark that we are now waiting for AI probing
+        setIsWaitingForAgent(true);
+        setCurrentFollowUpPack({
+          questionId,
+          packId,
+          substanceName,
+          aiProbePackId,
+          category: question.category,
+        });
+
+      } catch (err) {
+        console.error("[handoffToAI] Error:", err);
       }
-      return;
-    }
-    
-    const aiProbePackId = generateAIProbePackId(questionId, packId);
-    setCurrentAIProbePackId(aiProbePackId);
-    setAIProbeCount(0);
-    
-    const question = engine.QById[questionId];
-    
-    let summary = `Follow-up pack completed for question ${questionId}.\n\n` +
-      `Question: ${question.question_text}\n` +
-      `Base Answer: Yes\n\n` +
-      `Follow-Up Answers:\n`;
-    
-    followUpAnswers.forEach((a) => {
-      summary += `- ${a.questionText}: ${a.answer}\n`;
-    });
-    
-    summary += `\nAsk up to 5 probing questions, then send the next base question as "Qxxx: [question text]".`;
-    
-    console.log('[handoffToAI] Sending summary to AI:', summary);
-    
-    try {
-      await base44.agents.addMessage(conversation, {
-        role: 'user',
-        content: summary
-      });
-      
-      setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName, aiProbePackId, category: question.category });
-      console.log('[handoffToAI] AI handoff complete - waiting for agent');
-    } catch (err) {
-      console.error('❌ [handoffToAI] Error:', err);
-    }
-  }, [conversation, engine, persistState]);
+    },
+    [conversation, engine, persistState]
+  );
 
   useEffect(() => {
     if (!isWaitingForAgent || !agentMessages.length || !currentFollowUpPack) return;
