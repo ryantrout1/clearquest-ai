@@ -999,7 +999,6 @@ function generateReportHTML(session, responses, followups, questions, department
           <div class="section-title">${category}</div>
           ${categoryResponses.map(response => {
             const relatedFollowups = followups.filter(f => f.response_id === response.id);
-            // PRODUCTION FIX: Read probing from database for report generation
             const aiProbingExchanges = response.investigator_probing || [];
 
             return `
