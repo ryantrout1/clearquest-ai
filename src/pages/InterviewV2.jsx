@@ -321,7 +321,7 @@ export default function InterviewV2() {
     }
   };
 
-  const persistState = async (newCurrentItem, newQueue) => {
+  const persistState = useCallback(async (newCurrentItem, newQueue) => {
     try {
       await base44.entities.InterviewSession.update(sessionId, {
         current_item_snapshot: newCurrentItem,
@@ -331,7 +331,7 @@ export default function InterviewV2() {
     } catch (err) {
       console.error('❌ Failed to persist:', err);
     }
-  };
+  }, [sessionId]);
 
   const handoffToAI = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
     if (!conversation) {
@@ -368,7 +368,7 @@ export default function InterviewV2() {
     } catch (err) {
       console.error('❌ Error:', err);
     }
-  }, [conversation, engine, sessionId]);
+  }, [conversation, engine, persistState]);
 
   useEffect(() => {
     if (!isWaitingForAgent || !agentMessages.length || !currentFollowUpPack) return;
