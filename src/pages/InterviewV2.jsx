@@ -641,16 +641,23 @@ export default function InterviewV2() {
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
   const handleTextSubmit = useCallback((e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const answer = input.trim();
-    if (!answer) return;
+    if (!answer || isCommitting) return;
     
     if (isWaitingForAgent) {
       handleAgentAnswer(answer);
     } else {
       handleAnswer(answer);
     }
-  }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
+  }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer, isCommitting]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleTextSubmit();
+    }
+  }, [handleTextSubmit]);
 
   const handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
@@ -945,6 +952,7 @@ export default function InterviewV2() {
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="Type your answer..."
                   className="flex-1 bg-slate-800 border-slate-600 text-white h-14 text-lg"
                   disabled={isCommitting}
