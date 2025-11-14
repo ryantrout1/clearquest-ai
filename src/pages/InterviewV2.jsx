@@ -144,6 +144,13 @@ export default function InterviewV2() {
 
   const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 
+  const getConversationId = () => {
+    if (!conversation) return null;
+    if (typeof conversation === "string") return conversation;
+    if (typeof conversation.id === "string") return conversation.id;
+    return null;
+  };
+
   const autoScrollToBottom = useCallback(() => {
     if (!historyRef.current) return;
     requestAnimationFrame(() => {
@@ -393,8 +400,15 @@ export default function InterviewV2() {
         setCurrentAIProbePackId(aiProbePackId);
         setAIProbeCount(0);
 
+        // Get conversation ID safely
+        const conversationId = getConversationId();
+        if (!conversationId) {
+          console.error("[handoffToAI] No valid conversationId, skipping AI probing");
+          return;
+        }
+
         // Send the message to the AI conversation
-        await base44.agents.addMessage(conversation, {
+        await base44.agents.addMessage(conversationId, {
           role: "user",
           content: summary,
         });
@@ -413,7 +427,7 @@ export default function InterviewV2() {
         console.error("[handoffToAI] Error:", err);
       }
     },
-    [conversation, engine, persistState]
+    [conversation, engine, persistState, getConversationId]
   );
 
   useEffect(() => {
@@ -734,16 +748,23 @@ export default function InterviewV2() {
     });
     
     try {
-      await base44.agents.addMessage(conversation, {
+      const conversationId = getConversationId();
+      if (!conversationId) {
+        console.error("[handleAgentAnswer] No valid conversationId, cannot send probe answer");
+        setIsCommitting(false);
+        return;
+      }
+
+      await base44.agents.addMessage(conversationId, {
         role: 'user',
-        content: value
+        content: value,
       });
       setIsCommitting(false);
     } catch (err) {
       console.error('❌ Error:', err);
       setIsCommitting(false);
     }
-  }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
+  }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session, getConversationId]);
 
   const handleTextSubmit = useCallback((e) => {
     if (e && typeof e.preventDefault === "function") {
