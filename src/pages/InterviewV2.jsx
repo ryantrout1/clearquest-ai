@@ -776,50 +776,53 @@ export default function InterviewV2() {
 
     if (!conversation || !conversation.id) {
       console.error("[TEST] No valid conversation object");
+      toast.error("No conversation available");
       return;
     }
 
     try {
-      // CRITICAL: The SDK's update_model expects the conversation object to have
-      // a specific structure. Interview.js works because it stores the FULL
-      // conversation object from getConversation, not a partial one.
+      // CRITICAL: Use the EXACT same pattern as Interview.js (line 359-362)
+      // Interview.js passes the conversation object directly without any modification
       
-      console.log("[TEST] Current conversation object keys:", Object.keys(conversation));
-      console.log("[TEST] Current conversation object:", JSON.stringify(conversation, null, 2));
+      console.log("[TEST] Conversation before addMessage:", {
+        id: conversation.id,
+        agent_name: conversation.agent_name,
+        hasMessages: !!conversation.messages,
+        messagesType: typeof conversation.messages,
+        messagesIsArray: Array.isArray(conversation.messages),
+        messagesLength: conversation.messages?.length || 0
+      });
 
-      // Fetch FULL fresh conversation to ensure ALL required properties exist
-      console.log("[TEST] Fetching full conversation object...");
-      const fullConversation = await base44.agents.getConversation(conversation.id);
-      
-      console.log("[TEST] Full conversation keys:", Object.keys(fullConversation));
-      console.log("[TEST] Full conversation:", JSON.stringify(fullConversation, null, 2));
-
-      // Use the EXACT same pattern as Interview.js line 359
       const messagePayload = {
         role: "user",
         content: "TEST MESSAGE from InterviewV2"
       };
 
-      console.log("[TEST] Calling addMessage with full conversation object");
-      console.log("[TEST] Message payload:", JSON.stringify(messagePayload, null, 2));
+      console.log("[TEST] Message payload:", messagePayload);
+      console.log("[TEST] Calling base44.agents.addMessage...");
 
-      const result = await base44.agents.addMessage(fullConversation, messagePayload);
+      // Use EXACT Interview.js pattern - no fetching, just use conversation directly
+      const result = await base44.agents.addMessage(conversation, messagePayload);
 
       console.log("[TEST] ✅ SUCCESS!");
       console.log("[TEST] Result:", result);
       toast.success("Test message sent successfully");
-
-      // Update our stored conversation to be the full one
-      setConversation(fullConversation);
       
     } catch (err) {
       console.error("[TEST] ❌ FAILED");
-      console.error("[TEST] Error:", err);
+      console.error("[TEST] Error name:", err?.name);
       console.error("[TEST] Error message:", err?.message);
       console.error("[TEST] Error stack:", err?.stack);
+      console.error("[TEST] Full error object:", err);
       
-      // Try to identify what's missing
-      console.error("[TEST] Conversation object that failed:", conversation);
+      // Additional debugging
+      console.error("[TEST] Conversation object at failure:", {
+        id: conversation?.id,
+        agent_name: conversation?.agent_name,
+        messages: conversation?.messages,
+        allKeys: conversation ? Object.keys(conversation) : []
+      });
+      
       toast.error(`Test failed: ${err.message}`);
     }
     
