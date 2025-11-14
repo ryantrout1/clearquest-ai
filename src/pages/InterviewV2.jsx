@@ -334,10 +334,7 @@ export default function InterviewV2() {
   }, [sessionId]);
 
   const handoffToAI = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
-    console.log('[handoffToAI] Called', { questionId, packId, hasConversation: !!conversation });
-    
     if (!conversation) {
-      console.log('[handoffToAI] No conversation - skipping to next question');
       const nextQuestionId = computeNextQuestionId(engine, questionId, 'Yes');
       if (nextQuestionId && engine.QById[nextQuestionId]) {
         setCurrentItem({ id: nextQuestionId, type: 'question' });
@@ -356,11 +353,9 @@ export default function InterviewV2() {
     
     let summary = `Follow-up pack completed.\n\nQuestion: ${question.question_text}\nBase Answer: Yes\n\nFollow-Up Answers:\n`;
     followUpAnswers.forEach(a => {
-      summary += `- ${a.answer}\n`;
+      summary += `- ${a.questionText}: ${a.answer}\n`;
     });
     summary += `\nAsk up to 5 probing questions, then send the next base question.`;
-    
-    console.log('[handoffToAI] Sending summary to AI:', summary);
     
     try {
       await base44.agents.addMessage(conversation, {
@@ -370,9 +365,8 @@ export default function InterviewV2() {
       
       setIsWaitingForAgent(true);
       setCurrentFollowUpPack({ questionId, packId, substanceName, aiProbePackId, category: question.category });
-      console.log('[handoffToAI] AI handoff complete - waiting for agent');
     } catch (err) {
-      console.error('❌ [handoffToAI] Error:', err);
+      console.error('❌ Error:', err);
     }
   }, [conversation, engine, persistState]);
 
@@ -509,10 +503,15 @@ export default function InterviewV2() {
       } else if (currentItem.type === 'followup') {
         const { packId, stepIndex, substanceName, category } = currentItem;
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-        if(!packSteps) throw new Error(`Follow-up pack steps not found for packId: ${packId}`);
         const step = packSteps[stepIndex];
 
-        console.log("[handleAnswer] Processing follow-up:", { packId, stepIndex, step });
+        console.log("[handleAnswer] Processing follow-up", {
+          value,
+          packId,
+          stepIndex,
+          stepsCount: packSteps.length,
+          isLastStep: stepIndex === packSteps.length - 1
+        });
 
         if (step.PrefilledAnswer) {
           await logFollowUpQuestion(sessionId, currentItem.id, packId, step.Prompt, category, stepIndex);
@@ -568,33 +567,40 @@ export default function InterviewV2() {
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
         
+        // CRITICAL: Safe queue advancement with bounds checking
         let nextItem = queue[0] || null;
         let updatedQueue = queue.slice(1);
         
+        // Skip any conditional follow-up steps
         while (nextItem?.type === 'followup' && nextItem.packId === packId) {
           const nextStep = packSteps[nextItem.stepIndex];
           if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+            console.log("[handleAnswer] Skipping conditional step:", nextItem.stepIndex);
             nextItem = updatedQueue[0] || null;
             updatedQueue = updatedQueue.slice(1);
           } else {
-              break;
+            break;
           }
         }
         
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
-        console.log('[handleAnswer] Follow-up status:', {
+        console.log("[handleAnswer] Follow-up progression", {
           isLastFollowUp,
           nextItemType: nextItem?.type,
-          packId,
-          stepIndex
+          remainingQueueLength: updatedQueue.length
         });
         
         if (isLastFollowUp) {
-          console.log('[handleAnswer] Last follow-up completed - checking probing logic');
-          
+          console.log("[followup] Completed deterministic follow-up pack", {
+            packId,
+            stepsCompleted: stepIndex + 1,
+            totalSteps: packSteps.length
+          });
+
+          // Check if we should skip AI probing (e.g., for hired outcome in PACK_LE_APPS)
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
-            console.log('[handleAnswer] Skipping probing (hired outcome)');
+            console.log("[followup] Skipping AI probing - candidate was hired");
             const triggeringQuestion = [...chatHistory].reverse().find(h => 
               h.question_id && engine.QById[h.question_id]?.followup_pack === packId
             );
@@ -604,6 +610,7 @@ export default function InterviewV2() {
               setCurrentFollowUpAnswers({});
               
               if (nextQuestionId && engine.QById[nextQuestionId]) {
+                console.log("[followup] Advancing to next main question:", nextQuestionId);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistState({ id: nextQuestionId, type: 'question' }, []);
               } else {
@@ -611,32 +618,35 @@ export default function InterviewV2() {
               }
             }
           } else {
-            console.log('[handleAnswer] Starting AI probing');
+            console.log("[investigator] Starting AI probing after follow-up pack");
             
-            // Refresh chat history to ensure we have all follow-up answers
-            await refreshChatHistory();
-            
+            // Build pack answers for AI context
             const packAnswers = chatHistory.filter(h => 
               h.followup_id === packId && h.message_type === 'followup_answer'
-            ).map(h => ({ questionText: '', answer: h.content }));
-            
-            console.log('[handleAnswer] Collected pack answers:', packAnswers.length);
+            ).map(h => ({ 
+              questionText: h.content || '', 
+              answer: h.content 
+            }));
             
             const triggeringQuestion = [...chatHistory].reverse().find(h => 
               h.question_id && engine.QById[h.question_id]?.followup_pack === packId
             );
             
-            console.log('[handleAnswer] Found triggering question:', triggeringQuestion?.question_id);
-            
             if (triggeringQuestion) {
               setCurrentFollowUpAnswers({});
               await handoffToAI(triggeringQuestion.question_id, packId, substanceName, packAnswers);
             } else {
-              console.error('[handleAnswer] Could not find triggering question for pack:', packId);
+              console.error("[followup] Could not find triggering question for pack:", packId);
+              // Fallback: move to next question
+              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, 'Yes');
+              if (nextQuestionId && engine.QById[nextQuestionId]) {
+                setCurrentItem({ id: nextQuestionId, type: 'question' });
+                await persistState({ id: nextQuestionId, type: 'question' }, []);
+              }
             }
           }
         } else {
-          console.log('[handleAnswer] More follow-ups remaining');
+          console.log("[handleAnswer] Advancing to next follow-up step");
           setCurrentItem(nextItem);
           setQueue(updatedQueue);
           await persistState(nextItem, updatedQueue);
