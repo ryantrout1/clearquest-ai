@@ -537,7 +537,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
         const isSectionCollapsed = collapsedSections.has(category);
 
         return (
-          <div key={category} className="mb-6">
+          <div key={category} className={isSectionCollapsed ? "mb-0" : "mb-6"}>
             {/* Section Header - Dark bar with white all-caps text */}
             <div
               ref={el => categoryRefs.current[category] = el}
@@ -559,7 +559,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
             </div>
 
             {!isSectionCollapsed && (
-              <div className="bg-slate-900/30 border border-slate-700 border-t-0">
+              <div className="bg-slate-900/30 border border-slate-700 border-t-0 mb-6">
                 {/* Two-column grid layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
                   {/* Split questions into left and right columns */}
