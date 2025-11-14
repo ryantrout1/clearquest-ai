@@ -299,44 +299,85 @@ export default function InterviewV2() {
       // Step 3: Initialize or restore AI conversation
       if (!loadedSession.conversation_id) {
         console.log('🤖 [PRODUCTION] Creating new AI conversation...');
-        const newConversation = await base44.agents.createConversation({
-          agent_name: 'clearquest_interviewer',
-          metadata: {
-            session_id: sessionId,
-            department_code: loadedSession.department_code,
-            file_number: loadedSession.file_number,
-            debug_mode: loadedSession.metadata?.debug_mode || false
+        
+        try {
+          const newConversation = await base44.agents.createConversation({
+            agent_name: 'clearquest_interviewer',
+            metadata: {
+              session_id: sessionId,
+              department_code: loadedSession.department_code,
+              file_number: loadedSession.file_number,
+              debug_mode: loadedSession.metadata?.debug_mode || false
+            }
+          });
+          
+          console.log('✅ [PRODUCTION] Conversation created:', newConversation?.id);
+          
+          // ROBUSTNESS: Check if conversation was created successfully
+          if (!newConversation || !newConversation.id) {
+            console.error('❌ [PRODUCTION] Conversation creation returned invalid object:', newConversation);
+            console.warn('⚠️ [PRODUCTION] AI conversation unavailable - continuing without AI probing');
+            
+            // Set conversation to null and continue - interview will work without AI
+            setConversation(null);
+            loadedSession.conversation_id = null;
+          } else {
+            await base44.entities.InterviewSession.update(sessionId, {
+              conversation_id: newConversation.id
+            });
+            
+            setConversation(newConversation);
+            loadedSession.conversation_id = newConversation.id;
           }
-        });
-        
-        console.log('✅ [PRODUCTION] Conversation created:', newConversation.id);
-        
-        await base44.entities.InterviewSession.update(sessionId, {
-          conversation_id: newConversation.id
-        });
-        
-        setConversation(newConversation);
-        loadedSession.conversation_id = newConversation.id;
+        } catch (convError) {
+          console.error('❌ [PRODUCTION] Error creating AI conversation:', convError);
+          console.error('   Error message:', convError?.message || 'Unknown');
+          console.warn('⚠️ [PRODUCTION] Continuing without AI probing - deterministic questions will still work');
+          
+          // Set conversation to null and continue
+          setConversation(null);
+          loadedSession.conversation_id = null;
+        }
       } else {
         console.log('🤖 [PRODUCTION] Loading existing AI conversation:', loadedSession.conversation_id);
-        const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
-        setConversation(existingConversation);
         
-        // Load agent messages if any
-        if (existingConversation.messages) {
-          setAgentMessages(existingConversation.messages);
+        try {
+          const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
+          
+          if (!existingConversation || !existingConversation.id) {
+            console.warn('⚠️ [PRODUCTION] Existing conversation not found or invalid - continuing without AI');
+            setConversation(null);
+          } else {
+            setConversation(existingConversation);
+            
+            // Load agent messages if any
+            if (existingConversation.messages) {
+              setAgentMessages(existingConversation.messages);
+            }
+          }
+        } catch (convError) {
+          console.error('❌ [PRODUCTION] Error loading existing conversation:', convError);
+          console.warn('⚠️ [PRODUCTION] Continuing without AI probing');
+          setConversation(null);
         }
       }
       
-      // Step 4: Subscribe to agent conversation updates
-      console.log('📡 [PRODUCTION] Subscribing to conversation updates...');
-      unsubscribeRef.current = base44.agents.subscribeToConversation(
-        loadedSession.conversation_id,
-        (data) => {
-          console.log('📨 Agent message update');
-          setAgentMessages(data.messages || []);
+      // Step 4: Subscribe to agent conversation updates (only if conversation exists)
+      if (loadedSession.conversation_id) {
+        console.log('📡 [PRODUCTION] Subscribing to conversation updates...');
+        
+        try {
+          unsubscribeRef.current = base44.agents.subscribeToConversation(
+            loadedSession.conversation_id,
+            (data) => {
+              console.log('📨 Agent message update');
+              setAgentMessages(data.messages || []);
+            }
+          );
+        } catch (subError) {
+          console.warn('⚠️ [PRODUCTION] Could not subscribe to conversation:', subError);
         }
-      );
+      }
       
       // Step 5: Restore state from snapshots or rebuild from responses
       const hasValidSnapshots = loadedSession.transcript_snapshot && 
@@ -594,7 +635,7 @@ export default function InterviewV2() {
     console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — handing off to agent for probing...`);
     
     if (!conversation) {
-      console.error('❌ No conversation available for agent handoff');
+      console.warn('⚠️ No AI conversation available - skipping probing, moving to next question');
       return false;
     }
     
