@@ -50,6 +50,9 @@ export default function SessionDetails() {
   const [conversation, setConversation] = useState(null); // Added conversation state
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  
+  // DYNAMIC: Track total questions from database
+  const [totalQuestions, setTotalQuestions] = useState(null);
 
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
@@ -110,6 +113,10 @@ export default function SessionDetails() {
       ));
       setFollowups(followupsData);
       setQuestions(questionsData);
+      
+      // DYNAMIC: Set total questions from actual Question entity count
+      setTotalQuestions(questionsData.length);
+      console.log(`📊 Dynamic total questions: ${questionsData.length}`);
 
       setIsLoading(false);
     } catch (err) {
@@ -206,12 +213,15 @@ export default function SessionDetails() {
         entry => entry.questionId !== lastResponse.question_id
       );
 
+      // DYNAMIC: Use current totalQuestions instead of hardcoded 198
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: updatedTranscript,
         queue_snapshot: [],
         current_item_snapshot: null,
         total_questions_answered: updatedTranscript.filter(t => t.type === 'question').length,
-        completion_percentage: Math.round((updatedTranscript.filter(t => t.type === 'question').length / 198) * 100)
+        completion_percentage: totalQuestions 
+          ? Math.round((updatedTranscript.filter(t => t.type === 'question').length / totalQuestions) * 100)
+          : 0
       });
 
       console.log('✅ Session snapshots updated - interview will resume from correct position');
@@ -228,7 +238,7 @@ export default function SessionDetails() {
     setIsGeneratingReport(true);
 
     try {
-      const reportContent = generateReportHTML(session, responses, followups, questions, department, conversation);
+      const reportContent = generateReportHTML(session, responses, followups, questions, department, conversation, totalQuestions);
       const printContainer = document.createElement('div');
       printContainer.innerHTML = reportContent;
       printContainer.style.position = 'absolute';
@@ -283,7 +293,11 @@ export default function SessionDetails() {
 
   const actualQuestionsAnswered = responses.length;
   const actualFollowupsTriggered = followups.length;
-  const actualCompletion = Math.round((actualQuestionsAnswered / 198) * 100);
+  
+  // DYNAMIC: Use totalQuestions from database instead of hardcoded 198
+  const actualCompletion = totalQuestions 
+    ? Math.round((actualQuestionsAnswered / totalQuestions) * 100) 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -862,7 +876,7 @@ function TranscriptEntry({ item, conversation }) {
   return null;
 }
 
-function generateReportHTML(session, responses, followups, questions, department, conversation) {
+function generateReportHTML(session, responses, followups, questions, department, conversation, totalQuestions) {
   const now = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -877,6 +891,9 @@ function generateReportHTML(session, responses, followups, questions, department
     }
     categorizedResponses[category].push(response);
   });
+  
+  // DYNAMIC: Use totalQuestions parameter or calculate from questions array if available
+  const questionCount = totalQuestions || questions.length || responses.length;
 
   return `
     <!DOCTYPE html>
@@ -1048,7 +1065,7 @@ function generateReportHTML(session, responses, followups, questions, department
           <strong>Department:</strong> ${department?.department_name || session.department_code}<br>
           <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number}<br>
           <strong>Report Generated:</strong> ${now}<br>
-          <strong>Questions Answered:</strong> ${responses.length} / 198<br>
+          <strong>Questions Answered:</strong> ${responses.length} / ${questionCount}<br>
           <strong>Follow-Ups:</strong> ${followups.length}<br>
           <strong>Status:</strong> ${session.status.toUpperCase()}<br>
           <strong>Risk Level:</strong> ${session.risk_rating?.toUpperCase() || 'N/A'}

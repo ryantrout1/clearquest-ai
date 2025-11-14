@@ -1309,8 +1309,8 @@ export default function InterviewV2() {
     if (!lastAssistantMessage?.content) return null;
     
     // Filter out base questions and system messages
-    if (lastAssistantMessage.content.match(/\b(Q\d{1,3})\b/i)) return null;
-    if (lastAssistantMessage.content.includes('Follow-up pack completed')) return null;
+    if (lastAssistantMessage.content?.includes('Follow-up pack completed')) return null;
+    if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return null;
 
     // Check if already answered (has user message after it)
     const lastIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
@@ -1354,10 +1354,12 @@ export default function InterviewV2() {
 
   const currentPrompt = getCurrentPrompt();
   const lastAgentQuestion = getLastAgentQuestion();
-  const totalQuestions = engine?.TotalQuestions || 198;
-  const answeredCount = transcript.filter(t => t.type === 'question').length;
-  const progress = Math.round((answeredCount / totalQuestions) * 100);
   
+  // DYNAMIC: Use engine.TotalQuestions (no hardcoded fallback)
+  const totalQuestions = engine?.TotalQuestions || 0;
+  const answeredCount = transcript.filter(t => t.type === 'question').length;
+  const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question'
