@@ -641,7 +641,7 @@ export default function InterviewV2() {
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
   const handleTextSubmit = useCallback((e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     const answer = input.trim();
     if (!answer || isCommitting) return;
     
@@ -948,13 +948,14 @@ export default function InterviewV2() {
               </div>
             ) : (
               <form onSubmit={handleTextSubmit} className="flex gap-3">
-                <Input
+                <input
                   ref={inputRef}
+                  type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type your answer..."
-                  className="flex-1 bg-slate-800 border-slate-600 text-white h-14 text-lg"
+                  className="flex-1 bg-slate-800 border border-slate-600 text-white h-14 text-lg px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isCommitting}
                 />
                 <Button type="submit" disabled={!input.trim() || isCommitting} className="bg-blue-600 hover:bg-blue-700 h-14 px-6">
