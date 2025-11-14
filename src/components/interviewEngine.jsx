@@ -715,6 +715,159 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
+
+  // ========== Additional Missing Packs (Production Database) ==========
+  'PACK_DUI_STOP': [
+    { Field_Key: 'incident_date', Prompt: 'When were you stopped for DUI?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'bac_level', Prompt: 'What was your BAC level, if known?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome? (arrested, cited, warning, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DUI_ARREST': [
+    { Field_Key: 'arrest_date', Prompt: 'When were you arrested for DUI?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'bac_level', Prompt: 'What was your BAC level?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what led to the arrest.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'penalties', Prompt: 'What penalties were imposed?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_TRAFFIC_CITATION': [
+    { Field_Key: 'citation_date', Prompt: 'When did you receive the traffic citation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'violation', Prompt: 'What was the violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SPEEDING': [
+    { Field_Key: 'citation_date', Prompt: 'When did you receive the speeding citation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'speed', Prompt: 'How fast were you going?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'posted_limit', Prompt: 'What was the speed limit?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ACCIDENT': [
+    { Field_Key: 'accident_date', Prompt: 'When did the accident occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'at_fault', Prompt: 'Were you at fault?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'injuries', Prompt: 'Were there any injuries?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'property_damage', Prompt: 'Was there property damage?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reported', Prompt: 'Was it reported to police?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SUSPENDED_LICENSE': [
+    { Field_Key: 'suspension_date', Prompt: 'When was your license suspended?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'What was the reason?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'duration', Prompt: 'How long was it suspended?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reinstated', Prompt: 'Has it been reinstated?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_REVOKED_LICENSE': [
+    { Field_Key: 'revocation_date', Prompt: 'When was your license revoked?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'What was the reason?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'current_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ILLEGAL_TURN': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'violation', Prompt: 'What was the violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_FAILURE_TO_YIELD': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SCHOOL_ZONE': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'speed', Prompt: 'How fast were you going?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_RED_LIGHT': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_STOP_SIGN': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CARELESS_DRIVING': [
+    { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_RACING': [
+    { Field_Key: 'incident_date', Prompt: 'When did this racing incident occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_LEAVING_SCENE': [
+    { Field_Key: 'incident_date', Prompt: 'When did you leave the scene?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_left', Prompt: 'Why did you leave the scene?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_TEXTING_DRIVING': [
+    { Field_Key: 'citation_date', Prompt: 'When were you cited for texting while driving?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PHONE_DRIVING': [
+    { Field_Key: 'citation_date', Prompt: 'When were you cited for using a phone while driving?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'what_doing', Prompt: 'What were you doing on the phone?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SEATBELT': [
+    { Field_Key: 'citation_date', Prompt: 'When were you cited for not wearing a seatbelt?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PARKING': [
+    { Field_Key: 'citation_date', Prompt: 'When did you receive the parking citation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'violation', Prompt: 'What was the violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'paid', Prompt: 'Was the fine paid?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_EQUIPMENT_VIOLATION': [
+    { Field_Key: 'citation_date', Prompt: 'When did you receive the equipment violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'violation_type', Prompt: 'What was the equipment violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'fixed', Prompt: 'Was it fixed?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ]
 };
 
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
@@ -1101,7 +1254,7 @@ export function runEntityFollowupSelfTest(engine) {
     });
   });
   
-  // Test 2: Simulate Yes answers and verify triggers
+  // Test 2: Simulate "Yes" answers and verify triggers
   console.log('\n📊 Simulating "Yes" answers for all questions with follow-up packs...\n');
   
   Object.keys(MatrixYesByQ).forEach(questionId => {
