@@ -476,8 +476,8 @@ export default function InterviewV2() {
               setCurrentItem({ id: nextQuestionId, type: 'question' });
               await persistState({ id: nextQuestionId, type: 'question' }, []);
             } else {
-              setShowCompletionModal(true);
-            }
+                setShowCompletionModal(true);
+              }
           }
           break;
         }
@@ -781,16 +781,17 @@ export default function InterviewV2() {
     }
 
     try {
-      // CRITICAL: Use the EXACT same pattern as Interview.js (line 359-362)
-      // Interview.js passes the conversation object directly without any modification
+      // CRITICAL: Always fetch a fresh conversation object right before addMessage
+      // This ensures we have the complete, uncorrupted structure the SDK expects
+      console.log("[TEST] Fetching fresh conversation object...");
+      const freshConversation = await base44.agents.getConversation(conversation.id);
       
-      console.log("[TEST] Conversation before addMessage:", {
-        id: conversation.id,
-        agent_name: conversation.agent_name,
-        hasMessages: !!conversation.messages,
-        messagesType: typeof conversation.messages,
-        messagesIsArray: Array.isArray(conversation.messages),
-        messagesLength: conversation.messages?.length || 0
+      console.log("[TEST] Fresh conversation:", {
+        id: freshConversation.id,
+        agent_name: freshConversation.agent_name,
+        hasMessages: !!freshConversation.messages,
+        messagesLength: freshConversation.messages?.length || 0,
+        allKeys: Object.keys(freshConversation)
       });
 
       const messagePayload = {
@@ -801,12 +802,15 @@ export default function InterviewV2() {
       console.log("[TEST] Message payload:", messagePayload);
       console.log("[TEST] Calling base44.agents.addMessage...");
 
-      // Use EXACT Interview.js pattern - no fetching, just use conversation directly
-      const result = await base44.agents.addMessage(conversation, messagePayload);
+      // Use the fresh conversation object directly
+      const result = await base44.agents.addMessage(freshConversation, messagePayload);
 
       console.log("[TEST] ✅ SUCCESS!");
       console.log("[TEST] Result:", result);
       toast.success("Test message sent successfully");
+      
+      // Update state with the fresh conversation
+      setConversation(freshConversation);
       
     } catch (err) {
       console.error("[TEST] ❌ FAILED");
@@ -814,14 +818,6 @@ export default function InterviewV2() {
       console.error("[TEST] Error message:", err?.message);
       console.error("[TEST] Error stack:", err?.stack);
       console.error("[TEST] Full error object:", err);
-      
-      // Additional debugging
-      console.error("[TEST] Conversation object at failure:", {
-        id: conversation?.id,
-        agent_name: conversation?.agent_name,
-        messages: conversation?.messages,
-        allKeys: conversation ? Object.keys(conversation) : []
-      });
       
       toast.error(`Test failed: ${err.message}`);
     }
