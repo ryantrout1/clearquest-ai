@@ -333,7 +333,7 @@ export default function InterviewV2() {
     }
   };
 
-  const handoffToAI = async (questionId, packId, substanceName, followUpAnswers) => {
+  const handoffToAI = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
     if (!conversation) {
       const nextQuestionId = computeNextQuestionId(engine, questionId, 'Yes');
       if (nextQuestionId && engine.QById[nextQuestionId]) {
@@ -368,7 +368,7 @@ export default function InterviewV2() {
     } catch (err) {
       console.error('❌ Error:', err);
     }
-  };
+  }, [conversation, engine, sessionId]);
 
   useEffect(() => {
     if (!isWaitingForAgent || !agentMessages.length || !currentFollowUpPack) return;
@@ -424,7 +424,7 @@ export default function InterviewV2() {
     };
     
     processAI();
-  }, [agentMessages, isWaitingForAgent, currentFollowUpPack, sessionId, engine, refreshChatHistory]);
+  }, [agentMessages, isWaitingForAgent, currentFollowUpPack, sessionId, engine, refreshChatHistory, persistState]);
 
   const handleAnswer = useCallback(async (value) => {
     if (isCommitting || !currentItem || !engine) return;
@@ -621,7 +621,7 @@ export default function InterviewV2() {
       console.error('❌ Error:', err);
       setIsCommitting(false);
     }
-  }, [currentItem, engine, queue, sessionId, conversation, currentFollowUpAnswers, session, chatHistory, refreshChatHistory]);
+  }, [currentItem, engine, queue, sessionId, conversation, currentFollowUpAnswers, session, chatHistory, refreshChatHistory, isCommitting, handoffToAI, persistState]);
 
   const handleAgentAnswer = useCallback(async (value) => {
     if (!conversation || isCommitting || !isWaitingForAgent) return;
