@@ -432,6 +432,8 @@ export default function InterviewV2() {
     setValidationHint(null);
     lastActivityRef.current = Date.now();
 
+    console.log("[handleAnswer] Called with:", { value, currentItemType: currentItem?.type, currentItem });
+
     try {
       if (currentItem.type === 'question') {
         const question = engine.QById[currentItem.id];
@@ -503,6 +505,8 @@ export default function InterviewV2() {
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         const step = packSteps[stepIndex];
 
+        console.log("[handleAnswer] Processing follow-up:", { packId, stepIndex, step });
+
         if (step.PrefilledAnswer) {
           await logFollowUpQuestion(sessionId, currentItem.id, packId, step.Prompt, category, stepIndex);
           await logFollowUpAnswer(sessionId, currentItem.id, packId, step.PrefilledAnswer, category, stepIndex);
@@ -537,11 +541,14 @@ export default function InterviewV2() {
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
         
         if (!validation.valid) {
+          console.log("[handleAnswer] Validation failed:", validation.hint);
           setValidationHint(validation.hint);
           setIsCommitting(false);
           setTimeout(() => inputRef.current?.focus(), 100);
           return;
         }
+
+        console.log("[handleAnswer] Validation passed, logging Q&A");
 
         // Log Q&A pair
         await logFollowUpQuestion(sessionId, currentItem.id, packId, step.Prompt, category, stepIndex);
@@ -654,6 +661,7 @@ export default function InterviewV2() {
     console.log("[handleTextSubmit] SUBMIT", {
       answer,
       isWaitingForAgent,
+      currentItemType: currentItem?.type
     });
 
     if (isWaitingForAgent) {
@@ -661,9 +669,7 @@ export default function InterviewV2() {
     } else {
       handleAnswer(answer);
     }
-
-    setInput("");
-  }, [input, isCommitting, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
+  }, [input, isCommitting, isWaitingForAgent, currentItem, handleAnswer, handleAgentAnswer]);
 
   const handleInputKeyDown = useCallback((e) => {
     console.log("[handleInputKeyDown]", { key: e.key, input });
