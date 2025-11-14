@@ -614,7 +614,7 @@ export default function InterviewV2() {
   };
 
   // ============================================================================
-  // NEW: DETECT WHEN AGENT SENDS NEXT BASE QUESTION
+  // NEW: DETECT WHEN AGENT SENDS NEXT BASE QUESTION + SAVE PROBING TO DATABASE
   // ============================================================================
 
   useEffect(() => {
@@ -641,6 +641,11 @@ export default function InterviewV2() {
 
       console.log(`✅ Agent sent next base question: ${nextQuestionId}`);
       
+      // CRITICAL NEW: Save AI probing exchanges to database before moving on
+      if (currentFollowUpPack) {
+        saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      }
+      
       // Clear waiting state and continue with deterministic engine
       setIsWaitingForAgent(false);
       setCurrentFollowUpPack(null);
@@ -652,7 +657,105 @@ export default function InterviewV2() {
       // Persist state
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack]);
+
+  // ============================================================================
+  // NEW: SAVE PROBING EXCHANGES TO DATABASE
+  // ============================================================================
+
+  const saveProbingToDatabase = async (questionId, packId, messages) => {
+    try {
+      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} to database...`);
+      
+      // Extract Q&A pairs from agent conversation
+      const exchanges = [];
+      
+      // Find the handoff message
+      let startIndex = -1;
+      let endIndex = -1;
+      
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        
+        if (msg.role === 'user' &&
+            typeof msg.content === 'string' &&
+            msg.content.includes('Follow-up pack completed') &&
+            msg.content.includes(`Question ID: ${questionId}`) &&
+            msg.content.includes(`Follow-up Pack: ${packId}`)) {
+          startIndex = i + 1;
+        }
+        
+        if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
+          endIndex = i;
+          break;
+        }
+      }
+      
+      if (startIndex !== -1) {
+        const probingMessages = endIndex !== -1
+          ? messages.slice(startIndex, endIndex)
+          : messages.slice(startIndex);
+        
+        let sequenceNumber = 1;
+        
+        for (let i = 0; i < probingMessages.length; i++) {
+          const currentMsg = probingMessages[i];
+          const nextMsg = probingMessages[i + 1];
+          
+          if (currentMsg.role === 'assistant' &&
+              typeof currentMsg.content === 'string' &&
+              !currentMsg.content.includes('Follow-up pack completed') &&
+              !currentMsg.content.match(/\bQ\d{1,3}\b/i) &&
+              nextMsg?.role === 'user' &&
+              typeof nextMsg.content === 'string' &&
+              !nextMsg.content.includes('Follow-up pack completed')) {
+            
+            const cleanQuestion = currentMsg.content
+              .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '')
+              .trim();
+            
+            if (cleanQuestion && nextMsg.content && cleanQuestion.length > 5) {
+              exchanges.push({
+                sequence_number: sequenceNumber++,
+                probing_question: cleanQuestion,
+                candidate_response: nextMsg.content,
+                timestamp: new Date().toISOString()
+              });
+            }
+            
+            i++;
+          }
+        }
+      }
+      
+      console.log(`📊 Extracted ${exchanges.length} probing exchanges to save`);
+      
+      if (exchanges.length > 0) {
+        // Find the Response record for this question
+        const responses = await base44.entities.Response.filter({
+          session_id: sessionId,
+          question_id: questionId,
+          followup_pack: packId
+        });
+        
+        if (responses.length > 0) {
+          const responseRecord = responses[0];
+          
+          // Update Response with probing exchanges
+          await base44.entities.Response.update(responseRecord.id, {
+            investigator_probing: exchanges
+          });
+          
+          console.log(`✅ Saved ${exchanges.length} probing exchanges to Response ${responseRecord.id}`);
+        } else {
+          console.error(`❌ No Response record found for ${questionId}/${packId}`);
+        }
+      }
+      
+    } catch (err) {
+      console.error('❌ Error saving probing to database:', err);
+    }
+  };
 
   // ============================================================================
   // ANSWER SUBMISSION - HYBRID LOGIC WITH CONDITIONAL FOLLOW-UPS
@@ -941,8 +1044,8 @@ export default function InterviewV2() {
           } else {
             // This step should be asked
             break;
+            }
           }
-        }
         
         // Check if this was the LAST follow-up in the pack (or all remaining were skipped)
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
@@ -1042,7 +1145,7 @@ export default function InterviewV2() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing, saveProbingToDatabase]);
 
   // NEW: Handle agent probing questions
   const handleAgentAnswer = useCallback(async (value) => {

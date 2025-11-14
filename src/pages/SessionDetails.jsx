@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -46,7 +47,7 @@ export default function SessionDetails() {
   const [followups, setFollowups] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [department, setDepartment] = useState(null);
-  const [conversation, setConversation] = useState(null);
+  const [conversation, setConversation] = useState(null); // Keep for now, though AI probing is no longer extracted from it.
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   
@@ -135,12 +136,16 @@ export default function SessionDetails() {
     const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      response.investigator_probing?.some(p => 
+        p.probing_question?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        p.candidate_response?.toLowerCase().includes(searchTerm.toLowerCase())
+      ) ||
       followups.some(f =>
         f.response_id === response.id &&
         JSON.stringify(f.additional_details || {}).toLowerCase().includes(searchTerm.toLowerCase())
       );
 
-    const hasFollowups = followups.some(f => f.response_id === response.id);
+    const hasFollowups = followups.some(f => f.response_id === response.id) || (response.investigator_probing?.length > 0);
     const matchesFollowUpFilter = !showOnlyFollowUps || hasFollowups;
 
     return matchesSearch && matchesFollowUpFilter;
@@ -568,133 +573,21 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
   );
 }
 
-// CRITICAL FIX: Enhanced extraction with multiple fallback methods
-function extractAIProbingForQuestion(conversation, questionId, followupPack) {
-  console.log('🔍 extractAIProbingForQuestion called:', {
-    hasConversation: !!conversation,
-    messageCount: conversation?.messages?.length || 0,
-    questionId,
-    followupPack
-  });
-
-  if (!conversation?.messages || !followupPack) {
-    console.log('⚠️ Missing conversation or followup pack');
-    return [];
-  }
-
-  const exchanges = [];
-  const messages = conversation.messages;
-
-  // METHOD 1: Look for exact handoff message format
-  let startIndex = -1;
-  let endIndex = -1;
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    if (msg.role === 'user' &&
-        typeof msg.content === 'string' &&
-        msg.content.includes('Follow-up pack completed') &&
-        msg.content.includes(`Question ID: ${questionId}`) &&
-        msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
-      startIndex = i + 1;
-      console.log(`✅ Found handoff at message ${i}`);
-    }
-
-    if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
-      endIndex = i;
-      console.log(`✅ Found end at message ${i}`);
-      break;
-    }
-  }
-
-  // METHOD 2: Fallback - look for assistant/user message pairs after the question's "Yes" answer
-  if (startIndex === -1) {
-    console.log('⚠️ Method 1 failed, trying fallback method...');
-    
-    // Find any user message mentioning this question
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.role === 'user' && 
-          typeof msg.content === 'string' && 
-          (msg.content.includes(questionId) || msg.content.includes(followupPack))) {
-        startIndex = i + 1;
-        console.log(`✅ Fallback: Found potential start at message ${i}`);
-        
-        // Look for the end (next base question)
-        for (let j = i + 1; j < messages.length; j++) {
-          if (messages[j].role === 'assistant' && 
-              typeof messages[j].content === 'string' && 
-              messages[j].content.match(/\bQ\d{1,3}\b/i)) {
-            endIndex = j;
-            console.log(`✅ Fallback: Found end at message ${j}`);
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // Extract Q&A pairs
-  if (startIndex !== -1) {
-    const probingMessages = endIndex !== -1
-      ? messages.slice(startIndex, endIndex)
-      : messages.slice(startIndex);
-
-    console.log(`📊 Extracting from ${probingMessages.length} messages`);
-
-    for (let i = 0; i < probingMessages.length; i++) {
-      const currentMsg = probingMessages[i];
-      const nextMsg = probingMessages[i + 1];
-
-      if (currentMsg.role === 'assistant' &&
-          typeof currentMsg.content === 'string' &&
-          !currentMsg.content.includes('Follow-up pack completed') &&
-          !currentMsg.content.match(/\bQ\d{1,3}\b/i) && // Exclude base questions
-          nextMsg?.role === 'user' &&
-          typeof nextMsg.content === 'string' &&
-          !nextMsg.content.includes('Follow-up pack completed')) {
-
-        const cleanQuestion = currentMsg.content
-          .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '')
-          .trim();
-
-        if (cleanQuestion && nextMsg.content && cleanQuestion.length > 5) {
-          exchanges.push({
-            question: cleanQuestion,
-            answer: nextMsg.content
-          });
-        }
-
-        i++;
-      }
-    }
-
-    console.log(`✅ Extracted ${exchanges.length} exchanges`);
-  } else {
-    console.log(`⚠️ Could not find probing section for ${questionId}/${followupPack}`);
-  }
-
-  return exchanges;
-}
-
-// CRITICAL FIX: Force render when exchanges exist
+// CRITICAL FIX: Read probing from database instead of extracting from conversation
 function CompactQuestionRow({ response, followups, conversation }) {
   const hasFollowups = followups.length > 0;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const questionNumber = response.display_number.toString().padStart(3, '0');
 
-  // ALWAYS try to extract, even if methods vary
-  const aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+  // PRODUCTION FIX: Read probing exchanges directly from Response.investigator_probing field
+  const aiProbingExchanges = response.investigator_probing || [];
 
-  // Debug log for every question
-  if (hasFollowups && response.answer === "Yes") {
-    console.log(`🔍 Question ${response.question_id} (${response.followup_pack}):`, {
-      hasConversation: !!conversation,
-      exchangesFound: aiProbingExchanges.length
-    });
-  }
+  // DEBUG: Log what we have
+  // console.log(`🔍 Question ${response.question_id}:`, {
+  //   hasFollowups,
+  //   probingCount: aiProbingExchanges.length,
+  //   probingSource: 'database'
+  // });
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -751,7 +644,7 @@ function CompactQuestionRow({ response, followups, conversation }) {
               );
             })}
 
-            {/* CRITICAL: ALWAYS render if exchanges exist - NO conditionals */}
+            {/* PRODUCTION FIX: Always render from database field */}
             {aiProbingExchanges.length > 0 && (
               <div className="border-t border-slate-600/50 pt-3 space-y-2">
                 <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -761,11 +654,11 @@ function CompactQuestionRow({ response, followups, conversation }) {
                   <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
                     <div className="text-xs">
                       <span className="text-purple-400 font-medium">Follow-Up Question:</span>
-                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.question}</p>
+                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
                     </div>
                     <div className="text-xs">
                       <span className="text-purple-400 font-medium">Candidate Response:</span>
-                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.answer}</p>
+                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
                     </div>
                   </div>
                 ))}
@@ -802,6 +695,10 @@ function TranscriptView({ responses, followups, conversation }) {
 function TranscriptEntry({ item, conversation }) {
   if (item.type === 'question') {
     const response = item.data;
+    
+    // PRODUCTION FIX: Read probing from database
+    const aiProbingExchanges = response.investigator_probing || [];
+    
     return (
       <div className="space-y-2">
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
@@ -818,6 +715,28 @@ function TranscriptEntry({ item, conversation }) {
             <p className="text-white text-sm font-medium">{response.answer}</p>
           </div>
         </div>
+        
+        {/* Show probing in transcript view as well */}
+        {aiProbingExchanges.length > 0 && (
+          <div className="ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30">
+            <div className="text-xs font-semibold text-purple-400 mb-2">
+              🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
+            </div>
+            {aiProbingExchanges.map((exchange, idx) => (
+              <React.Fragment key={idx}>
+                <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
+                  <p className="text-xs text-purple-400">Follow-Up Question {idx + 1}</p>
+                  <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.probing_question}</p>
+                </div>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
+                    <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -825,8 +744,6 @@ function TranscriptEntry({ item, conversation }) {
   if (item.type === 'followup') {
     const followup = item.data;
     const details = followup.additional_details || {};
-
-    const aiProbingExchanges = extractAIProbingForQuestion(conversation, item.questionId, item.followupPack);
 
     return (
       <div className="ml-4 md:ml-8 space-y-2">
@@ -868,28 +785,6 @@ function TranscriptEntry({ item, conversation }) {
             </React.Fragment>
           );
         })}
-
-        {/* CRITICAL: ALWAYS render if exchanges exist */}
-        {aiProbingExchanges.length > 0 && (
-          <div className="space-y-2 mt-3 pt-3 border-t border-purple-500/30">
-            <div className="text-xs font-semibold text-purple-400 mb-2">
-              🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
-            </div>
-            {aiProbingExchanges.map((exchange, idx) => (
-              <React.Fragment key={idx}>
-                <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
-                  <p className="text-xs text-purple-400">Follow-Up Question {idx + 1}</p>
-                  <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.question}</p>
-                </div>
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
-                    <p className="text-white text-sm break-words">{exchange.answer}</p>
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -1104,7 +999,8 @@ function generateReportHTML(session, responses, followups, questions, department
           <div class="section-title">${category}</div>
           ${categoryResponses.map(response => {
             const relatedFollowups = followups.filter(f => f.response_id === response.id);
-            const aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+            // PRODUCTION FIX: Read probing from database for report generation
+            const aiProbingExchanges = response.investigator_probing || [];
 
             return `
               <div class="question-block">
@@ -1134,9 +1030,9 @@ function generateReportHTML(session, responses, followups, questions, department
                     ${aiProbingExchanges.map((exchange, idx) => `
                       <div class="probing-exchange">
                         <div class="probing-question">Follow-Up Question ${idx + 1}:</div>
-                        <div style="margin-left: 12px; margin-bottom: 4px;">${exchange.question}</div>
+                        <div style="margin-left: 12px; margin-bottom: 4px;">${exchange.probing_question}</div>
                         <div class="probing-question">Candidate Response:</div>
-                        <div class="probing-answer">${exchange.answer}</div>
+                        <div class="probing-answer">${exchange.candidate_response}</div>
                       </div>
                     `).join('')}
                   </div>
