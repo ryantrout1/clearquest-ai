@@ -771,6 +771,47 @@ export default function InterviewV2() {
     }
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
 
+  const handleSendTestAIMsg = useCallback(async () => {
+    console.log("[TEST] Button clicked");
+    console.log("[TEST] Conversation object:", {
+      exists: !!conversation,
+      type: typeof conversation,
+      id: conversation?.id,
+      agent_name: conversation?.agent_name,
+      keys: conversation ? Object.keys(conversation) : [],
+      fullObject: conversation
+    });
+
+    if (!conversation) {
+      console.error("[TEST] No conversation object available");
+      return;
+    }
+
+    try {
+      // Use EXACT same signature as working Interview.js (line 359-362)
+      const messagePayload = {
+        role: "user",
+        content: "TEST MESSAGE from InterviewV2 debug button"
+      };
+
+      console.log("[TEST] Calling addMessage with:", {
+        conversationArg: conversation,
+        messagePayload
+      });
+
+      const result = await base44.agents.addMessage(conversation, messagePayload);
+
+      console.log("[TEST] ✅ addMessage SUCCESS - result:", result);
+      toast.success("Test message sent successfully");
+    } catch (err) {
+      console.error("[TEST] ❌ addMessage FAILED");
+      console.error("[TEST] Error:", err);
+      console.error("[TEST] Error message:", err.message);
+      console.error("[TEST] Error stack:", err.stack);
+      toast.error(`Test failed: ${err.message}`);
+    }
+  }, [conversation]);
+
   const handleTextSubmit = useCallback((e) => {
     if (e && typeof e.preventDefault === "function") {
       e.preventDefault();
@@ -1115,6 +1156,20 @@ export default function InterviewV2() {
             <p className="text-xs text-slate-400 text-center mt-3">
               {isWaitingForAgent ? `Probing question ${aiProbeCount + 1} of 5` : "Once submitted, answers cannot be changed"}
             </p>
+
+            {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
+              <div className="mt-2 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSendTestAIMsg}
+                  disabled={!conversation}
+                  className="text-xs text-yellow-400 border-yellow-600 hover:bg-yellow-950"
+                >
+                  🧪 Send Test AI Message
+                </Button>
+              </div>
+            )}
           </div>
         </footer>
       </div>
