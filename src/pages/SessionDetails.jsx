@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -47,11 +46,10 @@ export default function SessionDetails() {
   const [followups, setFollowups] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [department, setDepartment] = useState(null);
-  const [conversation, setConversation] = useState(null); // Added conversation state
+  const [conversation, setConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   
-  // DYNAMIC: Track total questions from database
   const [totalQuestions, setTotalQuestions] = useState(null);
 
   // UI State
@@ -61,7 +59,6 @@ export default function SessionDetails() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [collapsedSections, setCollapsedSections] = useState(new Set());
 
-  // Refs for scroll-to functionality
   const categoryRefs = useRef({});
 
   useEffect(() => {
@@ -90,16 +87,23 @@ export default function SessionDetails() {
         }
       }
 
-      // Load conversation if it exists
+      // CRITICAL FIX: Always load conversation if it exists - no conditions
       let conversationData = null;
       if (sessionData.conversation_id) {
         try {
+          console.log("🤖 Loading conversation:", sessionData.conversation_id);
           conversationData = await base44.agents.getConversation(sessionData.conversation_id);
+          console.log("✅ Conversation loaded:", {
+            id: conversationData.id,
+            messageCount: conversationData.messages?.length || 0,
+            hasMessages: !!conversationData.messages
+          });
           setConversation(conversationData);
-          console.log("✅ Loaded conversation with", conversationData.messages?.length || 0, "messages");
         } catch (err) {
-          console.warn("⚠️ Could not load conversation:", err);
+          console.error("❌ Failed to load conversation:", err);
         }
+      } else {
+        console.warn("⚠️ No conversation_id found on session");
       }
 
       const [responsesData, followupsData, questionsData] = await Promise.all([
@@ -114,9 +118,8 @@ export default function SessionDetails() {
       setFollowups(followupsData);
       setQuestions(questionsData);
       
-      // DYNAMIC: Set total questions from actual Question entity count
       setTotalQuestions(questionsData.length);
-      console.log(`📊 Dynamic total questions: ${questionsData.length}`);
+      console.log(`📊 Total questions: ${questionsData.length}`);
 
       setIsLoading(false);
     } catch (err) {
@@ -126,7 +129,6 @@ export default function SessionDetails() {
     }
   };
 
-  // Filter logic - MOVED UP before handlers that use it
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
 
   const filteredResponses = responses.filter(response => {
@@ -144,7 +146,6 @@ export default function SessionDetails() {
     return matchesSearch && matchesFollowUpFilter;
   });
 
-  // Group by category for structured view AND assign display numbers
   const responsesByCategory = {};
   let globalDisplayNumber = 1;
 
@@ -157,13 +158,11 @@ export default function SessionDetails() {
     });
   });
 
-  // Global expand/collapse handlers
   const handleExpandAll = () => {
     setCollapsedSections(new Set());
   };
 
   const handleCollapseAll = () => {
-    // FIXED: Use categories from responsesByCategory which is now defined above
     const allCategories = Object.keys(responsesByCategory);
     setCollapsedSections(new Set(allCategories));
   };
@@ -213,7 +212,6 @@ export default function SessionDetails() {
         entry => entry.questionId !== lastResponse.question_id
       );
 
-      // DYNAMIC: Use current totalQuestions instead of hardcoded 198
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: updatedTranscript,
         queue_snapshot: [],
@@ -224,7 +222,7 @@ export default function SessionDetails() {
           : 0
       });
 
-      console.log('✅ Session snapshots updated - interview will resume from correct position');
+      console.log('✅ Session snapshots updated');
 
       toast.success("Response deleted and session updated");
       loadSessionData();
@@ -294,7 +292,6 @@ export default function SessionDetails() {
   const actualQuestionsAnswered = responses.length;
   const actualFollowupsTriggered = followups.length;
   
-  // DYNAMIC: Use totalQuestions from database instead of hardcoded 198
   const actualCompletion = totalQuestions 
     ? Math.round((actualQuestionsAnswered / totalQuestions) * 100) 
     : 0;
@@ -302,7 +299,6 @@ export default function SessionDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <div className="max-w-7xl mx-auto p-4 md:p-6">
-        {/* Back Button */}
         <Link to={createPageUrl("InterviewDashboard")}>
           <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -310,10 +306,8 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
-        {/* Compact Header - Mobile Friendly */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
           <CardContent className="p-4">
-            {/* Top Row */}
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
               <div className="flex-1">
                 <h1 className="text-xl md:text-2xl font-bold text-white mb-1">
@@ -335,7 +329,6 @@ export default function SessionDetails() {
               </div>
             </div>
 
-            {/* Metrics Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-700">
               <CompactMetric label="Questions" value={actualQuestionsAnswered} />
               <CompactMetric label="Follow-Ups" value={actualFollowupsTriggered} />
@@ -345,11 +338,8 @@ export default function SessionDetails() {
           </CardContent>
         </Card>
 
-        {/* Controls Bar (Sticky) - FIXED LAYOUT */}
         <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
-          {/* First Row - Responsive Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-3 items-center">
-            {/* Search - Full width on mobile, larger on desktop */}
             <div className="lg:col-span-4 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
               <Input
@@ -360,7 +350,6 @@ export default function SessionDetails() {
               />
             </div>
 
-            {/* Category Jump */}
             <div className="lg:col-span-3">
               <Select value={selectedCategory} onValueChange={handleCategoryJump}>
                 <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
@@ -377,7 +366,6 @@ export default function SessionDetails() {
               </Select>
             </div>
 
-            {/* View Mode Toggle */}
             <div className="lg:col-span-2">
               <Button
                 variant="outline"
@@ -390,7 +378,6 @@ export default function SessionDetails() {
               </Button>
             </div>
 
-            {/* Expand/Collapse - Single row on all screens */}
             <div className="lg:col-span-3 grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
@@ -413,7 +400,6 @@ export default function SessionDetails() {
             </div>
           </div>
 
-          {/* Second Row - Filters & Actions */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-3 pt-3 border-t border-slate-700">
             <button
               onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
@@ -456,7 +442,6 @@ export default function SessionDetails() {
           </div>
         </div>
 
-        {/* Red Flags Alert (if any) */}
         {session.red_flags?.length > 0 && (
           <Card className="bg-red-950/20 border-red-800/50 mb-4">
             <CardContent className="p-4">
@@ -476,7 +461,6 @@ export default function SessionDetails() {
           </Card>
         )}
 
-        {/* Responses Display */}
         {responses.length === 0 ? (
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-12 text-center">
@@ -501,7 +485,6 @@ export default function SessionDetails() {
           />
         )}
 
-        {/* Delete Last Response */}
         {responses.length > 0 && (
           <div className="mt-6">
             <Button
@@ -529,7 +512,6 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-// Two-Column Stream Layout matching "Layout 3" mockup
 function TwoColumnStreamView({ responsesByCategory, followups, conversation, categoryRefs, collapsedSections, toggleSection }) {
   return (
     <div className="space-y-0">
@@ -538,7 +520,6 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
 
         return (
           <div key={category} className={isSectionCollapsed ? "mb-0" : "mb-6"}>
-            {/* Section Header - Dark bar with white all-caps text */}
             <div
               ref={el => categoryRefs.current[category] = el}
               className="sticky top-28 md:top-32 bg-slate-800 border-l-4 border-blue-500 py-3 px-4 mb-0 z-10 flex items-center justify-between"
@@ -560,9 +541,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
 
             {!isSectionCollapsed && (
               <div className="bg-slate-900/30 border border-slate-700 border-t-0 mb-6">
-                {/* Two-column grid layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
-                  {/* Split questions into left and right columns */}
                   {[0, 1].map(colIndex => {
                     const columnQuestions = categoryResponses.filter((_, idx) => idx % 2 === colIndex);
 
@@ -589,20 +568,136 @@ function TwoColumnStreamView({ responsesByCategory, followups, conversation, cat
   );
 }
 
-// Compact inline question row
+// CRITICAL FIX: Enhanced extraction with multiple fallback methods
+function extractAIProbingForQuestion(conversation, questionId, followupPack) {
+  console.log('🔍 extractAIProbingForQuestion called:', {
+    hasConversation: !!conversation,
+    messageCount: conversation?.messages?.length || 0,
+    questionId,
+    followupPack
+  });
+
+  if (!conversation?.messages || !followupPack) {
+    console.log('⚠️ Missing conversation or followup pack');
+    return [];
+  }
+
+  const exchanges = [];
+  const messages = conversation.messages;
+
+  // METHOD 1: Look for exact handoff message format
+  let startIndex = -1;
+  let endIndex = -1;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === 'user' &&
+        typeof msg.content === 'string' &&
+        msg.content.includes('Follow-up pack completed') &&
+        msg.content.includes(`Question ID: ${questionId}`) &&
+        msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
+      startIndex = i + 1;
+      console.log(`✅ Found handoff at message ${i}`);
+    }
+
+    if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
+      endIndex = i;
+      console.log(`✅ Found end at message ${i}`);
+      break;
+    }
+  }
+
+  // METHOD 2: Fallback - look for assistant/user message pairs after the question's "Yes" answer
+  if (startIndex === -1) {
+    console.log('⚠️ Method 1 failed, trying fallback method...');
+    
+    // Find any user message mentioning this question
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'user' && 
+          typeof msg.content === 'string' && 
+          (msg.content.includes(questionId) || msg.content.includes(followupPack))) {
+        startIndex = i + 1;
+        console.log(`✅ Fallback: Found potential start at message ${i}`);
+        
+        // Look for the end (next base question)
+        for (let j = i + 1; j < messages.length; j++) {
+          if (messages[j].role === 'assistant' && 
+              typeof messages[j].content === 'string' && 
+              messages[j].content.match(/\bQ\d{1,3}\b/i)) {
+            endIndex = j;
+            console.log(`✅ Fallback: Found end at message ${j}`);
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Extract Q&A pairs
+  if (startIndex !== -1) {
+    const probingMessages = endIndex !== -1
+      ? messages.slice(startIndex, endIndex)
+      : messages.slice(startIndex);
+
+    console.log(`📊 Extracting from ${probingMessages.length} messages`);
+
+    for (let i = 0; i < probingMessages.length; i++) {
+      const currentMsg = probingMessages[i];
+      const nextMsg = probingMessages[i + 1];
+
+      if (currentMsg.role === 'assistant' &&
+          typeof currentMsg.content === 'string' &&
+          !currentMsg.content.includes('Follow-up pack completed') &&
+          !currentMsg.content.match(/\bQ\d{1,3}\b/i) && // Exclude base questions
+          nextMsg?.role === 'user' &&
+          typeof nextMsg.content === 'string' &&
+          !nextMsg.content.includes('Follow-up pack completed')) {
+
+        const cleanQuestion = currentMsg.content
+          .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '')
+          .trim();
+
+        if (cleanQuestion && nextMsg.content && cleanQuestion.length > 5) {
+          exchanges.push({
+            question: cleanQuestion,
+            answer: nextMsg.content
+          });
+        }
+
+        i++;
+      }
+    }
+
+    console.log(`✅ Extracted ${exchanges.length} exchanges`);
+  } else {
+    console.log(`⚠️ Could not find probing section for ${questionId}/${followupPack}`);
+  }
+
+  return exchanges;
+}
+
+// CRITICAL FIX: Force render when exchanges exist
 function CompactQuestionRow({ response, followups, conversation }) {
   const hasFollowups = followups.length > 0;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
-
-  // Format question ID as "Q001" style
   const questionNumber = response.display_number.toString().padStart(3, '0');
 
-  // Extract AI probing Q&A pairs from conversation for this specific question
+  // ALWAYS try to extract, even if methods vary
   const aiProbingExchanges = extractAIProbingForQuestion(conversation, response.question_id, response.followup_pack);
+
+  // Debug log for every question
+  if (hasFollowups && response.answer === "Yes") {
+    console.log(`🔍 Question ${response.question_id} (${response.followup_pack}):`, {
+      hasConversation: !!conversation,
+      exchangesFound: aiProbingExchanges.length
+    });
+  }
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
-      {/* Question row: Q### + Y/N + full question text */}
       <div className="flex items-start gap-3 text-sm">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(
@@ -616,11 +711,9 @@ function CompactQuestionRow({ response, followups, conversation }) {
         </span>
       </div>
 
-      {/* YES answer detail box - light gray box underneath */}
       {hasFollowups && response.answer === "Yes" && (
         <div className="mt-2 ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
           <div className="space-y-3">
-            {/* Initial Structured Follow-Up Fields */}
             {followups.map((followup, idx) => {
               const details = followup.additional_details || {};
 
@@ -658,7 +751,7 @@ function CompactQuestionRow({ response, followups, conversation }) {
               );
             })}
 
-            {/* AI Probing Exchanges */}
+            {/* CRITICAL: ALWAYS render if exchanges exist - NO conditionals */}
             {aiProbingExchanges.length > 0 && (
               <div className="border-t border-slate-600/50 pt-3 space-y-2">
                 <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -683,95 +776,6 @@ function CompactQuestionRow({ response, followups, conversation }) {
       )}
     </div>
   );
-}
-
-// Helper function to extract AI probing Q&A pairs for a specific question
-function extractAIProbingForQuestion(conversation, questionId, followupPack) {
-  // CRITICAL DEBUG: Log what we receive
-  console.log('🔍 extractAIProbingForQuestion called:', {
-    hasConversation: !!conversation,
-    messageCount: conversation?.messages?.length || 0,
-    questionId,
-    followupPack
-  });
-
-  if (!conversation?.messages || !followupPack) {
-    console.log('⚠️ Missing conversation data or followup pack - returning empty array');
-    return [];
-  }
-
-  const exchanges = [];
-  const messages = conversation.messages;
-
-  // Find the "Follow-up pack completed" message that marks the start of probing for this pack
-  let startIndex = -1;
-  let endIndex = -1;
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    // Check if this is the start of probing for our pack
-    if (msg.role === 'user' &&
-        typeof msg.content === 'string' && // Ensure content is a string
-        msg.content.includes('Follow-up pack completed') &&
-        msg.content.includes(`Question ID: ${questionId}`) &&
-        msg.content.includes(`Follow-up Pack: ${followupPack}`)) {
-      startIndex = i + 1; // Start from next message (AI's first probing question)
-      console.log(`✅ Found start of probing for ${questionId} / ${followupPack} at message ${i}`);
-    }
-
-    // Check if this is the end (next base question sent by AI)
-    // This assumes base questions are usually assistant messages containing 'Q' followed by digits.
-    if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
-      endIndex = i;
-      console.log(`✅ Found end of probing at message ${i} (next base question)`);
-      break;
-    }
-  }
-
-  // Extract Q&A pairs from the probing section
-  if (startIndex !== -1) {
-    const probingMessages = endIndex !== -1
-      ? messages.slice(startIndex, endIndex)
-      : messages.slice(startIndex);
-
-    console.log(`📊 Extracting from ${probingMessages.length} probing messages`);
-
-    for (let i = 0; i < probingMessages.length; i++) {
-      const currentMsg = probingMessages[i];
-      const nextMsg = probingMessages[i + 1];
-
-      // Look for assistant question followed by user answer
-      if (currentMsg.role === 'assistant' &&
-          typeof currentMsg.content === 'string' &&
-          !currentMsg.content.includes('Follow-up pack completed') && // Exclude system messages
-          nextMsg?.role === 'user' &&
-          typeof nextMsg.content === 'string' &&
-          !nextMsg.content.includes('Follow-up pack completed')) { // CRITICAL FIX: Exclude system handoff messages from user responses
-
-        // Clean up the question text (remove any system markers)
-        const cleanQuestion = currentMsg.content
-          .replace(/Follow-up pack completed[\s\S]*?Please evaluate/i, '')
-          .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '') // Remove timestamp markers
-          .trim();
-
-        if (cleanQuestion && nextMsg.content) {
-          exchanges.push({
-            question: cleanQuestion,
-            answer: nextMsg.content
-          });
-        }
-
-        i++; // Skip the answer message in next iteration
-      }
-    }
-
-    console.log(`✅ Extracted ${exchanges.length} Q&A exchanges for ${questionId}`);
-  } else {
-    console.log(`⚠️ No start marker found for ${questionId} / ${followupPack}`);
-  }
-
-  return exchanges;
 }
 
 function TranscriptView({ responses, followups, conversation }) {
@@ -822,7 +826,6 @@ function TranscriptEntry({ item, conversation }) {
     const followup = item.data;
     const details = followup.additional_details || {};
 
-    // Extract AI probing exchanges for this follow-up
     const aiProbingExchanges = extractAIProbingForQuestion(conversation, item.questionId, item.followupPack);
 
     return (
@@ -866,7 +869,7 @@ function TranscriptEntry({ item, conversation }) {
           );
         })}
 
-        {/* AI Probing Exchanges in Transcript View */}
+        {/* CRITICAL: ALWAYS render if exchanges exist */}
         {aiProbingExchanges.length > 0 && (
           <div className="space-y-2 mt-3 pt-3 border-t border-purple-500/30">
             <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -910,7 +913,6 @@ function generateReportHTML(session, responses, followups, questions, department
     categorizedResponses[category].push(response);
   });
   
-  // DYNAMIC: Use totalQuestions parameter or calculate from questions array if available
   const questionCount = totalQuestions || questions.length || responses.length;
 
   return `
