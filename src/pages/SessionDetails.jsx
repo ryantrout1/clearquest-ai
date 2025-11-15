@@ -277,9 +277,9 @@ export default function SessionDetails() {
     elevated: { label: "Elevated Risk", color: "bg-red-500/20 text-red-300 border-red-500/30" }
   };
 
+  // DETERMINISTIC METRICS - Use stored data only
   const actualQuestionsAnswered = responses.length;
   const actualFollowupsTriggered = followups.length;
-  
   const actualCompletion = totalQuestions 
     ? Math.round((actualQuestionsAnswered / totalQuestions) * 100) 
     : 0;
@@ -294,30 +294,31 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
+        {/* Updated Header with Deterministic Analytics */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
               <div className="flex-1">
-                <h1 className="text-xl md:text-2xl font-bold text-white mb-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
                   {department?.department_name || session.department_code}
                 </h1>
-                <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-slate-400">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
                   <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
                   <span>•</span>
-                  <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
+                  <span>File: <span className="font-mono text-slate-300">{session.file_number || 'RA-1Q0'}</span></span>
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
+                <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
                   {statusConfig[session.status]?.label}
                 </Badge>
-                <Badge className={cn("text-xs", riskConfig[session.risk_rating]?.color)}>
-                  {riskConfig[session.risk_rating]?.label}
+                <Badge className={cn("text-sm", riskConfig[session.risk_rating || 'low']?.color)}>
+                  {riskConfig[session.risk_rating || 'low']?.label}
                 </Badge>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-700">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <CompactMetric label="Questions" value={actualQuestionsAnswered} />
               <CompactMetric label="Follow-Ups" value={actualFollowupsTriggered} />
               <CompactMetric label="Red Flags" value={session.red_flags?.length || 0} color="red" />
@@ -948,7 +949,7 @@ function generateReportHTML(session, responses, followups, questions, department
         <h1>Applicant Background Interview Report</h1>
         <div class="session-info">
           <strong>Department:</strong> ${department?.department_name || session.department_code}<br>
-          <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number}<br>
+          <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number || 'RA-1Q0'}<br>
           <strong>Report Generated:</strong> ${now}<br>
           <strong>Questions Answered:</strong> ${responses.length} / ${questionCount}<br>
           <strong>Follow-Ups:</strong> ${followups.length}<br>
