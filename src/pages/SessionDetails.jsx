@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Search, Eye, Trash2,
   ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { format } from "date-fns";
+import { format } = "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -23,6 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Keywords that trigger "Needs Review" badge
 const REVIEW_KEYWORDS = [
@@ -54,6 +61,9 @@ export default function SessionDetails() {
   
   const [totalQuestions, setTotalQuestions] = useState(null);
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
+  
+  const [isHoveringStatus, setIsHoveringStatus] = useState(false);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
 
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
@@ -123,6 +133,29 @@ export default function SessionDetails() {
       }
       return newSet;
     });
+  };
+
+  const handleStatusClick = () => {
+    if (session?.status === 'completed') {
+      setShowStatusConfirm(true);
+    }
+  };
+
+  const handleRevertToInProgress = async () => {
+    try {
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: 'in_progress',
+        completed_at: null,
+        completed_date: null
+      });
+      
+      setSession({ ...session, status: 'in_progress' });
+      setShowStatusConfirm(false);
+      toast.success('Interview marked as In Progress');
+    } catch (err) {
+      console.error('Error updating status:', err);
+      toast.error('Failed to update status');
+    }
   };
 
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
@@ -322,9 +355,24 @@ export default function SessionDetails() {
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
-                  {statusConfig[session.status]?.label}
-                </Badge>
+                {session.status === 'completed' ? (
+                  <button
+                    onClick={handleStatusClick}
+                    onMouseEnter={() => setIsHoveringStatus(true)}
+                    onMouseLeave={() => setIsHoveringStatus(false)}
+                    className={cn(
+                      "text-sm px-3 py-1 rounded-full border transition-all",
+                      statusConfig.completed.color,
+                      "hover:bg-orange-500/20 hover:text-orange-300 hover:border-orange-500/30 cursor-pointer"
+                    )}
+                  >
+                    {isHoveringStatus ? "Mark In-Progress" : statusConfig.completed.label}
+                  </button>
+                ) : (
+                  <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
+                    {statusConfig[session.status]?.label}
+                  </Badge>
+                )}
                 <Badge className={cn("text-sm", riskConfig[session.risk_rating || 'low']?.color)}>
                   {riskConfig[session.risk_rating || 'low']?.label}
                 </Badge>
@@ -499,6 +547,32 @@ export default function SessionDetails() {
             </Button>
           </div>
         )}
+
+        <Dialog open={showStatusConfirm} onOpenChange={setShowStatusConfirm}>
+          <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Revert to In-Progress?</DialogTitle>
+              <DialogDescription className="text-slate-300 pt-3">
+                This will mark the interview as in-progress and allow the candidate to continue answering questions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowStatusConfirm(false)}
+                className="flex-1 bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRevertToInProgress}
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+              >
+                Confirm
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
