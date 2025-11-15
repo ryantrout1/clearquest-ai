@@ -1650,13 +1650,20 @@ export default function InterviewV2() {
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
-  // FIXED: Show agent messages from current session OR completed sessions (always visible)
-  const displayableAgentMessages = agentMessages.filter(msg => {
+  // FIXED: Only show ANSWERED agent messages in history (exclude current unanswered question)
+  const displayableAgentMessages = agentMessages.filter((msg, idx) => {
     // Filter out system summary messages
     if (msg.content?.includes('Follow-up pack completed')) return false;
     // Filter out base question signals (Q###)
     if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
-    // Keep everything else (both assistant and user messages)
+    
+    // For assistant messages: only show if there's a user message after it (i.e., it was answered)
+    if (msg.role === 'assistant') {
+      const nextMessage = agentMessages[idx + 1];
+      return nextMessage && nextMessage.role === 'user';
+    }
+    
+    // Keep all user messages (they're always answers)
     return true;
   });
   
@@ -1799,7 +1806,7 @@ export default function InterviewV2() {
                 </div>
               ))}
               
-              {/* Show current agent messages (active probing session) */}
+              {/* Show ONLY ANSWERED agent messages in history (exclude current unanswered question) */}
               {displayableAgentMessages.length > 0 && isWaitingForAgent && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
