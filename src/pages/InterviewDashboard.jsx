@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 export default function InterviewDashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -194,7 +196,6 @@ export default function InterviewDashboard() {
 
   const handleBulkDelete = async () => {
     const sessionsToDelete = Array.from(selectedSessions);
-    const queryClient = new QueryClient();
     
     try {
       for (const sessionId of sessionsToDelete) {
@@ -214,7 +215,9 @@ export default function InterviewDashboard() {
       toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
       
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
       
     } catch (err) {
       console.error("Error deleting sessions:", err);
@@ -495,7 +498,9 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
       toast.success("Session deleted successfully");
       
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
       
     } catch (err) {
       console.error("Error deleting session:", err);
