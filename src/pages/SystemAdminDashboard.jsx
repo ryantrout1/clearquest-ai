@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -78,6 +79,16 @@ export default function SystemAdminDashboard() {
     queryFn: () => base44.entities.UpgradeRequest.filter({ status: 'Open' }),
     enabled: !!user
   });
+
+  // Helper function - defined early so it can be used in useMemo
+  const getTrialDaysRemaining = (dept) => {
+    if (dept.plan_level !== 'Trial') return null;
+    const endDate = dept.trial_ends_at || dept.trial_end_date;
+    if (!endDate) return null;
+    
+    const days = differenceInDays(new Date(endDate), new Date());
+    return days > 0 ? days : 0;
+  };
 
   // Enhanced system metrics
   const systemMetrics = useMemo(() => {
@@ -215,15 +226,6 @@ export default function SystemAdminDashboard() {
     
     return stats;
   }, [departments, allSessions, allFollowUps]);
-
-  const getTrialDaysRemaining = (dept) => {
-    if (dept.plan_level !== 'Trial') return null;
-    const endDate = dept.trial_ends_at || dept.trial_end_date;
-    if (!endDate) return null;
-    
-    const days = differenceInDays(new Date(endDate), new Date());
-    return days > 0 ? days : 0;
-  };
 
   const handleApproveUpgrade = async (request) => {
     try {
