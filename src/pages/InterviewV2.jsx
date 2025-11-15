@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -775,7 +776,7 @@ export default function InterviewV2() {
       // Persist state
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, saveProbingToDatabase]);
 
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
@@ -1577,6 +1578,34 @@ export default function InterviewV2() {
     return lastAssistantMessage.content;
   }, [agentMessages, isWaitingForAgent]);
 
+  // NEW: Build chat-style history (question then answer)
+  const buildChatHistory = useCallback(() => {
+    const chatItems = [];
+    transcript.forEach((entry) => {
+      // Display the question (interviewer's message)
+      if (entry.type === 'question') {
+        chatItems.push({
+          type: 'question',
+          data: entry,
+          key: `q-${entry.id}`
+        });
+      } else if (entry.type === 'followup') {
+        chatItems.push({
+          type: 'followup',
+          data: entry,
+          key: `q-${entry.id}`
+        });
+      }
+      // Display the answer (candidate's message)
+      chatItems.push({
+        type: 'answer',
+        data: entry,
+        key: `a-${entry.id}`
+      });
+    });
+    return chatItems;
+  }, [transcript]);
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -1634,6 +1663,8 @@ export default function InterviewV2() {
     // Keep everything else (both assistant and user messages)
     return true;
   });
+  
+  const chatHistory = buildChatHistory();
 
   return (
     <>
@@ -1746,11 +1777,11 @@ export default function InterviewV2() {
                 </Alert>
               )}
               
-              {/* Show deterministic transcript */}
-              {transcript.map((entry) => (
-                <HistoryEntry 
-                  key={entry.id} 
-                  entry={entry}
+              {/* Show chat-style history: question -> answer -> question -> answer */}
+              {chatHistory.map((item) => (
+                <ChatHistoryItem
+                  key={item.key}
+                  item={item}
                   getQuestionDisplayNumber={getQuestionDisplayNumber}
                   getFollowUpPackName={getFollowUpPackName}
                 />
@@ -2062,66 +2093,69 @@ export default function InterviewV2() {
   );
 }
 
-// Deterministic transcript entries
-function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
-  if (entry.type === 'question') {
+// NEW: Chat-style history item (shows question then answer)
+function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }) {
+  if (item.type === 'answer') {
+    const entry = item.data;
+    const answerColor = entry.type === 'question' ? 'bg-blue-600' : 'bg-orange-600';
+    
     return (
-      <div className="space-y-3">
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-3.5 h-3.5 text-blue-400" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-blue-400">
-                  Question {getQuestionDisplayNumber(entry.questionId)}
-                </span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-sm font-medium text-slate-300">{entry.category}</span>
-              </div>
-              <p className="text-white leading-relaxed">{entry.questionText}</p>
-            </div>
-          </div>
+      <div className="flex justify-end">
+        <div className={`${answerColor} rounded-xl px-5 py-3 max-w-2xl`}>
+          <p className="text-white font-medium">{entry.answer}</p>
         </div>
-        <div className="flex justify-end">
-          <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-2xl">
-            <p className="text-white font-medium">{entry.answer}</p>
+      </div>
+    );
+  }
+  
+  if (item.type === 'question') {
+    const entry = item.data;
+    
+    return (
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-bold text-blue-400">
+                Question {getQuestionDisplayNumber(entry.questionId)}
+              </span>
+              <span className="text-xs text-slate-500">•</span>
+              <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+            </div>
+            <p className="text-white leading-relaxed">{entry.questionText}</p>
           </div>
         </div>
       </div>
     );
   }
-
-  if (entry.type === 'followup') {
+  
+  if (item.type === 'followup') {
+    const entry = item.data;
+    
     return (
-      <div className="space-y-3">
-        <div className="bg-orange-950/30 border border-orange-800/50 rounded-xl p-5 opacity-85">
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
-              <Layers className="w-3.5 h-3.5 text-orange-400" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-semibold text-orange-400">Follow-up</span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-sm text-orange-300">
-                  {entry.substanceName ? `${entry.substanceName} Use` : getFollowUpPackName(entry.packId)}
-                </span>
-              </div>
-              <p className="text-white leading-relaxed">{entry.questionText}</p>
-            </div>
+      <div className="bg-orange-950/30 border border-orange-800/50 rounded-xl p-5 opacity-85">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3.5 h-3.5 text-orange-400" />
           </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="bg-orange-600 rounded-xl px-5 py-3 max-w-2xl">
-            <p className="text-white font-medium">{entry.answer}</p>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-orange-400">Follow-up</span>
+              <span className="text-xs text-slate-500">•</span>
+              <span className="text-sm text-orange-300">
+                {entry.substanceName ? `${entry.substanceName} Use` : getFollowUpPackName(entry.packId)}
+              </span>
+            </div>
+            <p className="text-white leading-relaxed">{entry.questionText}</p>
           </div>
         </div>
       </div>
     );
   }
-
+  
   return null;
 }
 
