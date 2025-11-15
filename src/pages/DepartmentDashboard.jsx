@@ -416,13 +416,6 @@ export default function DepartmentDashboard() {
             </Link>
           )}
 
-          <Link to={createPageUrl("StartInterview")}>
-            <Button variant="outline" className="bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30">
-              <PlayCircle className="w-4 h-4 mr-2" />
-              Start Interview
-            </Button>
-          </Link>
-
           <Button
             variant="outline"
             className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
@@ -473,7 +466,7 @@ export default function DepartmentDashboard() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-          {/* In-Progress Interviews Section - NEW */}
+          {/* In-Progress Interviews Section - Scrollable */}
           {metrics.openInterviews > 0 && (
             <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 md:col-span-2">
               <CardHeader>
@@ -490,50 +483,43 @@ export default function DepartmentDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
                   {allSessions
                     .filter(s => s.status === 'in_progress')
-                    .slice(0, 5)
                     .map(session => {
                       const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
 
                       return (
-                        <div
-                          key={session.id}
-                          className="p-4 rounded-lg bg-slate-900/30 border border-slate-700 hover:border-slate-600 transition-colors"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-white font-semibold text-sm break-all">{session.session_code}</h3>
-                                <Badge className="bg-orange-600/20 text-orange-300 border-orange-500/30 text-xs whitespace-nowrap">
-                                  In Progress
-                                </Badge>
-                              </div>
-                              <div className="grid grid-cols-3 gap-3 text-xs">
-                                <div>
-                                  <p className="text-slate-500">Progress</p>
-                                  <p className="text-white font-semibold">{session.completion_percentage || 0}%</p>
+                        <Link key={session.id} to={createPageUrl(`SessionDetails?id=${session.id}`)} className="block">
+                          <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-900/50 transition-all cursor-pointer">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h3 className="text-white font-semibold text-sm break-all">{session.session_code}</h3>
+                                  <Badge className="bg-orange-600/20 text-orange-300 border-orange-500/30 text-xs whitespace-nowrap">
+                                    In Progress
+                                  </Badge>
                                 </div>
-                                <div>
-                                  <p className="text-slate-500">Questions</p>
-                                  <p className="text-white font-semibold">{questionsAnswered}</p>
-                                </div>
-                                <div>
-                                  <p className="text-slate-500">Follow-Ups</p>
-                                  <p className="text-white font-semibold">{followupsCount}</p>
+                                <div className="grid grid-cols-3 gap-3 text-xs">
+                                  <div>
+                                    <p className="text-slate-500">Progress</p>
+                                    <p className="text-white font-semibold">{session.completion_percentage || 0}%</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500">Questions</p>
+                                    <p className="text-white font-semibold">{questionsAnswered}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500">Follow-Ups</p>
+                                    <p className="text-white font-semibold">{followupsCount}</p>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                            <Link to={createPageUrl(`SessionDetails?id=${session.id}`)}>
-                              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs w-full sm:w-auto">
-                                View Details
-                              </Button>
-                            </Link>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                 </div>
