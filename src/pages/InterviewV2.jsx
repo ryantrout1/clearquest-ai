@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -117,7 +118,9 @@ export default function InterviewV2() {
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
-  
+  // NEW: Track answered agent questions to prevent showing unanswered questions
+  const [answeredAgentQuestions, setAnsweredAgentQuestions] = useState(new Set());
+
   // Input state
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
@@ -654,17 +657,20 @@ export default function InterviewV2() {
     summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
     
     try {
+      // CRITICAL FIX: Set waiting state BEFORE sending message to show loading immediately
+      setIsWaitingForAgent(true);
+      setCurrentFollowUpPack({ questionId, packId, substanceName });
+      
       await base44.agents.addMessage(conversation, {
         role: 'user',
         content: summaryLines.join('\n')
       });
       
-      setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName });
-      
       return true;
     } catch (err) {
       console.error('❌ Error sending to agent:', err);
+      setIsWaitingForAgent(false);
+      setCurrentFollowUpPack(null);
       return false;
     }
   }, [conversation, engine]);
@@ -1045,7 +1051,7 @@ export default function InterviewV2() {
       
     } catch (err) {
       console.error('❌ Error completing interview:', err);
-      setError('Failed to complete interview. Please try again.');
+      toast.error('Failed to complete interview. Please try again.');
       setIsCompletingInterview(false);
     }
   };
@@ -1183,6 +1189,39 @@ export default function InterviewV2() {
     return lastAssistantMessage.content;
   }, [agentMessages, isWaitingForAgent]);
 
+  // CRITICAL FIX: Only show agent messages that have been answered (completed Q&A pairs)
+  const getDisplayableAgentMessages = useCallback(() => {
+    if (!isWaitingForAgent || agentMessages.length === 0) return [];
+    
+    const displayable = [];
+    
+    for (let i = 0; i < agentMessages.length; i++) {
+      const msg = agentMessages[i];
+      
+      // Skip empty or system messages
+      if (!msg.content || msg.content.trim() === '') continue;
+      if (msg.content?.includes('Follow-up pack completed')) continue;
+      if (msg.content?.match(/\b(Q\d{1,3})\b/i)) continue;
+      
+      // For assistant messages, only show if followed by user response
+      if (msg.role === 'assistant') {
+        const nextMsg = agentMessages[i + 1];
+        if (nextMsg && nextMsg.role === 'user') {
+          // Q&A pair complete - show both
+          displayable.push(msg);
+          displayable.push(nextMsg);
+          i++; // Skip next iteration since we already added it
+        }
+        // If no answer yet, don't add (it will show in active question box)
+      } else if (msg.role === 'user') {
+        // User messages are part of previous Q&A pair, if not caught by assistant message above, skip
+        continue;
+      }
+    }
+    
+    return displayable;
+  }, [agentMessages, isWaitingForAgent]);
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -1225,14 +1264,8 @@ export default function InterviewV2() {
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
-  const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
-    ? agentMessages.filter(msg => {
-        if (!msg.content || msg.content.trim() === '') return false;
-        if (msg.content?.includes('Follow-up pack completed')) return false;
-        if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
-        return true;
-      })
-    : [];
+  // CRITICAL FIX: Use memoized function that only shows answered Q&A pairs
+  const displayableAgentMessages = getDisplayableAgentMessages();
 
   return (
     <>
@@ -1352,18 +1385,25 @@ export default function InterviewV2() {
                 />
               ))}
               
-              {displayableAgentMessages.length > 0 && (
+              {/* CRITICAL FIX: Always show section if waiting for agent, render answered Q&A pairs */}
+              {isWaitingForAgent && (
                 <div className="space-y-3 md:space-y-4 border-t-2 border-purple-500/30 pt-3 md:pt-4 mt-3 md:mt-4">
                   <div className="text-xs md:text-sm font-semibold text-purple-400 flex items-center gap-1.5 md:gap-2">
                     <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     Investigator Follow-up
                   </div>
-                  {displayableAgentMessages.map((msg, idx) => (
+                  {displayableAgentMessages.length > 0 && displayableAgentMessages.map((msg, idx) => (
                     <AgentMessageBubble 
                       key={msg.id || `msg-${idx}`} 
                       message={msg} 
                     />
                   ))}
+                  {displayableAgentMessages.length === 0 && (
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Investigator is reviewing your responses...</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1508,7 +1548,7 @@ export default function InterviewV2() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={getPlaceholder()}
-                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 md:h-14 text-base md:text-lg"
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 md:h-14 text-base md:text-lg focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121c33] focus-visible:border-green-500"
                   disabled={isCommitting || showPauseModal}
                   autoComplete="off"
                 />
@@ -1662,7 +1702,8 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
   return null;
 }
 
-function AgentMessageBubble({ message }) {
+// CRITICAL FIX: Memoize to prevent re-renders
+const AgentMessageBubble = React.memo(({ message }) => {
   const isUser = message.role === 'user';
   
   if (isUser) {
@@ -1679,7 +1720,7 @@ function AgentMessageBubble({ message }) {
     <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
       <div className="flex items-start gap-2 md:gap-3">
         <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-          <AlertCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
+          <AlertCircle className="w-3 h-3 md:w-3.5 h-3.5 text-purple-400" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
@@ -1690,4 +1731,6 @@ function AgentMessageBubble({ message }) {
       </div>
     </div>
   );
-}
+});
+
+AgentMessageBubble.displayName = 'AgentMessageBubble';
