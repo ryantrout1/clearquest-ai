@@ -527,6 +527,72 @@ export default function DepartmentDashboard() {
             </Card>
           )}
 
+          {/* Completed Interviews Section */}
+          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 md:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-green-400" />
+                  Completed Interviews ({allSessions.filter(s => s.status === 'completed').length})
+                </CardTitle>
+                <Link to={createPageUrl("InterviewDashboard")}>
+                  <Button size="sm" variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 text-xs">
+                    View All
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {allSessions.filter(s => s.status === 'completed').length === 0 ? (
+                <p className="text-slate-400 text-sm text-center py-6">No completed interviews yet</p>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
+                  {allSessions
+                    .filter(s => s.status === 'completed')
+                    .sort((a, b) => new Date(b.completed_date || b.updated_date) - new Date(a.completed_date || a.updated_date))
+                    .map(session => {
+                      const sessionResponses = allResponses.filter(r => r.session_id === session.id);
+                      const questionsAnswered = sessionResponses.length;
+                      const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
+
+                      return (
+                        <Link key={session.id} to={createPageUrl(`SessionDetails?id=${session.id}`)} className="block">
+                          <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-900/50 transition-all cursor-pointer">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h3 className="text-white font-semibold text-sm break-all">{session.session_code}</h3>
+                                  <Badge className="bg-green-600/20 text-green-300 border-green-500/30 text-xs whitespace-nowrap">
+                                    Completed
+                                  </Badge>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3 text-xs">
+                                  <div>
+                                    <p className="text-slate-500">Completed</p>
+                                    <p className="text-white font-semibold">
+                                      {session.completed_date ? format(new Date(session.completed_date), 'MMM d, yyyy') : 'N/A'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500">Questions</p>
+                                    <p className="text-white font-semibold">{questionsAnswered}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-slate-500">Follow-Ups</p>
+                                    <p className="text-white font-semibold">{followupsCount}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Department Info */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
             <CardHeader>
