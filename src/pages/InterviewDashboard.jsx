@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, X, Trash2 } from "lucide-react";
+import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, X, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -25,6 +25,7 @@ export default function InterviewDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedSessions, setSelectedSessions] = useState(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -215,6 +216,7 @@ export default function InterviewDashboard() {
     }
 
     const sessionsToDelete = Array.from(selectedSessions);
+    setIsBulkDeleting(true);
     
     try {
       for (const sessionId of sessionsToDelete) {
@@ -231,18 +233,30 @@ export default function InterviewDashboard() {
         await base44.entities.InterviewSession.delete(sessionId);
       }
 
+      // Optimistically update the cache
+      queryClient.setQueryData(['sessions'], (oldSessions) => 
+        oldSessions.filter(s => !sessionsToDelete.includes(s.id))
+      );
+      queryClient.setQueryData(['all-responses'], (oldResponses) =>
+        oldResponses.filter(r => !sessionsToDelete.includes(r.session_id))
+      );
+      queryClient.setQueryData(['all-followups'], (oldFollowups) =>
+        oldFollowups.filter(f => !sessionsToDelete.includes(f.session_id))
+      );
+
       toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
       setBulkDeleteConfirm(false);
       
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
-      
     } catch (err) {
       console.error("Error deleting sessions:", err);
       toast.error("Failed to delete sessions");
-      setBulkDeleteConfirm(false);
+      // Refetch on error
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -360,15 +374,25 @@ export default function InterviewDashboard() {
                     onClick={handleBulkDelete}
                     size="sm"
                     variant="destructive"
+                    disabled={isBulkDeleting}
                     className={cn(
                       "h-7 px-3 text-xs transition-colors",
-                      bulkDeleteConfirm
+                      bulkDeleteConfirm && !isBulkDeleting
                         ? "bg-red-700 hover:bg-red-800 text-white animate-pulse"
                         : "bg-red-600 hover:bg-red-700 text-white"
                     )}
                   >
-                    <Trash2 className="w-3 h-3 mr-1.5" />
-                    {bulkDeleteConfirm ? 'Confirm Delete' : `Delete ${selectedSessions.size} Selected`}
+                    {isBulkDeleting ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3 h-3 mr-1.5" />
+                        {bulkDeleteConfirm ? 'Confirm Delete' : `Delete ${selectedSessions.size} Selected`}
+                      </>
+                    )}
                   </Button>
                 </>
               )}
@@ -513,15 +537,26 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
       await base44.entities.InterviewSession.delete(session.id);
 
+      // Optimistically update the cache
+      queryClient.setQueryData(['sessions'], (oldSessions) => 
+        oldSessions.filter(s => s.id !== session.id)
+      );
+      queryClient.setQueryData(['all-responses'], (oldResponses) =>
+        oldResponses.filter(r => r.session_id !== session.id)
+      );
+      queryClient.setQueryData(['all-followups'], (oldFollowups) =>
+        oldFollowups.filter(f => f.session_id !== session.id)
+      );
+
       toast.success("Session deleted successfully");
-      
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
       
     } catch (err) {
       console.error("Error deleting session:", err);
       toast.error("Failed to delete session");
+      // Refetch on error
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
     } finally {
       setIsDeleting(false);
       setDeleteConfirm(false);
@@ -610,7 +645,14 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                     : "bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
                 )}
               >
-                {isDeleting ? "Deleting..." : deleteConfirm ? "Confirm Delete" : "Delete"}
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  deleteConfirm ? "Confirm Delete" : "Delete"
+                )}
               </Button>
             </div>
           </div>
