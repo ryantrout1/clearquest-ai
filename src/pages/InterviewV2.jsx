@@ -930,14 +930,10 @@ Return ONLY the summary sentence, nothing else.`;
       // We check if the nextQuestionId is different from the one that triggered this probing
       // to ensure it's a new base question.
       if (nextQuestionId !== currentFollowUpPack.questionId) { // Check for explicit new Q-ID
-        if (!engine.QById[nextQuestionId]) {
-          console.warn(`⚠️ AI requested unknown next question ID: ${nextQuestionId}. Completing interview.`);
-          setCurrentItem(null);
-          setQueue([]);
-          setShowCompletionModal(true);
-        }
-
-        // Before moving to the next base question, save the probing and summary
+        // AI probing is complete - save data and continue with deterministic flow
+        // Don't manually check if the question exists - let handleCompleteProbingAndContinue handle that
+        console.log(`🤖 AI signaled completion with next question: ${nextQuestionId}`);
+        
         handleCompleteProbingAndContinue(
           currentFollowUpPack.questionId,
           currentFollowUpPack.packId,
