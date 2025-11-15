@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -111,7 +112,14 @@ export default function SessionDetails() {
 
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
 
-  const filteredResponses = responses.filter(response => {
+  // FIXED: Assign display numbers to ALL responses first (before filtering)
+  const allResponsesWithNumbers = responses.map((r, idx) => ({
+    ...r,
+    display_number: idx + 1
+  }));
+
+  // Then apply filtering but preserve original display numbers
+  const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,15 +139,11 @@ export default function SessionDetails() {
   });
 
   const responsesByCategory = {};
-  let globalDisplayNumber = 1;
 
-  filteredResponses.forEach(r => {
+  filteredResponsesWithNumbers.forEach(r => {
     const cat = r.category || 'Other';
     if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
-    responsesByCategory[cat].push({
-      ...r,
-      display_number: globalDisplayNumber++
-    });
+    responsesByCategory[cat].push(r);
   });
 
   const handleExpandAll = () => {
@@ -400,7 +404,7 @@ export default function SessionDetails() {
             <div className="flex items-center gap-3 flex-wrap">
               {searchTerm && (
                 <span className="text-xs text-slate-400">
-                  Found {filteredResponses.length} result{filteredResponses.length !== 1 ? 's' : ''}
+                  Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
                 </span>
               )}
               <Button
@@ -462,7 +466,7 @@ export default function SessionDetails() {
           />
         ) : (
           <TranscriptView
-            responses={filteredResponses}
+            responses={filteredResponsesWithNumbers}
             followups={followups}
           />
         )}
