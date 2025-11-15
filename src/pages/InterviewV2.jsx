@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -394,7 +395,7 @@ export default function InterviewV2() {
         console.log("[investigator] Sending probing summary to agent", {
           questionId,
           packId,
-          hasConversation: !!conversation
+          conversationId: conversation?.id
         });
 
         if (!conversation || !conversation.id) {
@@ -449,12 +450,14 @@ export default function InterviewV2() {
         setCurrentAIProbePackId(aiProbePackId);
         setAIProbeCount(0);
 
-        await base44.agents.addMessage(conversation, {
+        console.log("[investigator] About to call addMessage with conversationId:", conversation.id);
+
+        await base44.agents.addMessage(conversation.id, {
           role: "user",
           content: summary
         });
 
-        console.log("[investigator] Message sent successfully");
+        console.log("[investigator] ✅ Message sent successfully - AI probing started");
 
         setIsWaitingForAgent(true);
         setCurrentFollowUpPack({
@@ -466,7 +469,7 @@ export default function InterviewV2() {
         });
 
       } catch (err) {
-        console.error("[investigator] Error:", err);
+        console.error("[investigator] ❌ Error:", err);
         console.error("[investigator] Stack:", err.stack);
       }
     },
@@ -846,7 +849,9 @@ export default function InterviewV2() {
         text: value
       });
 
-      await base44.agents.addMessage(conversation, {
+      console.log("[handleAgentAnswer] Sending to conversationId:", conversation.id);
+
+      await base44.agents.addMessage(conversation.id, {
         role: 'user',
         content: value
       });
