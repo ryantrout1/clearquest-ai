@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -9,21 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, X } from "lucide-react";
+import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, X, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 export default function InterviewDashboard() {
   const navigate = useNavigate();
@@ -32,6 +22,7 @@ export default function InterviewDashboard() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [sortBy, setSortBy] = useState("most_recent");
   const [currentUser, setCurrentUser] = useState(null);
+  const [selectedSessions, setSelectedSessions] = useState(new Set());
 
   useEffect(() => {
     checkAuth();
@@ -39,7 +30,6 @@ export default function InterviewDashboard() {
 
   const checkAuth = async () => {
     try {
-      // Check for mock admin authentication first
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
         try {
@@ -55,7 +45,6 @@ export default function InterviewDashboard() {
         }
       }
 
-      // Otherwise check Base44 authentication
       const user = await base44.auth.me();
       setCurrentUser({
         username: user.first_name,
@@ -81,7 +70,6 @@ export default function InterviewDashboard() {
     staleTime: 60000
   });
 
-  // NEW: Fetch all responses to get accurate counts
   const { data: allResponses = [] } = useQuery({
     queryKey: ['all-responses'],
     queryFn: () => base44.entities.Response.list(),
@@ -89,7 +77,6 @@ export default function InterviewDashboard() {
     refetchInterval: 5000
   });
 
-  // NEW: Fetch all follow-ups to get accurate counts
   const { data: allFollowUps = [] } = useQuery({
     queryKey: ['all-followups'],
     queryFn: () => base44.entities.FollowUpResponse.list(),
@@ -97,7 +84,6 @@ export default function InterviewDashboard() {
     refetchInterval: 5000
   });
 
-  // NEW: Build a map of session_id -> actual counts
   const sessionCounts = useMemo(() => {
     const counts = {};
     
@@ -140,9 +126,7 @@ export default function InterviewDashboard() {
     window.location.href = createPageUrl("Home");
   };
 
-  // Filter and sort sessions
   const processedSessions = useMemo(() => {
-    // Filter
     let filtered = sessions.filter(session => {
       const matchesSearch = 
         session.session_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,7 +139,6 @@ export default function InterviewDashboard() {
       return matchesSearch && matchesStatus && matchesDepartment;
     });
 
-    // Sort
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "most_recent":
@@ -176,7 +159,6 @@ export default function InterviewDashboard() {
     return filtered;
   }, [sessions, searchTerm, statusFilter, departmentFilter, sortBy]);
 
-  // Calculate stats based on department filter (not search/status filters)
   const stats = useMemo(() => {
     const filteredByDepartment = departmentFilter === "all" 
       ? sessions 
@@ -192,6 +174,54 @@ export default function InterviewDashboard() {
 
   const selectedDepartmentName = uniqueDepartments.find(d => d.code === departmentFilter)?.name;
 
+  const toggleSessionSelect = (sessionId) => {
+    const newSelected = new Set(selectedSessions);
+    if (newSelected.has(sessionId)) {
+      newSelected.delete(sessionId);
+    } else {
+      newSelected.add(sessionId);
+    }
+    setSelectedSessions(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSessions.size === processedSessions.length) {
+      setSelectedSessions(new Set());
+    } else {
+      setSelectedSessions(new Set(processedSessions.map(s => s.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const sessionsToDelete = Array.from(selectedSessions);
+    const queryClient = new QueryClient();
+    
+    try {
+      for (const sessionId of sessionsToDelete) {
+        const responses = await base44.entities.Response.filter({ session_id: sessionId });
+        for (const response of responses) {
+          await base44.entities.Response.delete(response.id);
+        }
+
+        const followups = await base44.entities.FollowUpResponse.filter({ session_id: sessionId });
+        for (const followup of followups) {
+          await base44.entities.FollowUpResponse.delete(followup.id);
+        }
+
+        await base44.entities.InterviewSession.delete(sessionId);
+      }
+
+      toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
+      setSelectedSessions(new Set());
+      
+      window.location.reload();
+      
+    } catch (err) {
+      console.error("Error deleting sessions:", err);
+      toast.error("Failed to delete sessions");
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -199,7 +229,6 @@ export default function InterviewDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Compact Header */}
         <div className="mb-4">
           <Link to={createPageUrl("HomeHub")}>
             <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-3" size="sm">
@@ -226,7 +255,6 @@ export default function InterviewDashboard() {
           </div>
         </div>
 
-        {/* Compact Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <CompactStat label="Total Sessions" value={stats.total} color="blue" />
           <CompactStat label="In Progress" value={stats.inProgress} color="orange" />
@@ -234,12 +262,9 @@ export default function InterviewDashboard() {
           <CompactStat label="Flagged" value={stats.flagged} color="red" />
         </div>
 
-        {/* Controls Bar */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
           <CardContent className="p-3 md:p-4">
-            {/* Search + Department + Sort Row */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
-              {/* Search */}
               <div className="md:col-span-5 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
@@ -250,7 +275,6 @@ export default function InterviewDashboard() {
                 />
               </div>
 
-              {/* Department Filter */}
               <div className="md:col-span-4">
                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                   <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white text-sm h-9 w-full">
@@ -267,7 +291,6 @@ export default function InterviewDashboard() {
                 </Select>
               </div>
 
-              {/* Sort By */}
               <div className="md:col-span-3">
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white text-sm h-9 w-full">
@@ -284,8 +307,7 @@ export default function InterviewDashboard() {
               </div>
             </div>
 
-            {/* Status Filter Chips */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusChip 
                 label="All" 
                 active={statusFilter === "all"} 
@@ -306,11 +328,35 @@ export default function InterviewDashboard() {
                 active={statusFilter === "paused"} 
                 onClick={() => setStatusFilter("paused")}
               />
+              
+              {processedSessions.length > 0 && (
+                <>
+                  <div className="h-4 w-px bg-slate-600 mx-1" />
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                  >
+                    <Checkbox checked={selectedSessions.size === processedSessions.length} />
+                    Select All
+                  </button>
+                </>
+              )}
+              
+              {selectedSessions.size > 0 && (
+                <Button
+                  onClick={handleBulkDelete}
+                  size="sm"
+                  variant="destructive"
+                  className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 text-xs"
+                >
+                  <Trash2 className="w-3 h-3 mr-1.5" />
+                  Delete {selectedSessions.size} Selected
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Department Filter Chip */}
         {departmentFilter !== "all" && selectedDepartmentName && (
           <div className="mb-4">
             <Badge 
@@ -323,7 +369,6 @@ export default function InterviewDashboard() {
           </div>
         )}
 
-        {/* Sessions List */}
         <div className="space-y-3">
           {isLoading ? (
             <Card className="bg-slate-800/50 border-slate-700">
@@ -362,13 +407,14 @@ export default function InterviewDashboard() {
                 key={session.id} 
                 session={session} 
                 departments={departments}
-                actualCounts={sessionCounts[session.id]} // Pass actual counts
+                actualCounts={sessionCounts[session.id]}
+                isSelected={selectedSessions.has(session.id)}
+                onToggleSelect={() => toggleSessionSelect(session.id)}
               />
             ))
           )}
         </div>
 
-        {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-slate-500 text-xs">
             © 2025 ClearQuest™ • CJIS Compliant
@@ -379,7 +425,6 @@ export default function InterviewDashboard() {
   );
 }
 
-// Compact Stat Component
 function CompactStat({ label, value, color }) {
   const colorClasses = {
     blue: "text-blue-400",
@@ -396,7 +441,6 @@ function CompactStat({ label, value, color }) {
   );
 }
 
-// Status Chip Component
 function StatusChip({ label, active, onClick }) {
   return (
     <button
@@ -413,11 +457,10 @@ function StatusChip({ label, active, onClick }) {
   );
 }
 
-// Interview Session Card Component
-function InterviewSessionCard({ session, departments, actualCounts }) {
+function InterviewSessionCard({ session, departments, actualCounts, isSelected, onToggleSelect }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const department = departments.find(d => d.department_code === session.department_code);
@@ -430,144 +473,124 @@ function InterviewSessionCard({ session, departments, actualCounts }) {
   };
 
   const handleDelete = async () => {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      setTimeout(() => setDeleteConfirm(false), 3000);
+      return;
+    }
+
     setIsDeleting(true);
     try {
-      // Fetch and delete all responses
       const responses = await base44.entities.Response.filter({ session_id: session.id });
       for (const response of responses) {
         await base44.entities.Response.delete(response.id);
       }
 
-      // Fetch and delete all follow-ups
       const followups = await base44.entities.FollowUpResponse.filter({ session_id: session.id });
       for (const followup of followups) {
         await base44.entities.FollowUpResponse.delete(followup.id);
       }
 
-      // Delete the session
       await base44.entities.InterviewSession.delete(session.id);
 
       toast.success("Session deleted successfully");
-      setIsDeleteDialogOpen(false);
       
-      // Use React Query invalidation instead of page reload
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] }); // Invalidate new query
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] }); // Invalidate new query
+      window.location.reload();
       
     } catch (err) {
       console.error("Error deleting session:", err);
       toast.error("Failed to delete session");
     } finally {
       setIsDeleting(false);
+      setDeleteConfirm(false);
     }
   };
 
-  // FIXED: Use actual counts from database, not session fields
   const progress = session.completion_percentage || 0;
   const questionsAnswered = actualCounts?.questions || 0;
   const followupsTriggered = actualCounts?.followups || 0;
 
   return (
-    <>
-      <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            {/* Left Column - Session Info */}
-            <div className="md:col-span-5 space-y-2">
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">
-                  {session.session_code}
-                </h3>
-                <div className="space-y-0.5">
-                  <p className="text-sm text-slate-400">
-                    Department: <span className="text-slate-300">{departmentName}</span>
-                    {session.department_code !== departmentName && (
-                      <span className="text-slate-500"> ({session.department_code})</span>
-                    )}
-                  </p>
-                  <p className="text-sm text-slate-400">
-                    File: <span className="text-slate-300 font-mono">{session.file_number}</span>
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Clock className="w-3 h-3" />
-                <span>{format(new Date(session.created_date), "MMM d, yyyy 'at' h:mm a")}</span>
+    <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
+      <CardContent className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div className="md:col-span-1 flex items-center justify-center">
+            <Checkbox 
+              checked={isSelected} 
+              onCheckedChange={onToggleSelect}
+            />
+          </div>
+
+          <div className="md:col-span-4 space-y-2">
+            <div>
+              <h3 className="text-lg font-bold text-white mb-1">
+                {session.session_code}
+              </h3>
+              <div className="space-y-0.5">
+                <p className="text-sm text-slate-400">
+                  Department: <span className="text-slate-300">{departmentName}</span>
+                  {session.department_code !== departmentName && (
+                    <span className="text-slate-500"> ({session.department_code})</span>
+                  )}
+                </p>
+                <p className="text-sm text-slate-400">
+                  File: <span className="text-slate-300 font-mono">{session.file_number}</span>
+                </p>
               </div>
             </div>
-
-            {/* Middle Column - Metrics */}
-            <div className="md:col-span-4 grid grid-cols-3 gap-3">
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Progress</p>
-                <p className="text-xl font-bold text-blue-400">{progress}%</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Questions</p>
-                <p className="text-xl font-bold text-white">{questionsAnswered}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
-                <p className="text-xl font-bold text-white">{followupsTriggered}</p>
-              </div>
-            </div>
-
-            {/* Right Column - Status & Actions */}
-            <div className="md:col-span-3 flex flex-col justify-between gap-3">
-              <div className="flex justify-end">
-                <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
-                  {statusConfig[session.status]?.label}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-2"> {/* Changed to grid for button layout */}
-                <Button
-                  onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
-                >
-                  View Interview
-                </Button>
-                <Button
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200 text-xs h-8"
-                >
-                  Delete
-                </Button>
-              </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Clock className="w-3 h-3" />
+              <span>{format(new Date(session.created_date), "MMM d, yyyy 'at' h:mm a")}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent className="bg-slate-800 border-slate-700 max-w-md mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete Interview Session?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-300">
-              This will permanently delete session <span className="font-semibold text-white break-all">{session.session_code}</span> and all associated responses. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              disabled={isDeleting}
-              className="bg-slate-700 text-white border-slate-600 hover:bg-slate-600"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+          <div className="md:col-span-4 grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Progress</p>
+              <p className="text-xl font-bold text-blue-400">{progress}%</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Questions</p>
+              <p className="text-xl font-bold text-white">{questionsAnswered}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
+              <p className="text-xl font-bold text-white">{followupsTriggered}</p>
+            </div>
+          </div>
+
+          <div className="md:col-span-3 flex flex-col justify-between gap-3">
+            <div className="flex justify-end">
+              <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
+                {statusConfig[session.status]?.label}
+              </Badge>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
+              >
+                View Interview
+              </Button>
+              <Button
+                onClick={handleDelete}
+                variant="outline"
+                size="sm"
+                disabled={isDeleting}
+                className={cn(
+                  "text-xs h-8 w-full transition-colors",
+                  deleteConfirm
+                    ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
+                    : "bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
+                )}
+              >
+                {isDeleting ? "Deleting..." : deleteConfirm ? "Confirm Delete" : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
