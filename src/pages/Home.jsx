@@ -176,7 +176,7 @@ export default function Home() {
           <StepCard 
             number="3" 
             title="Follow-Ups" 
-            description="'Yes' answers trigger structured follow-up packs"
+            description="'Yes' answers trigger structured follow-up packs so no detail is ever missed"
             link="View Follow-Up Packs"
             onClick={() => setFollowupsDialogOpen(true)}
           />
@@ -671,8 +671,8 @@ function FollowupsDialog({ open, onOpenChange }) {
         </div>
 
         <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
-          <p className="text-xs text-slate-400 text-center">
-            <strong>Investigator Note:</strong> ClearQuest handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
+          <p className="text-xs text-slate-400 text-center leading-relaxed">
+            <strong>Note:</strong> ClearQuest handles the entire follow-up interview automatically, delivering structured, consistent documentation for every incident.
           </p>
         </div>
       </DialogContent>
