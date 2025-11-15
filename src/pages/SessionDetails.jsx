@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -138,6 +139,7 @@ export default function SessionDetails() {
     const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       response.answer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      response.investigator_summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       response.investigator_probing?.some(p => 
         p.probing_question?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         p.candidate_response?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -586,16 +588,17 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
 }
 
 function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand }) {
-  const hasFollowups = followups.length > 0;
+  const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const questionNumber = response.display_number.toString().padStart(3, '0');
   const aiProbingExchanges = response.investigator_probing || [];
-  const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID;
+  const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
-      <div className="flex items-start gap-3 text-sm">
+      {/* Question Line */}
+      <div className="flex items-start gap-3 text-sm mb-2">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(
           "font-bold flex-shrink-0 w-5",
@@ -608,23 +611,28 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
         </span>
       </div>
 
-      {showSummary && summary && (
+      {/* Investigator Summary Row - Always visible for Yes with followups */}
+      {showSummary && (
         <div 
-          className="mt-2 ml-14 bg-slate-800/30 border border-slate-600/50 rounded px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors"
+          className="ml-14 mb-2 bg-slate-800/40 border border-slate-600/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-colors group"
           onClick={onToggleExpand}
         >
-          <p className="text-xs text-slate-300 italic flex-1">{summary}</p>
+          <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
+            {summary || "Generating summary..."}
+          </p>
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
           )}
         </div>
       )}
 
+      {/* Expandable Blue Section - Detail Card + Probing */}
       {isExpanded && hasFollowups && response.answer === "Yes" && (
-        <div className="mt-2 ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
+        <div className="ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
           <div className="space-y-3">
+            {/* Deterministic Follow-Up Details */}
             {followups.map((followup, idx) => {
               const details = followup.additional_details || {};
 
@@ -632,7 +640,7 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
                 <div key={idx} className="space-y-1.5">
                   {followup.substance_name && (
                     <div className="text-xs flex items-center">
-                      <span className="text-orange-400 font-medium">Substance:</span>
+                      <span className="text-slate-400 font-medium">Substance:</span>
                       <span className="text-slate-200 ml-2">{followup.substance_name}</span>
                       {needsReview(followup.substance_name) && (
                         <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
@@ -662,6 +670,7 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
               );
             })}
 
+            {/* AI Investigator Probing Section */}
             {aiProbingExchanges.length > 0 && (
               <div className="border-t border-slate-600/50 pt-3 space-y-2">
                 <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -670,7 +679,7 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
                 {aiProbingExchanges.map((exchange, idx) => (
                   <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
                     <div className="text-xs">
-                      <span className="text-purple-400 font-medium">Follow-Up Question:</span>
+                      <span className="text-blue-400 font-medium">Follow-Up Question:</span>
                       <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
                     </div>
                     <div className="text-xs">
@@ -739,7 +748,7 @@ function TranscriptEntry({ item }) {
             {aiProbingExchanges.map((exchange, idx) => (
               <React.Fragment key={idx}>
                 <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
-                  <p className="text-xs text-purple-400">Follow-Up Question {idx + 1}</p>
+                  <p className="text-xs text-blue-400 font-medium">Follow-Up Question {idx + 1}</p>
                   <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.probing_question}</p>
                 </div>
                 <div className="flex justify-end">
@@ -1023,6 +1032,12 @@ function generateReportHTML(session, responses, followups, questions, department
                 <div class="answer">
                   <span class="answer-label">Response:</span> <strong>${response.answer}</strong>
                 </div>
+
+                ${response.answer === 'Yes' && response.investigator_summary ? `
+                  <div class="answer" style="margin-top: 8px;">
+                    <span class="answer-label">Investigator Summary:</span> <em>${response.investigator_summary}</em>
+                  </div>
+                ` : ''}
 
                 ${relatedFollowups.map(followup => {
                   const details = followup.additional_details || {};
