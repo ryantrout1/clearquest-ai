@@ -102,11 +102,8 @@ export default function SessionDetails() {
       
       setTotalQuestions(questionsData.length);
       
-      // Default all Yes responses to expanded
-      const yesResponses = new Set(
-        responsesData.filter(r => r.answer === 'Yes').map(r => r.id)
-      );
-      setExpandedQuestions(yesResponses);
+      // Default all to collapsed
+      setExpandedQuestions(new Set());
 
       setIsLoading(false);
     } catch (err) {
@@ -627,9 +624,9 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
             </p>
           )}
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
-          ) : (
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
           )}
         </div>
       )}
