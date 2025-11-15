@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -25,6 +24,7 @@ export default function InterviewDashboard() {
   const [sortBy, setSortBy] = useState("most_recent");
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedSessions, setSelectedSessions] = useState(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -208,6 +208,12 @@ export default function InterviewDashboard() {
   };
 
   const handleBulkDelete = async () => {
+    if (!bulkDeleteConfirm) {
+      setBulkDeleteConfirm(true);
+      setTimeout(() => setBulkDeleteConfirm(false), 3000);
+      return;
+    }
+
     const sessionsToDelete = Array.from(selectedSessions);
     
     try {
@@ -227,6 +233,7 @@ export default function InterviewDashboard() {
 
       toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
+      setBulkDeleteConfirm(false);
       
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['all-responses'] });
@@ -235,6 +242,7 @@ export default function InterviewDashboard() {
     } catch (err) {
       console.error("Error deleting sessions:", err);
       toast.error("Failed to delete sessions");
+      setBulkDeleteConfirm(false);
     }
   };
 
@@ -352,10 +360,15 @@ export default function InterviewDashboard() {
                     onClick={handleBulkDelete}
                     size="sm"
                     variant="destructive"
-                    className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 text-xs"
+                    className={cn(
+                      "h-7 px-3 text-xs transition-colors",
+                      bulkDeleteConfirm
+                        ? "bg-red-700 hover:bg-red-800 text-white animate-pulse"
+                        : "bg-red-600 hover:bg-red-700 text-white"
+                    )}
                   >
                     <Trash2 className="w-3 h-3 mr-1.5" />
-                    Delete {selectedSessions.size} Selected
+                    {bulkDeleteConfirm ? 'Confirm Delete' : `Delete ${selectedSessions.size} Selected`}
                   </Button>
                 </>
               )}
