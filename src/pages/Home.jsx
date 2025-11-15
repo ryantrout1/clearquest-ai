@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -72,7 +73,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link to={createPageUrl("AdminLogin")} className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700 px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-slate-800/80 border-slate-500 text-slate-100 hover:bg-slate-700 hover:text-white hover:border-slate-400 px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Admin Portal
                 </Button>
