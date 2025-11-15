@@ -909,10 +909,10 @@ const SKIP_RULES = {
     skipIfAnswer: 'No',
     skipToQuestion: 'Q005'
   },
-  // If answered No to Q147 (never worked in LE), skip Prior LE section
+  // If answered No to Q147 (never worked in LE), skip Prior LE section but NOT the final General Disclosures
   'Q147': {
     skipIfAnswer: 'No',
-    skipToQuestion: 'Q162'
+    skipToQuestion: 'Q159'  // Jump to embarrassment question, NOT Q162
   }
   // Note: Removed incorrect Q145 rule - that's Employment History, not Military
   // Note: Q162 is the last question (next_question_id: 'END')
