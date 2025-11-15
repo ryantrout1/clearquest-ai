@@ -374,16 +374,19 @@ Question: ${question.question_text}
 Answer: ${responseRecord.answer}
 
 ${followupDetails.length > 0 ? `Deterministic Follow-Up Details:\n${JSON.stringify(followupDetails, null, 2)}\n` : ''}
-${probingData.length > 0 ? `AI Probing Exchanges:\n${probingData.map(p => `Q: ${p.probing_question}\nA: ${p.candidate_response}`).join('\n\n')}\n` : ''}
+${probingData.length > 0 ? `AI Probing Exchanges (IMPORTANT - often contains critical details):\n${probingData.map(p => `Q: ${p.probing_question}\nA: ${p.candidate_response}`).join('\n\n')}\n` : ''}
 
-Generate exactly ONE sentence (max 30 words) that summarizes what happened, when, where, and the outcome.
-Use neutral, factual, investigator-style tone.
-Do not include "the candidate said" or similar meta language.
-Focus on: what happened, when, where, outcome/status.
+Generate exactly ONE sentence that synthesizes ALL the information above into a complete investigator summary.
+- Include key facts from BOTH the deterministic details AND the probing exchanges
+- Probing exchanges often reveal the most important details - make sure to incorporate them
+- Max ${probingData.length > 0 ? '40' : '30'} words
+- Use neutral, factual, investigator-style tone
+- Focus on: what happened, when, where, outcome/status, and any critical details revealed during probing
+- Do not include "the candidate said" or similar meta language
 
 Examples:
 - "2018 speeding citation in Italy; applicant received but did not address the ticket and reports no further consequences."
-- "Applied to Yuma PD in June 2023; application declined, official reason was failure to pass the polygraph examination."
+- "Applied to Yuma PD in June 2023; failed polygraph after lying about speeding ticket received in Italy in 2018."
 - "Used marijuana recreationally from 2019-2021; last use was spring 2021, obtained from friends, reports no legal issues."
 
 Return ONLY the summary sentence, nothing else.`;
