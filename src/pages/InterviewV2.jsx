@@ -1548,7 +1548,7 @@ export default function InterviewV2() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={getPlaceholder()}
-                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 md:h-14 text-base md:text-lg focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121c33]"
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 md:h-14 text-base md:text-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-green-600"
                   disabled={isCommitting || showPauseModal}
                   autoComplete="off"
                 />
