@@ -338,12 +338,20 @@ export default function SystemAdminDashboard() {
                 Platform health, department management, and system-wide metrics
               </p>
             </div>
-            <Link to={createPageUrl("CreateDepartment")} className="w-full md:w-auto">
-              <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700" size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Department
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link to={createPageUrl("BackfillSummaries")} className="w-full md:w-auto">
+                <Button variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700" size="sm">
+                  <Shield className="w-4 h-4 mr-2" />
+                  Backfill Tool
+                </Button>
+              </Link>
+              <Link to={createPageUrl("CreateDepartment")} className="w-full md:w-auto">
+                <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Department
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 
