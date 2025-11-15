@@ -682,7 +682,7 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
 
               {/* AI Investigator Probing Section */}
               {aiProbingExchanges.length > 0 && (
-                <div className="border-t border-slate-600/50 pt-3 space-y-2">
+                <div className="border-t border-slate-600/50 pt-3 space-y-2 ml-3">
                   <div className="text-xs font-semibold text-purple-400 mb-2">
                     🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
                   </div>
