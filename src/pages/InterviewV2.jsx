@@ -1525,7 +1525,7 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("Yes")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-yes flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:scale-[0.98] disabled:opacity-50"
+                  className="btn-yn btn-yes flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:scale-[0.98] disabled:opacity-50 focus-visible:outline-none"
                 >
                   <Check className="w-5 h-5 md:w-6 md:h-6" />
                   <span>Yes</span>
@@ -1535,7 +1535,7 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-no flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 text-base md:text-lg bg-red-500 hover:bg-red-600 active:scale-[0.98] disabled:opacity-50"
+                  className="btn-yn btn-no flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 text-base md:text-lg bg-red-500 hover:bg-red-600 active:scale-[0.98] disabled:opacity-50 focus-visible:outline-none"
                 >
                   <X className="w-5 h-5 md:w-6 md:h-6" />
                   <span>No</span>
