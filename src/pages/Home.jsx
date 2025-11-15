@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -22,8 +21,7 @@ export default function Home() {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   
-  // NEW: Dynamic question count loading
-  const [totalQuestions, setTotalQuestions] = useState(162); // Default fallback
+  const [totalQuestions, setTotalQuestions] = useState(162);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
   useEffect(() => {
@@ -37,7 +35,6 @@ export default function Home() {
       setTotalQuestions(questions.length);
     } catch (err) {
       console.error("Error loading question count:", err);
-      // Keep default value of 162
     } finally {
       setIsLoadingQuestions(false);
     }
@@ -49,46 +46,46 @@ export default function Home() {
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-center space-y-8">
-            <div className="flex justify-center mb-6">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
+          <div className="text-center space-y-6 sm:space-y-8">
+            <div className="flex justify-center mb-4 sm:mb-6">
               <div className="relative">
                 <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-50 animate-pulse" />
-                <Shield className="relative w-24 h-24 text-blue-400" strokeWidth={1.5} />
+                <Shield className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-blue-400" strokeWidth={1.5} />
               </div>
             </div>
             
-            <div className="space-y-4">
-              <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight">
+            <div className="space-y-3 sm:space-y-4">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight px-4">
                 ClearQuest
               </h1>
-              <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed px-4">
                 CJIS-Compliant Background Interview System for Law Enforcement Applicant Screening
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-              <Link to={createPageUrl("StartInterview")}>
-                <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg">
-                  <MessageSquare className="w-5 h-5 mr-2" />
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-6 sm:pt-8 px-4">
+              <Link to={createPageUrl("StartInterview")} className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
+                  <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Start New Interview
                 </Button>
               </Link>
-              <Link to={createPageUrl("AdminLogin")}>
-                <Button size="lg" variant="outline" className="bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700 px-8 py-6 text-lg">
-                  <Shield className="w-5 h-5 mr-2" />
+              <Link to={createPageUrl("AdminLogin")} className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700 px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
+                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Admin Portal
                 </Button>
               </Link>
             </div>
 
             {/* Trial Signup CTA */}
-            <div className="mt-12 pt-8 border-t border-slate-700/50">
-              <p className="text-slate-300 mb-4">
+            <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-slate-700/50 px-4">
+              <p className="text-sm sm:text-base text-slate-300 mb-3 sm:mb-4">
                 New department? Start your free trial today
               </p>
               <Link to={createPageUrl("TrialSignup")}>
-                <Button size="lg" variant="outline" className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-8 py-4">
+                <Button size="lg" variant="outline" className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base">
                   Start 30-Day Free Trial
                 </Button>
               </Link>
@@ -98,45 +95,45 @@ export default function Home() {
       </div>
 
       {/* Features Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid md:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
           <FeatureCard
-            icon={<Lock className="w-8 h-8" />}
+            icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="CJIS-Compliant Security"
             description="256-bit AES encryption, 7-day auto-retention options, and anonymous sessions for total data integrity."
             detailedDescription="Secure by design. ClearQuest uses encrypted data storage, access controls, and automatic retention rules to protect sensitive background information and maintain investigative integrity."
             color="blue"
           />
           <FeatureCard
-            icon={<MessageSquare className="w-8 h-8" />}
+            icon={<MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Built for Investigators"
             description="You're the expert — ClearQuest handles the structure so you can focus on professional judgment and accuracy."
             detailedDescription="ClearQuest handles structure, sequencing, and documentation so investigators can focus on evaluating information, clarifying concerns, and making informed hiring decisions."
             color="purple"
           />
           <FeatureCard
-            icon={<FileCheck className="w-8 h-8" />}
+            icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title={`${totalQuestions}-Question Master Bank`}
             description="Covers criminal, financial, employment, and personal history — every box checked with consistency."
             detailedDescription="A complete, standardized question bank covering criminal history, financial issues, employment record, military service, substance use, and law-enforcement contacts. Built to ensure every applicant receives a consistent, legally defensible interview."
             color="green"
           />
           <FeatureCard
-            icon={<Clock className="w-8 h-8" />}
+            icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Time-Saving Workflow"
             description="Streamlined data capture reduces admin tasks while maintaining thoroughness and compliance."
             detailedDescription="Reduces repetitive questioning, manual typing, and administrative review. ClearQuest captures details in real time and builds the report for you—saving hours per case while improving consistency."
             color="orange"
           />
           <FeatureCard
-            icon={<CheckCircle className="w-8 h-8" />}
+            icon={<CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Automated Follow-Ups"
             description='Every "Yes" triggers structured follow-up packs so no detail is ever missed.'
             detailedDescription='Every "Yes" answer triggers the correct structured follow-up questions automatically—capturing dates, circumstances, context, and outcomes with no missed detail. Ensures full documentation for every incident.'
             color="indigo"
           />
           <FeatureCard
-            icon={<Shield className="w-8 h-8" />}
+            icon={<Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Ready-to-Submit Reports"
             description="Instant PDF summaries with transcripts, risk notes, and verification sections ready for submission."
             detailedDescription="ClearQuest generates clean, consistent summaries with transcripts, incident details, risk notes, and verification sections—ready for background review or command-level decision-making."
@@ -145,10 +142,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Stats Section - DYNAMIC QUESTION COUNT */}
+      {/* Stats Section */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14 md:py-16">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 md:gap-8 text-center">
             <StatCard number={totalQuestions} label="Questions" />
             <StatCard number="10" label="Follow-Up Packs" />
             <StatCard number="256-bit" label="AES Encryption" />
@@ -158,9 +155,9 @@ export default function Home() {
       </div>
 
       {/* How It Works */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h2 className="text-4xl font-bold text-white text-center mb-12">How It Works</h2>
-        <div className="grid md:grid-cols-4 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
+        <h2 className="text-3xl sm:text-4xl font-bold text-white text-center mb-8 sm:mb-12 px-4">How It Works</h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <StepCard 
             number="1" 
             title="Initiate Interview" 
@@ -193,9 +190,9 @@ export default function Home() {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-slate-700/50 py-8">
+      <div className="border-t border-slate-700/50 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-slate-400 text-sm">
+          <p className="text-center text-slate-400 text-xs sm:text-sm">
             © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
           </p>
         </div>
@@ -230,7 +227,7 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
   return (
     <div 
-      className="relative h-64 cursor-pointer group"
+      className="relative min-h-[240px] sm:min-h-[260px] md:h-64 cursor-pointer group"
       style={{ perspective: "1000px" }}
       onClick={() => setIsFlipped(!isFlipped)}
     >
@@ -243,18 +240,18 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
       >
         {/* Front Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden"
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-          <div className="relative space-y-4 flex flex-col h-full">
+          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
             <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
-            <h3 className="text-xl font-semibold text-white">{title}</h3>
-            <p className="text-slate-300 text-sm leading-relaxed flex-1">{description}</p>
-            <div className="flex items-center gap-1 text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+            <h3 className="text-lg sm:text-xl font-semibold text-white leading-tight">{title}</h3>
+            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed flex-1">{description}</p>
+            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span>More</span>
               <span className="transform group-hover:translate-x-1 transition-transform">→</span>
             </div>
@@ -263,7 +260,7 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
         {/* Back Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
@@ -271,11 +268,11 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
             minHeight: "auto"
           }}
         >
-          <div className="relative space-y-4 flex flex-col h-full">
-            <div className={`${colorClasses[color].split(' ')[3]} mb-2`}>{icon}</div>
-            <h3 className="text-xl font-semibold text-white">{title}</h3>
-            <p className="text-slate-300 text-[14px] leading-[1.35] flex-1">{detailedDescription}</p>
-            <div className="flex items-center gap-1 text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
+            <div className={`${colorClasses[color].split(' ')[3]} mb-1 sm:mb-2`}>{icon}</div>
+            <h3 className="text-lg sm:text-xl font-semibold text-white leading-tight">{title}</h3>
+            <p className="text-slate-300 text-xs sm:text-[13px] md:text-[14px] leading-[1.4] sm:leading-[1.35] flex-1">{detailedDescription}</p>
+            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
               <span>Back</span>
             </div>
@@ -288,9 +285,9 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
 function StatCard({ number, label }) {
   return (
-    <div className="space-y-2">
-      <div className="text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
-      <div className="text-slate-400 text-sm uppercase tracking-wider">{label}</div>
+    <div className="space-y-1 sm:space-y-2">
+      <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
+      <div className="text-slate-400 text-xs sm:text-sm uppercase tracking-wider">{label}</div>
     </div>
   );
 }
@@ -298,19 +295,19 @@ function StatCard({ number, label }) {
 function StepCard({ number, title, description, link, onClick }) {
   return (
     <div className="relative">
-      <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 space-y-4 hover:border-blue-500/50 transition-colors h-full flex flex-col">
-        <div className="w-12 h-12 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-2xl font-bold text-blue-400">{number}</span>
+      <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 hover:border-blue-500/50 transition-colors h-full flex flex-col">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center flex-shrink-0">
+          <span className="text-xl sm:text-2xl font-bold text-blue-400">{number}</span>
         </div>
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-slate-400 text-sm flex-1">{description}</p>
+        <h3 className="text-base sm:text-lg font-semibold text-white">{title}</h3>
+        <p className="text-slate-400 text-xs sm:text-sm flex-1">{description}</p>
         {link && onClick && (
           <button
             onClick={onClick}
-            className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors group"
+            className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors group"
           >
             <span>{link}</span>
-            <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+            <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 transform group-hover:translate-x-1 transition-transform" />
           </button>
         )}
       </div>
@@ -321,74 +318,76 @@ function StepCard({ number, title, description, link, onClick }) {
 function SessionDialog({ open, onOpenChange }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-2xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            <Shield className="w-6 h-6 text-blue-400" />
-            How to Initiate an Interview
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90vh] p-0">
+        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+          <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 flex-shrink-0" />
+            <span>How to Initiate an Interview</span>
           </DialogTitle>
-          <DialogDescription className="text-slate-300 mt-2">
+          <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
             Two simple fields. Anonymous and secure. Takes 30 seconds.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="px-6 pb-6 space-y-6">
-          {/* Simple Form Preview */}
-          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-white font-medium">1. Department Code</Label>
-              <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300 font-mono">
-                PD-2024
+        <ScrollArea className="max-h-[calc(90vh-180px)] px-4 sm:px-6">
+          <div className="pb-4 sm:pb-6 space-y-4 sm:space-y-6">
+            {/* Simple Form Preview */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 sm:p-6 space-y-3 sm:space-y-4">
+              <div className="space-y-2">
+                <Label className="text-white font-medium text-sm sm:text-base">1. Department Code</Label>
+                <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-slate-300 font-mono text-sm sm:text-base">
+                  PD-2024
+                </div>
+                <p className="text-xs text-slate-400">Your department's unique identifier</p>
               </div>
-              <p className="text-xs text-slate-400">Your department's unique identifier</p>
+
+              <div className="space-y-2">
+                <Label className="text-white font-medium text-sm sm:text-base">2. File Number</Label>
+                <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-slate-300 font-mono text-sm sm:text-base">
+                  A-12345
+                </div>
+                <p className="text-xs text-slate-400">The applicant's case/file number</p>
+              </div>
+
+              <div className="pt-2 sm:pt-3 border-t border-slate-700">
+                <div className="flex items-center gap-2 text-xs sm:text-sm">
+                  <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
+                  <span className="text-slate-300">Creates session: <span className="font-mono text-blue-400 break-all">PD-2024-A-12345</span></span>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-white font-medium">2. File Number</Label>
-              <div className="bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-3 text-slate-300 font-mono">
-                A-12345
+            {/* Key Points */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="flex items-start gap-2 sm:gap-3 bg-slate-800/30 rounded-lg p-3">
+                <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs sm:text-sm font-medium text-white">Fully Anonymous</p>
+                  <p className="text-xs text-slate-400">No personal info required</p>
+                </div>
               </div>
-              <p className="text-xs text-slate-400">The applicant's case/file number</p>
+              <div className="flex items-start gap-2 sm:gap-3 bg-slate-800/30 rounded-lg p-3">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs sm:text-sm font-medium text-white">Instant Start</p>
+                  <p className="text-xs text-slate-400">Interview begins immediately</p>
+                </div>
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-700">
-              <div className="flex items-center gap-2 text-sm">
-                <ChevronRight className="w-4 h-4 text-blue-400" />
-                <span className="text-slate-300">Creates session: <span className="font-mono text-blue-400">PD-2024-A-12345</span></span>
-              </div>
-            </div>
+            {/* CTA */}
+            <Link to={createPageUrl("StartInterview")} className="block">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 h-11 sm:h-12 text-sm sm:text-base">
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Initiate Interview Now
+              </Button>
+            </Link>
+
+            <p className="text-xs text-center text-slate-500 px-2">
+              Session setup takes ~30 seconds. Applicant immediately begins the interview.
+            </p>
           </div>
-
-          {/* Key Points */}
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-3">
-              <Lock className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-white">Fully Anonymous</p>
-                <p className="text-xs text-slate-400">No personal info required</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-3">
-              <Clock className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-white">Instant Start</p>
-                <p className="text-xs text-slate-400">Interview begins immediately</p>
-              </div>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <Link to={createPageUrl("StartInterview")} className="block">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12">
-              <Shield className="w-5 h-5 mr-2" />
-              Initiate Interview Now
-            </Button>
-          </Link>
-
-          <p className="text-xs text-center text-slate-500">
-            Session setup takes ~30 seconds. Applicant immediately begins the interview.
-          </p>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
@@ -417,7 +416,6 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
     }
   }, [open]);
 
-  // Category configuration with display labels and descriptions
   const categoryConfig = [
     { name: "Applications with Other Law Enforcement Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
     { name: "Driving Record", description: "License history, DUIs, suspensions, accidents, and traffic violations" },
@@ -433,15 +431,12 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
     { name: "General Disclosures & Eligibility", description: "Citizenship, visible tattoos, sworn statements, and final disclosures" }
   ];
 
-  // Group questions by category and compute counts dynamically
   const categoriesWithCounts = useMemo(() => {
-    // Create a global display number counter
     let globalDisplayNumber = 1;
     
     const result = categoryConfig.map(config => {
       const categoryQuestions = allQuestions.filter(q => q.category === config.name);
       
-      // Assign display numbers to questions in this category
       const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
         ...q,
         display_number: globalDisplayNumber++
@@ -454,7 +449,6 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
       };
     });
 
-    // Check for unmapped categories
     const mappedCategories = new Set(categoryConfig.map(c => c.name));
     const unmappedCategories = new Set();
     
@@ -467,7 +461,6 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
     if (unmappedCategories.size > 0) {
       console.warn('⚠️ Unmapped categories found in Question entity:', Array.from(unmappedCategories));
       
-      // Add unmapped categories to the end
       unmappedCategories.forEach(catName => {
         const categoryQuestions = allQuestions.filter(q => q.category === catName);
         const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
@@ -493,21 +486,21 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            <FileText className="w-6 h-6 text-blue-400" />
-            {totalQuestions}-Question Master Bank
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-[95vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] p-0">
+        <DialogHeader className="p-4 sm:p-6 pb-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 flex-shrink-0" />
+            <span className="break-words">{totalQuestions}-Question Master Bank</span>
           </DialogTitle>
-          <DialogDescription className="text-slate-300 mt-2">
+          <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
             Every question, organized by investigative domain. Click any section to see all questions.
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
-          <div className="space-y-3 py-6">
+        <ScrollArea className="max-h-[calc(90vh-200px)] px-4 sm:px-6">
+          <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
             {isLoading ? (
-              <div className="text-center py-12 text-slate-400">
+              <div className="text-center py-12 text-slate-400 text-sm sm:text-base">
                 Loading questions...
               </div>
             ) : (
@@ -521,38 +514,38 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
                   >
                     <button
                       onClick={() => toggleCategory(idx)}
-                      className="w-full p-4 text-left flex items-center justify-between gap-4 hover:bg-slate-800/70 transition-colors"
+                      className="w-full p-3 sm:p-4 text-left flex items-center justify-between gap-3 sm:gap-4 hover:bg-slate-800/70 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-white text-base">{category.name}</h3>
+                          <h3 className="font-semibold text-white text-sm sm:text-base break-words">{category.name}</h3>
                           <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap text-xs">
                             {questionCount} {questionCount === 1 ? 'question' : 'questions'}
                           </Badge>
                         </div>
-                        <p className="text-sm text-slate-400">
+                        <p className="text-xs sm:text-sm text-slate-400 break-words">
                           {category.description}
                         </p>
                       </div>
                       <ChevronRight 
-                        className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${
+                        className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0 transition-transform ${
                           expandedCategory === idx ? 'rotate-90' : ''
                         }`}
                       />
                     </button>
 
                     {expandedCategory === idx && (
-                      <div className="px-4 pb-4 border-t border-slate-700/50">
+                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-slate-700/50">
                         <div className="pt-3">
-                          <p className="text-xs font-semibold text-blue-400 mb-3">All Questions in this Category:</p>
-                          <div className="max-h-64 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
+                          <p className="text-xs font-semibold text-blue-400 mb-2 sm:mb-3">All Questions in this Category:</p>
+                          <div className="max-h-48 sm:max-h-64 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
                             <div className="space-y-2">
                               {category.questions.map((question) => (
-                                <div key={question.question_id} className="flex items-start gap-2 text-sm">
+                                <div key={question.question_id} className="flex items-start gap-2 text-xs sm:text-sm">
                                   <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
                                     {question.display_number}
                                   </span>
-                                  <span className="text-slate-300">{question.question_text}</span>
+                                  <span className="text-slate-300 break-words">{question.question_text}</span>
                                 </div>
                               ))}
                             </div>
@@ -567,8 +560,8 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
           </div>
         </ScrollArea>
 
-        <div className="p-6 pt-0 border-t border-slate-700 mt-4">
-          <p className="text-xs text-slate-400 text-center">
+        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3 sm:mt-4">
+          <p className="text-xs text-slate-400 text-center leading-relaxed">
             <strong>Investigator Note:</strong> AI asks one question at a time conversationally. Applicants cannot skip ahead or see what's coming. Every answer is recorded with timestamps.
           </p>
         </div>
@@ -633,34 +626,34 @@ function FollowupsDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-4xl max-h-[90vh] p-0 flex flex-col">
-        <DialogHeader className="p-4 md:p-6 pb-0 flex-shrink-0">
-          <DialogTitle className="text-xl md:text-2xl font-bold flex items-center gap-2 md:gap-3">
-            <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-orange-400 flex-shrink-0" />
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-[95vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] p-0 flex flex-col">
+        <DialogHeader className="p-4 sm:p-6 pb-0 flex-shrink-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
+            <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-orange-400 flex-shrink-0" />
             <span>Automated Follow-Up Packs</span>
           </DialogTitle>
-          <DialogDescription className="text-slate-300 mt-2 text-sm md:text-base">
+          <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
             Every "Yes" answer triggers a structured deep-dive. No detail missed, no investigator guesswork.
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 overflow-y-auto px-4 md:px-6">
-          <div className="space-y-3 md:space-y-4 py-4 md:py-6">
+        <ScrollArea className="flex-1 overflow-y-auto px-4 sm:px-6">
+          <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
             {followupPacks.map((pack, idx) => (
               <div 
                 key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 md:p-4 hover:border-orange-500/50 transition-colors"
+                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-orange-500/50 transition-colors"
               >
-                <div className="flex items-start gap-2 md:gap-3">
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs md:text-sm font-bold text-orange-400">{idx + 1}</span>
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs sm:text-sm font-bold text-orange-400">{idx + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-white text-sm md:text-base mb-1 md:mb-2 break-words">{pack.name}</h3>
-                    <p className="text-xs md:text-sm text-orange-300 mb-2">
+                    <h3 className="font-semibold text-white text-sm sm:text-base mb-1 sm:mb-2 break-words">{pack.name}</h3>
+                    <p className="text-xs sm:text-sm text-orange-300 mb-2 break-words">
                       <strong>Triggered by:</strong> {pack.trigger}
                     </p>
-                    <p className="text-xs md:text-sm text-slate-300 leading-relaxed break-words">
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed break-words">
                       <strong>Documentation captured:</strong> {pack.collects}
                     </p>
                   </div>
@@ -670,13 +663,13 @@ function FollowupsDialog({ open, onOpenChange }) {
           </div>
         </ScrollArea>
 
-        <div className="px-4 md:px-6 py-3 md:py-4 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
             ClearQuest AI also provides investigator-grade clarification when additional detail is needed, ensuring every incident is fully documented.
           </p>
         </div>
 
-        <div className="p-4 md:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
+        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center">
             <strong>Investigator Note:</strong> ClearQuest handles the entire follow-up interview automatically. You receive structured, consistent documentation for every incident — ready for analysis.
           </p>
@@ -689,24 +682,24 @@ function FollowupsDialog({ open, onOpenChange }) {
 function ReportDialog({ open, onOpenChange, totalQuestions }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-5xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            <FileText className="w-6 h-6 text-green-400" />
-            AI-Generated Summary Report
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-[95vw] sm:max-w-4xl md:max-w-5xl max-h-[90vh] p-0">
+        <DialogHeader className="p-4 sm:p-6 pb-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-green-400 flex-shrink-0" />
+            <span>AI-Generated Summary Report</span>
           </DialogTitle>
-          <DialogDescription className="text-slate-300 mt-2">
+          <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
             Everything you need for review, decision-making, and departmental submission.
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="max-h-[calc(90vh-200px)] px-6">
-          <div className="text-center py-12 text-slate-400">
+        <ScrollArea className="max-h-[calc(90vh-200px)] px-4 sm:px-6">
+          <div className="text-center py-12 text-slate-400 text-sm sm:text-base">
             <p>Report preview content - keeping existing implementation</p>
           </div>
         </ScrollArea>
 
-        <div className="p-6 pt-0 border-t border-slate-700 mt-4">
+        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3 sm:mt-4">
           <p className="text-xs text-slate-400 text-center">
             <strong>Investigator Note:</strong> This is a simulated example. Actual reports contain complete {totalQuestions}-question transcripts and all triggered follow-up conversations.
           </p>
