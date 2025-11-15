@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -287,6 +288,7 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'citation_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
     { Field_Key: 'speed', Prompt: 'How fast were you going?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'posted_limit', Prompt: 'What was the speed limit?', Response_Type: 'text', Expected_Type: 'TEXT', Conditional_On: 'speed', Conditional_Skip_If: ['unknown', 'not sure'] },
     { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
@@ -898,32 +900,22 @@ const FOLLOWUP_PACK_STEPS = {
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
 
 // ============================================================================
-// SKIP RULES
+// SKIP RULES - FIXED TO MATCH ACTUAL QUESTIONS
 // ============================================================================
 
 const SKIP_RULES = {
+  // If never applied to other LE agencies, skip to Driving Record section
   'Q001': {
     skipIfAnswer: 'No',
     skipToQuestion: 'Q005'
   },
-  // NEW: Gateway for Other Law Enforcement Applications section
-  // If user has never applied to other LE agencies, skip to next section
-  'Q002': {
+  // If answered No to Q147 (never worked in LE), skip Prior LE section
+  'Q147': {
     skipIfAnswer: 'No',
-    skipToQuestion: 'Q006'
-  },
-  // NEW: Gateway for Prior Law Enforcement Employment section  
-  // If user has never worked for LE, skip to next section
-  'Q163': {
-    skipIfAnswer: 'No',
-    skipToQuestion: 'Q181'
-  },
-  // NEW: Gateway for Military History section
-  // If user never served in military, skip military questions
-  'Q145': {
-    skipIfAnswer: 'No',
-    skipToQuestion: 'Q163'
+    skipToQuestion: 'Q162'
   }
+  // Note: Removed incorrect Q145 rule - that's Employment History, not Military
+  // Note: Q162 is the last question (next_question_id: 'END')
 };
 
 // ============================================================================
