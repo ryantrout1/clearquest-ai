@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -31,7 +30,9 @@ const REVIEW_KEYWORDS = [
   'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
 
-// Helper function to check if text needs review
+// U.S. Citizenship question ID - no summary needed
+const US_CITIZENSHIP_QUESTION_ID = 'Q161';
+
 const needsReview = (text) => {
   const lower = String(text || '').toLowerCase();
   return REVIEW_KEYWORDS.some(keyword => lower.includes(keyword));
@@ -51,6 +52,7 @@ export default function SessionDetails() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   
   const [totalQuestions, setTotalQuestions] = useState(null);
+  const [expandedQuestions, setExpandedQuestions] = useState(new Set());
 
   // UI State
   const [searchTerm, setSearchTerm] = useState("");
@@ -73,8 +75,6 @@ export default function SessionDetails() {
     setIsLoading(true);
 
     try {
-      console.log("🔍 Loading session:", sessionId);
-
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
 
@@ -100,25 +100,40 @@ export default function SessionDetails() {
       setQuestions(questionsData);
       
       setTotalQuestions(questionsData.length);
-      console.log(`📊 Total questions: ${questionsData.length}`);
+      
+      // Default all Yes responses to expanded
+      const yesResponses = new Set(
+        responsesData.filter(r => r.answer === 'Yes').map(r => r.id)
+      );
+      setExpandedQuestions(yesResponses);
 
       setIsLoading(false);
     } catch (err) {
-      console.error("❌ Error loading session:", err);
+      console.error("Error loading session:", err);
       toast.error("Failed to load session data");
       setIsLoading(false);
     }
   };
 
+  const toggleQuestionExpanded = (responseId) => {
+    setExpandedQuestions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(responseId)) {
+        newSet.delete(responseId);
+      } else {
+        newSet.add(responseId);
+      }
+      return newSet;
+    });
+  };
+
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
 
-  // FIXED: Assign display numbers to ALL responses first (before filtering)
   const allResponsesWithNumbers = responses.map((r, idx) => ({
     ...r,
     display_number: idx + 1
   }));
 
-  // Then apply filtering but preserve original display numbers
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -148,11 +163,16 @@ export default function SessionDetails() {
 
   const handleExpandAll = () => {
     setCollapsedSections(new Set());
+    const allYesResponses = new Set(
+      responses.filter(r => r.answer === 'Yes').map(r => r.id)
+    );
+    setExpandedQuestions(allYesResponses);
   };
 
   const handleCollapseAll = () => {
     const allCategories = Object.keys(responsesByCategory);
     setCollapsedSections(new Set(allCategories));
+    setExpandedQuestions(new Set());
   };
 
   const toggleSection = (category) => {
@@ -192,8 +212,6 @@ export default function SessionDetails() {
         await base44.entities.FollowUpResponse.delete(fu.id);
       }
 
-      console.log('🔄 Updating session snapshots after deletion...');
-
       const currentSession = await base44.entities.InterviewSession.get(sessionId);
 
       let updatedTranscript = (currentSession.transcript_snapshot || []).filter(
@@ -209,8 +227,6 @@ export default function SessionDetails() {
           ? Math.round((updatedTranscript.filter(t => t.type === 'question').length / totalQuestions) * 100)
           : 0
       });
-
-      console.log('✅ Session snapshots updated');
 
       toast.success("Response deleted and session updated");
       loadSessionData();
@@ -277,7 +293,6 @@ export default function SessionDetails() {
     elevated: { label: "Elevated Risk", color: "bg-red-500/20 text-red-300 border-red-500/30" }
   };
 
-  // DETERMINISTIC METRICS - Use stored data only
   const actualQuestionsAnswered = responses.length;
   const actualFollowupsTriggered = followups.length;
   const actualCompletion = totalQuestions 
@@ -294,7 +309,6 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
-        {/* Updated Header with Deterministic Analytics */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
           <CardContent className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
@@ -464,6 +478,8 @@ export default function SessionDetails() {
             categoryRefs={categoryRefs}
             collapsedSections={collapsedSections}
             toggleSection={toggleSection}
+            expandedQuestions={expandedQuestions}
+            toggleQuestionExpanded={toggleQuestionExpanded}
           />
         ) : (
           <TranscriptView
@@ -499,11 +515,19 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, collapsedSections, toggleSection }) {
+function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
   return (
     <div className="space-y-0">
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
+
+        // Sort by display_number for vertical column layout
+        const sortedResponses = [...categoryResponses].sort((a, b) => a.display_number - b.display_number);
+        
+        // Split vertically: first half in left column, second half in right
+        const midpoint = Math.ceil(sortedResponses.length / 2);
+        const leftColumn = sortedResponses.slice(0, midpoint);
+        const rightColumn = sortedResponses.slice(midpoint);
 
         return (
           <div key={category} className={isSectionCollapsed ? "mb-0" : "mb-6"}>
@@ -529,21 +553,28 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
             {!isSectionCollapsed && (
               <div className="bg-slate-900/30 border border-slate-700 border-t-0 mb-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
-                  {[0, 1].map(colIndex => {
-                    const columnQuestions = categoryResponses.filter((_, idx) => idx % 2 === colIndex);
-
-                    return (
-                      <div key={colIndex} className="divide-y divide-slate-700/50">
-                        {columnQuestions.map(response => (
-                          <CompactQuestionRow
-                            key={response.id}
-                            response={response}
-                            followups={followups.filter(f => f.response_id === response.id)}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })}
+                  <div className="divide-y divide-slate-700/50">
+                    {leftColumn.map(response => (
+                      <CompactQuestionRow
+                        key={response.id}
+                        response={response}
+                        followups={followups.filter(f => f.response_id === response.id)}
+                        isExpanded={expandedQuestions.has(response.id)}
+                        onToggleExpand={() => toggleQuestionExpanded(response.id)}
+                      />
+                    ))}
+                  </div>
+                  <div className="divide-y divide-slate-700/50">
+                    {rightColumn.map(response => (
+                      <CompactQuestionRow
+                        key={response.id}
+                        response={response}
+                        followups={followups.filter(f => f.response_id === response.id)}
+                        isExpanded={expandedQuestions.has(response.id)}
+                        onToggleExpand={() => toggleQuestionExpanded(response.id)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -554,13 +585,13 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
   );
 }
 
-function CompactQuestionRow({ response, followups }) {
+function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand }) {
   const hasFollowups = followups.length > 0;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const questionNumber = response.display_number.toString().padStart(3, '0');
-
-  // PRODUCTION: Read ONLY from database - no fallbacks, no conversation extraction
   const aiProbingExchanges = response.investigator_probing || [];
+  const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID;
+  const summary = response.investigator_summary || null;
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -577,7 +608,21 @@ function CompactQuestionRow({ response, followups }) {
         </span>
       </div>
 
-      {hasFollowups && response.answer === "Yes" && (
+      {showSummary && summary && (
+        <div 
+          className="mt-2 ml-14 bg-slate-800/30 border border-slate-600/50 rounded px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors"
+          onClick={onToggleExpand}
+        >
+          <p className="text-xs text-slate-300 italic flex-1">{summary}</p>
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+          )}
+        </div>
+      )}
+
+      {isExpanded && hasFollowups && response.answer === "Yes" && (
         <div className="mt-2 ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
           <div className="space-y-3">
             {followups.map((followup, idx) => {
@@ -629,8 +674,8 @@ function CompactQuestionRow({ response, followups }) {
                       <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
                     </div>
                     <div className="text-xs">
-                      <span className="text-purple-400 font-medium">Candidate Response:</span>
-                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
+                      <span className="text-orange-400 font-medium">Candidate Response:</span>
+                      <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
                     </div>
                   </div>
                 ))}
@@ -667,8 +712,6 @@ function TranscriptView({ responses, followups }) {
 function TranscriptEntry({ item }) {
   if (item.type === 'question') {
     const response = item.data;
-    
-    // PRODUCTION: Read ONLY from database - no fallbacks
     const aiProbingExchanges = response.investigator_probing || [];
     
     return (
@@ -700,7 +743,7 @@ function TranscriptEntry({ item }) {
                   <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.probing_question}</p>
                 </div>
                 <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
+                  <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
                     <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
                   </div>
                 </div>
@@ -924,6 +967,7 @@ function generateReportHTML(session, responses, followups, questions, department
           font-size: 9pt;
           margin-left: 12px;
           margin-top: 2px;
+          color: #ff6600;
         }
 
         .summary-box {
@@ -949,7 +993,7 @@ function generateReportHTML(session, responses, followups, questions, department
         <h1>Applicant Background Interview Report</h1>
         <div class="session-info">
           <strong>Department:</strong> ${department?.department_name || session.department_code}<br>
-          <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number || 'RA-1Q0'}<br>
+          <strong>Dept Code:</strong> ${session.department_code} | <strong>File:</strong> ${session.file_number}<br>
           <strong>Report Generated:</strong> ${now}<br>
           <strong>Questions Answered:</strong> ${responses.length} / ${questionCount}<br>
           <strong>Follow-Ups:</strong> ${followups.length}<br>
