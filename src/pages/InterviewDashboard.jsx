@@ -332,29 +332,19 @@ export default function InterviewDashboard() {
                 onClick={() => setStatusFilter("paused")}
               />
               
-              {processedSessions.length > 0 && (
+              {selectedSessions.size > 0 && (
                 <>
                   <div className="h-4 w-px bg-slate-600 mx-1" />
-                  <button
-                    onClick={toggleSelectAll}
-                    className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                  <Button
+                    onClick={handleBulkDelete}
+                    size="sm"
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 text-xs"
                   >
-                    <Checkbox checked={selectedSessions.size === processedSessions.length} />
-                    Select All
-                  </button>
+                    <Trash2 className="w-3 h-3 mr-1.5" />
+                    Delete {selectedSessions.size} Selected
+                  </Button>
                 </>
-              )}
-              
-              {selectedSessions.size > 0 && (
-                <Button
-                  onClick={handleBulkDelete}
-                  size="sm"
-                  variant="destructive"
-                  className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 text-xs"
-                >
-                  <Trash2 className="w-3 h-3 mr-1.5" />
-                  Delete {selectedSessions.size} Selected
-                </Button>
               )}
             </div>
           </CardContent>
@@ -523,6 +513,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
             <Checkbox 
               checked={isSelected} 
               onCheckedChange={onToggleSelect}
+              className="border-slate-400 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
             />
           </div>
 
@@ -564,17 +555,17 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
             </div>
           </div>
 
-          <div className="md:col-span-3 flex flex-col justify-between gap-3">
+          <div className="md:col-span-3 flex flex-col justify-between gap-1.5">
             <div className="flex justify-end">
               <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
                 {statusConfig[session.status]?.label}
               </Badge>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7 w-full"
               >
                 View Interview
               </Button>
@@ -584,7 +575,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 size="sm"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-8 w-full transition-colors",
+                  "text-xs h-7 w-full transition-colors",
                   deleteConfirm
                     ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
                     : "bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
