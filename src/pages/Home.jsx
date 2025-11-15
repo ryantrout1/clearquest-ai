@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -96,7 +97,7 @@ export default function Home() {
 
       {/* Features Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 md:gap-8">
           <FeatureCard
             icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="CJIS-Compliant Security"
@@ -227,7 +228,7 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
   return (
     <div 
-      className="relative min-h-[240px] sm:min-h-[260px] md:h-64 cursor-pointer group"
+      className="relative min-h-[180px] sm:min-h-[240px] md:h-64 cursor-pointer group"
       style={{ perspective: "1000px" }}
       onClick={() => setIsFlipped(!isFlipped)}
     >
@@ -240,17 +241,17 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
       >
         {/* Front Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-3 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden"
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
+          <div className="relative space-y-2 sm:space-y-3 md:space-y-4 flex flex-col h-full">
             <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
-            <h3 className="text-lg sm:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed flex-1">{description}</p>
+            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
+            <p className="text-slate-300 text-xs sm:text-sm leading-snug sm:leading-relaxed flex-1">{description}</p>
             <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span>More</span>
               <span className="transform group-hover:translate-x-1 transition-transform">→</span>
@@ -260,7 +261,7 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
         {/* Back Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-3 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
@@ -268,10 +269,10 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
             minHeight: "auto"
           }}
         >
-          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
-            <div className={`${colorClasses[color].split(' ')[3]} mb-1 sm:mb-2`}>{icon}</div>
-            <h3 className="text-lg sm:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-xs sm:text-[13px] md:text-[14px] leading-[1.4] sm:leading-[1.35] flex-1">{detailedDescription}</p>
+          <div className="relative space-y-2 sm:space-y-3 md:space-y-4 flex flex-col h-full">
+            <div className={`${colorClasses[color].split(' ')[3]} mb-0 sm:mb-1 md:mb-2`}>{icon}</div>
+            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
+            <p className="text-slate-300 text-xs sm:text-[13px] md:text-[14px] leading-[1.35] sm:leading-[1.35] flex-1">{detailedDescription}</p>
             <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
               <span>Back</span>
