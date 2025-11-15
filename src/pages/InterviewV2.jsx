@@ -340,10 +340,10 @@ export default function InterviewV2() {
         console.log("[investigator] Sending probing summary to agent", {
           questionId,
           packId,
-          conversationId: conversation?.id // Access the ID from the object
+          hasConversation: !!conversation // Check if conversation object exists
         });
 
-        // If there is no conversation ID, just fall back to next main question
+        // If there is no conversation object, just fall back to next main question
         if (!conversation || !conversation.id) { // Check if conversation object and its ID exist
           console.log('[investigator] No conversation - skipping to next question');
           const nextQuestionId = computeNextQuestionId(engine, questionId, "Yes");
@@ -401,8 +401,8 @@ export default function InterviewV2() {
           messagePayload
         });
 
-        // Send the message to the AI conversation - matching Interview.js signature
-        await base44.agents.addMessage(conversation.id, messagePayload); // Use conversation.id
+        // Send the message to the AI conversation - pass the conversation object
+        await base44.agents.addMessage(conversation, messagePayload);
 
         console.log("[investigator] Message sent successfully");
 
@@ -746,7 +746,7 @@ export default function InterviewV2() {
     
     try {
       console.log("[handleAgentAnswer] Sending to conversation:", conversation.id); // Now using conversation ID
-      await base44.agents.addMessage(conversation.id, { // Use conversation.id
+      await base44.agents.addMessage(conversation, { // Use the conversation object
         role: 'user',
         content: value
       });
@@ -758,60 +758,6 @@ export default function InterviewV2() {
       setIsCommitting(false);
     }
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
-
-  const handleSendTestAIMsg = useCallback(async () => {
-    console.log("[TEST] ========== START TEST ==========");
-
-    // Check if conversation object and its ID are available
-    if (!conversation || !conversation.id) { 
-      console.error("[TEST] No valid conversation ID");
-      toast.error("No conversation available");
-      return;
-    }
-
-    try {
-      // CRITICAL: Always fetch a fresh conversation object right before addMessage
-      // This ensures we have the complete, uncorrupted structure the SDK expects
-      console.log("[TEST] Fetching fresh conversation object for ID:", conversation.id);
-      const freshConversation = await base44.agents.getConversation(conversation.id); // Pass ID from object
-      
-      console.log("[TEST] Fresh conversation:", {
-        id: freshConversation.id,
-        agent_name: freshConversation.agent_name,
-        hasMessages: !!freshConversation.messages,
-        messagesLength: freshConversation.messages?.length || 0
-      });
-
-      const messagePayload = {
-        role: "user",
-        content: "TEST MESSAGE from InterviewV2"
-      };
-
-      console.log("[TEST] Message payload:", messagePayload);
-      console.log("[TEST] Calling base44.agents.addMessage with conversation ID:", freshConversation.id);
-
-      // Use the fresh conversation's ID to send the message, consistent with `conversation` state
-      const result = await base44.agents.addMessage(freshConversation.id, messagePayload);
-
-      console.log("[TEST] ✅ SUCCESS!");
-      console.log("[TEST] Result:", result);
-      toast.success("Test message sent successfully");
-      
-      // Update state with the fresh conversation object
-      setConversation(freshConversation);
-      
-    } catch (err) {
-      console.error("[TEST] ❌ FAILED");
-      console.error("[TEST] Error name:", err?.name);
-      console.error("[TEST] Error message:", err?.message);
-      console.error("[TEST] Error stack:", err?.stack);
-      console.error("[TEST] Full error object:", err);
-      
-      toast.error(`Test failed: ${err.message}`);
-    }
-    
-    console.log("[TEST] ========== END TEST ==========");
-  }, [conversation]);
 
   const handleTextSubmit = useCallback((e) => {
     if (e && typeof e.preventDefault === "function") {
@@ -1157,18 +1103,6 @@ export default function InterviewV2() {
             <p className="text-xs text-slate-400 text-center mt-3">
               {isWaitingForAgent ? `Probing question ${aiProbeCount + 1} of 5` : "Once submitted, answers cannot be changed"}
             </p>
-
-            <div className="mt-3 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSendTestAIMsg}
-                disabled={!conversation?.id} // Disable if conversation object or its ID is not available
-                className="text-xs border-yellow-400 text-yellow-300 hover:bg-yellow-950"
-              >
-                Dev: Send Test AI Message
-              </Button>
-            </div>
           </div>
         </footer>
       </div>
