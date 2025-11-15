@@ -1607,6 +1607,7 @@ export default function InterviewV2() {
     
     // Filter out system messages and base questions
     const cleanMessages = agentMessages.filter(msg => {
+      if (!msg.content || msg.content.trim() === '') return false; // CRITICAL FIX: Filter empty messages
       if (msg.content?.includes('Follow-up pack completed')) return false;
       if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
       return true;
@@ -2231,8 +2232,7 @@ function AgentMessageBubble({ message }) {
           )}
         </div>
       </div>
-    </div>
-  );
+    );
 }
 
 // NEW: Agent chat history item (question -> answer pairs, smooth rendering) - Mobile Optimized
