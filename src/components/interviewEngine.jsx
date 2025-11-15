@@ -914,9 +914,17 @@ const SKIP_RULES = {
     skipIfAnswer: 'No',
     skipToQuestion: 'Q159'  // Jump to embarrassment question, NOT Q162
   }
-  // Note: Removed incorrect Q145 rule - that's Employment History, not Military
-  // Note: Q162 is the last question (next_question_id: 'END')
 };
+
+// ============================================================================
+// NO FOLLOW-UP QUESTIONS - EXEMPTED QUESTIONS
+// These questions NEVER trigger follow-ups regardless of answer
+// ============================================================================
+
+const NO_FOLLOWUP_QUESTIONS = new Set([
+  'Q161', // Citizenship - eligibility question only, no follow-up needed
+  'Q162'  // Final disclosure - open-ended text response
+]);
 
 // ============================================================================
 // VALIDATION HELPERS - SIMPLIFIED FOR TEXT-BASED DATES
@@ -1164,6 +1172,12 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
 
   console.log(`🔍 Entity-driven follow-up check for ${questionId}, answer="${answer}"`);
 
+  // DEFENSIVE: Check exemption list first - certain questions NEVER trigger follow-ups
+  if (NO_FOLLOWUP_QUESTIONS.has(questionId)) {
+    console.log(`   🚫 Question ${questionId} is exempted from follow-ups (eligibility/final disclosure)`);
+    return null;
+  }
+
   // DETERMINISTIC: Answer must be "Yes" AND Question.followup_pack must exist
   if (answer === 'Yes' && MatrixYesByQ[questionId]) {
     const packId = MatrixYesByQ[questionId];
@@ -1406,7 +1420,10 @@ export function generateCompletionAudit(engine, transcript) {
   answeredQuestions.forEach(q => {
     const question = engine.QById[q.questionId];
     if (question && question.followup_pack && q.answer === 'Yes') {
-      triggeredPacks.add(question.followup_pack);
+      // Add the pack to triggeredPacks only if it's not in the NO_FOLLOWUP_QUESTIONS list
+      if (!NO_FOLLOWUP_QUESTIONS.has(q.questionId)) {
+        triggeredPacks.add(question.followup_pack);
+      }
     }
   });
   
