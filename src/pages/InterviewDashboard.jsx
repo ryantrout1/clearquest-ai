@@ -555,17 +555,17 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
             </div>
           </div>
 
-          <div className="md:col-span-3 flex flex-col justify-between gap-1.5">
+          <div className="md:col-span-3 flex flex-col justify-between gap-3">
             <div className="flex justify-end">
               <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
                 {statusConfig[session.status]?.label}
               </Badge>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 items-end">
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7 w-full"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7 w-32"
               >
                 View Interview
               </Button>
@@ -575,7 +575,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 size="sm"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-7 w-full transition-colors",
+                  "text-xs h-7 w-32 transition-colors",
                   deleteConfirm
                     ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
                     : "bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
