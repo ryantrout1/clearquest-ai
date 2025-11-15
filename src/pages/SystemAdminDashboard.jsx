@@ -566,8 +566,8 @@ export default function SystemAdminDashboard() {
                               dept.plan_level === 'Paid' 
                                 ? 'opacity-50 cursor-not-allowed border-slate-600 text-slate-500' 
                                 : isInConfirmState
-                                ? 'border-red-600 bg-red-950/30 text-red-300 hover:bg-red-950/50 animate-pulse'
-                                : 'border-red-600 text-red-400 hover:bg-red-950/30'
+                                ? 'bg-red-600 text-white hover:bg-red-700 border-red-600 animate-pulse'
+                                : 'bg-slate-900/50 border-slate-600 text-slate-300 hover:bg-red-950/30 hover:border-red-600 hover:text-red-400'
                             }`}
                             title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
                           >
