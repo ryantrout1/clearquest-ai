@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -663,12 +662,6 @@ function FollowupsDialog({ open, onOpenChange }) {
             ))}
           </div>
         </ScrollArea>
-
-        <div className="px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
-          <p className="text-xs text-slate-400 text-center leading-relaxed">
-            ClearQuest AI also provides investigator-grade clarification when additional detail is needed, ensuring every incident is fully documented.
-          </p>
-        </div>
 
         <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
