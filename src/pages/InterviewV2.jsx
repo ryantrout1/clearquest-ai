@@ -1985,16 +1985,16 @@ export default function InterviewV2() {
         >
           <div className="max-w-5xl mx-auto px-3 md:px-4 py-2.5 md:py-4">
             {isYesNoQuestion ? (
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-2 md:mb-3">
+              <div className="flex gap-2 md:gap-3 mb-2 md:mb-3">
                 <button
                   ref={yesButtonRef}
                   type="button"
                   onClick={() => handleAnswer("Yes")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-yes flex-1 min-h-[52px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-lg md:rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-lg sm:text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  className="btn-yn btn-yes flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                   aria-label="Answer Yes"
                 >
-                  <Check className="w-6 h-6 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <Check className="w-5 h-5 md:w-6 md:h-6" />
                   <span>Yes</span>
                 </button>
                 <button
@@ -2002,10 +2002,10 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-no flex-1 min-h-[52px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-lg md:rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-lg sm:text-base md:text-lg bg-red-500 hover:bg-red-600 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  className="btn-yn btn-no flex-1 min-h-[44px] sm:min-h-[48px] md:min-h-[48px] rounded-lg font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base md:text-lg bg-red-500 hover:bg-red-600 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                   aria-label="Answer No"
                 >
-                  <X className="w-6 h-6 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <X className="w-5 h-5 md:w-6 md:h-6" />
                   <span>No</span>
                 </button>
               </div>
