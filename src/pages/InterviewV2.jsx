@@ -221,7 +221,6 @@ export default function InterviewV2() {
           instance_number: 1,
           substance_name: substanceName || null,
           incident_description: answer, // This field is less dynamic, using `additional_details` for specific keys
-          completed: false,
           additional_details: { [fieldKey]: answer }
         });
       } else {
@@ -1692,18 +1691,18 @@ export default function InterviewV2() {
   // This will be replaced by buildAgentChatHistory and AgentChatItem
   // const displayableAgentMessages = agentMessages.filter((msg, idx) => {
   //   // Filter out system summary messages
-  //   if (msg.content?.includes('Follow-up pack completed')) return false;
+  //   // if (msg.content?.includes('Follow-up pack completed')) return false;
   //   // Filter out base question signals (Q###)
-  //   if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+  //   // if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
     
   //   // For assistant messages: only show if there's a user message after it (i.e., it was answered)
-  //   if (msg.role === 'assistant') {
-  //     const nextMessage = agentMessages[idx + 1];
-  //     return nextMessage && nextMessage.role === 'user';
-  //   }
+  //   // if (msg.role === 'assistant') {
+  //   //   const nextMessage = agentMessages[idx + 1];
+  //   //   return nextMessage && nextMessage.role === 'user';
+  //   // }
     
   //   // Keep all user messages (they're always answers)
-  //   return true;
+  //   // return true;
   // });
   
   const chatHistory = buildChatHistory();
@@ -1712,27 +1711,28 @@ export default function InterviewV2() {
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+        {/* Header - Mobile Optimized */}
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-2 md:py-3">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 text-blue-400" />
-                <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <div className="flex items-center gap-2 md:gap-3">
+                <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
+                <h1 className="text-base md:text-lg font-semibold text-white">ClearQuest</h1>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePauseClick}
-                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-2"
+                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 px-2 md:px-3 h-8 md:h-9 text-xs md:text-sm"
               >
-                <Pause className="w-4 h-4" />
-                <span>Pause</span>
+                <Pause className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">Pause</span>
               </Button>
             </div>
             
+            {/* Department info - Compact on mobile */}
             {department && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2 pb-2">
+              <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2 pb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="font-medium text-slate-300">{department.department_name}</span>
                 </div>
@@ -1749,9 +1749,17 @@ export default function InterviewV2() {
               </div>
             )}
             
-            <div className="mt-2">
+            {/* Mobile-only compact session info */}
+            {department && (
+              <div className="md:hidden text-[10px] text-slate-500 border-t border-slate-700/50 pt-1.5 pb-1.5">
+                {session?.department_code} • {session?.file_number}
+              </div>
+            )}
+            
+            {/* Progress bar - Compact on mobile */}
+            <div className="mt-1.5 md:mt-2">
               <div 
-                className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
+                className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -1766,29 +1774,25 @@ export default function InterviewV2() {
                   }}
                 />
               </div>
-              <div className="flex justify-end items-center gap-2 mt-1.5">
+              <div className="flex justify-end items-center gap-1.5 md:gap-2 mt-1 md:mt-1.5">
                 <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
-                <span className="text-xs font-medium text-green-400">{progress}% Complete</span>
-                <span className="text-xs text-green-400">•</span>
-                <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
+                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}%</span>
+                <span className="text-[10px] md:text-xs text-green-400">•</span>
+                <span className="text-[10px] md:text-xs font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
               </div>
             </div>
           </div>
         </header>
 
         {showResumeBanner && (
-          <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-4 py-3">
-            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                <div className="flex flex-wrap items-center gap-2 text-sm text-emerald-100">
-                  <span>Welcome back! Resuming interview with</span>
-                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
+          <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-3 md:px-4 py-2 md:py-3">
+            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2 md:gap-3">
+              <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+                <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-emerald-400 flex-shrink-0" />
+                <div className="flex flex-wrap items-center gap-1.5 md:gap-2 text-xs md:text-sm text-emerald-100 min-w-0">
+                  <span className="truncate">Resuming interview</span>
+                  <span className="px-1.5 py-0.5 bg-emerald-900/50 rounded font-mono text-[10px] md:text-xs text-emerald-300 flex-shrink-0">
                     {session?.department_code}
-                  </span>
-                  <span>•</span>
-                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
-                    {session?.file_number}
                   </span>
                 </div>
               </div>
@@ -1796,7 +1800,7 @@ export default function InterviewV2() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowResumeBanner(false)}
-                className="text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/30"
+                className="text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/30 h-7 md:h-8 px-2 text-xs"
               >
                 Dismiss
               </Button>
@@ -1808,13 +1812,13 @@ export default function InterviewV2() {
         <main className="flex-1 overflow-hidden flex flex-col">
           <div 
             ref={historyRef}
-            className="flex-1 overflow-y-auto px-4 py-6"
+            className="flex-1 overflow-y-auto px-3 md:px-4 py-3 md:py-6"
           >
-            <div className="max-w-5xl mx-auto space-y-4">
+            <div className="max-w-5xl mx-auto space-y-3 md:space-y-4">
               {answeredCount > 0 && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
+                  <AlertCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                  <AlertDescription className="text-xs md:text-sm">
                     You've completed {answeredCount} of {totalQuestions} questions. Keep going!
                   </AlertDescription>
                 </Alert>
@@ -1832,9 +1836,9 @@ export default function InterviewV2() {
               
               {/* Show completed probing sessions (persisted after AI handoff) */}
               {completedProbingSessions.map((session, idx) => (
-                <div key={`probing-${idx}`} className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
-                  <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
+                <div key={`probing-${idx}`} className="space-y-3 md:space-y-4 border-t-2 border-purple-500/30 pt-3 md:pt-4 mt-3 md:mt-4">
+                  <div className="text-xs md:text-sm font-semibold text-purple-400 flex items-center gap-1.5 md:gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     Investigator Follow-up ({getFollowUpPackName(session.packId)})
                   </div>
                   {session.messages.map((msg, msgIdx) => (
@@ -1848,9 +1852,9 @@ export default function InterviewV2() {
               
               {/* Show CURRENT agent conversation as Q&A pairs (smooth, no flicker) */}
               {agentChatHistory.length > 0 && isWaitingForAgent && (
-                <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
-                  <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
+                <div className="space-y-3 md:space-y-4 border-t-2 border-purple-500/30 pt-3 md:pt-4 mt-3 md:mt-4">
+                  <div className="text-xs md:text-sm font-semibold text-purple-400 flex items-center gap-1.5 md:gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     Investigator Follow-up Conversations
                   </div>
                   {agentChatHistory.map((item) => (
@@ -1861,29 +1865,29 @@ export default function InterviewV2() {
             </div>
           </div>
 
-          {/* Active Question (Deterministic) or Agent Probing */}
+          {/* Active Question (Deterministic) or Agent Probing - Mobile Optimized */}
           {lastAgentQuestion && isWaitingForAgent ? (
-            <div className="flex-shrink-0 px-4 pb-4">
+            <div className="flex-shrink-0 px-3 md:px-4 pb-3 md:pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
-                  className="bg-purple-950/95 border-2 border-purple-500/50 rounded-xl p-6 shadow-2xl"
+                  className="bg-purple-950/95 border-2 border-purple-500/50 rounded-lg md:rounded-xl p-4 md:p-6 shadow-2xl"
                   style={{
                     boxShadow: '0 12px 36px rgba(0,0,0,0.55), 0 0 0 3px rgba(200,160,255,0.30) inset'
                   }}
                   role="region"
                   aria-live="polite"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-purple-600/30 border-purple-500/50">
-                      <AlertCircle className="w-4 h-4 text-purple-400" />
+                  <div className="flex items-start gap-2 md:gap-3">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-purple-600/30 border-purple-500/50">
+                      <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-semibold text-purple-400">Investigator Question</span>
-                        <span className="text-xs text-slate-500">•</span>
-                        <span className="text-sm text-purple-300">Story Clarification</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2 flex-wrap">
+                        <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator Question</span>
+                        <span className="text-[10px] md:text-xs text-slate-500">•</span>
+                        <span className="text-xs md:text-sm text-purple-300">Story Clarification</span>
                       </div>
-                      <p className="text-white text-lg font-semibold leading-relaxed">
+                      <p className="text-white text-base md:text-lg font-semibold leading-relaxed break-words">
                         {lastAgentQuestion}
                       </p>
                     </div>
@@ -1892,12 +1896,12 @@ export default function InterviewV2() {
               </div>
             </div>
           ) : currentPrompt ? (
-            <div className="flex-shrink-0 px-4 pb-4">
+            <div className="flex-shrink-0 px-3 md:px-4 pb-3 md:pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
                   className={requiresClarification 
-                    ? "bg-purple-950/95 border-2 border-purple-500/50 rounded-xl p-6 shadow-2xl"
-                    : "bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl"
+                    ? "bg-purple-950/95 border-2 border-purple-500/50 rounded-lg md:rounded-xl p-4 md:p-6 shadow-2xl"
+                    : "bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-lg md:rounded-xl p-4 md:p-6 shadow-2xl"
                   }
                   style={{
                     boxShadow: requiresClarification
@@ -1908,59 +1912,59 @@ export default function InterviewV2() {
                   role="region"
                   aria-live="polite"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                  <div className="flex items-start gap-2 md:gap-3">
+                    <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
                       requiresClarification 
                         ? 'bg-purple-600/30 border-purple-500/50'
                         : 'bg-blue-600/30 border-blue-500/50'
                     }`}>
                       {requiresClarification ? (
-                        <AlertCircle className="w-4 h-4 text-purple-400" />
+                        <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
                       ) : isFollowUpMode ? (
-                        <Layers className="w-4 h-4 text-orange-400" />
+                        <Layers className="w-3.5 h-3.5 md:w-4 md:h-4 text-orange-400" />
                       ) : (
-                        <Shield className="w-4 h-4 text-blue-400" />
+                        <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" />
                       )}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      {/* Mobile: Stack question number and category */}
+                      <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 mb-1.5 md:mb-2">
                         {requiresClarification ? (
                           <>
-                            <span className="text-sm font-semibold text-purple-400">Clarification Needed</span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-sm text-purple-300">
+                            <span className="text-xs md:text-sm font-semibold text-purple-400">Clarification Needed</span>
+                            <span className="hidden md:inline text-xs text-slate-500">•</span>
+                            <span className="text-xs md:text-sm text-purple-300">
                               {getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : isFollowUpMode ? (
                           <>
-                            <span className="text-sm font-semibold text-orange-400">
-                              Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                            <span className="text-xs md:text-sm font-semibold text-orange-400">
+                              Follow-up {currentPrompt.stepNumber}/{currentPrompt.totalSteps}
                             </span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-sm text-orange-300">
-                              {currentPrompt.substanceName ? `${currentPrompt.substanceName} Use` : getFollowUpPackName(currentPrompt.packId)}
+                            <span className="hidden md:inline text-xs text-slate-500">•</span>
+                            <span className="text-[11px] md:text-sm text-orange-300 truncate">
+                              {currentPrompt.substanceName ? `${currentPrompt.substanceName}` : getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : (
                           <>
-                            <span className="text-lg font-bold text-blue-400">
+                            <span className="text-base md:text-lg font-bold text-blue-400">
                               Question {getQuestionDisplayNumber(currentPrompt.id)}
                             </span>
-                            <span className="text-sm text-slate-500">•</span>
-                            <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                            <span className="text-[11px] md:text-sm font-medium text-slate-400 truncate">{currentPrompt.category}</span>
                           </>
                         )}
                       </div>
-                      <p className="text-white text-lg font-semibold leading-relaxed">
+                      <p className="text-white text-base md:text-lg font-semibold leading-snug md:leading-relaxed break-words">
                         {currentPrompt.text}
                       </p>
                       
                       {validationHint && (
-                        <div className="mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3" role="alert">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
-                            <p className="text-yellow-200 text-sm leading-relaxed">{validationHint}</p>
+                        <div className="mt-2 md:mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-2.5 md:p-3" role="alert">
+                          <div className="flex items-start gap-1.5 md:gap-2">
+                            <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-yellow-200 text-xs md:text-sm leading-relaxed">{validationHint}</p>
                           </div>
                         </div>
                       )}
@@ -1972,25 +1976,25 @@ export default function InterviewV2() {
           ) : null}
         </main>
 
-        {/* Footer */}
+        {/* Footer - Mobile Optimized */}
         <footer 
           className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
           role="form"
           aria-label="Response area"
         >
-          <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
+          <div className="max-w-5xl mx-auto px-3 md:px-4 py-2.5 md:py-4">
             {isYesNoQuestion ? (
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-2 md:mb-3">
                 <button
                   ref={yesButtonRef}
                   type="button"
                   onClick={() => handleAnswer("Yes")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-yes flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  className="btn-yn btn-yes flex-1 min-h-[52px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-lg md:rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-lg sm:text-base md:text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                   aria-label="Answer Yes"
                 >
-                  <Check className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <Check className="w-6 h-6 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                   <span>Yes</span>
                 </button>
                 <button
@@ -1998,36 +2002,36 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-no flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-red-500 hover:bg-red-600 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  className="btn-yn btn-no flex-1 min-h-[52px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-lg md:rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-lg sm:text-base md:text-lg bg-red-500 hover:bg-red-600 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                   aria-label="Answer No"
                 >
-                  <X className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                  <X className="w-6 h-6 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                   <span>No</span>
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleTextSubmit} className="flex gap-2 sm:gap-3 mb-3">
+              <form onSubmit={handleTextSubmit} className="flex gap-2 sm:gap-3 mb-2 md:mb-3">
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={getPlaceholder()}
-                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 sm:h-12 md:h-14 text-base sm:text-base md:text-lg focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-[#121c33] focus:border-green-400"
+                  className="flex-1 bg-slate-900/50 border-slate-600 text-white h-12 md:h-14 text-base md:text-lg focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-[#121c33] focus:border-green-400"
                   disabled={isCommitting || showPauseModal}
                   autoComplete="off"
                 />
                 <Button
                   type="submit"
                   disabled={!input.trim() || isCommitting || showPauseModal}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 h-12 sm:h-12 md:h-14 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#121c33]"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 h-12 md:h-14 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#121c33]"
                 >
-                  <Send className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Send</span>
+                  <Send className="w-5 h-5" />
+                  <span className="hidden sm:inline ml-2">Send</span>
                 </Button>
               </form>
             )}
             
-            <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
+            <p className="text-[10px] md:text-xs text-slate-400 text-center leading-relaxed px-1 md:px-2">
               {isWaitingForAgent 
                 ? "Responding to investigator's probing questions..." 
                 : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
@@ -2133,7 +2137,7 @@ export default function InterviewV2() {
   );
 }
 
-// NEW: Chat-style history item (shows question then answer)
+// NEW: Chat-style history item - Mobile Optimized
 function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }) {
   if (item.type === 'answer') {
     const entry = item.data;
@@ -2141,8 +2145,8 @@ function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }
     
     return (
       <div className="flex justify-end">
-        <div className={`${answerColor} rounded-xl px-5 py-3 max-w-2xl`}>
-          <p className="text-white font-medium">{entry.answer}</p>
+        <div className={`${answerColor} rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl`}>
+          <p className="text-white text-sm md:text-base font-medium break-words">{entry.answer}</p>
         </div>
       </div>
     );
@@ -2152,20 +2156,19 @@ function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }
     const entry = item.data;
     
     return (
-      <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
-        <div className="flex items-start gap-3">
-          <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-3.5 h-3.5 text-blue-400" />
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
+        <div className="flex items-start gap-2 md:gap-3">
+          <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-3 h-3 md:w-3.5 md:h-3.5 text-blue-400" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-sm font-bold text-blue-400">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2 mb-1 md:mb-1.5">
+              <span className="text-xs md:text-sm font-bold text-blue-400">
                 Question {getQuestionDisplayNumber(entry.questionId)}
               </span>
-              <span className="text-xs text-slate-500">•</span>
-              <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+              <span className="text-[10px] md:text-sm font-medium text-slate-400 truncate">{entry.category}</span>
             </div>
-            <p className="text-white leading-relaxed">{entry.questionText}</p>
+            <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{entry.questionText}</p>
           </div>
         </div>
       </div>
@@ -2176,20 +2179,19 @@ function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }
     const entry = item.data;
     
     return (
-      <div className="bg-orange-950/30 border border-orange-800/50 rounded-xl p-5 opacity-85">
-        <div className="flex items-start gap-3">
-          <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
-            <Layers className="w-3.5 h-3.5 text-orange-400" />
+      <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
+        <div className="flex items-start gap-2 md:gap-3">
+          <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="w-3 h-3 md:w-3.5 md:h-3.5 text-orange-400" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-sm font-semibold text-orange-400">Follow-up</span>
-              <span className="text-xs text-slate-500">•</span>
-              <span className="text-sm text-orange-300">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2 mb-1 md:mb-1.5">
+              <span className="text-xs md:text-sm font-semibold text-orange-400">Follow-up</span>
+              <span className="text-[10px] md:text-sm text-orange-300 truncate">
                 {entry.substanceName ? `${entry.substanceName} Use` : getFollowUpPackName(entry.packId)}
               </span>
             </div>
-            <p className="text-white leading-relaxed">{entry.questionText}</p>
+            <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{entry.questionText}</p>
           </div>
         </div>
       </div>
@@ -2199,33 +2201,33 @@ function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }
   return null;
 }
 
-// Agent message bubbles (for probing questions in completed sessions)
+// Agent message bubbles (for probing questions in completed sessions) - Mobile Optimized
 function AgentMessageBubble({ message }) {
   const isUser = message.role === 'user';
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       <div className={`${isUser ? 'flex justify-end' : ''}`}>
         <div className={`${
           isUser 
-            ? 'bg-purple-600 rounded-xl px-5 py-3 max-w-2xl'
-            : 'bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85'
+            ? 'bg-purple-600 rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl'
+            : 'bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85'
         }`}>
           {!isUser && (
-            <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+            <div className="flex items-start gap-2 md:gap-3">
+              <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-3 h-3 md:w-3.5 h-3.5 text-purple-400" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-semibold text-purple-400">Investigator</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
+                  <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator</span>
                 </div>
-                <p className="text-white leading-relaxed">{message.content}</p>
+                <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{message.content}</p>
               </div>
             </div>
           )}
           {isUser && (
-            <p className="text-white font-medium">{message.content}</p>
+            <p className="text-white text-sm md:text-base font-medium break-words">{message.content}</p>
           )}
         </div>
       </div>
@@ -2233,20 +2235,20 @@ function AgentMessageBubble({ message }) {
   );
 }
 
-// NEW: Agent chat history item (question -> answer pairs, smooth rendering)
+// NEW: Agent chat history item (question -> answer pairs, smooth rendering) - Mobile Optimized
 function AgentChatItem({ item }) {
   if (item.type === 'agent_question') {
     return (
-      <div className="bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85">
-        <div className="flex items-start gap-3">
-          <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+      <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
+        <div className="flex items-start gap-2 md:gap-3">
+          <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-3 h-3 md:w-3.5 h-3.5 text-purple-400" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-sm font-semibold text-purple-400">Investigator</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
+              <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator</span>
             </div>
-            <p className="text-white leading-relaxed">{item.data.content}</p>
+            <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{item.data.content}</p>
           </div>
         </div>
       </div>
@@ -2256,8 +2258,8 @@ function AgentChatItem({ item }) {
   if (item.type === 'agent_answer') {
     return (
       <div className="flex justify-end">
-        <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
-          <p className="text-white font-medium">{item.data.content}</p>
+        <div className="bg-purple-600 rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl">
+          <p className="text-white text-sm md:text-base font-medium break-words">{item.data.content}</p>
         </div>
       </div>
     );
