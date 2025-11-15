@@ -156,6 +156,90 @@ export default function InterviewV2() {
   // DATABASE PERSISTENCE - MOVED UP TO FIX HOISTING
   // ============================================================================
 
+  const saveAnswerToDatabase = useCallback(async (questionId, answer, question) => {
+    try {
+      const existing = await base44.entities.Response.filter({
+        session_id: sessionId,
+        question_id: questionId
+      });
+      
+      if (existing.length > 0) {
+        console.log(`ℹ️ Response for ${questionId} already exists, skipping`);
+        return;
+      }
+      
+      const currentDisplayOrder = displayOrderRef.current++;
+      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
+      
+      await base44.entities.Response.create({
+        session_id: sessionId,
+        question_id: questionId,
+        question_text: question.question_text,
+        category: question.category,
+        answer: answer,
+        answer_array: null,
+        triggered_followup: triggersFollowup,
+        followup_pack: triggersFollowup ? question.followup_pack : null,
+        is_flagged: false,
+        flag_reason: null,
+        response_timestamp: new Date().toISOString(),
+        display_order: currentDisplayOrder
+      });
+
+    } catch (err) {
+      console.error('❌ Database save error:', err);
+    }
+  }, [sessionId]);
+
+  const saveFollowUpAnswer = useCallback(async (packId, fieldKey, answer, substanceName) => {
+    try {
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        followup_pack: packId,
+        triggered_followup: true
+      });
+      
+      if (responses.length === 0) {
+        console.error(`❌ No triggering response found for pack ${packId}`);
+        return;
+      }
+      
+      const triggeringResponse = responses[responses.length - 1];
+      
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: triggeringResponse.id,
+        followup_pack: packId
+      });
+      
+      if (existingFollowups.length === 0) {
+        await base44.entities.FollowUpResponse.create({
+          session_id: sessionId,
+          response_id: triggeringResponse.id,
+          question_id: triggeringResponse.question_id,
+          followup_pack: packId,
+          instance_number: 1,
+          substance_name: substanceName || null,
+          incident_description: answer, // This field is less dynamic, using `additional_details` for specific keys
+          completed: false,
+          additional_details: { [fieldKey]: answer }
+        });
+      } else {
+        const existing = existingFollowups[0];
+        await base44.entities.FollowUpResponse.update(existing.id, {
+          substance_name: substanceName || existing.substance_name,
+          additional_details: {
+            ...(existing.additional_details || {}),
+            [fieldKey]: answer
+          }
+        });
+      }
+
+    } catch (err) {
+      console.error('❌ Follow-up save error:', err);
+    }
+  }, [sessionId]);
+
   const saveProbingToDatabase = useCallback(async (questionId, packId, messages) => {
     try {
       console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} to database...`);
@@ -1302,94 +1386,6 @@ export default function InterviewV2() {
   }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
 
   // ============================================================================
-  // DATABASE PERSISTENCE
-  // ============================================================================
-
-  const saveAnswerToDatabase = async (questionId, answer, question) => {
-    try {
-      const existing = await base44.entities.Response.filter({
-        session_id: sessionId,
-        question_id: questionId
-      });
-      
-      if (existing.length > 0) {
-        console.log(`ℹ️ Response for ${questionId} already exists, skipping`);
-        return;
-      }
-      
-      const currentDisplayOrder = displayOrderRef.current++;
-      const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
-      
-      await base44.entities.Response.create({
-        session_id: sessionId,
-        question_id: questionId,
-        question_text: question.question_text,
-        category: question.category,
-        answer: answer,
-        answer_array: null,
-        triggered_followup: triggersFollowup,
-        followup_pack: triggersFollowup ? question.followup_pack : null,
-        is_flagged: false,
-        flag_reason: null,
-        response_timestamp: new Date().toISOString(),
-        display_order: currentDisplayOrder
-      });
-
-    } catch (err) {
-      console.error('❌ Database save error:', err);
-    }
-  };
-
-  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName) => {
-    try {
-      const responses = await base44.entities.Response.filter({
-        session_id: sessionId,
-        followup_pack: packId,
-        triggered_followup: true
-      });
-      
-      if (responses.length === 0) {
-        console.error(`❌ No triggering response found for pack ${packId}`);
-        return;
-      }
-      
-      const triggeringResponse = responses[responses.length - 1];
-      
-      const existingFollowups = await base44.entities.FollowUpResponse.filter({
-        session_id: sessionId,
-        response_id: triggeringResponse.id,
-        followup_pack: packId
-      });
-      
-      if (existingFollowups.length === 0) {
-        await base44.entities.FollowUpResponse.create({
-          session_id: sessionId,
-          response_id: triggeringResponse.id,
-          question_id: triggeringResponse.question_id,
-          followup_pack: packId,
-          instance_number: 1,
-          substance_name: substanceName || null,
-          incident_description: answer, // This field is less dynamic, using `additional_details` for specific keys
-          completed: false,
-          additional_details: { [fieldKey]: answer }
-        });
-      } else {
-        const existing = existingFollowups[0];
-        await base44.entities.FollowUpResponse.update(existing.id, {
-          substance_name: substanceName || existing.substance_name,
-          additional_details: {
-            ...(existing.additional_details || {}),
-            [fieldKey]: answer
-          }
-        });
-      }
-
-    } catch (err) {
-      console.error('❌ Follow-up save error:', err);
-    }
-  };
-
-  // ============================================================================
   // COMPLETION & PAUSE HANDLING
   // ============================================================================
 
@@ -1502,7 +1498,7 @@ export default function InterviewV2() {
     }
 
     if (currentItem.type === 'followup') {
-      const { packId, stepIndex, substanceName } = currentItem;
+      const { packId, stepIndex, substanceName, totalSteps } = currentItem;
       
       const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
       if (!packSteps) return null;
