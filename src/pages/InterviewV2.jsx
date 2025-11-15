@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -117,7 +118,7 @@ export default function InterviewV2() {
   const [currentItem, setCurrentItem] = useState(null);
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
-  const [conversation, setConversation] = useState(null);
+  const [conversation, setConversation] = useState(null); // This will now store the conversation ID string
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
@@ -267,7 +268,7 @@ export default function InterviewV2() {
             await base44.entities.InterviewSession.update(sessionId, {
               conversation_id: newConversation.id
             });
-            setConversation(newConversation);
+            setConversation(newConversation.id); // Store only the ID
           } else {
             setConversation(null);
           }
@@ -276,16 +277,14 @@ export default function InterviewV2() {
           setConversation(null);
         }
       } else {
+        setConversation(loadedSession.conversation_id); // Store the existing ID
         try {
           const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
-          if (existingConversation?.id) {
-            setConversation(existingConversation);
-            if (existingConversation.messages) {
-              setAgentMessages(existingConversation.messages);
-            }
+          if (existingConversation?.messages) {
+            setAgentMessages(existingConversation.messages);
           }
         } catch (convError) {
-          setConversation(null);
+          console.warn('⚠️ Could not load existing messages');
         }
       }
       
@@ -335,10 +334,15 @@ export default function InterviewV2() {
   const handoffToAI = useCallback(
     async (questionId, packId, substanceName, followUpAnswers) => {
       try {
-        console.log("[investigator] Starting AI handoff for", { questionId, packId });
+        console.log("[handoffToAI] Called with:", {
+          questionId,
+          packId,
+          conversationId: conversation // Reflects that `conversation` is now an ID
+        });
 
-        if (!conversation || !conversation.id) {
-          console.log('[investigator] No conversation - skipping to next question');
+        // If there is no conversation ID, just fall back to next main question
+        if (!conversation) { // Check if conversation ID is null
+          console.log('[handoffToAI] No conversation - skipping to next question');
           const nextQuestionId = computeNextQuestionId(engine, questionId, "Yes");
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             setCurrentItem({ id: nextQuestionId, type: "question" });
@@ -349,6 +353,7 @@ export default function InterviewV2() {
           return;
         }
 
+        // Always work with a safe array
         const safeAnswers =
           Array.isArray(followUpAnswers) && followUpAnswers.length > 0
             ? followUpAnswers
@@ -356,10 +361,11 @@ export default function InterviewV2() {
 
         const question = engine.QById[questionId];
         if (!question) {
-          console.error("[investigator] Question not found in engine:", questionId);
+          console.error("[handoffToAI] Question not found in engine:", questionId);
           return;
         }
 
+        // Build the summary message for the AI
         let summary =
           `Follow-up pack completed for question ${questionId}.\n\n` +
           `Question: ${question.question_text}\n` +
@@ -375,20 +381,30 @@ export default function InterviewV2() {
           `Ask up to 5 short, focused follow-up questions to clarify any risks, inconsistencies, or missing context.\n` +
           `When you are done, send the next base question as "Qxxx: [question text]".`;
 
+        console.log("[handoffToAI] Summary being sent to AI:\n", summary);
+
+        // Generate and store probe pack id
         const aiProbePackId = generateAIProbePackId(questionId, packId);
         setCurrentAIProbePackId(aiProbePackId);
         setAIProbeCount(0);
 
-        console.log("[investigator] Sending probing summary to agent");
-        console.log("[investigator] Payload:", { role: "user", content: summary.substring(0, 100) + "..." });
-        
-        await base44.agents.addMessage(conversation, {
+        const messagePayload = {
           role: "user",
           content: summary
+        };
+
+        console.log("[addMessage] About to send:", {
+          conversationId: conversation, // Now an ID string
+          messagePayload
         });
 
-        console.log("[investigator] Message sent successfully, waiting for agent");
+        // Send the message to the AI conversation - matching Interview.js signature
+        // Assuming base44.agents.addMessage can take the conversation ID directly
+        await base44.agents.addMessage(conversation, messagePayload);
 
+        console.log("[handoffToAI] Message sent successfully");
+
+        // Mark that we are now waiting for AI probing
         setIsWaitingForAgent(true);
         setCurrentFollowUpPack({
           questionId,
@@ -399,8 +415,8 @@ export default function InterviewV2() {
         });
 
       } catch (err) {
-        console.error("[investigator] Error during AI handoff:", err);
-        console.error("[investigator] Stack:", err.stack);
+        console.error("[handoffToAI] Full error object:", err);
+        console.error("[handoffToAI] Error stack:", err.stack);
       }
     },
     [conversation, engine, persistState]
@@ -427,9 +443,7 @@ export default function InterviewV2() {
         const nextMsg = probingMessages[i + 1];
         
         if (msg.role === 'assistant' && msg.content && !msg.content.match(/^Q\d{1,3}:/)) {
-          console.log("[investigator] Agent message update - AI question:", msg.content.substring(0, 50));
           if (nextMsg?.role === 'user' && nextMsg.content) {
-            console.log("[investigator] Logging AI Q&A pair");
             await logAIQuestion(sessionId, questionId, packId, aiProbePackId, msg.content, category);
             await logAIAnswer(sessionId, questionId, packId, aiProbePackId, nextMsg.content, category);
             i++;
@@ -440,7 +454,6 @@ export default function InterviewV2() {
           const nextQuestionMatch = msg.content.match(/^(Q\d{1,3}):/);
           if (nextQuestionMatch) {
             const nextQuestionId = nextQuestionMatch[1];
-            console.log("[investigator] AI probing complete, moving to next question:", nextQuestionId);
             
             await refreshChatHistory();
             setIsWaitingForAgent(false);
@@ -471,11 +484,14 @@ export default function InterviewV2() {
     setValidationHint(null);
     lastActivityRef.current = Date.now();
 
+    console.log("[handleAnswer] Called with:", { value, currentItemType: currentItem?.type, currentItem });
+
     try {
       if (currentItem.type === 'question') {
         const question = engine.QById[currentItem.id];
         if (!question) throw new Error(`Question not found`);
 
+        // Log Q&A pair together
         await logMainQuestion(sessionId, currentItem.id, question.question_text, question.category);
         await logMainAnswer(sessionId, currentItem.id, value, question.category);
         await refreshChatHistory();
@@ -542,6 +558,14 @@ export default function InterviewV2() {
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         const step = packSteps[stepIndex];
 
+        console.log("[handleAnswer] Processing follow-up", {
+          value,
+          packId,
+          stepIndex,
+          stepsCount: packSteps.length,
+          isLastStep: stepIndex === packSteps.length - 1
+        });
+
         if (step.PrefilledAnswer) {
           await logFollowUpQuestion(sessionId, currentItem.id, packId, step.Prompt, category, stepIndex);
           await logFollowUpAnswer(sessionId, currentItem.id, packId, step.PrefilledAnswer, category, stepIndex);
@@ -576,12 +600,16 @@ export default function InterviewV2() {
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
         
         if (!validation.valid) {
+          console.log("[handleAnswer] Validation failed:", validation.hint);
           setValidationHint(validation.hint);
           setIsCommitting(false);
           setTimeout(() => inputRef.current?.focus(), 100);
           return;
         }
 
+        console.log("[handleAnswer] Validation passed, logging Q&A");
+
+        // Log Q&A pair
         await logFollowUpQuestion(sessionId, currentItem.id, packId, step.Prompt, category, stepIndex);
         await logFollowUpAnswer(sessionId, currentItem.id, packId, validation.normalized || value, category, stepIndex);
         await refreshChatHistory();
@@ -592,12 +620,15 @@ export default function InterviewV2() {
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
         
+        // CRITICAL: Safe queue advancement with bounds checking
         let nextItem = queue[0] || null;
         let updatedQueue = queue.slice(1);
         
+        // Skip any conditional follow-up steps
         while (nextItem?.type === 'followup' && nextItem.packId === packId) {
           const nextStep = packSteps[nextItem.stepIndex];
           if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+            console.log("[handleAnswer] Skipping conditional step:", nextItem.stepIndex);
             nextItem = updatedQueue[0] || null;
             updatedQueue = updatedQueue.slice(1);
           } else {
@@ -607,9 +638,20 @@ export default function InterviewV2() {
         
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
+        console.log("[handleAnswer] Follow-up progression", {
+          isLastFollowUp,
+          nextItemType: nextItem?.type,
+          remainingQueueLength: updatedQueue.length
+        });
+        
         if (isLastFollowUp) {
-          console.log("[followup] Completed deterministic follow-up pack", { packId, stepsCompleted: stepIndex + 1 });
+          console.log("[followup] Completed deterministic follow-up pack", {
+            packId,
+            stepsCompleted: stepIndex + 1,
+            totalSteps: packSteps.length
+          });
 
+          // Check if we should skip AI probing (e.g., for hired outcome in PACK_LE_APPS)
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
             console.log("[followup] Skipping AI probing - candidate was hired");
             const triggeringQuestion = [...chatHistory].reverse().find(h => 
@@ -621,6 +663,7 @@ export default function InterviewV2() {
               setCurrentFollowUpAnswers({});
               
               if (nextQuestionId && engine.QById[nextQuestionId]) {
+                console.log("[followup] Advancing to next main question:", nextQuestionId);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistState({ id: nextQuestionId, type: 'question' }, []);
               } else {
@@ -630,6 +673,7 @@ export default function InterviewV2() {
           } else {
             console.log("[investigator] Starting AI probing after follow-up pack");
             
+            // Build structured list of Q/A pairs from state
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
             const followUpSummary = packSteps
               .map((step) => ({
@@ -638,15 +682,25 @@ export default function InterviewV2() {
               }))
               .filter((item) => item.answer != null && item.answer !== "");
 
+            console.log("[investigator] Collected pack answers from state:", followUpSummary.length);
+
+            // Use parentQuestionId from current item or queue
             const parentQuestionId = currentItem.parentQuestionId ||
               queue.find((q) => q.type === "followup" && q.packId === packId)?.parentQuestionId;
+
+            console.log("[investigator] Parent question ID for AI handoff:", parentQuestionId);
 
             if (parentQuestionId && followUpSummary.length > 0) {
               setCurrentFollowUpAnswers({});
               await handoffToAI(parentQuestionId, packId, substanceName, followUpSummary);
               await refreshChatHistory();
             } else {
-              console.error("[followup] Missing parentQuestionId or no follow-up answers");
+              console.error("[followup] Missing parentQuestionId or no follow-up answers", {
+                parentQuestionId,
+                followUpSummaryCount: followUpSummary.length,
+              });
+
+              // Fallback: advance to next main question
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, "Yes");
               if (nextQuestionId && engine.QById[nextQuestionId]) {
                 setCurrentItem({ id: nextQuestionId, type: "question" });
@@ -657,6 +711,7 @@ export default function InterviewV2() {
             }
           }
         } else {
+          console.log("[handleAnswer] Advancing to next follow-up step");
           setCurrentItem(nextItem);
           setQueue(updatedQueue);
           await persistState(nextItem, updatedQueue);
@@ -673,7 +728,8 @@ export default function InterviewV2() {
   }, [currentItem, engine, queue, sessionId, conversation, currentFollowUpAnswers, session, chatHistory, refreshChatHistory, isCommitting, handoffToAI, persistState]);
 
   const handleAgentAnswer = useCallback(async (value) => {
-    if (!conversation || !conversation.id || isCommitting || !isWaitingForAgent) return;
+    // Check if conversation ID is available
+    if (!conversation || isCommitting || !isWaitingForAgent) return;
     setIsCommitting(true);
     setInput("");
     lastActivityRef.current = Date.now();
@@ -685,19 +741,72 @@ export default function InterviewV2() {
     });
     
     try {
-      console.log("[investigator] Sending candidate answer to agent:", value.substring(0, 50));
-      
-      await base44.agents.addMessage(conversation, {
+      console.log("[handleAgentAnswer] Sending to conversation:", conversation); // Now using conversation ID
+      await base44.agents.addMessage(conversation, { // Assuming base44.agents.addMessage can take conversation ID
         role: 'user',
         content: value
       });
       
       setIsCommitting(false);
     } catch (err) {
-      console.error('❌ [investigator] Error sending answer:', err);
+      console.error('❌ [handleAgentAnswer] Error:', err);
+      console.error('❌ [handleAgentAnswer] Error stack:', err.stack);
       setIsCommitting(false);
     }
   }, [conversation, isCommitting, isWaitingForAgent, aiProbeCount, sessionId, session]);
+
+  const handleSendTestAIMsg = useCallback(async () => {
+    console.log("[TEST] ========== START TEST ==========");
+
+    if (!conversation) { // Check if conversation ID exists
+      console.error("[TEST] No valid conversation ID");
+      toast.error("No conversation available");
+      return;
+    }
+
+    try {
+      // CRITICAL: Always fetch a fresh conversation object right before addMessage
+      // This ensures we have the complete, uncorrupted structure the SDK expects
+      console.log("[TEST] Fetching fresh conversation object for ID:", conversation);
+      const freshConversation = await base44.agents.getConversation(conversation); // Pass ID directly
+      
+      console.log("[TEST] Fresh conversation:", {
+        id: freshConversation.id,
+        agent_name: freshConversation.agent_name,
+        hasMessages: !!freshConversation.messages,
+        messagesLength: freshConversation.messages?.length || 0
+      });
+
+      const messagePayload = {
+        role: "user",
+        content: "TEST MESSAGE from InterviewV2"
+      };
+
+      console.log("[TEST] Message payload:", messagePayload);
+      console.log("[TEST] Calling base44.agents.addMessage with conversation ID:", freshConversation.id);
+
+      // Use the fresh conversation's ID to send the message, consistent with `conversation` state
+      const result = await base44.agents.addMessage(freshConversation.id, messagePayload);
+
+      console.log("[TEST] ✅ SUCCESS!");
+      console.log("[TEST] Result:", result);
+      toast.success("Test message sent successfully");
+      
+      // Update state with the fresh conversation ID
+      setConversation(freshConversation.id);
+      
+    } catch (err) {
+      console.error("[TEST] ❌ FAILED");
+      console.error("[TEST] Error name:", err?.name);
+      console.error("[TEST] Error message:", err?.message);
+      console.error("[TEST] Error stack:", err?.stack);
+      console.error("[TEST] Full error object:", err);
+      
+      toast.error(`Test failed: ${err.message}`);
+    }
+    
+    console.log("[TEST] ========== END TEST ==========");
+  }, [conversation]);
 
   const handleTextSubmit = useCallback((e) => {
     if (e && typeof e.preventDefault === "function") {
@@ -705,16 +814,28 @@ export default function InterviewV2() {
     }
 
     const answer = input.trim();
-    if (!answer || isCommitting) return;
+    if (!answer || isCommitting) {
+      console.log("[handleTextSubmit] Blocked submit", { answer, isCommitting });
+      return;
+    }
+
+    console.log("[handleTextSubmit] SUBMIT", {
+      answer,
+      isWaitingForAgent,
+      currentItemType: currentItem?.type
+    });
 
     if (isWaitingForAgent) {
       handleAgentAnswer(answer);
     } else {
       handleAnswer(answer);
     }
-  }, [input, isCommitting, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
+  }, [input, isCommitting, isWaitingForAgent, currentItem, handleAnswer, handleAgentAnswer]);
 
   const handleInputKeyDown = useCallback((e) => {
+    console.log("[handleInputKeyDown]", { key: e.key, input });
+
+    // Submit on Enter (but not Shift+Enter), if we have a value and we're not committing
     if (e.key === "Enter" && !e.shiftKey && !isCommitting && input.trim()) {
       handleTextSubmit(e);
     }
@@ -1031,6 +1152,18 @@ export default function InterviewV2() {
             <p className="text-xs text-slate-400 text-center mt-3">
               {isWaitingForAgent ? `Probing question ${aiProbeCount + 1} of 5` : "Once submitted, answers cannot be changed"}
             </p>
+
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendTestAIMsg}
+                disabled={!conversation}
+                className="text-xs border-yellow-400 text-yellow-300 hover:bg-yellow-950"
+              >
+                Dev: Send Test AI Message
+              </Button>
+            </div>
           </div>
         </footer>
       </div>
