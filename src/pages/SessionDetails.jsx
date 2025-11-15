@@ -181,7 +181,7 @@ export default function SessionDetails() {
     } else {
       newCollapsed.add(category);
     }
-    setCollapsedSections(newCollapsed);
+    return newCollapsed;
   };
 
   const handleCategoryJump = (category) => {
@@ -538,7 +538,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => toggleSection(category)}
+                onClick={() => setCollapsedSections(toggleSection(category))}
                 className="text-slate-300 hover:text-white hover:bg-slate-700 h-8 px-2"
               >
                 {isSectionCollapsed ? (
@@ -610,89 +610,97 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
 
       {/* Investigator Summary Row - Always visible for Yes with followups */}
       {showSummary && (
-        <div 
-          className="ml-14 mb-2 bg-slate-800/40 border border-slate-600/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-colors group"
-          onClick={onToggleExpand}
-        >
-          {summary ? (
-            <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
-              {summary}
-            </p>
-          ) : (
-            <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
-              No summary available
-            </p>
-          )}
-          {isExpanded ? (
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
-          )}
+        <div className="flex items-start gap-3 mb-2">
+          <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
+          <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
+          <div 
+            className="flex-1 bg-slate-800/40 border border-slate-600/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-colors group"
+            onClick={onToggleExpand}
+          >
+            {summary ? (
+              <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
+                {summary}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
+                No summary available
+              </p>
+            )}
+            {isExpanded ? (
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
+            )}
+          </div>
         </div>
       )}
 
       {/* Expandable Blue Section - Detail Card + Probing */}
       {isExpanded && hasFollowups && response.answer === "Yes" && (
-        <div className="ml-14 bg-slate-800/50 rounded border border-slate-700/50 p-3">
-          <div className="space-y-3">
-            {/* Deterministic Follow-Up Details */}
-            {followups.map((followup, idx) => {
-              const details = followup.additional_details || {};
+        <div className="flex items-start gap-3">
+          <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
+          <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
+          <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-3">
+            <div className="space-y-3">
+              {/* Deterministic Follow-Up Details */}
+              {followups.map((followup, idx) => {
+                const details = followup.additional_details || {};
 
-              return (
-                <div key={idx} className="space-y-1.5">
-                  {followup.substance_name && (
-                    <div className="text-xs flex items-center">
-                      <span className="text-slate-400 font-medium">Substance:</span>
-                      <span className="text-slate-200 ml-2">{followup.substance_name}</span>
-                      {needsReview(followup.substance_name) && (
-                        <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                          Needs Review
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-
-                  {Object.entries(details).map(([key, value]) => {
-                    const requiresReview = needsReview(value);
-                    return (
-                      <div key={key} className="text-xs flex items-start">
-                        <span className="text-slate-400">
-                          {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
-                        </span>
-                        <span className="text-slate-200 ml-2 break-words">{value}</span>
-                        {requiresReview && (
+                return (
+                  <div key={idx} className="space-y-1.5">
+                    {followup.substance_name && (
+                      <div className="text-xs flex items-center">
+                        <span className="text-slate-400 font-medium">Substance:</span>
+                        <span className="text-slate-200 ml-2">{followup.substance_name}</span>
+                        {needsReview(followup.substance_name) && (
                           <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
                             Needs Review
                           </Badge>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                    )}
 
-            {/* AI Investigator Probing Section */}
-            {aiProbingExchanges.length > 0 && (
-              <div className="border-t border-slate-600/50 pt-3 space-y-2">
-                <div className="text-xs font-semibold text-purple-400 mb-2">
-                  🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
-                </div>
-                {aiProbingExchanges.map((exchange, idx) => (
-                  <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
-                    <div className="text-xs">
-                      <span className="text-blue-400 font-medium">Follow-Up Question:</span>
-                      <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
-                    </div>
-                    <div className="text-xs">
-                      <span className="text-orange-400 font-medium">Candidate Response:</span>
-                      <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
-                    </div>
+                    {Object.entries(details).map(([key, value]) => {
+                      const requiresReview = needsReview(value);
+                      return (
+                        <div key={key} className="text-xs flex items-start">
+                          <span className="text-slate-400">
+                            {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                          </span>
+                          <span className="text-slate-200 ml-2 break-words">{value}</span>
+                          {requiresReview && (
+                            <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                              Needs Review
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+
+              {/* AI Investigator Probing Section */}
+              {aiProbingExchanges.length > 0 && (
+                <div className="border-t border-slate-600/50 pt-3 space-y-2">
+                  <div className="text-xs font-semibold text-purple-400 mb-2">
+                    🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
+                  </div>
+                  {aiProbingExchanges.map((exchange, idx) => (
+                    <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
+                      <div className="text-xs">
+                        <span className="text-blue-400 font-medium">Follow-Up Question:</span>
+                        <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
+                      </div>
+                      <div className="text-xs">
+                        <span className="text-orange-400 font-medium">Candidate Response:</span>
+                        <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
