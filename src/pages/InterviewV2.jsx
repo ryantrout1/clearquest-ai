@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -125,6 +124,9 @@ export default function InterviewV2() {
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null); // Track active pack for handoff
+  
+  // NEW: Track completed probing sessions to keep them visible
+  const [completedProbingSessions, setCompletedProbingSessions] = useState([]);
   
   // Input state
   const [input, setInput] = useState("");
@@ -693,20 +695,48 @@ export default function InterviewV2() {
   // ============================================================================
 
   useEffect(() => {
-    if (!isWaitingForAgent || agentMessages.length === 0) return;
+    if (!isWaitingForAgent || agentMessages.length === 0 || !engine || !currentFollowUpPack) return;
     
     const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAgentMessage?.content) return;
     
-    // Check if agent sent a new base question (Q###)
-    const questionMatch = lastAgentMessage.content.match(/\b(Q\d{1,3})\b/i);
-    if (questionMatch) {
-      const nextQuestionId = questionMatch[1].toUpperCase();
+    // CRITICAL FIX: Extract the LAST Q### from the message (the next question to ask)
+    // This handles cases like "Thank you for that. Now let's move to Question 17: ..."
+    const allQuestionMatches = lastAgentMessage.content.match(/\bQ\d{1,3}\b/gi);
+    if (allQuestionMatches && allQuestionMatches.length > 0) {
+      // Get the LAST question ID mentioned (most likely to be the next question)
+      const nextQuestionId = allQuestionMatches[allQuestionMatches.length - 1].toUpperCase();
+      
+      console.log(`🔍 Agent message contains question IDs:`, allQuestionMatches);
+      console.log(`   - Using LAST occurrence as next question: ${nextQuestionId}`);
+      
+      // CRITICAL FIX: Verify this is NOT the question we just completed
+      // If it matches the triggering question, ignore it
+      if (nextQuestionId === currentFollowUpPack.questionId) {
+        console.log(`⚠️ Question ${nextQuestionId} is the same as the one we just completed - waiting for actual next question`);
+        return;
+      }
       
       // CRITICAL FIX: Verify question exists before setting it
       if (!engine.QById[nextQuestionId]) {
         console.error(`❌ Agent sent invalid question ID: ${nextQuestionId} - marking interview complete`);
         setIsWaitingForAgent(false);
+        
+        // Archive the current probing session before clearing
+        const currentProbingMessages = agentMessages.filter(msg => {
+          if (msg.content?.includes('Follow-up pack completed')) return false;
+          if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+          return true;
+        });
+        
+        if (currentProbingMessages.length > 0) {
+          setCompletedProbingSessions(prev => [...prev, {
+            questionId: currentFollowUpPack.questionId,
+            packId: currentFollowUpPack.packId,
+            messages: currentProbingMessages
+          }]);
+        }
+        
         setCurrentFollowUpPack(null);
         setCurrentItem(null);
         setQueue([]);
@@ -717,8 +747,21 @@ export default function InterviewV2() {
       console.log(`✅ Agent sent next base question: ${nextQuestionId}`);
       
       // CRITICAL NEW: Save AI probing exchanges to database before moving on
-      if (currentFollowUpPack) {
-        saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      
+      // NEW: Archive completed probing session to keep visible in UI
+      const completedProbingMessages = agentMessages.filter(msg => {
+        if (msg.content?.includes('Follow-up pack completed')) return false;
+        if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+        return true;
+      });
+      
+      if (completedProbingMessages.length > 0) {
+        setCompletedProbingSessions(prev => [...prev, {
+          questionId: currentFollowUpPack.questionId,
+          packId: currentFollowUpPack.packId,
+          messages: completedProbingMessages
+        }]);
       }
       
       // Clear waiting state and continue with deterministic engine
@@ -1582,17 +1625,15 @@ export default function InterviewV2() {
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
-  // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
-  const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
-    ? agentMessages.filter(msg => {
-        // Filter out system summary messages
-        if (msg.content?.includes('Follow-up pack completed')) return false;
-        // Filter out base question signals (Q###)
-        if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
-        // Keep everything else (both assistant and user messages)
-        return true;
-      })
-    : [];
+  // FIXED: Show agent messages from current session OR completed sessions (always visible)
+  const displayableAgentMessages = agentMessages.filter(msg => {
+    // Filter out system summary messages
+    if (msg.content?.includes('Follow-up pack completed')) return false;
+    // Filter out base question signals (Q###)
+    if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+    // Keep everything else (both assistant and user messages)
+    return true;
+  });
 
   return (
     <>
@@ -1715,8 +1756,24 @@ export default function InterviewV2() {
                 />
               ))}
               
-              {/* Show ALL agent messages as continuous thread (NO REFRESH) */}
-              {displayableAgentMessages.length > 0 && (
+              {/* Show completed probing sessions (persisted after AI handoff) */}
+              {completedProbingSessions.map((session, idx) => (
+                <div key={`probing-${idx}`} className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
+                  <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Investigator Follow-up ({getFollowUpPackName(session.packId)})
+                  </div>
+                  {session.messages.map((msg, msgIdx) => (
+                    <AgentMessageBubble 
+                      key={msg.id || `msg-${msgIdx}`} 
+                      message={msg} 
+                    />
+                  ))}
+                </div>
+              ))}
+              
+              {/* Show current agent messages (active probing session) */}
+              {displayableAgentMessages.length > 0 && isWaitingForAgent && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
@@ -1870,7 +1927,7 @@ export default function InterviewV2() {
                   type="button"
                   onClick={() => handleAnswer("No")}
                   disabled={isCommitting || showPauseModal}
-                  className="btn-yn btn-no flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-red-500 hover:bg-red-600 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                  className="btn-yn btn-no flex-1 min-h-[48px] sm:min-h-[48px] md:min-h-[52px] sm:min-w-[140px] rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-red-500 hover:bg-red-600 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                   aria-label="Answer No"
                 >
                   <X className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
