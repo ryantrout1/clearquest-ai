@@ -617,9 +617,15 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
           className="ml-14 mb-2 bg-slate-800/40 border border-slate-600/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-colors group"
           onClick={onToggleExpand}
         >
-          <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
-            {summary || "Generating summary..."}
-          </p>
+          {summary ? (
+            <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
+              {summary}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
+              No summary available
+            </p>
+          )}
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
           ) : (

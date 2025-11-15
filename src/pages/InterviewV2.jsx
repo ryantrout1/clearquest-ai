@@ -318,6 +318,96 @@ export default function InterviewV2() {
     }
   }, [sessionId]);
 
+  const generateAndSaveInvestigatorSummary = useCallback(async (questionId, packId) => {
+    try {
+      console.log(`📝 Generating investigator summary for ${questionId}/${packId}...`);
+      
+      // Get the Response record
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        question_id: questionId,
+        followup_pack: packId
+      });
+      
+      if (responses.length === 0) {
+        console.warn(`⚠️ No Response record found for ${questionId}/${packId}`);
+        return;
+      }
+      
+      const responseRecord = responses[0];
+      
+      // Skip if already has a summary
+      if (responseRecord.investigator_summary && responseRecord.investigator_summary.trim() !== '') {
+        console.log(`ℹ️ Summary already exists for ${questionId}, skipping`);
+        return;
+      }
+      
+      // Skip U.S. citizenship question
+      if (questionId === 'Q161') {
+        console.log(`ℹ️ Skipping summary for U.S. citizenship question ${questionId}`);
+        return;
+      }
+      
+      // Get follow-up details
+      const followups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: responseRecord.id
+      });
+      
+      const followupDetails = followups.map(f => ({
+        substance_name: f.substance_name,
+        ...f.additional_details
+      }));
+      
+      const probingData = responseRecord.investigator_probing || [];
+      const question = engine.QById[questionId];
+      
+      if (!question) {
+        console.warn(`⚠️ Question ${questionId} not found in engine`);
+        return;
+      }
+      
+      // Build prompt for AI
+      const prompt = `You are generating a single-line investigator summary for a background interview question.
+
+Question: ${question.question_text}
+Answer: ${responseRecord.answer}
+
+${followupDetails.length > 0 ? `Deterministic Follow-Up Details:\n${JSON.stringify(followupDetails, null, 2)}\n` : ''}
+${probingData.length > 0 ? `AI Probing Exchanges:\n${probingData.map(p => `Q: ${p.probing_question}\nA: ${p.candidate_response}`).join('\n\n')}\n` : ''}
+
+Generate exactly ONE sentence (max 30 words) that summarizes what happened, when, where, and the outcome.
+Use neutral, factual, investigator-style tone.
+Do not include "the candidate said" or similar meta language.
+Focus on: what happened, when, where, outcome/status.
+
+Examples:
+- "2018 speeding citation in Italy; applicant received but did not address the ticket and reports no further consequences."
+- "Applied to Yuma PD in June 2023; application declined, official reason was failure to pass the polygraph examination."
+- "Used marijuana recreationally from 2019-2021; last use was spring 2021, obtained from friends, reports no legal issues."
+
+Return ONLY the summary sentence, nothing else.`;
+      
+      const result = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        add_context_from_internet: false
+      });
+      
+      const summary = result.trim();
+      
+      // Save summary to Response
+      await base44.entities.Response.update(responseRecord.id, {
+        investigator_summary: summary
+      });
+      
+      console.log(`✅ Saved investigator summary for ${questionId}: "${summary}"`);
+      
+    } catch (err) {
+      console.error(`❌ Error generating summary for ${questionId}:`, err);
+      // Don't throw - continue interview even if summary generation fails
+    }
+  }, [sessionId, engine]);
+
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
@@ -703,15 +793,22 @@ export default function InterviewV2() {
         return;
       }
 
+      // Save probing exchanges first
       saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
       
-      setIsWaitingForAgent(false);
-      setCurrentFollowUpPack(null);
-      setCurrentItem({ id: nextQuestionId, type: 'question' });
-      setQueue([]);
-      persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      // Generate and save investigator summary
+      (async () => {
+        await generateAndSaveInvestigatorSummary(currentFollowUpPack.questionId, currentFollowUpPack.packId);
+        
+        // After summary is saved, move to next question
+        setIsWaitingForAgent(false);
+        setCurrentFollowUpPack(null);
+        setCurrentItem({ id: nextQuestionId, type: 'question' });
+        setQueue([]);
+        persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      })();
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, saveProbingToDatabase, persistStateToDatabase]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, saveProbingToDatabase, generateAndSaveInvestigatorSummary, persistStateToDatabase]);
 
   // ============================================================================
   // ANSWER HANDLING
