@@ -1602,6 +1602,45 @@ export default function InterviewV2() {
     return chatItems;
   }, [transcript]);
 
+  // NEW: Build agent chat history (similar to deterministic Q&A flow)
+  const buildAgentChatHistory = useCallback(() => {
+    const agentChatItems = [];
+    
+    // Filter out system messages and base questions
+    const cleanMessages = agentMessages.filter(msg => {
+      if (msg.content?.includes('Follow-up pack completed')) return false;
+      if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+      return true;
+    });
+    
+    // Build Q&A pairs
+    for (let i = 0; i < cleanMessages.length; i++) {
+      const msg = cleanMessages[i];
+      
+      if (msg.role === 'assistant') {
+        // This is a question from the investigator
+        agentChatItems.push({
+          type: 'agent_question',
+          data: msg,
+          key: `aq-${msg.id || i}`
+        });
+        
+        // Check if there's an answer right after
+        const nextMsg = cleanMessages[i + 1];
+        if (nextMsg && nextMsg.role === 'user') {
+          agentChatItems.push({
+            type: 'agent_answer',
+            data: nextMsg,
+            key: `aa-${nextMsg.id || i}`
+          });
+          i++; // Skip the next message since we already processed it
+        }
+      }
+    }
+    
+    return agentChatItems;
+  }, [agentMessages]);
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -1650,24 +1689,25 @@ export default function InterviewV2() {
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
-  // FIXED: Only show ANSWERED agent messages in history (exclude current unanswered question)
-  const displayableAgentMessages = agentMessages.filter((msg, idx) => {
-    // Filter out system summary messages
-    if (msg.content?.includes('Follow-up pack completed')) return false;
-    // Filter out base question signals (Q###)
-    if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+  // This will be replaced by buildAgentChatHistory and AgentChatItem
+  // const displayableAgentMessages = agentMessages.filter((msg, idx) => {
+  //   // Filter out system summary messages
+  //   if (msg.content?.includes('Follow-up pack completed')) return false;
+  //   // Filter out base question signals (Q###)
+  //   if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
     
-    // For assistant messages: only show if there's a user message after it (i.e., it was answered)
-    if (msg.role === 'assistant') {
-      const nextMessage = agentMessages[idx + 1];
-      return nextMessage && nextMessage.role === 'user';
-    }
+  //   // For assistant messages: only show if there's a user message after it (i.e., it was answered)
+  //   if (msg.role === 'assistant') {
+  //     const nextMessage = agentMessages[idx + 1];
+  //     return nextMessage && nextMessage.role === 'user';
+  //   }
     
-    // Keep all user messages (they're always answers)
-    return true;
-  });
+  //   // Keep all user messages (they're always answers)
+  //   return true;
+  // });
   
   const chatHistory = buildChatHistory();
+  const agentChatHistory = buildAgentChatHistory();
 
   return (
     <>
@@ -1806,18 +1846,15 @@ export default function InterviewV2() {
                 </div>
               ))}
               
-              {/* Show ONLY ANSWERED agent messages in history (exclude current unanswered question) */}
-              {displayableAgentMessages.length > 0 && isWaitingForAgent && (
+              {/* Show CURRENT agent conversation as Q&A pairs (smooth, no flicker) */}
+              {agentChatHistory.length > 0 && isWaitingForAgent && (
                 <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
                   <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     Investigator Follow-up Conversations
                   </div>
-                  {displayableAgentMessages.map((msg, idx) => (
-                    <AgentMessageBubble 
-                      key={msg.id || `msg-${idx}`} 
-                      message={msg} 
-                    />
+                  {agentChatHistory.map((item) => (
+                    <AgentChatItem key={item.key} item={item} />
                   ))}
                 </div>
               )}
@@ -2162,7 +2199,7 @@ function ChatHistoryItem({ item, getQuestionDisplayNumber, getFollowUpPackName }
   return null;
 }
 
-// Agent message bubbles (for probing questions)
+// Agent message bubbles (for probing questions in completed sessions)
 function AgentMessageBubble({ message }) {
   const isUser = message.role === 'user';
   
@@ -2194,4 +2231,34 @@ function AgentMessageBubble({ message }) {
       </div>
     </div>
   );
+}
+
+// NEW: Agent Chat Item (combines agent question and user answer for active probing history)
+function AgentChatItem({ item }) {
+  if (item.type === 'agent_question') {
+    return (
+      <div className="bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-purple-400">Investigator</span>
+            </div>
+            <p className="text-white leading-relaxed">{item.data.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  } else if (item.type === 'agent_answer') {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{item.data.content}</p>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
