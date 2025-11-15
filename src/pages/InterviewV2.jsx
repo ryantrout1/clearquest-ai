@@ -2232,7 +2232,8 @@ function AgentMessageBubble({ message }) {
           )}
         </div>
       </div>
-    );
+    </div>
+  );
 }
 
 // NEW: Agent chat history item (question -> answer pairs, smooth rendering) - Mobile Optimized
@@ -2242,7 +2243,7 @@ function AgentChatItem({ item }) {
       <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
         <div className="flex items-start gap-2 md:gap-3">
           <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
-            <AlertCircle className="w-3 h-3 md:w-3.5 h-3.5 text-purple-400" />
+            <AlertCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-purple-400" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
