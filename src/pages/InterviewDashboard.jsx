@@ -81,6 +81,39 @@ export default function InterviewDashboard() {
     staleTime: 60000
   });
 
+  // NEW: Fetch all responses to get accurate counts
+  const { data: allResponses = [] } = useQuery({
+    queryKey: ['all-responses'],
+    queryFn: () => base44.entities.Response.list(),
+    enabled: !!currentUser,
+    refetchInterval: 5000
+  });
+
+  // NEW: Fetch all follow-ups to get accurate counts
+  const { data: allFollowUps = [] } = useQuery({
+    queryKey: ['all-followups'],
+    queryFn: () => base44.entities.FollowUpResponse.list(),
+    enabled: !!currentUser,
+    refetchInterval: 5000
+  });
+
+  // NEW: Build a map of session_id -> actual counts
+  const sessionCounts = useMemo(() => {
+    const counts = {};
+    
+    sessions.forEach(session => {
+      const sessionResponses = allResponses.filter(r => r.session_id === session.id);
+      const sessionFollowUps = allFollowUps.filter(f => f.session_id === session.id);
+      
+      counts[session.id] = {
+        questions: sessionResponses.length,
+        followups: sessionFollowUps.length
+      };
+    });
+    
+    return counts;
+  }, [sessions, allResponses, allFollowUps]);
+
   const uniqueDepartments = useMemo(() => {
     const deptMap = new Map();
     sessions.forEach(session => {
@@ -329,6 +362,7 @@ export default function InterviewDashboard() {
                 key={session.id} 
                 session={session} 
                 departments={departments}
+                actualCounts={sessionCounts[session.id]} // Pass actual counts
               />
             ))
           )}
@@ -380,7 +414,7 @@ function StatusChip({ label, active, onClick }) {
 }
 
 // Interview Session Card Component
-function InterviewSessionCard({ session, departments }) {
+function InterviewSessionCard({ session, departments, actualCounts }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -418,6 +452,8 @@ function InterviewSessionCard({ session, departments }) {
       
       // Use React Query invalidation instead of page reload
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] }); // Invalidate new query
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] }); // Invalidate new query
       
     } catch (err) {
       console.error("Error deleting session:", err);
@@ -427,9 +463,10 @@ function InterviewSessionCard({ session, departments }) {
     }
   };
 
+  // FIXED: Use actual counts from database, not session fields
   const progress = session.completion_percentage || 0;
-  const questionsAnswered = session.total_questions_answered || 0;
-  const followupsTriggered = session.followups_triggered || 0;
+  const questionsAnswered = actualCounts?.questions || 0;
+  const followupsTriggered = actualCounts?.followups || 0;
 
   return (
     <>
@@ -483,11 +520,11 @@ function InterviewSessionCard({ session, departments }) {
                   {statusConfig[session.status]?.label}
                 </Badge>
               </div>
-              <div className="flex flex-col sm:flex-row md:flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2"> {/* Changed to grid for button layout */}
                 <Button
                   onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
                 >
                   View Interview
                 </Button>
@@ -495,7 +532,7 @@ function InterviewSessionCard({ session, departments }) {
                   onClick={() => setIsDeleteDialogOpen(true)}
                   variant="outline"
                   size="sm"
-                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200 text-xs h-8 w-full"
+                  className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200 text-xs h-8"
                 >
                   Delete
                 </Button>
