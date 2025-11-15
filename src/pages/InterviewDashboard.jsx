@@ -86,6 +86,15 @@ export default function InterviewDashboard() {
     refetchInterval: 5000
   });
 
+  const { data: allQuestions = [] } = useQuery({
+    queryKey: ['all-questions'],
+    queryFn: () => base44.entities.Question.filter({ active: true }),
+    enabled: !!currentUser,
+    staleTime: 60000
+  });
+
+  const totalActiveQuestions = allQuestions.length;
+
   const sessionCounts = useMemo(() => {
     const counts = {};
     
@@ -148,9 +157,13 @@ export default function InterviewDashboard() {
         case "oldest":
           return new Date(a.created_date) - new Date(b.created_date);
         case "highest_progress":
-          return (b.completion_percentage || 0) - (a.completion_percentage || 0);
+          const progressA = totalActiveQuestions > 0 ? (sessionCounts[a.id]?.questions || 0) / totalActiveQuestions : 0;
+          const progressB = totalActiveQuestions > 0 ? (sessionCounts[b.id]?.questions || 0) / totalActiveQuestions : 0;
+          return progressB - progressA;
         case "lowest_progress":
-          return (a.completion_percentage || 0) - (b.completion_percentage || 0);
+          const progA = totalActiveQuestions > 0 ? (sessionCounts[a.id]?.questions || 0) / totalActiveQuestions : 0;
+          const progB = totalActiveQuestions > 0 ? (sessionCounts[b.id]?.questions || 0) / totalActiveQuestions : 0;
+          return progA - progB;
         case "department_az":
           return (a.department_code || "").localeCompare(b.department_code || "");
         default:
@@ -159,7 +172,7 @@ export default function InterviewDashboard() {
     });
 
     return filtered;
-  }, [sessions, searchTerm, statusFilter, departmentFilter, sortBy]);
+  }, [sessions, searchTerm, statusFilter, departmentFilter, sortBy, sessionCounts, totalActiveQuestions]);
 
   const stats = useMemo(() => {
     const filteredByDepartment = departmentFilter === "all" 
@@ -403,6 +416,7 @@ export default function InterviewDashboard() {
                 actualCounts={sessionCounts[session.id]}
                 isSelected={selectedSessions.has(session.id)}
                 onToggleSelect={() => toggleSessionSelect(session.id)}
+                totalActiveQuestions={totalActiveQuestions}
               />
             ))
           )}
@@ -450,7 +464,7 @@ function StatusChip({ label, active, onClick }) {
   );
 }
 
-function InterviewSessionCard({ session, departments, actualCounts, isSelected, onToggleSelect }) {
+function InterviewSessionCard({ session, departments, actualCounts, isSelected, onToggleSelect, totalActiveQuestions }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -501,9 +515,11 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
     }
   };
 
-  const progress = session.completion_percentage || 0;
   const questionsAnswered = actualCounts?.questions || 0;
   const followupsTriggered = actualCounts?.followups || 0;
+  const progress = totalActiveQuestions > 0 
+    ? Math.round((questionsAnswered / totalActiveQuestions) * 100)
+    : 0;
 
   return (
     <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
