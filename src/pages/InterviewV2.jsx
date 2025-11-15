@@ -573,6 +573,11 @@ export default function InterviewV2() {
       } else {
         nextQuestionId = engineData.ActiveOrdered[0];
       }
+
+      // If the last answered question was Q162, the interview is complete.
+      if (sortedResponses.length > 0 && sortedResponses[sortedResponses.length - 1].question_id === 'Q162') {
+        nextQuestionId = null; // Mark as no next question
+      }
       
       if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
         setCurrentItem(null);
@@ -735,6 +740,18 @@ export default function InterviewV2() {
         
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
+        
+        await saveAnswerToDatabase(currentItem.id, value, question);
+
+        // SPECIAL CASE: Q162 is the final question - always complete after answering
+        if (currentItem.id === 'Q162') {
+          console.log('✅ Final question (Q162) answered - completing interview');
+          setCurrentItem(null);
+          setQueue([]);
+          await persistStateToDatabase(newTranscript, [], null);
+          setShowCompletionModal(true);
+          return; // Exit early - interview is complete
+        }
 
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
@@ -821,8 +838,6 @@ export default function InterviewV2() {
           }
         }
         
-        await saveAnswerToDatabase(currentItem.id, value, question);
-
       } else if (currentItem.type === 'followup') {
         const { packId, stepIndex, substanceName } = currentItem;
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
@@ -1620,8 +1635,11 @@ export default function InterviewV2() {
             </div>
             <DialogTitle className="text-2xl font-bold">Interview Complete</DialogTitle>
             <DialogDescription className="text-slate-300 pt-4 space-y-3">
-              <p>Thank you for completing your background interview.</p>
-              <p>Your responses have been securely recorded and will be reviewed by investigators.</p>
+              <p>Thank you for completing your background interview with {department?.department_name || 'the department'}.</p>
+              <p>Your responses have been securely recorded and will be reviewed by your assigned investigator.</p>
+              <p className="text-sm text-slate-400">
+                Your investigator will follow up with next steps. If you have any questions in the meantime, please contact your investigator.
+              </p>
               <p className="text-sm text-slate-400 pt-2">
                 Session: <span className="font-mono text-slate-300">{session?.session_code}</span>
               </p>
@@ -1633,7 +1651,7 @@ export default function InterviewV2() {
               disabled={isCompletingInterview}
               className="bg-blue-600 hover:bg-blue-700 px-8 h-12"
             >
-              {isCompletingInterview ? <Loader2 className="w-5 h-5 animate-spin" /> : 'OK'}
+              {isCompletingInterview ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Close'}
             </Button>
           </div>
         </DialogContent>
