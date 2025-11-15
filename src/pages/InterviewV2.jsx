@@ -2233,7 +2233,7 @@ function AgentMessageBubble({ message }) {
   );
 }
 
-// NEW: Agent Chat Item (combines agent question and user answer for active probing history)
+// NEW: Agent chat history item (question -> answer pairs, smooth rendering)
 function AgentChatItem({ item }) {
   if (item.type === 'agent_question') {
     return (
@@ -2251,7 +2251,9 @@ function AgentChatItem({ item }) {
         </div>
       </div>
     );
-  } else if (item.type === 'agent_answer') {
+  }
+  
+  if (item.type === 'agent_answer') {
     return (
       <div className="flex justify-end">
         <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
@@ -2260,5 +2262,6 @@ function AgentChatItem({ item }) {
       </div>
     );
   }
+  
   return null;
 }
