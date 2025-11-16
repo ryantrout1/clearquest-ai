@@ -1,4 +1,3 @@
-
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -1455,7 +1454,7 @@ export function parseQuestionsToMaps(questions) {
   const MatrixYesByQ = {};
   const UndefinedPacks = new Set();
 
-  // CRITICAL FIX: Sort by category (using SECTION_ORDER), then by display_order within each category
+  // CRITICAL FIX: Sort by category (using SECTION_ORDER), then by display_order, then by question_id numeric value
   const sorted = [...questions].sort((a, b) => {
     // First, sort by section/category order
     const aCategoryIndex = SECTION_ORDER.indexOf(a.category);
@@ -1470,7 +1469,16 @@ export function parseQuestionsToMaps(questions) {
     }
     
     // If same category, sort by display_order
-    return (a.display_order || 0) - (b.display_order || 0);
+    const displayOrderDiff = (a.display_order || 0) - (b.display_order || 0);
+    if (displayOrderDiff !== 0) {
+      return displayOrderDiff;
+    }
+    
+    // FALLBACK: If display_order is the same, sort by question_id numeric value
+    // Extract numeric part from question_id (e.g., "Q001" -> 1, "Q113" -> 113)
+    const aNum = parseInt(a.question_id.replace(/[^\d]/g, '')) || 0;
+    const bNum = parseInt(b.question_id.replace(/[^\d]/g, '')) || 0;
+    return aNum - bNum;
   });
 
   sorted.forEach((q, index) => {
@@ -1509,7 +1517,7 @@ export function parseQuestionsToMaps(questions) {
     console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs:`, Array.from(UndefinedPacks));
   }
 
-  console.log(`📊 Questions ordered by section, then display_order: ${ActiveOrdered.length} questions`);
+  console.log(`📊 Questions ordered by section, then display_order, then question_id: ${ActiveOrdered.length} questions`);
 
   return { QById, NextById, ActiveOrdered, MatrixYesByQ, UndefinedPacks };
 }
