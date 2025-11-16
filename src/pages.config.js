@@ -17,7 +17,7 @@ import ManageDepartmentUsers from './pages/ManageDepartmentUsers';
 import interviewv2StableDoNotEditAiProbingTranscriptsVerified from './pages/InterviewV2 – STABLE - DO NOT EDIT (AI probing + transcripts verified)';
 import BackfillSummaries from './pages/BackfillSummaries';
 import QuestionsManager from './pages/QuestionsManager';
-import Layout from './Layout.jsx';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
@@ -45,5 +45,5 @@ export const PAGES = {
 export const pagesConfig = {
     mainPage: "Home",
     Pages: PAGES,
-    Layout: Layout,
+    Layout: __Layout,
 };

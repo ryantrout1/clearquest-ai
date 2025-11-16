@@ -1214,6 +1214,7 @@ Return ONLY the summary sentence, nothing else.`;
 
           if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
             nextItem = updatedQueue.shift() || null;
+            setCurrentItem(nextItem); // Update current item if skipped
           } else {
             break;
           }
@@ -1684,7 +1685,9 @@ Return ONLY the summary sentence, nothing else.`;
               <div className="mt-2 md:mt-2.5 pb-2 md:pb-2.5 border-b border-slate-700/30">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] md:text-xs text-slate-400 font-medium">Section: {currentSection}</span>
-                  <span className="text-[10px] md:text-xs text-blue-400 font-medium">{sectionAnswered}/{sectionTotal}</span>
+                  <span className="text-[10px] md:text-xs text-blue-400 font-medium">
+                    {sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0}% • {sectionAnswered}/{sectionTotal}
+                  </span>
                 </div>
                 <div 
                   className="w-full h-1 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
@@ -1723,9 +1726,7 @@ Return ONLY the summary sentence, nothing else.`;
                 />
               </div>
               <div className="flex justify-end items-center gap-1.5 md:gap-2 mt-1 md:mt-1.5">
-                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}%</span>
-                <span className="text-[10px] md:text-xs text-green-400">•</span>
-                <span className="text-[10px] md:text-xs font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
+                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}% • {answeredCount}/{totalQuestions}</span>
               </div>
             </div>
           </div>
@@ -1883,7 +1884,7 @@ Return ONLY the summary sentence, nothing else.`;
                             </span>
                             <span className="hidden md:inline text-xs text-slate-500">•</span>
                             <span className="text-[11px] md:text-sm text-orange-300 truncate">
-                              {currentPrompt.substanceName ? `${currentPrompt.substanceName}` : getFollowUpPackName(currentPrompt.packId)}
+                              {currentPrompt.substanceName ? `${currentPrompt.substanceName} Use` : getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
                         ) : (
