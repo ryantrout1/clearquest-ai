@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -112,10 +113,11 @@ export default function QuestionsManager() {
     mutationFn: (id) => base44.entities.Question.update(id, { active: false }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questions'] });
-      toast.success('Question deleted');
+      toast.success('Question marked as inactive');
       setDeleteConfirm(null);
     },
-    onError: () => {
+    onError: (err) => {
+      console.error('Delete error:', err);
       toast.error('Failed to delete question');
     }
   });
@@ -246,6 +248,14 @@ export default function QuestionsManager() {
   const handleFollowUpClick = (question) => {
     setSelectedQuestionForFollowUp(question);
     setShowFollowUpEditor(true);
+  };
+
+  const handleDeleteQuestion = () => {
+    if (!deleteConfirm?.id) {
+      toast.error('No question selected');
+      return;
+    }
+    deleteQuestionMutation.mutate(deleteConfirm.id);
   };
 
   if (!user) {
@@ -528,20 +538,32 @@ export default function QuestionsManager() {
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
-            <DialogTitle>Delete Question</DialogTitle>
+            <DialogTitle>Deactivate Question</DialogTitle>
             <DialogDescription className="text-slate-300">
-              Are you sure you want to delete this question? It will no longer appear in new interviews, but existing historical data will be preserved.
+              Are you sure you want to deactivate this question? It will be marked as inactive and won't appear in new interviews, but existing historical data will be preserved.
             </DialogDescription>
           </DialogHeader>
+          {deleteConfirm && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 my-2">
+              <p className="text-xs text-slate-400 mb-1">{deleteConfirm.question_id}</p>
+              <p className="text-sm text-white">{deleteConfirm.question_text}</p>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)} className="bg-slate-800 border-slate-600 text-slate-200">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteConfirm(null)} 
+              className="bg-slate-800 border-slate-600 text-slate-200"
+              disabled={deleteQuestionMutation.isPending}
+            >
               Cancel
             </Button>
             <Button
-              onClick={() => deleteQuestionMutation.mutate(deleteConfirm.id)}
+              onClick={handleDeleteQuestion}
               className="bg-red-600 hover:bg-red-700"
+              disabled={deleteQuestionMutation.isPending}
             >
-              Delete
+              {deleteQuestionMutation.isPending ? 'Deactivating...' : 'Deactivate'}
             </Button>
           </div>
         </DialogContent>
