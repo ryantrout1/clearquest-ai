@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -1401,6 +1401,49 @@ Return ONLY the summary sentence, nothing else.`;
     return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
   };
 
+  // NEW: Calculate section progress
+  const sectionProgress = useMemo(() => {
+    if (!engine || !currentItem || currentItem.type !== 'question') return null;
+    
+    const currentQuestionId = currentItem.id;
+    const currentQuestion = engine.QById[currentQuestionId];
+    
+    if (!currentQuestion?.category) return null;
+    
+    const currentCategory = currentQuestion.category;
+    
+    // Get all questions in this category
+    const categoryQuestions = engine.ActiveOrdered
+      .map(qid => engine.QById[qid])
+      .filter(q => q && q.category === currentCategory);
+    
+    // Count answered questions in this category
+    const answeredInCategory = transcript.filter(t => 
+      t.type === 'question' && 
+      engine.QById[t.questionId]?.category === currentCategory
+    ).length;
+    
+    // Get section index (1-based)
+    const allCategories = [...new Set(
+      engine.ActiveOrdered
+        .map(qid => engine.QById[qid]?.category)
+        .filter(Boolean)
+    )];
+    
+    const sectionIndex = allCategories.indexOf(currentCategory) + 1;
+    
+    return {
+      name: currentCategory,
+      answered: answeredInCategory,
+      total: categoryQuestions.length,
+      percentage: categoryQuestions.length > 0 
+        ? Math.round((answeredInCategory / categoryQuestions.length) * 100) 
+        : 0,
+      index: sectionIndex,
+      totalSections: allCategories.length
+    };
+  }, [engine, currentItem, transcript]);
+
   const getCurrentPrompt = () => {
     if (isWaitingForAgent) return null;
     if (!currentItem || !engine) return null;
@@ -1614,7 +1657,7 @@ Return ONLY the summary sentence, nothing else.`;
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-2 md:py-3">
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-2 md:py-3 sticky top-0 z-10">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-2 md:mb-3">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1656,10 +1699,55 @@ Return ONLY the summary sentence, nothing else.`;
               </div>
             )}
             
-            <div className="mt-1.5 md:mt-2">
+            {/* Section Progress (NEW) */}
+            {sectionProgress && (
+              <div className="mt-2 md:mt-3 space-y-1">
+                <div className="flex items-center justify-between text-[10px] md:text-xs">
+                  <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
+                    <span className="font-semibold text-slate-300 truncate">{sectionProgress.name}</span>
+                    <span className="text-slate-500 text-[9px] md:text-[10px] whitespace-nowrap">
+                      Section {sectionProgress.index}/{sectionProgress.totalSections}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 md:gap-1.5 text-slate-400 whitespace-nowrap ml-2">
+                    <span className="font-medium">{sectionProgress.answered}/{sectionProgress.total}</span>
+                    <span className="hidden sm:inline text-slate-500">•</span>
+                    <span className="hidden sm:inline font-medium">{sectionProgress.percentage}%</span>
+                  </div>
+                </div>
+                <div 
+                  className="w-full h-1 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-label="Section progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={sectionProgress.percentage}
+                >
+                  <div 
+                    className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-500 ease-out"
+                    style={{ 
+                      width: `${sectionProgress.percentage}%`,
+                      boxShadow: sectionProgress.percentage > 0 ? '0 0 10px rgba(34, 197, 94, 0.5)' : 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Overall Progress */}
+            <div className="mt-1.5 md:mt-2 space-y-1">
+              <div className="flex items-center justify-between text-[10px] md:text-xs">
+                <span className="font-medium text-slate-400">Overall Interview</span>
+                <div className="flex items-center gap-1 md:gap-1.5 text-slate-400">
+                  <span className="font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
+                  <span className="text-slate-500">•</span>
+                  <span className="font-medium text-green-400">{progress}%</span>
+                </div>
+              </div>
               <div 
                 className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
+                aria-label="Overall progress"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={progress}
@@ -1671,11 +1759,6 @@ Return ONLY the summary sentence, nothing else.`;
                     boxShadow: progress > 0 ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none'
                   }}
                 />
-              </div>
-              <div className="flex justify-end items-center gap-1.5 md:gap-2 mt-1 md:mt-1.5">
-                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}%</span>
-                <span className="text-[10px] md:text-xs text-green-400">•</span>
-                <span className="text-[10px] md:text-xs font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
               </div>
             </div>
           </div>
