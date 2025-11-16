@@ -890,9 +890,6 @@ Return ONLY the summary sentence, nothing else.`;
         toast.error("AI Investigator failed to start. Moving to next question...", { duration: 2000 });
       }
 
-      setIsWaitingForAgent(false);
-      setCurrentFollowUpPack(null);
-
       // Need to find the original triggering question and its answer to continue deterministically
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
@@ -1596,7 +1593,7 @@ Return ONLY the summary sentence, nothing else.`;
       } else if (msg.role === 'user') {
         // This case should ideally not be reached if previous assistant message was paired.
         // If it is reached, it's a user message without a preceding assistant message (within probing context).
-        // This usually means it's an answer to an assistant question that wasn't correctly paired.
+        // This usually means it's an answer to an an assistant question that wasn't correctly paired.
         // For robustness, if it's a user message that isn't the *last* pending one, we can display it.
         // However, the `getLastAgentQuestion` handles the *current* pending interaction,
         // so `displayableAgentMessages` should primarily focus on completed exchanges.
@@ -1657,20 +1654,20 @@ Return ONLY the summary sentence, nothing else.`;
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-2 md:py-3 sticky top-0 z-10">
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-1.5 md:py-3 sticky top-0 z-10">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="flex items-center justify-between mb-1 md:mb-3">
               <div className="flex items-center gap-2 md:gap-3">
-                <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
-                <h1 className="text-base md:text-lg font-semibold text-white">ClearQuest</h1>
+                <Shield className="w-4 h-4 md:w-6 md:h-6 text-blue-400" />
+                <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest</h1>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePauseClick}
-                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 px-2 md:px-3 h-8 md:h-9 text-xs md:text-sm"
+                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 px-2 md:px-3 h-7 md:h-9 text-xs md:text-sm"
               >
-                <Pause className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <Pause className="w-3 h-3 md:w-4 md:h-4" />
                 <span className="hidden sm:inline">Pause</span>
               </Button>
             </div>
@@ -1694,29 +1691,27 @@ Return ONLY the summary sentence, nothing else.`;
             )}
             
             {department && (
-              <div className="md:hidden text-[10px] text-slate-500 border-t border-slate-700/50 pt-1.5 pb-1.5">
+              <div className="md:hidden text-[9px] text-slate-500 border-t border-slate-700/50 pt-1 pb-1">
                 {session?.department_code} • {session?.file_number}
               </div>
             )}
             
             {/* Section Progress (NEW) */}
             {sectionProgress && (
-              <div className="mt-2 md:mt-3 space-y-1">
-                <div className="flex items-center justify-between text-[10px] md:text-xs">
-                  <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
+              <div className="mt-1 md:mt-3 space-y-0.5 md:space-y-1">
+                <div className="flex items-center justify-between text-[9px] md:text-xs">
+                  <div className="flex items-center gap-1 md:gap-2 min-w-0 flex-1">
                     <span className="font-semibold text-slate-300 truncate">{sectionProgress.name}</span>
-                    <span className="text-slate-500 text-[9px] md:text-[10px] whitespace-nowrap">
+                    <span className="text-slate-500 text-[8px] md:text-[10px] whitespace-nowrap">
                       Section {sectionProgress.index}/{sectionProgress.totalSections}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 md:gap-1.5 text-slate-400 whitespace-nowrap ml-2">
-                    <span className="font-medium">{sectionProgress.answered}/{sectionProgress.total}</span>
-                    <span className="hidden sm:inline text-slate-500">•</span>
-                    <span className="hidden sm:inline font-medium">{sectionProgress.percentage}%</span>
+                  <div className="flex items-center gap-1 text-slate-400 whitespace-nowrap ml-2 font-medium">
+                    <span>{sectionProgress.answered}/{sectionProgress.total}</span>
                   </div>
                 </div>
                 <div 
-                  className="w-full h-1 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
+                  className="w-full h-0.5 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
                   role="progressbar"
                   aria-label="Section progress"
                   aria-valuemin={0}
@@ -1735,17 +1730,17 @@ Return ONLY the summary sentence, nothing else.`;
             )}
             
             {/* Overall Progress */}
-            <div className="mt-1.5 md:mt-2 space-y-1">
-              <div className="flex items-center justify-between text-[10px] md:text-xs">
+            <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1">
+              <div className="flex items-center justify-between text-[9px] md:text-xs">
                 <span className="font-medium text-slate-400">Overall Interview</span>
-                <div className="flex items-center gap-1 md:gap-1.5 text-slate-400">
-                  <span className="font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
+                <div className="flex items-center gap-1 text-green-400 font-medium">
+                  <span>{answeredCount}/{totalQuestions}</span>
                   <span className="text-slate-500">•</span>
-                  <span className="font-medium text-green-400">{progress}%</span>
+                  <span>{progress}%</span>
                 </div>
               </div>
               <div 
-                className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
+                className="w-full h-1 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
                 aria-label="Overall progress"
                 aria-valuemin={0}
