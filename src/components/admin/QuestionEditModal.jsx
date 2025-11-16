@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "@/utils/followupPackNames";
 
 const AVAILABLE_PACKS = [
   'PACK_LE_APPS', 'PACK_WITHHOLD_INFO', 'PACK_DISQUALIFIED', 'PACK_CHEATING',
@@ -51,7 +52,7 @@ const AVAILABLE_PACKS = [
   'PACK_PROSTITUTION', 'PACK_PAID_SEX', 'PACK_PORNOGRAPHY',
   'PACK_HARASSMENT', 'PACK_ASSAULT', 'PACK_NON_CONSENT', 'PACK_MINOR_CONTACT',
   'PACK_FINANCIAL', 'PACK_BANKRUPTCY', 'PACK_FORECLOSURE', 'PACK_REPOSSESSION',
-  'PACK_LAWSUIT', 'PACK_LATE_PAYMENT', 'PACK_GAMBLING',
+  'PACK_LAWSUIT', 'PACK_LATE_PAYMENT', 'PACK_GAMBLING', 'PACK_OTHER_FINANCIAL',
   'PACK_DRUG_USE', 'PACK_DRUG_SALE', 'PACK_PRESCRIPTION_MISUSE',
   'PACK_ALCOHOL_DEPENDENCY', 'PACK_ALCOHOL_INCIDENT', 'PACK_PROVIDE_ALCOHOL',
   'PACK_MIL_SERVICE', 'PACK_MIL_REJECTION', 'PACK_MIL_DISCHARGE', 'PACK_MIL_DISCIPLINE',
@@ -206,11 +207,9 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes_no">Yes/No</SelectItem>
-                <SelectItem value="text">Text</SelectItem>
-                <SelectItem value="multi_select">Multi-Select</SelectItem>
-                <SelectItem value="date">Date</SelectItem>
-                <SelectItem value="number">Number</SelectItem>
+                {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -225,14 +224,16 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 </span>
               )}
             </Label>
-            <Select value={formData.followup_pack} onValueChange={(v) => setFormData({...formData, followup_pack: v})}>
+            <Select value={formData.followup_pack || ""} onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}>
               <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
                 <SelectValue placeholder="Select a follow-up pack (optional)" />
               </SelectTrigger>
               <SelectContent className="max-h-64">
                 <SelectItem value={null}>None</SelectItem>
                 {AVAILABLE_PACKS.map(pack => (
-                  <SelectItem key={pack} value={pack}>{pack}</SelectItem>
+                  <SelectItem key={pack} value={pack}>
+                    {FOLLOWUP_PACK_NAMES[pack] || pack} ({pack})
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
