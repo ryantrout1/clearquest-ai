@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown } from "lucide-react";
+import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, Menu } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,6 +62,7 @@ export default function QuestionsManager() {
   const [selectedQuestionForFollowUp, setSelectedQuestionForFollowUp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -289,8 +289,13 @@ export default function QuestionsManager() {
 
   return (
     <div className="min-h-screen bg-[#0f172a] flex">
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)} />
+      )}
+
       {/* Left Sidebar - Sections */}
-      <div className="hidden lg:block w-72 border-r border-slate-700/50 bg-[#1e293b]/50">
+      <div className={`${showMobileSidebar ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-72 border-r border-slate-700/50 bg-[#1e293b] transition-transform duration-300 lg:block`}>
         <div className="p-6 border-b border-slate-700/50">
           <Button
             variant="ghost"
@@ -307,7 +312,10 @@ export default function QuestionsManager() {
           {sections.map(section => (
             <button
               key={section.name}
-              onClick={() => setSelectedSection(section.name)}
+              onClick={() => {
+                setSelectedSection(section.name);
+                setShowMobileSidebar(false);
+              }}
               className={`w-full text-left px-4 py-3 rounded-lg transition-all group ${
                 selectedSection === section.name
                   ? 'bg-blue-600 text-white shadow-lg'
@@ -339,26 +347,34 @@ export default function QuestionsManager() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 w-full">
         {/* Top Header */}
-        <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-6 py-4">
+        <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <Shield className="w-6 h-6 text-blue-400" />
-              <h1 className="text-xl font-bold text-white">Question Bank Manager</h1>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowMobileSidebar(true)}
+                className="lg:hidden text-slate-300 -ml-2"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
+              <h1 className="text-lg md:text-xl font-bold text-white">Question Bank Manager</h1>
             </div>
             <Button
               onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
               variant="ghost"
               size="sm"
-              className="lg:hidden text-slate-300"
+              className="hidden md:block text-slate-300"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
           </div>
 
           {/* Section Header - Desktop */}
-          <div className="hidden lg:flex items-center justify-between">
+          <div className="hidden md:flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-white">{selectedSection}</h2>
               <p className="text-sm text-slate-400">{filteredQuestions.length} questions in this section</p>
@@ -369,21 +385,11 @@ export default function QuestionsManager() {
             </Button>
           </div>
 
-          {/* Mobile Section Selector */}
-          <div className="lg:hidden">
-            <Select value={selectedSection} onValueChange={setSelectedSection}>
-              <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sections.map(section => (
-                  <SelectItem key={section.name} value={section.name}>
-                    {section.name} ({section.activeCount})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleAddQuestion} className="w-full mt-3 bg-blue-600 hover:bg-blue-700">
+          {/* Mobile Section Display */}
+          <div className="md:hidden">
+            <p className="text-sm text-slate-300 font-medium mb-2">{selectedSection}</p>
+            <p className="text-xs text-slate-400 mb-3">{filteredQuestions.length} questions</p>
+            <Button onClick={handleAddQuestion} className="w-full bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
               Add Question
             </Button>
@@ -391,7 +397,7 @@ export default function QuestionsManager() {
         </div>
 
         {/* Filters Bar */}
-        <div className="border-b border-slate-700/30 bg-[#0f172a] px-6 py-4">
+        <div className="border-b border-slate-700/30 bg-[#0f172a] px-4 md:px-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -445,7 +451,7 @@ export default function QuestionsManager() {
         </div>
 
         {/* Questions List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#0f172a]">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 bg-[#0f172a]">
           {isLoading ? (
             <div className="text-center text-slate-400 py-12">Loading questions...</div>
           ) : filteredQuestions.length === 0 ? (
@@ -456,7 +462,7 @@ export default function QuestionsManager() {
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable droppableId="questions">
                 {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-w-5xl">
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 w-full">
                     {filteredQuestions.map((question, index) => (
                       <Draggable key={question.id} draggableId={question.id} index={index}>
                         {(provided, snapshot) => (
@@ -467,50 +473,50 @@ export default function QuestionsManager() {
                               snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-700/50 hover:border-slate-600'
                             } ${!question.active ? 'opacity-40' : ''}`}
                           >
-                            <div className="p-4">
-                              <div className="flex items-start gap-3">
-                                <div {...provided.dragHandleProps} className="pt-1.5 cursor-grab active:cursor-grabbing">
+                            <div className="p-3 md:p-4">
+                              <div className="flex items-start gap-2 md:gap-3">
+                                <div {...provided.dragHandleProps} className="pt-1.5 cursor-grab active:cursor-grabbing hidden md:block">
                                   <GripVertical className="w-5 h-5 text-slate-600 hover:text-slate-400 transition-colors" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                  <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap">
                                     <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                       {question.question_id}
                                     </Badge>
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
-                                      <span className="text-xs text-slate-400 font-medium">Status:</span>
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
+                                      <span className="text-xs text-slate-400 font-medium hidden sm:inline">Status:</span>
                                       <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
                                         {question.active ? 'Active' : 'Inactive'}
                                       </Badge>
                                       <Switch
                                         checked={question.active}
                                         onCheckedChange={() => handleToggleActive(question)}
-                                        className="scale-90"
+                                        className="scale-75 md:scale-90"
                                       />
                                     </div>
                                     {question.response_type === 'yes_no' && !question.followup_pack && (
-                                      <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/30" variant="outline">
+                                      <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/30 hidden sm:flex" variant="outline">
                                         <AlertCircle className="w-3 h-3 mr-1" />
                                         No Follow-up
                                       </Badge>
                                     )}
                                   </div>
-                                  <p className="text-white text-base leading-relaxed mb-3">
+                                  <p className="text-white text-sm md:text-base leading-relaxed mb-3">
                                     {question.question_text}
                                   </p>
-                                  <div className="flex flex-wrap items-center gap-3">
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
-                                      <span className="text-xs text-slate-400 font-medium">Response Type:</span>
+                                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 md:gap-3">
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
+                                      <span className="text-xs text-slate-400 font-medium hidden sm:inline">Response:</span>
                                       <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
                                         {getResponseTypeDisplay(question.response_type)}
                                       </Badge>
                                     </div>
                                     {question.followup_pack && (
-                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
-                                        <span className="text-xs text-slate-400 font-medium">Follow-up Pack:</span>
+                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
+                                        <span className="text-xs text-slate-400 font-medium hidden sm:inline">Follow-up:</span>
                                         <button
                                           onClick={() => handleFollowUpClick(question)}
-                                          className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
+                                          className="px-2 md:px-2.5 py-0.5 md:py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
                                         >
                                           {getFollowupPackDisplay(question.followup_pack)}
                                         </button>
@@ -518,33 +524,33 @@ export default function QuestionsManager() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-3 flex-shrink-0">
-                                  <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+                                  <div className="flex flex-col gap-1.5 md:gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleEditClick(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-8 text-xs w-28 justify-start"
+                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-7 md:h-8 text-xs w-20 md:w-28 justify-start"
                                     >
-                                      <Edit className="w-3.5 h-3.5 mr-2" />
+                                      <Edit className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
                                       Edit
                                     </Button>
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleDuplicate(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-8 text-xs w-28 justify-start"
+                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-7 md:h-8 text-xs w-20 md:w-28 justify-start hidden sm:flex"
                                     >
-                                      <Copy className="w-3.5 h-3.5 mr-2" />
+                                      <Copy className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
                                       Duplicate
                                     </Button>
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleDeleteClick(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-8 text-xs w-28 justify-start"
+                                      className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-7 md:h-8 text-xs w-20 md:w-28 justify-start"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                      <Trash2 className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
                                       Delete
                                     </Button>
                                   </div>
@@ -589,7 +595,6 @@ export default function QuestionsManager() {
         />
       )}
 
-      {/* First confirmation - Are you sure? */}
       <Dialog open={!!deleteDoubleConfirm} onOpenChange={() => setDeleteDoubleConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
@@ -622,7 +627,6 @@ export default function QuestionsManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Second confirmation - Final delete */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
