@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import QuestionEditModal from "../components/admin/QuestionEditModal";
 import FollowUpPackEditor from "../components/admin/FollowUpPackEditor";
 import { cleanupDuplicateQuestions } from '../functions/cleanupDuplicateQuestions';
+import { getFollowupPackDisplay, getResponseTypeDisplay } from "../components/utils/followupPackNames";
 
 const SECTION_ORDER = [
   "Applications with Other Law Enforcement Agencies",
@@ -327,10 +328,10 @@ export default function QuestionsManager() {
                   {section.activeCount} questions
                 </Badge>
                 {section.count !== section.activeCount && (
-                  <span className={`text-xs ${
+                  <span className={`text-xs font-semibold ${
                     selectedSection === section.name 
-                      ? 'text-white/70' 
-                      : 'text-slate-500'
+                      ? 'text-red-300' 
+                      : 'text-red-400'
                   }`}>
                     ({section.count - section.activeCount} inactive)
                   </span>
@@ -474,7 +475,7 @@ export default function QuestionsManager() {
                                         <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                           {question.question_id}
                                         </Badge>
-                                        <Badge className={question.active ? 'bg-green-600/20 text-green-400 border-green-600/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
+                                        <Badge className={question.active ? 'bg-green-600/20 text-green-400 border-green-600/30 font-semibold' : 'bg-red-600/20 text-red-400 border-red-600/30 font-semibold'} variant="outline">
                                           {question.active ? 'Active' : 'Inactive'}
                                         </Badge>
                                         {question.response_type === 'yes_no' && !question.followup_pack && (
@@ -489,14 +490,14 @@ export default function QuestionsManager() {
                                       </p>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
-                                          {question.response_type}
+                                          {getResponseTypeDisplay(question.response_type)}
                                         </Badge>
                                         {question.followup_pack && (
                                           <button
                                             onClick={() => handleFollowUpClick(question)}
                                             className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
                                           >
-                                            {question.followup_pack}
+                                            {getFollowupPackDisplay(question.followup_pack)}
                                           </button>
                                         )}
                                       </div>
