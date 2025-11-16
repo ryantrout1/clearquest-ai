@@ -662,11 +662,11 @@ const FOLLOWUP_PACK_STEPS = {
   ],
 
   'PACK_PROVIDE_ALCOHOL': [
-    { Field_Key: 'when_occurred', Prompt: 'When did you provide alcohol to someone under 21?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'recipient_age', Prompt: 'How old was the person?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'legal_outcome', Prompt: 'Were there any legal consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+    { Field_Key: 'when_where', Prompt: 'When and where did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_provided_to', Prompt: 'Who did you provide alcohol to? (age/relationship)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'What were the circumstances?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were there any legal consequences? (citation, arrest, charges)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this decision?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   // ========== Military History ==========
