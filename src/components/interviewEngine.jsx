@@ -494,6 +494,15 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
+  'PACK_CHILD_PROTECTION': [
+    { Field_Key: 'agency', Prompt: 'Which child protection agency interviewed you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'nature_of_interview', Prompt: 'What was the nature of the interview? (allegation, witness, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome of the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
   // ========== Extremist Organizations ==========
   'PACK_EXTREMIST': [
     { Field_Key: 'organization_name', Prompt: 'What was the name of the organization?', Response_Type: 'text', Expected_Type: 'TEXT' },
