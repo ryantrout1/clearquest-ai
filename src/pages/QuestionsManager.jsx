@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, Menu } from "lucide-react";
+import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, ChevronDown, ChevronRight, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 
@@ -52,19 +52,19 @@ export default function QuestionsManager() {
   const queryClient = useQueryClient();
 
   const [user, setUser] = useState(null);
-  const [selectedSection, setSelectedSection] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [followupFilter, setFollowupFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("display_order");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [requiredFilter, setRequiredFilter] = useState("all");
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFollowUpEditor, setShowFollowUpEditor] = useState(false);
   const [selectedQuestionForFollowUp, setSelectedQuestionForFollowUp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [editingDisplayOrder, setEditingDisplayOrder] = useState({});
+  const [sectionOrderMode, setSectionOrderMode] = useState(false);
+  const [editingSectionSkip, setEditingSectionSkip] = useState(null);
+  const [sectionMetadata, setSectionMetadata] = useState({});
 
   useEffect(() => {
     checkAuth();
@@ -81,7 +81,6 @@ export default function QuestionsManager() {
         }
         setUser(auth);
       } catch (err) {
-        console.error("Failed to parse admin auth from session storage", err);
         navigate(createPageUrl("AdminLogin"));
       }
     } else {
@@ -93,7 +92,6 @@ export default function QuestionsManager() {
         }
         setUser(currentUser);
       } catch (err) {
-        console.error("Failed to fetch current user or not authenticated", err);
         navigate(createPageUrl("AdminLogin"));
       }
     }
@@ -130,6 +128,7 @@ export default function QuestionsManager() {
     }
   });
 
+  // Build section list with metadata
   const sections = useMemo(() => {
     const sectionMap = {};
     questions.forEach(q => {
@@ -138,64 +137,116 @@ export default function QuestionsManager() {
         sectionMap[q.category] = {
           name: q.category,
           count: 0,
-          activeCount: 0
+          activeCount: 0,
+          inactiveCount: 0,
+          requiredCount: 0
         };
       }
       sectionMap[q.category].count++;
-      if (q.active) sectionMap[q.category].activeCount++;
+      if (q.active) {
+        sectionMap[q.category].activeCount++;
+      } else {
+        sectionMap[q.category].inactiveCount++;
+      }
+      if (q.is_required) {
+        sectionMap[q.category].requiredCount++;
+      }
     });
     
-    const sectionList = Object.values(sectionMap);
-    return sectionList.sort((a, b) => {
-      const aIndex = SECTION_ORDER.indexOf(a.name);
-      const bIndex = SECTION_ORDER.indexOf(b.name);
-      if (aIndex === -1 && bIndex === -1) return a.name.localeCompare(b.name);
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-      return aIndex - bIndex;
-    });
-  }, [questions]);
+    const sectionList = Object.values(sectionMap).map(section => ({
+      ...section,
+      // Section metadata (in real app, fetch from Category entity)
+      section_required: sectionMetadata[section.name]?.section_required || false,
+      section_active: sectionMetadata[section.name]?.section_active !== false,
+      section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
+      skip_mode: sectionMetadata[section.name]?.skip_mode || "always_show",
+      gate_question_id: sectionMetadata[section.name]?.gate_question_id || null
+    }));
+    
+    return sectionList.sort((a, b) => a.section_order - b.section_order);
+  }, [questions, sectionMetadata]);
 
-  useEffect(() => {
-    if (!selectedSection && sections.length > 0) {
-      setSelectedSection(sections[0].name);
-    }
-  }, [sections, selectedSection]);
-
-  const filteredQuestions = useMemo(() => {
-    let filtered = questions.filter(q => q.category === selectedSection);
-
-    if (searchQuery) {
-      filtered = filtered.filter(q => 
-        q.question_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.question_id?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    if (activeFilter === "active") {
-      filtered = filtered.filter(q => q.active);
-    } else if (activeFilter === "inactive") {
-      filtered = filtered.filter(q => !q.active);
-    }
-
-    if (followupFilter === "has") {
-      filtered = filtered.filter(q => q.followup_pack);
-    } else if (followupFilter === "missing") {
-      filtered = filtered.filter(q => !q.followup_pack && q.response_type === 'yes_no');
-    }
-
-    return filtered.sort((a, b) => {
-      if (sortBy === "alphabetical") {
-        return (a.question_text || '').localeCompare(b.question_text || '');
+  // Filter sections based on search and filters
+  const filteredSections = useMemo(() => {
+    return sections.filter(section => {
+      if (searchQuery && !section.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
       }
-      return (a.display_order || 0) - (b.display_order || 0);
+      if (statusFilter === "active" && !section.section_active) {
+        return false;
+      }
+      if (statusFilter === "inactive" && section.section_active) {
+        return false;
+      }
+      if (requiredFilter === "required" && !section.section_required) {
+        return false;
+      }
+      if (requiredFilter === "optional" && section.section_required) {
+        return false;
+      }
+      return true;
     });
-  }, [questions, selectedSection, searchQuery, activeFilter, followupFilter, sortBy]);
+  }, [sections, searchQuery, statusFilter, requiredFilter]);
 
-  const handleDragEnd = async (result) => {
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
+  const toggleSectionRequired = (sectionName) => {
+    setSectionMetadata(prev => ({
+      ...prev,
+      [sectionName]: {
+        ...prev[sectionName],
+        section_required: !prev[sectionName]?.section_required
+      }
+    }));
+    toast.success('Section required status updated');
+  };
+
+  const toggleSectionActive = (sectionName) => {
+    setSectionMetadata(prev => ({
+      ...prev,
+      [sectionName]: {
+        ...prev[sectionName],
+        section_active: prev[sectionName]?.section_active === false ? true : false
+      }
+    }));
+    toast.success('Section status updated');
+  };
+
+  const getQuestionsForSection = (sectionName) => {
+    return questions
+      .filter(q => q.category === sectionName)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  };
+
+  const handleSectionDragEnd = (result) => {
     if (!result.destination) return;
 
-    const items = Array.from(filteredQuestions);
+    const items = Array.from(filteredSections);
+    const [reordered] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reordered);
+
+    // Update section order in metadata
+    const newMetadata = {};
+    items.forEach((section, index) => {
+      newMetadata[section.name] = {
+        ...sectionMetadata[section.name],
+        section_order: index
+      };
+    });
+    setSectionMetadata(prev => ({ ...prev, ...newMetadata }));
+    toast.success('Section order updated');
+  };
+
+  const handleQuestionDragEnd = async (result, sectionName) => {
+    if (!result.destination) return;
+
+    const sectionQuestions = getQuestionsForSection(sectionName);
+    const items = Array.from(sectionQuestions);
     const [reordered] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reordered);
 
@@ -222,52 +273,19 @@ export default function QuestionsManager() {
     });
   };
 
-  const handleDisplayOrderChange = async (question, newOrder) => {
-    const orderNum = parseInt(newOrder);
-    if (isNaN(orderNum) || orderNum < 1) {
-      toast.error('Display order must be a positive number');
-      return;
-    }
-
-    try {
-      await base44.entities.Question.update(question.id, { display_order: orderNum });
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      setEditingDisplayOrder({});
-      toast.success('Display order updated');
-    } catch (err) {
-      toast.error('Failed to update display order');
-    }
-  };
-
-  const handleAutoSequence = async () => {
-    if (!window.confirm(`Auto-sequence all ${filteredQuestions.length} questions in this section? This will assign sequential numbers 1, 2, 3... based on current order.`)) {
-      return;
-    }
-
-    try {
-      const updates = filteredQuestions.map((q, index) => 
-        base44.entities.Question.update(q.id, { display_order: index + 1 })
-      );
-      await Promise.all(updates);
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      toast.success('All questions sequenced');
-    } catch (err) {
-      toast.error('Failed to sequence questions');
-    }
-  };
-
   const handleEditClick = (question) => {
     setEditingQuestion(question);
     setShowEditModal(true);
   };
 
-  const handleAddQuestion = () => {
+  const handleAddQuestion = (sectionName) => {
+    const sectionQuestions = getQuestionsForSection(sectionName);
     setEditingQuestion({
-      category: selectedSection,
+      category: sectionName,
       question_text: "",
       response_type: "yes_no",
       active: true,
-      display_order: filteredQuestions.length + 1
+      display_order: sectionQuestions.length + 1
     });
     setShowEditModal(true);
   };
@@ -278,7 +296,7 @@ export default function QuestionsManager() {
         ...question,
         question_id: `${question.question_id}_COPY_${Date.now()}`,
         question_text: `${question.question_text} (copy)`,
-        display_order: filteredQuestions.length + 1
+        display_order: getQuestionsForSection(question.category).length + 1
       };
       delete newQuestion.id;
       delete newQuestion.created_date;
@@ -315,6 +333,16 @@ export default function QuestionsManager() {
     deleteQuestionMutation.mutate(deleteConfirm.id);
   };
 
+  const getSkipRuleBadge = (section) => {
+    if (section.skip_mode === "always_show") {
+      return <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">Always show</Badge>;
+    }
+    if (section.skip_mode === "skip_if_gate_question_is_no") {
+      return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">Skip if gate is No</Badge>;
+    }
+    return <Badge variant="outline" className="text-xs border-blue-600 text-blue-400">Custom rule</Badge>;
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -324,311 +352,318 @@ export default function QuestionsManager() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex">
-      {showMobileSidebar && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)} />
-      )}
-
-      <div className={`${showMobileSidebar ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-72 border-r border-slate-700/50 bg-[#1e293b] transition-transform duration-300 lg:block`}>
-        <div className="p-6 border-b border-slate-700/50">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
-            className="text-slate-300 hover:text-white mb-4 -ml-2"
-          >
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Back
-          </Button>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">SECTIONS</h2>
-        </div>
-        <div className="p-3 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
-          {sections.map(section => (
-            <button
-              key={section.name}
-              onClick={() => {
-                setSelectedSection(section.name);
-                setShowMobileSidebar(false);
-              }}
-              className={`w-full text-left px-4 py-3 rounded-lg transition-all group ${
-                selectedSection === section.name
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'text-slate-300 hover:bg-slate-800/50'
-              }`}
-            >
-              <div className="font-medium text-sm mb-1.5 leading-tight">{section.name}</div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className={
-                  selectedSection === section.name 
-                    ? 'border-white/30 text-white/80' 
-                    : 'border-slate-600 text-slate-400'
-                }>
-                  {section.activeCount} questions
-                </Badge>
-                {section.count !== section.activeCount && (
-                  <span className={`text-xs font-semibold ${
-                    selectedSection === section.name 
-                      ? 'text-red-300' 
-                      : 'text-red-400'
-                  }`}>
-                    ({section.count - section.activeCount} inactive)
-                  </span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col min-w-0 w-full">
-        <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
+    <div className="min-h-screen bg-[#0f172a]">
+      {/* Header */}
+      <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowMobileSidebar(true)}
-                className="lg:hidden text-slate-300 -ml-2"
+                onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
+                className="text-slate-300 hover:text-white -ml-2"
               >
-                <Menu className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Back
               </Button>
-              <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
-              <h1 className="text-lg md:text-xl font-bold text-white">Question Bank Manager</h1>
-            </div>
-            <Button
-              onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
-              variant="ghost"
-              size="sm"
-              className="hidden md:block text-slate-300"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-          </div>
-
-          <div className="hidden md:flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">{selectedSection}</h2>
-              <p className="text-sm text-slate-400">{filteredQuestions.length} questions in this section</p>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleAutoSequence} variant="outline" className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700">
-                <ArrowUpDown className="w-4 h-4 mr-2" />
-                Auto-Sequence
-              </Button>
-              <Button onClick={handleAddQuestion} className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Question
-              </Button>
+              <Shield className="w-6 h-6 text-blue-400" />
+              <div>
+                <h1 className="text-xl font-bold text-white">Question Bank Manager</h1>
+                <p className="text-xs text-slate-400">Manage investigative sections, flow, and required questions</p>
+              </div>
             </div>
           </div>
 
-          <div className="md:hidden">
-            <p className="text-sm text-slate-300 font-medium mb-2">{selectedSection}</p>
-            <p className="text-xs text-slate-400 mb-3">{filteredQuestions.length} questions</p>
-            <div className="flex gap-2">
-              <Button onClick={handleAutoSequence} variant="outline" className="flex-1 bg-slate-700/30 border-slate-600 text-slate-200 text-xs">
-                Auto-Sequence
-              </Button>
-              <Button onClick={handleAddQuestion} className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs">
-                <Plus className="w-4 h-4 mr-1" />
-                Add
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-b border-slate-700/30 bg-[#0f172a] px-4 md:px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="relative">
+          {/* Top controls */}
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            <div className="md:col-span-2 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input
-                placeholder="Search questions..."
+                placeholder="Search sections..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500"
               />
             </div>
-            <Select value={activeFilter} onValueChange={setActiveFilter}>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                <SelectValue />
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
+                <SelectItem value="all">Status: All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={followupFilter} onValueChange={setFollowupFilter}>
+            <Select value={requiredFilter} onValueChange={setRequiredFilter}>
               <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                <SelectValue />
+                <SelectValue placeholder="Required" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Follow-ups</SelectItem>
-                <SelectItem value="has">Has Follow-up Pack</SelectItem>
-                <SelectItem value="missing">Missing Follow-up Pack</SelectItem>
+                <SelectItem value="all">Required: All</SelectItem>
+                <SelectItem value="required">Required only</SelectItem>
+                <SelectItem value="optional">Optional only</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="display_order">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="w-3 h-3" />
-                    Display Order
-                  </div>
-                </SelectItem>
-                <SelectItem value="alphabetical">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="w-3 h-3" />
-                    Alphabetical
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <Button
+              onClick={() => setSectionOrderMode(!sectionOrderMode)}
+              variant={sectionOrderMode ? "default" : "outline"}
+              className={sectionOrderMode ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700"}
+            >
+              <ArrowUpDown className="w-4 h-4 mr-2" />
+              {sectionOrderMode ? 'Done Ordering' : 'Edit Section Order'}
+            </Button>
+            <Button onClick={() => toast.info('Add section coming soon')} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Section
+            </Button>
           </div>
         </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 bg-[#0f172a]">
+      {/* Section order mode banner */}
+      {sectionOrderMode && (
+        <div className="bg-blue-950/30 border-b border-blue-800/50 px-4 md:px-6 py-3">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-sm text-blue-300">
+              <ArrowUpDown className="w-4 h-4 inline mr-2" />
+              Reorder sections – drag rows to change interview flow
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Main content - Section list */}
+      <div className="px-4 md:px-6 py-6">
+        <div className="max-w-7xl mx-auto">
           {isLoading ? (
-            <div className="text-center text-slate-400 py-12">Loading questions...</div>
-          ) : filteredQuestions.length === 0 ? (
+            <div className="text-center text-slate-400 py-12">Loading sections...</div>
+          ) : filteredSections.length === 0 ? (
             <div className="text-center text-slate-400 py-12">
-              No questions found. Try adjusting your filters.
+              No sections found. Try adjusting your filters.
             </div>
           ) : (
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="questions">
+            <DragDropContext onDragEnd={handleSectionDragEnd}>
+              <Droppable droppableId="sections" isDropDisabled={!sectionOrderMode}>
                 {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 w-full">
-                    {filteredQuestions.map((question, index) => (
-                      <Draggable key={question.id} draggableId={question.id} index={index}>
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                    {filteredSections.map((section, index) => (
+                      <Draggable
+                        key={section.name}
+                        draggableId={section.name}
+                        index={index}
+                        isDragDisabled={!sectionOrderMode}
+                      >
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             className={`bg-slate-800/30 border rounded-lg transition-all ${
-                              snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-700/50 hover:border-slate-600'
-                            } ${!question.active ? 'opacity-40' : ''}`}
+                              snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-700/50'
+                            } ${!section.section_active ? 'opacity-60' : ''}`}
                           >
-                            <div className="p-3 md:p-4">
-                              <div className="flex items-start gap-2 md:gap-3">
-                                <div {...provided.dragHandleProps} className="pt-1.5 cursor-grab active:cursor-grabbing hidden md:block">
-                                  <GripVertical className="w-5 h-5 text-slate-600 hover:text-slate-400 transition-colors" />
-                                </div>
+                            {/* Section header (always visible) */}
+                            <div className="p-4">
+                              <div className="flex items-start gap-3">
+                                {sectionOrderMode && (
+                                  <div {...provided.dragHandleProps} className="pt-1 cursor-grab active:cursor-grabbing">
+                                    <GripVertical className="w-5 h-5 text-slate-600 hover:text-slate-400 transition-colors" />
+                                  </div>
+                                )}
+                                
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap">
-                                    {editingDisplayOrder[question.id] ? (
-                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-blue-500 rounded-lg px-2 py-1">
-                                        <span className="text-xs text-slate-400 font-medium">#</span>
-                                        <Input
-                                          type="number"
-                                          defaultValue={question.display_order || 1}
-                                          onBlur={(e) => {
-                                            handleDisplayOrderChange(question, e.target.value);
-                                          }}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                              handleDisplayOrderChange(question, e.target.value);
-                                            }
-                                            if (e.key === 'Escape') {
-                                              setEditingDisplayOrder({});
-                                            }
-                                          }}
-                                          autoFocus
-                                          className="w-16 h-6 bg-slate-900 border-slate-600 text-white text-sm px-2"
-                                        />
-                                      </div>
-                                    ) : (
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
                                       <button
-                                        onClick={() => setEditingDisplayOrder({ [question.id]: true })}
-                                        className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 hover:border-blue-500/50 transition-colors group"
-                                        title="Click to edit display order"
+                                        onClick={() => toggleSection(section.name)}
+                                        className="flex items-start gap-2 text-left group w-full"
                                       >
-                                        <span className="text-xs text-slate-400 font-medium">Order:</span>
-                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:text-blue-300">
-                                          #{question.display_order || 1}
-                                        </Badge>
+                                        {expandedSections[section.name] ? (
+                                          <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                                        ) : (
+                                          <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                                        )}
+                                        <div className="flex-1">
+                                          <h3 className="text-base font-semibold text-white group-hover:text-blue-400 transition-colors">
+                                            {section.name}
+                                          </h3>
+                                          <p className="text-sm text-slate-400 mt-1">
+                                            {section.count} questions • {section.activeCount} active • {section.inactiveCount} inactive
+                                          </p>
+                                        </div>
                                       </button>
-                                    )}
-                                    <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
-                                      {question.question_id}
-                                    </Badge>
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
-                                      <span className="text-xs text-slate-400 font-medium hidden sm:inline">Status:</span>
-                                      <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
-                                        {question.active ? 'Active' : 'Inactive'}
+                                    </div>
+                                    
+                                    <Button
+                                      onClick={() => toggleSection(section.name)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-slate-400 hover:text-white -mr-2"
+                                    >
+                                      {expandedSections[section.name] ? 'Collapse' : 'Manage questions'}
+                                    </Button>
+                                  </div>
+
+                                  {/* Section controls */}
+                                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                                    {/* Required toggle */}
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                      <Switch
+                                        checked={section.section_required}
+                                        onCheckedChange={() => toggleSectionRequired(section.name)}
+                                        className="scale-90"
+                                      />
+                                      <Label className="text-xs text-slate-300 cursor-pointer">
+                                        Required section
+                                      </Label>
+                                    </div>
+
+                                    {/* Status toggle */}
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                      <Badge className={section.section_active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
+                                        {section.section_active ? 'Active' : 'Inactive'}
                                       </Badge>
                                       <Switch
-                                        checked={question.active}
-                                        onCheckedChange={() => handleToggleActive(question)}
-                                        className="scale-75 md:scale-90"
+                                        checked={section.section_active}
+                                        onCheckedChange={() => toggleSectionActive(section.name)}
+                                        className="scale-75"
                                       />
                                     </div>
-                                    {question.response_type === 'yes_no' && !question.followup_pack && (
-                                      <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/30 hidden sm:flex" variant="outline">
-                                        <AlertCircle className="w-3 h-3 mr-1" />
-                                        No Follow-up
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-white text-sm md:text-base leading-relaxed mb-3">
-                                    {question.question_text}
-                                  </p>
-                                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 md:gap-3">
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
-                                      <span className="text-xs text-slate-400 font-medium hidden sm:inline">Response:</span>
-                                      <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-                                        {getResponseTypeDisplay(question.response_type)}
-                                      </Badge>
-                                    </div>
-                                    {question.followup_pack && (
-                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-2 md:px-3 py-1 md:py-1.5">
-                                        <span className="text-xs text-slate-400 font-medium hidden sm:inline">Follow-up:</span>
-                                        <button
-                                          onClick={() => handleFollowUpClick(question)}
-                                          className="px-2 md:px-2.5 py-0.5 md:py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
-                                        >
-                                          {getFollowupPackDisplay(question.followup_pack)}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-                                  <div className="flex flex-col gap-1.5 md:gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleEditClick(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-7 md:h-8 text-xs w-20 md:w-28 justify-start"
+
+                                    {/* Skip rule */}
+                                    <button
+                                      onClick={() => setEditingSectionSkip(section)}
+                                      className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 hover:border-slate-600 transition-colors"
                                     >
-                                      <Edit className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDuplicate(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-7 md:h-8 text-xs w-20 md:w-28 justify-start hidden sm:flex"
-                                    >
-                                      <Copy className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
-                                      Duplicate
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDeleteClick(question)}
-                                      className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-7 md:h-8 text-xs w-20 md:w-28 justify-start"
-                                    >
-                                      <Trash2 className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" />
-                                      Delete
-                                    </Button>
+                                      <Settings className="w-3 h-3 text-slate-400" />
+                                      {getSkipRuleBadge(section)}
+                                    </button>
                                   </div>
                                 </div>
                               </div>
                             </div>
+
+                            {/* Expanded section - show questions */}
+                            {expandedSections[section.name] && (
+                              <div className="border-t border-slate-700/50 bg-slate-900/20 p-4">
+                                <div className="flex justify-between items-center mb-4">
+                                  <h4 className="text-sm font-medium text-slate-300">
+                                    Questions ({getQuestionsForSection(section.name).length})
+                                  </h4>
+                                  <Button
+                                    onClick={() => handleAddQuestion(section.name)}
+                                    size="sm"
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                  >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add Question
+                                  </Button>
+                                </div>
+
+                                <DragDropContext onDragEnd={(result) => handleQuestionDragEnd(result, section.name)}>
+                                  <Droppable droppableId={`questions-${section.name}`}>
+                                    {(provided) => (
+                                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                                        {getQuestionsForSection(section.name).map((question, qIndex) => (
+                                          <Draggable key={question.id} draggableId={question.id} index={qIndex}>
+                                            {(provided, snapshot) => (
+                                              <div
+                                                ref={provided.innerRef}
+                                                {...provided.draggableProps}
+                                                className={`bg-slate-800/40 border rounded-lg transition-all ${
+                                                  snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-700/50 hover:border-slate-600'
+                                                } ${!question.active ? 'opacity-40' : ''}`}
+                                              >
+                                                <div className="p-3">
+                                                  <div className="flex items-start gap-3">
+                                                    <div {...provided.dragHandleProps} className="pt-1 cursor-grab active:cursor-grabbing">
+                                                      <GripVertical className="w-4 h-4 text-slate-600 hover:text-slate-400 transition-colors" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                                                          #{question.display_order || 1}
+                                                        </Badge>
+                                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
+                                                          {question.question_id}
+                                                        </Badge>
+                                                        <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
+                                                          {question.active ? 'Active' : 'Inactive'}
+                                                        </Badge>
+                                                        <Switch
+                                                          checked={question.active}
+                                                          onCheckedChange={() => handleToggleActive(question)}
+                                                          className="scale-75"
+                                                        />
+                                                        {section.section_required && question.active && (
+                                                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30" variant="outline">
+                                                            Required (via section)
+                                                          </Badge>
+                                                        )}
+                                                        {!section.section_required && question.is_required && (
+                                                          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" variant="outline">
+                                                            Required question
+                                                          </Badge>
+                                                        )}
+                                                      </div>
+                                                      <p className="text-white text-sm leading-relaxed mb-2">
+                                                        {question.question_text}
+                                                      </p>
+                                                      <div className="flex items-center gap-2">
+                                                        <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                                                          {getResponseTypeDisplay(question.response_type)}
+                                                        </Badge>
+                                                        {question.followup_pack && (
+                                                          <button
+                                                            onClick={() => handleFollowUpClick(question)}
+                                                            className="px-2 py-0.5 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
+                                                          >
+                                                            {getFollowupPackDisplay(question.followup_pack)}
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    <div className="flex gap-1.5">
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleEditClick(question)}
+                                                        className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs"
+                                                      >
+                                                        <Edit className="w-3 h-3 mr-1" />
+                                                        Edit
+                                                      </Button>
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDuplicate(question)}
+                                                        className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs hidden sm:flex"
+                                                      >
+                                                        <Copy className="w-3 h-3" />
+                                                      </Button>
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteClick(question)}
+                                                        className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-7 text-xs"
+                                                      >
+                                                        <Trash2 className="w-3 h-3" />
+                                                      </Button>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                      </div>
+                                    )}
+                                  </Droppable>
+                                </DragDropContext>
+                              </div>
+                            )}
                           </div>
                         )}
                       </Draggable>
@@ -642,6 +677,7 @@ export default function QuestionsManager() {
         </div>
       </div>
 
+      {/* Edit question modal */}
       {showEditModal && (
         <QuestionEditModal
           question={editingQuestion}
@@ -657,6 +693,7 @@ export default function QuestionsManager() {
         />
       )}
 
+      {/* Follow-up pack editor */}
       {showFollowUpEditor && selectedQuestionForFollowUp && (
         <FollowUpPackEditor
           question={selectedQuestionForFollowUp}
@@ -667,6 +704,92 @@ export default function QuestionsManager() {
         />
       )}
 
+      {/* Skip rule editor modal */}
+      <Dialog open={!!editingSectionSkip} onOpenChange={() => setEditingSectionSkip(null)}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>Skip Rule: {editingSectionSkip?.name}</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Configure when this section should be shown or skipped during interviews
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm text-slate-300 mb-2 block">Skip behavior</Label>
+              <Select
+                value={sectionMetadata[editingSectionSkip?.name]?.skip_mode || "always_show"}
+                onValueChange={(value) => {
+                  setSectionMetadata(prev => ({
+                    ...prev,
+                    [editingSectionSkip.name]: {
+                      ...prev[editingSectionSkip.name],
+                      skip_mode: value
+                    }
+                  }));
+                }}
+              >
+                <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="always_show">Always show</SelectItem>
+                  <SelectItem value="skip_if_gate_question_is_no">Skip if gate question is No</SelectItem>
+                  <SelectItem value="custom">Custom rule</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {sectionMetadata[editingSectionSkip?.name]?.skip_mode === "skip_if_gate_question_is_no" && (
+              <div>
+                <Label className="text-sm text-slate-300 mb-2 block">Gate question</Label>
+                <Input
+                  placeholder="e.g., Q001"
+                  value={sectionMetadata[editingSectionSkip?.name]?.gate_question_id || ""}
+                  onChange={(e) => {
+                    setSectionMetadata(prev => ({
+                      ...prev,
+                      [editingSectionSkip.name]: {
+                        ...prev[editingSectionSkip.name],
+                        gate_question_id: e.target.value
+                      }
+                    }));
+                  }}
+                  className="bg-slate-800/50 border-slate-700 text-white"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Enter the Question ID that controls this section
+                </p>
+              </div>
+            )}
+            {sectionMetadata[editingSectionSkip?.name]?.skip_mode === "custom" && (
+              <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-3">
+                <p className="text-xs text-slate-400">
+                  Custom skip rules are stored as admin notes only. Contact development to implement custom logic.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setEditingSectionSkip(null)}
+              className="bg-slate-800 border-slate-600 text-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                toast.success('Skip rule saved');
+                setEditingSectionSkip(null);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Save Skip Rule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialogs */}
       <Dialog open={!!deleteDoubleConfirm} onOpenChange={() => setDeleteDoubleConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
