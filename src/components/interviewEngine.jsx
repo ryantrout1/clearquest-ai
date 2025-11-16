@@ -670,6 +670,12 @@ const FOLLOWUP_PACK_STEPS = {
   ],
 
   // ========== Military History ==========
+  'PACK_MIL_SERVICE': [
+    { Field_Key: 'branch', Prompt: 'Which branch did you serve in?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'service_dates', Prompt: 'When did you serve? (start and end dates)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'rank', Prompt: 'What was your rank when you left?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive? (Honorable, General, OTH, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
   'PACK_MIL_REJECTION': [
     { Field_Key: 'branch', Prompt: 'Which military branch turned you down?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'when_applied', Prompt: 'When did you apply?', Response_Type: 'text', Expected_Type: 'TEXT' },
