@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -62,6 +61,7 @@ export default function QuestionsManager() {
   const [showFollowUpEditor, setShowFollowUpEditor] = useState(false);
   const [selectedQuestionForFollowUp, setSelectedQuestionForFollowUp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -119,6 +119,7 @@ export default function QuestionsManager() {
       queryClient.invalidateQueries({ queryKey: ['questions'] });
       toast.success('Question deleted permanently');
       setDeleteConfirm(null);
+      setDeleteDoubleConfirm(null);
     },
     onError: (err) => {
       console.error('Delete error:', err);
@@ -257,6 +258,16 @@ export default function QuestionsManager() {
   const handleFollowUpClick = (question) => {
     setSelectedQuestionForFollowUp(question);
     setShowFollowUpEditor(true);
+  };
+
+  const handleDeleteClick = (question) => {
+    setDeleteDoubleConfirm(question);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteDoubleConfirm?.id) return;
+    setDeleteConfirm(deleteDoubleConfirm);
+    setDeleteDoubleConfirm(null);
   };
 
   const handleDeleteQuestion = () => {
@@ -461,15 +472,20 @@ export default function QuestionsManager() {
                                   <GripVertical className="w-5 h-5 text-slate-600 hover:text-slate-400 transition-colors" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                  <div className="flex items-center gap-3 mb-2 flex-wrap">
                                     <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                       {question.question_id}
                                     </Badge>
-                                    <Badge className={question.active ? 'bg-green-600/20 text-green-400 border-green-600/30 font-semibold' : 'bg-red-600/20 text-red-400 border-red-600/30 font-semibold'} variant="outline">
+                                    <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
                                       {question.active ? 'Active' : 'Inactive'}
                                     </Badge>
+                                    <Switch
+                                      checked={question.active}
+                                      onCheckedChange={() => handleToggleActive(question)}
+                                      className="scale-90"
+                                    />
                                     {question.response_type === 'yes_no' && !question.followup_pack && (
-                                      <Badge className="bg-red-600/20 text-red-400 border-red-600/30" variant="outline">
+                                      <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/30" variant="outline">
                                         <AlertCircle className="w-3 h-3 mr-1" />
                                         No Follow-up
                                       </Badge>
@@ -498,34 +514,30 @@ export default function QuestionsManager() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleEditClick(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs w-24 justify-start"
+                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-8 text-xs w-28 justify-start"
                                     >
-                                      <Edit className="w-3.5 h-3.5 mr-1.5" />
+                                      <Edit className="w-3.5 h-3.5 mr-2" />
                                       Edit
                                     </Button>
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleDuplicate(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs w-24 justify-start"
+                                      className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white h-8 text-xs w-28 justify-start"
                                     >
-                                      <Copy className="w-3.5 h-3.5 mr-1.5" />
+                                      <Copy className="w-3.5 h-3.5 mr-2" />
                                       Duplicate
                                     </Button>
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => setDeleteConfirm(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-8 text-xs w-24 justify-start"
+                                      onClick={() => handleDeleteClick(question)}
+                                      className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-8 text-xs w-28 justify-start"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                                      <Trash2 className="w-3.5 h-3.5 mr-2" />
                                       Delete
                                     </Button>
                                   </div>
-                                  <Switch
-                                    checked={question.active}
-                                    onCheckedChange={() => handleToggleActive(question)}
-                                  />
                                 </div>
                               </div>
                             </div>
@@ -567,17 +579,51 @@ export default function QuestionsManager() {
         />
       )}
 
+      {/* First confirmation - Are you sure? */}
+      <Dialog open={!!deleteDoubleConfirm} onOpenChange={() => setDeleteDoubleConfirm(null)}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>Delete Question?</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Are you sure you want to delete this question? This action requires confirmation.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteDoubleConfirm && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 my-2">
+              <p className="text-xs text-slate-400 mb-1">{deleteDoubleConfirm.question_id}</p>
+              <p className="text-sm text-white">{deleteDoubleConfirm.question_text}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteDoubleConfirm(null)} 
+              className="bg-slate-800 border-slate-600 text-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Yes, Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Second confirmation - Final delete */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
-            <DialogTitle>Permanently Delete Question</DialogTitle>
+            <DialogTitle className="text-red-400">⚠️ Permanently Delete Question</DialogTitle>
             <DialogDescription className="text-slate-300">
-              Are you sure you want to permanently delete this question? This action cannot be undone. The question will be completely removed from the database.
+              This action cannot be undone. The question will be completely removed from the database.
             </DialogDescription>
           </DialogHeader>
           {deleteConfirm && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 my-2">
-              <p className="text-xs text-slate-400 mb-1">{deleteConfirm.question_id}</p>
+            <div className="bg-red-950/30 border border-red-700/50 rounded-lg p-3 my-2">
+              <p className="text-xs text-red-300 mb-1">{deleteConfirm.question_id}</p>
               <p className="text-sm text-white">{deleteConfirm.question_text}</p>
             </div>
           )}
@@ -595,7 +641,7 @@ export default function QuestionsManager() {
               className="bg-red-600 hover:bg-red-700"
               disabled={deleteQuestionMutation.isPending}
             >
-              {deleteQuestionMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+              {deleteQuestionMutation.isPending ? 'Deleting...' : 'Permanently Delete'}
             </Button>
           </div>
         </DialogContent>
