@@ -1604,6 +1604,29 @@ Return ONLY the summary sentence, nothing else.`;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
+  // Calculate section progress
+  let currentSection = null;
+  let sectionAnswered = 0;
+  let sectionTotal = 0;
+  let sectionProgress = 0;
+
+  if (currentPrompt && currentPrompt.type === 'question' && engine) {
+    const currentCategory = currentPrompt.category;
+    currentSection = currentCategory; // Set currentSection to the category of the current question
+
+    const categoryQuestions = engine.ActiveOrdered.filter(qid => {
+      const q = engine.QById[qid];
+      return q && q.category === currentCategory;
+    });
+    
+    sectionTotal = categoryQuestions.length;
+    sectionAnswered = transcript.filter(t => 
+      t.type === 'question' && 
+      engine.QById[t.questionId]?.category === currentCategory
+    ).length;
+    sectionProgress = sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0;
+  }
+
   const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
@@ -1656,6 +1679,33 @@ Return ONLY the summary sentence, nothing else.`;
               </div>
             )}
             
+            {/* Section Progress Bar */}
+            {currentSection && (
+              <div className="mt-2 md:mt-2.5 pb-2 md:pb-2.5 border-b border-slate-700/30">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] md:text-xs text-slate-400 font-medium">Section: {currentSection}</span>
+                  <span className="text-[10px] md:text-xs text-blue-400 font-medium">{sectionAnswered}/{sectionTotal}</span>
+                </div>
+                <div 
+                  className="w-full h-1 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-label="Section progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={sectionProgress}
+                >
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out"
+                    style={{ 
+                      width: `${sectionProgress}%`,
+                      boxShadow: sectionProgress > 0 ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Overall Progress Bar */}
             <div className="mt-1.5 md:mt-2">
               <div 
                 className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
@@ -1772,7 +1822,7 @@ Return ONLY the summary sentence, nothing else.`;
                 >
                   <div className="flex items-start gap-2 md:gap-3">
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-purple-600/30 border-purple-500/50">
-                      <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" />
+                      <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2 flex-wrap">
