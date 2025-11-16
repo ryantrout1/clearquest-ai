@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -890,6 +890,9 @@ Return ONLY the summary sentence, nothing else.`;
         toast.error("AI Investigator failed to start. Moving to next question...", { duration: 2000 });
       }
 
+      setIsWaitingForAgent(false);
+      setCurrentFollowUpPack(null);
+
       // Need to find the original triggering question and its answer to continue deterministically
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
@@ -1398,49 +1401,6 @@ Return ONLY the summary sentence, nothing else.`;
     return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
   };
 
-  // NEW: Calculate section progress
-  const sectionProgress = useMemo(() => {
-    if (!engine || !currentItem || currentItem.type !== 'question') return null;
-    
-    const currentQuestionId = currentItem.id;
-    const currentQuestion = engine.QById[currentQuestionId];
-    
-    if (!currentQuestion?.category) return null;
-    
-    const currentCategory = currentQuestion.category;
-    
-    // Get all questions in this category
-    const categoryQuestions = engine.ActiveOrdered
-      .map(qid => engine.QById[qid])
-      .filter(q => q && q.category === currentCategory);
-    
-    // Count answered questions in this category
-    const answeredInCategory = transcript.filter(t => 
-      t.type === 'question' && 
-      engine.QById[t.questionId]?.category === currentCategory
-    ).length;
-    
-    // Get section index (1-based)
-    const allCategories = [...new Set(
-      engine.ActiveOrdered
-        .map(qid => engine.QById[qid]?.category)
-        .filter(Boolean)
-    )];
-    
-    const sectionIndex = allCategories.indexOf(currentCategory) + 1;
-    
-    return {
-      name: currentCategory,
-      answered: answeredInCategory,
-      total: categoryQuestions.length,
-      percentage: categoryQuestions.length > 0 
-        ? Math.round((answeredInCategory / categoryQuestions.length) * 100) 
-        : 0,
-      index: sectionIndex,
-      totalSections: allCategories.length
-    };
-  }, [engine, currentItem, transcript]);
-
   const getCurrentPrompt = () => {
     if (isWaitingForAgent) return null;
     if (!currentItem || !engine) return null;
@@ -1593,7 +1553,7 @@ Return ONLY the summary sentence, nothing else.`;
       } else if (msg.role === 'user') {
         // This case should ideally not be reached if previous assistant message was paired.
         // If it is reached, it's a user message without a preceding assistant message (within probing context).
-        // This usually means it's an answer to an an assistant question that wasn't correctly paired.
+        // This usually means it's an answer to an assistant question that wasn't correctly paired.
         // For robustness, if it's a user message that isn't the *last* pending one, we can display it.
         // However, the `getLastAgentQuestion` handles the *current* pending interaction,
         // so `displayableAgentMessages` should primarily focus on completed exchanges.
@@ -1654,20 +1614,20 @@ Return ONLY the summary sentence, nothing else.`;
   return (
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-1.5 md:py-3 sticky top-0 z-10">
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-3 md:px-4 py-2 md:py-3">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-1 md:mb-3">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
               <div className="flex items-center gap-2 md:gap-3">
-                <Shield className="w-4 h-4 md:w-6 md:h-6 text-blue-400" />
-                <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest</h1>
+                <Shield className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
+                <h1 className="text-base md:text-lg font-semibold text-white">ClearQuest</h1>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePauseClick}
-                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 px-2 md:px-3 h-7 md:h-9 text-xs md:text-sm"
+                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 px-2 md:px-3 h-8 md:h-9 text-xs md:text-sm"
               >
-                <Pause className="w-3 h-3 md:w-4 md:h-4" />
+                <Pause className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span className="hidden sm:inline">Pause</span>
               </Button>
             </div>
@@ -1691,58 +1651,15 @@ Return ONLY the summary sentence, nothing else.`;
             )}
             
             {department && (
-              <div className="md:hidden text-[9px] text-slate-500 border-t border-slate-700/50 pt-1 pb-1">
+              <div className="md:hidden text-[10px] text-slate-500 border-t border-slate-700/50 pt-1.5 pb-1.5">
                 {session?.department_code} • {session?.file_number}
               </div>
             )}
             
-            {/* Section Progress (NEW) */}
-            {sectionProgress && (
-              <div className="mt-1 md:mt-3 space-y-0.5 md:space-y-1">
-                <div className="flex items-center justify-between text-[9px] md:text-xs">
-                  <div className="flex items-center gap-1 md:gap-2 min-w-0 flex-1">
-                    <span className="font-semibold text-slate-300 truncate">{sectionProgress.name}</span>
-                    <span className="text-slate-500 text-[8px] md:text-[10px] whitespace-nowrap">
-                      Section {sectionProgress.index}/{sectionProgress.totalSections}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-slate-400 whitespace-nowrap ml-2 font-medium">
-                    <span>{sectionProgress.answered}/{sectionProgress.total}</span>
-                  </div>
-                </div>
-                <div 
-                  className="w-full h-0.5 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
-                  role="progressbar"
-                  aria-label="Section progress"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={sectionProgress.percentage}
-                >
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-500 ease-out"
-                    style={{ 
-                      width: `${sectionProgress.percentage}%`,
-                      boxShadow: sectionProgress.percentage > 0 ? '0 0 10px rgba(34, 197, 94, 0.5)' : 'none'
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            
-            {/* Overall Progress */}
-            <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1">
-              <div className="flex items-center justify-between text-[9px] md:text-xs">
-                <span className="font-medium text-slate-400">Overall Interview</span>
-                <div className="flex items-center gap-1 text-green-400 font-medium">
-                  <span>{answeredCount}/{totalQuestions}</span>
-                  <span className="text-slate-500">•</span>
-                  <span>{progress}%</span>
-                </div>
-              </div>
+            <div className="mt-1.5 md:mt-2">
               <div 
-                className="w-full h-1 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
+                className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
-                aria-label="Overall progress"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={progress}
@@ -1754,6 +1671,11 @@ Return ONLY the summary sentence, nothing else.`;
                     boxShadow: progress > 0 ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none'
                   }}
                 />
+              </div>
+              <div className="flex justify-end items-center gap-1.5 md:gap-2 mt-1 md:mt-1.5">
+                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}%</span>
+                <span className="text-[10px] md:text-xs text-green-400">•</span>
+                <span className="text-[10px] md:text-xs font-medium text-green-400">{answeredCount}/{totalQuestions}</span>
               </div>
             </div>
           </div>
