@@ -338,7 +338,13 @@ export default function SystemAdminDashboard() {
                 Platform health, department management, and system-wide metrics
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Link to={createPageUrl("QuestionsManager")} className="w-full md:w-auto">
+                <Button variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700" size="sm">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Questions
+                </Button>
+              </Link>
               <Link to={createPageUrl("BackfillSummaries")} className="w-full md:w-auto">
                 <Button variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700" size="sm">
                   <Shield className="w-4 h-4 mr-2" />
