@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -460,45 +461,39 @@ export default function QuestionsManager() {
                                   <GripVertical className="w-5 h-5 text-slate-600 hover:text-slate-400 transition-colors" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between gap-3 mb-3">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
-                                          {question.question_id}
-                                        </Badge>
-                                        <Badge className={question.active ? 'bg-green-600/20 text-green-400 border-green-600/30 font-semibold' : 'bg-red-600/20 text-red-400 border-red-600/30 font-semibold'} variant="outline">
-                                          {question.active ? 'Active' : 'Inactive'}
-                                        </Badge>
-                                        {question.response_type === 'yes_no' && !question.followup_pack && (
-                                          <Badge className="bg-red-600/20 text-red-400 border-red-600/30" variant="outline">
-                                            <AlertCircle className="w-3 h-3 mr-1" />
-                                            No Follow-up
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-white text-base leading-relaxed mb-3">
-                                        {question.question_text}
-                                      </p>
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
-                                          {getResponseTypeDisplay(question.response_type)}
-                                        </Badge>
-                                        {question.followup_pack && (
-                                          <button
-                                            onClick={() => handleFollowUpClick(question)}
-                                            className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
-                                          >
-                                            {getFollowupPackDisplay(question.followup_pack)}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <Switch
-                                      checked={question.active}
-                                      onCheckedChange={() => handleToggleActive(question)}
-                                    />
+                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                    <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
+                                      {question.question_id}
+                                    </Badge>
+                                    <Badge className={question.active ? 'bg-green-600/20 text-green-400 border-green-600/30 font-semibold' : 'bg-red-600/20 text-red-400 border-red-600/30 font-semibold'} variant="outline">
+                                      {question.active ? 'Active' : 'Inactive'}
+                                    </Badge>
+                                    {question.response_type === 'yes_no' && !question.followup_pack && (
+                                      <Badge className="bg-red-600/20 text-red-400 border-red-600/30" variant="outline">
+                                        <AlertCircle className="w-3 h-3 mr-1" />
+                                        No Follow-up
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="flex flex-wrap gap-2">
+                                  <p className="text-white text-base leading-relaxed mb-3">
+                                    {question.question_text}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
+                                      {getResponseTypeDisplay(question.response_type)}
+                                    </Badge>
+                                    {question.followup_pack && (
+                                      <button
+                                        onClick={() => handleFollowUpClick(question)}
+                                        className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
+                                      >
+                                        {getFollowupPackDisplay(question.followup_pack)}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <div className="flex gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -527,6 +522,10 @@ export default function QuestionsManager() {
                                       Delete
                                     </Button>
                                   </div>
+                                  <Switch
+                                    checked={question.active}
+                                    onCheckedChange={() => handleToggleActive(question)}
+                                  />
                                 </div>
                               </div>
                             </div>
