@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -80,6 +81,7 @@ export default function QuestionsManager() {
         }
         setUser(auth);
       } catch (err) {
+          console.error("Failed to parse admin auth from session storage", err);
         navigate(createPageUrl("AdminLogin"));
       }
     } else {
@@ -91,6 +93,7 @@ export default function QuestionsManager() {
         }
         setUser(currentUser);
       } catch (err) {
+        console.error("Failed to fetch current user or not authenticated", err);
         navigate(createPageUrl("AdminLogin"));
       }
     }

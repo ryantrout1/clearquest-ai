@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "@/components/utils/followupPackNames";
+import { FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../utils/followupPackNames";
 
 const AVAILABLE_PACKS = [
   'PACK_LE_APPS', 'PACK_WITHHOLD_INFO', 'PACK_DISQUALIFIED', 'PACK_CHEATING',
