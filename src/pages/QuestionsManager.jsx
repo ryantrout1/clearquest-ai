@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
+
 import QuestionEditModal from "../components/admin/QuestionEditModal";
 import FollowUpPackEditor from "../components/admin/FollowUpPackEditor";
 import { cleanupDuplicateQuestions } from '../functions/cleanupDuplicateQuestions';
@@ -319,15 +319,21 @@ export default function QuestionsManager() {
             >
               <div className="font-medium text-sm mb-1.5 leading-tight">{section.name}</div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className={`text-xs ${
+                <Badge variant="outline" className={
                   selectedSection === section.name 
                     ? 'border-white/30 text-white/80' 
                     : 'border-slate-600 text-slate-400'
-                }`}>
+                }>
                   {section.activeCount} questions
                 </Badge>
                 {section.count !== section.activeCount && (
-                  <span className="text-xs text-slate-500">({section.count - section.activeCount} inactive)</span>
+                  <span className={`text-xs ${
+                    selectedSection === section.name 
+                      ? 'text-white/70' 
+                      : 'text-slate-500'
+                  }`}>
+                    ({section.count - section.activeCount} inactive)
+                  </span>
                 )}
               </div>
             </button>
