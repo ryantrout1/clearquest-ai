@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -919,6 +920,16 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
+  'PACK_PAID_SEX': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'for_self_or_other', Prompt: 'Was this for yourself or someone else?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'frequency', Prompt: 'How many times did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were you arrested or charged? What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
   'PACK_PORNOGRAPHY': [
     { Field_Key: 'involvement_type', Prompt: 'What was your involvement? (viewing, distribution, production, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
@@ -940,6 +951,18 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
     { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reported', Prompt: 'Was it reported to law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_NON_CONSENT': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'victim_age', Prompt: 'How old was the person?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_age', Prompt: 'How old were you at the time?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_no_consent', Prompt: 'Why could they not provide consent? (age, intoxication, incapacitation, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'reported', Prompt: 'Was it reported to law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
