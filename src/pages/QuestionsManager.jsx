@@ -27,6 +27,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import QuestionEditModal from "../components/admin/QuestionEditModal";
 import FollowUpPackEditor from "../components/admin/FollowUpPackEditor";
+import { cleanupDuplicateQuestions } from '../functions/cleanupDuplicateQuestions';
 
 const SECTION_ORDER = [
   "Applications with Other Law Enforcement Agencies",
@@ -60,6 +61,8 @@ export default function QuestionsManager() {
   const [selectedQuestionForFollowUp, setSelectedQuestionForFollowUp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showMobileSections, setShowMobileSections] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
 
   useEffect(() => {
     checkAuth();
@@ -258,6 +261,27 @@ export default function QuestionsManager() {
     deleteQuestionMutation.mutate(deleteConfirm.id);
   };
 
+  const handleCleanupDuplicates = async () => {
+    if (!confirm('This will remove all duplicate questions, keeping only the most recent active version of each. Continue?')) {
+      return;
+    }
+    
+    setIsCleaningUp(true);
+    try {
+      const result = await cleanupDuplicateQuestions();
+      if (result.success) {
+        toast.success(result.summary);
+        queryClient.invalidateQueries({ queryKey: ['questions'] });
+      } else {
+        toast.error('Cleanup failed: ' + result.error);
+      }
+    } catch (err) {
+      toast.error('Cleanup failed');
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -320,14 +344,25 @@ export default function QuestionsManager() {
               <Shield className="w-6 h-6 text-blue-400" />
               <h1 className="text-xl font-bold text-white">Question Bank Manager</h1>
             </div>
-            <Button
-              onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
-              variant="ghost"
-              size="sm"
-              className="lg:hidden text-slate-300"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleCleanupDuplicates}
+                disabled={isCleaningUp}
+                variant="outline"
+                size="sm"
+                className="hidden lg:flex bg-slate-900/50 border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                {isCleaningUp ? 'Cleaning...' : 'Cleanup Duplicates'}
+              </Button>
+              <Button
+                onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
+                variant="ghost"
+                size="sm"
+                className="lg:hidden text-slate-300"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Section Header - Desktop */}
