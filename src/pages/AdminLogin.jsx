@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -40,6 +41,7 @@ export default function AdminLogin() {
       // Store authentication in session storage
       sessionStorage.setItem("clearquest_admin_auth", JSON.stringify({
         username: validUser.username,
+        role: 'SUPER_ADMIN', // Added role here
         timestamp: Date.now()
       }));
       navigate(createPageUrl("HomeHub"));
