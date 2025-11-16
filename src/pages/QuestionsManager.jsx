@@ -113,10 +113,10 @@ export default function QuestionsManager() {
   });
 
   const deleteQuestionMutation = useMutation({
-    mutationFn: (id) => base44.entities.Question.update(id, { active: false }),
+    mutationFn: (id) => base44.entities.Question.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questions'] });
-      toast.success('Question marked as inactive');
+      toast.success('Question deleted permanently');
       setDeleteConfirm(null);
     },
     onError: (err) => {
@@ -579,9 +579,9 @@ export default function QuestionsManager() {
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
-            <DialogTitle>Deactivate Question</DialogTitle>
+            <DialogTitle>Permanently Delete Question</DialogTitle>
             <DialogDescription className="text-slate-300">
-              Are you sure you want to deactivate this question? It will be marked as inactive and won't appear in new interviews, but existing historical data will be preserved.
+              Are you sure you want to permanently delete this question? This action cannot be undone. The question will be completely removed from the database.
             </DialogDescription>
           </DialogHeader>
           {deleteConfirm && (
@@ -604,7 +604,7 @@ export default function QuestionsManager() {
               className="bg-red-600 hover:bg-red-700"
               disabled={deleteQuestionMutation.isPending}
             >
-              {deleteQuestionMutation.isPending ? 'Deactivating...' : 'Deactivate'}
+              {deleteQuestionMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
             </Button>
           </div>
         </DialogContent>
