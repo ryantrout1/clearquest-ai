@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -476,14 +477,17 @@ export default function QuestionsManager() {
                                     <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                       {question.question_id}
                                     </Badge>
-                                    <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
-                                      {question.active ? 'Active' : 'Inactive'}
-                                    </Badge>
-                                    <Switch
-                                      checked={question.active}
-                                      onCheckedChange={() => handleToggleActive(question)}
-                                      className="scale-90"
-                                    />
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                      <span className="text-xs text-slate-400 font-medium">Status:</span>
+                                      <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
+                                        {question.active ? 'Active' : 'Inactive'}
+                                      </Badge>
+                                      <Switch
+                                        checked={question.active}
+                                        onCheckedChange={() => handleToggleActive(question)}
+                                        className="scale-90"
+                                      />
+                                    </div>
                                     {question.response_type === 'yes_no' && !question.followup_pack && (
                                       <Badge className="bg-amber-600/20 text-amber-400 border-amber-600/30" variant="outline">
                                         <AlertCircle className="w-3 h-3 mr-1" />
