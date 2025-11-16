@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -6,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, X, ChevronRight } from "lucide-react";
+import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +27,6 @@ import { toast } from "sonner";
 
 import QuestionEditModal from "../components/admin/QuestionEditModal";
 import FollowUpPackEditor from "../components/admin/FollowUpPackEditor";
-import { cleanupDuplicateQuestions } from '../functions/cleanupDuplicateQuestions';
 import { getFollowupPackDisplay, getResponseTypeDisplay } from "../components/utils/followupPackNames";
 
 const SECTION_ORDER = [
@@ -57,14 +55,12 @@ export default function QuestionsManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [followupFilter, setFollowupFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("display_order");
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFollowUpEditor, setShowFollowUpEditor] = useState(false);
   const [selectedQuestionForFollowUp, setSelectedQuestionForFollowUp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [showMobileSections, setShowMobileSections] = useState(false);
-  const [isCleaningUp, setIsCleaningUp] = useState(false);
-
 
   useEffect(() => {
     checkAuth();
@@ -81,7 +77,7 @@ export default function QuestionsManager() {
         }
         setUser(auth);
       } catch (err) {
-          console.error("Failed to parse admin auth from session storage", err);
+        console.error("Failed to parse admin auth from session storage", err);
         navigate(createPageUrl("AdminLogin"));
       }
     } else {
@@ -183,8 +179,13 @@ export default function QuestionsManager() {
       filtered = filtered.filter(q => !q.followup_pack && q.response_type === 'yes_no');
     }
 
-    return filtered.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-  }, [questions, selectedSection, searchQuery, activeFilter, followupFilter]);
+    return filtered.sort((a, b) => {
+      if (sortBy === "alphabetical") {
+        return (a.question_text || '').localeCompare(b.question_text || '');
+      }
+      return (a.display_order || 0) - (b.display_order || 0);
+    });
+  }, [questions, selectedSection, searchQuery, activeFilter, followupFilter, sortBy]);
 
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
@@ -265,27 +266,6 @@ export default function QuestionsManager() {
     deleteQuestionMutation.mutate(deleteConfirm.id);
   };
 
-  const handleCleanupDuplicates = async () => {
-    if (!confirm('This will remove all duplicate questions, keeping only the most recent active version of each. Continue?')) {
-      return;
-    }
-    
-    setIsCleaningUp(true);
-    try {
-      const result = await cleanupDuplicateQuestions();
-      if (result.success) {
-        toast.success(result.summary);
-        queryClient.invalidateQueries({ queryKey: ['questions'] });
-      } else {
-        toast.error('Cleanup failed: ' + result.error);
-      }
-    } catch (err) {
-      toast.error('Cleanup failed');
-    } finally {
-      setIsCleaningUp(false);
-    }
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -354,25 +334,14 @@ export default function QuestionsManager() {
               <Shield className="w-6 h-6 text-blue-400" />
               <h1 className="text-xl font-bold text-white">Question Bank Manager</h1>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleCleanupDuplicates}
-                disabled={isCleaningUp}
-                variant="outline"
-                size="sm"
-                className="hidden lg:flex bg-slate-900/50 border-slate-600 text-slate-300 hover:bg-slate-700"
-              >
-                {isCleaningUp ? 'Cleaning...' : 'Cleanup Duplicates'}
-              </Button>
-              <Button
-                onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
-                variant="ghost"
-                size="sm"
-                className="lg:hidden text-slate-300"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button
+              onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
+              variant="ghost"
+              size="sm"
+              className="lg:hidden text-slate-300"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* Section Header - Desktop */}
@@ -410,7 +379,7 @@ export default function QuestionsManager() {
 
         {/* Filters Bar */}
         <div className="border-b border-slate-700/30 bg-[#0f172a] px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input
@@ -438,6 +407,25 @@ export default function QuestionsManager() {
                 <SelectItem value="all">All Follow-ups</SelectItem>
                 <SelectItem value="has">Has Follow-up Pack</SelectItem>
                 <SelectItem value="missing">Missing Follow-up Pack</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="display_order">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="w-3 h-3" />
+                    Display Order
+                  </div>
+                </SelectItem>
+                <SelectItem value="alphabetical">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="w-3 h-3" />
+                    Alphabetical
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
