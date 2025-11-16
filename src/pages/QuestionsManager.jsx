@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -53,20 +54,22 @@ export default function QuestionsManager() {
     if (adminAuth) {
       try {
         const auth = JSON.parse(adminAuth);
-        setUser(auth);
         if (auth.role !== 'SUPER_ADMIN') {
           navigate(createPageUrl("HomeHub"));
+          return;
         }
+        setUser(auth);
       } catch (err) {
         navigate(createPageUrl("AdminLogin"));
       }
     } else {
       try {
         const currentUser = await base44.auth.me();
-        setUser(currentUser);
         if (currentUser.role !== 'SUPER_ADMIN') {
           navigate(createPageUrl("HomeHub"));
+          return;
         }
+        setUser(currentUser);
       } catch (err) {
         navigate(createPageUrl("AdminLogin"));
       }
@@ -76,6 +79,7 @@ export default function QuestionsManager() {
   const { data: questions = [], isLoading } = useQuery({
     queryKey: ['questions'],
     queryFn: () => base44.entities.Question.list(),
+    enabled: !!user
   });
 
   const updateQuestionMutation = useMutation({
