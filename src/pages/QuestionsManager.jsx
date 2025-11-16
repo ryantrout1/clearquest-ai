@@ -521,14 +521,14 @@ export default function QuestionsManager() {
 
                                     {/* Status toggle */}
                                     <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
-                                      <Badge className={section.section_active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
-                                        {section.section_active ? 'Active' : 'Inactive'}
-                                      </Badge>
                                       <Switch
                                         checked={section.section_active}
                                         onCheckedChange={() => toggleSectionActive(section.name)}
-                                        className="scale-75"
+                                        className="scale-90"
                                       />
+                                      <Label className="text-xs text-slate-300 cursor-pointer">
+                                        {section.section_active ? 'Active' : 'Inactive'}
+                                      </Label>
                                     </div>
 
                                     {/* Skip rule */}
