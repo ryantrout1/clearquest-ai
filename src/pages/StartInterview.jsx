@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, ArrowLeft, Loader2, Lock, Bug } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
-import { cn } from "@/components/utils/cn"; // Modified import path
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 
 export default function StartInterview() {
