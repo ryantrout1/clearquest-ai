@@ -498,17 +498,23 @@ export default function QuestionsManager() {
                                   <p className="text-white text-base leading-relaxed mb-3">
                                     {question.question_text}
                                   </p>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
-                                      {getResponseTypeDisplay(question.response_type)}
-                                    </Badge>
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                      <span className="text-xs text-slate-400 font-medium">Response Type:</span>
+                                      <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                                        {getResponseTypeDisplay(question.response_type)}
+                                      </Badge>
+                                    </div>
                                     {question.followup_pack && (
-                                      <button
-                                        onClick={() => handleFollowUpClick(question)}
-                                        className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
-                                      >
-                                        {getFollowupPackDisplay(question.followup_pack)}
-                                      </button>
+                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                        <span className="text-xs text-slate-400 font-medium">Follow-up Pack:</span>
+                                        <button
+                                          onClick={() => handleFollowUpClick(question)}
+                                          className="px-2.5 py-1 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
+                                        >
+                                          {getFollowupPackDisplay(question.followup_pack)}
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
