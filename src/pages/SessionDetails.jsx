@@ -13,7 +13,7 @@ import {
   ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
 } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn } from "@/components/utils/cn";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {

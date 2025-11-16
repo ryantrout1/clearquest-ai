@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -12,7 +13,7 @@ import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn } from "@/components/utils/cn";
 import { toast } from "sonner";
 
 export default function InterviewDashboard() {
