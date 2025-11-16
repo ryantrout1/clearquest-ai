@@ -909,6 +909,11 @@ const SKIP_RULES = {
     skipIfAnswer: 'No',
     skipToQuestion: 'Q005'
   },
+  // If never served in military, skip military-specific questions to Employment History
+  'Q152': {
+    skipIfAnswer: 'No',
+    skipToQuestion: 'Q155'
+  },
   // If answered No to Q147 (never worked in LE), skip Prior LE section but NOT the final General Disclosures
   'Q147': {
     skipIfAnswer: 'No',
