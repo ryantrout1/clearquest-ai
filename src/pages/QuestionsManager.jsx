@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -63,6 +64,7 @@ export default function QuestionsManager() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [editingDisplayOrder, setEditingDisplayOrder] = useState({});
 
   useEffect(() => {
     checkAuth();
@@ -220,6 +222,40 @@ export default function QuestionsManager() {
     });
   };
 
+  const handleDisplayOrderChange = async (question, newOrder) => {
+    const orderNum = parseInt(newOrder);
+    if (isNaN(orderNum) || orderNum < 1) {
+      toast.error('Display order must be a positive number');
+      return;
+    }
+
+    try {
+      await base44.entities.Question.update(question.id, { display_order: orderNum });
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      setEditingDisplayOrder({});
+      toast.success('Display order updated');
+    } catch (err) {
+      toast.error('Failed to update display order');
+    }
+  };
+
+  const handleAutoSequence = async () => {
+    if (!window.confirm(`Auto-sequence all ${filteredQuestions.length} questions in this section? This will assign sequential numbers 1, 2, 3... based on current order.`)) {
+      return;
+    }
+
+    try {
+      const updates = filteredQuestions.map((q, index) => 
+        base44.entities.Question.update(q.id, { display_order: index + 1 })
+      );
+      await Promise.all(updates);
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      toast.success('All questions sequenced');
+    } catch (err) {
+      toast.error('Failed to sequence questions');
+    }
+  };
+
   const handleEditClick = (question) => {
     setEditingQuestion(question);
     setShowEditModal(true);
@@ -289,12 +325,10 @@ export default function QuestionsManager() {
 
   return (
     <div className="min-h-screen bg-[#0f172a] flex">
-      {/* Mobile Sidebar Overlay */}
       {showMobileSidebar && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)} />
       )}
 
-      {/* Left Sidebar - Sections */}
       <div className={`${showMobileSidebar ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-72 border-r border-slate-700/50 bg-[#1e293b] transition-transform duration-300 lg:block`}>
         <div className="p-6 border-b border-slate-700/50">
           <Button
@@ -346,9 +380,7 @@ export default function QuestionsManager() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 w-full">
-        {/* Top Header */}
         <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -373,30 +405,38 @@ export default function QuestionsManager() {
             </Button>
           </div>
 
-          {/* Section Header - Desktop */}
           <div className="hidden md:flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-white">{selectedSection}</h2>
               <p className="text-sm text-slate-400">{filteredQuestions.length} questions in this section</p>
             </div>
-            <Button onClick={handleAddQuestion} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Question
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleAutoSequence} variant="outline" className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                Auto-Sequence
+              </Button>
+              <Button onClick={handleAddQuestion} className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Question
+              </Button>
+            </div>
           </div>
 
-          {/* Mobile Section Display */}
           <div className="md:hidden">
             <p className="text-sm text-slate-300 font-medium mb-2">{selectedSection}</p>
             <p className="text-xs text-slate-400 mb-3">{filteredQuestions.length} questions</p>
-            <Button onClick={handleAddQuestion} className="w-full bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Question
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleAutoSequence} variant="outline" className="flex-1 bg-slate-700/30 border-slate-600 text-slate-200 text-xs">
+                Auto-Sequence
+              </Button>
+              <Button onClick={handleAddQuestion} className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs">
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Filters Bar */}
         <div className="border-b border-slate-700/30 bg-[#0f172a] px-4 md:px-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
@@ -450,7 +490,6 @@ export default function QuestionsManager() {
           </div>
         </div>
 
-        {/* Questions List */}
         <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 bg-[#0f172a]">
           {isLoading ? (
             <div className="text-center text-slate-400 py-12">Loading questions...</div>
@@ -480,6 +519,39 @@ export default function QuestionsManager() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 md:gap-3 mb-2 flex-wrap">
+                                    {editingDisplayOrder[question.id] ? (
+                                      <div className="flex items-center gap-2 bg-slate-800/50 border border-blue-500 rounded-lg px-2 py-1">
+                                        <span className="text-xs text-slate-400 font-medium">#</span>
+                                        <Input
+                                          type="number"
+                                          defaultValue={question.display_order || 1}
+                                          onBlur={(e) => {
+                                            handleDisplayOrderChange(question, e.target.value);
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              handleDisplayOrderChange(question, e.target.value);
+                                            }
+                                            if (e.key === 'Escape') {
+                                              setEditingDisplayOrder({});
+                                            }
+                                          }}
+                                          autoFocus
+                                          className="w-16 h-6 bg-slate-900 border-slate-600 text-white text-sm px-2"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => setEditingDisplayOrder({ [question.id]: true })}
+                                        className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 hover:border-blue-500/50 transition-colors group"
+                                        title="Click to edit display order"
+                                      >
+                                        <span className="text-xs text-slate-400 font-medium">Order:</span>
+                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:text-blue-300">
+                                          #{question.display_order || 1}
+                                        </Badge>
+                                      </button>
+                                    )}
                                     <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                       {question.question_id}
                                     </Badge>
