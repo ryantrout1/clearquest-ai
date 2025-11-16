@@ -493,12 +493,12 @@ export default function QuestionsManager() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3 flex-shrink-0">
-                                  <div className="flex gap-2">
+                                  <div className="flex flex-col gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleEditClick(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs"
+                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs w-24 justify-start"
                                     >
                                       <Edit className="w-3.5 h-3.5 mr-1.5" />
                                       Edit
@@ -507,7 +507,7 @@ export default function QuestionsManager() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleDuplicate(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs"
+                                      className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white h-8 text-xs w-24 justify-start"
                                     >
                                       <Copy className="w-3.5 h-3.5 mr-1.5" />
                                       Duplicate
@@ -516,7 +516,7 @@ export default function QuestionsManager() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => setDeleteConfirm(question)}
-                                      className="bg-slate-800/50 border-slate-700 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-8 text-xs"
+                                      className="bg-slate-800/50 border-slate-700 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-8 text-xs w-24 justify-start"
                                     >
                                       <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                                       Delete
