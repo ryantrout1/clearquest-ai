@@ -526,7 +526,9 @@ export default function QuestionsManager() {
                                         onCheckedChange={() => toggleSectionActive(section.name)}
                                         className="scale-90"
                                       />
-                                      <Label className="text-xs text-slate-300 cursor-pointer">
+                                      <Label className={`text-xs cursor-pointer font-medium ${
+                                        section.section_active ? 'text-emerald-400' : 'text-slate-400'
+                                      }`}>
                                         {section.section_active ? 'Active' : 'Inactive'}
                                       </Label>
                                     </div>
