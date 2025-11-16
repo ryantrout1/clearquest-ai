@@ -9,11 +9,16 @@ export async function cleanupDuplicateQuestions() {
   try {
     // Get all questions
     const allQuestions = await base44.entities.Question.list();
+    console.log(`Total questions found: ${allQuestions.length}`);
     
-    // Group by question_id
+    // Group by question_id (accessing nested data property)
     const grouped = {};
     allQuestions.forEach(q => {
-      const qid = q.question_id;
+      const qid = q.question_id; // Already flattened by base44 SDK
+      if (!qid) {
+        console.warn('Question without question_id:', q.id);
+        return;
+      }
       if (!grouped[qid]) {
         grouped[qid] = [];
       }
@@ -25,30 +30,48 @@ export async function cleanupDuplicateQuestions() {
     
     Object.entries(grouped).forEach(([qid, questions]) => {
       if (questions.length > 1) {
+        console.log(`Found ${questions.length} copies of question ${qid}`);
+        
         // Sort by: active first, then by created_date (newest first)
         questions.sort((a, b) => {
-          if (a.active !== b.active) return b.active ? 1 : -1;
+          const aActive = a.active ?? true;
+          const bActive = b.active ?? true;
+          if (aActive !== bActive) return bActive ? 1 : -1;
           return new Date(b.created_date) - new Date(a.created_date);
         });
         
         // Keep the first one (most recent active), delete the rest
         const [keep, ...duplicates] = questions;
-        console.log(`Question ${qid}: Keeping ${keep.id}, deleting ${duplicates.length} duplicates`);
+        console.log(`Question ${qid}: Keeping ${keep.id} (active: ${keep.active}), deleting ${duplicates.length} duplicates`);
         toDelete.push(...duplicates.map(d => d.id));
       }
     });
     
-    console.log(`Found ${toDelete.length} duplicate questions to delete`);
+    console.log(`Found ${toDelete.length} duplicate questions to permanently delete`);
     
-    // Delete duplicates
+    if (toDelete.length === 0) {
+      return {
+        success: true,
+        deleted: 0,
+        summary: 'No duplicate questions found'
+      };
+    }
+    
+    // Delete duplicates permanently
+    let deleted = 0;
     for (const id of toDelete) {
-      await base44.entities.Question.delete(id);
+      try {
+        await base44.entities.Question.delete(id);
+        deleted++;
+      } catch (err) {
+        console.error(`Failed to delete question ${id}:`, err);
+      }
     }
     
     return {
       success: true,
-      deleted: toDelete.length,
-      summary: `Cleaned up ${toDelete.length} duplicate questions`
+      deleted,
+      summary: `Permanently removed ${deleted} duplicate questions`
     };
     
   } catch (err) {
