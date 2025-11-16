@@ -1325,6 +1325,27 @@ const FOLLOWUP_PACK_STEPS = {
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
 
 // ============================================================================
+// SECTION ORDER - DEFINES THE SEQUENCE OF CATEGORIES
+// ============================================================================
+
+const SECTION_ORDER = [
+  "Applications with Other Law Enforcement Agencies",
+  "Driving Record",
+  "Criminal Involvement / Police Contacts",
+  "Extremist Organizations",
+  "Sexual Activities",
+  "Financial History",
+  "Illegal Drug / Narcotic History",
+  "Alcohol History",
+  "Military History",
+  "Employment History",
+  "Prior Law Enforcement",
+  "General Disclosures & Eligibility",
+  "Prior Law Enforcement ONLY",
+  "All Applicants"
+];
+
+// ============================================================================
 // SKIP RULES - FIXED TO MATCH ACTUAL QUESTIONS
 // ============================================================================
 
@@ -1432,9 +1453,25 @@ export function parseQuestionsToMaps(questions) {
   const NextById = {};
   const ActiveOrdered = [];
   const MatrixYesByQ = {};
-  const UndefinedPacks = new Set(); // Track undefined packs for warnings
+  const UndefinedPacks = new Set();
 
-  const sorted = [...questions].sort((a, b) => a.display_order - b.display_order);
+  // CRITICAL FIX: Sort by category (using SECTION_ORDER), then by display_order within each category
+  const sorted = [...questions].sort((a, b) => {
+    // First, sort by section/category order
+    const aCategoryIndex = SECTION_ORDER.indexOf(a.category);
+    const bCategoryIndex = SECTION_ORDER.indexOf(b.category);
+    
+    // If categories are different, sort by category order
+    if (aCategoryIndex !== bCategoryIndex) {
+      // Put unknown categories at the end
+      if (aCategoryIndex === -1) return 1;
+      if (bCategoryIndex === -1) return -1;
+      return aCategoryIndex - bCategoryIndex;
+    }
+    
+    // If same category, sort by display_order
+    return (a.display_order || 0) - (b.display_order || 0);
+  });
 
   sorted.forEach((q, index) => {
     if (!q.active) return;
@@ -1442,8 +1479,11 @@ export function parseQuestionsToMaps(questions) {
     QById[q.question_id] = q;
     ActiveOrdered.push(q.question_id);
 
+    // Set next question based on sorted order
+    // Ensure that if a question has a specific next_question_id, that takes precedence
+    // Otherwise, default to the next active question in the sorted list.
     if (q.next_question_id) {
-      NextById[q.question_id] = q.next_question_id;
+        NextById[q.question_id] = q.next_question_id;
     } else if (index + 1 < sorted.length) {
       const nextActive = sorted.slice(index + 1).find(nq => nq.active);
       if (nextActive) {
@@ -1452,14 +1492,13 @@ export function parseQuestionsToMaps(questions) {
     }
 
     // ENTITY-DRIVEN: Use Question.followup_pack field DIRECTLY
-    // ROBUSTNESS: Don't fail if pack is undefined - just log warning
     if (q.followup_pack && q.response_type === 'yes_no') {
       MatrixYesByQ[q.question_id] = q.followup_pack;
       
       // Check if pack is defined
       if (!FOLLOWUP_PACK_STEPS[q.followup_pack]) {
         UndefinedPacks.add(q.followup_pack);
-        console.warn(`⚠️ Question ${q.question_id} references undefined pack: ${q.followup_pack} (will be treated as no follow-up)`);
+        console.warn(`⚠️ Question ${q.question_id} references undefined pack: ${q.followup_pack}`);
       } else {
         console.log(`🗺️ Entity mapping: ${q.question_id} -> ${q.followup_pack}`);
       }
@@ -1467,11 +1506,10 @@ export function parseQuestionsToMaps(questions) {
   });
 
   if (UndefinedPacks.size > 0) {
-    console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs referenced by questions:`, Array.from(UndefinedPacks));
-    console.warn(`   These questions will be treated as having no follow-up packs.`);
+    console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs:`, Array.from(UndefinedPacks));
   }
 
-  console.log(`📊 MatrixYesByQ built from Question entities: ${Object.keys(MatrixYesByQ).length} mappings`);
+  console.log(`📊 Questions ordered by section, then display_order: ${ActiveOrdered.length} questions`);
 
   return { QById, NextById, ActiveOrdered, MatrixYesByQ, UndefinedPacks };
 }
