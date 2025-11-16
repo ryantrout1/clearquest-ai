@@ -1,4 +1,3 @@
-
 /**
  * ClearQuest Interview Engine - ENTITY-DRIVEN ARCHITECTURE
  * Deterministic, zero-AI question routing
@@ -413,11 +412,53 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
+  'PACK_PROBATION': [
+    { Field_Key: 'probation_start_date', Prompt: 'When did you start probation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'offense', Prompt: 'What was the offense that led to probation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'probation_type', Prompt: 'What type of probation? (supervised, unsupervised, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'duration', Prompt: 'How long was/is the probation period?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'conditions', Prompt: 'What were the conditions of probation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'violations', Prompt: 'Did you violate probation? If so, what happened?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'current_status', Prompt: 'What is the current status? (completed, ongoing, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_INVESTIGATION': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you accused or investigated?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accusation_type', Prompt: 'What was the accusation or investigation about?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_investigated', Prompt: 'Who conducted the investigation? (police, employer, agency, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation_outcome', Prompt: 'What was the outcome of the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'charges_filed', Prompt: 'Were charges filed? If so, what happened?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_POLICE_CALLED': [
+    { Field_Key: 'when_occurred', Prompt: 'When was law enforcement called to your house?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur? (city/state)', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'reason', Prompt: 'Why was law enforcement called?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_called', Prompt: 'Who called them? (you, neighbor, family member, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'arrests_made', Prompt: 'Were any arrests made? If so, who?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
   'PACK_FELONY': [
     { Field_Key: 'felony_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
     { Field_Key: 'felony_type', Prompt: 'What was the felony?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_FELONY_DETAIL': [
+    { Field_Key: 'charge_date', Prompt: 'When were you arrested, charged, or suspected?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'felony_charge', Prompt: 'What was the felony charge or suspicion?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'arrested', Prompt: 'Were you arrested?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
@@ -434,6 +475,7 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'order_date', Prompt: 'When was the protective order issued?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'issuing_court', Prompt: 'Which court issued it?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'circumstances', Prompt: 'What were the circumstances?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_protected', Prompt: 'Who was being protected? (relationship)', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'duration', Prompt: 'How long was/is the order in effect?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'current_status', Prompt: 'What is the current status?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
@@ -459,6 +501,24 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
+  'PACK_ILLEGAL_WEAPON': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you illegally own or possess a firearm?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'weapon_type', Prompt: 'What type of firearm or weapon was it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_illegal', Prompt: 'Why was it illegal? (prohibited person, stolen, unregistered, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Was it discovered? If so, what happened?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CARRY_WEAPON': [
+    { Field_Key: 'weapon_type', Prompt: 'What type of weapon do you carry?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'where_carried', Prompt: 'Where do you carry/keep it? (person, vehicle, home)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_long', Prompt: 'How long have you been carrying/keeping it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'permit_status', Prompt: 'Do you have a permit? If so, what type?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'Why do you carry/keep a weapon?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
   'PACK_TRESPASSING': [
     { Field_Key: 'incident_date', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'location', Prompt: 'Where did this take place?', Response_Type: 'text', Expected_Type: 'LOCATION' },
@@ -466,6 +526,175 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'circumstances', Prompt: 'What were the circumstances? Why did you enter?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'Were you arrested or charged? If so, what was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PROPERTY_DAMAGE': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you damage someone else\'s property?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'property_type', Prompt: 'What type of property was damaged?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_damaged', Prompt: 'How was it damaged?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_damaged', Prompt: 'Why did you damage it? Was it intentional?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'value', Prompt: 'What was the approximate value of the damage?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'restitution', Prompt: 'Was restitution made?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SERIOUS_INJURY': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you cause serious physical injury or death?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'victim_relationship', Prompt: 'What was your relationship to the victim?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_happened', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'injury_or_death', Prompt: 'Was it injury or death? Describe the severity.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'intentional', Prompt: 'Was it intentional or accidental?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_HATE_CRIME': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this hate crime occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'target_group', Prompt: 'What group was targeted? (race, religion, sexual orientation, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_happened', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'motivation', Prompt: 'What was your motivation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_LE_INTERVIEW': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you interviewed by law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'agency', Prompt: 'Which law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'What was the reason for the interview?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_role', Prompt: 'Were you a suspect, witness, victim, or informant?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ARRESTABLE_ACTIVITY': [
+    { Field_Key: 'activity_type', Prompt: 'What type of activity could result in arrest?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur or when does it occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'still_occurring', Prompt: 'Is this still occurring?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CRIMINAL_ASSOCIATES': [
+    { Field_Key: 'who_associates', Prompt: 'Who do you associate with? (name/relationship)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'illegal_activities', Prompt: 'What illegal activities are they involved in?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'relationship_type', Prompt: 'What is your relationship? (friend, family, coworker, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_long', Prompt: 'How long have you associated with them?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'frequency', Prompt: 'How often do you associate with them?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_involvement', Prompt: 'Have you been involved in any of their illegal activities?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for these associations?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CRIMINAL_ORGANIZATION': [
+    { Field_Key: 'organization_name', Prompt: 'What was the name of the individual or organization?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_involved', Prompt: 'When were you involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'criminal_activities', Prompt: 'What criminal activities were they engaged in?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_role', Prompt: 'What was your role or involvement?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_long', Prompt: 'How long were you involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_left', Prompt: 'Why are you no longer involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Was law enforcement involved? What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CONSPIRACY': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this criminal conspiracy occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'crime_type', Prompt: 'What crime was being planned?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_involved', Prompt: 'Who else was involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_role', Prompt: 'What was your role in the conspiracy?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'was_executed', Prompt: 'Was the crime actually carried out?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PLANNED_CRIME': [
+    { Field_Key: 'when_planned', Prompt: 'When did you plan this crime?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'crime_type', Prompt: 'What crime did you plan?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_planned', Prompt: 'Why did you plan it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'followed_through', Prompt: 'Did you follow through with the plan?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_not_followed_through', Prompt: 'If you didn\'t follow through, why not?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were there any legal consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_JUVENILE_CRIME': [
+    { Field_Key: 'crime_type', Prompt: 'What crime did you commit as a juvenile?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur? (your age at the time)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'arrested', Prompt: 'Were you arrested or caught?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DELETED_SOCIAL_MEDIA': [
+    { Field_Key: 'content_type', Prompt: 'What type of content did you delete? (image, video, post, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'platform', Prompt: 'Which platform? (Facebook, Instagram, TikTok, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_deleted', Prompt: 'When did you delete it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_showed', Prompt: 'What did the content show or depict?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_problematic', Prompt: 'Why could it negatively impact your candidacy?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PRANK_CRIME': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this prank occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'prank_description', Prompt: 'Describe the prank.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_criminal', Prompt: 'Why could it be considered a crime?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_involved', Prompt: 'Who else was involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_UNCAUGHT_CRIME': [
+    { Field_Key: 'crime_type', Prompt: 'What crime did you commit?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'value_or_impact', Prompt: 'What was the value/impact? (if applicable)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_uncaught', Prompt: 'Why were you never caught?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_IRS_INVESTIGATION': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you investigated by the IRS?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation_type', Prompt: 'What type of investigation? (audit, criminal, civil, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'tax_years', Prompt: 'Which tax years were involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason', Prompt: 'What was the reason for the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'penalties', Prompt: 'Were any penalties assessed? If so, how much?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_UNREPORTED_INCOME': [
+    { Field_Key: 'tax_years', Prompt: 'Which tax year(s) did you fail to report income?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'income_type', Prompt: 'What type of income did you not report? (cash work, tips, investments, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'amount', Prompt: 'What was the approximate amount not reported?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_not_reported', Prompt: 'Why did you not report it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Was it discovered by the IRS?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'current_status', Prompt: 'What is the current status? (amended return, paid back, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CRIME_FOR_DEBT': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you commit a crime to pay a debt?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'crime_type', Prompt: 'What crime did you commit?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'debt_type', Prompt: 'What was the debt for?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'debt_amount', Prompt: 'How much was the debt?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were you caught? What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ILLEGAL_FIREWORKS': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you purchase or transport illegal fireworks?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'fireworks_type', Prompt: 'What type of fireworks?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'where_purchased', Prompt: 'Where did you purchase them?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'transported_across_state', Prompt: 'Did you transport them across state lines?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'Were you caught? What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   'PACK_FOREIGN_CRIME': [
@@ -492,6 +721,40 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DOMESTIC_VIOLENCE': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this domestic violence incident occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'relationship', Prompt: 'What was your relationship to the other person?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'incident_type', Prompt: 'What type of incident? (assault, threats, harassment, stalking, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CHILD_CRIME_COMMITTED': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'child_age', Prompt: 'How old was the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_age', Prompt: 'How old were you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'crime_type', Prompt: 'What type of crime was it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_CHILD_CRIME_ACCUSED': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you accused?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'child_age', Prompt: 'How old was the child?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'your_age', Prompt: 'How old were you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accusation_type', Prompt: 'What was the accusation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation', Prompt: 'Was there an investigation? If so, by whom?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'investigation_outcome', Prompt: 'What was the outcome of the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   'PACK_CHILD_PROTECTION': [
@@ -522,12 +785,55 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
-  'PACK_FELONY_DETAIL': [
-    { Field_Key: 'charge_date', Prompt: 'When were you arrested, charged, or suspected?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
-    { Field_Key: 'felony_charge', Prompt: 'What was the felony charge or suspicion?', Response_Type: 'text', Expected_Type: 'TEXT' },
+  'PACK_THEFT': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur? (employer, store, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_stolen', Prompt: 'What was stolen?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'value', Prompt: 'What was the approximate value?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'arrested', Prompt: 'Were you arrested?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_SIGNATURE_FORGERY': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you sign someone else\'s name?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'whose_signature', Prompt: 'Whose signature did you forge?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'document_type', Prompt: 'What type of document? (check, contract, application, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'purpose', Prompt: 'What was the purpose? (monetary gain, authorization, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'amount_involved', Prompt: 'If monetary, what was the amount involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_HACKING': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you hack into a computer or account?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'target_type', Prompt: 'What did you hack into? (computer, email, social media, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'whose_account', Prompt: 'Whose computer or account was it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'why_hacked', Prompt: 'Why did you do it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_accessed', Prompt: 'What information did you access?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_ILLEGAL_DOWNLOADS': [
+    { Field_Key: 'when_occurred', Prompt: 'When did you illegally download content?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'content_type', Prompt: 'What type of content? (music, videos, software, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_downloaded', Prompt: 'How did you download it? (torrents, file-sharing, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'for_profit', Prompt: 'Did you do it for profit? If so, how much did you make?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'frequency', Prompt: 'How often did you do this?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Were you ever caught or contacted about it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_STOLEN_PROPERTY': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you in possession of stolen property?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'property_type', Prompt: 'What type of property was it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_obtained', Prompt: 'How did you obtain it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'how_knew_stolen', Prompt: 'How did you know it was stolen?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'what_did_with_it', Prompt: 'What did you do with the property?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'discovered', Prompt: 'Was it discovered? If so, what happened?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
@@ -550,6 +856,35 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'from_whom', Prompt: 'From whom did you purchase them?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'Were you caught or charged? What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DOMESTIC_VICTIM': [
+    { Field_Key: 'when_occurred', Prompt: 'When did this domestic violence occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'relationship', Prompt: 'What was your relationship to the perpetrator?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reported', Prompt: 'Was it reported to law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'protective_order', Prompt: 'Was a protective order issued?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'support_received', Prompt: 'What support or counseling did you receive?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_DOMESTIC_ACCUSED': [
+    { Field_Key: 'when_occurred', Prompt: 'When were you accused of domestic violence?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'relationship', Prompt: 'What was your relationship to the other person?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'protective_order', Prompt: 'Was a protective order issued against you?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_OTHER_CRIMINAL': [
+    { Field_Key: 'issue_description', Prompt: 'Describe the involvement with police or illegal activity.', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'circumstances', Prompt: 'What were the circumstances?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'legal_outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
@@ -746,6 +1081,7 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'rank', Prompt: 'What was your rank when you left?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'discharge_type', Prompt: 'What type of discharge did you receive? (Honorable, General, OTH, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
+  
   'PACK_MIL_REJECTION': [
     { Field_Key: 'branch', Prompt: 'Which military branch turned you down?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'when_applied', Prompt: 'When did you apply?', Response_Type: 'text', Expected_Type: 'TEXT' },
@@ -835,16 +1171,6 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'how_misused', Prompt: 'How did you misuse them?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_THEFT': [
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'location', Prompt: 'Where did it occur? (employer, store, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'what_stolen', Prompt: 'What was stolen?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'value', Prompt: 'What was the approximate value?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
@@ -969,26 +1295,6 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-  
-  'PACK_DOMESTIC_VICTIM': [
-    { Field_Key: 'when_occurred', Prompt: 'When did this domestic violence occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'relationship', Prompt: 'What was your relationship to the perpetrator?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'reported', Prompt: 'Was it reported to law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'protective_order', Prompt: 'Was a protective order issued?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'support_received', Prompt: 'What support or counseling did you receive?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_DOMESTIC_ACCUSED': [
-    { Field_Key: 'when_occurred', Prompt: 'When were you accused of domestic violence?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
-    { Field_Key: 'relationship', Prompt: 'What was your relationship to the other person?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'protective_order', Prompt: 'Was a protective order issued against you?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ]
 };
