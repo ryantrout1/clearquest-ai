@@ -1522,6 +1522,15 @@ export function parseQuestionsToMaps(questions, categories) {
         indexInSection: index
       };
     });
+    
+    // DEBUG: Log Illegal Drug section structure
+    if (sectionName === "Illegal Drug / Narcotic History") {
+      console.log("[CQAI] Illegal Drug section after sorting:");
+      console.log("   questionsBySection:", questionsBySection[sectionName]?.map(q => ({
+        id: q.question_id,
+        order: q.display_order
+      })));
+    }
   });
 
   // Build legacy ActiveOrdered array (for backward compatibility)
@@ -1834,6 +1843,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     // Found a valid next section with active questions!
     const firstQ = candidateQuestions[0];
     console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateId}", first question: ${firstQ.question_id}`);
+    console.log(`[CQAI] Entering next section from "${currentSectionId}" -> nextSection: "${candidateId}", firstQuestionId: "${firstQ.question_id}"`);
     return firstQ.question_id;
   }
 
