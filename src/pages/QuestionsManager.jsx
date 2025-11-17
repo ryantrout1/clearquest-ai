@@ -719,19 +719,6 @@ export default function QuestionsManager() {
                               </div>
                             </div>
 
-                            {!sectionOrderMode && (
-                              <div className="border-t border-slate-700/50 bg-slate-900/20 px-4 py-3 flex justify-end">
-                                <Button
-                                  onClick={() => handleAddQuestion(section.name)}
-                                  size="sm"
-                                  className="bg-blue-600 hover:bg-blue-700"
-                                >
-                                  <Plus className="w-4 h-4 mr-1" />
-                                  Add Question
-                                </Button>
-                              </div>
-                            )}
-
                             {/* Expanded section - show questions */}
                             {expandedSections[section.name] && (
                               <div className="border-t border-slate-700/50 bg-slate-900/20 p-4">
