@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../utils/followupPackNames";
 
@@ -141,6 +141,8 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
   const [errors, setErrors] = useState({});
   const [categories, setCategories] = useState([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isGateQuestion, setIsGateQuestion] = useState(false);
+  const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
 
   useEffect(() => {
     async function loadCategories() {
@@ -174,6 +176,16 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           followup_pack: question.followup_pack || '',
           substance_name: question.substance_name || ''
         });
+        
+        // Check if this question is a gate question
+        if (question.category) {
+          const cats = await base44.entities.Category.filter({ category_label: question.category });
+          if (cats.length > 0) {
+            const cat = cats[0];
+            setCurrentCategoryEntity(cat);
+            setIsGateQuestion(cat.gate_question_id === question.question_id);
+          }
+        }
       } else {
         setIsGeneratingId(true);
         const newId = await generateNextQuestionId();
@@ -187,6 +199,28 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     
     initializeForm();
   }, [question]);
+
+  // Update category entity when category changes
+  useEffect(() => {
+    async function updateCategoryEntity() {
+      if (formData.category) {
+        const cats = await base44.entities.Category.filter({ category_label: formData.category });
+        if (cats.length > 0) {
+          const cat = cats[0];
+          setCurrentCategoryEntity(cat);
+          // Check if current question is the gate question
+          setIsGateQuestion(cat.gate_question_id === formData.question_id);
+        } else {
+          setCurrentCategoryEntity(null);
+          setIsGateQuestion(false);
+        }
+      }
+    }
+    
+    if (formData.category && formData.question_id) {
+      updateCategoryEntity();
+    }
+  }, [formData.category, formData.question_id]);
 
   const validate = () => {
     const newErrors = {};
@@ -221,10 +255,20 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         substance_name: formData.substance_name || null
       };
 
+      // Save the question
       if (question?.id) {
         await base44.entities.Question.update(question.id, saveData);
       } else {
         await base44.entities.Question.create(saveData);
+      }
+
+      // Update category gate question setting
+      if (currentCategoryEntity) {
+        const categoryUpdate = {
+          gate_question_id: isGateQuestion ? formData.question_id.trim() : null,
+          gate_skip_if_value: isGateQuestion ? 'No' : null
+        };
+        await base44.entities.Category.update(currentCategoryEntity.id, categoryUpdate);
       }
 
       toast.success(question?.id ? 'Question updated' : 'Question created');
@@ -372,13 +416,40 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
             </p>
           </div>
 
-          <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-            <Label htmlFor="active" className="text-slate-300">Active</Label>
-            <Switch
-              id="active"
-              checked={formData.active}
-              onCheckedChange={(checked) => setFormData({...formData, active: checked})}
-            />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <Label htmlFor="active" className="text-slate-300">Active</Label>
+              <Switch
+                id="active"
+                checked={formData.active}
+                onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+              />
+            </div>
+
+            <div className="flex items-start justify-between bg-orange-950/30 border border-orange-900/50 rounded-lg p-3">
+              <div className="flex-1 pr-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldAlert className="w-4 h-4 text-orange-400" />
+                  <Label htmlFor="gate_question" className="text-slate-300 font-semibold">
+                    Control Question (Gate)
+                  </Label>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  If enabled, a "No" response to this question will skip all remaining questions in this section
+                </p>
+              </div>
+              <Switch
+                id="gate_question"
+                checked={isGateQuestion}
+                onCheckedChange={setIsGateQuestion}
+                disabled={!formData.category || formData.response_type !== 'yes_no'}
+              />
+            </div>
+            {formData.response_type !== 'yes_no' && (
+              <p className="text-xs text-yellow-400">
+                Control questions must be Yes/No type
+              </p>
+            )}
           </div>
         </div>
 
