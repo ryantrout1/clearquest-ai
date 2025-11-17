@@ -425,10 +425,23 @@ export default function QuestionsManager() {
 
   const handleDuplicate = async (question) => {
     try {
+      // Generate next question ID properly
+      const allQuestions = await base44.entities.Question.list();
+      let maxNum = 0;
+      allQuestions.forEach(q => {
+        const match = q.question_id?.match(/^Q(\d+)/);
+        if (match) {
+          const num = parseInt(match[1]);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      const nextNum = maxNum + 1;
+      const newQuestionId = `Q${String(nextNum).padStart(3, '0')}`;
+      
       const newQuestion = {
         ...question,
-        question_id: `${question.question_id}_COPY_${Date.now()}`,
-        question_text: `${question.question_text} (copy)`,
+        question_id: newQuestionId,
+        question_text: `${question.question_text}`,
         display_order: getQuestionsForSection(question.category).length + 1
       };
       delete newQuestion.id;
