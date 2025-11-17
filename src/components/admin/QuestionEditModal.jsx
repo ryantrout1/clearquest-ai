@@ -234,7 +234,8 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     if (!formData.category?.trim()) {
       newErrors.category = 'Category is required';
     }
-    if (!formData.question_id?.trim()) {
+    // Only validate question_id for existing questions
+    if (question?.id && !formData.question_id?.trim()) {
       newErrors.question_id = 'Question ID is required';
     }
 
@@ -293,47 +294,27 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         </DialogHeader>
 
         <div className="space-y-4 pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            {question?.id ? (
-              // Editing an existing question
-              <div>
-                <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
-                <Input
-                  id="question_id"
-                  value={formData.question_id}
-                  onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
-                  placeholder="Q001"
-                  className="bg-slate-800 border-slate-600 text-white mt-1"
-                  disabled={true}
-                />
-              </div>
-            ) : (
-              // Adding a new question
-              <div className="col-span-2">
-                <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
-                <Input
-                  id="question_id"
-                  value={formData.question_id}
-                  onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
-                  placeholder="Q001"
-                  className="bg-slate-800 border-slate-600 text-white mt-1"
-                  disabled={isGeneratingId}
-                />
-                {isGeneratingId && <p className="text-xs text-slate-400 mt-1">Generating ID...</p>}
-                {errors.question_id && <p className="text-xs text-red-400 mt-1">{errors.question_id}</p>}
-              </div>
-            )}
-
-            <div className={!question?.id ? "col-span-2" : ""}>
-              <Label htmlFor="display_order" className="text-slate-300">Display Order</Label>
+          {question?.id && (
+            <div>
+              <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
               <Input
-                id="display_order"
-                type="number"
-                value={formData.display_order}
-                onChange={(e) => setFormData({...formData, display_order: e.target.value})}
+                id="question_id"
+                value={formData.question_id}
                 className="bg-slate-800 border-slate-600 text-white mt-1"
+                disabled={true}
               />
             </div>
+          )}
+
+          <div>
+            <Label htmlFor="display_order" className="text-slate-300">Display Order</Label>
+            <Input
+              id="display_order"
+              type="number"
+              value={formData.display_order}
+              onChange={(e) => setFormData({...formData, display_order: e.target.value})}
+              className="bg-slate-800 border-slate-600 text-white mt-1"
+            />
           </div>
 
           <div>
