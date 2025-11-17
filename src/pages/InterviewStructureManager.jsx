@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -24,9 +23,92 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, RefreshCw, Lock, AlertCircle, ShieldAlert } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
+import { getFollowupPackDisplay, getResponseTypeDisplay, FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../components/utils/followupPackNames";
+
+const GROUPED_PACKS = {
+  "Law Enforcement": [
+    'PACK_LE_APPS', 'PACK_LE_PREV', 'PACK_LE_INTERVIEW', 'PACK_LE_COMPLAINT',
+    'PACK_ACCUSED_FORCE', 'PACK_GRATUITY', 'PACK_FALSIFY_REPORT',
+    'PACK_INTERNAL_AFFAIRS', 'PACK_LYING_LE', 'PACK_OTHER_PRIOR_LE'
+  ],
+  "Driving & Traffic": [
+    'PACK_DUI', 'PACK_DUI_STOP', 'PACK_DUI_ARREST', 'PACK_LICENSE_SUSPENSION',
+    'PACK_LICENSE_SUSPENDED', 'PACK_REVOKED_LICENSE', 'PACK_SUSPENDED_LICENSE',
+    'PACK_RECKLESS_DRIVING', 'PACK_TRAFFIC', 'PACK_TRAFFIC_CITATION',
+    'PACK_CRIMINAL_TRAFFIC', 'PACK_TRAFFIC_ARREST', 'PACK_ROAD_RAGE',
+    'PACK_OTHER_DRIVING', 'PACK_COLLISION', 'PACK_COLLISION_INJURY',
+    'PACK_ALCOHOL_COLLISION', 'PACK_UNREPORTED_COLLISION', 'PACK_HIT_RUN',
+    'PACK_HIT_RUN_DAMAGE', 'PACK_NO_INSURANCE', 'PACK_INSURANCE_REFUSED',
+    'PACK_DRIVE_NO_INSURANCE'
+  ],
+  "Criminal History": [
+    'PACK_ARREST', 'PACK_CHARGES', 'PACK_CRIMINAL_CHARGE', 'PACK_CONVICTION',
+    'PACK_DIVERSION', 'PACK_PROBATION', 'PACK_INVESTIGATION', 'PACK_POLICE_CALLED',
+    'PACK_WARRANT', 'PACK_FELONY', 'PACK_FELONY_DETAIL', 'PACK_CONSPIRACY',
+    'PACK_PLANNED_CRIME', 'PACK_JUVENILE_CRIME', 'PACK_UNCAUGHT_CRIME',
+    'PACK_FOREIGN_CRIME', 'PACK_POLICE_REPORT', 'PACK_ARRESTABLE_ACTIVITY',
+    'PACK_CRIMINAL_ASSOCIATES', 'PACK_CRIMINAL_ORGANIZATION', 'PACK_POLICE_BRUTALITY',
+    'PACK_OTHER_CRIMINAL'
+  ],
+  "Violence & Domestic": [
+    'PACK_FIGHT', 'PACK_DOMESTIC_VIOLENCE', 'PACK_PROTECTIVE_ORDER',
+    'PACK_ASSAULT', 'PACK_SERIOUS_INJURY', 'PACK_DOMESTIC_VICTIM',
+    'PACK_DOMESTIC_ACCUSED', 'PACK_DOMESTIC'
+  ],
+  "Crimes Against Children": [
+    'PACK_CHILD_CRIME_COMMITTED', 'PACK_CHILD_CRIME_ACCUSED',
+    'PACK_CHILD_PROTECTION', 'PACK_MINOR_CONTACT'
+  ],
+  "Theft & Property": [
+    'PACK_SHOPLIFTING', 'PACK_THEFT_QUESTIONING', 'PACK_THEFT',
+    'PACK_STOLEN_PROPERTY', 'PACK_STOLEN_VEHICLE', 'PACK_TRESPASSING',
+    'PACK_PROPERTY_DAMAGE', 'PACK_STOLEN_GOODS'
+  ],
+  "Fraud & Cybercrime": [
+    'PACK_SIGNATURE_FORGERY', 'PACK_HACKING', 'PACK_ILLEGAL_DOWNLOADS',
+    'PACK_FALSE_APPLICATION', 'PACK_UNEMPLOYMENT_FRAUD', 'PACK_IRS_INVESTIGATION',
+    'PACK_UNREPORTED_INCOME'
+  ],
+  "Weapons & Gangs": [
+    'PACK_WEAPON_VIOLATION', 'PACK_ILLEGAL_WEAPON', 'PACK_CARRY_WEAPON',
+    'PACK_GANG', 'PACK_HATE_CRIME'
+  ],
+  "Extremism": [
+    'PACK_EXTREMIST', 'PACK_EXTREMIST_DETAIL'
+  ],
+  "Sexual Misconduct": [
+    'PACK_PROSTITUTION', 'PACK_PAID_SEX', 'PACK_PORNOGRAPHY',
+    'PACK_HARASSMENT', 'PACK_NON_CONSENT'
+  ],
+  "Financial Issues": [
+    'PACK_FINANCIAL', 'PACK_BANKRUPTCY', 'PACK_FORECLOSURE', 'PACK_REPOSSESSION',
+    'PACK_LAWSUIT', 'PACK_LATE_PAYMENT', 'PACK_GAMBLING', 'PACK_OTHER_FINANCIAL',
+    'PACK_CRIME_FOR_DEBT'
+  ],
+  "Drug Use & Distribution": [
+    'PACK_DRUG_USE', 'PACK_DRUG_SALE', 'PACK_PRESCRIPTION_MISUSE',
+    'PACK_DRUG_TEST_CHEAT', 'ILLEGAL_DRUG_USE'
+  ],
+  "Alcohol": [
+    'PACK_ALCOHOL_DEPENDENCY', 'PACK_ALCOHOL_INCIDENT', 'PACK_PROVIDE_ALCOHOL'
+  ],
+  "Military": [
+    'PACK_MIL_SERVICE', 'PACK_MIL_REJECTION', 'PACK_MIL_DISCHARGE',
+    'PACK_MIL_DISCIPLINE'
+  ],
+  "Employment & Discipline": [
+    'PACK_DISCIPLINE', 'PACK_WORK_DISCIPLINE', 'PACK_FIRED', 'PACK_QUIT_AVOID',
+    'PACK_MISUSE_RESOURCES'
+  ],
+  "Disclosure & Integrity": [
+    'PACK_WITHHOLD_INFO', 'PACK_DISQUALIFIED', 'PACK_CHEATING',
+    'PACK_DELETED_SOCIAL_MEDIA', 'PACK_PRANK_CRIME', 'PACK_ILLEGAL_FIREWORKS',
+    'PACK_EMBARRASSMENT', 'PACK_TATTOO', 'PACK_SOCIAL_MEDIA'
+  ]
+};
 
 export default function InterviewStructureManager() {
   const navigate = useNavigate();
@@ -329,7 +411,7 @@ export default function InterviewStructureManager() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
+                onClick={() => navigate(createPageUrl("HomeHub"))}
                 className="text-slate-300 hover:text-white -ml-2"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
@@ -390,7 +472,9 @@ export default function InterviewStructureManager() {
                     {(provided) => (
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                         {sortedSections.map((section, index) => {
-                          const sectionQuestionCount = questions.filter(q => q.section_id === section.id).length;
+                          const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
+                          const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
+                          const inactiveCount = sectionQuestionsAll.filter(q => q.active === false).length;
                           
                           return (
                             <Draggable key={section.id} draggableId={section.id} index={index}>
@@ -398,52 +482,67 @@ export default function InterviewStructureManager() {
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
-                                  className="bg-slate-900/50 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors"
+                                  className={`bg-slate-900/50 border rounded-lg hover:border-blue-500/50 transition-colors ${
+                                    section.active ? 'border-slate-700' : 'border-slate-700 opacity-60'
+                                  }`}
                                 >
                                   {/* Section Header */}
-                                  <div className="p-3 flex items-center gap-2">
-                                    <div {...provided.dragHandleProps}>
-                                      <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
-                                    </div>
-                                    <button
-                                      onClick={() => toggleNode(`section-${section.id}`)}
-                                      className="text-slate-400 hover:text-white transition-colors"
-                                    >
-                                      {expandedNodes[`section-${section.id}`] ? 
-                                        <ChevronDown className="w-5 h-5" /> : 
-                                        <ChevronRight className="w-5 h-5" />
-                                      }
-                                    </button>
-                                    <FolderOpen className="w-5 h-5 text-blue-400" />
-                                    <div className="flex-1">
-                                      <span className="text-white font-medium text-base">{section.section_name}</span>
-                                      <div className="flex gap-2 mt-1">
-                                        <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                          #{section.section_order}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                          {sectionQuestionCount} questions
-                                        </Badge>
-                                        {!section.active && (
-                                          <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
-                                            Inactive
-                                          </Badge>
-                                        )}
-                                        {section.required && (
-                                          <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
-                                            Required
-                                          </Badge>
-                                        )}
+                                  <div className="p-3">
+                                    <div className="flex items-start gap-2">
+                                      <div {...provided.dragHandleProps}>
+                                        <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-1" />
                                       </div>
+                                      <button
+                                        onClick={() => toggleNode(`section-${section.id}`)}
+                                        className="text-slate-400 hover:text-white transition-colors mt-1"
+                                      >
+                                        {expandedNodes[`section-${section.id}`] ? 
+                                          <ChevronDown className="w-5 h-5" /> : 
+                                          <ChevronRight className="w-5 h-5" />
+                                        }
+                                      </button>
+                                      <FolderOpen className="w-5 h-5 text-blue-400 mt-1" />
+                                      <div className="flex-1 min-w-0">
+                                        <button
+                                          onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                          className="text-left w-full group"
+                                        >
+                                          <h3 className="text-base font-semibold text-white group-hover:text-blue-400 transition-colors">
+                                            {section.section_name}
+                                          </h3>
+                                          <p className="text-sm text-slate-400 mt-1">
+                                            {sectionQuestionsAll.length} questions • {activeCount} active • {inactiveCount} inactive
+                                          </p>
+                                        </button>
+                                        <div className="flex gap-2 mt-2 flex-wrap">
+                                          <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
+                                            #{section.section_order}
+                                          </Badge>
+                                          {section.active ? (
+                                            <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                              Active
+                                            </Badge>
+                                          ) : (
+                                            <Badge className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
+                                              Inactive
+                                            </Badge>
+                                          )}
+                                          {section.required && (
+                                            <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
+                                              Required
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                        className="text-slate-400 hover:text-white hover:bg-slate-700"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
                                     </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                      className="text-slate-400 hover:text-white hover:bg-slate-700"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </Button>
                                   </div>
 
                                   {/* Questions in Section */}
@@ -480,6 +579,7 @@ export default function InterviewStructureManager() {
               <DetailPanel
                 selectedItem={selectedItem}
                 sections={sections}
+                categories={categories}
                 followUpPacks={followUpPacks}
                 onClose={() => setSelectedItem(null)}
                 onDelete={(item) => setDeleteConfirm(item)}
@@ -559,8 +659,9 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className="bg-slate-800/50 border border-slate-600 rounded-lg p-3 hover:border-emerald-500/50 transition-colors cursor-pointer"
-                      onClick={() => setSelectedItem({ type: 'question', data: question })}
+                      className={`bg-slate-800/50 border rounded-lg p-3 hover:border-emerald-500/50 transition-colors ${
+                        question.active ? 'border-slate-600' : 'border-slate-700 opacity-40'
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
@@ -581,20 +682,51 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                           </button>
                         )}
                         <FileText className="w-4 h-4 text-emerald-400 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white leading-relaxed">{question.question_text}</p>
-                          <div className="flex gap-2 mt-2 flex-wrap">
-                            <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300 font-mono">
+                        <div 
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => setSelectedItem({ type: 'question', data: question })}
+                        >
+                          {/* Top metadata row */}
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                              #{question.display_order || 1}
+                            </Badge>
+                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                               {question.question_id}
                             </Badge>
-                            {!question.active && (
-                              <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
+                            {question.active ? (
+                              <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
                                 Inactive
                               </Badge>
                             )}
-                            {pack && (
+                          </div>
+                          
+                          {/* Question Text */}
+                          <p className="text-sm text-white leading-relaxed mb-2">{question.question_text}</p>
+                          
+                          {/* Bottom metadata */}
+                          <div className="flex gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                              {getResponseTypeDisplay(question.response_type)}
+                            </Badge>
+                            {question.followup_pack && (
                               <Badge className="text-xs bg-purple-500/20 border-purple-500/50 text-purple-400">
-                                Has Follow-ups
+                                {FOLLOWUP_PACK_NAMES[question.followup_pack] || question.followup_pack}
+                              </Badge>
+                            )}
+                            {question.followup_multi_instance && (
+                              <Badge className="text-xs bg-purple-500/20 border-purple-500/50 text-purple-400">
+                                <Layers className="w-3 h-3 mr-1" />
+                                Multi
+                              </Badge>
+                            )}
+                            {question.substance_name && (
+                              <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">
+                                {question.substance_name}
                               </Badge>
                             )}
                           </div>
@@ -717,9 +849,10 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
   );
 }
 
-function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete }) {
+function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClose, onDelete }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
+  const [defaultPackGroup, setDefaultPackGroup] = useState(null);
 
   useEffect(() => {
     if (selectedItem?.data) {
@@ -728,6 +861,30 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
       setFormData({});
     }
   }, [selectedItem]);
+
+  // Determine default pack group based on category
+  useEffect(() => {
+    if (formData.category) {
+      const categoryMap = {
+        "Applications with Other Law Enforcement Agencies": "Law Enforcement",
+        "Prior Law Enforcement": "Law Enforcement",
+        "Prior Law Enforcement ONLY": "Law Enforcement",
+        "Driving Record": "Driving & Traffic",
+        "Criminal Involvement / Police Contacts": "Criminal History",
+        "Extremist Organizations": "Extremism",
+        "Sexual Activities": "Sexual Misconduct",
+        "Financial History": "Financial Issues",
+        "Illegal Drug / Narcotic History": "Drug Use & Distribution",
+        "Alcohol History": "Alcohol",
+        "Military History": "Military",
+        "Employment History": "Employment & Discipline",
+        "General Disclosures & Eligibility": "Disclosure & Integrity"
+      };
+      setDefaultPackGroup(categoryMap[formData.category] || null);
+    } else {
+      setDefaultPackGroup(null);
+    }
+  }, [formData.category]);
 
   const handleSave = async () => {
     try {
@@ -808,20 +965,22 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <Label className="text-slate-300">Active</Label>
               <Switch
                 checked={formData.active !== false}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                className="data-[state=checked]:bg-emerald-600"
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <Label className="text-slate-300">Required</Label>
               <Switch
                 checked={formData.required !== false}
                 onCheckedChange={(checked) => setFormData({...formData, required: checked})}
                 disabled={formData.active === false}
+                className="data-[state=checked]:bg-emerald-600"
               />
             </div>
           </>
@@ -860,6 +1019,16 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
         </div>
 
         <div>
+          <Label className="text-slate-300">Display Order</Label>
+          <Input
+            type="number"
+            value={formData.display_order || 1}
+            onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value)})}
+            className="bg-slate-800 border-slate-600 text-white mt-1"
+          />
+        </div>
+
+        <div>
           <Label className="text-slate-300">Question Text</Label>
           <Textarea
             value={formData.question_text || ''}
@@ -878,27 +1047,18 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="yes_no">Yes / No</SelectItem>
-              <SelectItem value="text">Text</SelectItem>
-              <SelectItem value="date">Date</SelectItem>
-              <SelectItem value="number">Number</SelectItem>
-              <SelectItem value="multi_select">Multiple Choice</SelectItem>
+              {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         <div>
-          <Label className="text-slate-300">Move to Section</Label>
+          <Label className="text-slate-300">Section</Label>
           <Select
             value={formData.section_id || ''}
-            onValueChange={async (v) => {
-              const newSection = sections.find(s => s.id === v);
-              if (newSection) {
-                const questionsInNewSection = await base44.entities.Question.filter({ section_id: v });
-                const maxOrder = Math.max(0, ...questionsInNewSection.map(q => q.display_order || 0));
-                setFormData({...formData, section_id: v, display_order: maxOrder + 1});
-              }
-            }}
+            onValueChange={(v) => setFormData({...formData, section_id: v})}
           >
             <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
               <SelectValue />
@@ -911,11 +1071,86 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
           </Select>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div>
+          <Label className="text-slate-300 flex items-center gap-2">
+            Follow-Up Pack
+            {formData.response_type === 'yes_no' && !formData.followup_pack && (
+              <span className="text-xs text-yellow-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Recommended
+              </span>
+            )}
+          </Label>
+          <Select 
+            value={formData.followup_pack || ""} 
+            onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}
+          >
+            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+              <SelectValue placeholder="None">
+                {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}` : "None"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="max-h-96 bg-slate-900">
+              <SelectItem value={null}>None</SelectItem>
+              {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
+                const isDefaultGroup = defaultPackGroup === groupName;
+                return (
+                  <React.Fragment key={groupName}>
+                    <div className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 ${
+                      isDefaultGroup ? 'text-green-400' : 'text-blue-400'
+                    }`}>
+                      {groupName}
+                      {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
+                    </div>
+                    {packs.map(pack => (
+                      <SelectItem key={pack} value={pack} className="pl-8 py-2.5">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium text-white">
+                            {FOLLOWUP_PACK_NAMES[pack] || pack}
+                          </span>
+                          <span className="text-xs text-slate-500 font-mono">{pack}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-slate-300">Substance Name (for drug questions)</Label>
+          <Input
+            value={formData.substance_name || ''}
+            onChange={(e) => setFormData({...formData, substance_name: e.target.value})}
+            placeholder="e.g., Marijuana, Cocaine"
+            className="bg-slate-800 border-slate-600 text-white mt-1"
+          />
+        </div>
+
+        {formData.followup_pack && (
+          <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+            <div className="flex-1 pr-3">
+              <Label className="text-slate-300 font-semibold">Multi-Instance Follow-Up</Label>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                Ask "Do you have another instance?" after completing this pack
+              </p>
+            </div>
+            <Switch
+              checked={formData.followup_multi_instance || false}
+              onCheckedChange={(checked) => setFormData({...formData, followup_multi_instance: checked})}
+              className="data-[state=checked]:bg-emerald-600"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
           <Label className="text-slate-300">Active</Label>
           <Switch
             checked={formData.active !== false}
             onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+            className="data-[state=checked]:bg-emerald-600"
           />
         </div>
 
