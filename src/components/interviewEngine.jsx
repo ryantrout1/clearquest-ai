@@ -1,3 +1,4 @@
+
 /**
  * ClearQuest Interview Engine - SECTION-FIRST ARCHITECTURE
  * Deterministic, section-aware question routing
@@ -1094,6 +1095,23 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'circumstances', Prompt: 'What were the circumstances?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'Were there any legal consequences? (citation, arrest, charges)', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this decision?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'ILLEGAL_DRUG_USE': [
+    { Field_Key: 'drug_name', Prompt: 'What specific drug did you use?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'drug_form', Prompt: 'What form was it in? (Powder, pill, edible, smoked, injected, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'first_use', Prompt: 'When did you first use this drug? (Month/Year)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'age_at_first_use', Prompt: 'How old were you at the time?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'last_use', Prompt: 'When was the last time you used it? (Month/Year)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'total_times', Prompt: 'How many total times have you used this drug?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'situation_reason', Prompt: 'What was the situation or reason for using it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'who_with', Prompt: 'Who were you with when you used it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'where_occurred', Prompt: 'Where did the use occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'purchased', Prompt: 'Have you ever purchased this drug?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'around_others', Prompt: 'Have you ever been around others using it?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'driven_under_influence', Prompt: 'Have you ever driven a vehicle while under the influence?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'law_enforcement', Prompt: 'Were law enforcement involved in any way?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'additional_info', Prompt: 'Is there anything else about your use of this drug that an investigator should know?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
   // ========== Military History ==========

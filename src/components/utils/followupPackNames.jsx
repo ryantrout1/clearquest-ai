@@ -1,3 +1,4 @@
+
 /**
  * Mapping of follow-up pack codes to friendly display names
  */
@@ -100,12 +101,16 @@ export const FOLLOWUP_PACK_NAMES = {
   'PACK_LATE_PAYMENT': 'Late Payments',
   'PACK_GAMBLING': 'Gambling Issues',
   'PACK_OTHER_FINANCIAL': 'Other Financial Issues',
-  'PACK_DRUG_USE': 'Drug Use',
-  'PACK_DRUG_SALE': 'Drug Sale/Distribution',
-  'PACK_PRESCRIPTION_MISUSE': 'Prescription Drug Misuse',
+  // Drug/Alcohol History
+  'PACK_DRUG_USE': 'Drug Use History',
+  'PACK_DRUG_SALE': 'Drug Sale / Distribution',
+  'PACK_PRESCRIPTION_MISUSE': 'Prescription Medication Misuse',
   'PACK_ALCOHOL_DEPENDENCY': 'Alcohol Dependency',
   'PACK_ALCOHOL_INCIDENT': 'Alcohol-Related Incident',
   'PACK_PROVIDE_ALCOHOL': 'Providing Alcohol to Minors',
+  'ILLEGAL_DRUG_USE': 'Illegal Drug Use – Single Substance',
+
+  // Military History
   'PACK_MIL_SERVICE': 'Military Service',
   'PACK_MIL_REJECTION': 'Military Rejection',
   'PACK_MIL_DISCHARGE': 'Military Discharge',
