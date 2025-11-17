@@ -561,7 +561,7 @@ export default function QuestionsManager() {
                                     <div className="mt-3 bg-amber-950/20 border border-amber-800/30 rounded-lg px-3 py-2">
                                       <p className="text-xs text-amber-400">
                                         <Lock className="w-3 h-3 inline mr-1" />
-                                        Control Question Active: If question #{section.gateQuestionId} is answered "No", the rest of this section will be skipped.
+                                        Control Question Active: If the question at position #1 is answered "No", the rest of this section will be skipped.
                                       </p>
                                     </div>
                                   )}
