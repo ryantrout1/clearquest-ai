@@ -525,7 +525,9 @@ export default function QuestionsManager() {
                                         onCheckedChange={() => toggleSectionRequired(section.name)}
                                         className="scale-90"
                                       />
-                                      <Label className="text-xs cursor-pointer font-medium text-slate-200">
+                                      <Label className={`text-xs cursor-pointer font-medium ${
+                                        section.section_required ? 'text-red-400' : 'text-slate-400'
+                                      }`}>
                                         Required section
                                       </Label>
                                     </div>
