@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -118,7 +119,8 @@ export default function QuestionsManager() {
         metadata[cat.category_label] = {
           section_active: cat.active !== false,
           gate_mode_enabled: cat.gate_skip_if_value === 'No',
-          gate_question_id: cat.gate_question_id
+          gate_question_id: cat.gate_question_id,
+          section_order: cat.section_order
         };
       });
       setSectionMetadata(metadata);
@@ -211,11 +213,12 @@ export default function QuestionsManager() {
         ...section,
         gateQuestionId,
         section_active: sectionMetadata[section.name]?.section_active !== false,
-        section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
+        section_order: sectionMetadata[section.name]?.section_order ?? 999,
         gate_mode_enabled: sectionMetadata[section.name]?.gate_mode_enabled || false
       };
     });
     
+    // SORT BY section_order FROM DATABASE
     return sectionList.sort((a, b) => a.section_order - b.section_order);
   }, [questions, sectionMetadata]);
 
@@ -242,14 +245,37 @@ export default function QuestionsManager() {
     }));
   };
 
-  const toggleSectionActive = (sectionName) => {
+  const toggleSectionActive = async (sectionName) => {
+    const currentActiveStatus = sectionMetadata[sectionName]?.section_active !== false;
+    const newActiveStatus = !currentActiveStatus;
+
+    // Update local state
     setSectionMetadata(prev => ({
       ...prev,
       [sectionName]: {
         ...prev[sectionName],
-        section_active: prev[sectionName]?.section_active === false ? true : false
+        section_active: newActiveStatus
       }
     }));
+
+    // Find or create category entity
+    const existingCategory = categories.find(cat => cat.category_label === sectionName);
+    
+    if (existingCategory) {
+      // Update existing category
+      await updateCategoryMutation.mutateAsync({
+        id: existingCategory.id,
+        data: { active: newActiveStatus }
+      });
+    } else {
+      // Create new category (using a default display order if not exists)
+      await createCategoryMutation.mutateAsync({
+        category_id: `CAT_${sectionName.replace(/\s+/g, '_').toUpperCase()}`,
+        category_label: sectionName,
+        active: newActiveStatus,
+        display_order: SECTION_ORDER.indexOf(sectionName) !== -1 ? SECTION_ORDER.indexOf(sectionName) : 999 // Initial order
+      });
+    }
     toast.success('Section status updated');
   };
 
@@ -292,7 +318,7 @@ export default function QuestionsManager() {
         category_label: sectionName,
         gate_question_id: newGateMode ? gateQuestionId : null,
         gate_skip_if_value: newGateMode ? 'No' : null,
-        display_order: SECTION_ORDER.indexOf(sectionName) !== -1 ? SECTION_ORDER.indexOf(sectionName) : 999,
+        display_order: SECTION_ORDER.indexOf(sectionName) !== -1 ? SECTION_ORDER.indexOf(sectionName) : 999, // Initial order
         active: true
       });
     }
@@ -306,23 +332,47 @@ export default function QuestionsManager() {
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   };
 
-  const handleSectionDragEnd = (result) => {
+  const handleSectionDragEnd = async (result) => {
     if (!result.destination) return;
 
     const items = Array.from(filteredSections);
     const [reordered] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reordered);
 
-    // Update section order in metadata
-    const newMetadata = {};
-    items.forEach((section, index) => {
-      newMetadata[section.name] = {
-        ...sectionMetadata[section.name],
-        section_order: index
+    // Update section order in metadata and persist to DB
+    const updates = items.map((section, index) => {
+      const existingCategory = categories.find(cat => cat.category_label === section.name);
+      return {
+        categoryId: existingCategory?.id, // Use existing ID if available
+        categoryLabel: section.name,
+        section_order: index,
+        existingCategory: existingCategory
       };
     });
-    setSectionMetadata(prev => ({ ...prev, ...newMetadata }));
-    toast.success('Section order updated');
+
+    try {
+      await Promise.all(updates.map(async (u) => {
+        if (u.categoryId) {
+          await updateCategoryMutation.mutateAsync({
+            id: u.categoryId,
+            data: { section_order: u.section_order }
+          });
+        } else {
+          // If category does not exist, create it with the new order
+          await createCategoryMutation.mutateAsync({
+            category_id: `CAT_${u.categoryLabel.replace(/\s+/g, '_').toUpperCase()}`,
+            category_label: u.categoryLabel,
+            section_order: u.section_order,
+            active: true // Default to active for new categories
+          });
+        }
+      }));
+      queryClient.invalidateQueries({ queryKey: ['categories'] }); // Invalidate to refetch updated orders
+      toast.success('Section order updated');
+    } catch (err) {
+      console.error("Failed to update section order:", err);
+      toast.error('Failed to reorder sections');
+    }
   };
 
   const handleQuestionDragEnd = async (result, sectionName) => {
