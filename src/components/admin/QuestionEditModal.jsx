@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -25,14 +26,14 @@ import { FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../utils/followupPackN
 const GROUPED_PACKS = {
   "Law Enforcement": [
     'PACK_LE_APPS', 'PACK_LE_PREV', 'PACK_LE_INTERVIEW', 'PACK_LE_COMPLAINT',
-    'PACK_ACCUSED_FORCE', 'PACK_GRATUITY', 'PACK_FALSIFY_REPORT', 
+    'PACK_ACCUSED_FORCE', 'PACK_GRATUITY', 'PACK_FALSIFY_REPORT',
     'PACK_INTERNAL_AFFAIRS', 'PACK_LYING_LE', 'PACK_OTHER_PRIOR_LE'
   ],
   "Driving & Traffic": [
     'PACK_DUI', 'PACK_DUI_STOP', 'PACK_DUI_ARREST', 'PACK_LICENSE_SUSPENSION',
     'PACK_LICENSE_SUSPENDED', 'PACK_REVOKED_LICENSE', 'PACK_SUSPENDED_LICENSE',
-    'PACK_RECKLESS_DRIVING', 'PACK_TRAFFIC', 'PACK_TRAFFIC_CITATION', 
-    'PACK_CRIMINAL_TRAFFIC', 'PACK_TRAFFIC_ARREST', 'PACK_ROAD_RAGE', 
+    'PACK_RECKLESS_DRIVING', 'PACK_TRAFFIC', 'PACK_TRAFFIC_CITATION',
+    'PACK_CRIMINAL_TRAFFIC', 'PACK_TRAFFIC_ARREST', 'PACK_ROAD_RAGE',
     'PACK_OTHER_DRIVING', 'PACK_COLLISION', 'PACK_COLLISION_INJURY',
     'PACK_ALCOHOL_COLLISION', 'PACK_UNREPORTED_COLLISION', 'PACK_HIT_RUN',
     'PACK_HIT_RUN_DAMAGE', 'PACK_NO_INSURANCE', 'PACK_INSURANCE_REFUSED',
@@ -53,7 +54,7 @@ const GROUPED_PACKS = {
     'PACK_DOMESTIC_ACCUSED', 'PACK_DOMESTIC'
   ],
   "Crimes Against Children": [
-    'PACK_CHILD_CRIME_COMMITTED', 'PACK_CHILD_CRIME_ACCUSED', 
+    'PACK_CHILD_CRIME_COMMITTED', 'PACK_CHILD_CRIME_ACCUSED',
     'PACK_CHILD_PROTECTION', 'PACK_MINOR_CONTACT'
   ],
   "Theft & Property": [
@@ -90,7 +91,7 @@ const GROUPED_PACKS = {
     'PACK_ALCOHOL_DEPENDENCY', 'PACK_ALCOHOL_INCIDENT', 'PACK_PROVIDE_ALCOHOL'
   ],
   "Military": [
-    'PACK_MIL_SERVICE', 'PACK_MIL_REJECTION', 'PACK_MIL_DISCHARGE', 
+    'PACK_MIL_SERVICE', 'PACK_MIL_REJECTION', 'PACK_MIL_DISCHARGE',
     'PACK_MIL_DISCIPLINE'
   ],
   "Employment & Discipline": [
@@ -107,7 +108,7 @@ const GROUPED_PACKS = {
 async function generateNextQuestionId() {
   try {
     const allQuestions = await base44.entities.Question.list();
-    
+
     let maxNum = 0;
     allQuestions.forEach(q => {
       const match = q.question_id?.match(/^Q(\d+)/);
@@ -116,7 +117,7 @@ async function generateNextQuestionId() {
         if (num > maxNum) maxNum = num;
       }
     });
-    
+
     const nextNum = maxNum + 1;
     return `Q${String(nextNum).padStart(3, '0')}`;
   } catch (err) {
@@ -176,7 +177,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           followup_pack: question.followup_pack || '',
           substance_name: question.substance_name || ''
         });
-        
+
         // Check if this question is a gate question
         if (question.category) {
           const cats = await base44.entities.Category.filter({ category_label: question.category });
@@ -196,7 +197,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         setIsGeneratingId(false);
       }
     }
-    
+
     initializeForm();
   }, [question]);
 
@@ -216,7 +217,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         }
       }
     }
-    
+
     if (formData.category && formData.question_id) {
       updateCategoryEntity();
     }
@@ -224,7 +225,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
   const validate = () => {
     const newErrors = {};
-    
+
     if (!formData.question_text?.trim()) {
       newErrors.question_text = 'Question text is required';
     }
@@ -234,7 +235,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     if (!formData.question_id?.trim()) {
       newErrors.question_id = 'Question ID is required';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -318,8 +319,8 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
           <div>
             <Label htmlFor="category" className="text-slate-300">Section / Category</Label>
-            <Select 
-              value={formData.category} 
+            <Select
+              value={formData.category}
               onValueChange={(v) => setFormData({...formData, category: v})}
               disabled={isLoadingCategories}
             >
@@ -375,7 +376,9 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
             </Label>
             <Select value={formData.followup_pack || ""} onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}>
               <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-                <SelectValue placeholder="Select a follow-up pack (optional)" />
+                <SelectValue placeholder="Select a follow-up pack (optional)">
+                  {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack} (${formData.followup_pack})` : "Select a follow-up pack (optional)"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent className="max-h-80">
                 <SelectItem value={null}>None</SelectItem>
@@ -423,6 +426,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 id="active"
                 checked={formData.active}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                className="data-[state=checked]:bg-emerald-600"
               />
             </div>
 
@@ -443,6 +447,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 checked={isGateQuestion}
                 onCheckedChange={setIsGateQuestion}
                 disabled={!formData.category || formData.response_type !== 'yes_no'}
+                className="data-[state=checked]:bg-emerald-600"
               />
             </div>
             {formData.response_type !== 'yes_no' && (
