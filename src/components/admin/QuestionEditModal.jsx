@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -107,7 +106,6 @@ const GROUPED_PACKS = {
 
 async function generateNextQuestionId() {
   try {
-    // Get all questions to find the highest numeric ID
     const allQuestions = await base44.entities.Question.list();
     
     let maxNum = 0;
@@ -119,12 +117,11 @@ async function generateNextQuestionId() {
       }
     });
     
-    // Return next ID
     const nextNum = maxNum + 1;
     return `Q${String(nextNum).padStart(3, '0')}`;
   } catch (err) {
     console.error('Error generating question ID:', err);
-    return 'Q001'; // Fallback
+    return 'Q001';
   }
 }
 
@@ -142,11 +139,31 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingId, setIsGeneratingId] = useState(false);
   const [errors, setErrors] = useState({});
+  const [categories, setCategories] = useState([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const cats = await base44.entities.Category.list();
+        const sortedCats = cats
+          .filter(c => c.active !== false)
+          .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+        setCategories(sortedCats);
+      } catch (err) {
+        console.error('Error loading categories:', err);
+        toast.error('Failed to load categories');
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    }
+
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     async function initializeForm() {
       if (question) {
-        // Editing existing question
         setFormData({
           question_id: question.question_id || '',
           category: question.category || '',
@@ -158,7 +175,6 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           substance_name: question.substance_name || ''
         });
       } else {
-        // New question - auto-generate ID
         setIsGeneratingId(true);
         const newId = await generateNextQuestionId();
         setFormData(prev => ({
@@ -258,13 +274,22 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
           <div>
             <Label htmlFor="category" className="text-slate-300">Section / Category</Label>
-            <Input
-              id="category"
-              value={formData.category}
-              onChange={(e) => setFormData({...formData, category: e.target.value})}
-              placeholder="e.g., Criminal Involvement / Police Contacts"
-              className="bg-slate-800 border-slate-600 text-white mt-1"
-            />
+            <Select 
+              value={formData.category} 
+              onValueChange={(v) => setFormData({...formData, category: v})}
+              disabled={isLoadingCategories}
+            >
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                <SelectValue placeholder={isLoadingCategories ? "Loading categories..." : "Select a section"} />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.category_label}>
+                    {cat.category_label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.category && <p className="text-xs text-red-400 mt-1">{errors.category}</p>}
           </div>
 
