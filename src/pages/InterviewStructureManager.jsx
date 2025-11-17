@@ -110,6 +110,25 @@ const GROUPED_PACKS = {
   ]
 };
 
+async function generateNextQuestionId() {
+  try {
+    const allQuestions = await base44.entities.Question.list();
+    let maxNum = 0;
+    allQuestions.forEach(q => {
+      const match = q.question_id?.match(/^Q(\d+)/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const nextNum = maxNum + 1;
+    return `Q${String(nextNum).padStart(3, '0')}`;
+  } catch (err) {
+    console.error('Error generating question ID:', err);
+    return 'Q001';
+  }
+}
+
 export default function InterviewStructureManager() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -476,6 +495,10 @@ export default function InterviewStructureManager() {
                           const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
                           const inactiveCount = sectionQuestionsAll.filter(q => q.active === false).length;
                           
+                          // Find gate question for this section
+                          const gateCategory = categories.find(c => c.category_label === section.section_name);
+                          const gateQuestionId = gateCategory?.gate_question_id;
+                          
                           return (
                             <Draggable key={section.id} draggableId={section.id} index={index}>
                               {(provided) => (
@@ -532,6 +555,12 @@ export default function InterviewStructureManager() {
                                               Required
                                             </Badge>
                                           )}
+                                          {gateQuestionId && (
+                                            <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
+                                              <Lock className="w-3 h-3 mr-1" />
+                                              Control: {gateQuestionId}
+                                            </Badge>
+                                          )}
                                         </div>
                                       </div>
                                       <Button
@@ -549,8 +578,10 @@ export default function InterviewStructureManager() {
                                   {expandedNodes[`section-${section.id}`] && (
                                     <div className="border-t border-slate-700/50 p-3 pl-12 bg-slate-900/30">
                                       <QuestionList 
+                                        section={section}
                                         sectionId={section.id} 
                                         questions={questions}
+                                        categories={categories}
                                         followUpPacks={followUpPacks}
                                         followUpQuestions={followUpQuestions}
                                         expandedNodes={expandedNodes}
@@ -580,6 +611,7 @@ export default function InterviewStructureManager() {
                 selectedItem={selectedItem}
                 sections={sections}
                 categories={categories}
+                questions={questions}
                 followUpPacks={followUpPacks}
                 onClose={() => setSelectedItem(null)}
                 onDelete={(item) => setDeleteConfirm(item)}
@@ -622,9 +654,18 @@ export default function InterviewStructureManager() {
               disabled={deleteInput !== "DELETE"}
               className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
-                setDeleteConfirm(null);
-                setDeleteInput("");
-                toast.success('Item deleted');
+                try {
+                  if (deleteConfirm.type === 'question') {
+                    await base44.entities.Question.delete(deleteConfirm.data.id);
+                    queryClient.invalidateQueries({ queryKey: ['questions'] });
+                    toast.success('Question deleted');
+                  }
+                  setDeleteConfirm(null);
+                  setDeleteInput("");
+                  setSelectedItem(null);
+                } catch (err) {
+                  toast.error('Failed to delete');
+                }
               }}
             >
               Delete
@@ -636,10 +677,14 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, expandedNodes, toggleNode, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
+function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
   const sectionQuestions = questions
     .filter(q => q.section_id === sectionId)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+  // Find gate question for this section
+  const gateCategory = categories.find(c => c.category_label === section.section_name);
+  const gateQuestionId = gateCategory?.gate_question_id;
 
   if (sectionQuestions.length === 0) {
     return <p className="text-sm text-slate-400">No questions yet</p>;
@@ -652,6 +697,7 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
           <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
             {sectionQuestions.map((question, index) => {
               const pack = followUpPacks.find(p => p.followup_pack_id === question.followup_pack_id || p.pack_name === question.followup_pack);
+              const isControlQuestion = gateQuestionId === question.question_id;
               
               return (
                 <Draggable key={question.id} draggableId={question.id} index={index}>
@@ -659,8 +705,12 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className={`bg-slate-800/50 border rounded-lg p-3 hover:border-emerald-500/50 transition-colors ${
-                        question.active ? 'border-slate-600' : 'border-slate-700 opacity-40'
+                      className={`bg-slate-800/50 border rounded-lg p-3 transition-colors ${
+                        isControlQuestion 
+                          ? 'border-amber-500/50 bg-amber-950/10 hover:border-amber-500' 
+                          : question.active 
+                            ? 'border-slate-600 hover:border-emerald-500/50' 
+                            : 'border-slate-700 opacity-40 hover:border-slate-600'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -701,6 +751,12 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                             ) : (
                               <Badge className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
                                 Inactive
+                              </Badge>
+                            )}
+                            {isControlQuestion && (
+                              <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
+                                <Lock className="w-3 h-3 mr-1" />
+                                Control
                               </Badge>
                             )}
                           </div>
@@ -849,18 +905,31 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
   );
 }
 
-function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClose, onDelete }) {
+function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, onClose, onDelete }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
+  const [isGateQuestion, setIsGateQuestion] = useState(false);
+  const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
 
   useEffect(() => {
     if (selectedItem?.data) {
       setFormData(selectedItem.data);
+      
+      // Check if this question is a gate question
+      if (selectedItem.type === 'question' && selectedItem.data.category) {
+        const cat = categories.find(c => c.category_label === selectedItem.data.category);
+        if (cat) {
+          setCurrentCategoryEntity(cat);
+          setIsGateQuestion(cat.gate_question_id === selectedItem.data.question_id);
+        }
+      }
     } else {
       setFormData({});
+      setIsGateQuestion(false);
+      setCurrentCategoryEntity(null);
     }
-  }, [selectedItem]);
+  }, [selectedItem, categories]);
 
   // Determine default pack group based on category
   useEffect(() => {
@@ -894,7 +963,17 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
         toast.success('Section updated');
       } else if (selectedItem?.type === 'question') {
         await base44.entities.Question.update(selectedItem.data.id, formData);
+        
+        // Update category gate question setting
+        if (currentCategoryEntity) {
+          await base44.entities.Category.update(currentCategoryEntity.id, {
+            gate_question_id: isGateQuestion ? formData.question_id : null,
+            gate_skip_if_value: isGateQuestion ? 'No' : null
+          });
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['questions'] });
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
         toast.success('Question updated');
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
@@ -914,8 +993,25 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section created');
         onClose();
+      } else if (selectedItem?.type === 'new-question') {
+        const newQuestionId = await generateNextQuestionId();
+        const sectionQuestions = questions.filter(q => q.section_id === selectedItem.sectionId);
+        const maxOrder = Math.max(0, ...sectionQuestions.map(q => q.display_order || 0));
+        
+        await base44.entities.Question.create({
+          ...formData,
+          question_id: newQuestionId,
+          section_id: selectedItem.sectionId,
+          display_order: maxOrder + 1,
+          active: true,
+          response_type: formData.response_type || 'yes_no'
+        });
+        queryClient.invalidateQueries({ queryKey: ['questions'] });
+        toast.success('Question created');
+        onClose();
       }
     } catch (err) {
+      console.error('Save error:', err);
       toast.error('Failed to save');
     }
   };
@@ -929,11 +1025,26 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
   }
 
   if (selectedItem.type === 'section' || selectedItem.type === 'new-section') {
+    const section = selectedItem.data;
+    const sectionQuestionsAll = questions.filter(q => q.section_id === section?.id);
+    
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">
-          {selectedItem.type === 'new-section' ? 'New Section' : 'Edit Section'}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">
+            {selectedItem.type === 'new-section' ? 'New Section' : 'Edit Section'}
+          </h3>
+          {selectedItem.type !== 'new-section' && sectionQuestionsAll.length > 0 && (
+            <Button
+              onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Question
+            </Button>
+          )}
+        </div>
         
         <div>
           <Label className="text-slate-300">Section Name</Label>
@@ -1004,19 +1115,35 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
     );
   }
 
-  if (selectedItem.type === 'question') {
+  if (selectedItem.type === 'question' || selectedItem.type === 'new-question') {
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">Edit Question</h3>
-        
-        <div>
-          <Label className="text-slate-300">Question ID</Label>
-          <Input
-            value={formData.question_id || ''}
-            disabled
-            className="bg-slate-800 border-slate-600 text-slate-400 mt-1"
-          />
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">
+            {selectedItem.type === 'new-question' ? `Add Question to ${selectedItem.sectionName}` : 'Edit Question'}
+          </h3>
+          {selectedItem.type === 'question' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDelete(selectedItem)}
+              className="text-red-400 hover:text-red-300 hover:bg-red-950/30"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
+        
+        {selectedItem.type === 'question' && (
+          <div>
+            <Label className="text-slate-300">Question ID</Label>
+            <Input
+              value={formData.question_id || ''}
+              disabled
+              className="bg-slate-800 border-slate-600 text-slate-400 mt-1"
+            />
+          </div>
+        )}
 
         <div>
           <Label className="text-slate-300">Display Order</Label>
@@ -1054,22 +1181,24 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
           </Select>
         </div>
 
-        <div>
-          <Label className="text-slate-300">Section</Label>
-          <Select
-            value={formData.section_id || ''}
-            onValueChange={(v) => setFormData({...formData, section_id: v})}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sections.map(s => (
-                <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {selectedItem.type === 'question' && (
+          <div>
+            <Label className="text-slate-300">Section</Label>
+            <Select
+              value={formData.section_id || ''}
+              onValueChange={(v) => setFormData({...formData, section_id: v})}
+            >
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sections.map(s => (
+                  <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div>
           <Label className="text-slate-300 flex items-center gap-2">
@@ -1154,9 +1283,34 @@ function DetailPanel({ selectedItem, sections, categories, followUpPacks, onClos
           />
         </div>
 
+        <div className="flex items-start justify-between bg-orange-950/30 border border-orange-900/50 rounded-lg p-3">
+          <div className="flex-1 pr-3">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldAlert className="w-4 h-4 text-orange-400" />
+              <Label className="text-slate-300 font-semibold">
+                Control Question (Gate)
+              </Label>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              If enabled, a "No" response to this question will skip all remaining questions in this section
+            </p>
+          </div>
+          <Switch
+            checked={isGateQuestion}
+            onCheckedChange={setIsGateQuestion}
+            disabled={formData.response_type !== 'yes_no'}
+            className="data-[state=checked]:bg-emerald-600"
+          />
+        </div>
+        {formData.response_type !== 'yes_no' && (
+          <p className="text-xs text-yellow-400">
+            Control questions must be Yes/No type
+          </p>
+        )}
+
         <div className="flex gap-2 pt-4">
           <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-            Save Changes
+            {selectedItem.type === 'new-question' ? 'Create Question' : 'Save Changes'}
           </Button>
         </div>
       </div>
