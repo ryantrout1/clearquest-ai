@@ -727,14 +727,25 @@ export default function QuestionsManager() {
                                                           <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                                             {question.question_id}
                                                           </Badge>
-                                                          <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
-                                                            {question.active ? 'Active' : 'Inactive'}
-                                                          </Badge>
-                                                          <Switch
-                                                            checked={question.active}
-                                                            onCheckedChange={() => handleToggleActive(question)}
-                                                            className="scale-75"
-                                                          />
+                                                          
+                                                          {/* Active toggle with same design as section */}
+                                                          <div className={`flex items-center gap-2 rounded-lg px-2 py-0.5 transition-colors ${
+                                                            question.active 
+                                                              ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                                                              : 'bg-slate-800/50 border border-slate-700'
+                                                          }`}>
+                                                            <Switch
+                                                              checked={question.active}
+                                                              onCheckedChange={() => handleToggleActive(question)}
+                                                              className="scale-75"
+                                                            />
+                                                            <Label className={`text-xs cursor-pointer font-medium ${
+                                                              question.active ? 'text-emerald-400' : 'text-slate-400'
+                                                            }`}>
+                                                              {question.active ? 'Active' : 'Inactive'}
+                                                            </Label>
+                                                          </div>
+                                                          
                                                           {isControlActive && (
                                                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" variant="outline">
                                                               <Lock className="w-3 h-3 mr-1" />
