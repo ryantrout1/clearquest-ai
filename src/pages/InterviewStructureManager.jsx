@@ -104,30 +104,30 @@ export default function InterviewStructureManager() {
   const runMigration = async () => {
     setIsMigrating(true);
     try {
-      console.log('Starting migration...');
+      console.log('=== STARTING MIGRATION ===');
       console.log('Categories:', categories.length);
       console.log('Questions:', questions.length);
+      console.log('Existing Sections:', sections.length);
       
       // Step 1: Create Section records from Categories (or use existing)
       const sectionMap = {};
       const categoriesSorted = [...categories].sort((a, b) => (a.section_order || a.display_order || 999) - (b.section_order || b.display_order || 999));
       
-      let sectionsCreatedCount = 0;
       for (const cat of categoriesSorted) {
-        // Check if section already exists by name or category_id
+        // Check if section already exists
         const existingSection = sections.find(s => 
           s.section_name === cat.category_label || 
-          (cat.category_id && s.section_id === cat.category_id)
+          s.section_id === cat.category_id
         );
         
         let sectionId;
         if (existingSection) {
           sectionId = existingSection.id;
-          console.log(`Using existing section for category "${cat.category_label}": ${sectionId}`);
+          console.log(`✓ Using existing section: ${cat.category_label} -> ${sectionId}`);
         } else {
-          console.log(`Creating new section for category: ${cat.category_label}`);
+          console.log(`Creating new section for: ${cat.category_label}`);
           const newSection = await base44.entities.Section.create({
-            section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}_${Date.now()}`,
+            section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}`,
             section_name: cat.category_label,
             section_order: cat.section_order || cat.display_order || 999,
             active: cat.active !== false,
@@ -135,8 +135,7 @@ export default function InterviewStructureManager() {
             description: cat.description || ''
           });
           sectionId = newSection.id;
-          sectionsCreatedCount++;
-          console.log(`Created section: ${cat.category_label} -> ${sectionId}`);
+          console.log(`✓ Created section: ${cat.category_label} -> ${sectionId}`);
         }
         
         // Store multiple keys for matching
@@ -147,52 +146,55 @@ export default function InterviewStructureManager() {
         }
       }
 
+      console.log('\n=== SECTION MAP ===');
+      console.log(Object.keys(sectionMap).filter(k => !k.startsWith('CAT_')));
+
       // Step 2: Link ALL Questions to Sections
       let updatedCount = 0;
+      let alreadyLinkedCount = 0;
       let skippedCount = 0;
       const unmatched = [];
+      const byCategoryCount = {};
       
       for (const q of questions) {
         let matched = false;
+        let targetSectionId = null;
         
-        // Skip if already has a valid section_id that matches one of the new/existing sections
-        // We consider it "valid" if its section_id exists in our current map of sections (which includes newly created ones)
-        if (q.section_id && Object.values(sectionMap).includes(q.section_id)) {
-          console.log(`✓ Question ${q.question_id} already linked to a known section: ${q.section_id}`);
-          updatedCount++;
-          continue; // Move to the next question
-        }
-        
-        // Try multiple matching strategies for questions not yet linked
-        if (q.category) {
-          if (sectionMap[q.category]) {
-            await base44.entities.Question.update(q.id, {
-              section_id: sectionMap[q.category]
-            });
-            updatedCount++;
-            matched = true;
-            console.log(`✓ Matched question ${q.question_id} to section via exact category: ${q.category}`);
-          } else if (sectionMap[q.category.toLowerCase().trim()]) {
-            await base44.entities.Question.update(q.id, {
-              section_id: sectionMap[q.category.toLowerCase().trim()]
-            });
-            updatedCount++;
-            matched = true;
-            console.log(`✓ Matched question ${q.question_id} to section via lowercase trimmed category: ${q.category}`);
+        // Check if already properly linked to an existing section
+        if (q.section_id) {
+          const sectionExists = sections.find(s => s.id === q.section_id);
+          if (sectionExists) {
+            alreadyLinkedCount++;
+            const catName = q.category || 'Unknown';
+            byCategoryCount[catName] = (byCategoryCount[catName] || 0) + 1;
+            console.log(`✓ Already linked: ${q.question_id} -> ${sectionExists.section_name}`);
+            continue;
           }
         }
         
-        // If still not matched, try existing section_id field if it points to a new/existing section's ID
-        if (!matched && q.section_id && sectionMap[q.section_id]) {
-          await base44.entities.Question.update(q.id, {
-            section_id: sectionMap[q.section_id]
-          });
-          updatedCount++;
-          matched = true;
-          console.log(`✓ Matched question ${q.question_id} to section via existing section_id field: ${q.section_id}`);
+        // Try to find matching section
+        if (q.category) {
+          // Try exact match
+          if (sectionMap[q.category]) {
+            targetSectionId = sectionMap[q.category];
+            matched = true;
+          }
+          // Try lowercase trimmed match
+          else if (sectionMap[q.category.toLowerCase().trim()]) {
+            targetSectionId = sectionMap[q.category.toLowerCase().trim()];
+            matched = true;
+          }
         }
         
-        if (!matched) {
+        if (matched && targetSectionId) {
+          await base44.entities.Question.update(q.id, {
+            section_id: targetSectionId
+          });
+          updatedCount++;
+          const catName = q.category || 'Unknown';
+          byCategoryCount[catName] = (byCategoryCount[catName] || 0) + 1;
+          console.log(`✓ Linked: ${q.question_id} (${q.category}) -> section ID ${targetSectionId}`);
+        } else {
           skippedCount++;
           unmatched.push({
             id: q.question_id,
@@ -200,30 +202,35 @@ export default function InterviewStructureManager() {
             section_id: q.section_id,
             text: q.question_text?.substring(0, 50)
           });
-          console.warn(`✗ Could not match question ${q.question_id}:`, {
-            category: q.category,
-            section_id: q.section_id
-          });
+          console.warn(`✗ Could not match: ${q.question_id} with category "${q.category}"`);
         }
       }
 
-      console.log('Migration complete!');
-      console.log(`Total questions processed: ${questions.length}`);
-      console.log(`Questions updated/already linked: ${updatedCount}`);
-      console.log(`Questions skipped (unmatched): ${skippedCount}`);
+      console.log('\n=== MIGRATION COMPLETE ===');
+      console.log(`Total questions: ${questions.length}`);
+      console.log(`Already linked: ${alreadyLinkedCount}`);
+      console.log(`Newly linked: ${updatedCount}`);
+      console.log(`Could not match: ${skippedCount}`);
+      
+      console.log('\n=== QUESTIONS BY CATEGORY ===');
+      Object.entries(byCategoryCount).forEach(([cat, count]) => {
+        console.log(`${cat}: ${count} questions`);
+      });
       
       if (unmatched.length > 0) {
-        console.warn('Unmatched questions:', unmatched);
+        console.warn('\n=== UNMATCHED QUESTIONS ===');
+        unmatched.forEach(q => {
+          console.warn(`- ${q.id}: category="${q.category}", section_id="${q.section_id}"`);
+        });
       }
 
-      // Invalidate queries to refetch data
-      await queryClient.invalidateQueries({ queryKey: ['sections'] });
-      await queryClient.invalidateQueries({ queryKey: ['questions'] });
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
       
       if (skippedCount > 0) {
-        toast.warning(`Migration complete: ${sectionsCreatedCount} new sections created, ${updatedCount} questions linked/updated, ${skippedCount} questions could not be matched. Check console for details.`);
+        toast.warning(`Migration complete: ${alreadyLinkedCount + updatedCount} questions linked, ${skippedCount} could not be matched. Check console.`);
       } else {
-        toast.success(`Migration complete: ${sectionsCreatedCount} new sections created, ${updatedCount} questions linked successfully!`);
+        toast.success(`Migration complete: All ${alreadyLinkedCount + updatedCount} questions linked!`);
       }
     } catch (err) {
       console.error('Migration error:', err);
@@ -347,7 +354,7 @@ export default function InterviewStructureManager() {
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Run Migration
+                  Sync All Questions
                 </>
               )}
             </Button>
@@ -376,7 +383,7 @@ export default function InterviewStructureManager() {
               {sectionsLoading ? (
                 <p className="text-slate-400 text-center py-8">Loading sections...</p>
               ) : sortedSections.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No sections yet. Click "Run Migration" to import your data.</p>
+                <p className="text-slate-400 text-center py-8">No sections yet. Click "Sync All Questions" to import your data.</p>
               ) : (
                 <DragDropContext onDragEnd={handleSectionDragEnd}>
                   <Droppable droppableId="sections">
