@@ -116,9 +116,8 @@ export default function QuestionsManager() {
       const metadata = {};
       categories.forEach(cat => {
         metadata[cat.category_label] = {
-          section_required: cat.section_required || false,
           section_active: cat.active !== false,
-          gate_mode_enabled: cat.gate_skip_if_value === 'No' // If gate_skip_if_value is set, gate mode is enabled
+          gate_mode_enabled: cat.gate_skip_if_value === 'No'
         };
       });
       setSectionMetadata(metadata);
@@ -196,7 +195,6 @@ export default function QuestionsManager() {
     
     const sectionList = Object.values(sectionMap).map(section => ({
       ...section,
-      section_required: sectionMetadata[section.name]?.section_required || false,
       section_active: sectionMetadata[section.name]?.section_active !== false,
       section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
       gate_mode_enabled: sectionMetadata[section.name]?.gate_mode_enabled || false
@@ -217,32 +215,15 @@ export default function QuestionsManager() {
       if (statusFilter === "inactive" && section.section_active) {
         return false;
       }
-      if (requiredFilter === "required" && !section.section_required) {
-        return false;
-      }
-      if (requiredFilter === "optional" && section.section_required) {
-        return false;
-      }
       return true;
     });
-  }, [sections, searchQuery, statusFilter, requiredFilter]);
+  }, [sections, searchQuery, statusFilter]);
 
   const toggleSection = (sectionName) => {
     setExpandedSections(prev => ({
       ...prev,
       [sectionName]: !prev[sectionName]
     }));
-  };
-
-  const toggleSectionRequired = (sectionName) => {
-    setSectionMetadata(prev => ({
-      ...prev,
-      [sectionName]: {
-        ...prev[sectionName],
-        section_required: !prev[sectionName]?.section_required
-      }
-    }));
-    toast.success('Section required status updated');
   };
 
   const toggleSectionActive = (sectionName) => {
@@ -464,15 +445,6 @@ export default function QuestionsManager() {
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
-      <style>{`
-        .switch-red[data-state="checked"] {
-          background-color: rgb(239 68 68) !important;
-        }
-        .switch-red[data-state="checked"] span {
-          background-color: white !important;
-        }
-      `}</style>
-
       {/* Header */}
       <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
         <div className="max-w-7xl mx-auto">
@@ -516,16 +488,7 @@ export default function QuestionsManager() {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={requiredFilter} onValueChange={setRequiredFilter}>
-              <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                <SelectValue placeholder="Required" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Required: All</SelectItem>
-                <SelectItem value="required">Required only</SelectItem>
-                <SelectItem value="optional">Optional only</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="md:col-span-2"></div>
             <Button
               onClick={() => setSectionOrderMode(!sectionOrderMode)}
               variant={sectionOrderMode ? "default" : "outline"}
@@ -533,10 +496,6 @@ export default function QuestionsManager() {
             >
               <ArrowUpDown className="w-4 h-4 mr-2" />
               {sectionOrderMode ? 'Done Ordering' : 'Edit Section Order'}
-            </Button>
-            <Button onClick={() => toast.info('Add section coming soon')} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Section
             </Button>
           </div>
         </div>
@@ -627,24 +586,6 @@ export default function QuestionsManager() {
 
                                   {/* Section controls */}
                                   <div className="flex flex-wrap items-center gap-3 mt-3">
-                                    {/* Required toggle */}
-                                    <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
-                                      section.section_required 
-                                        ? 'bg-red-500/10 border border-red-500/30' 
-                                        : 'bg-slate-800/50 border border-slate-700'
-                                    }`}>
-                                      <Switch
-                                        checked={section.section_required}
-                                        onCheckedChange={() => toggleSectionRequired(section.name)}
-                                        className={`scale-90 ${section.section_required ? 'switch-red' : ''}`}
-                                      />
-                                      <Label className={`text-xs cursor-pointer font-medium ${
-                                        section.section_required ? 'text-red-400' : 'text-slate-400'
-                                      }`}>
-                                        Required section
-                                      </Label>
-                                    </div>
-
                                     {/* Status toggle */}
                                     <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
                                       section.section_active 
@@ -764,12 +705,7 @@ export default function QuestionsManager() {
                                                               Control Question
                                                             </Badge>
                                                           )}
-                                                          {section.section_required && question.active && (
-                                                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30" variant="outline">
-                                                              Required (via section)
-                                                            </Badge>
-                                                          )}
-                                                          {!section.section_required && question.is_required && (
+                                                          {question.is_required && (
                                                             <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" variant="outline">
                                                               Required question
                                                             </Badge>
