@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -118,7 +117,6 @@ export default function InterviewV2() {
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
-  // NEW: Track answered agent questions to prevent showing unanswered questions
   const [answeredAgentQuestions, setAnsweredAgentQuestions] = useState(new Set());
 
   // AI robustness states
@@ -216,7 +214,7 @@ export default function InterviewV2() {
           followup_pack: packId,
           instance_number: 1,
           substance_name: substanceName || null,
-          incident_description: answer, // This field might need to be reconsidered if it's just the last answer, not full description
+          incident_description: answer,
           additional_details: { [fieldKey]: answer }
         });
       } else {
@@ -243,8 +241,6 @@ export default function InterviewV2() {
       let startIndex = -1;
       let endIndex = -1;
 
-      // Find the start of the probing (after 'Follow-up pack completed' message)
-      // and the end (before the next Q-ID message)
       for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
 
@@ -253,13 +249,12 @@ export default function InterviewV2() {
             msg.content.includes('Follow-up pack completed') &&
             msg.content.includes(`Question ID: ${questionId}`) &&
             msg.content.includes(`Follow-up Pack: ${packId}`)) {
-          startIndex = i + 1; // Start collecting from the next message
+          startIndex = i + 1;
           continue;
         }
 
-        // Check if we're past the start marker and hit a new Q-ID
         if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
-          endIndex = i; // End before this message
+          endIndex = i;
           break;
         }
       }
@@ -275,17 +270,16 @@ export default function InterviewV2() {
           const currentMsg = probingMessages[i];
           const nextMsg = probingMessages[i + 1];
 
-          // Look for Assistant-User pairs as probing exchanges
           if (currentMsg.role === 'assistant' &&
               typeof currentMsg.content === 'string' &&
-              !currentMsg.content.includes('Follow-up pack completed') && // Exclude system messages
-              !currentMsg.content.match(/\bQ\d{1,3}\b/i) && // Exclude "next question" messages
+              !currentMsg.content.includes('Follow-up pack completed') &&
+              !currentMsg.content.match(/\bQ\d{1,3}\b/i) &&
               nextMsg?.role === 'user' &&
               typeof nextMsg.content === 'string' &&
               !nextMsg.content.includes('Follow-up pack completed')) {
 
             const cleanQuestion = currentMsg.content
-              .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '') // Remove timestamps
+              .replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '')
               .trim();
 
             if (cleanQuestion && nextMsg.content && cleanQuestion.length > 5) {
@@ -297,7 +291,7 @@ export default function InterviewV2() {
               });
             }
 
-            i++; // Skip nextMsg as it's part of this exchange
+            i++;
           }
         }
       }
@@ -333,7 +327,6 @@ export default function InterviewV2() {
     try {
       console.log(`📝 Generating investigator summary for ${questionId}/${packId}...`);
 
-      // Get the Response record
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
         question_id: questionId,
@@ -347,19 +340,16 @@ export default function InterviewV2() {
 
       const responseRecord = responses[0];
 
-      // Skip if already has a summary
       if (responseRecord.investigator_summary && responseRecord.investigator_summary.trim() !== '') {
         console.log(`ℹ️ Summary already exists for ${questionId}, skipping`);
         return;
       }
 
-      // Skip U.S. citizenship question
       if (questionId === 'Q161') {
         console.log(`ℹ️ Skipping summary for U.S. citizenship question ${questionId}`);
         return;
       }
 
-      // Get follow-up details
       const followups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: responseRecord.id
@@ -378,7 +368,6 @@ export default function InterviewV2() {
         return;
       }
 
-      // Build prompt for AI
       const prompt = `You are generating a single-line investigator summary for a background interview question.
 
 Question: ${question.question_text}
@@ -409,7 +398,6 @@ Return ONLY the summary sentence, nothing else.`;
 
       const summary = result.trim();
 
-      // Save summary to Response
       await base44.entities.Response.update(responseRecord.id, {
         investigator_summary: summary
       });
@@ -418,7 +406,6 @@ Return ONLY the summary sentence, nothing else.`;
 
     } catch (err) {
       console.error(`❌ Error generating summary for ${questionId}:`, err);
-      // Don't throw - continue interview even if summary generation fails
     }
   }, [sessionId, engine]);
 
@@ -500,7 +487,7 @@ Return ONLY the summary sentence, nothing else.`;
 
   const initializeInterview = async () => {
     try {
-      console.log('🚀 [PRODUCTION] Initializing HYBRID interview flow (v2.5)...');
+      console.log('🚀 [SINGLE-SOURCE] Initializing interview (Question Manager = source of truth)...');
       const startTime = performance.now();
 
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
@@ -531,6 +518,7 @@ Return ONLY the summary sentence, nothing else.`;
         console.warn('⚠️ Could not load department info:', err);
       }
 
+      // ALWAYS bootstrap engine from current Question Manager config
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
 
@@ -588,21 +576,10 @@ Return ONLY the summary sentence, nothing else.`;
         }
       }
 
-      const hasValidSnapshots = loadedSession.transcript_snapshot &&
-                                 loadedSession.transcript_snapshot.length > 0;
-
-      const needsRebuild = loadedSession.status === 'in_progress' &&
-                           (!loadedSession.current_item_snapshot || !hasValidSnapshots);
-
-      if (needsRebuild) {
-        await rebuildSessionFromResponses(engineData, loadedSession);
-      } else if (hasValidSnapshots) {
-        restoreFromSnapshots(engineData, loadedSession);
-      } else {
-        const firstQuestionId = engineData.ActiveOrdered[0];
-        setQueue([]);
-        setCurrentItem({ id: firstQuestionId, type: 'question' });
-      }
+      // ARCHITECTURAL CHANGE: ALWAYS rebuild from current config + responses
+      // Never restore stale snapshots - Question Manager is single source of truth
+      console.log('🔄 Rebuilding interview flow from current Question Manager config...');
+      await rebuildSessionFromResponses(engineData, loadedSession);
 
       setIsLoading(false);
       console.log(`✅ Interview ready in ${(performance.now() - startTime).toFixed(2)}ms`);
@@ -612,31 +589,6 @@ Return ONLY the summary sentence, nothing else.`;
       setError(`Failed to load interview: ${err.message}`);
       setIsLoading(false);
     }
-  };
-
-  const restoreFromSnapshots = (engineData, loadedSession) => {
-    const restoredTranscript = loadedSession.transcript_snapshot || [];
-    setTranscript(restoredTranscript);
-
-    const restoredQueue = loadedSession.queue_snapshot || [];
-    setQueue(restoredQueue);
-
-    const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-    setCurrentItem(restoredCurrentItem);
-
-    if (!restoredCurrentItem && restoredQueue.length > 0) {
-      const nextItem = restoredQueue[0];
-      setCurrentItem(nextItem);
-      setQueue(restoredQueue.slice(1));
-    }
-
-    if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
-      if (loadedSession.status === 'completed') {
-        setShowCompletionModal(true);
-      }
-    }
-
-    setTimeout(() => autoScrollToBottom(), 100);
   };
 
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
@@ -675,12 +627,19 @@ Return ONLY the summary sentence, nothing else.`;
         const lastResponse = sortedResponses[sortedResponses.length - 1];
         nextQuestionId = computeNextQuestionId(engineData, lastResponse.question_id, lastResponse.answer);
       } else {
-        nextQuestionId = engineData.ActiveOrdered[0];
+        // First question from first active section
+        const firstSection = Object.values(engineData.sectionConfig)
+          .filter(s => s.active)
+          .sort((a, b) => a.section_order - b.section_order)[0];
+        
+        if (firstSection && engineData.questionsBySection[firstSection.id]?.length > 0) {
+          nextQuestionId = engineData.questionsBySection[firstSection.id][0].question_id;
+        }
       }
 
-      // If the last answered question was Q162, the interview is complete.
+      // Special case: Q162 (final question) answered = interview complete
       if (sortedResponses.length > 0 && sortedResponses[sortedResponses.length - 1].question_id === 'Q162') {
-        nextQuestionId = null; // Mark as no next question
+        nextQuestionId = null;
       }
 
       if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
@@ -727,7 +686,7 @@ Return ONLY the summary sentence, nothing else.`;
         current_item_snapshot: newCurrentItem,
         total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
         completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100),
-        data_version: 'v2.5-hybrid'
+        data_version: 'v2.6-single-source'
       });
     } catch (err) {
       console.error('❌ Failed to persist state:', err);
@@ -735,13 +694,14 @@ Return ONLY the summary sentence, nothing else.`;
   };
 
   const moveToNextDeterministicQuestion = useCallback(async (previousQuestionId, previousAnswer) => {
-    const newTranscript = [...transcript]; // Use the current transcript state
+    const newTranscript = [...transcript];
 
     setIsWaitingForAgent(false);
     setCurrentFollowUpPack(null);
-    setCurrentFollowUpAnswers({}); // Clear any residual follow-up answers
+    setCurrentFollowUpAnswers({});
 
     const nextQuestionId = computeNextQuestionId(engine, previousQuestionId, previousAnswer);
+    
     if (nextQuestionId && engine.QById[nextQuestionId]) {
       const nextItem = { id: nextQuestionId, type: 'question' };
       setQueue([]);
@@ -749,45 +709,38 @@ Return ONLY the summary sentence, nothing else.`;
       await persistStateToDatabase(newTranscript, [], nextItem);
       console.log(`➡️ Moving to next deterministic question: ${nextQuestionId}`);
     } else {
-      // If no next question, interview might be complete
+      // Section routing returned null - interview complete
       setCurrentItem(null);
       setQueue([]);
       await persistStateToDatabase(newTranscript, [], null);
       setShowCompletionModal(true);
-      console.log('✅ No more deterministic questions, interview potentially complete.');
+      console.log('✅ Section routing complete - no more active sections.');
     }
   }, [engine, transcript, persistStateToDatabase]);
 
 
   const handleCompleteProbingAndContinue = useCallback(async (questionId, packId, originalTriggeringQuestionId, originalTriggeringAnswer) => {
-    // If AI probing was disabled, we already moved on.
     if (aiProbingDisabled) {
         console.log(`⚠️ AI probing already disabled, skipping completion and continuing.`);
         return;
     }
 
-    // Capture current agent messages for saving
     const messagesToSave = [...agentMessages];
 
-    // Reset AI state
     setIsWaitingForAgent(false);
     setCurrentFollowUpPack(null);
-    setCurrentFollowUpAnswers({}); // Clear any residual follow-up answers
+    setCurrentFollowUpAnswers({});
 
-    // Unsubscribe from agent updates if there was an active conversation
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
 
-    // Save probing data
     if (messagesToSave.length > 0) {
       await saveProbingToDatabase(questionId, packId, messagesToSave);
       await generateAndSaveInvestigatorSummary(questionId, packId);
     }
 
-    // Determine the next deterministic question
-    // Use the original question that triggered the follow-up and probing
     await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
 
   }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef]);
@@ -797,7 +750,6 @@ Return ONLY the summary sentence, nothing else.`;
     if (aiProbingDisabled) {
       console.log(`⚠️ AI probing disabled for session, skipping probing for ${questionId}`);
       
-      // Need to find the original triggering question and its answer to continue deterministically
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
         engine.QById[t.questionId]?.followup_pack === packId &&
@@ -807,19 +759,17 @@ Return ONLY the summary sentence, nothing else.`;
       if (triggeringQuestionEntry) {
           await moveToNextDeterministicQuestion(triggeringQuestionEntry.questionId, triggeringQuestionEntry.answer);
       } else {
-          // Fallback if the triggering question isn't found in transcript (shouldn't happen)
           console.error("Could not find triggering question in transcript for deterministic fallback.");
           setCurrentItem(null);
           setQueue([]);
           await persistStateToDatabase(transcript, [], null);
           setShowCompletionModal(true);
       }
-      return false; // Indicate that probing was skipped
+      return false;
     }
 
     if (!conversation) {
       console.warn('⚠️ No conversation object available, AI probing skipped.');
-      // If conversation is null, treat as an AI failure, but without incrementing aiFailureCount for agent communication errors
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
         engine.QById[t.questionId]?.followup_pack === packId &&
@@ -837,7 +787,6 @@ Return ONLY the summary sentence, nothing else.`;
       return false;
     }
 
-    // Reset AI failure count at the start of a new successful handoff
     setAiFailureCount(0);
 
     const question = engine.QById[questionId];
@@ -867,9 +816,8 @@ Return ONLY the summary sentence, nothing else.`;
     summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
 
     try {
-      // CRITICAL FIX: Set waiting state BEFORE sending message to show loading immediately
       setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName, originalTriggeringQuestionId: questionId, originalTriggeringAnswer: "Yes" }); // Store original context
+      setCurrentFollowUpPack({ questionId, packId, substanceName, originalTriggeringQuestionId: questionId, originalTriggeringAnswer: "Yes" });
 
       await base44.agents.addMessage(conversation, {
         role: 'user',
@@ -893,7 +841,6 @@ Return ONLY the summary sentence, nothing else.`;
       setIsWaitingForAgent(false);
       setCurrentFollowUpPack(null);
 
-      // Need to find the original triggering question and its answer to continue deterministically
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
         engine.QById[t.questionId]?.followup_pack === packId &&
@@ -903,7 +850,6 @@ Return ONLY the summary sentence, nothing else.`;
       if (triggeringQuestionEntry) {
           await moveToNextDeterministicQuestion(triggeringQuestionEntry.questionId, triggeringQuestionEntry.answer);
       } else {
-          // Fallback if the triggering question isn't found in transcript (shouldn't happen)
           console.error("Could not find triggering question in transcript for deterministic fallback.");
           setCurrentItem(null);
           setQueue([]);
@@ -925,13 +871,7 @@ Return ONLY the summary sentence, nothing else.`;
     if (allQuestionMatches && allQuestionMatches.length > 0) {
       const nextQuestionId = allQuestionMatches[allQuestionMatches.length - 1].toUpperCase();
 
-      // This is the signal that the AI wants to move on to the next deterministic question
-      // It means probing is complete.
-      // We check if the nextQuestionId is different from the one that triggered this probing
-      // to ensure it's a new base question.
-      if (nextQuestionId !== currentFollowUpPack.questionId) { // Check for explicit new Q-ID
-        // AI probing is complete - save data and continue with deterministic flow
-        // Don't manually check if the question exists - let handleCompleteProbingAndContinue handle that
+      if (nextQuestionId !== currentFollowUpPack.questionId) {
         console.log(`🤖 AI signaled completion with next question: ${nextQuestionId}`);
         
         handleCompleteProbingAndContinue(
@@ -975,14 +915,14 @@ Return ONLY the summary sentence, nothing else.`;
 
         await saveAnswerToDatabase(currentItem.id, value, question);
 
-        // SPECIAL CASE: Q162 is the final question - always complete after answering
+        // SPECIAL CASE: Q162 is the final question
         if (currentItem.id === 'Q162') {
           console.log('✅ Final question (Q162) answered - completing interview');
           setCurrentItem(null);
           setQueue([]);
           await persistStateToDatabase(newTranscript, [], null);
           setShowCompletionModal(true);
-          return; // Exit early - interview is complete
+          return;
         }
 
         if (value === 'Yes') {
@@ -1014,13 +954,14 @@ Return ONLY the summary sentence, nothing else.`;
               setCurrentItem(firstItem);
               await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
             } else {
-              // No pack steps, just move to the next deterministic question
+              // No pack steps - move to next question via section routing
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
               } else {
+                // Section routing says we're done
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -1028,12 +969,14 @@ Return ONLY the summary sentence, nothing else.`;
               }
             }
           } else {
+            // No follow-up - move to next question via section routing
             const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
             if (nextQuestionId && engine.QById[nextQuestionId]) {
               setQueue([]);
               setCurrentItem({ id: nextQuestionId, type: 'question' });
               await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
             } else {
+              // Section routing says we're done
               setCurrentItem(null);
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
@@ -1041,33 +984,21 @@ Return ONLY the summary sentence, nothing else.`;
             }
           }
         } else { // Answer was 'No'
+          // ARCHITECTURAL CHANGE: Remove ActiveOrdered fallback
+          // Only use section-first routing
           const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-          const answeredCount = newTranscript.filter(t => t.type === 'question').length;
-          const hasAnsweredAll = answeredCount >= engine.TotalQuestions;
-
+          
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
-          } else if (hasAnsweredAll) {
+          } else {
+            // Section routing returned null - interview complete
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(newTranscript, [], null);
             setShowCompletionModal(true);
-          } else {
-            const answeredIds = new Set(newTranscript.filter(t => t.type === 'question').map(t => t.questionId));
-            const nextUnanswered = engine.ActiveOrdered.find(qid => !answeredIds.has(qid));
-
-            if (nextUnanswered) {
-              setQueue([]);
-              setCurrentItem({ id: nextUnanswered, type: 'question' });
-              await persistStateToDatabase(newTranscript, [], { id: nextUnanswered, type: 'question' });
-            } else {
-              setCurrentItem(null);
-              setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
-              setShowCompletionModal(true);
-            }
+            console.log('✅ Section-first routing complete - no more questions.');
           }
         }
 
@@ -1080,7 +1011,7 @@ Return ONLY the summary sentence, nothing else.`;
         }
         const step = packSteps[stepIndex];
 
-        // Handle prefilled answer (e.g., for substance_name) - this should trigger recursive call or direct processing
+        // Handle prefilled answer
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
           const transcriptEntry = {
             id: `fu-${Date.now()}`,
@@ -1121,7 +1052,6 @@ Return ONLY the summary sentence, nothing else.`;
           const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
 
           if (isLastFollowUp) {
-            // Find the original triggering question
             const triggeringQuestion = [...newTranscript].reverse().find(t =>
               t.type === 'question' &&
               engine.QById[t.questionId]?.followup_pack === packId &&
@@ -1130,7 +1060,6 @@ Return ONLY the summary sentence, nothing else.`;
 
             if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
               if (triggeringQuestion) {
-                // If probing is skipped, go directly to the next deterministic question
                 await moveToNextDeterministicQuestion(triggeringQuestion.questionId, triggeringQuestion.answer);
               } else {
                 console.error("Could not find triggering question for deterministic skip after prefilled answer.");
@@ -1140,18 +1069,17 @@ Return ONLY the summary sentence, nothing else.`;
                 setShowCompletionModal(true);
               }
             } else {
-              // Handoff to agent for probing
               if (triggeringQuestion) {
                 setCurrentFollowUpAnswers({});
-                setCurrentItem(null); // Clear current item before agent takes over
+                setCurrentItem(null);
                 setQueue([]);
-                await persistStateToDatabase(newTranscript, [], null); // Persist state before AI takes over
+                await persistStateToDatabase(newTranscript, [], null);
 
                 await handoffToAgentForProbing(
                   triggeringQuestion.questionId,
                   packId,
                   substanceName,
-                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId) // Pass all follow-up answers as context
+                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId)
                 );
               } else {
                 console.error("Could not find triggering question for AI handoff after prefilled answer.");
@@ -1162,7 +1090,6 @@ Return ONLY the summary sentence, nothing else.`;
               }
             }
           } else {
-            // More follow-up questions in the pack
             setQueue(updatedQueue);
             setCurrentItem(nextItem);
             await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
@@ -1214,7 +1141,7 @@ Return ONLY the summary sentence, nothing else.`;
 
           if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
             nextItem = updatedQueue.shift() || null;
-            setCurrentItem(nextItem); // Update current item if skipped
+            setCurrentItem(nextItem);
           } else {
             break;
           }
@@ -1242,15 +1169,15 @@ Return ONLY the summary sentence, nothing else.`;
           } else {
             if (triggeringQuestion) {
               setCurrentFollowUpAnswers({});
-              setCurrentItem(null); // Clear current item before agent takes over
+              setCurrentItem(null);
               setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null); // Persist state before AI takes over
+              await persistStateToDatabase(newTranscript, [], null);
 
               await handoffToAgentForProbing(
                 triggeringQuestion.questionId,
                 packId,
                 substanceName,
-                newTranscript.filter(t => t.type === 'followup' && t.packId === packId) // Pass all follow-up answers as context
+                newTranscript.filter(t => t.type === 'followup' && t.packId === packId)
               );
             } else {
               console.error("Could not find triggering question for AI handoff.");
@@ -1279,7 +1206,7 @@ Return ONLY the summary sentence, nothing else.`;
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing, persistStateToDatabase, saveFollowUpAnswer, saveAnswerToDatabase, moveToNextDeterministicQuestion]);
 
   const handleAgentAnswer = useCallback(async (value) => {
-    if (!conversation || isCommitting || !isWaitingForAgent || !currentFollowUpPack) return; // Ensure currentFollowUpPack is set
+    if (!conversation || isCommitting || !isWaitingForAgent || !currentFollowUpPack) return;
 
     setIsCommitting(true);
     setInput("");
@@ -1290,7 +1217,6 @@ Return ONLY the summary sentence, nothing else.`;
         content: value
       });
 
-      // Reset failure count on successful user message to agent
       setAiFailureCount(0);
 
       setIsCommitting(false);
@@ -1309,8 +1235,6 @@ Return ONLY the summary sentence, nothing else.`;
         toast.error("AI Investigator failed to respond. Moving to next question...", { duration: 2000 });
       }
 
-      // If AI fails while user is responding, assume probing is over (failed)
-      // and move to the next deterministic question.
       await handleCompleteProbingAndContinue(
         currentFollowUpPack.questionId,
         currentFollowUpPack.packId,
@@ -1388,6 +1312,7 @@ Return ONLY the summary sentence, nothing else.`;
       return displayNumberMapRef.current[questionId];
     }
 
+    // Use ActiveOrdered for display number only (not routing)
     const index = engine.ActiveOrdered.indexOf(questionId);
     if (index !== -1) {
       const displayNum = index + 1;
@@ -1410,22 +1335,10 @@ Return ONLY the summary sentence, nothing else.`;
       const question = engine.QById[currentItem.id];
 
       if (!question) {
-        // This case indicates a problem with engine data or flow logic,
-        // so we should attempt to complete or at least handle gracefully.
+        console.error(`❌ Current question ${currentItem.id} not found in engine - interview flow error`);
         setCurrentItem(null);
         setQueue([]);
-        // Do not call setShowCompletionModal immediately here, let the useEffect handle it.
-        // It's better to log an error and attempt to move on.
-        console.error(`Error: Current question ${currentItem.id} not found in engine. Attempting to recover.`);
-        const answeredIds = new Set(transcript.filter(t => t.type === 'question').map(t => t.questionId));
-        const nextUnanswered = engine.ActiveOrdered.find(qid => !answeredIds.has(qid));
-
-        if (nextUnanswered) {
-            setCurrentItem({ id: nextUnanswered, type: 'question' });
-            // No need to persist here, it will happen on next answer or if flow ends.
-        } else {
-            setShowCompletionModal(true); // If no next, then likely finished
-        }
+        setShowCompletionModal(true);
         return null;
       }
 
@@ -1446,16 +1359,6 @@ Return ONLY the summary sentence, nothing else.`;
       const step = packSteps[stepIndex];
 
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-        // This setTimeout is problematic. The component state might update
-        // before this fires, causing issues. The handler should already be
-        // synchronous or correctly chained.
-        // It's handled inside handleAnswer now, so this line can be removed or protected.
-        // As handleAnswer is called right after `isCommitting` is set to true,
-        // and currentItem type 'followup' is checked, this will lead to a re-render
-        // and then the setTimeout will fire.
-        // It's better to handle prefilled answers more directly or ensure `handleAnswer` is idempotent.
-        // For now, removing `setTimeout` call here as it's handled in `handleAnswer`'s logic.
-        // setTimeout(() => handleAnswer(step.PrefilledAnswer), 100);
         return null;
       }
 
@@ -1498,22 +1401,16 @@ Return ONLY the summary sentence, nothing else.`;
     const lastAssistantMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAssistantMessage?.content) return null;
 
-    // If the last message contains a Q-ID, it means the agent signaled completion of probing
-    // and is presenting the next base question. In this case, the actual probing is finished.
-    // This check is already handled in the useEffect for `agentMessages`.
     if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return null;
 
-    // If the immediately following message is a user message, then this assistant message has already been answered.
     const lastIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
     if (lastIndex !== -1 && agentMessages[lastIndex + 1]?.role === 'user') {
       return null;
     }
 
-    // Only return the assistant message if it's the *last* unanswered assistant message
     return lastAssistantMessage.content;
   }, [agentMessages, isWaitingForAgent]);
 
-  // CRITICAL FIX: Only show agent messages that have been answered (completed Q&A pairs)
   const getDisplayableAgentMessages = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return [];
 
@@ -1523,42 +1420,28 @@ Return ONLY the summary sentence, nothing else.`;
     for (let i = 0; i < agentMessages.length; i++) {
       const msg = agentMessages[i];
 
-      // Detect the start of probing by looking for the AI's first response after the user's initial prompt
       if (msg.role === 'user' && msg.content?.includes('Follow-up pack completed') && currentFollowUpPack && msg.content?.includes(`Question ID: ${currentFollowUpPack.questionId}`)) {
         processingProbingStart = true;
-        continue; // Skip displaying the system message itself
-      }
-      if (!processingProbingStart && msg.role === 'user' && !msg.content?.includes('Follow-up pack completed')) {
-        // If we haven't hit the probing start marker yet, and it's a user message, it's from previous probing
-        // or a stray message, skip it.
         continue;
       }
-      // System message for AI completion (ends probing) - don't display
+      if (!processingProbingStart && msg.role === 'user' && !msg.content?.includes('Follow-up pack completed')) {
+        continue;
+      }
       if (msg.content?.match(/\b(Q\d{1,3})\b/i)) {
-        processingProbingStart = false; // Stop processing probing messages
+        processingProbingStart = false;
         continue;
       }
 
-      // Skip empty messages
       if (!msg.content || msg.content.trim() === '') continue;
 
       if (msg.role === 'assistant') {
         const nextMsg = agentMessages[i + 1];
         if (nextMsg && nextMsg.role === 'user') {
-          // Q&A pair complete - show both
           displayable.push(msg);
           displayable.push(nextMsg);
-          i++; // Skip next iteration since we already added it
+          i++;
         }
-        // If no answer yet, don't add (it will show in active question box via getLastAgentQuestion)
       } else if (msg.role === 'user') {
-        // This case should ideally not be reached if previous assistant message was paired.
-        // If it is reached, it's a user message without a preceding assistant message (within probing context).
-        // This usually means it's an answer to an assistant question that wasn't correctly paired.
-        // For robustness, if it's a user message that isn't the *last* pending one, we can display it.
-        // However, the `getLastAgentQuestion` handles the *current* pending interaction,
-        // so `displayableAgentMessages` should primarily focus on completed exchanges.
-        // Let's refine this to only add completed assistant/user pairs.
         continue;
       }
     }
@@ -1613,14 +1496,12 @@ Return ONLY the summary sentence, nothing else.`;
 
   if (currentPrompt && currentPrompt.type === 'question' && engine) {
     const currentCategory = currentPrompt.category;
-    currentSection = currentCategory; // Set currentSection to the category of the current question
+    currentSection = currentCategory;
 
-    const categoryQuestions = engine.ActiveOrdered.filter(qid => {
-      const q = engine.QById[qid];
-      return q && q.category === currentCategory;
-    });
+    // Use questionsBySection for accurate section totals
+    const sectionQuestions = engine.questionsBySection[currentCategory] || [];
+    sectionTotal = sectionQuestions.length;
     
-    sectionTotal = categoryQuestions.length;
     sectionAnswered = transcript.filter(t => 
       t.type === 'question' && 
       engine.QById[t.questionId]?.category === currentCategory
@@ -1632,7 +1513,6 @@ Return ONLY the summary sentence, nothing else.`;
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const requiresClarification = validationHint !== null;
 
-  // CRITICAL FIX: Use memoized function that only shows answered Q&A pairs
   const displayableAgentMessages = getDisplayableAgentMessages();
 
   return (
@@ -1780,7 +1660,6 @@ Return ONLY the summary sentence, nothing else.`;
                 />
               ))}
               
-              {/* CRITICAL FIX: Always show section if waiting for agent, render answered Q&A pairs */}
               {isWaitingForAgent && (
                 <div className="space-y-3 md:space-y-4 border-t-2 border-purple-500/30 pt-3 md:pt-4 mt-3 md:mt-4">
                   <div className="text-xs md:text-sm font-semibold text-purple-400 flex items-center gap-1.5 md:gap-2">
@@ -2108,7 +1987,6 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
   return null;
 }
 
-// CRITICAL FIX: Memoize to prevent re-renders
 const AgentMessageBubble = React.memo(({ message }) => {
   const isUser = message.role === 'user';
   
