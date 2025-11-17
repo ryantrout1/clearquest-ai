@@ -104,6 +104,41 @@ export default function QuestionsManager() {
     enabled: !!user
   });
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => base44.entities.Category.list(),
+    enabled: !!user
+  });
+
+  // Load section metadata from Category entities
+  useEffect(() => {
+    if (categories.length > 0) {
+      const metadata = {};
+      categories.forEach(cat => {
+        metadata[cat.category_label] = {
+          section_required: cat.section_required || false,
+          section_active: cat.active !== false,
+          gate_mode_enabled: cat.gate_skip_if_value === 'No' // If gate_skip_if_value is set, gate mode is enabled
+        };
+      });
+      setSectionMetadata(metadata);
+    }
+  }, [categories]);
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Category.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    }
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (data) => base44.entities.Category.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    }
+  });
+
   const updateQuestionMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Question.update(id, data),
     onSuccess: () => {
@@ -161,7 +196,6 @@ export default function QuestionsManager() {
     
     const sectionList = Object.values(sectionMap).map(section => ({
       ...section,
-      // Section metadata (in real app, fetch from Category entity)
       section_required: sectionMetadata[section.name]?.section_required || false,
       section_active: sectionMetadata[section.name]?.section_active !== false,
       section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
@@ -222,14 +256,44 @@ export default function QuestionsManager() {
     toast.success('Section status updated');
   };
 
-  const toggleGateMode = (sectionName) => {
+  const toggleGateMode = async (sectionName) => {
+    const currentGateMode = sectionMetadata[sectionName]?.gate_mode_enabled || false;
+    const newGateMode = !currentGateMode;
+    
+    // Update local state
     setSectionMetadata(prev => ({
       ...prev,
       [sectionName]: {
         ...prev[sectionName],
-        gate_mode_enabled: !prev[sectionName]?.gate_mode_enabled
+        gate_mode_enabled: newGateMode
       }
     }));
+
+    // Find or create category entity
+    const existingCategory = categories.find(cat => cat.category_label === sectionName);
+    const section = sections.find(s => s.name === sectionName);
+    
+    if (existingCategory) {
+      // Update existing category
+      await updateCategoryMutation.mutateAsync({
+        id: existingCategory.id,
+        data: {
+          gate_skip_if_value: newGateMode ? 'No' : null,
+          gate_question_id: newGateMode ? section.gateQuestionId : null
+        }
+      });
+    } else {
+      // Create new category
+      await createCategoryMutation.mutateAsync({
+        category_id: `CAT_${sectionName.replace(/\s+/g, '_').toUpperCase()}`,
+        category_label: sectionName,
+        gate_question_id: newGateMode ? section.gateQuestionId : null,
+        gate_skip_if_value: newGateMode ? 'No' : null,
+        display_order: SECTION_ORDER.indexOf(sectionName) !== -1 ? SECTION_ORDER.indexOf(sectionName) : 999,
+        active: true
+      });
+    }
+    
     toast.success('Gate question mode updated');
   };
 
