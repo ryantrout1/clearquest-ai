@@ -2,7 +2,7 @@
 /**
  * ClearQuest Interview Engine - SECTION-FIRST ARCHITECTURE
  * Deterministic, section-aware question routing
- * SOURCE OF TRUTH: Category.section_order from database
+ * SOURCE OF TRUTH: Section.section_order from database
  */
 
 // ============================================================================
@@ -1427,31 +1427,30 @@ function validateText(val) {
 }
 
 // ============================================================================
-// SECTION-AWARE DATA STRUCTURES
+// SECTION-AWARE DATA STRUCTURES (NOW USES SECTION ENTITY)
 // ============================================================================
 
 /**
- * Builds section-aware data structures from Question entities
- * This is the NEW core of the engine - section-first architecture
- * NOTE: Section order is determined by Category.section_order from database
+ * Builds section-aware data structures from Section and Question entities
+ * This is the NEW core of the engine - section-first architecture using Section.section_order
  */
-export function parseQuestionsToMaps(questions, categories) {
-  console.log('🏗️ Building section-first data structures from database...');
+export function parseQuestionsToMaps(questions, sections, categories) {
+  console.log('🏗️ Building section-first data structures from Section entities...');
   
-  // Build SECTION_ORDER from Category entities sorted by section_order
-  const activeSections = categories
-    .filter(c => c.active !== false && c.section_order != null)
-    .sort((a, b) => a.section_order - b.section_order);
+  // Build SECTION_ORDER from Section entities sorted by section_order
+  const activeSections = sections
+    .filter(s => s.active !== false)
+    .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
   
-  const SECTION_ORDER = activeSections.map(s => s.category_label);
+  const SECTION_ORDER = activeSections.map(s => s.section_id);
   
   console.log('📋 Section order from database:');
   activeSections.forEach(s => {
-    console.log(`   ${s.section_order}. ${s.category_label} (Active: ${s.active !== false})`);
+    console.log(`   ${s.section_order}. ${s.section_name} (${s.section_id})`);
   });
   
-  // Create a set of active section names for quick lookup
-  const activeSectionNames = new Set(SECTION_ORDER);
+  // Create a set of active section IDs for quick lookup (using the database ID, not section_id string)
+  const activeDbSectionIds = new Set(activeSections.map(s => s.id));
   
   // Legacy structures (kept for backward compatibility)
   const QById = {};
@@ -1459,23 +1458,40 @@ export function parseQuestionsToMaps(questions, categories) {
   const UndefinedPacks = new Set();
 
   // NEW: Section-first structures
-  const sectionOrder = [...SECTION_ORDER]; // This will contain category labels in database order
-  const sectionConfig = {}; // SectionId -> { section_order, mode, controlQuestionPosition, gate_question_id, active }
-  const questionsBySection = {}; // SectionId -> [QuestionInSection]
-  const questionIdToSection = {}; // questionId -> { sectionId, indexInSection }
+  const sectionOrder = [...SECTION_ORDER]; // This will contain section_id (string identifiers) in database order
+  const sectionConfig = {}; // section_id (string) -> { section_order, mode, controlQuestionPosition, gate_question_id, active, section_name }
+  const questionsBySection = {}; // section_id (string) -> [QuestionInSection]
+  const questionIdToSection = {}; // question_id -> { sectionId: section_id (string), indexInSection }
 
-  // Initialize section configs from Category entities
-  activeSections.forEach(category => {
-    const sectionName = category.category_label;
-    sectionConfig[sectionName] = {
-      id: sectionName,
-      section_order: category.section_order,
-      mode: "always_show_all", // Default mode, will be updated by applySectionRules
+  // Initialize section configs from Section entities
+  activeSections.forEach(section => {
+    const sectionId = section.section_id;
+    sectionConfig[sectionId] = {
+      id: sectionId, // string identifier (e.g. "DRIVING_RECORD")
+      dbId: section.id, // numeric database ID (e.g. 1)
+      section_name: section.section_name,
+      section_order: section.section_order,
+      mode: "always_show_all", // Default mode, will be updated by applySectionRules or Category entities
       controlQuestionPosition: null,
-      gate_question_id: category.gate_question_id,
-      active: category.active !== false
+      gate_question_id: null, // Will be set from Categories for backward compatibility
+      active: section.active !== false
     };
-    questionsBySection[sectionName] = [];
+    questionsBySection[sectionId] = [];
+  });
+
+  // Apply gate question settings from Categories (for backward compatibility and overriding section defaults)
+  categories.forEach(cat => {
+    // Find corresponding section by its string identifier (section_id) matching category_label
+    const matchingSection = activeSections.find(s => s.section_name === cat.category_label);
+    if (matchingSection) {
+      const sectionId = matchingSection.section_id;
+      if (cat.gate_question_id && cat.gate_skip_if_value === 'No') {
+        sectionConfig[sectionId].gate_question_id = cat.gate_question_id;
+        sectionConfig[sectionId].mode = "skip_rest_if_control_no";
+      } else if (cat.gate_question_id && cat.gate_skip_if_value !== 'No') {
+        console.warn(`⚠️ Category "${cat.category_label}" has a gate question (${cat.gate_question_id}) but missing/incorrect 'gate_skip_if_value'. Expected 'No'. Gate rule for this section might be misconfigured.`);
+      }
+    }
   });
 
   // Group and sort questions by section - ONLY include questions from ACTIVE sections
@@ -1484,22 +1500,25 @@ export function parseQuestionsToMaps(questions, categories) {
 
     QById[q.question_id] = q;
 
-    // Add to section bucket
-    const sectionName = q.category;
-    if (!sectionName) {
-      console.warn(`⚠️ Question ${q.question_id} has no category - skipping`);
+    // Find section object using q.section_id (the numeric database ID)
+    const sectionEntity = sections.find(s => s.id === q.section_id);
+
+    if (!sectionEntity) {
+      console.warn(`⚠️ Question ${q.question_id} has section_id ${q.section_id} but no matching Section entity found - skipping`);
       return;
     }
 
-    // CRITICAL FIX: Skip questions if their section is inactive or not explicitly defined in the Category table.
-    if (!activeSectionNames.has(sectionName)) {
-      console.log(`⏭️ Skipping question ${q.question_id} - section "${sectionName}" is inactive or not in Category table.`);
+    // Check if the section corresponding to the question's section_id (numeric) is active
+    if (!activeDbSectionIds.has(sectionEntity.id)) {
+      console.log(`⏭️ Skipping question ${q.question_id} - section "${sectionEntity.section_name}" (DB ID: ${sectionEntity.id}) is inactive or not in active Sections list.`);
       return;
     }
+    
+    const sectionIdString = sectionEntity.section_id; // This is the string identifier (e.g., "DRIVING_RECORD")
 
-    questionsBySection[sectionName].push({
+    questionsBySection[sectionIdString].push({
       question_id: q.question_id,
-      category: sectionName,
+      section_id: sectionIdString,
       display_order: q.display_order || 0,
       active: q.active,
       next_question_id: q.next_question_id,
@@ -1520,8 +1539,8 @@ export function parseQuestionsToMaps(questions, categories) {
   });
 
   // Sort questions within each section by display_order
-  Object.keys(questionsBySection).forEach(sectionName => {
-    questionsBySection[sectionName].sort((a, b) => {
+  Object.keys(questionsBySection).forEach(sectionIdString => {
+    questionsBySection[sectionIdString].sort((a, b) => {
       const orderDiff = a.display_order - b.display_order;
       if (orderDiff !== 0) return orderDiff;
       
@@ -1532,12 +1551,24 @@ export function parseQuestionsToMaps(questions, categories) {
     });
 
     // Build reverse index for fast lookup
-    questionsBySection[sectionName].forEach((q, index) => {
+    questionsBySection[sectionIdString].forEach((q, index) => {
       questionIdToSection[q.question_id] = {
-        sectionId: sectionName,
+        sectionId: sectionIdString,
         indexInSection: index
       };
     });
+
+    // Set control question position if gate question is defined
+    const sectionConf = sectionConfig[sectionIdString];
+    if (sectionConf.gate_question_id) {
+      const gateIndex = questionsBySection[sectionIdString].findIndex(q => q.question_id === sectionConf.gate_question_id);
+      if (gateIndex !== -1) {
+        sectionConf.controlQuestionPosition = gateIndex + 1; // 1-based
+        console.log(`   🚪 Section ${sectionConf.section_name} (${sectionConf.id}): Gate question #${gateIndex + 1} (${sectionConf.gate_question_id})`);
+      } else {
+        console.warn(`⚠️ Gate question ${sectionConf.gate_question_id} not found in section "${sectionConf.section_name}"'s active questions - section gate rule will not function.`);
+      }
+    }
   });
 
   // Calculate TotalQuestions from active sections only
@@ -1548,8 +1579,7 @@ export function parseQuestionsToMaps(questions, categories) {
     }
   });
 
-  // Build ActiveOrdered for UI display number lookups ONLY (not for routing)
-  // NOTE: This is kept for compatibility but should NOT be used for routing decisions
+  // Build ActiveOrdered for UI display number lookups ONLY
   const ActiveOrdered = [];
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
@@ -1562,15 +1592,14 @@ export function parseQuestionsToMaps(questions, categories) {
     });
 
   console.log(`📊 Section-first structure built:`);
-  console.log(`   - Sections in order: ${sectionOrder.length} (from categories)`);
+  console.log(`   - Sections in order: ${sectionOrder.length} (from Section entities)`);
   console.log(`   - Total active questions: ${totalQuestionsInActiveSections}`);
   
-  // Log each section with its question count
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach((cfg) => {
       const qCount = questionsBySection[cfg.id]?.length || 0;
-      console.log(`   ${cfg.section_order}. ${cfg.id} (Active: ${cfg.active}): ${qCount} questions`);
+      console.log(`   ${cfg.section_order}. ${cfg.section_name} (Active: ${cfg.active}): ${qCount} questions`);
     });
 
   if (UndefinedPacks.size > 0) {
@@ -1581,56 +1610,31 @@ export function parseQuestionsToMaps(questions, categories) {
     QById, 
     MatrixYesByQ, 
     UndefinedPacks,
-    // NEW section-first structures
-    sectionOrder, // This is the list of category_labels in order from DB
+    sectionOrder, // This is the list of section_id (strings) in order from DB
     sectionConfig, // This includes dynamic sections with high order
     questionsBySection,
     questionIdToSection,
-    // Legacy for compatibility (UI display only - NOT for routing)
-    ActiveOrdered, // ⚠️ FOR DISPLAY NUMBER LOOKUPS ONLY - DO NOT USE FOR ROUTING
+    ActiveOrdered,
     TotalQuestions: totalQuestionsInActiveSections
   };
 }
 
 /**
- * Updates section configurations with Category entity data
- * This sets up section-level skip rules from the Question Manager
+ * Updates section configurations with Category entity data (for backward compatibility)
  */
 export function applySectionRules(sectionConfig, questionsBySection, categories) {
-  console.log('🔧 Applying section-level skip rules from Category entities...');
+  console.log('🔧 Applying section-level skip rules (legacy Category checks and logging)...');
   
-  categories.forEach(cat => {
-    const sectionName = cat.category_label;
-    if (!sectionConfig[sectionName]) {
-      if (cat.active !== false && cat.section_order != null) {
-        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig.`);
-      }
-      return;
+  // Note: Gate questions are primarily set during parseQuestionsToMaps from Categories now.
+  // This function is kept for logging and secondary validation/rules if needed.
+  
+  Object.values(sectionConfig).forEach(section => {
+    const status = section.active ? '✅' : '⏸️';
+    const qCount = questionsBySection[section.id]?.length || 0;
+    console.log(`   ${status} [${section.section_order}] ${section.section_name}: ${qCount} questions`);
+    if (section.gate_question_id) {
+      console.log(`      🚪 Gate: ${section.gate_question_id} (skip rest if No, mode: ${section.mode})`);
     }
-
-    // Check if gate mode is enabled
-    if (cat.gate_skip_if_value === 'No' && cat.gate_question_id) {
-      sectionConfig[sectionName].mode = "skip_rest_if_control_no";
-      sectionConfig[sectionName].gate_question_id = cat.gate_question_id;
-      
-      // Find the position of the gate question within the section
-      const sectionQuestions = questionsBySection[sectionName];
-      const gateIndex = sectionQuestions ? sectionQuestions.findIndex(q => q.question_id === cat.gate_question_id) : -1;
-      
-      if (gateIndex !== -1) {
-        sectionConfig[sectionName].controlQuestionPosition = gateIndex + 1; // 1-based
-        console.log(`   🚪 [${cat.section_order}] ${sectionName}: Gate question #${gateIndex + 1} (${cat.gate_question_id}) - skip rest if No`);
-      } else {
-        console.warn(`⚠️ Gate question ${cat.gate_question_id} not found in section "${sectionName}"'s active questions - section gate rule will not function.`);
-      }
-    } else if (cat.gate_question_id && cat.gate_skip_if_value !== 'No') {
-        console.warn(`⚠️ Section "${sectionName}" has a gate question (${cat.gate_question_id}) but missing/incorrect 'gate_skip_if_value'. Expected 'No'. Gate rule not applied.`);
-    }
-
-    // Log section status
-    const status = sectionConfig[sectionName].active ? '✅' : '⏸️';
-    const qCount = questionsBySection[sectionName]?.length || 0;
-    console.log(`   ${status} [${sectionConfig[sectionName].section_order}] ${sectionName}: ${qCount} questions`);
   });
 }
 
@@ -1655,29 +1659,29 @@ export async function bootstrapEngine(base44) {
   const startTime = performance.now();
 
   try {
-    const [questions, categories] = await Promise.all([
+    const [questions, sections, categories] = await Promise.all([
       base44.entities.Question.filter({ active: true }),
-      base44.entities.Category.list() // Get all categories
+      base44.entities.Section.list(), // Fetch Section entities
+      base44.entities.Category.list() // Still fetch Categories for gate question backward compatibility
     ]);
 
     const { 
       QById, 
       MatrixYesByQ, 
       UndefinedPacks,
-      sectionOrder, // This is the list of category_labels in order from DB
-      sectionConfig, // This includes dynamic sections with high order
+      sectionOrder,
+      sectionConfig,
       questionsBySection,
       questionIdToSection,
       ActiveOrdered,
       TotalQuestions
-    } = parseQuestionsToMaps(questions, categories);
+    } = parseQuestionsToMaps(questions, sections, categories);
     
-    // Apply section-level rules from Category entities
+    // Apply section-level rules (currently mainly logging/secondary checks)
     applySectionRules(sectionConfig, questionsBySection, categories);
     
     const { PackStepsById } = parseFollowUpPacks();
     
-    // ROBUSTNESS: Log configuration issues but DON'T fail
     const configValidation = validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById);
     if (!configValidation.valid) {
       console.warn('⚠️ Engine configuration warnings:', configValidation.errors.length, 'issues found');
@@ -1691,38 +1695,31 @@ export async function bootstrapEngine(base44) {
     }
 
     const engineState = {
-      // Legacy structures (kept for potential backward compatibility or specific direct lookups)
       QById,
       MatrixYesByQ,
       PackStepsById,
-      Categories: categories, // Full category list might be useful for reporting
-
-      // NEW: Section-first structures
-      sectionOrder, // This is the list of category_labels in order from DB
-      sectionConfig, // This includes dynamic sections with high order
+      Sections: sections, // Store all section entities
+      Categories: categories, // Still store categories for potential legacy use or reporting
+      sectionOrder,
+      sectionConfig,
       questionsBySection,
       questionIdToSection,
-      
-      // Legacy for compatibility (UI display only - NOT for routing)
-      ActiveOrdered, // ⚠️ FOR DISPLAY NUMBER LOOKUPS ONLY - DO NOT USE FOR ROUTING
-      
-      // Metadata
+      ActiveOrdered,
       Bootstrapped: true,
-      TotalQuestions: TotalQuestions, // Accurate count from active sections only
+      TotalQuestions: TotalQuestions,
       UndefinedPacks: Array.from(UndefinedPacks),
-      Architecture: 'section-first-db-driven' // Flag to identify new architecture
+      Architecture: 'section-first-db-driven'
     };
 
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
-    console.log(`   - Architecture: SECTION-FIRST (database-driven)`);
-    console.log(`   - Section order source: Category.section_order`);
-    console.log(`   - Sections: ${Object.keys(sectionConfig).length} (incl. dynamic)`);
+    console.log(`   - Architecture: SECTION-FIRST (Section entities)`);
+    console.log(`   - Section order source: Section.section_order`);
+    console.log(`   - Sections: ${Object.keys(sectionConfig).length}`);
     console.log(`   - Total active questions: ${TotalQuestions}`);
     console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
     console.log(`   - Defined packs: ${Object.keys(PackStepsById).length}`);
 
-    // Auto-run self-test in dev mode
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       setTimeout(() => runEntityFollowupSelfTest(engineState), 500);
     }
@@ -1741,7 +1738,7 @@ export async function bootstrapEngine(base44) {
 
 /**
  * NEW: Section-aware computeNextQuestionId
- * Uses Category.section_order from database for deterministic routing
+ * Uses Section.section_order from database for deterministic routing
  */
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
   console.log(`🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
@@ -1753,12 +1750,12 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
     return null; // End or error state
   }
 
-  const { sectionId, indexInSection } = location;
+  const { sectionId, indexInSection } = location; // sectionId here is the string identifier (e.g. "DRIVING_RECORD")
   const section = engine.sectionConfig[sectionId];
   const questions = engine.questionsBySection[sectionId];
   const currentQuestion = questions[indexInSection];
 
-  console.log(`   📍 Location: [${section.section_order}] ${sectionId}, position #${indexInSection + 1}/${questions.length}`);
+  console.log(`   📍 Location: [${section.section_order}] ${section.section_name}, position #${indexInSection + 1}/${questions.length}`);
   console.log(`   🎯 Section mode: ${section.mode}`);
 
   // 2. Check section-level control question skip rule
@@ -1767,7 +1764,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
       (indexInSection + 1) === section.controlQuestionPosition && // Check if current question is the gate question
       normalizeToYesNo(answer) === "No") {
     
-    console.log(`   🚪 Control question answered No - skipping rest of [${section.section_order}] ${sectionId}`);
+    console.log(`   🚪 Control question answered No - skipping rest of [${section.section_order}] ${section.section_name}`);
     return firstQuestionIdOfNextSection(engine, sectionId);
   }
 
@@ -1791,7 +1788,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   }
 
   // 5. End of section -> first question of next active section
-  console.log(`   🏁 End of [${section.section_order}] ${sectionId} - moving to next available section.`);
+  console.log(`   🏁 End of [${section.section_order}] ${section.section_name} - moving to next available section.`);
   return firstQuestionIdOfNextSection(engine, sectionId);
 }
 
@@ -1808,7 +1805,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
 
   const currentOrder = currentSection.section_order;
   
-  console.log(`[SectionRouting] Current section: [${currentOrder}] "${currentSectionId}"`);
+  console.log(`[SectionRouting] Current section: [${currentOrder}] "${currentSection.section_name}"`);
   
   // Find all sections with higher section_order, including dynamically added ones (order 999)
   const candidateSections = Object.values(engine.sectionConfig)
@@ -1816,18 +1813,18 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     .sort((a, b) => a.section_order - b.section_order);
   
   console.log(`[SectionRouting] Candidate sections (section_order > ${currentOrder}):`, 
-    candidateSections.map(s => `[${s.section_order}] ${s.id}`));
+    candidateSections.map(s => `[${s.section_order}] ${s.section_name}`));
   
   // Iterate through candidates in section_order sequence
   for (const candidateSection of candidateSections) {
-    const candidateId = candidateSection.id;
+    const candidateId = candidateSection.id; // This is the string identifier (e.g., "DRIVING_RECORD")
     const candidateQuestions = engine.questionsBySection[candidateId] || [];
     
-    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateId}"`);
+    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateSection.section_name}"`);
     console.log(`[SectionRouting]     - Active: ${candidateSection.active !== false}`);
     console.log(`[SectionRouting]     - Questions: ${candidateQuestions.length}`);
     
-    // Skip if section is explicitly inactive (from Category) OR has no active questions
+    // Skip if section is explicitly inactive (from Section entity) OR has no active questions
     if (candidateSection.active === false) { 
       console.log(`[SectionRouting]     ⏸️ Section inactive - skipping.`);
       continue;
@@ -1840,7 +1837,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     
     // Found a valid next section with active questions!
     const firstQ = candidateQuestions[0];
-    console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateId}", first question: ${firstQ.question_id}`);
+    console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateSection.section_name}", first question: ${firstQ.question_id}`);
     return firstQ.question_id;
   }
 
@@ -2100,23 +2097,22 @@ export function validateEngineConfiguration(engine) {
 }
 
 // ============================================================================
-// SELF-TEST (UPDATED FOR DATABASE-DRIVEN SECTION ORDER)
+// SELF-TEST (UPDATED FOR SECTION ENTITIES)
 // ============================================================================
 
 export function runEntityFollowupSelfTest(engine) {
   console.log('🧪 Running Section-First (DB-Driven) Self-Test...');
-  console.log('📋 Testing section-aware routing with Category.section_order...');
+  console.log('📋 Testing section-aware routing with Section.section_order...');
   
   const results = [];
   const { sectionConfig, questionsBySection, MatrixYesByQ, PackStepsById } = engine;
   
-  // Test 1: Verify section structure and gate questions
-  console.log('\n📊 Section Structure (from Category.section_order):');
+  console.log('\n📊 Section Structure (from Section.section_order):');
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach(section => {
       const questions = questionsBySection[section.id] || [];
-      console.log(`   ${section.section_order}. ${section.id}:`);
+      console.log(`   ${section.section_order}. ${section.section_name} (${section.id}):`);
       console.log(`      - Questions: ${questions.length}`);
       console.log(`      - Active: ${section.active !== false ? 'Yes' : 'No'}`);
       console.log(`      - Mode: ${section.mode}`);
@@ -2126,7 +2122,7 @@ export function runEntityFollowupSelfTest(engine) {
         if (!gateQExists) {
           results.push({
             Test: 'Section Gate Question Existence',
-            Section: section.id,
+            Section: section.section_name,
             Question: section.gate_question_id,
             Status: '❌ FAIL',
             Details: 'Gate question defined for section not found within its active questions.'
@@ -2135,7 +2131,7 @@ export function runEntityFollowupSelfTest(engine) {
       } else if (section.mode === "skip_rest_if_control_no") {
          results.push({
             Test: 'Section Gate Question Definition',
-            Section: section.id,
+            Section: section.section_name,
             Question: 'N/A',
             Status: '❌ FAIL',
             Details: 'Section mode is "skip_rest_if_control_no" but no gate_question_id is defined.'
@@ -2143,18 +2139,17 @@ export function runEntityFollowupSelfTest(engine) {
       }
     });
   
-  // Test 2: Verify all Question.followup_pack values have pack definitions
   const packMappingResults = [];
   Object.keys(MatrixYesByQ).forEach(questionId => {
     const packId = MatrixYesByQ[questionId];
     const packExists = PackStepsById[packId] !== undefined;
     const location = engine.questionIdToSection[questionId];
-    const sectionOrder = location ? engine.sectionConfig[location.sectionId]?.section_order : '?';
+    const sectionConf = location ? engine.sectionConfig[location.sectionId] : null;
     
     packMappingResults.push({
       Question: questionId,
-      Section: location?.sectionId || 'Unknown',
-      Order: `[${sectionOrder}]`,
+      Section: sectionConf?.section_name || 'Unknown',
+      Order: sectionConf ? `[${sectionConf.section_order}]` : '?',
       Position: location ? `#${location.indexInSection + 1}` : '?',
       Pack: packId,
       PackDefined: packExists ? '✅ YES' : '⚠️ NO',
@@ -2178,9 +2173,9 @@ export function runEntityFollowupSelfTest(engine) {
   const warnings = results.filter(r => r.Status === '⚠️ WARN');
   
   console.log(`\n📊 Summary:`);
-  console.log(`   Architecture: SECTION-FIRST (database-driven)`);
-  console.log(`   Section order source: Category.section_order`);
-  console.log(`   Sections: ${Object.keys(sectionConfig).length} (incl. dynamic)`);
+  console.log(`   Architecture: SECTION-FIRST (Section entities)`);
+  console.log(`   Section order source: Section.section_order`);
+  console.log(`   Sections: ${Object.keys(sectionConfig).length}`);
   console.log(`   Total active questions: ${engine.TotalQuestions}`);
   console.log(`   Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
   console.log(`   Defined packs: ${Object.keys(PackStepsById).length}`);

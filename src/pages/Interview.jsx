@@ -24,7 +24,7 @@ export default function Interview() {
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
   const [showCategoryProgress, setShowCategoryProgress] = useState(false);
-  const [categories, setCategories] = useState([]);
+  const [sections, setSections] = useState([]); // Renamed from categories to sections
   const [isCompletionView, setIsCompletionView] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState(null);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
@@ -104,7 +104,7 @@ export default function Interview() {
                       session_id: sessionId,
                       question_id: questionId,
                       question_text: questionData.question_text,
-                      category: questionData.category,
+                      category: questionData.category, // Keep category field from Question for Response
                       answer: userAnswer,
                       answer_array: null,
                       triggered_followup: triggersFollowup,
@@ -246,7 +246,7 @@ export default function Interview() {
     const categorizedResponses = {};
     responses.forEach(response => {
       const question = questions.find(q => q.question_id === response.question_id);
-      const category = question?.category || 'Uncategorized';
+      const category = question?.category || 'Uncategorized'; // Still uses question.category for reporting
       if (!categorizedResponses[category]) {
         categorizedResponses[category] = [];
       }
@@ -474,26 +474,34 @@ export default function Interview() {
 
   const handleCompletion = useCallback(async () => {
     try {
-      const [categoriesData, responsesData, questionsData] = await Promise.all([
-        base44.entities.Category.list('display_order'),
+      // Fetch Section entities instead of Category entities
+      const [sectionsDataRaw, responsesData, questionsData] = await Promise.all([
+        base44.entities.Section.list(), 
         base44.entities.Response.filter({ session_id: sessionId }),
         base44.entities.Question.filter({ active: true })
       ]);
 
-      const categoryProgress = categoriesData.map(cat => {
-        const categoryQuestions = questionsData.filter(q => q.category === cat.category_label);
-        const answeredInCategory = responsesData.filter(r => 
-          categoryQuestions.some(q => q.question_id === r.question_id)
+      // Filter and sort sections based on 'active' status and 'section_order'
+      const sectionsData = sectionsDataRaw
+        .filter(s => s.active !== false)
+        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+
+      const sectionProgress = sectionsData.map(sec => {
+        // Find questions belonging to this section using section_id
+        const sectionQuestions = questionsData.filter(q => q.section_id === sec.id);
+        const answeredInSection = responsesData.filter(r => 
+          sectionQuestions.some(q => q.question_id === r.question_id)
         );
 
         return {
-          ...cat,
-          total_questions: categoryQuestions.length,
-          answered_questions: answeredInCategory.length
+          category_label: sec.section_name, // CategoryProgress component expects 'category_label'
+          section_order: sec.section_order,
+          total_questions: sectionQuestions.length,
+          answered_questions: answeredInSection.length
         };
       });
 
-      setCategories(categoryProgress);
+      setSections(sectionProgress); // Set the sections state
       setIsCompletionView(true);
       setShowCategoryProgress(true);
     } catch (err) {
@@ -844,7 +852,7 @@ export default function Interview() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <CategoryProgress
-          categories={categories}
+          categories={sections} // Use sections state here
           currentCategory={null}
           onContinue={handleContinueFromCompletion}
           isInitial={false}
@@ -867,7 +875,7 @@ export default function Interview() {
               <div>
                 <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
                 <p className="text-xs md:text-sm text-slate-400 mt-0.5">
-                  {session?.current_category || 'Applications with Other LE Agencies'}
+                  {session?.current_section || 'Interview Progress'} {/* Updated to current_section */}
                 </p>
               </div>
             </div>
