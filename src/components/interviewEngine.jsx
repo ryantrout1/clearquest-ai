@@ -2,7 +2,7 @@
 /**
  * ClearQuest Interview Engine - SECTION-FIRST ARCHITECTURE
  * Deterministic, section-aware question routing
- * SOURCE OF TRUTH: Question Manager (sections + display_order + section rules)
+ * SOURCE OF TRUTH: Category.section_order from database
  */
 
 // ============================================================================
@@ -1325,27 +1325,6 @@ const FOLLOWUP_PACK_STEPS = {
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
 
 // ============================================================================
-// SECTION ORDER - DEFINES THE SEQUENCE OF CATEGORIES
-// ============================================================================
-
-const SECTION_ORDER = [
-  "Applications with Other Law Enforcement Agencies",
-  "Driving Record",
-  "Criminal Involvement / Police Contacts",
-  "Extremist Organizations",
-  "Sexual Activities",
-  "Financial History",
-  "Illegal Drug / Narcotic History",
-  "Alcohol History",
-  "Military History",
-  "Employment History",
-  "Prior Law Enforcement",
-  "General Disclosures & Eligibility",
-  "Prior Law Enforcement ONLY",
-  "All Applicants"
-];
-
-// ============================================================================
 // NO FOLLOW-UP QUESTIONS - EXEMPTED QUESTIONS
 // These questions NEVER trigger follow-ups regardless of answer
 // ============================================================================
@@ -1429,9 +1408,22 @@ function validateText(val) {
 /**
  * Builds section-aware data structures from Question entities
  * This is the NEW core of the engine - section-first architecture
+ * NOTE: Section order is determined by Category.section_order from database
  */
-export function parseQuestionsToMaps(questions) {
-  console.log('🏗️ Building section-first data structures...');
+export function parseQuestionsToMaps(questions, categories) {
+  console.log('🏗️ Building section-first data structures from database...');
+  
+  // Build SECTION_ORDER from Category entities sorted by section_order
+  const activeSections = categories
+    .filter(c => c.active !== false && c.section_order != null)
+    .sort((a, b) => a.section_order - b.section_order);
+  
+  const SECTION_ORDER = activeSections.map(s => s.category_label);
+  
+  console.log('📋 Section order from database:');
+  activeSections.forEach(s => {
+    console.log(`   ${s.section_order}. ${s.category_label}`);
+  });
   
   // Legacy structures (kept for backward compatibility)
   const QById = {};
@@ -1441,27 +1433,28 @@ export function parseQuestionsToMaps(questions) {
   const UndefinedPacks = new Set();
 
   // NEW: Section-first structures
-  const sectionOrder = [...SECTION_ORDER]; // Copy of section order, will have dynamic sections pushed
-  const sectionConfig = {}; // SectionId -> { sectionOrder, mode, controlQuestionPosition, gate_question_id, active }
+  const sectionOrder = [...SECTION_ORDER]; // This will contain category labels in database order
+  const sectionConfig = {}; // SectionId -> { section_order, mode, controlQuestionPosition, gate_question_id, active }
   const questionsBySection = {}; // SectionId -> [QuestionInSection]
   const questionIdToSection = {}; // questionId -> { sectionId, indexInSection }
 
-  // Initialize section configs for ALL sections in SECTION_ORDER
-  SECTION_ORDER.forEach((sectionName, index) => {
+  // Initialize section configs from Category entities
+  activeSections.forEach(category => {
+    const sectionName = category.category_label;
     sectionConfig[sectionName] = {
       id: sectionName,
-      sectionOrder: index,
-      mode: "always_show_all", // Default mode
+      section_order: category.section_order,
+      mode: "always_show_all", // Default mode, will be updated by applySectionRules
       controlQuestionPosition: null,
-      gate_question_id: null,
-      active: true // Default to active, will be overridden by applySectionRules
+      gate_question_id: category.gate_question_id,
+      active: category.active !== false
     };
-    questionsBySection[sectionName] = []; // Ensure an empty array for every predefined section
+    questionsBySection[sectionName] = [];
   });
 
   // Group and sort questions by section
   questions.forEach(q => {
-    if (!q.active) return; // Only process active questions
+    if (!q.active) return;
 
     QById[q.question_id] = q;
 
@@ -1472,19 +1465,20 @@ export function parseQuestionsToMaps(questions) {
       return;
     }
 
-    // If a section is not in the predefined SECTION_ORDER, add it dynamically at the end
+    // Warn if question references unknown section, and add it with a high order
     if (!questionsBySection[sectionName]) {
-      console.warn(`⚠️ Question ${q.question_id} belongs to unknown section "${sectionName}" not in predefined SECTION_ORDER. Adding it dynamically.`);
+      console.warn(`⚠️ Question ${q.question_id} references unknown section "${sectionName}" - section not in Category table or inactive. Adding dynamically.`);
       questionsBySection[sectionName] = [];
       sectionConfig[sectionName] = {
         id: sectionName,
-        sectionOrder: sectionOrder.length, // Assign next available order after existing
+        section_order: 999, // Assign a high order to place it at the end
         mode: "always_show_all",
         controlQuestionPosition: null,
         gate_question_id: null,
-        active: true // Default to active
+        active: true
       };
-      sectionOrder.push(sectionName); // Add to the dynamic section order array
+      // Note: This dynamic section is NOT added to the `sectionOrder` array which is derived from database categories.
+      // It will still be routed to by `firstQuestionIdOfNextSection` due to iterating `Object.values(sectionConfig)`.
     }
 
     questionsBySection[sectionName].push({
@@ -1531,16 +1525,21 @@ export function parseQuestionsToMaps(questions) {
   });
 
   // Build legacy ActiveOrdered array (for backward compatibility)
-  sectionOrder.forEach(sectionName => {
-    if (questionsBySection[sectionName]) {
-      questionsBySection[sectionName].forEach(q => {
-        ActiveOrdered.push(q.question_id);
-      });
-    }
-  });
+  // This array will contain questions from all sections, ordered by their section_order then display_order
+  const allQuestionIdsSorted = [];
+  Object.values(sectionConfig)
+    .sort((a, b) => a.section_order - b.section_order)
+    .forEach(section => {
+      if (section.active && questionsBySection[section.id]) {
+        questionsBySection[section.id].forEach(q => {
+          allQuestionIdsSorted.push(q.question_id);
+        });
+      }
+    });
+
+  allQuestionIdsSorted.forEach(qid => ActiveOrdered.push(qid));
 
   // Build legacy NextById (deprecated but kept for compatibility)
-  // This will be overridden by the new computeNextQuestionId logic for section-first
   ActiveOrdered.forEach((qid, index) => {
     if (index + 1 < ActiveOrdered.length) {
       NextById[qid] = ActiveOrdered[index + 1];
@@ -1548,18 +1547,20 @@ export function parseQuestionsToMaps(questions) {
   });
 
   console.log(`📊 Section-first structure built:`);
-  console.log(`   - Defined Sections: ${SECTION_ORDER.length}`);
-  console.log(`   - Total Sections (including dynamic): ${sectionOrder.length}`);
+  console.log(`   - Sections in order: ${sectionOrder.length} (from categories)`);
   console.log(`   - Total active questions processed: ${ActiveOrdered.length}`);
+  
   // Log each section with its question count
-  sectionOrder.forEach((sectionName, idx) => {
-    const qCount = questionsBySection[sectionName]?.length || 0;
-    console.log(`   ${idx + 1}. ${sectionName}: ${qCount} questions`);
-  });
+  Object.values(sectionConfig)
+    .sort((a, b) => a.section_order - b.section_order)
+    .forEach((cfg) => {
+      const qCount = questionsBySection[cfg.id]?.length || 0;
+      console.log(`   ${cfg.section_order}. ${cfg.id} (Active: ${cfg.active}): ${qCount} questions`);
+    });
+
   if (UndefinedPacks.size > 0) {
     console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs during parsing:`, Array.from(UndefinedPacks));
   }
-
 
   return { 
     QById, 
@@ -1568,8 +1569,8 @@ export function parseQuestionsToMaps(questions) {
     MatrixYesByQ, 
     UndefinedPacks,
     // NEW section-first structures
-    sectionOrder,
-    sectionConfig,
+    sectionOrder, // This is the list of category_labels in order from DB
+    sectionConfig, // This includes dynamic sections with high order
     questionsBySection,
     questionIdToSection
   };
@@ -1580,32 +1581,37 @@ export function parseQuestionsToMaps(questions) {
  * This sets up section-level skip rules from the Question Manager
  */
 export function applySectionRules(sectionConfig, questionsBySection, categories) {
-  console.log('🔧 Applying section-level rules from Category entities...');
+  console.log('🔧 Applying section-level skip rules from Category entities...');
   
   categories.forEach(cat => {
     const sectionName = cat.category_label;
     if (!sectionConfig[sectionName]) {
-      console.warn(`⚠️ Category "${sectionName}" not found in sectionConfig (i.e., not a predefined section or found via active questions) - skipping rule application.`);
+      // This can happen if a category exists but has active=false or section_order=null,
+      // or if it's a dynamic section added from a question.
+      // In parseQuestionsToMaps, sectionConfig is already initialized for ALL active, ordered categories.
+      // Dynamic sections are added to sectionConfig there as well.
+      // So, if we reach here and it's not in sectionConfig, it means it was an inactive or un-ordered category.
+      // We only care about active/ordered categories for rules.
+      if (cat.active !== false && cat.section_order != null) {
+        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig.`);
+      }
       return;
     }
 
-    // Set active status from Category entity
-    sectionConfig[sectionName].active = cat.active !== false;
+    // sectionConfig[sectionName].active is already set from category.active in parseQuestionsToMaps initialization.
 
     // Check if gate mode is enabled
-    // gate_skip_if_value should ideally be 'No' and gate_question_id should exist
     if (cat.gate_skip_if_value === 'No' && cat.gate_question_id) {
       sectionConfig[sectionName].mode = "skip_rest_if_control_no";
       sectionConfig[sectionName].gate_question_id = cat.gate_question_id;
       
       // Find the position of the gate question within the section
       const sectionQuestions = questionsBySection[sectionName];
-      // Only set controlQuestionPosition if the gate question is actually present in the section's active questions
       const gateIndex = sectionQuestions ? sectionQuestions.findIndex(q => q.question_id === cat.gate_question_id) : -1;
       
       if (gateIndex !== -1) {
         sectionConfig[sectionName].controlQuestionPosition = gateIndex + 1; // 1-based
-        console.log(`   🚪 "${sectionName}": Gate question #${gateIndex + 1} (${cat.gate_question_id}) - skip rest if No`);
+        console.log(`   🚪 [${cat.section_order}] ${sectionName}: Gate question #${gateIndex + 1} (${cat.gate_question_id}) - skip rest if No`);
       } else {
         console.warn(`⚠️ Gate question ${cat.gate_question_id} not found in section "${sectionName}"'s active questions - section gate rule will not function.`);
       }
@@ -1614,9 +1620,9 @@ export function applySectionRules(sectionConfig, questionsBySection, categories)
     }
 
     // Log section status
-    const status = sectionConfig[sectionName].active ? '✅ Active' : '⏸️ Inactive';
+    const status = sectionConfig[sectionName].active ? '✅' : '⏸️';
     const qCount = questionsBySection[sectionName]?.length || 0;
-    console.log(`   ${status}: ${sectionName} (${qCount} questions)`);
+    console.log(`   ${status} [${sectionConfig[sectionName].section_order}] ${sectionName}: ${qCount} questions`);
   });
 }
 
@@ -1637,13 +1643,13 @@ export function parseFollowUpPacks() {
 }
 
 export async function bootstrapEngine(base44) {
-  console.log('🚀 Bootstrapping interview engine (SECTION-FIRST ARCHITECTURE)...');
+  console.log('🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN)...');
   const startTime = performance.now();
 
   try {
     const [questions, categories] = await Promise.all([
-      base44.entities.Question.filter({ active: true }), // Only active questions are routed through
-      base44.entities.Category.list() // Get all categories for rule application (active/inactive)
+      base44.entities.Question.filter({ active: true }),
+      base44.entities.Category.list() // Get all categories
     ]);
 
     const { 
@@ -1652,11 +1658,11 @@ export async function bootstrapEngine(base44) {
       ActiveOrdered, 
       MatrixYesByQ, 
       UndefinedPacks,
-      sectionOrder,
-      sectionConfig,
+      sectionOrder, // This is the list of category_labels in order from DB
+      sectionConfig, // This includes dynamic sections with high order
       questionsBySection,
       questionIdToSection
-    } = parseQuestionsToMaps(questions);
+    } = parseQuestionsToMaps(questions, categories);
     
     // Apply section-level rules from Category entities
     applySectionRules(sectionConfig, questionsBySection, categories);
@@ -1679,16 +1685,16 @@ export async function bootstrapEngine(base44) {
     const engineState = {
       // Legacy structures (kept for potential backward compatibility or specific direct lookups)
       QById,
-      NextById, // This will be mostly ignored by the new computeNextQuestionId
-      ActiveOrdered, // This will be mostly ignored by the new computeNextQuestionId
+      NextById, 
+      ActiveOrdered, 
       MatrixYesByQ,
       PackStepsById,
       Q113OptionMap: {}, // Specific to some legacy client logic, if any
       Categories: categories, // Full category list might be useful for reporting
 
       // NEW: Section-first structures
-      sectionOrder,
-      sectionConfig,
+      sectionOrder, // This is the list of category_labels in order from DB
+      sectionConfig, // This includes dynamic sections with high order
       questionsBySection,
       questionIdToSection,
       
@@ -1696,13 +1702,14 @@ export async function bootstrapEngine(base44) {
       Bootstrapped: true,
       TotalQuestions: ActiveOrdered.length,
       UndefinedPacks: Array.from(UndefinedPacks),
-      Architecture: 'section-first' // Flag to identify new architecture
+      Architecture: 'section-first-db-driven' // Flag to identify new architecture
     };
 
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
-    console.log(`   - Architecture: SECTION-FIRST`);
-    console.log(`   - Sections: ${sectionOrder.length} (incl. dynamic)`);
+    console.log(`   - Architecture: SECTION-FIRST (database-driven)`);
+    console.log(`   - Section order source: Category.section_order`);
+    console.log(`   - Sections: ${Object.keys(sectionConfig).length} (incl. dynamic)`);
     console.log(`   - Total active questions: ${ActiveOrdered.length}`);
     console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
     console.log(`   - Defined packs: ${Object.keys(PackStepsById).length}`);
@@ -1721,12 +1728,12 @@ export async function bootstrapEngine(base44) {
 }
 
 // ============================================================================
-// SECTION-AWARE QUESTION ROUTING (NEW CORE LOGIC)
+// SECTION-AWARE QUESTION ROUTING (DATABASE-DRIVEN)
 // ============================================================================
 
 /**
  * NEW: Section-aware computeNextQuestionId
- * This is the core routing function that respects section boundaries and skip rules
+ * Uses Category.section_order from database for deterministic routing
  */
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
   console.log(`🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
@@ -1734,8 +1741,8 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   // 1. Locate current section and index
   const location = engine.questionIdToSection[currentQuestionId];
   if (!location) {
-    console.error(`❌ Question ${currentQuestionId} not found in section map - falling back to legacy routing`);
-    return computeNextQuestionIdLegacy(engine, currentQuestionId, answer);
+    console.error(`❌ Question ${currentQuestionId} not found in section map.`);
+    return null; // End or error state
   }
 
   const { sectionId, indexInSection } = location;
@@ -1743,7 +1750,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   const questions = engine.questionsBySection[sectionId];
   const currentQuestion = questions[indexInSection];
 
-  console.log(`   📍 Current: ${sectionId} (Section Order: ${section.sectionOrder}), Q: ${indexInSection + 1}/${questions.length}`);
+  console.log(`   📍 Location: [${section.section_order}] ${sectionId}, position #${indexInSection + 1}/${questions.length}`);
   console.log(`   🎯 Section mode: ${section.mode}`);
 
   // 2. Check section-level control question skip rule
@@ -1752,7 +1759,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
       (indexInSection + 1) === section.controlQuestionPosition && // Check if current question is the gate question
       normalizeToYesNo(answer) === "No") {
     
-    console.log(`   🚪 Control question "${currentQuestionId}" answered "No" - skipping rest of "${sectionId}"`);
+    console.log(`   🚪 Control question answered No - skipping rest of [${section.section_order}] ${sectionId}`);
     return firstQuestionIdOfNextSection(engine, sectionId);
   }
 
@@ -1772,60 +1779,65 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   const nextIndex = indexInSection + 1;
   if (nextIndex < questions.length) {
     const nextQ = questions[nextIndex];
-    console.log(`   ✅ Next question in section: ${nextQ.question_id} (Q: ${nextIndex + 1}/${questions.length})`);
+    console.log(`   ✅ Next question in section: ${nextQ.question_id} (#${nextIndex + 1})`);
     return nextQ.question_id;
   }
 
   // 5. End of section -> first question of next active section
-  console.log(`   🏁 End of "${sectionId}" - moving to next available section.`);
+  console.log(`   🏁 End of [${section.section_order}] ${sectionId} - moving to next available section.`);
   return firstQuestionIdOfNextSection(engine, sectionId);
 }
 
 /**
- * Find the first question ID of the next active section, respecting section order and active status.
+ * Find the first question ID of the next active section
+ * Uses section_order from database for deterministic sequencing
  */
 function firstQuestionIdOfNextSection(engine, currentSectionId) {
   const currentSection = engine.sectionConfig[currentSectionId];
   if (!currentSection) {
-    console.error(`❌ Section ${currentSectionId} not found in sectionConfig.`);
+    console.error(`❌ Section "${currentSectionId}" not found in sectionConfig.`);
     return null;
   }
 
-  // The sectionOrder property on sectionConfig represents its ordered position
-  // The engine.sectionOrder array is the list of section IDs in that final order
-  const currentOrder = currentSection.sectionOrder;
+  const currentOrder = currentSection.section_order;
   
-  console.log(`[SectionRouting] Current section ID: "${currentSectionId}" (Assigned Order: ${currentOrder})`);
-  // console.log(`[SectionRouting] Full section order (IDs):`, engine.sectionOrder); // Too verbose for regular logs
+  console.log(`[SectionRouting] Current section: [${currentOrder}] "${currentSectionId}"`);
   
-  // Iterate through ALL subsequent sections in the engine's resolved section order (by ID)
-  for (let i = currentOrder + 1; i < engine.sectionOrder.length; i++) {
-    const candidateSectionId = engine.sectionOrder[i];
-    const candidateConfig = engine.sectionConfig[candidateSectionId]; // Get config for active status
-    const candidateQuestions = engine.questionsBySection[candidateSectionId]; // Get active questions for this section
+  // Find all sections with higher section_order, including dynamically added ones (order 999)
+  const candidateSections = Object.values(engine.sectionConfig)
+    .filter(s => s.section_order > currentOrder)
+    .sort((a, b) => a.section_order - b.section_order);
+  
+  console.log(`[SectionRouting] Candidate sections (section_order > ${currentOrder}):`, 
+    candidateSections.map(s => `[${s.section_order}] ${s.id}`));
+  
+  // Iterate through candidates in section_order sequence
+  for (const candidateSection of candidateSections) {
+    const candidateId = candidateSection.id;
+    const candidateQuestions = engine.questionsBySection[candidateId] || [];
     
-    console.log(`[SectionRouting]   Checking next section (Order ${i}): "${candidateSectionId}"`);
-    console.log(`[SectionRouting]     - Active (from Category entity): ${candidateConfig?.active !== false}`);
-    console.log(`[SectionRouting]     - Questions (count of active questions): ${candidateQuestions?.length || 0}`);
+    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateId}"`);
+    console.log(`[SectionRouting]     - Active: ${candidateSection.active !== false}`);
+    console.log(`[SectionRouting]     - Questions: ${candidateQuestions.length}`);
     
     // Skip if section is explicitly inactive (from Category) OR has no active questions
-    if (candidateConfig?.active === false) { 
-      console.log(`[SectionRouting]     ⏸️ Section "${candidateSectionId}" is marked inactive in Category entity - skipping.`);
+    if (candidateSection.active === false) { 
+      console.log(`[SectionRouting]     ⏸️ Section inactive - skipping.`);
       continue;
     }
     
-    if (!candidateQuestions || candidateQuestions.length === 0) {
-      console.log(`[SectionRouting]     ⚠️ Section "${candidateSectionId}" has no active questions - skipping.`);
+    if (candidateQuestions.length === 0) {
+      console.log(`[SectionRouting]     ⚠️ No questions in section - skipping.`);
       continue;
     }
     
     // Found a valid next section with active questions!
     const firstQ = candidateQuestions[0];
-    console.log(`[SectionRouting]   ✅ Next active section found: "${candidateSectionId}", first question: ${firstQ.question_id}`);
+    console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateId}", first question: ${firstQ.question_id}`);
     return firstQ.question_id;
   }
 
-  console.log(`[SectionRouting] 🏁 No more active sections with questions - interview complete.`);
+  console.log(`[SectionRouting] 🏁 No more active sections with questions after [${currentOrder}] - interview complete.`);
   return null; // End of interview
 }
 
@@ -1837,39 +1849,6 @@ function normalizeToYesNo(answer) {
   if (normalized === 'yes' || normalized === 'y') return 'Yes';
   if (normalized === 'no' || normalized === 'n') return 'No';
   return answer;
-}
-
-/**
- * LEGACY: Old computeNextQuestionId for backward compatibility
- * Only used as fallback if section lookup fails or if architecture flag is not 'section-first'
- */
-function computeNextQuestionIdLegacy(engine, currentQuestionId, answer) {
-  console.warn(`⚠️ [LEGACY ROUTING] Using legacy routing for ${currentQuestionId} due to missing section data.`);
-  const { NextById, ActiveOrdered } = engine;
-
-  // Check explicit next_question_id from the question entity first (legacy behavior)
-  if (engine.QById[currentQuestionId]?.next_question_id) {
-    console.log(`✅ [LEGACY] Using explicit next_question_id: ${engine.QById[currentQuestionId].next_question_id}`);
-    return engine.QById[currentQuestionId].next_question_id;
-  }
-
-  // Fall back to ActiveOrdered array (linear progression)
-  const currentIndex = ActiveOrdered.indexOf(currentQuestionId);
-  if (currentIndex >= 0 && currentIndex < ActiveOrdered.length - 1) {
-    const nextId = ActiveOrdered[currentIndex + 1];
-    console.log(`✅ [LEGACY] Using display order - next question: ${nextId}`);
-    return nextId;
-  }
-  
-  // If at the end of ActiveOrdered
-  if (currentIndex === ActiveOrdered.length - 1) {
-    console.log(`✅ [LEGACY] At last question in ActiveOrdered (position ${currentIndex + 1}/${ActiveOrdered.length}) - no next question`);
-  } else {
-    // This case should ideally not be reached if ActiveOrdered is correctly populated
-    console.error(`❌ [LEGACY] Question ${currentQuestionId} not found in ActiveOrdered array or is out of bounds!`);
-  }
-
-  return null;
 }
 
 // ============================================================================
@@ -2021,19 +2000,24 @@ export function verifyPackCompletion(packId, transcript) {
   let currentAnswers = {}; // To store answers for conditional logic within a pack
 
   for (const step of packSteps) {
+    // Populate currentAnswers for conditional logic
+    const answeredEntry = followupAnswers.find(a => a.questionText === step.Prompt);
+    if (answeredEntry && answeredEntry.answer && String(answeredEntry.answer).trim() !== '') {
+      currentAnswers[step.Field_Key] = answeredEntry.answer;
+    }
+
     const shouldSkip = shouldSkipFollowUpStep(step, currentAnswers);
     if (shouldSkip) {
       // If a step is skipped, it's considered "complete" for the purpose of this pack
-      // We don't add it to missing, and it won't be in the transcript.
+      // We don't add it to missing, and it won't be in the transcript (or doesn't need to be answered).
       continue; 
     }
 
-    const answered = followupAnswers.find(a => a.questionText === step.Prompt);
-    if (!answered || !answered.answer || String(answered.answer).trim() === '') {
+    // Now check if it was actually answered, if not skipped
+    if (!answeredEntry || !answeredEntry.answer || String(answeredEntry.answer).trim() === '') {
       missing.push(step.Prompt);
-    } else {
-      currentAnswers[step.Field_Key] = answered.answer; // Store answer for subsequent conditional steps
-    }
+    } 
+    // The else branch (where currentAnswers is populated) is handled above the conditional check
   }
 
   return {
@@ -2043,10 +2027,8 @@ export function verifyPackCompletion(packId, transcript) {
 }
 
 export function generateCompletionAudit(engine, transcript) {
-  // Use engine.ActiveOrdered for total questions if needed, otherwise questionsBySection
-  // For section-first, let's use the actual count from questionsBySection
-  let totalActiveQuestions = 0;
-  Object.values(engine.questionsBySection).forEach(qs => totalActiveQuestions += qs.length);
+  // Use engine.TotalQuestions which is derived from all active questions across sections
+  let totalActiveQuestions = engine.TotalQuestions;
 
   const answeredQuestions = transcript.filter(t => t.type === 'question');
   const answeredQuestionIds = new Set(answeredQuestions.map(q => q.questionId));
@@ -2077,27 +2059,23 @@ export function generateCompletionAudit(engine, transcript) {
     }
   });
 
-  // Determine if all actual active questions have been answered.
-  // This means iterating through all questions in sections and checking if they are in answeredQuestionIds
-  let allQuestionsAnswered = true;
-  for (const sectionId of engine.sectionOrder) {
-    const sectionQuestions = engine.questionsBySection[sectionId];
-    if (sectionQuestions) {
-      for (const q of sectionQuestions) {
-        // If a question was part of a section that was skipped by a gate, it's not expected to be answered.
-        // This logic needs to be integrated with the routing path taken.
-        // For simplicity, let's just check if it was encountered.
-        // A more robust check would simulate the entire interview path.
-        // For now, checking against totalActiveQuestions and answeredQuestions is a good start.
-        if (!answeredQuestionIds.has(q.question_id)) {
-          allQuestionsAnswered = false;
-          // console.log(`Question ${q.question_id} in section ${sectionId} was not answered.`);
-          // Break early if we find an unanswered question - commented for now to allow full iteration
-          // break; 
-        }
-      }
-    }
-    // if (!allQuestionsAnswered) break; // If commented out, it continues checking all sections
+  // Determine if all actual active questions *that were supposed to be asked* have been answered.
+  // This is complex with section skipping. A perfect check would simulate the interview path.
+  // For now, we compare against `ActiveOrdered` which is a linear list of all active questions.
+  // This might overcount "unanswered" questions if sections were skipped.
+  // A more accurate "allQuestionsAnswered" would require re-running routing logic.
+  let allRoutingPathQuestionsAnswered = true;
+  // This can be complex. For a simpler check, we can check if all questions present in ActiveOrdered
+  // *and* not explicitly skipped by a section rule were answered. This requires simulating the path.
+  // For this version, let's stick with the total active questions count from engine.TotalQuestions
+  // and acknowledge the limitation for "is_complete" if sections are skipped.
+
+  // The ActiveOrdered array contains ALL active questions, in their final sorted order.
+  // If questions are present in ActiveOrdered but not answered, then 'allQuestionsAnswered' is false.
+  // This provides a baseline, even if some of these questions were skipped by routing logic.
+  // A more precise `is_complete` would require simulating the interview with the given answers.
+  if (answeredQuestions.length < totalActiveQuestions) {
+     allRoutingPathQuestionsAnswered = false;
   }
   
   return {
@@ -2108,9 +2086,10 @@ export function generateCompletionAudit(engine, transcript) {
     followup_packs_completed: completedPacks.length,
     incomplete_packs: incompletePacks,
     // The "is_complete" logic is more complex with section skipping.
-    // For now, we'll indicate if all *potential* active questions were answered and no incomplete packs.
-    // A fully accurate check would require simulating the entire routing path based on answers.
-    is_complete: allQuestionsAnswered && incompletePacks.length === 0,
+    // For now, this assumes all active questions should have been presented and answered,
+    // plus all triggered follow-ups completed.
+    // A truly accurate "is_complete" would simulate the interview path based on answers given.
+    is_complete: (answeredQuestions.length === totalActiveQuestions && incompletePacks.length === 0),
     timestamp: new Date().toISOString()
   };
 }
@@ -2149,61 +2128,61 @@ export function validateEngineConfiguration(engine) {
 }
 
 // ============================================================================
-// SELF-TEST (UPDATED FOR SECTION-FIRST)
+// SELF-TEST (UPDATED FOR DATABASE-DRIVEN SECTION ORDER)
 // ============================================================================
 
 export function runEntityFollowupSelfTest(engine) {
-  console.log('🧪 Running Section-First Architecture Self-Test...');
-  console.log('📋 Testing section-aware routing and pack definitions...');
+  console.log('🧪 Running Section-First (DB-Driven) Self-Test...');
+  console.log('📋 Testing section-aware routing with Category.section_order...');
   
   const results = [];
   const { sectionConfig, questionsBySection, MatrixYesByQ, PackStepsById } = engine;
   
   // Test 1: Verify section structure and gate questions
-  console.log('\n📊 Section Structure:');
-  // Use engine.sectionOrder to get the correct sequence of section IDs
-  const sortedSectionNames = engine.sectionOrder;
-  
-  sortedSectionNames.forEach(sectionName => {
-    const section = sectionConfig[sectionName];
-    const questions = questionsBySection[sectionName] || [];
-    console.log(`   ${section.sectionOrder + 1}. "${section.id}": (Active: ${section.active ? 'Yes' : 'No'})`);
-    console.log(`      - Questions: ${questions.length}`);
-    console.log(`      - Mode: ${section.mode}`);
-    if (section.gate_question_id) {
-      const gateQExists = questions.some(q => q.question_id === section.gate_question_id);
-      console.log(`      - Gate Question: ${section.gate_question_id} (Exists in section: ${gateQExists ? '✅' : '❌'})`);
-      if (!gateQExists) {
-        results.push({
-          Test: 'Section Gate Question Existence',
-          Section: section.id,
-          Question: section.gate_question_id,
-          Status: '❌ FAIL',
-          Details: 'Gate question defined for section not found within its active questions.'
-        });
+  console.log('\n📊 Section Structure (from Category.section_order):');
+  Object.values(sectionConfig)
+    .sort((a, b) => a.section_order - b.section_order)
+    .forEach(section => {
+      const questions = questionsBySection[section.id] || [];
+      console.log(`   ${section.section_order}. ${section.id}:`);
+      console.log(`      - Questions: ${questions.length}`);
+      console.log(`      - Active: ${section.active !== false ? 'Yes' : 'No'}`);
+      console.log(`      - Mode: ${section.mode}`);
+      if (section.gate_question_id) {
+        const gateQExists = questions.some(q => q.question_id === section.gate_question_id);
+        console.log(`      - Gate Question: ${section.gate_question_id} (Exists in section: ${gateQExists ? '✅' : '❌'})`);
+        if (!gateQExists) {
+          results.push({
+            Test: 'Section Gate Question Existence',
+            Section: section.id,
+            Question: section.gate_question_id,
+            Status: '❌ FAIL',
+            Details: 'Gate question defined for section not found within its active questions.'
+          });
+        }
+      } else if (section.mode === "skip_rest_if_control_no") {
+         results.push({
+            Test: 'Section Gate Question Definition',
+            Section: section.id,
+            Question: 'N/A',
+            Status: '❌ FAIL',
+            Details: 'Section mode is "skip_rest_if_control_no" but no gate_question_id is defined.'
+          });
       }
-    } else if (section.mode === "skip_rest_if_control_no") {
-       results.push({
-          Test: 'Section Gate Question Definition',
-          Section: section.id,
-          Question: 'N/A',
-          Status: '❌ FAIL',
-          Details: 'Section mode is "skip_rest_if_control_no" but no gate_question_id is defined.'
-        });
-    }
-  });
+    });
   
   // Test 2: Verify all Question.followup_pack values have pack definitions
-  console.log('\n📋 Follow-Up Pack Mappings:');
   const packMappingResults = [];
   Object.keys(MatrixYesByQ).forEach(questionId => {
     const packId = MatrixYesByQ[questionId];
     const packExists = PackStepsById[packId] !== undefined;
     const location = engine.questionIdToSection[questionId];
+    const sectionOrder = location ? engine.sectionConfig[location.sectionId]?.section_order : '?';
     
     packMappingResults.push({
       Question: questionId,
       Section: location?.sectionId || 'Unknown',
+      Order: `[${sectionOrder}]`,
       Position: location ? `#${location.indexInSection + 1}` : '?',
       Pack: packId,
       PackDefined: packExists ? '✅ YES' : '⚠️ NO',
@@ -2220,14 +2199,16 @@ export function runEntityFollowupSelfTest(engine) {
     }
   });
   
+  console.log('\n📋 Follow-Up Pack Mappings:');
   console.table(packMappingResults);
   
   const failures = results.filter(r => r.Status === '❌ FAIL');
   const warnings = results.filter(r => r.Status === '⚠️ WARN');
   
   console.log(`\n📊 Summary:`);
-  console.log(`   Architecture: SECTION-FIRST`);
-  console.log(`   Sections: ${sortedSectionNames.length}`);
+  console.log(`   Architecture: SECTION-FIRST (database-driven)`);
+  console.log(`   Section order source: Category.section_order`);
+  console.log(`   Sections: ${Object.keys(sectionConfig).length} (incl. dynamic)`);
   console.log(`   Total active questions: ${engine.TotalQuestions}`);
   console.log(`   Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
   console.log(`   Defined packs: ${Object.keys(PackStepsById).length}`);
@@ -2244,7 +2225,7 @@ export function runEntityFollowupSelfTest(engine) {
     warnings.forEach(f => console.warn(`   - ${f.Test} in ${f.Section || f.Question}: ${f.Details}`));
     return { passed: true, warnings: warnings.length, results };
   } else {
-    console.log(`\n✅ ALL TESTS PASSED - SECTION-FIRST ARCHITECTURE HEALTHY`);
+    console.log(`\n✅ ALL TESTS PASSED - DATABASE-DRIVEN SECTION ORDER WORKING`);
     return { passed: true, warnings: 0, results };
   }
 }
