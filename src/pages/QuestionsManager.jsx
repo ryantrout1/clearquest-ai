@@ -555,7 +555,11 @@ export default function QuestionsManager() {
                                   {/* Section controls */}
                                   <div className="flex flex-wrap items-center gap-3 mt-3">
                                     {/* Required toggle */}
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                    <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
+                                      section.section_required 
+                                        ? 'bg-red-500/10 border border-red-500/30' 
+                                        : 'bg-slate-800/50 border border-slate-700'
+                                    }`}>
                                       <Switch
                                         checked={section.section_required}
                                         onCheckedChange={() => toggleSectionRequired(section.name)}
@@ -569,7 +573,11 @@ export default function QuestionsManager() {
                                     </div>
 
                                     {/* Status toggle */}
-                                    <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5">
+                                    <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
+                                      section.section_active 
+                                        ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                                        : 'bg-slate-800/50 border border-slate-700'
+                                    }`}>
                                       <Switch
                                         checked={section.section_active}
                                         onCheckedChange={() => toggleSectionActive(section.name)}
