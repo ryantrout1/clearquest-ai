@@ -308,36 +308,36 @@ export default function InterviewStructureManager() {
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className="bg-slate-900/50 border border-slate-700 rounded-lg"
+                                className="bg-slate-900/50 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors"
                               >
                                 {/* Section Header */}
                                 <div className="p-3 flex items-center gap-2">
                                   <div {...provided.dragHandleProps}>
-                                    <GripVertical className="w-4 h-4 text-slate-500" />
+                                    <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
                                   </div>
                                   <button
                                     onClick={() => toggleNode(`section-${section.id}`)}
-                                    className="text-slate-400 hover:text-white"
+                                    className="text-slate-400 hover:text-white transition-colors"
                                   >
                                     {expandedNodes[`section-${section.id}`] ? 
-                                      <ChevronDown className="w-4 h-4" /> : 
-                                      <ChevronRight className="w-4 h-4" />
+                                      <ChevronDown className="w-5 h-5" /> : 
+                                      <ChevronRight className="w-5 h-5" />
                                     }
                                   </button>
-                                  <FolderOpen className="w-4 h-4 text-blue-400" />
+                                  <FolderOpen className="w-5 h-5 text-blue-400" />
                                   <div className="flex-1">
-                                    <span className="text-white font-medium">{section.section_name}</span>
+                                    <span className="text-white font-medium text-base">{section.section_name}</span>
                                     <div className="flex gap-2 mt-1">
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                         #{section.section_order}
                                       </Badge>
                                       {!section.active && (
-                                        <Badge variant="outline" className="text-xs text-red-400 border-red-600">
+                                        <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
                                           Inactive
                                         </Badge>
                                       )}
                                       {section.required && (
-                                        <Badge variant="outline" className="text-xs text-amber-400 border-amber-600">
+                                        <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
                                           Required
                                         </Badge>
                                       )}
@@ -347,6 +347,7 @@ export default function InterviewStructureManager() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                    className="text-slate-400 hover:text-white hover:bg-slate-700"
                                   >
                                     <Edit className="w-4 h-4" />
                                   </Button>
@@ -354,7 +355,7 @@ export default function InterviewStructureManager() {
 
                                 {/* Questions in Section */}
                                 {expandedNodes[`section-${section.id}`] && (
-                                  <div className="border-t border-slate-700 p-3 pl-12 bg-slate-900/30">
+                                  <div className="border-t border-slate-700/50 p-3 pl-12 bg-slate-900/30">
                                     <QuestionList 
                                       sectionId={section.id} 
                                       questions={questions}
@@ -427,7 +428,6 @@ export default function InterviewStructureManager() {
               disabled={deleteInput !== "DELETE"}
               className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
-                // Handle deletion based on type
                 setDeleteConfirm(null);
                 setDeleteInput("");
                 toast.success('Item deleted');
@@ -465,33 +465,42 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className="bg-slate-800/50 border border-slate-600 rounded p-2"
+                      className="bg-slate-800/50 border border-slate-600 rounded-lg p-3 hover:border-emerald-500/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedItem({ type: 'question', data: question })}
                     >
-                      <div className="flex items-start gap-2">
-                        <div {...provided.dragHandleProps}>
-                          <GripVertical className="w-3 h-3 text-slate-500" />
+                      <div className="flex items-start gap-3">
+                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+                          <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
                         </div>
                         {pack && (
                           <button
-                            onClick={() => toggleNode(`question-${question.id}`)}
-                            className="text-slate-400 hover:text-white mt-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleNode(`question-${question.id}`);
+                            }}
+                            className="text-slate-400 hover:text-white mt-0.5 transition-colors"
                           >
                             {expandedNodes[`question-${question.id}`] ? 
-                              <ChevronDown className="w-3 h-3" /> : 
-                              <ChevronRight className="w-3 h-3" />
+                              <ChevronDown className="w-4 h-4" /> : 
+                              <ChevronRight className="w-4 h-4" />
                             }
                           </button>
                         )}
-                        <FileText className="w-3 h-3 text-green-400 mt-1" />
+                        <FileText className="w-4 h-4 text-emerald-400 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{question.question_text}</p>
-                          <div className="flex gap-1 mt-1">
-                            <Badge variant="outline" className="text-xs">
+                          <p className="text-sm text-white leading-relaxed">{question.question_text}</p>
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300 font-mono">
                               {question.question_id}
                             </Badge>
                             {!question.active && (
-                              <Badge variant="outline" className="text-xs text-red-400">
+                              <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
                                 Inactive
+                              </Badge>
+                            )}
+                            {pack && (
+                              <Badge className="text-xs bg-purple-500/20 border-purple-500/50 text-purple-400">
+                                Has Follow-ups
                               </Badge>
                             )}
                           </div>
@@ -499,16 +508,19 @@ function QuestionList({ sectionId, questions, followUpPacks, followUpQuestions, 
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSelectedItem({ type: 'question', data: question })}
-                          className="h-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItem({ type: 'question', data: question });
+                          }}
+                          className="text-slate-400 hover:text-white hover:bg-slate-700 h-8"
                         >
-                          <Edit className="w-3 h-3" />
+                          <Edit className="w-4 h-4" />
                         </Button>
                       </div>
 
                       {/* Follow-up Pack */}
                       {pack && expandedNodes[`question-${question.id}`] && (
-                        <div className="ml-8 mt-2 border-l-2 border-slate-600 pl-3">
+                        <div className="ml-10 mt-3 border-l-2 border-purple-500/30 pl-4">
                           <FollowUpPackNode
                             pack={pack}
                             followUpQuestions={followUpQuestions}
@@ -538,24 +550,30 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   return (
-    <div className="bg-slate-900/50 border border-purple-600/30 rounded p-2">
+    <div className="bg-purple-950/30 border border-purple-600/40 rounded-lg p-3">
       <div className="flex items-center gap-2">
         <button
-          onClick={() => toggleNode(`pack-${pack.id}`)}
-          className="text-slate-400 hover:text-white"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleNode(`pack-${pack.id}`);
+          }}
+          className="text-purple-400 hover:text-purple-300 transition-colors"
         >
           {expandedNodes[`pack-${pack.id}`] ? 
-            <ChevronDown className="w-3 h-3" /> : 
-            <ChevronRight className="w-3 h-3" />
+            <ChevronDown className="w-4 h-4" /> : 
+            <ChevronRight className="w-4 h-4" />
           }
         </button>
-        <Package className="w-3 h-3 text-purple-400" />
-        <span className="text-sm text-white flex-1">{pack.pack_name}</span>
+        <Package className="w-4 h-4 text-purple-400" />
+        <span className="text-sm text-purple-200 font-medium flex-1">{pack.pack_name}</span>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setSelectedItem({ type: 'pack', data: pack })}
-          className="h-6"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedItem({ type: 'pack', data: pack });
+          }}
+          className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/30 h-7"
         >
           <Edit className="w-3 h-3" />
         </Button>
@@ -565,25 +583,29 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
         <DragDropContext onDragEnd={(result) => onDragEnd(result, pack.followup_pack_id)}>
           <Droppable droppableId={`followup-${pack.followup_pack_id}`}>
             {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef} className="ml-5 mt-2 space-y-1">
+              <div {...provided.droppableProps} ref={provided.innerRef} className="ml-6 mt-3 space-y-2">
                 {packQuestions.map((q, index) => (
                   <Draggable key={q.id} draggableId={q.id} index={index}>
                     {(provided) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className="bg-slate-800/50 border border-slate-600 rounded p-2 flex items-start gap-2"
+                        className="bg-purple-900/20 border border-purple-600/30 rounded p-2 flex items-start gap-2 hover:border-purple-500/50 transition-colors cursor-pointer"
+                        onClick={() => setSelectedItem({ type: 'followup-question', data: q })}
                       >
-                        <div {...provided.dragHandleProps}>
-                          <GripVertical className="w-3 h-3 text-slate-500" />
+                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+                          <GripVertical className="w-3 h-3 text-purple-500/70 hover:text-purple-400 cursor-grab active:cursor-grabbing" />
                         </div>
                         <Layers className="w-3 h-3 text-purple-400 mt-0.5" />
-                        <p className="text-xs text-slate-300 flex-1">{q.question_text}</p>
+                        <p className="text-xs text-purple-100 flex-1 leading-relaxed">{q.question_text}</p>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSelectedItem({ type: 'followup-question', data: q })}
-                          className="h-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItem({ type: 'followup-question', data: q });
+                          }}
+                          className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/30 h-6"
                         >
                           <Edit className="w-3 h-3" />
                         </Button>
@@ -748,7 +770,7 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
           <Textarea
             value={formData.question_text || ''}
             onChange={(e) => setFormData({...formData, question_text: e.target.value})}
-            className="bg-slate-800 border-slate-600 text-white mt-1"
+            className="bg-slate-800 border-slate-600 text-white mt-1 min-h-24"
           />
         </div>
 
@@ -804,7 +826,7 @@ function DetailPanel({ selectedItem, sections, followUpPacks, onClose, onDelete 
         </div>
 
         <div className="flex gap-2 pt-4">
-          <Button onClick={handleSave} className="flex-1 bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
             Save Changes
           </Button>
         </div>
