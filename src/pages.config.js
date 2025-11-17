@@ -17,6 +17,7 @@ import ManageDepartmentUsers from './pages/ManageDepartmentUsers';
 import interviewv2StableDoNotEditAiProbingTranscriptsVerified from './pages/InterviewV2 – STABLE - DO NOT EDIT (AI probing + transcripts verified)';
 import BackfillSummaries from './pages/BackfillSummaries';
 import QuestionsManager from './pages/QuestionsManager';
+import InterviewStructureManager from './pages/InterviewStructureManager';
 import __Layout from './Layout.jsx';
 
 
@@ -40,6 +41,7 @@ export const PAGES = {
     "InterviewV2 – STABLE - DO NOT EDIT (AI probing + transcripts verified)": interviewv2StableDoNotEditAiProbingTranscriptsVerified,
     "BackfillSummaries": BackfillSummaries,
     "QuestionsManager": QuestionsManager,
+    "InterviewStructureManager": InterviewStructureManager,
 }
 
 export const pagesConfig = {
