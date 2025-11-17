@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -350,6 +351,32 @@ export default function InterviewStructureManager() {
     }));
   };
 
+  const toggleSectionActive = async (e, section) => {
+    e.stopPropagation(); // Prevent opening the section details
+    try {
+      await base44.entities.Section.update(section.id, {
+        active: !section.active
+      });
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      toast.success(`Section "${section.section_name}" ${!section.active ? 'activated' : 'deactivated'}`);
+    } catch (err) {
+      toast.error('Failed to update section active status');
+    }
+  };
+
+  const toggleQuestionActive = async (e, question) => {
+    e.stopPropagation(); // Prevent opening the question details
+    try {
+      await base44.entities.Question.update(question.id, {
+        active: !question.active
+      });
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      toast.success(`Question "${question.question_id}" ${!question.active ? 'activated' : 'deactivated'}`);
+    } catch (err) {
+      toast.error('Failed to update question active status');
+    }
+  };
+
   const handleSectionDragEnd = async (result) => {
     if (!result.destination) return;
     
@@ -541,15 +568,16 @@ export default function InterviewStructureManager() {
                                           <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                             #{section.section_order}
                                           </Badge>
-                                          {section.active ? (
-                                            <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                              Active
-                                            </Badge>
-                                          ) : (
-                                            <Badge className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
-                                              Inactive
-                                            </Badge>
-                                          )}
+                                          <Badge 
+                                            onClick={(e) => toggleSectionActive(e, section)}
+                                            className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                                              section.active
+                                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                                : 'bg-slate-700/50 border-slate-600 text-slate-400'
+                                            }`}
+                                          >
+                                            {section.active ? 'Active' : 'Inactive'}
+                                          </Badge>
                                           {section.required && (
                                             <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
                                               Required
@@ -586,6 +614,7 @@ export default function InterviewStructureManager() {
                                         followUpQuestions={followUpQuestions}
                                         expandedNodes={expandedNodes}
                                         toggleNode={toggleNode}
+                                        toggleQuestionActive={toggleQuestionActive}
                                         setSelectedItem={setSelectedItem}
                                         onDragEnd={handleQuestionDragEnd}
                                         onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
@@ -605,8 +634,8 @@ export default function InterviewStructureManager() {
               )}
             </div>
 
-            {/* Detail Panel */}
-            <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
+            {/* Detail Panel - Sticky */}
+            <div className="lg:sticky lg:top-6 lg:self-start bg-slate-800/30 border border-slate-700/50 rounded-lg p-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
               <DetailPanel
                 selectedItem={selectedItem}
                 sections={sections}
@@ -677,7 +706,7 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
+function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, toggleQuestionActive, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
   const sectionQuestions = questions
     .filter(q => q.section_id === sectionId)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -744,15 +773,16 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
                             <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                               {question.question_id}
                             </Badge>
-                            {question.active ? (
-                              <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                Active
-                              </Badge>
-                            ) : (
-                              <Badge className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
-                                Inactive
-                              </Badge>
-                            )}
+                            <Badge 
+                              onClick={(e) => toggleQuestionActive(e, question)}
+                              className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                                question.active
+                                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                  : 'bg-slate-700/50 border-slate-600 text-slate-400'
+                              }`}
+                            >
+                              {question.active ? 'Active' : 'Inactive'}
+                            </Badge>
                             {isControlQuestion && (
                               <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
                                 <Lock className="w-3 h-3 mr-1" />
@@ -923,6 +953,9 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           setCurrentCategoryEntity(cat);
           setIsGateQuestion(cat.gate_question_id === selectedItem.data.question_id);
         }
+      } else {
+        setIsGateQuestion(false);
+        setCurrentCategoryEntity(null);
       }
     } else {
       setFormData({});
