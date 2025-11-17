@@ -783,15 +783,44 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
 }
 
 function TranscriptView({ responses, followups }) {
+  const [packSteps, setPackSteps] = useState({});
+
+  useEffect(() => {
+    // Dynamically import and build pack steps mapping
+    import('../components/interviewEngine').then(module => {
+      const stepsMap = {};
+      responses.forEach(r => {
+        if (r.followup_pack && module.default?.FOLLOWUP_PACK_STEPS?.[r.followup_pack]) {
+          stepsMap[r.followup_pack] = module.default.FOLLOWUP_PACK_STEPS[r.followup_pack];
+        } else if (r.followup_pack && module.injectSubstanceIntoPackSteps) {
+          // Attempt to dynamically generate steps if it's a substance pack
+          // Pass a dummy engine as `injectSubstanceIntoPackSteps` expects one
+          const dummyEngine = { PackStepsById: module.default?.FOLLOWUP_PACK_STEPS || {} };
+          stepsMap[r.followup_pack] = module.injectSubstanceIntoPackSteps(dummyEngine, r.followup_pack, null);
+        }
+      });
+      setPackSteps(stepsMap);
+    }).catch(err => {
+      console.error('Error loading pack steps:', err);
+    });
+  }, [responses]);
+
   const timeline = [];
 
   responses.forEach(response => {
     timeline.push({ type: 'question', data: response });
 
+    // Add deterministic follow-ups FIRST
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
     relatedFollowups.forEach(fu => {
-      timeline.push({ type: 'followup', data: fu });
+      // Pass the relevant packSteps for this followup
+      timeline.push({ type: 'followup', data: fu, packSteps: packSteps[fu.followup_pack] });
     });
+
+    // THEN add investigator probing (if any)
+    if (response.investigator_probing && response.investigator_probing.length > 0) {
+      timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
+    }
   });
 
   return (
@@ -806,7 +835,6 @@ function TranscriptView({ responses, followups }) {
 function TranscriptEntry({ item }) {
   if (item.type === 'question') {
     const response = item.data;
-    const aiProbingExchanges = response.investigator_probing || [];
     
     return (
       <div className="space-y-2">
@@ -824,27 +852,6 @@ function TranscriptEntry({ item }) {
             <p className="text-white text-sm font-medium">{response.answer}</p>
           </div>
         </div>
-        
-        {aiProbingExchanges.length > 0 && (
-          <div className="ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30">
-            <div className="text-xs font-semibold text-purple-400 mb-2">
-              🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
-            </div>
-            {aiProbingExchanges.map((exchange, idx) => (
-              <React.Fragment key={idx}>
-                <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
-                  <p className="text-xs text-blue-400 font-medium">Follow-Up Question {idx + 1}</p>
-                  <p className="text-white text-sm mt-1 break-words leading-relaxed">{exchange.probing_question}</p>
-                </div>
-                <div className="flex justify-end">
-                  <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                    <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -852,13 +859,14 @@ function TranscriptEntry({ item }) {
   if (item.type === 'followup') {
     const followup = item.data;
     const details = followup.additional_details || {};
+    const packSteps = item.packSteps || [];
 
     return (
       <div className="ml-4 md:ml-8 space-y-2">
         {followup.substance_name && (
           <>
             <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-xs text-orange-400">Substance</p>
+              <p className="text-white text-sm">What substance did you use?</p>
             </div>
             <div className="flex justify-end">
               <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
@@ -870,13 +878,16 @@ function TranscriptEntry({ item }) {
 
         {Object.entries(details).map(([key, value]) => {
           const requiresReview = needsReview(value);
+          // Find the matching step to get the actual question text
+          const step = packSteps.find(s => s.Field_Key === key);
+          const questionText = step?.Prompt || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
           return (
             <React.Fragment key={key}>
               <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs text-orange-400">
-                    {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  <p className="text-white text-sm">
+                    {questionText}
                   </p>
                   {requiresReview && (
                     <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
@@ -893,6 +904,32 @@ function TranscriptEntry({ item }) {
             </React.Fragment>
           );
         })}
+      </div>
+    );
+  }
+
+  if (item.type === 'probing') {
+    const probingExchanges = item.data;
+    
+    return (
+      <div className="ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30">
+        <div className="text-xs font-semibold text-purple-400 mb-2">
+          🔍 Investigator Probing ({probingExchanges.length} exchanges)
+        </div>
+        {probingExchanges.map((exchange, idx) => (
+          <React.Fragment key={idx}>
+            <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
+              {/* This is the AI's probing question */}
+              <p className="text-white text-sm break-words leading-relaxed">{exchange.probing_question}</p>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
+                {/* This is the candidate's response to the probing question */}
+                <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
+              </div>
+            </div>
+          </React.Fragment>
+        ))}
       </div>
     );
   }

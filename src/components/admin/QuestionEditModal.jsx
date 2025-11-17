@@ -135,6 +135,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     display_order: 1,
     active: true,
     followup_pack: '',
+    followup_multi_instance: false, // Added new field
     substance_name: ''
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -175,6 +176,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           display_order: question.display_order || 1,
           active: question.active !== false,
           followup_pack: question.followup_pack || '',
+          followup_multi_instance: question.followup_multi_instance || false, // Added new field
           substance_name: question.substance_name || ''
         });
 
@@ -253,6 +255,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         display_order: parseInt(formData.display_order) || 1,
         active: formData.active,
         followup_pack: formData.followup_pack || null,
+        followup_multi_instance: formData.followup_multi_instance || false, // Added new field
         substance_name: formData.substance_name || null
       };
 
@@ -418,6 +421,25 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
               Used to inject substance name into PACK_DRUG_USE prompts
             </p>
           </div>
+
+          {formData.followup_pack && (
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <div className="flex-1 pr-3">
+                <Label htmlFor="multi_instance" className="text-slate-300 font-semibold">
+                  Multi-Instance Follow-Up
+                </Label>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  If enabled, the system will ask "Do you have another instance?" after completing this follow-up pack
+                </p>
+              </div>
+              <Switch
+                id="multi_instance"
+                checked={formData.followup_multi_instance}
+                onCheckedChange={(checked) => setFormData({...formData, followup_multi_instance: checked})}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
