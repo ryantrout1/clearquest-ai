@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, ChevronDown, ChevronRight, Settings, Lock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,7 +63,6 @@ export default function QuestionsManager() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
   const [sectionOrderMode, setSectionOrderMode] = useState(false);
-  const [editingSectionSkip, setEditingSectionSkip] = useState(null);
   const [sectionMetadata, setSectionMetadata] = useState({});
 
   useEffect(() => {
@@ -139,7 +138,8 @@ export default function QuestionsManager() {
           count: 0,
           activeCount: 0,
           inactiveCount: 0,
-          requiredCount: 0
+          requiredCount: 0,
+          gateQuestionId: null
         };
       }
       sectionMap[q.category].count++;
@@ -151,6 +151,10 @@ export default function QuestionsManager() {
       if (q.is_required) {
         sectionMap[q.category].requiredCount++;
       }
+      // Find the #1 position question as the gate question
+      if (q.display_order === 1 || (!sectionMap[q.category].gateQuestionId)) {
+        sectionMap[q.category].gateQuestionId = q.question_id;
+      }
     });
     
     const sectionList = Object.values(sectionMap).map(section => ({
@@ -159,8 +163,7 @@ export default function QuestionsManager() {
       section_required: sectionMetadata[section.name]?.section_required || false,
       section_active: sectionMetadata[section.name]?.section_active !== false,
       section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
-      skip_mode: sectionMetadata[section.name]?.skip_mode || "always_show",
-      gate_question_id: sectionMetadata[section.name]?.gate_question_id || null
+      gate_mode_enabled: sectionMetadata[section.name]?.gate_mode_enabled || false
     }));
     
     return sectionList.sort((a, b) => a.section_order - b.section_order);
@@ -215,6 +218,17 @@ export default function QuestionsManager() {
       }
     }));
     toast.success('Section status updated');
+  };
+
+  const toggleGateMode = (sectionName) => {
+    setSectionMetadata(prev => ({
+      ...prev,
+      [sectionName]: {
+        ...prev[sectionName],
+        gate_mode_enabled: !prev[sectionName]?.gate_mode_enabled
+      }
+    }));
+    toast.success('Gate question mode updated');
   };
 
   const getQuestionsForSection = (sectionName) => {
@@ -334,13 +348,10 @@ export default function QuestionsManager() {
   };
 
   const getSkipRuleBadge = (section) => {
-    if (section.skip_mode === "always_show") {
-      return <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">Always show</Badge>;
+    if (section.gate_mode_enabled) {
+      return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">Skip if #1 is No</Badge>;
     }
-    if (section.skip_mode === "skip_if_gate_question_is_no") {
-      return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">Skip if gate is No</Badge>;
-    }
-    return <Badge variant="outline" className="text-xs border-blue-600 text-blue-400">Custom rule</Badge>;
+    return <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">Always show all</Badge>;
   };
 
   if (!user) {
@@ -533,15 +544,25 @@ export default function QuestionsManager() {
                                       </Label>
                                     </div>
 
-                                    {/* Skip rule */}
-                                    <button
-                                      onClick={() => setEditingSectionSkip(section)}
-                                      className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 hover:border-slate-600 transition-colors"
+                                    {/* Gate question toggle */}
+                                    <div 
+                                      className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 cursor-pointer hover:border-slate-600 transition-colors"
+                                      onClick={() => toggleGateMode(section.name)}
                                     >
                                       <Settings className="w-3 h-3 text-slate-400" />
                                       {getSkipRuleBadge(section)}
-                                    </button>
+                                    </div>
                                   </div>
+
+                                  {/* Gate mode explanation */}
+                                  {section.gate_mode_enabled && (
+                                    <div className="mt-3 bg-amber-950/20 border border-amber-800/30 rounded-lg px-3 py-2">
+                                      <p className="text-xs text-amber-400">
+                                        <Lock className="w-3 h-3 inline mr-1" />
+                                        Control Question Active: If question #{section.gateQuestionId} is answered "No", the rest of this section will be skipped.
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -567,98 +588,110 @@ export default function QuestionsManager() {
                                   <Droppable droppableId={`questions-${section.name}`}>
                                     {(provided) => (
                                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                                        {getQuestionsForSection(section.name).map((question, qIndex) => (
-                                          <Draggable key={question.id} draggableId={question.id} index={qIndex}>
-                                            {(provided, snapshot) => (
-                                              <div
-                                                ref={provided.innerRef}
-                                                {...provided.draggableProps}
-                                                className={`bg-slate-800/40 border rounded-lg transition-all ${
-                                                  snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-700/50 hover:border-slate-600'
-                                                } ${!question.active ? 'opacity-40' : ''}`}
-                                              >
-                                                <div className="p-3">
-                                                  <div className="flex items-start gap-3">
-                                                    <div {...provided.dragHandleProps} className="pt-1 cursor-grab active:cursor-grabbing">
-                                                      <GripVertical className="w-4 h-4 text-slate-600 hover:text-slate-400 transition-colors" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                                                          #{question.display_order || 1}
-                                                        </Badge>
-                                                        <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
-                                                          {question.question_id}
-                                                        </Badge>
-                                                        <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
-                                                          {question.active ? 'Active' : 'Inactive'}
-                                                        </Badge>
-                                                        <Switch
-                                                          checked={question.active}
-                                                          onCheckedChange={() => handleToggleActive(question)}
-                                                          className="scale-75"
-                                                        />
-                                                        {section.section_required && question.active && (
-                                                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30" variant="outline">
-                                                            Required (via section)
-                                                          </Badge>
-                                                        )}
-                                                        {!section.section_required && question.is_required && (
-                                                          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" variant="outline">
-                                                            Required question
-                                                          </Badge>
-                                                        )}
+                                        {getQuestionsForSection(section.name).map((question, qIndex) => {
+                                          const isGateQuestion = question.display_order === 1;
+                                          const isControlActive = section.gate_mode_enabled && isGateQuestion;
+                                          
+                                          return (
+                                            <Draggable key={question.id} draggableId={question.id} index={qIndex}>
+                                              {(provided, snapshot) => (
+                                                <div
+                                                  ref={provided.innerRef}
+                                                  {...provided.draggableProps}
+                                                  className={`bg-slate-800/40 border rounded-lg transition-all ${
+                                                    snapshot.isDragging ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 
+                                                    isControlActive ? 'border-amber-600/50' : 'border-slate-700/50 hover:border-slate-600'
+                                                  } ${!question.active ? 'opacity-40' : ''}`}
+                                                >
+                                                  <div className="p-3">
+                                                    <div className="flex items-start gap-3">
+                                                      <div {...provided.dragHandleProps} className="pt-1 cursor-grab active:cursor-grabbing">
+                                                        <GripVertical className="w-4 h-4 text-slate-600 hover:text-slate-400 transition-colors" />
                                                       </div>
-                                                      <p className="text-white text-sm leading-relaxed mb-2">
-                                                        {question.question_text}
-                                                      </p>
-                                                      <div className="flex items-center gap-2">
-                                                        <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-                                                          {getResponseTypeDisplay(question.response_type)}
-                                                        </Badge>
-                                                        {question.followup_pack && (
-                                                          <button
-                                                            onClick={() => handleFollowUpClick(question)}
-                                                            className="px-2 py-0.5 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
-                                                          >
-                                                            {getFollowupPackDisplay(question.followup_pack)}
-                                                          </button>
-                                                        )}
+                                                      <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                          <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                                                            #{question.display_order || 1}
+                                                          </Badge>
+                                                          <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
+                                                            {question.question_id}
+                                                          </Badge>
+                                                          <Badge className={question.active ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-600/20 text-slate-400 border-slate-600/30'} variant="outline">
+                                                            {question.active ? 'Active' : 'Inactive'}
+                                                          </Badge>
+                                                          <Switch
+                                                            checked={question.active}
+                                                            onCheckedChange={() => handleToggleActive(question)}
+                                                            className="scale-75"
+                                                          />
+                                                          {isControlActive && (
+                                                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" variant="outline">
+                                                              <Lock className="w-3 h-3 mr-1" />
+                                                              Control Question
+                                                            </Badge>
+                                                          )}
+                                                          {section.section_required && question.active && (
+                                                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30" variant="outline">
+                                                              Required (via section)
+                                                            </Badge>
+                                                          )}
+                                                          {!section.section_required && question.is_required && (
+                                                            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" variant="outline">
+                                                              Required question
+                                                            </Badge>
+                                                          )}
+                                                        </div>
+                                                        <p className="text-white text-sm leading-relaxed mb-2">
+                                                          {question.question_text}
+                                                        </p>
+                                                        <div className="flex items-center gap-2">
+                                                          <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                                                            {getResponseTypeDisplay(question.response_type)}
+                                                          </Badge>
+                                                          {question.followup_pack && (
+                                                            <button
+                                                              onClick={() => handleFollowUpClick(question)}
+                                                              className="px-2 py-0.5 bg-orange-600/10 border border-orange-600/30 rounded text-xs text-orange-400 hover:bg-orange-600/20 transition-colors"
+                                                            >
+                                                              {getFollowupPackDisplay(question.followup_pack)}
+                                                            </button>
+                                                          )}
+                                                        </div>
                                                       </div>
-                                                    </div>
-                                                    <div className="flex gap-1.5">
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleEditClick(question)}
-                                                        className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs"
-                                                      >
-                                                        <Edit className="w-3 h-3 mr-1" />
-                                                        Edit
-                                                      </Button>
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleDuplicate(question)}
-                                                        className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs hidden sm:flex"
-                                                      >
-                                                        <Copy className="w-3 h-3" />
-                                                      </Button>
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteClick(question)}
-                                                        className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-7 text-xs"
-                                                      >
-                                                        <Trash2 className="w-3 h-3" />
-                                                      </Button>
+                                                      <div className="flex gap-1.5">
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => handleEditClick(question)}
+                                                          className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs"
+                                                        >
+                                                          <Edit className="w-3 h-3 mr-1" />
+                                                          Edit
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => handleDuplicate(question)}
+                                                          className="bg-slate-700/30 border-slate-600 text-slate-200 hover:bg-slate-700 h-7 text-xs hidden sm:flex"
+                                                        >
+                                                          <Copy className="w-3 h-3" />
+                                                        </Button>
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => handleDeleteClick(question)}
+                                                          className="bg-slate-700/30 border-slate-600 text-red-400 hover:bg-red-950/30 hover:border-red-600 h-7 text-xs"
+                                                        >
+                                                          <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                      </div>
                                                     </div>
                                                   </div>
                                                 </div>
-                                              </div>
-                                            )}
-                                          </Draggable>
-                                        ))}
+                                              )}
+                                            </Draggable>
+                                          );
+                                        })}
                                         {provided.placeholder}
                                       </div>
                                     )}
@@ -705,91 +738,6 @@ export default function QuestionsManager() {
           }}
         />
       )}
-
-      {/* Skip rule editor modal */}
-      <Dialog open={!!editingSectionSkip} onOpenChange={() => setEditingSectionSkip(null)}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white">
-          <DialogHeader>
-            <DialogTitle>Skip Rule: {editingSectionSkip?.name}</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Configure when this section should be shown or skipped during interviews
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm text-slate-300 mb-2 block">Skip behavior</Label>
-              <Select
-                value={sectionMetadata[editingSectionSkip?.name]?.skip_mode || "always_show"}
-                onValueChange={(value) => {
-                  setSectionMetadata(prev => ({
-                    ...prev,
-                    [editingSectionSkip.name]: {
-                      ...prev[editingSectionSkip.name],
-                      skip_mode: value
-                    }
-                  }));
-                }}
-              >
-                <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="always_show">Always show</SelectItem>
-                  <SelectItem value="skip_if_gate_question_is_no">Skip if gate question is No</SelectItem>
-                  <SelectItem value="custom">Custom rule</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {sectionMetadata[editingSectionSkip?.name]?.skip_mode === "skip_if_gate_question_is_no" && (
-              <div>
-                <Label className="text-sm text-slate-300 mb-2 block">Gate question</Label>
-                <Input
-                  placeholder="e.g., Q001"
-                  value={sectionMetadata[editingSectionSkip?.name]?.gate_question_id || ""}
-                  onChange={(e) => {
-                    setSectionMetadata(prev => ({
-                      ...prev,
-                      [editingSectionSkip.name]: {
-                        ...prev[editingSectionSkip.name],
-                        gate_question_id: e.target.value
-                      }
-                    }));
-                  }}
-                  className="bg-slate-800/50 border-slate-700 text-white"
-                />
-                <p className="text-xs text-slate-400 mt-1">
-                  Enter the Question ID that controls this section
-                </p>
-              </div>
-            )}
-            {sectionMetadata[editingSectionSkip?.name]?.skip_mode === "custom" && (
-              <div className="bg-slate-800/30 border border-slate-700 rounded-lg p-3">
-                <p className="text-xs text-slate-400">
-                  Custom skip rules are stored as admin notes only. Contact development to implement custom logic.
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setEditingSectionSkip(null)}
-              className="bg-slate-800 border-slate-600 text-slate-200"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                toast.success('Skip rule saved');
-                setEditingSectionSkip(null);
-              }}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Save Skip Rule
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation dialogs */}
       <Dialog open={!!deleteDoubleConfirm} onOpenChange={() => setDeleteDoubleConfirm(null)}>
