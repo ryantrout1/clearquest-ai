@@ -383,16 +383,27 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                   {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack} (${formData.followup_pack})` : "Select a follow-up pack (optional)"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value={null}>None</SelectItem>
+              <SelectContent className="max-h-96 bg-slate-900">
+                <SelectItem value={null} className="text-slate-300 hover:bg-slate-800 focus:bg-slate-800">
+                  <span className="font-medium">None</span>
+                </SelectItem>
                 {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => (
                   <React.Fragment key={groupName}>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/50 sticky top-0 pointer-events-none">
+                    <div className="px-3 py-2 text-xs font-bold text-blue-400 bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
                       {groupName}
                     </div>
                     {packs.map(pack => (
-                      <SelectItem key={pack} value={pack} className="pl-6">
-                        {FOLLOWUP_PACK_NAMES[pack] || pack} ({pack})
+                      <SelectItem 
+                        key={pack} 
+                        value={pack} 
+                        className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium text-white">
+                            {FOLLOWUP_PACK_NAMES[pack] || pack}
+                          </span>
+                          <span className="text-xs text-slate-500 font-mono">{pack}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </React.Fragment>
