@@ -678,7 +678,7 @@ export default function QuestionsManager() {
                                       <Switch
                                         checked={section.section_active}
                                         onCheckedChange={() => toggleSectionActive(section.name)}
-                                        className="scale-90"
+                                        className="scale-90 data-[state=checked]:bg-emerald-600"
                                       />
                                       <Label className={`text-xs cursor-pointer font-medium ${
                                         section.section_active ? 'text-emerald-400' : 'text-slate-400'
@@ -688,12 +688,21 @@ export default function QuestionsManager() {
                                     </div>
 
                                     {/* Gate question toggle */}
-                                    <div 
-                                      className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-1.5 cursor-pointer hover:border-slate-600 transition-colors"
-                                      onClick={() => toggleGateMode(section.name)}
-                                    >
-                                      <Settings className="w-3 h-3 text-slate-400" />
-                                      {getSkipRuleBadge(section)}
+                                    <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors ${
+                                      section.gate_mode_enabled
+                                        ? 'bg-amber-500/10 border border-amber-500/30'
+                                        : 'bg-slate-800/50 border border-slate-700'
+                                    }`}>
+                                      <Switch
+                                        checked={section.gate_mode_enabled}
+                                        onCheckedChange={() => toggleGateMode(section.name)}
+                                        className="scale-90 data-[state=checked]:bg-emerald-600"
+                                      />
+                                      <Label className={`text-xs cursor-pointer font-medium ${
+                                        section.gate_mode_enabled ? 'text-amber-400' : 'text-slate-400'
+                                      }`}>
+                                        {section.gate_mode_enabled ? `Skip if #${section.name === "Military History" ? '2' : '1'} is No` : 'Always show all'}
+                                      </Label>
                                     </div>
                                   </div>
 
@@ -787,7 +796,7 @@ export default function QuestionsManager() {
                                                             <Switch
                                                               checked={question.active}
                                                               onCheckedChange={() => handleToggleActive(question)}
-                                                              className="scale-75"
+                                                              className="scale-75 data-[state=checked]:bg-emerald-600"
                                                             />
                                                             <Label className={`text-xs cursor-pointer font-medium ${
                                                               question.active ? 'text-emerald-400' : 'text-slate-400'
