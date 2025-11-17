@@ -108,27 +108,43 @@ export default function InterviewStructureManager() {
       console.log('Categories:', categories.length);
       console.log('Questions:', questions.length);
       
-      // Step 1: Create Section records from Categories
+      // Step 1: Create Section records from Categories (or use existing)
       const sectionMap = {};
       const categoriesSorted = [...categories].sort((a, b) => (a.section_order || a.display_order || 999) - (b.section_order || b.display_order || 999));
       
+      let sectionsCreatedCount = 0;
       for (const cat of categoriesSorted) {
-        console.log(`Creating section for: ${cat.category_label}`);
-        const newSection = await base44.entities.Section.create({
-          section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}`,
-          section_name: cat.category_label,
-          section_order: cat.section_order || cat.display_order || 999,
-          active: cat.active !== false,
-          required: true,
-          description: cat.description || ''
-        });
+        // Check if section already exists by name or category_id
+        const existingSection = sections.find(s => 
+          s.section_name === cat.category_label || 
+          (cat.category_id && s.section_id === cat.category_id)
+        );
+        
+        let sectionId;
+        if (existingSection) {
+          sectionId = existingSection.id;
+          console.log(`Using existing section for category "${cat.category_label}": ${sectionId}`);
+        } else {
+          console.log(`Creating new section for category: ${cat.category_label}`);
+          const newSection = await base44.entities.Section.create({
+            section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}_${Date.now()}`,
+            section_name: cat.category_label,
+            section_order: cat.section_order || cat.display_order || 999,
+            active: cat.active !== false,
+            required: true,
+            description: cat.description || ''
+          });
+          sectionId = newSection.id;
+          sectionsCreatedCount++;
+          console.log(`Created section: ${cat.category_label} -> ${sectionId}`);
+        }
         
         // Store multiple keys for matching
-        sectionMap[cat.category_label] = newSection.id;
-        sectionMap[cat.category_label.toLowerCase().trim()] = newSection.id;
-        sectionMap[cat.category_id] = newSection.id;
-        
-        console.log(`Created section: ${cat.category_label} -> ${newSection.id}`);
+        sectionMap[cat.category_label] = sectionId;
+        sectionMap[cat.category_label.toLowerCase().trim()] = sectionId;
+        if (cat.category_id) {
+          sectionMap[cat.category_id] = sectionId;
+        }
       }
 
       // Step 2: Link ALL Questions to Sections
@@ -138,37 +154,45 @@ export default function InterviewStructureManager() {
       
       for (const q of questions) {
         let matched = false;
-        let targetSectionId = null;
         
-        // Try multiple matching strategies
+        // Skip if already has a valid section_id that matches one of the new/existing sections
+        // We consider it "valid" if its section_id exists in our current map of sections (which includes newly created ones)
+        if (q.section_id && Object.values(sectionMap).includes(q.section_id)) {
+          console.log(`✓ Question ${q.question_id} already linked to a known section: ${q.section_id}`);
+          updatedCount++;
+          continue; // Move to the next question
+        }
+        
+        // Try multiple matching strategies for questions not yet linked
         if (q.category) {
-          // Try exact match
           if (sectionMap[q.category]) {
-            targetSectionId = sectionMap[q.category];
+            await base44.entities.Question.update(q.id, {
+              section_id: sectionMap[q.category]
+            });
+            updatedCount++;
             matched = true;
             console.log(`✓ Matched question ${q.question_id} to section via exact category: ${q.category}`);
-          }
-          // Try lowercase trimmed match
-          else if (sectionMap[q.category.toLowerCase().trim()]) {
-            targetSectionId = sectionMap[q.category.toLowerCase().trim()];
+          } else if (sectionMap[q.category.toLowerCase().trim()]) {
+            await base44.entities.Question.update(q.id, {
+              section_id: sectionMap[q.category.toLowerCase().trim()]
+            });
+            updatedCount++;
             matched = true;
             console.log(`✓ Matched question ${q.question_id} to section via lowercase trimmed category: ${q.category}`);
           }
         }
         
-        // If category didn't work, try existing section_id field if it points to a new section
+        // If still not matched, try existing section_id field if it points to a new/existing section's ID
         if (!matched && q.section_id && sectionMap[q.section_id]) {
-          targetSectionId = sectionMap[q.section_id];
-          matched = true;
-          console.log(`✓ Matched question ${q.question_id} to section via existing section_id: ${q.section_id}`);
-        }
-        
-        if (matched && targetSectionId) {
           await base44.entities.Question.update(q.id, {
-            section_id: targetSectionId
+            section_id: sectionMap[q.section_id]
           });
           updatedCount++;
-        } else {
+          matched = true;
+          console.log(`✓ Matched question ${q.question_id} to section via existing section_id field: ${q.section_id}`);
+        }
+        
+        if (!matched) {
           skippedCount++;
           unmatched.push({
             id: q.question_id,
@@ -178,28 +202,28 @@ export default function InterviewStructureManager() {
           });
           console.warn(`✗ Could not match question ${q.question_id}:`, {
             category: q.category,
-            section_id: q.section_id,
-            question_text: q.question_text?.substring(0, 50)
+            section_id: q.section_id
           });
         }
       }
 
       console.log('Migration complete!');
-      console.log(`Total questions: ${questions.length}`);
-      console.log(`Updated: ${updatedCount}`);
-      console.log(`Skipped: ${skippedCount}`);
+      console.log(`Total questions processed: ${questions.length}`);
+      console.log(`Questions updated/already linked: ${updatedCount}`);
+      console.log(`Questions skipped (unmatched): ${skippedCount}`);
       
       if (unmatched.length > 0) {
         console.warn('Unmatched questions:', unmatched);
       }
 
-      queryClient.invalidateQueries({ queryKey: ['sections'] });
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      // Invalidate queries to refetch data
+      await queryClient.invalidateQueries({ queryKey: ['sections'] });
+      await queryClient.invalidateQueries({ queryKey: ['questions'] });
       
       if (skippedCount > 0) {
-        toast.warning(`Migration complete: ${updatedCount} questions linked, ${skippedCount} questions could not be matched. Check console for details.`);
+        toast.warning(`Migration complete: ${sectionsCreatedCount} new sections created, ${updatedCount} questions linked/updated, ${skippedCount} questions could not be matched. Check console for details.`);
       } else {
-        toast.success(`Migration complete: ${Object.keys(sectionMap).length / 3} sections created, ${updatedCount} questions linked successfully!`);
+        toast.success(`Migration complete: ${sectionsCreatedCount} new sections created, ${updatedCount} questions linked successfully!`);
       }
     } catch (err) {
       console.error('Migration error:', err);
@@ -288,41 +312,27 @@ export default function InterviewStructureManager() {
     );
   }
 
-  const needsMigration = !sectionsLoading && sections.length === 0 && categories.length > 0;
-
   return (
     <div className="min-h-screen bg-[#0f172a]">
       {/* Header */}
       <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-6 py-4">
         <div className="max-w-[1600px] mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
-              className="text-slate-300 hover:text-white -ml-2"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
-            <FolderOpen className="w-6 h-6 text-blue-400" />
-            <div>
-              <h1 className="text-xl font-bold text-white">Interview Structure Manager</h1>
-              <p className="text-xs text-slate-400">Manage sections, questions, and follow-up packs</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Migration Banner */}
-      {needsMigration && (
-        <div className="bg-amber-950/30 border-b border-amber-800/50 px-6 py-4">
-          <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-            <div>
-              <p className="text-amber-400 font-medium">Migration Required</p>
-              <p className="text-sm text-amber-300/80">
-                Import {categories.length} sections and {questions.length} questions from your existing data
-              </p>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(createPageUrl("SystemAdminDashboard"))}
+                className="text-slate-300 hover:text-white -ml-2"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Back
+              </Button>
+              <FolderOpen className="w-6 h-6 text-blue-400" />
+              <div>
+                <h1 className="text-xl font-bold text-white">Interview Structure Manager</h1>
+                <p className="text-xs text-slate-400">Manage sections, questions, and follow-up packs</p>
+              </div>
             </div>
             <Button
               onClick={runMigration}
@@ -343,7 +353,7 @@ export default function InterviewStructureManager() {
             </Button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Main content */}
       <div className="px-6 py-6">
@@ -366,7 +376,7 @@ export default function InterviewStructureManager() {
               {sectionsLoading ? (
                 <p className="text-slate-400 text-center py-8">Loading sections...</p>
               ) : sortedSections.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No sections yet. {needsMigration ? 'Run migration above.' : 'Create your first section.'}</p>
+                <p className="text-slate-400 text-center py-8">No sections yet. Click "Run Migration" to import your data.</p>
               ) : (
                 <DragDropContext onDragEnd={handleSectionDragEnd}>
                   <Droppable droppableId="sections">
