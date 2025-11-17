@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, RefreshCw } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 
@@ -36,6 +36,7 @@ export default function InterviewStructureManager() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
+  const [isMigrating, setIsMigrating] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -68,9 +69,15 @@ export default function InterviewStructureManager() {
     }
   };
 
-  const { data: sections = [] } = useQuery({
+  const { data: sections = [], isLoading: sectionsLoading } = useQuery({
     queryKey: ['sections'],
     queryFn: () => base44.entities.Section.list(),
+    enabled: !!user
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => base44.entities.Category.list(),
     enabled: !!user
   });
 
@@ -91,6 +98,46 @@ export default function InterviewStructureManager() {
     queryFn: () => base44.entities.FollowUpQuestion.list(),
     enabled: !!user
   });
+
+  // Auto-migrate Categories to Sections and link Questions
+  const runMigration = async () => {
+    setIsMigrating(true);
+    try {
+      // Step 1: Create Section records from Categories
+      const sectionMap = {};
+      for (const cat of categories) {
+        const newSection = await base44.entities.Section.create({
+          section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}`,
+          section_name: cat.category_label,
+          section_order: cat.section_order || cat.display_order || 999,
+          active: cat.active !== false,
+          required: true,
+          description: cat.description || ''
+        });
+        sectionMap[cat.category_label] = newSection.id;
+      }
+
+      // Step 2: Link Questions to Sections based on category field
+      let updatedCount = 0;
+      for (const q of questions) {
+        if (q.category && sectionMap[q.category]) {
+          await base44.entities.Question.update(q.id, {
+            section_id: sectionMap[q.category]
+          });
+          updatedCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      toast.success(`Migration complete: ${Object.keys(sectionMap).length} sections created, ${updatedCount} questions linked`);
+    } catch (err) {
+      console.error('Migration error:', err);
+      toast.error('Migration failed: ' + err.message);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const sortedSections = [...sections].sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
 
@@ -171,6 +218,8 @@ export default function InterviewStructureManager() {
     );
   }
 
+  const needsMigration = !sectionsLoading && sections.length === 0 && categories.length > 0;
+
   return (
     <div className="min-h-screen bg-[#0f172a]">
       {/* Header */}
@@ -195,6 +244,37 @@ export default function InterviewStructureManager() {
         </div>
       </div>
 
+      {/* Migration Banner */}
+      {needsMigration && (
+        <div className="bg-amber-950/30 border-b border-amber-800/50 px-6 py-4">
+          <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+            <div>
+              <p className="text-amber-400 font-medium">Migration Required</p>
+              <p className="text-sm text-amber-300/80">
+                Import {categories.length} sections and {questions.length} questions from your existing data
+              </p>
+            </div>
+            <Button
+              onClick={runMigration}
+              disabled={isMigrating}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {isMigrating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Migrating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Run Migration
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Main content */}
       <div className="px-6 py-6">
         <div className="max-w-[1600px] mx-auto">
@@ -213,85 +293,91 @@ export default function InterviewStructureManager() {
                 </Button>
               </div>
 
-              <DragDropContext onDragEnd={handleSectionDragEnd}>
-                <Droppable droppableId="sections">
-                  {(provided) => (
-                    <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                      {sortedSections.map((section, index) => (
-                        <Draggable key={section.id} draggableId={section.id} index={index}>
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className="bg-slate-900/50 border border-slate-700 rounded-lg"
-                            >
-                              {/* Section Header */}
-                              <div className="p-3 flex items-center gap-2">
-                                <div {...provided.dragHandleProps}>
-                                  <GripVertical className="w-4 h-4 text-slate-500" />
-                                </div>
-                                <button
-                                  onClick={() => toggleNode(`section-${section.id}`)}
-                                  className="text-slate-400 hover:text-white"
-                                >
-                                  {expandedNodes[`section-${section.id}`] ? 
-                                    <ChevronDown className="w-4 h-4" /> : 
-                                    <ChevronRight className="w-4 h-4" />
-                                  }
-                                </button>
-                                <FolderOpen className="w-4 h-4 text-blue-400" />
-                                <div className="flex-1">
-                                  <span className="text-white font-medium">{section.section_name}</span>
-                                  <div className="flex gap-2 mt-1">
-                                    <Badge variant="outline" className="text-xs">
-                                      #{section.section_order}
-                                    </Badge>
-                                    {!section.active && (
-                                      <Badge variant="outline" className="text-xs text-red-400 border-red-600">
-                                        Inactive
-                                      </Badge>
-                                    )}
-                                    {section.required && (
-                                      <Badge variant="outline" className="text-xs text-amber-400 border-amber-600">
-                                        Required
-                                      </Badge>
-                                    )}
+              {sectionsLoading ? (
+                <p className="text-slate-400 text-center py-8">Loading sections...</p>
+              ) : sortedSections.length === 0 ? (
+                <p className="text-slate-400 text-center py-8">No sections yet. {needsMigration ? 'Run migration above.' : 'Create your first section.'}</p>
+              ) : (
+                <DragDropContext onDragEnd={handleSectionDragEnd}>
+                  <Droppable droppableId="sections">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                        {sortedSections.map((section, index) => (
+                          <Draggable key={section.id} draggableId={section.id} index={index}>
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className="bg-slate-900/50 border border-slate-700 rounded-lg"
+                              >
+                                {/* Section Header */}
+                                <div className="p-3 flex items-center gap-2">
+                                  <div {...provided.dragHandleProps}>
+                                    <GripVertical className="w-4 h-4 text-slate-500" />
                                   </div>
+                                  <button
+                                    onClick={() => toggleNode(`section-${section.id}`)}
+                                    className="text-slate-400 hover:text-white"
+                                  >
+                                    {expandedNodes[`section-${section.id}`] ? 
+                                      <ChevronDown className="w-4 h-4" /> : 
+                                      <ChevronRight className="w-4 h-4" />
+                                    }
+                                  </button>
+                                  <FolderOpen className="w-4 h-4 text-blue-400" />
+                                  <div className="flex-1">
+                                    <span className="text-white font-medium">{section.section_name}</span>
+                                    <div className="flex gap-2 mt-1">
+                                      <Badge variant="outline" className="text-xs">
+                                        #{section.section_order}
+                                      </Badge>
+                                      {!section.active && (
+                                        <Badge variant="outline" className="text-xs text-red-400 border-red-600">
+                                          Inactive
+                                        </Badge>
+                                      )}
+                                      {section.required && (
+                                        <Badge variant="outline" className="text-xs text-amber-400 border-amber-600">
+                                          Required
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                              </div>
 
-                              {/* Questions in Section */}
-                              {expandedNodes[`section-${section.id}`] && (
-                                <div className="border-t border-slate-700 p-3 pl-12 bg-slate-900/30">
-                                  <QuestionList 
-                                    sectionId={section.id} 
-                                    questions={questions}
-                                    followUpPacks={followUpPacks}
-                                    followUpQuestions={followUpQuestions}
-                                    expandedNodes={expandedNodes}
-                                    toggleNode={toggleNode}
-                                    setSelectedItem={setSelectedItem}
-                                    onDragEnd={handleQuestionDragEnd}
-                                    onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+                                {/* Questions in Section */}
+                                {expandedNodes[`section-${section.id}`] && (
+                                  <div className="border-t border-slate-700 p-3 pl-12 bg-slate-900/30">
+                                    <QuestionList 
+                                      sectionId={section.id} 
+                                      questions={questions}
+                                      followUpPacks={followUpPacks}
+                                      followUpQuestions={followUpQuestions}
+                                      expandedNodes={expandedNodes}
+                                      toggleNode={toggleNode}
+                                      setSelectedItem={setSelectedItem}
+                                      onDragEnd={handleQuestionDragEnd}
+                                      onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              )}
             </div>
 
             {/* Detail Panel */}
