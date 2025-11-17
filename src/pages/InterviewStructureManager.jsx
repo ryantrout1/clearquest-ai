@@ -1149,6 +1149,10 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   }
 
   if (selectedItem.type === 'question' || selectedItem.type === 'new-question') {
+    const sortedSectionsAlpha = [...sections].sort((a, b) => 
+      (a.section_name || '').localeCompare(b.section_name || '')
+    );
+    
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -1225,7 +1229,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {sections.map(s => (
+                {sortedSectionsAlpha.map(s => (
                   <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
                 ))}
               </SelectContent>
