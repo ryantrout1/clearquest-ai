@@ -400,6 +400,15 @@ export default function QuestionsManager() {
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
+      <style>{`
+        .switch-red[data-state="checked"] {
+          background-color: rgb(239 68 68) !important;
+        }
+        .switch-red[data-state="checked"] span {
+          background-color: white !important;
+        }
+      `}</style>
+
       {/* Header */}
       <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-4 md:px-6 py-4">
         <div className="max-w-7xl mx-auto">
@@ -563,7 +572,7 @@ export default function QuestionsManager() {
                                       <Switch
                                         checked={section.section_required}
                                         onCheckedChange={() => toggleSectionRequired(section.name)}
-                                        className="scale-90"
+                                        className={`scale-90 ${section.section_required ? 'switch-red' : ''}`}
                                       />
                                       <Label className={`text-xs cursor-pointer font-medium ${
                                         section.section_required ? 'text-red-400' : 'text-slate-400'
