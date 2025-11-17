@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -103,9 +104,16 @@ export default function InterviewStructureManager() {
   const runMigration = async () => {
     setIsMigrating(true);
     try {
+      console.log('Starting migration...');
+      console.log('Categories:', categories.length);
+      console.log('Questions:', questions.length);
+      
       // Step 1: Create Section records from Categories
       const sectionMap = {};
-      for (const cat of categories) {
+      const categoriesSorted = [...categories].sort((a, b) => (a.section_order || a.display_order || 999) - (b.section_order || b.display_order || 999));
+      
+      for (const cat of categoriesSorted) {
+        console.log(`Creating section for: ${cat.category_label}`);
         const newSection = await base44.entities.Section.create({
           section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}`,
           section_name: cat.category_label,
@@ -114,23 +122,85 @@ export default function InterviewStructureManager() {
           required: true,
           description: cat.description || ''
         });
+        
+        // Store multiple keys for matching
         sectionMap[cat.category_label] = newSection.id;
+        sectionMap[cat.category_label.toLowerCase().trim()] = newSection.id;
+        sectionMap[cat.category_id] = newSection.id;
+        
+        console.log(`Created section: ${cat.category_label} -> ${newSection.id}`);
       }
 
-      // Step 2: Link Questions to Sections based on category field
+      // Step 2: Link ALL Questions to Sections
       let updatedCount = 0;
+      let skippedCount = 0;
+      const unmatched = [];
+      
       for (const q of questions) {
-        if (q.category && sectionMap[q.category]) {
+        let matched = false;
+        let targetSectionId = null;
+        
+        // Try multiple matching strategies
+        if (q.category) {
+          // Try exact match
+          if (sectionMap[q.category]) {
+            targetSectionId = sectionMap[q.category];
+            matched = true;
+            console.log(`✓ Matched question ${q.question_id} to section via exact category: ${q.category}`);
+          }
+          // Try lowercase trimmed match
+          else if (sectionMap[q.category.toLowerCase().trim()]) {
+            targetSectionId = sectionMap[q.category.toLowerCase().trim()];
+            matched = true;
+            console.log(`✓ Matched question ${q.question_id} to section via lowercase trimmed category: ${q.category}`);
+          }
+        }
+        
+        // If category didn't work, try existing section_id field if it points to a new section
+        if (!matched && q.section_id && sectionMap[q.section_id]) {
+          targetSectionId = sectionMap[q.section_id];
+          matched = true;
+          console.log(`✓ Matched question ${q.question_id} to section via existing section_id: ${q.section_id}`);
+        }
+        
+        if (matched && targetSectionId) {
           await base44.entities.Question.update(q.id, {
-            section_id: sectionMap[q.category]
+            section_id: targetSectionId
           });
           updatedCount++;
+        } else {
+          skippedCount++;
+          unmatched.push({
+            id: q.question_id,
+            category: q.category,
+            section_id: q.section_id,
+            text: q.question_text?.substring(0, 50)
+          });
+          console.warn(`✗ Could not match question ${q.question_id}:`, {
+            category: q.category,
+            section_id: q.section_id,
+            question_text: q.question_text?.substring(0, 50)
+          });
         }
+      }
+
+      console.log('Migration complete!');
+      console.log(`Total questions: ${questions.length}`);
+      console.log(`Updated: ${updatedCount}`);
+      console.log(`Skipped: ${skippedCount}`);
+      
+      if (unmatched.length > 0) {
+        console.warn('Unmatched questions:', unmatched);
       }
 
       queryClient.invalidateQueries({ queryKey: ['sections'] });
       queryClient.invalidateQueries({ queryKey: ['questions'] });
-      toast.success(`Migration complete: ${Object.keys(sectionMap).length} sections created, ${updatedCount} questions linked`);
+      
+      if (skippedCount > 0) {
+        toast.warning(`Migration complete: ${updatedCount} questions linked, ${skippedCount} questions could not be matched. Check console for details.`);
+      } else {
+        toast.success(`Migration complete: ${Object.keys(sectionMap).length / 3} sections created, ${updatedCount} questions linked successfully!`);
+      }
     } catch (err) {
       console.error('Migration error:', err);
       toast.error('Migration failed: ' + err.message);
@@ -302,77 +372,84 @@ export default function InterviewStructureManager() {
                   <Droppable droppableId="sections">
                     {(provided) => (
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                        {sortedSections.map((section, index) => (
-                          <Draggable key={section.id} draggableId={section.id} index={index}>
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className="bg-slate-900/50 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors"
-                              >
-                                {/* Section Header */}
-                                <div className="p-3 flex items-center gap-2">
-                                  <div {...provided.dragHandleProps}>
-                                    <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
-                                  </div>
-                                  <button
-                                    onClick={() => toggleNode(`section-${section.id}`)}
-                                    className="text-slate-400 hover:text-white transition-colors"
-                                  >
-                                    {expandedNodes[`section-${section.id}`] ? 
-                                      <ChevronDown className="w-5 h-5" /> : 
-                                      <ChevronRight className="w-5 h-5" />
-                                    }
-                                  </button>
-                                  <FolderOpen className="w-5 h-5 text-blue-400" />
-                                  <div className="flex-1">
-                                    <span className="text-white font-medium text-base">{section.section_name}</span>
-                                    <div className="flex gap-2 mt-1">
-                                      <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                        #{section.section_order}
-                                      </Badge>
-                                      {!section.active && (
-                                        <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
-                                          Inactive
-                                        </Badge>
-                                      )}
-                                      {section.required && (
-                                        <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
-                                          Required
-                                        </Badge>
-                                      )}
+                        {sortedSections.map((section, index) => {
+                          const sectionQuestionCount = questions.filter(q => q.section_id === section.id).length;
+                          
+                          return (
+                            <Draggable key={section.id} draggableId={section.id} index={index}>
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className="bg-slate-900/50 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors"
+                                >
+                                  {/* Section Header */}
+                                  <div className="p-3 flex items-center gap-2">
+                                    <div {...provided.dragHandleProps}>
+                                      <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
                                     </div>
+                                    <button
+                                      onClick={() => toggleNode(`section-${section.id}`)}
+                                      className="text-slate-400 hover:text-white transition-colors"
+                                    >
+                                      {expandedNodes[`section-${section.id}`] ? 
+                                        <ChevronDown className="w-5 h-5" /> : 
+                                        <ChevronRight className="w-5 h-5" />
+                                      }
+                                    </button>
+                                    <FolderOpen className="w-5 h-5 text-blue-400" />
+                                    <div className="flex-1">
+                                      <span className="text-white font-medium text-base">{section.section_name}</span>
+                                      <div className="flex gap-2 mt-1">
+                                        <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
+                                          #{section.section_order}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                          {sectionQuestionCount} questions
+                                        </Badge>
+                                        {!section.active && (
+                                          <Badge className="text-xs bg-red-500/20 border-red-500/50 text-red-400">
+                                            Inactive
+                                          </Badge>
+                                        )}
+                                        {section.required && (
+                                          <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
+                                            Required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                      className="text-slate-400 hover:text-white hover:bg-slate-700"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
                                   </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                    className="text-slate-400 hover:text-white hover:bg-slate-700"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                </div>
 
-                                {/* Questions in Section */}
-                                {expandedNodes[`section-${section.id}`] && (
-                                  <div className="border-t border-slate-700/50 p-3 pl-12 bg-slate-900/30">
-                                    <QuestionList 
-                                      sectionId={section.id} 
-                                      questions={questions}
-                                      followUpPacks={followUpPacks}
-                                      followUpQuestions={followUpQuestions}
-                                      expandedNodes={expandedNodes}
-                                      toggleNode={toggleNode}
-                                      setSelectedItem={setSelectedItem}
-                                      onDragEnd={handleQuestionDragEnd}
-                                      onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
+                                  {/* Questions in Section */}
+                                  {expandedNodes[`section-${section.id}`] && (
+                                    <div className="border-t border-slate-700/50 p-3 pl-12 bg-slate-900/30">
+                                      <QuestionList 
+                                        sectionId={section.id} 
+                                        questions={questions}
+                                        followUpPacks={followUpPacks}
+                                        followUpQuestions={followUpQuestions}
+                                        expandedNodes={expandedNodes}
+                                        toggleNode={toggleNode}
+                                        setSelectedItem={setSelectedItem}
+                                        onDragEnd={handleQuestionDragEnd}
+                                        onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })}
                         {provided.placeholder}
                       </div>
                     )}
