@@ -949,7 +949,7 @@ const FOLLOWUP_PACK_STEPS = {
 
   'PACK_ASSAULT': [
     { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'location', Prompt: 'Where did this occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
     { Field_Key: 'circumstances', Prompt: 'Describe what happened.', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'reported', Prompt: 'Was it reported to law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
@@ -1319,6 +1319,14 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'law_enforcement_involved', Prompt: 'Was law enforcement involved?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'legal_outcome', Prompt: 'What was the legal outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
+  'PACK_PRIOR_LE': [
+    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency did you work for?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'employment_dates', Prompt: 'When did you work there? (start and end dates)', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'position', Prompt: 'What was your position?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'reason_for_leaving', Prompt: 'Why did you leave?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'eligible_for_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ]
 };
 
@@ -1422,8 +1430,11 @@ export function parseQuestionsToMaps(questions, categories) {
   
   console.log('📋 Section order from database:');
   activeSections.forEach(s => {
-    console.log(`   ${s.section_order}. ${s.category_label}`);
+    console.log(`   ${s.section_order}. ${s.category_label} (Active: ${s.active !== false})`);
   });
+  
+  // Create a set of active section names for quick lookup
+  const activeSectionNames = new Set(SECTION_ORDER);
   
   // Legacy structures (kept for backward compatibility)
   const QById = {};
@@ -1452,7 +1463,7 @@ export function parseQuestionsToMaps(questions, categories) {
     questionsBySection[sectionName] = [];
   });
 
-  // Group and sort questions by section
+  // Group and sort questions by section - ONLY include questions from ACTIVE sections
   questions.forEach(q => {
     if (!q.active) return;
 
@@ -1465,20 +1476,11 @@ export function parseQuestionsToMaps(questions, categories) {
       return;
     }
 
-    // Warn if question references unknown section, and add it with a high order
-    if (!questionsBySection[sectionName]) {
-      console.warn(`⚠️ Question ${q.question_id} references unknown section "${sectionName}" - section not in Category table or inactive. Adding dynamically.`);
-      questionsBySection[sectionName] = [];
-      sectionConfig[sectionName] = {
-        id: sectionName,
-        section_order: 999, // Assign a high order to place it at the end
-        mode: "always_show_all",
-        controlQuestionPosition: null,
-        gate_question_id: null,
-        active: true
-      };
-      // Note: This dynamic section is NOT added to the `sectionOrder` array which is derived from database categories.
-      // It will still be routed to by `firstQuestionIdOfNextSection` due to iterating `Object.values(sectionConfig)`.
+    // CRITICAL FIX: Skip questions if their section is inactive or not explicitly defined in the Category table.
+    // Dynamic sections (not in activeSectionNames initially) are now correctly handled here by simply not adding their questions.
+    if (!activeSectionNames.has(sectionName)) {
+      console.log(`⏭️ Skipping question ${q.question_id} - section "${sectionName}" is inactive or not in Category table.`);
+      return;
     }
 
     questionsBySection[sectionName].push({
@@ -1602,7 +1604,7 @@ export function applySectionRules(sectionConfig, questionsBySection, categories)
       // So, if we reach here and it's not in sectionConfig, it means it was an inactive or un-ordered category.
       // We only care about active/ordered categories for rules.
       if (cat.active !== false && cat.section_order != null) {
-        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig.`);
+        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig. This implies questions for this category were not processed.`);
       }
       return;
     }
@@ -2011,7 +2013,7 @@ export function verifyPackCompletion(packId, transcript) {
 
   for (const step of packSteps) {
     // Populate currentAnswers for conditional logic
-    const answeredEntry = followupAnswers.find(a => a.questionText === step.Prompt);
+    const answeredEntry = followupAnswers.find(a => a.Field_Key === step.Field_Key); // Use Field_Key for more robust lookup
     if (answeredEntry && answeredEntry.answer && String(answeredEntry.answer).trim() !== '') {
       currentAnswers[step.Field_Key] = answeredEntry.answer;
     }
@@ -2024,6 +2026,7 @@ export function verifyPackCompletion(packId, transcript) {
     }
 
     // Now check if it was actually answered, if not skipped
+    // If answeredEntry is not found or answer is empty, it's missing
     if (!answeredEntry || !answeredEntry.answer || String(answeredEntry.answer).trim() === '') {
       missing.push(step.Prompt);
     } 
