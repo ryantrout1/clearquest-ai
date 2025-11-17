@@ -85,7 +85,7 @@ const GROUPED_PACKS = {
   ],
   "Drug Use & Distribution": [
     'PACK_DRUG_USE', 'PACK_DRUG_SALE', 'PACK_PRESCRIPTION_MISUSE',
-    'PACK_DRUG_TEST_CHEAT'
+    'PACK_DRUG_TEST_CHEAT', 'ILLEGAL_DRUG_USE'
   ],
   "Alcohol": [
     'PACK_ALCOHOL_DEPENDENCY', 'PACK_ALCOHOL_INCIDENT', 'PACK_PROVIDE_ALCOHOL'
@@ -145,6 +145,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isGateQuestion, setIsGateQuestion] = useState(false);
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
+  const [defaultPackGroup, setDefaultPackGroup] = useState(null);
 
   useEffect(() => {
     async function loadCategories() {
@@ -164,6 +165,30 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
     loadCategories();
   }, []);
+
+  // Determine default pack group based on category
+  useEffect(() => {
+    if (formData.category) {
+      const categoryMap = {
+        "Applications with Other Law Enforcement Agencies": "Law Enforcement",
+        "Prior Law Enforcement": "Law Enforcement",
+        "Prior Law Enforcement ONLY": "Law Enforcement",
+        "Driving Record": "Driving & Traffic",
+        "Criminal Involvement / Police Contacts": "Criminal History",
+        "Extremist Organizations": "Extremism",
+        "Sexual Activities": "Sexual Misconduct",
+        "Financial History": "Financial Issues",
+        "Illegal Drug / Narcotic History": "Drug Use & Distribution",
+        "Alcohol History": "Alcohol",
+        "Military History": "Military",
+        "Employment History": "Employment & Discipline",
+        "General Disclosures & Eligibility": "Disclosure & Integrity"
+      };
+      setDefaultPackGroup(categoryMap[formData.category] || null);
+    } else {
+      setDefaultPackGroup(null);
+    }
+  }, [formData.category]);
 
   useEffect(() => {
     async function initializeForm() {
@@ -374,7 +399,11 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 </span>
               )}
             </Label>
-            <Select value={formData.followup_pack || ""} onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}>
+            <Select 
+              value={formData.followup_pack || ""} 
+              onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}
+              defaultOpen={false}
+            >
               <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
                 <SelectValue placeholder="Select a follow-up pack (optional)">
                   {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack} (${formData.followup_pack})` : "Select a follow-up pack (optional)"}
@@ -384,27 +413,36 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 <SelectItem value={null} className="text-slate-300 hover:bg-slate-800 focus:bg-slate-800">
                   <span className="font-medium">None</span>
                 </SelectItem>
-                {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => (
-                  <React.Fragment key={groupName}>
-                    <div className="px-3 py-2 text-xs font-bold text-blue-400 bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
-                      {groupName}
-                    </div>
-                    {packs.map(pack => (
-                      <SelectItem
-                        key={pack}
-                        value={pack}
-                        className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
+                {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
+                  const isDefaultGroup = defaultPackGroup === groupName;
+                  return (
+                    <React.Fragment key={groupName}>
+                      <div 
+                        id={`group-${groupName.replace(/\s+/g, '-')}`}
+                        className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 z-10 ${
+                          isDefaultGroup ? 'text-green-400' : 'text-blue-400'
+                        }`}
                       >
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium text-white">
-                            {FOLLOWUP_PACK_NAMES[pack] || pack}
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono">{pack}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </React.Fragment>
-                ))}
+                        {groupName}
+                        {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
+                      </div>
+                      {packs.map(pack => (
+                        <SelectItem
+                          key={pack}
+                          value={pack}
+                          className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium text-white">
+                              {FOLLOWUP_PACK_NAMES[pack] || pack}
+                            </span>
+                            <span className="text-xs text-slate-500 font-mono">{pack}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
               </SelectContent>
             </Select>
             {formData.followup_pack && (
