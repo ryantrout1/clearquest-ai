@@ -1,4 +1,3 @@
-
 /**
  * ClearQuest Interview Engine - SECTION-FIRST ARCHITECTURE
  * Deterministic, section-aware question routing
@@ -1438,8 +1437,6 @@ export function parseQuestionsToMaps(questions, categories) {
   
   // Legacy structures (kept for backward compatibility)
   const QById = {};
-  const NextById = {};
-  const ActiveOrdered = [];
   const MatrixYesByQ = {};
   const UndefinedPacks = new Set();
 
@@ -1477,7 +1474,6 @@ export function parseQuestionsToMaps(questions, categories) {
     }
 
     // CRITICAL FIX: Skip questions if their section is inactive or not explicitly defined in the Category table.
-    // Dynamic sections (not in activeSectionNames initially) are now correctly handled here by simply not adding their questions.
     if (!activeSectionNames.has(sectionName)) {
       console.log(`⏭️ Skipping question ${q.question_id} - section "${sectionName}" is inactive or not in Category table.`);
       return;
@@ -1524,42 +1520,32 @@ export function parseQuestionsToMaps(questions, categories) {
         indexInSection: index
       };
     });
-    
-    // DEBUG: Log Illegal Drug section structure
-    if (sectionName === "Illegal Drug / Narcotic History") {
-      console.log("[CQAI] Illegal Drug section after sorting:");
-      console.log("   questionsBySection:", questionsBySection[sectionName]?.map(q => ({
-        id: q.question_id,
-        order: q.display_order
-      })));
+  });
+
+  // Calculate TotalQuestions from active sections only
+  let totalQuestionsInActiveSections = 0;
+  Object.values(sectionConfig).forEach(section => {
+    if (section.active && questionsBySection[section.id]) {
+      totalQuestionsInActiveSections += questionsBySection[section.id].length;
     }
   });
 
-  // Build legacy ActiveOrdered array (for backward compatibility)
-  // This array will contain questions from all sections, ordered by their section_order then display_order
-  const allQuestionIdsSorted = [];
+  // Build ActiveOrdered for UI display number lookups ONLY (not for routing)
+  // NOTE: This is kept for compatibility but should NOT be used for routing decisions
+  const ActiveOrdered = [];
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach(section => {
       if (section.active && questionsBySection[section.id]) {
         questionsBySection[section.id].forEach(q => {
-          allQuestionIdsSorted.push(q.question_id);
+          ActiveOrdered.push(q.question_id);
         });
       }
     });
 
-  allQuestionIdsSorted.forEach(qid => ActiveOrdered.push(qid));
-
-  // Build legacy NextById (deprecated but kept for compatibility)
-  ActiveOrdered.forEach((qid, index) => {
-    if (index + 1 < ActiveOrdered.length) {
-      NextById[qid] = ActiveOrdered[index + 1];
-    }
-  });
-
   console.log(`📊 Section-first structure built:`);
   console.log(`   - Sections in order: ${sectionOrder.length} (from categories)`);
-  console.log(`   - Total active questions processed: ${ActiveOrdered.length}`);
+  console.log(`   - Total active questions: ${totalQuestionsInActiveSections}`);
   
   // Log each section with its question count
   Object.values(sectionConfig)
@@ -1575,15 +1561,16 @@ export function parseQuestionsToMaps(questions, categories) {
 
   return { 
     QById, 
-    NextById, 
-    ActiveOrdered, 
     MatrixYesByQ, 
     UndefinedPacks,
     // NEW section-first structures
     sectionOrder, // This is the list of category_labels in order from DB
     sectionConfig, // This includes dynamic sections with high order
     questionsBySection,
-    questionIdToSection
+    questionIdToSection,
+    // Legacy for compatibility (UI display only - NOT for routing)
+    ActiveOrdered, // ⚠️ FOR DISPLAY NUMBER LOOKUPS ONLY - DO NOT USE FOR ROUTING
+    TotalQuestions: totalQuestionsInActiveSections
   };
 }
 
@@ -1597,19 +1584,11 @@ export function applySectionRules(sectionConfig, questionsBySection, categories)
   categories.forEach(cat => {
     const sectionName = cat.category_label;
     if (!sectionConfig[sectionName]) {
-      // This can happen if a category exists but has active=false or section_order=null,
-      // or if it's a dynamic section added from a question.
-      // In parseQuestionsToMaps, sectionConfig is already initialized for ALL active, ordered categories.
-      // Dynamic sections are added to sectionConfig there as well.
-      // So, if we reach here and it's not in sectionConfig, it means it was an inactive or un-ordered category.
-      // We only care about active/ordered categories for rules.
       if (cat.active !== false && cat.section_order != null) {
-        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig. This implies questions for this category were not processed.`);
+        console.warn(`⚠️ Category "${sectionName}" found with active status and order, but missing from sectionConfig.`);
       }
       return;
     }
-
-    // sectionConfig[sectionName].active is already set from category.active in parseQuestionsToMaps initialization.
 
     // Check if gate mode is enabled
     if (cat.gate_skip_if_value === 'No' && cat.gate_question_id) {
@@ -1665,14 +1644,14 @@ export async function bootstrapEngine(base44) {
 
     const { 
       QById, 
-      NextById, 
-      ActiveOrdered, 
       MatrixYesByQ, 
       UndefinedPacks,
       sectionOrder, // This is the list of category_labels in order from DB
       sectionConfig, // This includes dynamic sections with high order
       questionsBySection,
-      questionIdToSection
+      questionIdToSection,
+      ActiveOrdered,
+      TotalQuestions
     } = parseQuestionsToMaps(questions, categories);
     
     // Apply section-level rules from Category entities
@@ -1696,11 +1675,8 @@ export async function bootstrapEngine(base44) {
     const engineState = {
       // Legacy structures (kept for potential backward compatibility or specific direct lookups)
       QById,
-      NextById, 
-      ActiveOrdered, 
       MatrixYesByQ,
       PackStepsById,
-      Q113OptionMap: {}, // Specific to some legacy client logic, if any
       Categories: categories, // Full category list might be useful for reporting
 
       // NEW: Section-first structures
@@ -1709,9 +1685,12 @@ export async function bootstrapEngine(base44) {
       questionsBySection,
       questionIdToSection,
       
+      // Legacy for compatibility (UI display only - NOT for routing)
+      ActiveOrdered, // ⚠️ FOR DISPLAY NUMBER LOOKUPS ONLY - DO NOT USE FOR ROUTING
+      
       // Metadata
       Bootstrapped: true,
-      TotalQuestions: ActiveOrdered.length,
+      TotalQuestions: TotalQuestions, // Accurate count from active sections only
       UndefinedPacks: Array.from(UndefinedPacks),
       Architecture: 'section-first-db-driven' // Flag to identify new architecture
     };
@@ -1721,7 +1700,7 @@ export async function bootstrapEngine(base44) {
     console.log(`   - Architecture: SECTION-FIRST (database-driven)`);
     console.log(`   - Section order source: Category.section_order`);
     console.log(`   - Sections: ${Object.keys(sectionConfig).length} (incl. dynamic)`);
-    console.log(`   - Total active questions: ${ActiveOrdered.length}`);
+    console.log(`   - Total active questions: ${TotalQuestions}`);
     console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
     console.log(`   - Defined packs: ${Object.keys(PackStepsById).length}`);
 
@@ -1775,7 +1754,6 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   }
 
   // 3. Check intra-section next_question_id (same section only)
-  // This allows explicit question jumps within a section
   if (currentQuestion.next_question_id) {
     const targetInSection = questions.find(q => q.question_id === currentQuestion.next_question_id);
     if (targetInSection) {
@@ -1845,7 +1823,6 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     // Found a valid next section with active questions!
     const firstQ = candidateQuestions[0];
     console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateId}", first question: ${firstQ.question_id}`);
-    console.log(`[CQAI] Entering next section from "${currentSectionId}" -> nextSection: "${candidateId}", firstQuestionId: "${firstQ.question_id}"`);
     return firstQ.question_id;
   }
 
@@ -1872,7 +1849,7 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
 
   console.log(`🔍 Entity-driven follow-up check for ${questionId}, answer="${answer}"`);
 
-  // DEFENSIVE: Check exemption list first - certain questions NEVER trigger follow-ups
+  // DEFENSIVE: Check exemption list first
   if (NO_FOLLOWUP_QUESTIONS.has(questionId)) {
     console.log(`   🚫 Question ${questionId} is exempted from follow-ups (eligibility/final disclosure)`);
     return null;
@@ -1882,10 +1859,9 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
   if (answer === 'Yes' && MatrixYesByQ[questionId]) {
     const packId = MatrixYesByQ[questionId];
     
-    // ROBUSTNESS: If pack is undefined, log warning and return null (no follow-up)
+    // ROBUSTNESS: If pack is undefined, log warning and return null
     if (!PackStepsById[packId]) {
       console.warn(`⚠️ Pack ${packId} referenced by ${questionId} is not defined - treating as no follow-up`);
-      console.warn(`   Question will proceed to next base question without follow-up pack`);
       return null;
     }
     
@@ -1907,7 +1883,6 @@ export function checkFollowUpTrigger(engine, questionId, answer) {
 
 // NEW: Function to inject substance name into follow-up pack steps
 export function injectSubstanceIntoPackSteps(engine, packId, substanceName) {
-  // ROBUSTNESS: Handle undefined pack gracefully
   if (!engine.PackStepsById[packId]) {
     console.warn(`⚠️ Cannot inject substance - pack ${packId} not defined`);
     return [];
@@ -1921,10 +1896,8 @@ export function injectSubstanceIntoPackSteps(engine, packId, substanceName) {
   
   const originalSteps = engine.PackStepsById[packId];
   const injectedSteps = originalSteps.map(step => {
-    // Replace {substance} placeholder with actual substance name
     const injectedPrompt = step.Prompt.replace(/\{substance\}/g, substanceName);
     
-    // Auto-fill the substance_name field if it's the first step
     if (step.Field_Key === 'substance_name' && step.Auto_Fill) {
       return {
         ...step,
@@ -1942,21 +1915,17 @@ export function injectSubstanceIntoPackSteps(engine, packId, substanceName) {
   return injectedSteps;
 }
 
-// NEW: Function to check if a follow-up step should be skipped based on conditional logic
+// NEW: Function to check if a follow-up step should be skipped
 export function shouldSkipFollowUpStep(step, previousAnswers) {
-  // Check if this step has conditional logic
   if (!step.Conditional_On || !step.Conditional_Skip_If) {
-    return false; // No conditional logic, don't skip
+    return false;
   }
   
-  // Find the answer to the conditional field
   const conditionalAnswer = previousAnswers[step.Conditional_On];
-  
   if (!conditionalAnswer) {
-    return false; // No answer yet, don't skip
+    return false;
   }
   
-  // Check if the answer matches any of the skip values
   const skipValues = Array.isArray(step.Conditional_Skip_If) ? step.Conditional_Skip_If : [step.Conditional_Skip_If];
   const normalizedAnswer = String(conditionalAnswer).trim().toLowerCase();
   
@@ -1975,7 +1944,7 @@ export function shouldSkipFollowUpStep(step, previousAnswers) {
 // NEW: Check if PACK_LE_APPS was hired (skip AI probing)
 export function shouldSkipProbingForHired(packId, followUpAnswers) {
   if (packId !== 'PACK_LE_APPS') {
-    return false; // Only applies to PACK_LE_APPS
+    return false;
   }
   
   const outcome = followUpAnswers['application_outcome'];
@@ -2009,28 +1978,22 @@ export function verifyPackCompletion(packId, transcript) {
 
   const followupAnswers = transcript.filter(t => t.type === 'followup' && t.packId === packId);
   const missing = [];
-  let currentAnswers = {}; // To store answers for conditional logic within a pack
+  let currentAnswers = {};
 
   for (const step of packSteps) {
-    // Populate currentAnswers for conditional logic
-    const answeredEntry = followupAnswers.find(a => a.Field_Key === step.Field_Key); // Use Field_Key for more robust lookup
+    const answeredEntry = followupAnswers.find(a => a.Field_Key === step.Field_Key);
     if (answeredEntry && answeredEntry.answer && String(answeredEntry.answer).trim() !== '') {
       currentAnswers[step.Field_Key] = answeredEntry.answer;
     }
 
     const shouldSkip = shouldSkipFollowUpStep(step, currentAnswers);
     if (shouldSkip) {
-      // If a step is skipped, it's considered "complete" for the purpose of this pack
-      // We don't add it to missing, and it won't be in the transcript (or doesn't need to be answered).
       continue; 
     }
 
-    // Now check if it was actually answered, if not skipped
-    // If answeredEntry is not found or answer is empty, it's missing
     if (!answeredEntry || !answeredEntry.answer || String(answeredEntry.answer).trim() === '') {
       missing.push(step.Prompt);
-    } 
-    // The else branch (where currentAnswers is populated) is handled above the conditional check
+    }
   }
 
   return {
@@ -2040,7 +2003,6 @@ export function verifyPackCompletion(packId, transcript) {
 }
 
 export function generateCompletionAudit(engine, transcript) {
-  // Use engine.TotalQuestions which is derived from all active questions across sections
   let totalActiveQuestions = engine.TotalQuestions;
 
   const answeredQuestions = transcript.filter(t => t.type === 'question');
@@ -2053,7 +2015,6 @@ export function generateCompletionAudit(engine, transcript) {
   answeredQuestions.forEach(q => {
     const question = engine.QById[q.questionId];
     if (question && question.followup_pack && q.answer === 'Yes') {
-      // Add the pack to triggeredPacks only if it's not in the NO_FOLLOWUP_QUESTIONS list
       if (!NO_FOLLOWUP_QUESTIONS.has(q.questionId)) {
         triggeredPacks.add(question.followup_pack);
       }
@@ -2072,21 +2033,7 @@ export function generateCompletionAudit(engine, transcript) {
     }
   });
 
-  // Determine if all actual active questions *that were supposed to be asked* have been answered.
-  // This is complex with section skipping. A perfect check would simulate the interview path.
-  // For now, we compare against `ActiveOrdered` which is a linear list of all active questions.
-  // This might overcount "unanswered" questions if sections were skipped.
-  // A more accurate "allQuestionsAnswered" would require re-running routing logic.
   let allRoutingPathQuestionsAnswered = true;
-  // This can be complex. For a simpler check, we can check if all questions present in ActiveOrdered
-  // *and* not explicitly skipped by a section rule were answered. This requires simulating the path.
-  // For this version, let's stick with the total active questions count from engine.TotalQuestions
-  // and acknowledge the limitation for "is_complete" if sections are skipped.
-
-  // The ActiveOrdered array contains ALL active questions, in their final sorted order.
-  // If questions are present in ActiveOrdered but not answered, then 'allQuestionsAnswered' is false.
-  // This provides a baseline, even if some of these questions were skipped by routing logic.
-  // A more precise `is_complete` would require simulating the interview with the given answers.
   if (answeredQuestions.length < totalActiveQuestions) {
      allRoutingPathQuestionsAnswered = false;
   }
@@ -2098,10 +2045,6 @@ export function generateCompletionAudit(engine, transcript) {
     followup_packs_triggered: triggeredPacks.size,
     followup_packs_completed: completedPacks.length,
     incomplete_packs: incompletePacks,
-    // The "is_complete" logic is more complex with section skipping.
-    // For now, this assumes all active questions should have been presented and answered,
-    // plus all triggered follow-ups completed.
-    // A truly accurate "is_complete" would simulate the interview path based on answers given.
     is_complete: (answeredQuestions.length === totalActiveQuestions && incompletePacks.length === 0),
     timestamp: new Date().toISOString()
   };
@@ -2110,7 +2053,6 @@ export function generateCompletionAudit(engine, transcript) {
 function validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById) {
   const errors = [];
   
-  // Check that all referenced packs exist, but don't make it fatal
   Object.keys(MatrixYesByQ).forEach(questionId => {
     const packId = MatrixYesByQ[questionId];
     if (!PackStepsById[packId]) {
@@ -2118,7 +2060,6 @@ function validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById)
     }
   });
   
-  // Check that all packs have steps
   Object.keys(PackStepsById).forEach(packId => {
     const steps = PackStepsById[packId];
     if (!steps || steps.length === 0) {
