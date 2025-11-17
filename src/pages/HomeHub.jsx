@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2 } from "lucide-react";
+import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function HomeHub() {
@@ -88,7 +87,7 @@ export default function HomeHub() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8 md:mb-12">
           <div className="flex justify-center mb-4 md:mb-6">
@@ -115,8 +114,8 @@ export default function HomeHub() {
           </div>
         </div>
 
-        {/* Action Cards - Only 2 Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-12 max-w-3xl mx-auto">
+        {/* Action Cards */}
+        <div className={`grid grid-cols-1 ${isSuperAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 md:gap-8 mb-8 md:mb-12 max-w-5xl mx-auto`}>
           {isSuperAdmin ? (
             <>
               {/* Super Admin: System Admin Card */}
@@ -134,6 +133,26 @@ export default function HomeHub() {
                     <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
                     <p className="text-base md:text-lg text-slate-400">
                       Manage all departments and system settings
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Super Admin: Interview Structure Card */}
+              <div
+                onClick={() => handleNavigate("InterviewStructureManager")}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                        <FolderOpen className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
+                      </div>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Question Bank</h2>
+                    <p className="text-base md:text-lg text-slate-400">
+                      Manage interview structure and questions
                     </p>
                   </CardContent>
                 </Card>
