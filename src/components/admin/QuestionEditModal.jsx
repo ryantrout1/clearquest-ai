@@ -135,7 +135,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     display_order: 1,
     active: true,
     followup_pack: '',
-    followup_multi_instance: false, // Added new field
+    followup_multi_instance: false,
     substance_name: ''
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -176,7 +176,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           display_order: question.display_order || 1,
           active: question.active !== false,
           followup_pack: question.followup_pack || '',
-          followup_multi_instance: question.followup_multi_instance || false, // Added new field
+          followup_multi_instance: question.followup_multi_instance || false,
           substance_name: question.substance_name || ''
         });
 
@@ -255,7 +255,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         display_order: parseInt(formData.display_order) || 1,
         active: formData.active,
         followup_pack: formData.followup_pack || null,
-        followup_multi_instance: formData.followup_multi_instance || false, // Added new field
+        followup_multi_instance: formData.followup_multi_instance || false,
         substance_name: formData.substance_name || null
       };
 
@@ -294,21 +294,37 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
         <div className="space-y-4 pt-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
-              <Input
-                id="question_id"
-                value={formData.question_id}
-                onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
-                placeholder="Q001"
-                className="bg-slate-800 border-slate-600 text-white mt-1"
-                disabled={!!question?.id || isGeneratingId}
-              />
-              {isGeneratingId && <p className="text-xs text-slate-400 mt-1">Generating ID...</p>}
-              {errors.question_id && <p className="text-xs text-red-400 mt-1">{errors.question_id}</p>}
-            </div>
+            {question?.id ? (
+              // Editing an existing question
+              <div>
+                <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
+                <Input
+                  id="question_id"
+                  value={formData.question_id}
+                  onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
+                  placeholder="Q001"
+                  className="bg-slate-800 border-slate-600 text-white mt-1"
+                  disabled={true}
+                />
+              </div>
+            ) : (
+              // Adding a new question
+              <div className="col-span-2">
+                <Label htmlFor="question_id" className="text-slate-300">Question ID</Label>
+                <Input
+                  id="question_id"
+                  value={formData.question_id}
+                  onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
+                  placeholder="Q001"
+                  className="bg-slate-800 border-slate-600 text-white mt-1"
+                  disabled={isGeneratingId}
+                />
+                {isGeneratingId && <p className="text-xs text-slate-400 mt-1">Generating ID...</p>}
+                {errors.question_id && <p className="text-xs text-red-400 mt-1">{errors.question_id}</p>}
+              </div>
+            )}
 
-            <div>
+            <div className={!question?.id ? "col-span-2" : ""}>
               <Label htmlFor="display_order" className="text-slate-300">Display Order</Label>
               <Input
                 id="display_order"
@@ -393,9 +409,9 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                       {groupName}
                     </div>
                     {packs.map(pack => (
-                      <SelectItem 
-                        key={pack} 
-                        value={pack} 
+                      <SelectItem
+                        key={pack}
+                        value={pack}
                         className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
                       >
                         <div className="flex flex-col gap-0.5">
