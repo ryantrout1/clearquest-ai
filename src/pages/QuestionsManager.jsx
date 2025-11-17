@@ -763,8 +763,10 @@ export default function QuestionsManager() {
                                                       <div {...provided.dragHandleProps} className="pt-1 cursor-grab active:cursor-grabbing">
                                                         <GripVertical className="w-4 h-4 text-slate-600 hover:text-slate-400 transition-colors" />
                                                       </div>
-                                                      <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                      
+                                                      <div className="flex-1 min-w-0 space-y-3">
+                                                        {/* Top metadata row - compact */}
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                           {editingOrderId === question.id ? (
                                                             <Input
                                                               type="number"
@@ -787,49 +789,35 @@ export default function QuestionsManager() {
                                                             {question.question_id}
                                                           </Badge>
                                                           
-                                                          {/* Active toggle with same design as section */}
-                                                          <div className={`flex items-center gap-2 rounded-lg px-2 py-0.5 transition-colors ${
+                                                          <div className={`flex items-center gap-1.5 rounded px-2 py-0.5 transition-colors ${
                                                             question.active 
                                                               ? 'bg-emerald-500/10 border border-emerald-500/30' 
-                                                              : 'bg-slate-800/50 border border-slate-700'
+                                                              : 'bg-slate-700/50 border border-slate-600'
                                                           }`}>
                                                             <Switch
                                                               checked={question.active}
                                                               onCheckedChange={() => handleToggleActive(question)}
                                                               className="scale-75 data-[state=checked]:bg-emerald-600"
                                                             />
-                                                            <Label className={`text-xs cursor-pointer font-medium ${
-                                                              question.active ? 'text-emerald-400' : 'text-slate-400'
+                                                            <span className={`text-xs font-medium ${
+                                                              question.active ? 'text-emerald-400' : 'text-slate-500'
                                                             }`}>
                                                               {question.active ? 'Active' : 'Inactive'}
-                                                            </Label>
+                                                            </span>
                                                           </div>
-                                                          
-                                                          {isControlActive && (
-                                                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" variant="outline">
-                                                              <Lock className="w-3 h-3 mr-1" />
-                                                              Control Question
-                                                            </Badge>
-                                                          )}
-                                                          {question.followup_multi_instance && (
-                                                            <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30" variant="outline">
-                                                              <Layers className="w-3 h-3 mr-1" />
-                                                              Multi-Instance
-                                                            </Badge>
-                                                          )}
-                                                          {question.is_required && (
-                                                            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" variant="outline">
-                                                              Required question
-                                                            </Badge>
-                                                          )}
                                                         </div>
-                                                        <p className="text-white text-sm leading-relaxed mb-2">
+
+                                                        {/* Question Text - PROMINENT */}
+                                                        <p className="text-white text-base font-medium leading-relaxed">
                                                           {question.question_text}
                                                         </p>
-                                                        <div className="flex items-center gap-2">
+
+                                                        {/* Bottom metadata - organized */}
+                                                        <div className="flex flex-wrap items-center gap-2">
                                                           <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
                                                             {getResponseTypeDisplay(question.response_type)}
                                                           </Badge>
+                                                          
                                                           {question.followup_pack && (
                                                             <button
                                                               onClick={() => handleFollowUpClick(question)}
@@ -838,9 +826,25 @@ export default function QuestionsManager() {
                                                               {getFollowupPackDisplay(question.followup_pack)}
                                                             </button>
                                                           )}
+                                                          
+                                                          {isControlActive && (
+                                                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" variant="outline">
+                                                              <Lock className="w-3 h-3 mr-1" />
+                                                              Control
+                                                            </Badge>
+                                                          )}
+                                                          
+                                                          {question.followup_multi_instance && (
+                                                            <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30" variant="outline">
+                                                              <Layers className="w-3 h-3 mr-1" />
+                                                              Multi
+                                                            </Badge>
+                                                          )}
                                                         </div>
                                                       </div>
-                                                      <div className="flex gap-1.5">
+                                                      
+                                                      {/* Action buttons - right side */}
+                                                      <div className="flex gap-1.5 flex-shrink-0">
                                                         <Button
                                                           variant="outline"
                                                           size="sm"
