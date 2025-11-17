@@ -6,7 +6,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, ChevronDown, ChevronRight, Settings, Lock } from "lucide-react";
+import { Shield, Search, Plus, GripVertical, AlertCircle, ChevronLeft, Edit, Trash2, Copy, ArrowUpDown, ChevronDown, ChevronRight, Settings, Lock, Layers } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -809,6 +809,12 @@ export default function QuestionsManager() {
                                                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" variant="outline">
                                                               <Lock className="w-3 h-3 mr-1" />
                                                               Control Question
+                                                            </Badge>
+                                                          )}
+                                                          {question.followup_multi_instance && (
+                                                            <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30" variant="outline">
+                                                              <Layers className="w-3 h-3 mr-1" />
+                                                              Multi-Instance
                                                             </Badge>
                                                           )}
                                                           {question.is_required && (
