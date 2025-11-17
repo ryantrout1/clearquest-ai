@@ -104,6 +104,29 @@ const GROUPED_PACKS = {
   ]
 };
 
+async function generateNextQuestionId() {
+  try {
+    // Get all questions to find the highest numeric ID
+    const allQuestions = await base44.entities.Question.list();
+    
+    let maxNum = 0;
+    allQuestions.forEach(q => {
+      const match = q.question_id?.match(/^Q(\d+)/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    
+    // Return next ID
+    const nextNum = maxNum + 1;
+    return `Q${String(nextNum).padStart(3, '0')}`;
+  } catch (err) {
+    console.error('Error generating question ID:', err);
+    return 'Q001'; // Fallback
+  }
+}
+
 export default function QuestionEditModal({ question, onClose, onSave }) {
   const [formData, setFormData] = useState({
     question_id: '',
@@ -116,21 +139,36 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     substance_name: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingId, setIsGeneratingId] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (question) {
-      setFormData({
-        question_id: question.question_id || '',
-        category: question.category || '',
-        question_text: question.question_text || '',
-        response_type: question.response_type || 'yes_no',
-        display_order: question.display_order || 1,
-        active: question.active !== false,
-        followup_pack: question.followup_pack || '',
-        substance_name: question.substance_name || ''
-      });
+    async function initializeForm() {
+      if (question) {
+        // Editing existing question
+        setFormData({
+          question_id: question.question_id || '',
+          category: question.category || '',
+          question_text: question.question_text || '',
+          response_type: question.response_type || 'yes_no',
+          display_order: question.display_order || 1,
+          active: question.active !== false,
+          followup_pack: question.followup_pack || '',
+          substance_name: question.substance_name || ''
+        });
+      } else {
+        // New question - auto-generate ID
+        setIsGeneratingId(true);
+        const newId = await generateNextQuestionId();
+        setFormData(prev => ({
+          ...prev,
+          question_id: newId
+        }));
+        setIsGeneratingId(false);
+      }
     }
+    
+    initializeForm();
   }, [question]);
 
   const validate = () => {
@@ -199,8 +237,9 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 onChange={(e) => setFormData({...formData, question_id: e.target.value.toUpperCase()})}
                 placeholder="Q001"
                 className="bg-slate-800 border-slate-600 text-white mt-1"
-                disabled={!!question?.id}
+                disabled={!!question?.id || isGeneratingId}
               />
+              {isGeneratingId && <p className="text-xs text-slate-400 mt-1">Generating ID...</p>}
               {errors.question_id && <p className="text-xs text-red-400 mt-1">{errors.question_id}</p>}
             </div>
 
@@ -277,7 +316,10 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                     </div>
                     {packs.map(pack => (
                       <SelectItem key={pack} value={pack} className="pl-6">
-                        {FOLLOWUP_PACK_NAMES[pack] || pack}
+                        <div className="flex items-center justify-between w-full">
+                          <span>{FOLLOWUP_PACK_NAMES[pack] || pack}</span>
+                          <span className="text-xs text-slate-500 ml-2">({pack})</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </React.Fragment>
@@ -316,7 +358,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           <Button variant="outline" onClick={onClose} className="bg-slate-800 border-slate-600 text-slate-200">
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleSave} disabled={isSaving || isGeneratingId} className="bg-blue-600 hover:bg-blue-700">
             {isSaving ? 'Saving...' : 'Save Question'}
           </Button>
         </div>
