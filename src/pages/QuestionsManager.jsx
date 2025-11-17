@@ -64,6 +64,8 @@ export default function QuestionsManager() {
   const [deleteDoubleConfirm, setDeleteDoubleConfirm] = useState(null);
   const [sectionOrderMode, setSectionOrderMode] = useState(false);
   const [sectionMetadata, setSectionMetadata] = useState({});
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [orderInputValue, setOrderInputValue] = useState("");
 
   useEffect(() => {
     checkAuth();
@@ -347,6 +349,40 @@ export default function QuestionsManager() {
     deleteQuestionMutation.mutate(deleteConfirm.id);
   };
 
+  const handleOrderClick = (question) => {
+    setEditingOrderId(question.id);
+    setOrderInputValue(String(question.display_order || 1));
+  };
+
+  const handleOrderSave = async (question) => {
+    const newOrder = parseInt(orderInputValue);
+    if (isNaN(newOrder) || newOrder < 1) {
+      toast.error('Please enter a valid order number');
+      return;
+    }
+
+    try {
+      await base44.entities.Question.update(question.id, { display_order: newOrder });
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      setEditingOrderId(null);
+      toast.success('Question order updated');
+    } catch (err) {
+      toast.error('Failed to update order');
+    }
+  };
+
+  const handleOrderBlur = (question) => {
+    handleOrderSave(question);
+  };
+
+  const handleOrderKeyDown = (e, question) => {
+    if (e.key === 'Enter') {
+      handleOrderSave(question);
+    } else if (e.key === 'Escape') {
+      setEditingOrderId(null);
+    }
+  };
+
   const getSkipRuleBadge = (section) => {
     if (section.gate_mode_enabled) {
       return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">Skip if #1 is No</Badge>;
@@ -612,9 +648,24 @@ export default function QuestionsManager() {
                                                       </div>
                                                       <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                          <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                                                            #{question.display_order || 1}
-                                                          </Badge>
+                                                          {editingOrderId === question.id ? (
+                                                            <Input
+                                                              type="number"
+                                                              value={orderInputValue}
+                                                              onChange={(e) => setOrderInputValue(e.target.value)}
+                                                              onBlur={() => handleOrderBlur(question)}
+                                                              onKeyDown={(e) => handleOrderKeyDown(e, question)}
+                                                              className="w-16 h-6 px-2 py-0 text-xs bg-slate-900 border-blue-500 text-blue-400"
+                                                              autoFocus
+                                                            />
+                                                          ) : (
+                                                            <button
+                                                              onClick={() => handleOrderClick(question)}
+                                                              className="font-mono text-xs border border-slate-600 text-blue-400 px-2 py-0.5 rounded hover:bg-slate-700 hover:border-blue-500 transition-colors"
+                                                            >
+                                                              #{question.display_order || 1}
+                                                            </button>
+                                                          )}
                                                           <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
                                                             {question.question_id}
                                                           </Badge>
