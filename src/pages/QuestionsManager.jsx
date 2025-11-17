@@ -117,7 +117,8 @@ export default function QuestionsManager() {
       categories.forEach(cat => {
         metadata[cat.category_label] = {
           section_active: cat.active !== false,
-          gate_mode_enabled: cat.gate_skip_if_value === 'No'
+          gate_mode_enabled: cat.gate_skip_if_value === 'No',
+          gate_question_id: cat.gate_question_id
         };
       });
       setSectionMetadata(metadata);
@@ -175,7 +176,8 @@ export default function QuestionsManager() {
           activeCount: 0,
           inactiveCount: 0,
           requiredCount: 0,
-          gateQuestionId: null
+          gateQuestionId: null,
+          question2Id: null
         };
       }
       sectionMap[q.category].count++;
@@ -187,18 +189,32 @@ export default function QuestionsManager() {
       if (q.is_required) {
         sectionMap[q.category].requiredCount++;
       }
-      // Find the #1 position question as the gate question
-      if (q.display_order === 1 || (!sectionMap[q.category].gateQuestionId)) {
+      // Find the #1 position question as default gate question
+      if (q.display_order === 1) {
         sectionMap[q.category].gateQuestionId = q.question_id;
+      }
+      // Find the #2 position question for Military History special case
+      if (q.display_order === 2) {
+        sectionMap[q.category].question2Id = q.question_id;
       }
     });
     
-    const sectionList = Object.values(sectionMap).map(section => ({
-      ...section,
-      section_active: sectionMetadata[section.name]?.section_active !== false,
-      section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
-      gate_mode_enabled: sectionMetadata[section.name]?.gate_mode_enabled || false
-    }));
+    const sectionList = Object.values(sectionMap).map(section => {
+      // For Military History, use question #2 as gate if gate mode is enabled
+      const isMilitaryHistory = section.name === "Military History";
+      const storedGateQuestionId = sectionMetadata[section.name]?.gate_question_id;
+      const gateQuestionId = isMilitaryHistory && storedGateQuestionId 
+        ? storedGateQuestionId 
+        : section.gateQuestionId;
+      
+      return {
+        ...section,
+        gateQuestionId,
+        section_active: sectionMetadata[section.name]?.section_active !== false,
+        section_order: SECTION_ORDER.indexOf(section.name) !== -1 ? SECTION_ORDER.indexOf(section.name) : 999,
+        gate_mode_enabled: sectionMetadata[section.name]?.gate_mode_enabled || false
+      };
+    });
     
     return sectionList.sort((a, b) => a.section_order - b.section_order);
   }, [questions, sectionMetadata]);
@@ -254,13 +270,19 @@ export default function QuestionsManager() {
     const existingCategory = categories.find(cat => cat.category_label === sectionName);
     const section = sections.find(s => s.name === sectionName);
     
+    // For Military History, use question #2 as the gate question
+    const isMilitaryHistory = sectionName === "Military History";
+    const gateQuestionId = isMilitaryHistory 
+      ? section.question2Id 
+      : section.gateQuestionId;
+    
     if (existingCategory) {
       // Update existing category
       await updateCategoryMutation.mutateAsync({
         id: existingCategory.id,
         data: {
           gate_skip_if_value: newGateMode ? 'No' : null,
-          gate_question_id: newGateMode ? section.gateQuestionId : null
+          gate_question_id: newGateMode ? gateQuestionId : null
         }
       });
     } else {
@@ -268,7 +290,7 @@ export default function QuestionsManager() {
       await createCategoryMutation.mutateAsync({
         category_id: `CAT_${sectionName.replace(/\s+/g, '_').toUpperCase()}`,
         category_label: sectionName,
-        gate_question_id: newGateMode ? section.gateQuestionId : null,
+        gate_question_id: newGateMode ? gateQuestionId : null,
         gate_skip_if_value: newGateMode ? 'No' : null,
         display_order: SECTION_ORDER.indexOf(sectionName) !== -1 ? SECTION_ORDER.indexOf(sectionName) : 999,
         active: true
@@ -429,10 +451,21 @@ export default function QuestionsManager() {
   };
 
   const getSkipRuleBadge = (section) => {
+    const isMilitaryHistory = section.name === "Military History";
     if (section.gate_mode_enabled) {
-      return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">Skip if #1 is No</Badge>;
+      return <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">
+        Skip if #{isMilitaryHistory ? '2' : '1'} is No
+      </Badge>;
     }
     return <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">Always show all</Badge>;
+  };
+
+  const getGateExplanation = (section) => {
+    const isMilitaryHistory = section.name === "Military History";
+    if (isMilitaryHistory) {
+      return "Control Question Active: If the question at position #2 is answered \"No\", questions #3+ will be skipped. Questions #1 and #2 are always asked.";
+    }
+    return "Control Question Active: If the question at position #1 is answered \"No\", the rest of this section will be skipped.";
   };
 
   if (!user) {
@@ -619,7 +652,7 @@ export default function QuestionsManager() {
                                     <div className="mt-3 bg-amber-950/20 border border-amber-800/30 rounded-lg px-3 py-2">
                                       <p className="text-xs text-amber-400">
                                         <Lock className="w-3 h-3 inline mr-1" />
-                                        Control Question Active: If the question at position #1 is answered "No", the rest of this section will be skipped.
+                                        {getGateExplanation(section)}
                                       </p>
                                     </div>
                                   )}
@@ -649,7 +682,10 @@ export default function QuestionsManager() {
                                     {(provided) => (
                                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                                         {getQuestionsForSection(section.name).map((question, qIndex) => {
-                                          const isGateQuestion = question.display_order === 1;
+                                          const isMilitaryHistory = section.name === "Military History";
+                                          const isGateQuestion = isMilitaryHistory 
+                                            ? question.display_order === 2 
+                                            : question.display_order === 1;
                                           const isControlActive = section.gate_mode_enabled && isGateQuestion;
                                           
                                           return (
