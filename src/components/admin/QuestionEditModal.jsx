@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -311,21 +312,23 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 <SelectItem value={null}>None</SelectItem>
                 {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => (
                   <React.Fragment key={groupName}>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/50 sticky top-0">
+                    <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/50 sticky top-0 pointer-events-none">
                       {groupName}
                     </div>
                     {packs.map(pack => (
                       <SelectItem key={pack} value={pack} className="pl-6">
-                        <div className="flex items-center justify-between w-full">
-                          <span>{FOLLOWUP_PACK_NAMES[pack] || pack}</span>
-                          <span className="text-xs text-slate-500 ml-2">({pack})</span>
-                        </div>
+                        {FOLLOWUP_PACK_NAMES[pack] || pack} ({pack})
                       </SelectItem>
                     ))}
                   </React.Fragment>
                 ))}
               </SelectContent>
             </Select>
+            {formData.followup_pack && (
+              <p className="text-xs text-slate-400 mt-1">
+                Pack code: <span className="font-mono text-blue-400">{formData.followup_pack}</span>
+              </p>
+            )}
           </div>
 
           <div>
