@@ -2,10 +2,22 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChevronLeft, ChevronDown, ChevronRight, Package, Layers, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 const BEHAVIOR_TYPE_NAMES = {
   'standard': 'Standard',
@@ -55,6 +67,7 @@ const PACK_GROUPS = {
 
 export default function FollowupPackManager() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [user, setUser] = useState(null);
   const [selectedPack, setSelectedPack] = useState(null);
@@ -238,11 +251,12 @@ export default function FollowupPackManager() {
               )}
             </div>
 
-            {/* Detail Panel - Read Only */}
+            {/* Detail Panel - Editable */}
             <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start bg-slate-800/30 border border-slate-700/50 rounded-lg p-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
               <PackDetailPanel
                 pack={selectedPack}
                 questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
+                onUpdate={() => queryClient.invalidateQueries({ queryKey: ['followUpPacks'] })}
               />
             </div>
           </div>
@@ -252,7 +266,40 @@ export default function FollowupPackManager() {
   );
 }
 
-function PackDetailPanel({ pack, questions }) {
+function PackDetailPanel({ pack, questions, onUpdate }) {
+  const [formData, setFormData] = useState({});
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (pack) {
+      setFormData({
+        trigger_notes: pack.trigger_notes || '',
+        description: pack.description || '',
+        behavior_type: pack.behavior_type || 'standard',
+        requires_completion: pack.requires_completion !== false,
+        max_probe_loops: pack.max_probe_loops || '',
+        ai_probe_instructions: pack.ai_probe_instructions || '',
+        active: pack.active !== false
+      });
+      setIsEditing(false);
+    }
+  }, [pack]);
+
+  const handleSave = async () => {
+    try {
+      await base44.entities.FollowUpPack.update(pack.id, {
+        ...formData,
+        max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null
+      });
+      onUpdate();
+      setIsEditing(false);
+      toast.success('Pack updated successfully');
+    } catch (err) {
+      console.error('Save error:', err);
+      toast.error('Failed to save pack');
+    }
+  };
+
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   if (!pack) {
@@ -260,31 +307,143 @@ function PackDetailPanel({ pack, questions }) {
       <div className="text-center py-12">
         <Package className="w-16 h-16 text-slate-600 mx-auto mb-4" />
         <p className="text-slate-400 text-sm">Select a pack to view its details</p>
-        <p className="text-xs text-slate-500 mt-2">To edit packs, use the Interview Structure Manager</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-2xl font-bold text-white">{pack.pack_name}</h3>
-        <p className="text-sm text-slate-400 font-mono mt-1">{pack.followup_pack_id}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-2xl font-bold text-white">{pack.pack_name}</h3>
+          <p className="text-sm text-slate-400 font-mono mt-1">{pack.followup_pack_id}</p>
+        </div>
+        <div className="flex gap-2">
+          {!isEditing ? (
+            <Button
+              onClick={() => setIsEditing(true)}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Edit
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={() => {
+                  setIsEditing(false);
+                  setFormData({
+                    trigger_notes: pack.trigger_notes || '',
+                    description: pack.description || '',
+                    behavior_type: pack.behavior_type || 'standard',
+                    requires_completion: pack.requires_completion !== false,
+                    max_probe_loops: pack.max_probe_loops || '',
+                    ai_probe_instructions: pack.ai_probe_instructions || '',
+                    active: pack.active !== false
+                  });
+                }}
+                variant="outline"
+                className="border-slate-600"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Save
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Triggered by */}
       <div className="bg-amber-950/20 border border-amber-500/30 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-amber-400 mb-2">Triggered by:</h4>
-        <p className="text-sm text-slate-300 leading-relaxed">{pack.trigger_notes || 'Any "Yes" response related to this topic'}</p>
+        {isEditing ? (
+          <Textarea
+            value={formData.trigger_notes}
+            onChange={(e) => setFormData({...formData, trigger_notes: e.target.value})}
+            className="bg-slate-800 border-slate-600 text-white min-h-20"
+            placeholder='Any "Yes" response related to this topic'
+          />
+        ) : (
+          <p className="text-sm text-slate-300 leading-relaxed">{pack.trigger_notes || 'Any "Yes" response related to this topic'}</p>
+        )}
       </div>
 
+      {/* Documentation captured */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-white mb-3">Documentation captured:</h4>
-        <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.description || 'No description provided'}</p>
+        {isEditing ? (
+          <Textarea
+            value={formData.description}
+            onChange={(e) => setFormData({...formData, description: e.target.value})}
+            className="bg-slate-800 border-slate-600 text-white min-h-24"
+            placeholder="Description of what documentation is captured"
+          />
+        ) : (
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.description || 'No description provided'}</p>
+        )}
       </div>
 
+      {/* Pack Configuration */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-white">Pack Configuration</h4>
+        <h4 className="text-sm font-semibold text-white mb-3">Pack Configuration</h4>
+        
+        {isEditing ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-slate-300">Behavior Type</Label>
+                <Select
+                  value={formData.behavior_type}
+                  onValueChange={(v) => setFormData({...formData, behavior_type: v})}
+                >
+                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(BEHAVIOR_TYPE_NAMES).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.behavior_type === 'multi_incident' && (
+                <div>
+                  <Label className="text-slate-300">Max Probe Loops</Label>
+                  <Input
+                    type="number"
+                    value={formData.max_probe_loops}
+                    onChange={(e) => setFormData({...formData, max_probe_loops: e.target.value})}
+                    className="bg-slate-800 border-slate-600 text-white mt-1"
+                    placeholder="e.g., 5"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <Label className="text-slate-300">Requires Completion</Label>
+              <Switch
+                checked={formData.requires_completion}
+                onCheckedChange={(checked) => setFormData({...formData, requires_completion: checked})}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <Label className="text-slate-300">Active</Label>
+              <Switch
+                checked={formData.active}
+                onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+          </div>
+        ) : (
           <div className="flex gap-2">
             <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
               {BEHAVIOR_TYPE_NAMES[pack.behavior_type] || pack.behavior_type}
@@ -299,17 +458,31 @@ function PackDetailPanel({ pack, questions }) {
                 Max {pack.max_probe_loops} loops
               </Badge>
             )}
+            {pack.active === false && (
+              <Badge variant="outline" className="text-xs border-red-600 text-red-400">
+                Inactive
+              </Badge>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {pack.ai_probe_instructions && (
-        <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-blue-400 mb-2">AI Probe Instructions</h4>
-          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.ai_probe_instructions}</p>
-        </div>
-      )}
+      {/* AI Probe Instructions */}
+      <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-blue-400 mb-2">AI Probe Instructions</h4>
+        {isEditing ? (
+          <Textarea
+            value={formData.ai_probe_instructions}
+            onChange={(e) => setFormData({...formData, ai_probe_instructions: e.target.value})}
+            className="bg-slate-800 border-slate-600 text-white min-h-32"
+            placeholder="Instructions for AI probing behavior for this pack..."
+          />
+        ) : (
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.ai_probe_instructions || 'No instructions provided'}</p>
+        )}
+      </div>
 
+      {/* Follow-Up Questions - Read Only */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-white mb-4">Follow-Up Questions ({sortedQuestions.length})</h4>
 
@@ -345,13 +518,6 @@ function PackDetailPanel({ pack, questions }) {
             ))}
           </div>
         )}
-      </div>
-
-      <div className="bg-slate-900/50 border border-amber-600/50 rounded-lg p-4">
-        <p className="text-xs text-amber-400 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" />
-          To edit this pack's configuration or questions, use the Interview Structure Manager
-        </p>
       </div>
     </div>
   );
