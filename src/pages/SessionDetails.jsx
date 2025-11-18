@@ -56,6 +56,7 @@ export default function SessionDetails() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
+  const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
 
   const categoryRefs = useRef({});
 
@@ -83,17 +84,19 @@ export default function SessionDetails() {
         }
       }
 
-      const [responsesData, followupsData, questionsData, sectionsData] = await Promise.all([
+      const [responsesData, followupsData, questionsData, sectionsData, followUpQuestionsData] = await Promise.all([
         base44.entities.Response.filter({ session_id: sessionId }),
         base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
         base44.entities.Question.filter({ active: true }),
-        base44.entities.Section.list()
+        base44.entities.Section.list(),
+        base44.entities.FollowUpQuestion.list()
       ]);
 
       setResponses(responsesData);
       setFollowups(followupsData);
       setQuestions(questionsData);
       setSections(sectionsData);
+      setFollowUpQuestionEntities(followUpQuestionsData);
       
       setTotalQuestions(questionsData.length);
       setExpandedQuestions(new Set());
