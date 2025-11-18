@@ -1575,18 +1575,36 @@ Return ONLY the summary sentence, nothing else.`;
                 {session?.department_code} • {session?.file_number}
               </div>
             )}
-
             
-            {/* Section Progress Bar */}
+            {/* Overall Progress */}
+            <div className="border-t border-slate-700/50 pt-2 mt-2">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs md:text-sm text-slate-300">Overall Progress</span>
+                <span className="text-xs md:text-sm font-semibold text-green-400">{answeredCount}/{totalQuestions}</span>
+              </div>
+              <div 
+                className="relative w-full h-1.5 md:h-2 bg-slate-700/50 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-label="Overall progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+              >
+                <div 
+                  className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Section Progress */}
             {currentSection && (
-              <div className="mt-2 pb-2 border-b border-slate-700/30">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] md:text-xs text-slate-300 font-medium">
+              <div className="mt-2">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-xs md:text-sm text-slate-300">
                     Section {engine?.sectionConfig && Object.values(engine.sectionConfig).find(s => s.section_name === currentSection)?.section_order || ''}: {currentSection}
                   </span>
-                  <span className="text-[11px] md:text-sm font-bold text-orange-400">
-                    {sectionAnswered}/{sectionTotal}
-                  </span>
+                  <span className="text-xs md:text-sm font-semibold text-orange-400">{sectionAnswered}/{sectionTotal}</span>
                 </div>
                 <div 
                   className="relative w-full h-1.5 md:h-2 bg-slate-700/50 rounded-full overflow-hidden"
@@ -1597,50 +1615,12 @@ Return ONLY the summary sentence, nothing else.`;
                   aria-valuenow={sectionProgress}
                 >
                   <div 
-                    className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all duration-500 ease-out"
+                    className="h-full bg-orange-500 rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${sectionProgress}%` }}
                   />
                 </div>
               </div>
             )}
-
-            {/* Overall Progress Bar - ENHANCED */}
-            <div className="mt-2">
-              <div 
-                className="relative w-full h-2 md:h-2.5 bg-slate-700/50 rounded-full overflow-hidden ring-1 ring-slate-600/30"
-                role="progressbar"
-                aria-label="Overall progress"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress}
-              >
-                <div 
-                  className="h-full bg-gradient-to-r from-green-500 via-green-400 to-green-500 rounded-full transition-all duration-700 ease-out"
-                  style={{ 
-                    width: `${progress}%`,
-                    boxShadow: progress > 0 ? '0 0 16px rgba(34, 197, 94, 0.7), inset 0 1px 0 rgba(255,255,255,0.2)' : 'none'
-                  }}
-                />
-                {/* Animated shimmer */}
-                {progress > 0 && progress < 100 && (
-                  <div 
-                    className="absolute inset-0 opacity-30"
-                    style={{
-                      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
-                      animation: 'shimmer 2s infinite',
-                      backgroundSize: '200% 100%'
-                    }}
-                  />
-                )}
-              </div>
-              <div className="flex justify-between items-center mt-1.5">
-                <span className="text-[10px] md:text-xs text-slate-400">Overall Progress</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] md:text-sm font-bold text-green-400">{progress}%</span>
-                  <span className="text-[10px] md:text-xs text-slate-500">{answeredCount}/{totalQuestions}</span>
-                </div>
-              </div>
-            </div>
           </div>
         </header>
 
