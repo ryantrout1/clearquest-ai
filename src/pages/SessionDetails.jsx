@@ -207,13 +207,15 @@ export default function SessionDetails() {
   };
 
   const toggleSection = (category) => {
-    const newCollapsed = new Set(collapsedSections);
-    if (newCollapsed.has(category)) {
-      newCollapsed.delete(category);
-    } else {
-      newCollapsed.add(category);
-    }
-    return newCollapsed;
+    setCollapsedSections(prev => {
+      const newCollapsed = new Set(prev);
+      if (newCollapsed.has(category)) {
+        newCollapsed.delete(category);
+      } else {
+        newCollapsed.add(category);
+      }
+      return newCollapsed;
+    });
   };
 
   const handleCategoryJump = (category) => {
@@ -617,7 +619,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setCollapsedSections(toggleSection(category))}
+                onClick={() => toggleSection(category)}
                 className="text-slate-300 hover:text-white hover:bg-slate-700 h-8 px-2"
               >
                 {isSectionCollapsed ? (
