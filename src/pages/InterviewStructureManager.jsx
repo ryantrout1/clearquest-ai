@@ -141,6 +141,8 @@ export default function InterviewStructureManager() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
+  const [leftWidth, setLeftWidth] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -194,12 +196,6 @@ export default function InterviewStructureManager() {
   const { data: followUpPacks = [] } = useQuery({
     queryKey: ['followUpPacks'],
     queryFn: () => base44.entities.FollowUpPack.list(),
-    enabled: !!user
-  });
-
-  const { data: followUpQuestions = [] } = useQuery({
-    queryKey: ['followUpQuestions'],
-    queryFn: () => base44.entities.FollowUpQuestion.list(),
     enabled: !!user
   });
 
@@ -333,6 +329,39 @@ export default function InterviewStructureManager() {
     }
   };
 
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      const container = document.getElementById('resizable-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      // Clamp between 20% and 80%
+      const clampedWidth = Math.min(Math.max(newLeftWidth, 20), 80);
+      setLeftWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
   const recalculateGlobalQuestionNumbers = async () => {
     if (!sections || !questions) {
       toast.error('Sections or questions not loaded');
@@ -405,11 +434,14 @@ export default function InterviewStructureManager() {
       </div>
 
       {/* Main content */}
-      <div className="px-6 py-6">
-        <div className="max-w-[1600px] mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Tree View */}
-            <div className="lg:col-span-2 bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
+      <div id="resizable-container" className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Tree View */}
+        <div 
+          style={{ width: `${leftWidth}%` }}
+          className="overflow-auto border-r border-slate-700"
+        >
+          <div className="p-6">
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-white">Structure Tree</h2>
                 <div className="flex gap-2">
@@ -558,19 +590,34 @@ export default function InterviewStructureManager() {
                 </DragDropContext>
               )}
             </div>
+          </div>
+        </div>
 
-            {/* Detail Panel - Sticky */}
-            <div className="lg:sticky lg:top-6 lg:self-start bg-slate-800/30 border border-slate-700/50 rounded-lg p-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
-              <DetailPanel
-                selectedItem={selectedItem}
-                sections={sections}
-                categories={categories}
-                questions={questions}
-                followUpPacks={followUpPacks}
-                onClose={() => setSelectedItem(null)}
-                onDelete={(item) => setDeleteConfirm(item)}
-              />
-            </div>
+        {/* Vertical Drag Handle */}
+        <div 
+          className={`w-2 flex-shrink-0 transition-colors ${
+            isDragging ? 'bg-blue-500' : 'bg-slate-800 hover:bg-blue-600'
+          }`}
+          onMouseDown={handleMouseDown}
+          style={{ cursor: 'col-resize', userSelect: 'none' }}
+        />
+
+        {/* Right Panel - Detail Panel */}
+        <div 
+          style={{ width: `${100 - leftWidth}%` }}
+          className="overflow-auto"
+        >
+          <div className="p-6">
+            <DetailPanel
+              selectedItem={selectedItem}
+              sections={sections}
+              categories={categories}
+              questions={questions}
+              followUpPacks={followUpPacks}
+              followUpQuestions={followUpQuestions}
+              onClose={() => setSelectedItem(null)}
+              onDelete={(item) => setDeleteConfirm(item)}
+            />
           </div>
         </div>
       </div>
@@ -873,12 +920,24 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
   );
 }
 
-function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, onClose, onDelete }) {
+function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, followUpQuestions, onClose, onDelete }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
   const [isGateQuestion, setIsGateQuestion] = useState(false);
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
+
+  // Load follow-up pack details if this is a question with a pack
+  const selectedFollowUpPack = selectedItem?.type === 'question' && formData?.followup_pack
+    ? followUpPacks.find(pack => pack.followup_pack_id === formData.followup_pack)
+    : null;
+
+  const packQuestions = selectedFollowUpPack
+    ? followUpQuestions
+        .filter(q => q.followup_pack_id === selectedFollowUpPack.followup_pack_id)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    : [];
 
   useEffect(() => {
     if (selectedItem?.data) {
@@ -1312,6 +1371,90 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             {selectedItem.type === 'new-question' ? 'Create Question' : 'Save Changes'}
           </Button>
         </div>
+
+        {/* Follow-Up Behavior Section - Only for existing questions */}
+        {selectedItem.type === 'question' && (
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-base font-semibold text-white">Follow-Up Behavior</h4>
+                  <p className="text-xs text-slate-400 mt-1">Deterministic questions that run when this question is answered "Yes"</p>
+                </div>
+                {selectedFollowUpPack && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
+                    className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+                  >
+                    <Edit className="w-3 h-3 mr-1" />
+                    Manage Pack
+                  </Button>
+                )}
+              </div>
+
+              {!formData?.followup_pack ? (
+                <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                  <Package className="w-10 h-10 mx-auto mb-2 text-slate-600" />
+                  <p className="text-xs">No Follow-Up Pack is assigned to this question yet.</p>
+                </div>
+              ) : !selectedFollowUpPack ? (
+                <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                  <AlertCircle className="w-10 h-10 mx-auto mb-2 text-yellow-600" />
+                  <p className="text-xs">Follow-Up Pack "{formData.followup_pack}" not found in database.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs bg-orange-950/30 border border-orange-500/30 rounded-lg p-3">
+                    <span className="text-slate-400 font-medium">Follow-Up Pack:</span>
+                    <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30">
+                      {selectedFollowUpPack.pack_name || selectedFollowUpPack.followup_pack_id}
+                    </Badge>
+                  </div>
+
+                  {packQuestions.length === 0 ? (
+                    <div className="text-center py-4 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                      <p className="text-xs">This Follow-Up Pack has no deterministic questions defined yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {packQuestions.map((q, idx) => (
+                        <div 
+                          key={q.id}
+                          className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 hover:bg-slate-900/70 transition-colors"
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                              <span className="text-xs font-bold text-orange-300">#{idx + 1}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white break-words leading-relaxed">{q.question_text}</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
+                                  {q.response_type || 'text'}
+                                </Badge>
+                                {q.active !== false ? (
+                                  <Badge className="text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                                    Active
+                                  </Badge>
+                                ) : (
+                                  <Badge className="text-xs bg-slate-500/20 text-slate-400 border-slate-500/30">
+                                    Inactive
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
