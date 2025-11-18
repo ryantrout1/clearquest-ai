@@ -1820,9 +1820,16 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     const candidateSectionId = candidateSection.id; // This is the STRING section_id (e.g., "CAT_DRUGS")
     const candidateQuestions = engine.questionsBySection[candidateSectionId] || [];
     
-    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateSection.section_name}"`);
+    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateSection.section_name}" (ID: "${candidateSectionId}")`);
     console.log(`[SectionRouting]     - Active: ${candidateSection.active !== false}`);
-    console.log(`[SectionRouting]     - Questions: ${candidateQuestions.length}`);
+    console.log(`[SectionRouting]     - Questions in questionsBySection: ${candidateQuestions.length}`);
+    
+    if (candidateQuestions.length > 0) {
+      console.log(`[SectionRouting]     - First 3 questions:`, candidateQuestions.slice(0, 3).map(q => q.question_id));
+    } else {
+      console.warn(`[SectionRouting]     ⚠️ questionsBySection["${candidateSectionId}"] is empty or undefined`);
+      console.warn(`[SectionRouting]     - Available keys in questionsBySection:`, Object.keys(engine.questionsBySection));
+    }
     
     // Skip if section is explicitly inactive (from Section entity) OR has no active questions
     if (candidateSection.active === false) { 
