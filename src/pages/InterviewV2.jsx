@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -1688,6 +1687,50 @@ Return ONLY the summary sentence, nothing else.`;
                 </div>
               </div>
             </div>
+
+            {/* Current Section Progress Bar */}
+            {currentPrompt && currentPrompt.type === 'question' && currentSection && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] md:text-xs text-slate-400">
+                    Section {Object.values(engine?.sectionConfig || {})
+                      .filter(s => s.active)
+                      .sort((a, b) => a.section_order - b.section_order)
+                      .findIndex(s => s.section_name === currentSection) + 1}: {currentSection}
+                  </span>
+                  <span className="text-[10px] md:text-xs text-slate-500">
+                    {sectionAnswered}/{sectionTotal}
+                  </span>
+                </div>
+                <div 
+                  className="relative w-full h-2 md:h-2.5 bg-slate-700/50 rounded-full overflow-hidden ring-1 ring-slate-600/30"
+                  role="progressbar"
+                  aria-label="Section progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={sectionProgress}
+                >
+                  <div 
+                    className="h-full bg-gradient-to-r from-orange-500 via-orange-400 to-orange-500 rounded-full transition-all duration-700 ease-out"
+                    style={{ 
+                      width: `${sectionProgress}%`,
+                      boxShadow: sectionProgress > 0 ? '0 0 16px rgba(249, 115, 22, 0.7), inset 0 1px 0 rgba(255,255,255,0.2)' : 'none'
+                    }}
+                  />
+                  {/* Animated shimmer */}
+                  {sectionProgress > 0 && sectionProgress < 100 && (
+                    <div 
+                      className="absolute inset-0 opacity-30"
+                      style={{
+                        background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                        animation: 'shimmer 2s infinite',
+                        backgroundSize: '200% 100%'
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
