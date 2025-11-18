@@ -611,12 +611,18 @@ Return ONLY the summary sentence, nothing else.`;
       for (const response of sortedResponses) {
         const question = engineData.QById[response.question_id];
         if (question) {
+          // Derive section name from engine, not deprecated category field
+          const location = engineData.questionIdToSection?.[response.question_id];
+          const sectionName = location 
+            ? engineData.sectionConfig?.[location.sectionId]?.section_name || question.category
+            : question.category;
+          
           restoredTranscript.push({
             id: `q-${response.id}`,
             questionId: response.question_id,
             questionText: question.question_text,
             answer: response.answer,
-            category: question.category,
+            category: sectionName,
             type: 'question',
             timestamp: response.response_timestamp
           });
@@ -943,7 +949,7 @@ Return ONLY the summary sentence, nothing else.`;
           questionId: currentItem.id,
           questionText: question.question_text,
           answer: value,
-          category: question.category,
+          category: getSectionNameForQuestion(currentItem.id),
           type: 'question',
           timestamp: new Date().toISOString()
         };
@@ -1486,6 +1492,26 @@ Return ONLY the summary sentence, nothing else.`;
     toast.info('You can now close this tab. Use your Dept Code and File Number to resume later.');
   };
 
+  const getSectionNameForQuestion = useCallback((questionId) => {
+    if (!engine) return "";
+
+    const location = engine.questionIdToSection?.[questionId];
+    if (location) {
+      const sectionConfig = engine.sectionConfig?.[location.sectionId];
+      if (sectionConfig?.section_name) {
+        return sectionConfig.section_name;
+      }
+    }
+
+    // Fallback: use deprecated category field if section not found
+    const question = engine.QById?.[questionId];
+    if (question?.category) {
+      return question.category;
+    }
+
+    return "";
+  }, [engine]);
+
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine) return '';
 
@@ -1537,7 +1563,7 @@ Return ONLY the summary sentence, nothing else.`;
         id: question.question_id,
         text: question.question_text,
         responseType: question.response_type,
-        category: question.category
+        category: getSectionNameForQuestion(question.question_id)
       };
     }
 
