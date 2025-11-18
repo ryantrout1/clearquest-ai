@@ -140,7 +140,7 @@ export default function HomeHub() {
                         <FolderOpen className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
                       </div>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Question Bank</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Interview Structure Manager</h2>
                     <p className="text-base md:text-lg text-slate-400">
                       Manage interview structure and questions
                     </p>
@@ -201,7 +201,7 @@ export default function HomeHub() {
                     <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-400" />
                   </div>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Interviews</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Current Interviews</h2>
                 <p className="text-base md:text-lg text-slate-400">
                   Monitor and manage interview sessions
                 </p>
@@ -214,7 +214,7 @@ export default function HomeHub() {
           <Link to={createPageUrl("Home")} className="w-full sm:w-auto">
             <Button
               variant="outline"
-              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white"
             >
               <Shield className="w-4 h-4 mr-2" />
               Public Home
@@ -223,7 +223,7 @@ export default function HomeHub() {
           
           <Button
             variant="outline"
-            className="w-full sm:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+            className="w-full sm:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white"
             onClick={handleLogout}
           >
             <LogOut className="w-4 h-4 mr-2" />
@@ -233,7 +233,7 @@ export default function HomeHub() {
           <a href="mailto:support@clearquest.ai" className="w-full sm:w-auto">
             <Button
               variant="outline"
-              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white"
             >
               <HelpCircle className="w-4 h-4 mr-2" />
               Help & Support

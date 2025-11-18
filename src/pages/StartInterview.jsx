@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -25,9 +24,6 @@ export default function StartInterview() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [advancedDepartment, setAdvancedDepartment] = useState("");
-  const [advancedFile, setAdvancedFile] = useState("");
 
   useEffect(() => {
     loadQuestionCount();
@@ -114,9 +110,8 @@ export default function StartInterview() {
     setIsSubmitting(true);
 
     try {
-      // Use advanced overrides if they are filled, otherwise use form data
-      const deptCode = (advancedDepartment || formData.departmentCode).trim().toUpperCase();
-      const fileNum = (advancedFile || formData.fileNumber).trim();
+      const deptCode = formData.departmentCode.trim().toUpperCase();
+      const fileNum = formData.fileNumber.trim();
 
       if (!deptCode || !fileNum) {
         setError("Please enter both department code and file number.");
@@ -298,7 +293,11 @@ export default function StartInterview() {
                   type="text"
                   placeholder="Enter file number"
                   value={formData.fileNumber}
-                  onChange={(e) => setFormData({...formData, fileNumber: e.target.value})} // No .toUpperCase() as per outline for file number
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const filtered = value.replace(/[^A-Z0-9-]/gi, '').toUpperCase();
+                    setFormData({...formData, fileNumber: filtered});
+                  }}
                   className="bg-slate-900/50 border-slate-600 text-white h-12"
                   required
                 />
@@ -336,33 +335,6 @@ export default function StartInterview() {
                 )}
               </Button>
             </form>
-
-            <div className="mt-8 pt-6 border-t border-slate-700">
-              <button
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                {showAdvancedSettings ? 'Hide' : 'Show'} Advanced Options
-              </button>
-              
-              {showAdvancedSettings && (
-                <div className="mt-4 space-y-3 bg-slate-900/30 border border-slate-700 rounded-lg p-4">
-                  <p className="text-xs text-slate-400 mb-2">Override session parameters (for testing only):</p>
-                  <Input
-                    placeholder="Department override"
-                    value={advancedDepartment}
-                    onChange={(e) => setAdvancedDepartment(e.target.value)}
-                    className="bg-slate-900 border-slate-600 text-white text-xs h-9"
-                  />
-                  <Input
-                    placeholder="File number override"
-                    value={advancedFile}
-                    onChange={(e) => setAdvancedFile(e.target.value)}
-                    className="bg-slate-900 border-slate-600 text-white text-xs h-9"
-                  />
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
 
