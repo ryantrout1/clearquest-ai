@@ -452,7 +452,9 @@ export default function InterviewStructureManager() {
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   className={`bg-slate-900/50 border rounded-lg hover:border-blue-500/50 transition-colors ${
-                                    section.active ? 'border-slate-700' : 'border-slate-700 opacity-60'
+                                    selectedItem?.type === 'section' && selectedItem?.data?.id === section.id
+                                      ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/20'
+                                      : section.active ? 'border-slate-700' : 'border-slate-700 opacity-60'
                                   }`}
                                 >
                                   {/* Section Header */}
@@ -471,18 +473,16 @@ export default function InterviewStructureManager() {
                                         }
                                       </button>
                                       <FolderOpen className="w-5 h-5 text-blue-400 mt-1" />
-                                      <div className="flex-1 min-w-0">
-                                        <button
-                                          onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                          className="text-left w-full group"
-                                        >
-                                          <h3 className="text-base font-semibold text-white group-hover:text-blue-400 transition-colors">
-                                            {section.section_name}
-                                          </h3>
-                                          <p className="text-sm text-slate-400 mt-1">
-                                            {sectionQuestionsAll.length} questions • {activeCount} active • {inactiveCount} inactive
-                                          </p>
-                                        </button>
+                                      <div 
+                                        className="flex-1 min-w-0 cursor-pointer"
+                                        onClick={() => setSelectedItem({ type: 'section', data: section })}
+                                      >
+                                        <h3 className="text-base font-semibold text-white hover:text-blue-400 transition-colors">
+                                          {section.section_name}
+                                        </h3>
+                                        <p className="text-sm text-slate-400 mt-1">
+                                          {sectionQuestionsAll.length} questions • {activeCount} active • {inactiveCount} inactive
+                                        </p>
                                         <div className="flex gap-2 mt-2 flex-wrap">
                                           <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                             #{section.section_order}
