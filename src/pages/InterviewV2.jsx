@@ -1488,11 +1488,19 @@ Return ONLY the summary sentence, nothing else.`;
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine) return '';
 
+    // Cache hit
     if (displayNumberMapRef.current[questionId]) {
       return displayNumberMapRef.current[questionId];
     }
 
-    // Use ActiveOrdered for display number only (not routing)
+    // Prefer explicit question_number if available
+    const question = engine.QById?.[questionId];
+    if (question && typeof question.question_number === 'number') {
+      displayNumberMapRef.current[questionId] = question.question_number;
+      return question.question_number;
+    }
+
+    // Fallback: existing ActiveOrdered-based display logic
     const index = engine.ActiveOrdered.indexOf(questionId);
     if (index !== -1) {
       const displayNum = index + 1;
@@ -1500,6 +1508,7 @@ Return ONLY the summary sentence, nothing else.`;
       return displayNum;
     }
 
+    // Final fallback: derive from question_id like "Q065" -> "65"
     return questionId.replace(/^Q0*/, '');
   }, [engine]);
 

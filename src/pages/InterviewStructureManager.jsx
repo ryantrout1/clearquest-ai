@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -328,6 +327,42 @@ export default function InterviewStructureManager() {
     }
   };
 
+  const recalculateGlobalQuestionNumbers = async () => {
+    if (!sections || !questions) {
+      toast.error('Sections or questions not loaded');
+      return;
+    }
+
+    try {
+      const sortedSections = [...sections].sort(
+        (a, b) => (a.section_order || 0) - (b.section_order || 0)
+      );
+
+      let globalNumber = 1;
+
+      for (const section of sortedSections) {
+        if (section.active === false) continue;
+
+        const sectionQuestions = questions
+          .filter((q) => q.section_id === section.id && q.active !== false)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+        for (const question of sectionQuestions) {
+          await base44.entities.Question.update(question.id, {
+            question_number: globalNumber++
+          });
+        }
+      }
+
+      console.log(`✅ Recalculated question_number for ${globalNumber - 1} questions`);
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      toast.success(`Updated ${globalNumber - 1} question numbers`);
+    } catch (err) {
+      console.error('Error recalculating question numbers:', err);
+      toast.error('Failed to recalculate question numbers');
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -371,14 +406,25 @@ export default function InterviewStructureManager() {
             <div className="lg:col-span-2 bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-white">Structure Tree</h2>
-                <Button
-                  onClick={() => setSelectedItem({ type: 'new-section' })}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  New Section
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={recalculateGlobalQuestionNumbers}
+                    size="sm"
+                    variant="outline"
+                    className="bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600"
+                  >
+                    <Layers className="w-4 h-4 mr-1" />
+                    Recalculate Question Numbers
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedItem({ type: 'new-section' })}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    New Section
+                  </Button>
+                </div>
               </div>
 
               {sectionsLoading ? (
