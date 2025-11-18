@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -1495,18 +1496,27 @@ Return ONLY the summary sentence, nothing else.`;
   let sectionProgress = 0;
 
   if (currentPrompt && currentPrompt.type === 'question' && engine) {
-    const currentCategory = currentPrompt.category;
-    currentSection = currentCategory;
-
-    // Use questionsBySection for accurate section totals
-    const sectionQuestions = engine.questionsBySection[currentCategory] || [];
-    sectionTotal = sectionQuestions.length;
-    
-    sectionAnswered = transcript.filter(t => 
-      t.type === 'question' && 
-      engine.QById[t.questionId]?.category === currentCategory
-    ).length;
-    sectionProgress = sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0;
+    const currentQuestion = engine.QById[currentPrompt.id];
+    if (currentQuestion && currentQuestion.section_id) {
+      const sectionId = currentQuestion.section_id;
+      const sectionData = engine.sectionConfig[sectionId];
+      
+      if (sectionData) {
+        currentSection = sectionData.section_name;
+        
+        // Use questionsBySection with section ID (not category name)
+        const sectionQuestions = engine.questionsBySection[sectionId] || [];
+        sectionTotal = sectionQuestions.length;
+        
+        sectionAnswered = transcript.filter(t => {
+          if (t.type !== 'question') return false;
+          const q = engine.QById[t.questionId];
+          return q?.section_id === sectionId;
+        }).length;
+        
+        sectionProgress = sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0;
+      }
+    }
   }
 
   const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
