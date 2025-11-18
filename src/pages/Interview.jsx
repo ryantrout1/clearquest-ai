@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -610,6 +611,8 @@ export default function Interview() {
             content: "Start with Q001"
           });
           console.log("✅ Q001 initialization sent");
+          // Set loading to false after successful initialization
+          setIsLoading(false);
         } catch (err) {
           console.error("❌ Error initializing conversation:", err);
           setError("Failed to start interview. Please try again.");
