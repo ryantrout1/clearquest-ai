@@ -598,9 +598,10 @@ Return ONLY the summary sentence, nothing else.`;
 
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
     try {
-      const responses = await base44.entities.Response.filter({
-        session_id: sessionId
-      });
+      const [responses, allFollowups] = await Promise.all([
+        base44.entities.Response.filter({ session_id: sessionId }),
+        base44.entities.FollowUpResponse.filter({ session_id: sessionId })
+      ]);
 
       const sortedResponses = responses.sort((a, b) =>
         new Date(a.response_timestamp) - new Date(b.response_timestamp)
@@ -626,11 +627,42 @@ Return ONLY the summary sentence, nothing else.`;
             type: 'question',
             timestamp: response.response_timestamp
           });
+
+          // Restore follow-up questions if this response triggered a follow-up pack
+          if (response.triggered_followup && response.followup_pack) {
+            const followupsForThisResponse = allFollowups.filter(f => f.response_id === response.id);
+            
+            if (followupsForThisResponse.length > 0) {
+              const followup = followupsForThisResponse[0];
+              const packSteps = injectSubstanceIntoPackSteps(engineData, response.followup_pack, followup.substance_name);
+              
+              if (packSteps && followup.additional_details) {
+                // Reconstruct follow-up transcript entries in order
+                packSteps.forEach((step, stepIndex) => {
+                  const fieldKey = step.Field_Key;
+                  const answer = followup.additional_details[fieldKey];
+                  
+                  if (answer !== undefined && answer !== null) {
+                    restoredTranscript.push({
+                      id: `fu-${response.id}-${stepIndex}`,
+                      questionId: `${response.followup_pack}:${stepIndex}`,
+                      questionText: step.Prompt,
+                      answer: answer,
+                      packId: response.followup_pack,
+                      substanceName: followup.substance_name,
+                      type: 'followup',
+                      timestamp: response.response_timestamp
+                    });
+                  }
+                });
+              }
+            }
+          }
         }
       }
 
       setTranscript(restoredTranscript);
-      displayOrderRef.current = restoredTranscript.length;
+      displayOrderRef.current = restoredTranscript.filter(t => t.type === 'question').length;
 
       // Build set of answered question IDs (independent of timestamp order)
       const answeredQuestionIds = new Set();
