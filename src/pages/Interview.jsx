@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -8,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Shield, Send, Loader2, Pause, AlertCircle, Check, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MessageBubble from "../components/interview/MessageBubble";
-import CategoryProgress from "../components/interview/CategoryProgress";
+import SectionProgress from "../components/interview/SectionProgress";
 
 export default function Interview() {
   const navigate = useNavigate();
@@ -23,43 +22,41 @@ export default function Interview() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showQuickButtons, setShowQuickButtons] = useState(false);
-  const [showCategoryProgress, setShowCategoryProgress] = useState(false);
-  const [sections, setSections] = useState([]); // Renamed from categories to sections
+  const [showSectionProgress, setShowSectionProgress] = useState(false);
+  const [sections, setSections] = useState([]);
   const [isCompletionView, setIsCompletionView] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState(null);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [questions, setQuestions] = useState([]);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [currentSectionName, setCurrentSectionName] = useState("");
   
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const footerRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const retryCountRef = useRef(0);
-  const processedPairsRef = useRef(new Set()); // Track Q+A pairs
-  const processedFollowupsRef = useRef(new Set()); // Track follow-up details
-  const lastProcessedIndexRef = useRef(0); // Track last processed message index
-  const isInitializedRef = useRef(false); // Replaced conversationInitializedRef
+  const processedPairsRef = useRef(new Set());
+  const processedFollowupsRef = useRef(new Set());
+  const lastProcessedIndexRef = useRef(0);
+  const isInitializedRef = useRef(false);
   const shouldAutoScrollRef = useRef(true);
 
-  // CRITICAL: Auto-create Response AND FollowUpResponse records from conversation
   useEffect(() => {
     if (!sessionId || !messages || messages.length === 0 || !questions || questions.length === 0) return;
 
     const processMessages = async () => {
       console.log("🔍 Processing messages for Response/FollowUpResponse creation...");
       
-      // Process messages sequentially to maintain order
       for (let i = lastProcessedIndexRef.current; i < messages.length; i++) {
         const message = messages[i];
         
-        // CASE 1: Agent asks a Q### question
         if (message.role === 'assistant') {
           const questionMatch = message.content?.match(/\b(Q\d{1,3})\b/i);
           if (questionMatch) {
             const questionId = questionMatch[1].toUpperCase();
             
-            // Look for user's answer in the NEXT message
             const nextMessage = messages[i + 1];
             if (nextMessage && nextMessage.role === 'user') {
               const pairKey = `${questionId}-${nextMessage.id}`;
@@ -67,14 +64,12 @@ export default function Interview() {
               if (!processedPairsRef.current.has(pairKey)) {
                 let userAnswer = nextMessage.content?.trim() || '';
                 
-                // Skip system commands
                 if (userAnswer === "Ready to begin" || userAnswer === "Continue" || userAnswer === "Start with Q001") {
                   processedPairsRef.current.add(pairKey);
-                  i++; // Increment i to skip the user's message as it's a system command
+                  i++;
                   continue;
                 }
                 
-                // Normalize Yes/No
                 const normalized = userAnswer.toLowerCase();
                 if (normalized === 'yes' || normalized === 'no') {
                   userAnswer = userAnswer.charAt(0).toUpperCase() + userAnswer.slice(1).toLowerCase();
@@ -83,12 +78,19 @@ export default function Interview() {
                 const questionData = questions.find(q => q.question_id === questionId);
                 if (!questionData) {
                   console.warn(`⚠️ Question ${questionId} not found`);
-                  processedPairsRef.current.add(pairKey); // Mark as processed even if question data is missing to avoid re-checking
-                  i++; // Move past the user's message
+                  processedPairsRef.current.add(pairKey);
+                  i++;
                   continue;
                 }
                 
-                // Check if Response already exists
+                // Update current section name for header
+                if (questionData.section_id) {
+                  const sectionData = sections.find(s => s.id === questionData.section_id);
+                  if (sectionData) {
+                    setCurrentSectionName(sectionData.section_name);
+                  }
+                }
+                
                 const existing = await base44.entities.Response.filter({
                   session_id: sessionId,
                   question_id: questionId
@@ -104,7 +106,7 @@ export default function Interview() {
                       session_id: sessionId,
                       question_id: questionId,
                       question_text: questionData.question_text,
-                      category: questionData.category, // Keep category field from Question for Response
+                      category: questionData.category || '',
                       answer: userAnswer,
                       answer_array: null,
                       triggered_followup: triggersFollowup,
@@ -116,9 +118,8 @@ export default function Interview() {
                     
                     console.log(`✅ Response created for ${questionId}`);
                     
-                    // Update session progress
                     const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
-                    const progress = Math.round((allResponses.length / 162) * 100);
+                    const progress = totalQuestions > 0 ? Math.round((allResponses.length / totalQuestions) * 100) : 0;
                     
                     await base44.entities.InterviewSession.update(sessionId, {
                       total_questions_answered: allResponses.length,
@@ -134,21 +135,20 @@ export default function Interview() {
                 }
                 
                 processedPairsRef.current.add(pairKey);
-                i++; // Increment i to skip the user's message as it's part of this pair
+                i++;
               }
             }
           }
         }
         
-        // CASE 2: Agent asks follow-up questions (contains keywords like "date", "location", "what happened")
         if (message.role === 'assistant' && message.content) {
           const content = message.content.toLowerCase();
           const isFollowupAssistantPrompt = 
             (content.includes('tell me more') || content.includes('provide details') || 
              content.includes('what happened') || content.includes('describe the incident') ||
              content.includes('details about') || content.includes('can you explain')) &&
-            !content.match(/\b(q\d{1,3})\b/i) && // Not a primary Q### question
-            !content.includes('[show_completion]') && // Not a completion command
+            !content.match(/\b(q\d{1,3})\b/i) &&
+            !content.includes('[show_completion]') &&
             !content.includes('[show_category_overview]') &&
             !content.includes('[show_category_transition:');
           
@@ -174,7 +174,7 @@ export default function Interview() {
                     
                     try {
                       const userAnswer = nextMessage.content;
-                      const incidentDescription = userAnswer; // Default to full answer for now
+                      const incidentDescription = userAnswer;
 
                       await base44.entities.FollowUpResponse.create({
                         session_id: sessionId,
@@ -199,22 +199,20 @@ export default function Interview() {
                 }
                 
                 processedFollowupsRef.current.add(followupKey);
-                i++; // Increment i to skip the user's message
+                i++;
               }
             }
           }
         }
       }
       
-      // Update the last processed index
       lastProcessedIndexRef.current = messages.length;
     };
 
     const timeoutId = setTimeout(processMessages, 1500);
     return () => clearTimeout(timeoutId);
-  }, [messages, sessionId, questions, session]);
+  }, [messages, sessionId, questions, session, sections, totalQuestions]);
 
-  // Smooth scroll to bottom
   const smoothScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
     
@@ -228,14 +226,12 @@ export default function Interview() {
     });
   }, []);
 
-  // Instant scroll to bottom
   const instantScrollToBottom = useCallback(() => {
     if (!messagesContainerRef.current) return;
     const container = messagesContainerRef.current;
     container.scrollTop = container.scrollHeight;
   }, []);
 
-  // Generate report HTML content
   const generateReportHTML = (session, responses, followups, questions) => {
     const now = new Date().toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -246,7 +242,7 @@ export default function Interview() {
     const categorizedResponses = {};
     responses.forEach(response => {
       const question = questions.find(q => q.question_id === response.question_id);
-      const category = question?.category || 'Uncategorized'; // Still uses question.category for reporting
+      const category = question?.category || 'Uncategorized';
       if (!categorizedResponses[category]) {
         categorizedResponses[category] = [];
       }
@@ -290,13 +286,13 @@ export default function Interview() {
           <div class="session-info">
             <strong>Session Code:</strong> ${session.session_code}<br>
             <strong>Date:</strong> ${now}<br>
-            <strong>Questions Answered:</strong> ${responses.length} / 162<br>
+            <strong>Questions Answered:</strong> ${responses.length} / ${totalQuestions || 162}<br>
             <strong>Follow-Ups Triggered:</strong> ${followups.length}
           </div>
         </div>
         <div class="summary-box">
           <strong>Interview Summary:</strong><br>
-          Applicant completed ${responses.length} questions across ${sortedCategories.length} categories. 
+          Applicant completed ${responses.length} questions across ${sortedCategories.length} sections. 
           This report contains all responses provided during the interview session, including follow-up details where applicable.
         </div>
         ${sortedCategories.map(category => `
@@ -351,7 +347,7 @@ export default function Interview() {
     setIsSending(true);
     setError(null);
     setShowQuickButtons(false);
-    shouldAutoScrollRef.current = true; // Ensure auto-scroll after user sends
+    shouldAutoScrollRef.current = true;
 
     console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
 
@@ -364,7 +360,6 @@ export default function Interview() {
       retryCountRef.current = 0;
       setLastFailedMessage(null);
       
-      // Auto-scroll after sending
       setTimeout(() => {
         if (shouldAutoScrollRef.current) {
           smoothScrollToBottom();
@@ -406,7 +401,7 @@ export default function Interview() {
     
     setIsSending(true);
     setError(null);
-    shouldAutoScrollRef.current = true; // Ensure auto-scroll after edit
+    shouldAutoScrollRef.current = true;
     
     try {
       await base44.agents.addMessage(conversation, {
@@ -453,7 +448,7 @@ export default function Interview() {
         const conversationData = await base44.agents.getConversation(conversation.id);
         const existingMessages = conversationData.messages || [];
         setMessages(existingMessages);
-        shouldAutoScrollRef.current = true; // Ensure auto-scroll after resume
+        shouldAutoScrollRef.current = true;
         
         setTimeout(() => instantScrollToBottom(), 100);
         
@@ -474,36 +469,33 @@ export default function Interview() {
 
   const handleCompletion = useCallback(async () => {
     try {
-      // Fetch Section entities instead of Category entities
-      const [sectionsDataRaw, responsesData, questionsData] = await Promise.all([
-        base44.entities.Section.list(), 
+      const [sectionsData, responsesData, questionsData] = await Promise.all([
+        base44.entities.Section.list(),
         base44.entities.Response.filter({ session_id: sessionId }),
         base44.entities.Question.filter({ active: true })
       ]);
 
-      // Filter and sort sections based on 'active' status and 'section_order'
-      const sectionsData = sectionsDataRaw
+      const sectionProgress = sectionsData
         .filter(s => s.active !== false)
-        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+        .map(sec => {
+          const sectionQuestions = questionsData.filter(q => q.section_id === sec.id);
+          const answeredInSection = responsesData.filter(r => 
+            sectionQuestions.some(q => q.question_id === r.question_id)
+          );
 
-      const sectionProgress = sectionsData.map(sec => {
-        // Find questions belonging to this section using section_id
-        const sectionQuestions = questionsData.filter(q => q.section_id === sec.id);
-        const answeredInSection = responsesData.filter(r => 
-          sectionQuestions.some(q => q.question_id === r.question_id)
-        );
+          return {
+            ...sec,
+            section_name: sec.section_name,
+            section_order: sec.section_order,
+            total_questions: sectionQuestions.length,
+            answered_questions: answeredInSection.length
+          };
+        });
 
-        return {
-          category_label: sec.section_name, // CategoryProgress component expects 'category_label'
-          section_order: sec.section_order,
-          total_questions: sectionQuestions.length,
-          answered_questions: answeredInSection.length
-        };
-      });
-
-      setSections(sectionProgress); // Set the sections state
+      setSections(sectionProgress);
       setIsCompletionView(true);
-      setShowCategoryProgress(true);
+      setShowSectionProgress(true);
     } catch (err) {
       console.error("Error loading completion data:", err);
     }
@@ -546,7 +538,7 @@ export default function Interview() {
     } finally {
       setIsDownloadingReport(false);
     }
-  }, [sessionId, generateReportHTML]);
+  }, [sessionId, totalQuestions]);
 
   const handleContinueFromCompletion = () => {
     navigate(createPageUrl("InterviewDashboard"));
@@ -556,13 +548,25 @@ export default function Interview() {
     try {
       console.log("🔄 Loading session:", sessionId);
       
-      const [sessionData, allQuestions] = await Promise.all([
+      const [sessionData, allQuestions, allSections] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
-        base44.entities.Question.filter({ active: true })
+        base44.entities.Question.filter({ active: true }),
+        base44.entities.Section.list()
       ]);
       
       setSession(sessionData);
       setQuestions(allQuestions);
+      setSections(allSections);
+      
+      // Calculate total questions from active sections
+      const activeSections = allSections.filter(s => s.active !== false);
+      const totalQs = activeSections.reduce((sum, sec) => {
+        const secQuestions = allQuestions.filter(q => q.section_id === sec.id);
+        return sum + secQuestions.length;
+      }, 0);
+      setTotalQuestions(totalQs);
+      
+      console.log(`📊 Total active questions: ${totalQs}`);
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
@@ -577,14 +581,13 @@ export default function Interview() {
       if (sessionData.status === 'paused') {
         console.log("📍 Session is paused");
         setIsPaused(true);
-        setIsLoading(false); // Session is paused, loading is complete.
+        setIsLoading(false);
         setMessages(existingMessages);
-        return; // Exit early if paused
+        return;
       } else {
         setIsPaused(false);
       }
 
-      // Set up ONE-TIME subscription
       console.log("📡 Setting up message subscription");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
@@ -595,13 +598,11 @@ export default function Interview() {
         }
       );
 
-      // Set initial messages for rendering
       setMessages(existingMessages);
       
-      // If conversation is empty and not yet initialized, send Q001 trigger
       if (existingMessages.length === 0 && !isInitializedRef.current) {
         console.log("🎬 Initializing new conversation with Q001");
-        isInitializedRef.current = true; // Mark as initialized to prevent re-sending
+        isInitializedRef.current = true;
         
         try {
           await base44.agents.addMessage(conversationData, {
@@ -609,15 +610,12 @@ export default function Interview() {
             content: "Start with Q001"
           });
           console.log("✅ Q001 initialization sent");
-          // Keep isLoading true. The loader will disappear when the first agent message
-          // arrives via the subscription and triggers a re-render.
         } catch (err) {
           console.error("❌ Error initializing conversation:", err);
           setError("Failed to start interview. Please try again.");
-          setIsLoading(false); // If initialization fails, hide loader and show error.
+          setIsLoading(false);
         }
       } else {
-        // If there were existing messages, or it was already initialized, we are done with the initial load.
         setIsLoading(false);
       }
 
@@ -626,7 +624,6 @@ export default function Interview() {
       setTimeout(() => {
         instantScrollToBottom();
         
-        // Check for quick buttons based on last assistant message
         if (existingMessages.length > 0) {
           const lastAssistantMessage = [...existingMessages].reverse().find(m => m.role === 'assistant');
           if (lastAssistantMessage?.content) {
@@ -644,7 +641,6 @@ export default function Interview() {
     }
   };
 
-  // Mount effect - load session ONCE
   useEffect(() => {
     if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
@@ -661,7 +657,6 @@ export default function Interview() {
     };
   }, [sessionId, navigate]);
 
-  // Scroll restoration
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
@@ -674,7 +669,6 @@ export default function Interview() {
     };
   }, []);
 
-  // Footer height tracking
   useEffect(() => {
     const updateFooterHeight = () => {
       if (footerRef.current) {
@@ -693,13 +687,12 @@ export default function Interview() {
     };
   }, [showQuickButtons, error]);
 
-  // Scroll listener to track if user has scrolled up
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      const threshold = 200; // Pixels from bottom to consider "at bottom"
+      const threshold = 200;
       const position = container.scrollTop + container.clientHeight;
       const bottom = container.scrollHeight;
       shouldAutoScrollRef.current = (bottom - position < threshold);
@@ -709,7 +702,6 @@ export default function Interview() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-scroll on new messages if user is at the bottom
   useEffect(() => {
     if (messages.length > 0 && shouldAutoScrollRef.current) {
       setTimeout(() => {
@@ -718,7 +710,6 @@ export default function Interview() {
     }
   }, [messages.length, smoothScrollToBottom]);
 
-  // Check for completion and quick buttons
   useEffect(() => {
     if (messages.length === 0) return;
 
@@ -727,18 +718,18 @@ export default function Interview() {
     if (!lastAssistantMessage?.content) return;
 
     if (lastAssistantMessage.content.includes('[SHOW_COMPLETION]')) {
-      if (!showCategoryProgress) {
+      if (!showSectionProgress) {
         handleCompletion();
       }
       return;
     }
 
-    if (!showCategoryProgress) {
+    if (!showSectionProgress) {
       const content = lastAssistantMessage.content.replace(/\[.*?\]/g, '').toLowerCase();
       const hasQuestion = content.includes('?');
       setShowQuickButtons(hasQuestion);
     }
-  }, [messages, showCategoryProgress, handleCompletion]);
+  }, [messages, showSectionProgress, handleCompletion]);
 
   const displayMessages = useMemo(() => {
     return messages
@@ -747,9 +738,9 @@ export default function Interview() {
         message.content.trim() !== '' &&
         !message.content.includes('[SHOW_CATEGORY_OVERVIEW]') &&
         !message.content.includes('[SHOW_CATEGORY_TRANSITION:') &&
-        message.content !== 'Start with Q001' && // Filter out initial system trigger
-        message.content !== 'Ready to begin' && // Filter out user's 'Ready to begin' or similar system commands
-        message.content !== 'Continue' // Filter out user's 'Continue' or similar system commands
+        message.content !== 'Start with Q001' &&
+        message.content !== 'Ready to begin' &&
+        message.content !== 'Continue'
       )
       .map((msg, index) => ({
         ...msg,
@@ -790,7 +781,6 @@ export default function Interview() {
     );
   }
 
-  // Paused State View
   if (isPaused) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
@@ -822,7 +812,7 @@ export default function Interview() {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400">Questions Completed</span>
-                <span className="text-white font-semibold">{session?.total_questions_answered || 0} / 162</span>
+                <span className="text-white font-semibold">{session?.total_questions_answered || 0} / {totalQuestions}</span>
               </div>
             </div>
 
@@ -848,17 +838,18 @@ export default function Interview() {
     );
   }
 
-  if (showCategoryProgress && isCompletionView) {
+  if (showSectionProgress && isCompletionView) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <CategoryProgress
-          categories={sections} // Use sections state here
-          currentCategory={null}
+        <SectionProgress
+          sections={sections}
+          currentSection={null}
           onContinue={handleContinueFromCompletion}
           isInitial={false}
           isComplete={true}
           onDownloadReport={handleDownloadReport}
           isDownloading={isDownloadingReport}
+          totalQuestions={totalQuestions}
         />
       </div>
     );
@@ -866,7 +857,6 @@ export default function Interview() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
-      {/* Header */}
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
@@ -875,7 +865,7 @@ export default function Interview() {
               <div>
                 <h1 className="text-sm md:text-lg font-semibold text-white">ClearQuest Interview</h1>
                 <p className="text-xs md:text-sm text-slate-400 mt-0.5">
-                  {session?.current_section || 'Interview Progress'} {/* Updated to current_section */}
+                  {currentSectionName || 'Background Investigation'}
                 </p>
               </div>
             </div>
@@ -892,7 +882,6 @@ export default function Interview() {
         </div>
       </header>
 
-      {/* Messages - with CSS overflow anchor */}
       <main 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto"
@@ -921,7 +910,6 @@ export default function Interview() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer 
         ref={footerRef}
         className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 px-4 py-4 shadow-2xl z-50"

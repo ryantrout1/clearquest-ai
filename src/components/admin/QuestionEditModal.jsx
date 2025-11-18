@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -129,7 +128,7 @@ async function generateNextQuestionId() {
 export default function QuestionEditModal({ question, onClose, onSave }) {
   const [formData, setFormData] = useState({
     question_id: '',
-    category: '',
+    section_id: '',
     question_text: '',
     response_type: 'yes_no',
     display_order: 1,
@@ -141,61 +140,69 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingId, setIsGeneratingId] = useState(false);
   const [errors, setErrors] = useState({});
+  const [sections, setSections] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isLoadingSections, setIsLoadingSections] = useState(true);
   const [isGateQuestion, setIsGateQuestion] = useState(false);
+  const [currentSectionEntity, setCurrentSectionEntity] = useState(null);
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
 
   useEffect(() => {
-    async function loadCategories() {
+    async function loadSections() {
       try {
-        const cats = await base44.entities.Category.list();
-        const sortedCats = cats
-          .filter(c => c.active !== false)
+        const [secs, cats] = await Promise.all([
+          base44.entities.Section.list(),
+          base44.entities.Category.list()
+        ]);
+        const sortedSecs = secs
+          .filter(s => s.active !== false)
           .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
-        setCategories(sortedCats);
+        setSections(sortedSecs);
+        setCategories(cats);
       } catch (err) {
-        console.error('Error loading categories:', err);
-        toast.error('Failed to load categories');
+        console.error('Error loading sections:', err);
+        toast.error('Failed to load sections');
       } finally {
-        setIsLoadingCategories(false);
+        setIsLoadingSections(false);
       }
     }
 
-    loadCategories();
+    loadSections();
   }, []);
 
-  // Determine default pack group based on category
   useEffect(() => {
-    if (formData.category) {
-      const categoryMap = {
-        "Applications with Other Law Enforcement Agencies": "Law Enforcement",
-        "Prior Law Enforcement": "Law Enforcement",
-        "Prior Law Enforcement ONLY": "Law Enforcement",
-        "Driving Record": "Driving & Traffic",
-        "Criminal Involvement / Police Contacts": "Criminal History",
-        "Extremist Organizations": "Extremism",
-        "Sexual Activities": "Sexual Misconduct",
-        "Financial History": "Financial Issues",
-        "Illegal Drug / Narcotic History": "Drug Use & Distribution",
-        "Alcohol History": "Alcohol",
-        "Military History": "Military",
-        "Employment History": "Employment & Discipline",
-        "General Disclosures & Eligibility": "Disclosure & Integrity"
-      };
-      setDefaultPackGroup(categoryMap[formData.category] || null);
+    if (formData.section_id && sections.length > 0) {
+      const section = sections.find(s => s.id === formData.section_id);
+      if (section) {
+        const categoryMap = {
+          "Applications with Other Law Enforcement Agencies": "Law Enforcement",
+          "Prior Law Enforcement": "Law Enforcement",
+          "Prior Law Enforcement ONLY": "Law Enforcement",
+          "Driving Record": "Driving & Traffic",
+          "Criminal Involvement / Police Contacts": "Criminal History",
+          "Extremist Organizations": "Extremism",
+          "Sexual Activities": "Sexual Misconduct",
+          "Financial History": "Financial Issues",
+          "Illegal Drug / Narcotic History": "Drug Use & Distribution",
+          "Alcohol History": "Alcohol",
+          "Military History": "Military",
+          "Employment History": "Employment & Discipline",
+          "General Disclosures & Eligibility": "Disclosure & Integrity"
+        };
+        setDefaultPackGroup(categoryMap[section.section_name] || null);
+      }
     } else {
       setDefaultPackGroup(null);
     }
-  }, [formData.category]);
+  }, [formData.section_id, sections]);
 
   useEffect(() => {
     async function initializeForm() {
       if (question) {
         setFormData({
           question_id: question.question_id || '',
-          category: question.category || '',
+          section_id: question.section_id || '',
           question_text: question.question_text || '',
           response_type: question.response_type || 'yes_no',
           display_order: question.display_order || 1,
@@ -205,13 +212,14 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           substance_name: question.substance_name || ''
         });
 
-        // Check if this question is a gate question
-        if (question.category) {
-          const cats = await base44.entities.Category.filter({ category_label: question.category });
-          if (cats.length > 0) {
-            const cat = cats[0];
+        if (question.section_id && sections.length > 0) {
+          const sec = sections.find(s => s.id === question.section_id);
+          setCurrentSectionEntity(sec);
+          
+          if (sec) {
+            const cat = categories.find(c => c.category_label === sec.section_name);
             setCurrentCategoryEntity(cat);
-            setIsGateQuestion(cat.gate_question_id === question.question_id);
+            setIsGateQuestion(cat?.gate_question_id === question.question_id);
           }
         }
       } else {
@@ -226,29 +234,26 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     }
 
     initializeForm();
-  }, [question]);
+  }, [question, sections, categories]);
 
-  // Update category entity when category changes
   useEffect(() => {
-    async function updateCategoryEntity() {
-      if (formData.category) {
-        const cats = await base44.entities.Category.filter({ category_label: formData.category });
-        if (cats.length > 0) {
-          const cat = cats[0];
+    async function updateSectionEntity() {
+      if (formData.section_id && sections.length > 0) {
+        const sec = sections.find(s => s.id === formData.section_id);
+        setCurrentSectionEntity(sec);
+        
+        if (sec) {
+          const cat = categories.find(c => c.category_label === sec.section_name);
           setCurrentCategoryEntity(cat);
-          // Check if current question is the gate question
-          setIsGateQuestion(cat.gate_question_id === formData.question_id);
-        } else {
-          setCurrentCategoryEntity(null);
-          setIsGateQuestion(false);
+          setIsGateQuestion(cat?.gate_question_id === formData.question_id);
         }
       }
     }
 
-    if (formData.category && formData.question_id) {
-      updateCategoryEntity();
+    if (formData.section_id && formData.question_id) {
+      updateSectionEntity();
     }
-  }, [formData.category, formData.question_id]);
+  }, [formData.section_id, formData.question_id, sections, categories]);
 
   const validate = () => {
     const newErrors = {};
@@ -256,10 +261,9 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
     if (!formData.question_text?.trim()) {
       newErrors.question_text = 'Question text is required';
     }
-    if (!formData.category?.trim()) {
-      newErrors.category = 'Category is required';
+    if (!formData.section_id?.trim()) {
+      newErrors.section_id = 'Section is required';
     }
-    // Only validate question_id for existing questions
     if (question?.id && !formData.question_id?.trim()) {
       newErrors.question_id = 'Question ID is required';
     }
@@ -273,9 +277,13 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
 
     setIsSaving(true);
     try {
+      // Get section to populate category field for backward compatibility
+      const section = sections.find(s => s.id === formData.section_id);
+      
       const saveData = {
         question_id: formData.question_id.trim(),
-        category: formData.category.trim(),
+        section_id: formData.section_id.trim(),
+        category: section?.section_name || '', // Populate for backward compatibility
         question_text: formData.question_text.trim(),
         response_type: formData.response_type,
         display_order: parseInt(formData.display_order) || 1,
@@ -285,18 +293,17 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
         substance_name: formData.substance_name || null
       };
 
-      // Save the question
       if (question?.id) {
         await base44.entities.Question.update(question.id, saveData);
       } else {
         await base44.entities.Question.create(saveData);
       }
 
-      // Update category gate question setting
+      // Update category gate question setting (for backward compatibility with legacy engine)
       if (currentCategoryEntity) {
         const categoryUpdate = {
-          gate_question_id: isGateQuestion ? formData.question_id.trim() : null,
-          gate_skip_if_value: isGateQuestion ? 'No' : null
+          gate_question_id: isGateQuestion ? formData.question_id.trim() : (currentCategoryEntity.gate_question_id || null),
+          gate_skip_if_value: isGateQuestion ? 'No' : (currentCategoryEntity.gate_skip_if_value || null)
         };
         await base44.entities.Category.update(currentCategoryEntity.id, categoryUpdate);
       }
@@ -343,24 +350,24 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
           </div>
 
           <div>
-            <Label htmlFor="category" className="text-slate-300">Section / Category</Label>
+            <Label htmlFor="section_id" className="text-slate-300">Section</Label>
             <Select
-              value={formData.category}
-              onValueChange={(v) => setFormData({...formData, category: v})}
-              disabled={isLoadingCategories}
+              value={formData.section_id}
+              onValueChange={(v) => setFormData({...formData, section_id: v})}
+              disabled={isLoadingSections}
             >
               <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-                <SelectValue placeholder={isLoadingCategories ? "Loading categories..." : "Select a section"} />
+                <SelectValue placeholder={isLoadingSections ? "Loading sections..." : "Select a section"} />
               </SelectTrigger>
               <SelectContent>
-                {categories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.category_label}>
-                    {cat.category_label}
+                {sections.map(sec => (
+                  <SelectItem key={sec.id} value={sec.id}>
+                    {sec.section_name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.category && <p className="text-xs text-red-400 mt-1">{errors.category}</p>}
+            {errors.section_id && <p className="text-xs text-red-400 mt-1">{errors.section_id}</p>}
           </div>
 
           <div>
@@ -514,7 +521,7 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 id="gate_question"
                 checked={isGateQuestion}
                 onCheckedChange={setIsGateQuestion}
-                disabled={!formData.category || formData.response_type !== 'yes_no'}
+                disabled={!formData.section_id || formData.response_type !== 'yes_no'}
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
