@@ -929,19 +929,47 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
 
   // Load follow-up pack details if this is a question with a pack
-  const selectedFollowUpPack = selectedItem?.type === 'question' && (formData?.followup_pack || formData?.followup_pack_id)
-    ? followUpPacks.find(pack => 
-        pack.followup_pack_id === formData.followup_pack || 
-        pack.followup_pack_id === formData.followup_pack_id ||
-        pack.pack_name === formData.followup_pack
-      )
-    : null;
+  // Using same logic as FollowupPackManager to ensure consistency
+  const selectedFollowUpPack = React.useMemo(() => {
+    if (selectedItem?.type !== 'question' || !formData?.followup_pack) {
+      return null;
+    }
+    
+    const pack = followUpPacks.find(p => 
+      p.followup_pack_id === formData.followup_pack || 
+      p.pack_name === formData.followup_pack
+    );
+    
+    // Debug logging
+    if (pack) {
+      console.log('📦 Selected Follow-Up Pack:', {
+        packId: pack.followup_pack_id,
+        packName: pack.pack_name,
+        questionFollowupPack: formData.followup_pack
+      });
+    }
+    
+    return pack;
+  }, [selectedItem, formData?.followup_pack, followUpPacks]);
 
-  const packQuestions = selectedFollowUpPack
-    ? followUpQuestions
-        .filter(q => q.followup_pack_id === selectedFollowUpPack.followup_pack_id)
-        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-    : [];
+  // Filter questions using the exact same logic as FollowupPackManager
+  const packQuestions = React.useMemo(() => {
+    if (!selectedFollowUpPack) return [];
+    
+    const questions = followUpQuestions
+      .filter(q => q.followup_pack_id === selectedFollowUpPack.followup_pack_id)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    // Debug logging
+    console.log('📋 Pack Questions:', {
+      packId: selectedFollowUpPack.followup_pack_id,
+      totalQuestions: followUpQuestions.length,
+      matchingQuestions: questions.length,
+      questions: questions.map(q => ({ id: q.id, text: q.question_text, active: q.active }))
+    });
+    
+    return questions;
+  }, [selectedFollowUpPack, followUpQuestions]);
 
   useEffect(() => {
     if (selectedItem?.data) {
@@ -1407,6 +1435,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                 <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
                   <AlertCircle className="w-10 h-10 mx-auto mb-2 text-yellow-600" />
                   <p className="text-xs">Follow-Up Pack "{formData.followup_pack}" not found in database.</p>
+                  <p className="text-xs text-slate-500 mt-2">Available packs: {followUpPacks.length}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1415,11 +1444,14 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                     <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30">
                       {selectedFollowUpPack.pack_name || selectedFollowUpPack.followup_pack_id}
                     </Badge>
+                    <span className="text-slate-500 text-xs ml-auto">{packQuestions.length} questions</span>
                   </div>
 
                   {packQuestions.length === 0 ? (
                     <div className="text-center py-4 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                      <AlertCircle className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
                       <p className="text-xs">This Follow-Up Pack has no deterministic questions defined yet.</p>
+                      <p className="text-xs text-slate-500 mt-1">Questions are loaded from FollowUpQuestion entity</p>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-96 overflow-y-auto">
