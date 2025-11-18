@@ -1061,8 +1061,9 @@ Return ONLY the summary sentence, nothing else.`;
             }
           }
         }
+      }
 
-      } else if (currentItem.type === 'followup') {
+      else if (currentItem.type === 'followup') {
         const { packId, stepIndex, substanceName } = currentItem;
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
 
