@@ -657,6 +657,31 @@ Return ONLY the summary sentence, nothing else.`;
                 });
               }
             }
+
+            // Restore AI investigator probing exchanges
+            if (response.investigator_probing && Array.isArray(response.investigator_probing) && response.investigator_probing.length > 0) {
+              response.investigator_probing.forEach((exchange, idx) => {
+                // Add investigator question
+                restoredTranscript.push({
+                  id: `ai-q-${response.id}-${idx}`,
+                  questionId: response.question_id,
+                  questionText: exchange.probing_question,
+                  packId: response.followup_pack,
+                  type: 'ai_probing_question',
+                  timestamp: exchange.timestamp || response.response_timestamp
+                });
+                
+                // Add candidate response
+                restoredTranscript.push({
+                  id: `ai-a-${response.id}-${idx}`,
+                  questionId: response.question_id,
+                  answer: exchange.candidate_response,
+                  packId: response.followup_pack,
+                  type: 'ai_probing_answer',
+                  timestamp: exchange.timestamp || response.response_timestamp
+                });
+              });
+            }
           }
         }
       }
@@ -2340,6 +2365,34 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
           <div className="bg-orange-600 rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl">
             <p className="text-white text-sm md:text-base font-medium break-words">{entry.answer}</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'ai_probing_question') {
+    return (
+      <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
+        <div className="flex items-start gap-2 md:gap-3">
+          <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-3 h-3 md:w-3.5 h-3.5 text-purple-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
+              <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator</span>
+            </div>
+            <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{entry.questionText}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'ai_probing_answer') {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-purple-600 rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl">
+          <p className="text-white text-sm md:text-base font-medium break-words">{entry.answer}</p>
         </div>
       </div>
     );
