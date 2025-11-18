@@ -139,10 +139,16 @@ export default function SessionDetails() {
 
   const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
 
-  const allResponsesWithNumbers = responses.map((r, idx) => ({
-    ...r,
-    display_number: idx + 1
-  }));
+  const allResponsesWithNumbers = responses.map((r, idx) => {
+    // Prefer question_number from Question entity, fallback to sequential index
+    const questionEntity = questions.find(q => q.question_id === r.question_id);
+    const displayNumber = questionEntity?.question_number || (idx + 1);
+    
+    return {
+      ...r,
+      display_number: displayNumber
+    };
+  });
 
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
