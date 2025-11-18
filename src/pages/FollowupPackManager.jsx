@@ -112,13 +112,61 @@ export default function FollowupPackManager() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
+  const urlParams = new URLSearchParams(window.location.search);
+  const highlightPackId = urlParams.get('packId');
+  
   const [user, setUser] = useState(null);
   const [selectedPack, setSelectedPack] = useState(null);
-  const [expandedGroups, setExpandedGroups] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [leftWidth, setLeftWidth] = useState(35);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Auto-select pack from URL
+  useEffect(() => {
+    if (highlightPackId && packs.length > 0) {
+      const pack = packs.find(p => p.id === highlightPackId);
+      if (pack) {
+        setSelectedPack(pack);
+      }
+    }
+  }, [highlightPackId, packs]);
+
+  // Resizable divider logic
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      const container = document.getElementById('followup-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      const clampedWidth = Math.min(Math.max(newLeftWidth, 20), 80);
+      setLeftWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   const checkAuth = async () => {
     const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
@@ -180,28 +228,16 @@ export default function FollowupPackManager() {
     return map;
   }, [interviewQuestions]);
 
-  // Group packs by category
-  const groupedPacks = {};
-  Object.entries(PACK_GROUPS).forEach(([groupName, packIds]) => {
-    const groupPacks = packs.filter(p => packIds.includes(p.followup_pack_id));
-    if (groupPacks.length > 0) {
-      groupedPacks[groupName] = groupPacks;
-    }
+  // Filter packs by search
+  const filteredPacks = packs.filter(pack => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      pack.pack_name?.toLowerCase().includes(search) ||
+      pack.followup_pack_id?.toLowerCase().includes(search) ||
+      pack.description?.toLowerCase().includes(search)
+    );
   });
-
-  // Handle ungrouped packs
-  const allGroupedIds = Object.values(PACK_GROUPS).flat();
-  const ungroupedPacks = packs.filter(p => !allGroupedIds.includes(p.followup_pack_id));
-  if (ungroupedPacks.length > 0) {
-    groupedPacks["Other"] = ungroupedPacks;
-  }
-
-  const toggleGroup = (groupName) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName]
-    }));
-  };
 
   if (!user) {
     return (
@@ -236,109 +272,106 @@ export default function FollowupPackManager() {
         </div>
       </div>
 
-      <div className="px-6 py-6">
-        <div className="max-w-[1600px] mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Pack List - Grouped */}
-            <div className="lg:col-span-1 space-y-3">
+      <div id="followup-container" className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Pack List */}
+        <div 
+          style={{ width: `${leftWidth}%` }}
+          className="overflow-auto border-r border-slate-700"
+        >
+          <div className="p-6">
+            <div className="mb-4">
+              <Input
+                placeholder="Search packs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-slate-800 border-slate-600 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
               {packsLoading ? (
                 <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
                   <p className="text-slate-400 text-center py-8">Loading packs...</p>
                 </div>
+              ) : filteredPacks.length === 0 ? (
+                <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
+                  <p className="text-slate-400 text-center py-8">No packs found</p>
+                </div>
               ) : (
-                Object.entries(groupedPacks).map(([groupName, groupPacks]) => (
-                  <div key={groupName} className="bg-slate-800/30 border border-slate-700/50 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => toggleGroup(groupName)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-slate-700/30 transition-colors"
+                filteredPacks.map((pack) => {
+                  const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
+                  const activeQuestions = packQuestions.filter(q => q.active !== false).length;
+                  const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
+                  
+                  return (
+                    <div
+                      key={pack.id}
+                      onClick={() => setSelectedPack(pack)}
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
+                        selectedPack?.id === pack.id 
+                          ? 'bg-amber-950/30 border-2 border-amber-500/50' 
+                          : 'bg-slate-800/50 border border-slate-700 hover:border-amber-500/30'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        {expandedGroups[groupName] ? (
-                          <ChevronDown className="w-5 h-5 text-amber-400" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-amber-400" />
-                        )}
-                        <h3 className="text-base font-semibold text-amber-400">{groupName}</h3>
+                      <div className="flex items-start gap-3">
+                        <Package className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-base font-semibold text-white leading-tight">
+                            {pack.pack_name}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1 font-mono break-all">
+                            {pack.followup_pack_id}
+                          </p>
+                          {pack.description && (
+                            <p className="text-xs text-slate-500 mt-2 line-clamp-2">
+                              {pack.description}
+                            </p>
+                          )}
+                          <div className="flex gap-1.5 mt-3 flex-wrap">
+                            <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
+                              {packQuestions.length} total • {activeQuestions} active
+                            </Badge>
+                            {triggeringQuestions.length > 0 && (
+                              <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                Used by {triggeringQuestions.length}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                        {groupPacks.length}
-                      </Badge>
-                    </button>
-
-                    {expandedGroups[groupName] && (
-                      <div className="border-t border-slate-700/50 p-2 space-y-1">
-                        {groupPacks.map((pack) => {
-                          const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
-                          const activeQuestions = packQuestions.filter(q => q.active !== false).length;
-                          const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
-                          const isOrphaned = triggeringQuestions.length === 0;
-                          
-                          return (
-                            <div
-                              key={pack.id}
-                              onClick={() => setSelectedPack(pack)}
-                              className={`p-3 rounded-lg transition-all cursor-pointer ${
-                                selectedPack?.id === pack.id 
-                                  ? 'bg-amber-950/30 border border-amber-500/50' 
-                                  : 'bg-slate-900/50 border border-slate-700 hover:border-amber-500/30'
-                              }`}
-                            >
-                              <div className="flex items-start gap-2">
-                                <Package className="w-4 h-4 text-amber-400 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-sm font-medium text-white leading-tight">
-                                    {pack.pack_name}
-                                  </h4>
-                                  <p className="text-xs text-slate-400 mt-1 font-mono">
-                                    {pack.followup_pack_id}
-                                  </p>
-                                  <div className="flex gap-1.5 mt-2 flex-wrap">
-                                    <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                      {activeQuestions} questions
-                                    </Badge>
-                                    {isOrphaned ? (
-                                      <Badge variant="outline" className="text-xs border-yellow-600 text-yellow-400">
-                                        Not used
-                                      </Badge>
-                                    ) : (
-                                      <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                        <FileText className="w-3 h-3 mr-1" />
-                                        {triggeringQuestions.length} Q
-                                      </Badge>
-                                    )}
-                                    {pack.requires_completion && (
-                                      <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
-                                        Required
-                                      </Badge>
-                                    )}
-                                    <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-                                      {BEHAVIOR_TYPE_NAMES[pack.behavior_type] || pack.behavior_type}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))
+                    </div>
+                  );
+                })
               )}
             </div>
+          </div>
+        </div>
 
-            {/* Detail Panel - Editable */}
-            <div className="lg:col-span-2 lg:sticky lg:top-6 lg:self-start bg-slate-800/30 border border-slate-700/50 rounded-lg p-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
-              <PackDetailPanel
-                pack={selectedPack}
-                questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
-                triggeringQuestions={packUsageMap[selectedPack?.followup_pack_id] || []}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
-                  queryClient.invalidateQueries({ queryKey: ['questions'] });
-                }}
-              />
-            </div>
+        {/* Vertical Drag Handle */}
+        <div 
+          className={`w-2 flex-shrink-0 transition-colors ${
+            isDragging ? 'bg-amber-500' : 'bg-slate-800 hover:bg-amber-600'
+          }`}
+          onMouseDown={handleMouseDown}
+          style={{ cursor: 'col-resize', userSelect: 'none' }}
+        />
+
+        {/* Right Panel - Pack Details */}
+        <div 
+          style={{ width: `${100 - leftWidth}%` }}
+          className="overflow-auto"
+        >
+          <div className="p-6">
+            <PackDetailPanel
+              pack={selectedPack}
+              questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
+              triggeringQuestions={packUsageMap[selectedPack?.followup_pack_id] || []}
+              onUpdate={() => {
+                queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
+                queryClient.invalidateQueries({ queryKey: ['followUpQuestions'] });
+                queryClient.invalidateQueries({ queryKey: ['questions'] });
+              }}
+            />
           </div>
         </div>
       </div>
@@ -348,8 +381,16 @@ export default function FollowupPackManager() {
 
 function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [newQuestion, setNewQuestion] = useState({
+    question_text: '',
+    response_type: 'text',
+    active: true
+  });
 
   useEffect(() => {
     if (pack) {
@@ -383,6 +424,75 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
 
   const handleNavigateToQuestion = (questionId) => {
     navigate(createPageUrl(`InterviewStructureManager?questionId=${questionId}`));
+  };
+
+  const handleAddQuestion = async () => {
+    if (!newQuestion.question_text.trim() || !pack) return;
+    
+    try {
+      const maxOrder = Math.max(0, ...questions.map(q => q.display_order || 0));
+      await base44.entities.FollowUpQuestion.create({
+        followup_question_id: `${pack.followup_pack_id}_Q${Date.now()}`,
+        followup_pack_id: pack.followup_pack_id,
+        question_text: newQuestion.question_text,
+        response_type: newQuestion.response_type,
+        display_order: maxOrder + 1,
+        active: true
+      });
+      
+      setNewQuestion({ question_text: '', response_type: 'text', active: true });
+      setShowAddQuestion(false);
+      onUpdate();
+      toast.success('Question added');
+    } catch (err) {
+      toast.error('Failed to add question');
+    }
+  };
+
+  const handleUpdateQuestion = async (questionId, updates) => {
+    try {
+      await base44.entities.FollowUpQuestion.update(questionId, updates);
+      setEditingQuestion(null);
+      onUpdate();
+      toast.success('Question updated');
+    } catch (err) {
+      toast.error('Failed to update question');
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    if (!confirm('Delete this question? This cannot be undone.')) return;
+    
+    try {
+      await base44.entities.FollowUpQuestion.delete(questionId);
+      onUpdate();
+      toast.success('Question deleted');
+    } catch (err) {
+      toast.error('Failed to delete question');
+    }
+  };
+
+  const handleReorderQuestion = async (questionId, direction) => {
+    const currentIndex = sortedQuestions.findIndex(q => q.id === questionId);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= sortedQuestions.length) return;
+    
+    try {
+      const items = [...sortedQuestions];
+      const [moved] = items.splice(currentIndex, 1);
+      items.splice(newIndex, 0, moved);
+      
+      await Promise.all(items.map((q, idx) => 
+        base44.entities.FollowUpQuestion.update(q.id, { display_order: idx + 1 })
+      ));
+      
+      onUpdate();
+      toast.success('Question order updated');
+    } catch (err) {
+      toast.error('Failed to reorder question');
+    }
   };
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -568,16 +678,165 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
         )}
       </div>
 
-      {/* Triggering Questions - Moved to bottom */}
+      {/* Deterministic Questions Editor */}
+      <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-purple-400">Deterministic Questions</h4>
+          <Button
+            onClick={() => setShowAddQuestion(true)}
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Question
+          </Button>
+        </div>
+
+        {showAddQuestion && (
+          <div className="bg-slate-900/50 border border-purple-500/50 rounded-lg p-3 mb-3">
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Question text..."
+                value={newQuestion.question_text}
+                onChange={(e) => setNewQuestion({...newQuestion, question_text: e.target.value})}
+                className="bg-slate-800 border-slate-600 text-white min-h-20"
+              />
+              <div className="flex gap-2">
+                <Select
+                  value={newQuestion.response_type}
+                  onValueChange={(v) => setNewQuestion({...newQuestion, response_type: v})}
+                >
+                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">Text</SelectItem>
+                    <SelectItem value="yes_no">Yes/No</SelectItem>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddQuestion} className="bg-emerald-600 hover:bg-emerald-700">
+                  Save
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddQuestion(false)} className="border-slate-600">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {sortedQuestions.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700">
+            <p className="text-sm">This pack has no deterministic questions yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sortedQuestions.map((q, idx) => (
+              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+                {editingQuestion?.id === q.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingQuestion.question_text}
+                      onChange={(e) => setEditingQuestion({...editingQuestion, question_text: e.target.value})}
+                      className="bg-slate-800 border-slate-600 text-white min-h-20"
+                    />
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm"
+                        onClick={() => handleUpdateQuestion(q.id, { question_text: editingQuestion.question_text })}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Save
+                      </Button>
+                      <Button 
+                        size="sm"
+                        variant="outline" 
+                        onClick={() => setEditingQuestion(null)}
+                        className="border-slate-600"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleReorderQuestion(q.id, 'up')}
+                        disabled={idx === 0}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-white"
+                      >
+                        <ChevronDown className="w-4 h-4 rotate-180" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleReorderQuestion(q.id, 'down')}
+                        disabled={idx === sortedQuestions.length - 1}
+                        className="h-6 w-6 p-0 text-slate-400 hover:text-white"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                      <span className="text-sm font-bold text-purple-300">#{idx + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white break-words leading-relaxed">{q.question_text}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                          {q.response_type || 'text'}
+                        </Badge>
+                        <Switch
+                          checked={q.active !== false}
+                          onCheckedChange={(checked) => handleUpdateQuestion(q.id, { active: checked })}
+                          className="data-[state=checked]:bg-emerald-600"
+                        />
+                        <span className="text-xs text-slate-400">
+                          {q.active !== false ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingQuestion(q)}
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Triggering Questions */}
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
           <FileText className="w-4 h-4" />
-          Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
+          Used by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
         </h4>
         {sortedTriggeringQuestions.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
             <p className="text-sm text-slate-400">
-              No questions in the Interview Structure currently reference this Follow-Up Pack.
+              No interview questions currently trigger this pack.
             </p>
           </div>
         ) : (

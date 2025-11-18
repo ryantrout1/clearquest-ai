@@ -1404,90 +1404,34 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           </Button>
         </div>
 
-        {/* Follow-Up Behavior Section - Only for existing questions */}
-        {selectedItem.type === 'question' && (
+        {/* Follow-Up Pack Management - Only for existing questions */}
+        {selectedItem.type === 'question' && formData?.followup_pack && selectedFollowUpPack && (
           <div className="mt-6 pt-6 border-t border-slate-700">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-semibold text-white">Follow-Up Behavior</h4>
-                  <p className="text-xs text-slate-400 mt-1">Deterministic questions that run when this question is answered "Yes"</p>
-                </div>
-                {selectedFollowUpPack && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
-                    className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Manage Pack
-                  </Button>
-                )}
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-base font-semibold text-white">Follow-Up Pack</h4>
+                <p className="text-xs text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
               </div>
-
-              {!formData?.followup_pack ? (
-                <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                  <Package className="w-10 h-10 mx-auto mb-2 text-slate-600" />
-                  <p className="text-xs">No Follow-Up Pack is assigned to this question yet.</p>
+              <Button
+                size="sm"
+                onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Manage Pack
+              </Button>
+            </div>
+            <div className="mt-3 bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-purple-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">{selectedFollowUpPack.pack_name}</p>
+                  <p className="text-xs text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
                 </div>
-              ) : !selectedFollowUpPack ? (
-                <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                  <AlertCircle className="w-10 h-10 mx-auto mb-2 text-yellow-600" />
-                  <p className="text-xs">Follow-Up Pack "{formData.followup_pack}" not found in database.</p>
-                  <p className="text-xs text-slate-500 mt-2">Available packs: {followUpPacks.length}</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs bg-orange-950/30 border border-orange-500/30 rounded-lg p-3">
-                    <span className="text-slate-400 font-medium">Follow-Up Pack:</span>
-                    <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30">
-                      {selectedFollowUpPack.pack_name || selectedFollowUpPack.followup_pack_id}
-                    </Badge>
-                    <span className="text-slate-500 text-xs ml-auto">{packQuestions.length} questions</span>
-                  </div>
-
-                  {packQuestions.length === 0 ? (
-                    <div className="text-center py-4 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                      <AlertCircle className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
-                      <p className="text-xs">This Follow-Up Pack has no deterministic questions defined yet.</p>
-                      <p className="text-xs text-slate-500 mt-1">Questions are loaded from FollowUpQuestion entity</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {packQuestions.map((q, idx) => (
-                        <div 
-                          key={q.id}
-                          className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 hover:bg-slate-900/70 transition-colors"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                              <span className="text-xs font-bold text-orange-300">#{idx + 1}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-white break-words leading-relaxed">{q.question_text}</p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
-                                  {q.response_type || 'text'}
-                                </Badge>
-                                {q.active !== false ? (
-                                  <Badge className="text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                                    Active
-                                  </Badge>
-                                ) : (
-                                  <Badge className="text-xs bg-slate-500/20 text-slate-400 border-slate-500/30">
-                                    Inactive
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30">
+                  {packQuestions.length} questions
+                </Badge>
+              </div>
             </div>
           </div>
         )}
