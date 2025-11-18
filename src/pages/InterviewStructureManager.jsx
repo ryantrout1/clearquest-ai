@@ -929,8 +929,12 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
 
   // Load follow-up pack details if this is a question with a pack
-  const selectedFollowUpPack = selectedItem?.type === 'question' && formData?.followup_pack
-    ? followUpPacks.find(pack => pack.followup_pack_id === formData.followup_pack)
+  const selectedFollowUpPack = selectedItem?.type === 'question' && (formData?.followup_pack || formData?.followup_pack_id)
+    ? followUpPacks.find(pack => 
+        pack.followup_pack_id === formData.followup_pack || 
+        pack.followup_pack_id === formData.followup_pack_id ||
+        pack.pack_name === formData.followup_pack
+      )
     : null;
 
   const packQuestions = selectedFollowUpPack
