@@ -1,4 +1,3 @@
-
 /**
  * ClearQuest Interview Engine - SECTION-FIRST ARCHITECTURE
  * Deterministic, section-aware question routing
@@ -1437,6 +1436,10 @@ function validateText(val) {
 export function parseQuestionsToMaps(questions, sections, categories) {
   console.log('🏗️ Building section-first data structures from Section entities...');
   
+  // Validation tracking
+  const validationErrors = [];
+  const seenQuestionIds = new Set();
+  
   // Build SECTION_ORDER from Section entities sorted by section_order
   const activeSections = sections
     .filter(s => s.active !== false)
@@ -1498,26 +1501,49 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   questions.forEach(q => {
     if (!q.active) return;
 
-    QById[q.question_id] = q;
+    // VALIDATION: Check for empty or whitespace-only question_id
+    const questionId = (q.question_id || '').trim();
+    if (!questionId) {
+      validationErrors.push(
+        `Question with database id ${q.id} in section ${q.section_id} has empty question_id and was skipped.`
+      );
+      console.warn(`⚠️ Skipping question with empty question_id (db id: ${q.id})`);
+      return;
+    }
+
+    // VALIDATION: Check for duplicate question_id
+    if (seenQuestionIds.has(questionId)) {
+      validationErrors.push(
+        `Duplicate question_id ${questionId} found (db id ${q.id}, section ${q.section_id}). This question was skipped to avoid routing collisions.`
+      );
+      console.warn(`⚠️ Skipping duplicate question_id: ${questionId} (db id: ${q.id})`);
+      return;
+    }
+
+    seenQuestionIds.add(questionId);
+    QById[questionId] = q;
 
     // Find section object using q.section_id (the numeric database ID)
     const sectionEntity = sections.find(s => s.id === q.section_id);
 
     if (!sectionEntity) {
-      console.warn(`⚠️ Question ${q.question_id} has section_id ${q.section_id} but no matching Section entity found - skipping`);
+      console.warn(`⚠️ Question ${questionId} has section_id ${q.section_id} but no matching Section entity found - skipping`);
+      validationErrors.push(
+        `Question ${questionId} references section_id ${q.section_id} which does not exist.`
+      );
       return;
     }
 
     // Check if the section is active
     if (!activeDbSectionIds.has(sectionEntity.id)) {
-      console.log(`⏭️ Skipping question ${q.question_id} - section "${sectionEntity.section_name}" is inactive`);
+      console.log(`⏭️ Skipping question ${questionId} - section "${sectionEntity.section_name}" is inactive`);
       return;
     }
     
     const sectionIdString = sectionEntity.section_id; // STRING identifier
 
     questionsBySection[sectionIdString].push({
-      question_id: q.question_id,
+      question_id: questionId,
       section_id: sectionIdString,
       display_order: q.display_order || 0,
       active: q.active,
@@ -1530,7 +1556,7 @@ export function parseQuestionsToMaps(questions, sections, categories) {
 
     // Legacy: Track follow-up packs
     if (q.followup_pack && q.response_type === 'yes_no') {
-      MatrixYesByQ[q.question_id] = q.followup_pack;
+      MatrixYesByQ[questionId] = q.followup_pack;
       
       if (!FOLLOWUP_PACK_STEPS[q.followup_pack]) {
         UndefinedPacks.add(q.followup_pack);
@@ -1611,6 +1637,10 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs:`, Array.from(UndefinedPacks));
   }
 
+  if (validationErrors.length > 0) {
+    console.error(`❌ Found ${validationErrors.length} question validation errors:`, validationErrors);
+  }
+
   return { 
     QById, 
     MatrixYesByQ, 
@@ -1620,7 +1650,9 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     questionsBySection,
     questionIdToSection,
     ActiveOrdered,
-    TotalQuestions: totalQuestionsInActiveSections
+    TotalQuestions: totalQuestionsInActiveSections,
+    validationErrors,
+    hasValidationErrors: validationErrors.length > 0
   };
 }
 

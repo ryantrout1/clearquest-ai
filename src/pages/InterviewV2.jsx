@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -137,6 +136,7 @@ export default function InterviewV2() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [wasPaused, setWasPaused] = useState(false);
+  const [routingError, setRoutingError] = useState(false);
 
   // Refs
   const historyRef = useRef(null);
@@ -523,6 +523,10 @@ Return ONLY the summary sentence, nothing else.`;
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
 
+      if (engineData.hasValidationErrors) {
+        console.error('❌ Question configuration errors detected:', engineData.validationErrors);
+      }
+
       if (!loadedSession.conversation_id) {
         try {
           const newConversation = await base44.agents.createConversation({
@@ -639,25 +643,45 @@ Return ONLY the summary sentence, nothing else.`;
       }
 
       // Special case: Q162 (final question) answered = interview complete
-      if (sortedResponses.length > 0 && sortedResponses[sortedResponses.length - 1].question_id === 'Q162') {
+      const lastQuestionId = sortedResponses.length > 0 ? sortedResponses[sortedResponses.length - 1].question_id : null;
+      if (lastQuestionId === 'Q162') {
         nextQuestionId = null;
       }
 
       if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
-        setCurrentItem(null);
-        setQueue([]);
+        // Only mark complete if we actually finished with Q162
+        if (lastQuestionId === 'Q162') {
+          setCurrentItem(null);
+          setQueue([]);
 
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: restoredTranscript,
-          queue_snapshot: [],
-          current_item_snapshot: null,
-          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
-          completion_percentage: 100,
-          status: 'completed',
-          completed_date: new Date().toISOString()
-        });
+          await base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: restoredTranscript,
+            queue_snapshot: [],
+            current_item_snapshot: null,
+            total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+            completion_percentage: 100,
+            status: 'completed',
+            completed_date: new Date().toISOString()
+          });
 
-        setShowCompletionModal(true);
+          setShowCompletionModal(true);
+        } else {
+          // Routing failure before reaching Q162 - treat as error
+          console.error(
+            '❌ Routing failure: nextQuestionId is null or invalid before final question.',
+            { lastQuestionId, engineValidationErrors: engineData.validationErrors }
+          );
+          setCurrentItem(null);
+          setQueue([]);
+          await base44.entities.InterviewSession.update(sessionId, {
+            transcript_snapshot: restoredTranscript,
+            queue_snapshot: [],
+            current_item_snapshot: null,
+            total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+            status: 'in_progress'
+          });
+          setRoutingError(true);
+        }
       } else {
         const nextItem = { id: nextQuestionId, type: 'question' };
         setCurrentItem(nextItem);
@@ -710,12 +734,24 @@ Return ONLY the summary sentence, nothing else.`;
       await persistStateToDatabase(newTranscript, [], nextItem);
       console.log(`➡️ Moving to next deterministic question: ${nextQuestionId}`);
     } else {
-      // Section routing returned null - interview complete
-      setCurrentItem(null);
-      setQueue([]);
-      await persistStateToDatabase(newTranscript, [], null);
-      setShowCompletionModal(true);
-      console.log('✅ Section routing complete - no more active sections.');
+      // Only mark complete if previous was Q162
+      if (previousQuestionId === 'Q162') {
+        setCurrentItem(null);
+        setQueue([]);
+        await persistStateToDatabase(newTranscript, [], null);
+        setShowCompletionModal(true);
+        console.log('✅ Final question Q162 answered - interview complete.');
+      } else {
+        // Routing failure before Q162 - treat as error
+        console.error(
+          '❌ Routing failure in moveToNextDeterministicQuestion.',
+          { previousQuestionId, previousAnswer, engineValidationErrors: engine.validationErrors }
+        );
+        setCurrentItem(null);
+        setQueue([]);
+        await persistStateToDatabase(newTranscript, [], null);
+        setRoutingError(true);
+      }
     }
   }, [engine, transcript, persistStateToDatabase]);
 
@@ -962,11 +998,19 @@ Return ONLY the summary sentence, nothing else.`;
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
               } else {
-                // Section routing says we're done
-                setCurrentItem(null);
-                setQueue([]);
-                await persistStateToDatabase(newTranscript, [], null);
-                setShowCompletionModal(true);
+                // Routing failure - only mark complete if this was Q162
+                if (currentItem.id === 'Q162') {
+                  setCurrentItem(null);
+                  setQueue([]);
+                  await persistStateToDatabase(newTranscript, [], null);
+                  setShowCompletionModal(true);
+                } else {
+                  console.error('❌ Routing failure after Yes answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+                  setCurrentItem(null);
+                  setQueue([]);
+                  await persistStateToDatabase(newTranscript, [], null);
+                  setRoutingError(true);
+                }
               }
             }
           } else {
@@ -977,11 +1021,19 @@ Return ONLY the summary sentence, nothing else.`;
               setCurrentItem({ id: nextQuestionId, type: 'question' });
               await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
             } else {
-              // Section routing says we're done
-              setCurrentItem(null);
-              setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
-              setShowCompletionModal(true);
+              // Routing failure - only mark complete if this was Q162
+              if (currentItem.id === 'Q162') {
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                setShowCompletionModal(true);
+              } else {
+                console.error('❌ Routing failure after Yes answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                setRoutingError(true);
+              }
             }
           }
         } else { // Answer was 'No'
@@ -994,12 +1046,19 @@ Return ONLY the summary sentence, nothing else.`;
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
           } else {
-            // Section routing returned null - interview complete
-            setCurrentItem(null);
-            setQueue([]);
-            await persistStateToDatabase(newTranscript, [], null);
-            setShowCompletionModal(true);
-            console.log('✅ Section-first routing complete - no more questions.');
+            // Routing failure - only mark complete if this was Q162
+            if (currentItem.id === 'Q162') {
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
+              setShowCompletionModal(true);
+            } else {
+              console.error('❌ Routing failure after No answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+              setCurrentItem(null);
+              setQueue([]);
+              await persistStateToDatabase(newTranscript, [], null);
+              setRoutingError(true);
+            }
           }
         }
 
@@ -1690,6 +1749,34 @@ Return ONLY the summary sentence, nothing else.`;
             </div>
           </div>
         </header>
+
+        {engine?.hasValidationErrors && (
+          <div className="flex-shrink-0 bg-yellow-950/90 border-b border-yellow-800/50 px-3 md:px-4 py-2 md:py-3">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-start gap-2 md:gap-3">
+                <AlertCircle className="w-4 h-4 md:w-5 md:h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs md:text-sm text-yellow-100">
+                  <p className="font-semibold mb-1">Configuration Warning</p>
+                  <p>Some questions have duplicate or empty IDs and were skipped. Interview routing may be incomplete. Contact administrator to review question configuration.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {routingError && (
+          <div className="flex-shrink-0 bg-red-950/90 border-b border-red-800/50 px-3 md:px-4 py-2 md:py-3">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-start gap-2 md:gap-3">
+                <AlertCircle className="w-4 h-4 md:w-5 md:h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs md:text-sm text-red-100">
+                  <p className="font-semibold mb-1">Interview Flow Error</p>
+                  <p>We encountered a configuration problem (duplicate or missing question IDs). The interview cannot continue until this is fixed. Please contact an administrator.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showResumeBanner && (
           <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-3 md:px-4 py-2 md:py-3">
