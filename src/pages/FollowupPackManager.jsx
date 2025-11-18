@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronDown, ChevronRight, Package, Layers, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Package, Layers, AlertTriangle, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 const BEHAVIOR_TYPE_NAMES = {
@@ -27,41 +27,84 @@ const BEHAVIOR_TYPE_NAMES = {
 };
 
 const PACK_GROUPS = {
-  "Drug Use / Controlled Substances": [
-    'ILLEGAL_DRUG_USE', 'PACK_DRUG_USE', 'PACK_DRUG_SALE', 'PACK_PRESCRIPTION_MISUSE'
+  "Law Enforcement": [
+    'PACK_LE_APPS', 'PACK_LE_PREV', 'PACK_LE_INTERVIEW', 'PACK_LE_COMPLAINT',
+    'PACK_ACCUSED_FORCE', 'PACK_GRATUITY', 'PACK_FALSIFY_REPORT',
+    'PACK_INTERNAL_AFFAIRS', 'PACK_LYING_LE', 'PACK_OTHER_PRIOR_LE'
   ],
-  "Criminal Charges & Arrests": [
-    'PACK_ARREST', 'PACK_CHARGES', 'PACK_CONVICTION', 'PACK_WARRANT', 'PACK_FELONY'
+  "Driving & Traffic": [
+    'PACK_DUI', 'PACK_DUI_STOP', 'PACK_DUI_ARREST', 'PACK_LICENSE_SUSPENSION',
+    'PACK_LICENSE_SUSPENDED', 'PACK_REVOKED_LICENSE', 'PACK_SUSPENDED_LICENSE',
+    'PACK_RECKLESS_DRIVING', 'PACK_TRAFFIC', 'PACK_TRAFFIC_CITATION',
+    'PACK_CRIMINAL_TRAFFIC', 'PACK_TRAFFIC_ARREST', 'PACK_ROAD_RAGE',
+    'PACK_OTHER_DRIVING', 'PACK_COLLISION', 'PACK_COLLISION_INJURY',
+    'PACK_ALCOHOL_COLLISION', 'PACK_UNREPORTED_COLLISION', 'PACK_HIT_RUN',
+    'PACK_HIT_RUN_DAMAGE', 'PACK_NO_INSURANCE', 'PACK_INSURANCE_REFUSED',
+    'PACK_DRIVE_NO_INSURANCE'
   ],
-  "Driving Incidents": [
-    'PACK_DUI', 'PACK_TRAFFIC', 'PACK_LICENSE_SUSPENSION', 'PACK_RECKLESS_DRIVING'
+  "Criminal History": [
+    'PACK_ARREST', 'PACK_CHARGES', 'PACK_CRIMINAL_CHARGE', 'PACK_CONVICTION',
+    'PACK_DIVERSION', 'PACK_PROBATION', 'PACK_INVESTIGATION', 'PACK_POLICE_CALLED',
+    'PACK_WARRANT', 'PACK_FELONY', 'PACK_FELONY_DETAIL', 'PACK_CONSPIRACY',
+    'PACK_PLANNED_CRIME', 'PACK_JUVENILE_CRIME', 'PACK_UNCAUGHT_CRIME',
+    'PACK_FOREIGN_CRIME', 'PACK_POLICE_REPORT', 'PACK_ARRESTABLE_ACTIVITY',
+    'PACK_CRIMINAL_ASSOCIATES', 'PACK_CRIMINAL_ORGANIZATION', 'PACK_POLICE_BRUTALITY',
+    'PACK_OTHER_CRIMINAL'
   ],
   "Violence & Domestic": [
-    'PACK_DOMESTIC_VIOLENCE', 'PACK_ASSAULT', 'PACK_FIGHT'
+    'PACK_FIGHT', 'PACK_DOMESTIC_VIOLENCE', 'PACK_PROTECTIVE_ORDER',
+    'PACK_ASSAULT', 'PACK_SERIOUS_INJURY', 'PACK_DOMESTIC_VICTIM',
+    'PACK_DOMESTIC_ACCUSED', 'PACK_DOMESTIC'
+  ],
+  "Crimes Against Children": [
+    'PACK_CHILD_CRIME_COMMITTED', 'PACK_CHILD_CRIME_ACCUSED',
+    'PACK_CHILD_PROTECTION', 'PACK_MINOR_CONTACT'
   ],
   "Theft & Property": [
-    'PACK_THEFT', 'PACK_SHOPLIFTING', 'PACK_STOLEN_PROPERTY'
+    'PACK_SHOPLIFTING', 'PACK_THEFT_QUESTIONING', 'PACK_THEFT',
+    'PACK_STOLEN_PROPERTY', 'PACK_STOLEN_VEHICLE', 'PACK_TRESPASSING',
+    'PACK_PROPERTY_DAMAGE', 'PACK_STOLEN_GOODS'
   ],
-  "Law Enforcement": [
-    'PACK_LE_APPS', 'PACK_LE_PREV', 'PACK_LYING_LE'
+  "Fraud & Cybercrime": [
+    'PACK_SIGNATURE_FORGERY', 'PACK_HACKING', 'PACK_ILLEGAL_DOWNLOADS',
+    'PACK_FALSE_APPLICATION', 'PACK_UNEMPLOYMENT_FRAUD', 'PACK_IRS_INVESTIGATION',
+    'PACK_UNREPORTED_INCOME'
   ],
   "Weapons & Gangs": [
-    'PACK_WEAPON_VIOLATION', 'PACK_GANG'
+    'PACK_WEAPON_VIOLATION', 'PACK_ILLEGAL_WEAPON', 'PACK_CARRY_WEAPON',
+    'PACK_GANG', 'PACK_HATE_CRIME'
+  ],
+  "Extremism": [
+    'PACK_EXTREMIST', 'PACK_EXTREMIST_DETAIL'
   ],
   "Sexual Misconduct": [
-    'PACK_HARASSMENT', 'PACK_PROSTITUTION'
+    'PACK_PROSTITUTION', 'PACK_PAID_SEX', 'PACK_PORNOGRAPHY',
+    'PACK_HARASSMENT', 'PACK_NON_CONSENT'
   ],
   "Financial Issues": [
-    'PACK_FINANCIAL', 'PACK_BANKRUPTCY'
+    'PACK_FINANCIAL', 'PACK_BANKRUPTCY', 'PACK_FORECLOSURE', 'PACK_REPOSSESSION',
+    'PACK_LAWSUIT', 'PACK_LATE_PAYMENT', 'PACK_GAMBLING', 'PACK_OTHER_FINANCIAL',
+    'PACK_CRIME_FOR_DEBT'
+  ],
+  "Drug Use & Distribution": [
+    'PACK_DRUG_USE', 'PACK_DRUG_SALE', 'PACK_PRESCRIPTION_MISUSE',
+    'PACK_DRUG_TEST_CHEAT', 'ILLEGAL_DRUG_USE'
   ],
   "Alcohol": [
-    'PACK_ALCOHOL_INCIDENT'
+    'PACK_ALCOHOL_DEPENDENCY', 'PACK_ALCOHOL_INCIDENT', 'PACK_PROVIDE_ALCOHOL'
   ],
   "Military": [
-    'PACK_MIL_DISCHARGE'
+    'PACK_MIL_SERVICE', 'PACK_MIL_REJECTION', 'PACK_MIL_DISCHARGE',
+    'PACK_MIL_DISCIPLINE'
   ],
-  "Employment": [
-    'PACK_FIRED', 'PACK_DISCIPLINE'
+  "Employment & Discipline": [
+    'PACK_DISCIPLINE', 'PACK_WORK_DISCIPLINE', 'PACK_FIRED', 'PACK_QUIT_AVOID',
+    'PACK_MISUSE_RESOURCES'
+  ],
+  "Disclosure & Integrity": [
+    'PACK_WITHHOLD_INFO', 'PACK_DISQUALIFIED', 'PACK_CHEATING',
+    'PACK_DELETED_SOCIAL_MEDIA', 'PACK_PRANK_CRIME', 'PACK_ILLEGAL_FIREWORKS',
+    'PACK_EMBARRASSMENT', 'PACK_TATTOO', 'PACK_SOCIAL_MEDIA'
   ]
 };
 
@@ -113,6 +156,12 @@ export default function FollowupPackManager() {
   const { data: allQuestions = [] } = useQuery({
     queryKey: ['followUpQuestions'],
     queryFn: () => base44.entities.FollowUpQuestion.list(),
+    enabled: !!user
+  });
+
+  const { data: interviewQuestions = [] } = useQuery({
+    queryKey: ['questions'],
+    queryFn: () => base44.entities.Question.list(),
     enabled: !!user
   });
 
@@ -206,6 +255,7 @@ export default function FollowupPackManager() {
                         {groupPacks.map((pack) => {
                           const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
                           const activeQuestions = packQuestions.filter(q => q.active !== false).length;
+                          const triggeringQuestions = interviewQuestions.filter(q => q.followup_pack === pack.followup_pack_id);
                           
                           return (
                             <div
@@ -230,6 +280,12 @@ export default function FollowupPackManager() {
                                     <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                       {activeQuestions} questions
                                     </Badge>
+                                    {triggeringQuestions.length > 0 && (
+                                      <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                        <FileText className="w-3 h-3 mr-1" />
+                                        {triggeringQuestions.length} Q
+                                      </Badge>
+                                    )}
                                     {pack.requires_completion && (
                                       <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
                                         Required
@@ -256,7 +312,11 @@ export default function FollowupPackManager() {
               <PackDetailPanel
                 pack={selectedPack}
                 questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
-                onUpdate={() => queryClient.invalidateQueries({ queryKey: ['followUpPacks'] })}
+                triggeringQuestions={interviewQuestions.filter(q => q.followup_pack === selectedPack?.followup_pack_id)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
+                  queryClient.invalidateQueries({ queryKey: ['questions'] });
+                }}
               />
             </div>
           </div>
@@ -266,7 +326,7 @@ export default function FollowupPackManager() {
   );
 }
 
-function PackDetailPanel({ pack, questions, onUpdate }) {
+function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(false);
 
@@ -301,6 +361,7 @@ function PackDetailPanel({ pack, questions, onUpdate }) {
   };
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   if (!pack) {
     return (
@@ -357,9 +418,31 @@ function PackDetailPanel({ pack, questions, onUpdate }) {
         </div>
       </div>
 
+      {/* Triggering Questions */}
+      {sortedTriggeringQuestions.length > 0 && (
+        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
+          </h4>
+          <div className="space-y-2">
+            {sortedTriggeringQuestions.map((q) => (
+              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                    {q.question_id}
+                  </Badge>
+                  <p className="text-sm text-slate-300 leading-relaxed flex-1">{q.question_text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Triggered by */}
       <div className="bg-amber-950/20 border border-amber-500/30 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-amber-400 mb-2">Triggered by:</h4>
+        <h4 className="text-sm font-semibold text-amber-400 mb-2">Trigger Notes:</h4>
         {isEditing ? (
           <Textarea
             value={formData.trigger_notes}
@@ -444,7 +527,7 @@ function PackDetailPanel({ pack, questions, onUpdate }) {
             </div>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
               {BEHAVIOR_TYPE_NAMES[pack.behavior_type] || pack.behavior_type}
             </Badge>
