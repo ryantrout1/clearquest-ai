@@ -626,63 +626,64 @@ Return ONLY the summary sentence, nothing else.`;
       setTranscript(restoredTranscript);
       displayOrderRef.current = restoredTranscript.length;
 
+      // Build set of answered question IDs (independent of timestamp order)
+      const answeredQuestionIds = new Set();
+      for (const resp of responses) {
+        if (resp.question_id) {
+          answeredQuestionIds.add(resp.question_id);
+        }
+      }
+
+      console.log(`📊 Resume analysis: ${answeredQuestionIds.size} questions answered, searching canonical order for next...`);
+
+      // Find first unanswered question in canonical order
       let nextQuestionId = null;
 
-      if (sortedResponses.length > 0) {
-        const lastResponse = sortedResponses[sortedResponses.length - 1];
-        nextQuestionId = computeNextQuestionId(engineData, lastResponse.question_id, lastResponse.answer);
-      } else {
-        // First question from first active section
-        const firstSection = Object.values(engineData.sectionConfig)
-          .filter(s => s.active)
-          .sort((a, b) => a.section_order - b.section_order)[0];
-        
-        if (firstSection && engineData.questionsBySection[firstSection.id]?.length > 0) {
-          nextQuestionId = engineData.questionsBySection[firstSection.id][0].question_id;
+      if (engineData && Array.isArray(engineData.ActiveOrdered)) {
+        for (const qId of engineData.ActiveOrdered) {
+          if (!answeredQuestionIds.has(qId)) {
+            nextQuestionId = qId;
+            console.log(`✅ Resume point identified: ${qId} (first unanswered in canonical order)`);
+            break;
+          }
         }
       }
 
-      // Special case: Q162 (final question) answered = interview complete
-      const lastQuestionId = sortedResponses.length > 0 ? sortedResponses[sortedResponses.length - 1].question_id : null;
-      if (lastQuestionId === 'Q162') {
-        nextQuestionId = null;
-      }
+      // If no unanswered question found in ActiveOrdered, interview is complete
+      if (!nextQuestionId) {
+        console.log('✅ All questions answered - interview complete');
+        setCurrentItem(null);
+        setQueue([]);
 
-      if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
-        // Only mark complete if we actually finished with Q162
-        if (lastQuestionId === 'Q162') {
-          setCurrentItem(null);
-          setQueue([]);
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: null,
+          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+          completion_percentage: 100,
+          status: 'completed',
+          completed_date: new Date().toISOString()
+        });
 
-          await base44.entities.InterviewSession.update(sessionId, {
-            transcript_snapshot: restoredTranscript,
-            queue_snapshot: [],
-            current_item_snapshot: null,
-            total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
-            completion_percentage: 100,
-            status: 'completed',
-            completed_date: new Date().toISOString()
-          });
-
-          setShowCompletionModal(true);
-        } else {
-          // Routing failure before reaching Q162 - treat as error
-          console.error(
-            '❌ Routing failure: nextQuestionId is null or invalid before final question.',
-            { lastQuestionId, engineValidationErrors: engineData.validationErrors }
-          );
-          setCurrentItem(null);
-          setQueue([]);
-          await base44.entities.InterviewSession.update(sessionId, {
-            transcript_snapshot: restoredTranscript,
-            queue_snapshot: [],
-            current_item_snapshot: null,
-            total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
-            status: 'in_progress'
-          });
-          setRoutingError(true);
-        }
+        setShowCompletionModal(true);
+      } else if (!engineData.QById[nextQuestionId]) {
+        // Next question ID exists in ActiveOrdered but not in QById - configuration error
+        console.error(
+          '❌ Configuration error: next question exists in ActiveOrdered but not in QById',
+          { nextQuestionId, engineValidationErrors: engineData.validationErrors }
+        );
+        setCurrentItem(null);
+        setQueue([]);
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: restoredTranscript,
+          queue_snapshot: [],
+          current_item_snapshot: null,
+          total_questions_answered: restoredTranscript.filter(t => t.type === 'question').length,
+          status: 'in_progress'
+        });
+        setRoutingError(true);
       } else {
+        // Valid next question found
         const nextItem = { id: nextQuestionId, type: 'question' };
         setCurrentItem(nextItem);
         setQueue([]);
