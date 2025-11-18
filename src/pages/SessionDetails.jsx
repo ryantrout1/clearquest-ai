@@ -138,8 +138,6 @@ export default function SessionDetails() {
     }
   };
 
-  const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
-
   const allResponsesWithNumbers = responses.map((r, idx) => {
     // Prefer question_number from Question entity, fallback to sequential index
     const questionEntity = questions.find(q => q.question_id === r.question_id);
@@ -163,6 +161,8 @@ export default function SessionDetails() {
     }
     return new Date(a.response_timestamp) - new Date(b.response_timestamp);
   });
+
+  const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
 
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
