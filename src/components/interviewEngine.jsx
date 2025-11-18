@@ -1817,8 +1817,8 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
   
   // Iterate through candidates in section_order sequence
   for (const candidateSection of candidateSections) {
-    const candidateId = candidateSection.id; // This is the string identifier (e.g., "DRIVING_RECORD")
-    const candidateQuestions = engine.questionsBySection[candidateId] || [];
+    const candidateSectionId = candidateSection.id; // This is the STRING section_id (e.g., "CAT_DRUGS")
+    const candidateQuestions = engine.questionsBySection[candidateSectionId] || [];
     
     console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateSection.section_name}"`);
     console.log(`[SectionRouting]     - Active: ${candidateSection.active !== false}`);
