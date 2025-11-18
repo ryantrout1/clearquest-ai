@@ -54,6 +54,7 @@ export default function SessionDetails() {
   const [viewMode, setViewMode] = useState("structured");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [collapsedSections, setCollapsedSections] = useState(new Set());
+  const [isDeletingLast, setIsDeletingLast] = useState(false);
 
   const categoryRefs = useRef({});
 
@@ -202,6 +203,46 @@ export default function SessionDetails() {
         behavior: 'smooth',
         block: 'start'
       });
+    }
+  };
+
+  const handleDeleteLastQuestion = async () => {
+    if (responses.length === 0) {
+      toast.error("No questions to delete");
+      return;
+    }
+
+    setIsDeletingLast(true);
+
+    try {
+      const sortedResponses = [...responses].sort((a, b) =>
+        new Date(b.response_timestamp) - new Date(a.response_timestamp)
+      );
+      const lastResponse = sortedResponses[0];
+
+      const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
+      
+      for (const followup of relatedFollowups) {
+        await base44.entities.FollowUpResponse.delete(followup.id);
+      }
+
+      await base44.entities.Response.delete(lastResponse.id);
+
+      await base44.entities.InterviewSession.update(sessionId, {
+        status: 'in_progress',
+        completed_at: null,
+        completed_date: null,
+        total_questions_answered: responses.length - 1
+      });
+
+      toast.success("Last question deleted successfully");
+      await loadSessionData();
+
+    } catch (err) {
+      toast.error("Failed to delete last question");
+      console.error(err);
+    } finally {
+      setIsDeletingLast(false);
     }
   };
 
@@ -461,6 +502,28 @@ export default function SessionDetails() {
             responses={filteredResponsesWithNumbers}
             followups={followups}
           />
+        )}
+
+        {responses.length > 0 && (
+          <div className="mt-6 flex justify-center">
+            <Button
+              onClick={handleDeleteLastQuestion}
+              disabled={isDeletingLast}
+              variant="outline"
+              className="bg-red-950/30 border-red-800/50 text-red-300 hover:bg-red-950/50 hover:text-red-200"
+            >
+              {isDeletingLast ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  Delete Last Question
+                </>
+              )}
+            </Button>
+          </div>
         )}
 
         <Dialog open={showStatusConfirm} onOpenChange={setShowStatusConfirm}>
