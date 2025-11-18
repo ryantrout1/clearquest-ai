@@ -745,9 +745,10 @@ export default function Interview() {
         message.content !== 'Ready to begin' &&
         message.content !== 'Continue'
       )
-      .map((msg, index) => ({
+      .map((msg) => ({
         ...msg,
-        stableKey: msg.id || `stable-${msg.created_at}-${index}`
+        // Use message ID as the stable key - this ensures React doesn't remount
+        stableKey: msg.id || msg.created_at || Math.random().toString()
       }));
   }, [messages]);
 
@@ -900,13 +901,19 @@ export default function Interview() {
               <p className="text-slate-400">Starting interview...</p>
             </div>
           ) : (
-            displayMessages.map((message) => (
-              <MessageBubble 
+            displayMessages.map((message, index) => (
+              <div 
                 key={message.stableKey}
-                message={message} 
-                onEditResponse={handleEditResponse}
-                showWelcome={false}
-              />
+                style={{
+                  animation: index === displayMessages.length - 1 ? 'fadeIn 0.3s ease-in' : 'none'
+                }}
+              >
+                <MessageBubble 
+                  message={message} 
+                  onEditResponse={handleEditResponse}
+                  showWelcome={false}
+                />
+              </div>
             ))
           )}
           <div ref={messagesEndRef} />
@@ -994,6 +1001,19 @@ export default function Interview() {
           </p>
         </div>
       </footer>
+      
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
