@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -8,37 +7,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  ArrowLeft, Shield, FileText, AlertTriangle, Download, Loader2,
-  ChevronDown, ChevronRight, Search, Eye, Trash2,
+  ArrowLeft, AlertTriangle, Download, Loader2,
+  ChevronDown, ChevronRight, Search,
   ChevronsDown, ChevronsUp, ToggleLeft, ToggleRight
 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-// Keywords that trigger "Needs Review" badge
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
   'suspended', 'terminated', 'dui', 'drugs', 'felony', 'charge',
   'conviction', 'probation', 'parole', 'violence', 'assault', 'disqualified'
 ];
 
-// U.S. Citizenship question ID - no summary needed
 const US_CITIZENSHIP_QUESTION_ID = 'Q161';
 
 const needsReview = (text) => {
@@ -65,7 +49,6 @@ export default function SessionDetails() {
   const [isHoveringStatus, setIsHoveringStatus] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
 
-  // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
   const [viewMode, setViewMode] = useState("structured");
@@ -111,13 +94,9 @@ export default function SessionDetails() {
       setQuestions(questionsData);
       
       setTotalQuestions(questionsData.length);
-      
-      // Default all to collapsed
       setExpandedQuestions(new Set());
-
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading session:", err);
       toast.error("Failed to load session data");
       setIsLoading(false);
     }
@@ -153,7 +132,6 @@ export default function SessionDetails() {
       setShowStatusConfirm(false);
       toast.success('Interview marked as In Progress');
     } catch (err) {
-      console.error('Error updating status:', err);
       toast.error('Failed to update status');
     }
   };
@@ -227,47 +205,6 @@ export default function SessionDetails() {
     }
   };
 
-  const handleDeleteLastResponse = async () => {
-    if (responses.length === 0) return;
-
-    const lastResponse = responses[responses.length - 1];
-
-    if (!window.confirm(`Delete last response: "${lastResponse.question_text}"?`)) {
-      return;
-    }
-
-    try {
-      await base44.entities.Response.delete(lastResponse.id);
-
-      const relatedFollowups = followups.filter(f => f.response_id === lastResponse.id);
-      for (const fu of relatedFollowups) {
-        await base44.entities.FollowUpResponse.delete(fu.id);
-      }
-
-      const currentSession = await base44.entities.InterviewSession.get(sessionId);
-
-      let updatedTranscript = (currentSession.transcript_snapshot || []).filter(
-        entry => entry.questionId !== lastResponse.question_id
-      );
-
-      await base44.entities.InterviewSession.update(sessionId, {
-        transcript_snapshot: updatedTranscript,
-        queue_snapshot: [],
-        current_item_snapshot: null,
-        total_questions_answered: updatedTranscript.filter(t => t.type === 'question').length,
-        completion_percentage: totalQuestions 
-          ? Math.round((updatedTranscript.filter(t => t.type === 'question').length / totalQuestions) * 100)
-          : 0
-      });
-
-      toast.success("Response deleted and session updated");
-      loadSessionData();
-    } catch (err) {
-      console.error("Error deleting response:", err);
-      toast.error("Failed to delete response");
-    }
-  };
-
   const generateReport = async () => {
     setIsGeneratingReport(true);
 
@@ -282,7 +219,6 @@ export default function SessionDetails() {
       setTimeout(() => document.body.removeChild(printContainer), 100);
       toast.success("Report ready - use your browser's print dialog to save as PDF");
     } catch (err) {
-      console.error("Error generating report:", err);
       toast.error("Failed to generate report");
     } finally {
       setIsGeneratingReport(false);
@@ -423,7 +359,6 @@ export default function SessionDetails() {
                 onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
                 className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
               >
-                {viewMode === "structured" ? <FileText className="w-4 h-4 mr-1 md:mr-2" /> : <Eye className="w-4 h-4 mr-1 md:mr-2" />}
                 {viewMode === "structured" ? "Transcript" : "Structured"}
               </Button>
             </div>
@@ -511,14 +446,7 @@ export default function SessionDetails() {
           </Card>
         )}
 
-        {responses.length === 0 ? (
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-12 text-center">
-              <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-400">No responses recorded yet</p>
-            </CardContent>
-          </Card>
-        ) : viewMode === "structured" ? (
+        {viewMode === "structured" ? (
           <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
             followups={followups}
@@ -533,19 +461,6 @@ export default function SessionDetails() {
             responses={filteredResponsesWithNumbers}
             followups={followups}
           />
-        )}
-
-        {responses.length > 0 && (
-          <div className="mt-6">
-            <Button
-              variant="outline"
-              onClick={handleDeleteLastResponse}
-              className="bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete Last Response
-            </Button>
-          </div>
         )}
 
         <Dialog open={showStatusConfirm} onOpenChange={setShowStatusConfirm}>
@@ -594,10 +509,8 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
 
-        // Sort by display_number for vertical column layout
         const sortedResponses = [...categoryResponses].sort((a, b) => a.display_number - b.display_number);
         
-        // Split vertically: first half in left column, second half in right
         const midpoint = Math.ceil(sortedResponses.length / 2);
         const leftColumn = sortedResponses.slice(0, midpoint);
         const rightColumn = sortedResponses.slice(midpoint);
@@ -668,7 +581,6 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
-      {/* Question Line */}
       <div className="flex items-start gap-3 text-sm mb-2">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(
@@ -682,7 +594,6 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
         </span>
       </div>
 
-      {/* Investigator Summary Row - Always visible for Yes with followups */}
       {showSummary && (
         <div className="flex items-start gap-3 mb-2">
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
@@ -709,14 +620,12 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
         </div>
       )}
 
-      {/* Expandable Blue Section - Detail Card + Probing */}
       {isExpanded && hasFollowups && response.answer === "Yes" && (
         <div className="flex items-start gap-3">
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
           <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-3">
             <div className="space-y-3">
-              {/* Deterministic Follow-Up Details */}
               {followups.map((followup, idx) => {
                 const details = followup.additional_details || {};
 
@@ -754,7 +663,6 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
                 );
               })}
 
-              {/* AI Investigator Probing Section */}
               {aiProbingExchanges.length > 0 && (
                 <div className="border-t border-slate-600/50 pt-3 space-y-2 ml-3">
                   <div className="text-xs font-semibold text-purple-400 mb-2">
@@ -786,15 +694,12 @@ function TranscriptView({ responses, followups }) {
   const [packSteps, setPackSteps] = useState({});
 
   useEffect(() => {
-    // Dynamically import and build pack steps mapping
     import('../components/interviewEngine').then(module => {
       const stepsMap = {};
       responses.forEach(r => {
         if (r.followup_pack && module.default?.FOLLOWUP_PACK_STEPS?.[r.followup_pack]) {
           stepsMap[r.followup_pack] = module.default.FOLLOWUP_PACK_STEPS[r.followup_pack];
         } else if (r.followup_pack && module.injectSubstanceIntoPackSteps) {
-          // Attempt to dynamically generate steps if it's a substance pack
-          // Pass a dummy engine as `injectSubstanceIntoPackSteps` expects one
           const dummyEngine = { PackStepsById: module.default?.FOLLOWUP_PACK_STEPS || {} };
           stepsMap[r.followup_pack] = module.injectSubstanceIntoPackSteps(dummyEngine, r.followup_pack, null);
         }
@@ -810,14 +715,11 @@ function TranscriptView({ responses, followups }) {
   responses.forEach(response => {
     timeline.push({ type: 'question', data: response });
 
-    // Add deterministic follow-ups FIRST
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
     relatedFollowups.forEach(fu => {
-      // Pass the relevant packSteps for this followup
       timeline.push({ type: 'followup', data: fu, packSteps: packSteps[fu.followup_pack] });
     });
 
-    // THEN add investigator probing (if any)
     if (response.investigator_probing && response.investigator_probing.length > 0) {
       timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
     }
@@ -878,7 +780,6 @@ function TranscriptEntry({ item }) {
 
         {Object.entries(details).map(([key, value]) => {
           const requiresReview = needsReview(value);
-          // Find the matching step to get the actual question text
           const step = packSteps.find(s => s.Field_Key === key);
           const questionText = step?.Prompt || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
@@ -919,12 +820,10 @@ function TranscriptEntry({ item }) {
         {probingExchanges.map((exchange, idx) => (
           <React.Fragment key={idx}>
             <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
-              {/* This is the AI's probing question */}
               <p className="text-white text-sm break-words leading-relaxed">{exchange.probing_question}</p>
             </div>
             <div className="flex justify-end">
               <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                {/* This is the candidate's response to the probing question */}
                 <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
               </div>
             </div>

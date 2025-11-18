@@ -1,3 +1,5 @@
+// TODO: DEPRECATED - This page is no longer in use. StartInterview now routes to InterviewV2.
+// Candidate for removal after verification that all functionality has been migrated.
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -48,8 +50,6 @@ export default function Interview() {
     if (!sessionId || !messages || messages.length === 0 || !questions || questions.length === 0) return;
 
     const processMessages = async () => {
-      console.log("🔍 Processing messages for Response/FollowUpResponse creation...");
-      
       for (let i = lastProcessedIndexRef.current; i < messages.length; i++) {
         const message = messages[i];
         
@@ -78,13 +78,11 @@ export default function Interview() {
                 
                 const questionData = questions.find(q => q.question_id === questionId);
                 if (!questionData) {
-                  console.warn(`⚠️ Question ${questionId} not found`);
                   processedPairsRef.current.add(pairKey);
                   i++;
                   continue;
                 }
                 
-                // Update current section name for header
                 if (questionData.section_id) {
                   const sectionData = sections.find(s => s.id === questionData.section_id);
                   if (sectionData) {
@@ -98,41 +96,30 @@ export default function Interview() {
                 });
                 
                 if (existing.length === 0) {
-                  console.log(`📝 Creating Response: ${questionId} = "${userAnswer}"`);
-                  
                   const triggersFollowup = questionData.followup_pack && userAnswer.toLowerCase() === 'yes';
                   
-                  try {
-                    await base44.entities.Response.create({
-                      session_id: sessionId,
-                      question_id: questionId,
-                      question_text: questionData.question_text,
-                      category: questionData.category || '',
-                      answer: userAnswer,
-                      answer_array: null,
-                      triggered_followup: triggersFollowup,
-                      followup_pack: triggersFollowup ? questionData.followup_pack : null,
-                      is_flagged: false,
-                      flag_reason: null,
-                      response_timestamp: nextMessage.created_at || new Date().toISOString()
-                    });
-                    
-                    console.log(`✅ Response created for ${questionId}`);
-                    
-                    const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
-                    const progress = totalQuestions > 0 ? Math.round((allResponses.length / totalQuestions) * 100) : 0;
-                    
-                    await base44.entities.InterviewSession.update(sessionId, {
-                      total_questions_answered: allResponses.length,
-                      completion_percentage: progress,
-                      followups_triggered: triggersFollowup ? (session?.followups_triggered || 0) + 1 : (session?.followups_triggered || 0)
-                    });
-                    
-                  } catch (err) {
-                    console.error(`❌ Error creating Response:`, err);
-                  }
-                } else {
-                  console.log(`✅ Response already exists for ${questionId}`);
+                  await base44.entities.Response.create({
+                    session_id: sessionId,
+                    question_id: questionId,
+                    question_text: questionData.question_text,
+                    category: questionData.category || '',
+                    answer: userAnswer,
+                    answer_array: null,
+                    triggered_followup: triggersFollowup,
+                    followup_pack: triggersFollowup ? questionData.followup_pack : null,
+                    is_flagged: false,
+                    flag_reason: null,
+                    response_timestamp: nextMessage.created_at || new Date().toISOString()
+                  });
+                  
+                  const allResponses = await base44.entities.Response.filter({ session_id: sessionId });
+                  const progress = totalQuestions > 0 ? Math.round((allResponses.length / totalQuestions) * 100) : 0;
+                  
+                  await base44.entities.InterviewSession.update(sessionId, {
+                    total_questions_answered: allResponses.length,
+                    completion_percentage: progress,
+                    followups_triggered: triggersFollowup ? (session?.followups_triggered || 0) + 1 : (session?.followups_triggered || 0)
+                  });
                 }
                 
                 processedPairsRef.current.add(pairKey);
@@ -171,32 +158,20 @@ export default function Interview() {
                   const followupAlreadyRecorded = existingFollowups.some(f => f.incident_description);
 
                   if (!followupAlreadyRecorded) {
-                    console.log(`📋 Creating FollowUpResponse for QID: ${lastTriggeredResponse.question_id}, Response ID: ${lastTriggeredResponse.id}`);
-                    
-                    try {
-                      const userAnswer = nextMessage.content;
-                      const incidentDescription = userAnswer;
+                    const userAnswer = nextMessage.content;
+                    const incidentDescription = userAnswer;
 
-                      await base44.entities.FollowUpResponse.create({
-                        session_id: sessionId,
-                        response_id: lastTriggeredResponse.id,
-                        question_id: lastTriggeredResponse.question_id,
-                        followup_pack: lastTriggeredResponse.followup_pack,
-                        instance_number: 1, 
-                        incident_description: incidentDescription, 
-                        completed: true, 
-                        completed_timestamp: nextMessage.created_at || new Date().toISOString()
-                      });
-                      
-                      console.log(`✅ FollowUpResponse created for ${lastTriggeredResponse.question_id}`);
-                    } catch (err) {
-                      console.error(`❌ Error creating FollowUpResponse:`, err);
-                    }
-                  } else {
-                    console.log(`✅ FollowUpResponse already recorded for Response ID: ${lastTriggeredResponse.id}`);
+                    await base44.entities.FollowUpResponse.create({
+                      session_id: sessionId,
+                      response_id: lastTriggeredResponse.id,
+                      question_id: lastTriggeredResponse.question_id,
+                      followup_pack: lastTriggeredResponse.followup_pack,
+                      instance_number: 1, 
+                      incident_description: incidentDescription, 
+                      completed: true, 
+                      completed_timestamp: nextMessage.created_at || new Date().toISOString()
+                    });
                   }
-                } else {
-                  console.warn("⚠️ Assistant asked a follow-up question, but no recent 'triggered_followup' response found.");
                 }
                 
                 processedFollowupsRef.current.add(followupKey);
@@ -350,8 +325,6 @@ export default function Interview() {
     setShowQuickButtons(false);
     shouldAutoScrollRef.current = true;
 
-    console.log(`🚀 Sending${isRetry ? ' (retry)' : ''}: "${textToSend}"`);
-
     try {
       await base44.agents.addMessage(conversation, {
         role: "user",
@@ -368,8 +341,6 @@ export default function Interview() {
       }, 300);
       
     } catch (err) {
-      console.error("❌ Error sending message:", err);
-      
       setLastFailedMessage(textToSend);
       retryCountRef.current += 1;
       
@@ -392,7 +363,6 @@ export default function Interview() {
 
   const handleRetry = useCallback(() => {
     if (lastFailedMessage) {
-      console.log("🔄 Retrying last message...");
       handleSend(lastFailedMessage, true);
     }
   }, [lastFailedMessage, handleSend]);
@@ -410,7 +380,6 @@ export default function Interview() {
         content: `I want to change my previous answer to: ${newAnswer}`
       });
     } catch (err) {
-      console.error("Error editing response:", err);
       setError("Failed to update answer. Please try again.");
     } finally {
       setIsSending(false);
@@ -433,7 +402,6 @@ export default function Interview() {
       });
       setIsPaused(true);
     } catch (err) {
-      console.error("Error pausing session:", err);
       setError("Failed to pause interview. Please try again.");
     }
   }, [sessionId]);
@@ -463,7 +431,6 @@ export default function Interview() {
         }
       }
     } catch (err) {
-      console.error("Error resuming session:", err);
       setError("Failed to resume interview. Please try again.");
     }
   }, [sessionId, conversation, instantScrollToBottom]);
@@ -506,16 +473,12 @@ export default function Interview() {
     setIsDownloadingReport(true);
     
     try {
-      console.log("🔍 Generating report for session:", sessionId);
-      
       const [sessionData, responses, followups, questions] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Response.filter({ session_id: sessionId }),
         base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
         base44.entities.Question.filter({ active: true })
       ]);
-
-      console.log(`📊 Loaded: ${responses.length} responses, ${followups.length} follow-ups`);
 
       const reportContent = generateReportHTML(sessionData, responses, followups, questions);
 
@@ -530,11 +493,8 @@ export default function Interview() {
       setTimeout(() => {
         document.body.removeChild(printContainer);
       }, 100);
-
-      console.log("✅ Report generated successfully");
       
     } catch (err) {
-      console.error("❌ Error generating report:", err);
       setError("Failed to generate report. Please try again.");
     } finally {
       setIsDownloadingReport(false);
@@ -547,8 +507,6 @@ export default function Interview() {
 
   const loadSession = async () => {
     try {
-      console.log("🔄 Loading session:", sessionId);
-      
       const [sessionData, allQuestions, allSections] = await Promise.all([
         base44.entities.InterviewSession.get(sessionId),
         base44.entities.Question.filter({ active: true }),
@@ -559,15 +517,12 @@ export default function Interview() {
       setQuestions(allQuestions);
       setSections(allSections);
       
-      // Calculate total questions from active sections
       const activeSections = allSections.filter(s => s.active !== false);
       const totalQs = activeSections.reduce((sum, sec) => {
         const secQuestions = allQuestions.filter(q => q.section_id === sec.id);
         return sum + secQuestions.length;
       }, 0);
       setTotalQuestions(totalQs);
-      
-      console.log(`📊 Total active questions: ${totalQs}`);
 
       if (!sessionData.conversation_id) {
         throw new Error("No conversation linked to this session");
@@ -577,10 +532,8 @@ export default function Interview() {
       setConversation(conversationData);
       
       const existingMessages = conversationData.messages || [];
-      console.log(`📥 Loaded ${existingMessages.length} existing messages`);
 
       if (sessionData.status === 'paused') {
-        console.log("📍 Session is paused");
         setIsPaused(true);
         setIsLoading(false);
         setMessages(existingMessages);
@@ -589,12 +542,10 @@ export default function Interview() {
         setIsPaused(false);
       }
 
-      console.log("📡 Setting up message subscription");
       unsubscribeRef.current = base44.agents.subscribeToConversation(
         sessionData.conversation_id,
         (data) => {
           const newMessages = data.messages || [];
-          console.log(`📨 Subscription update: ${newMessages.length} messages`);
           setMessages(newMessages);
         }
       );
@@ -602,22 +553,13 @@ export default function Interview() {
       setMessages(existingMessages);
       
       if (existingMessages.length === 0 && !isInitializedRef.current) {
-        console.log("🎬 Initializing new conversation with Q001");
         isInitializedRef.current = true;
         
-        try {
-          await base44.agents.addMessage(conversationData, {
-            role: "user",
-            content: "Start with Q001"
-          });
-          console.log("✅ Q001 initialization sent");
-          // Set loading to false after successful initialization
-          setIsLoading(false);
-        } catch (err) {
-          console.error("❌ Error initializing conversation:", err);
-          setError("Failed to start interview. Please try again.");
-          setIsLoading(false);
-        }
+        await base44.agents.addMessage(conversationData, {
+          role: "user",
+          content: "Start with Q001"
+        });
+        setIsLoading(false);
       } else {
         setIsLoading(false);
       }
@@ -638,7 +580,6 @@ export default function Interview() {
       }, 100);
 
     } catch (err) {
-      console.error("❌ Error loading session:", err);
       setError(`Failed to load interview session: ${err.message}`);
       setIsLoading(false);
     }
@@ -653,7 +594,6 @@ export default function Interview() {
     loadSession();
     
     return () => {
-      console.log("🧹 Cleaning up subscription");
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
@@ -747,7 +687,6 @@ export default function Interview() {
       )
       .map((msg) => ({
         ...msg,
-        // Use message ID as the stable key - this ensures React doesn't remount
         stableKey: msg.id || msg.created_at || Math.random().toString()
       }));
   }, [messages]);

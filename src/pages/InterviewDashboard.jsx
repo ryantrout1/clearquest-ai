@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, FileText, Clock, CheckCircle, AlertTriangle, Search, ArrowLeft, X, Trash2, Loader2 } from "lucide-react";
+import { Clock, Search, ArrowLeft, X, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -35,17 +35,13 @@ export default function InterviewDashboard() {
     try {
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
-        try {
-          const auth = JSON.parse(adminAuth);
-          setCurrentUser({
-            username: auth.username,
-            email: `${auth.username.toLowerCase()}@clearquest.ai`,
-            role: "SUPER_ADMIN"
-          });
-          return;
-        } catch (err) {
-          console.error("Error parsing admin auth:", err);
-        }
+        const auth = JSON.parse(adminAuth);
+        setCurrentUser({
+          username: auth.username,
+          email: `${auth.username.toLowerCase()}@clearquest.ai`,
+          role: "SUPER_ADMIN"
+        });
+        return;
       }
 
       const user = await base44.auth.me();
@@ -200,14 +196,6 @@ export default function InterviewDashboard() {
     setSelectedSessions(newSelected);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedSessions.size === processedSessions.length) {
-      setSelectedSessions(new Set());
-    } else {
-      setSelectedSessions(new Set(processedSessions.map(s => s.id)));
-    }
-  };
-
   const handleBulkDelete = async () => {
     if (!bulkDeleteConfirm) {
       setBulkDeleteConfirm(true);
@@ -233,7 +221,6 @@ export default function InterviewDashboard() {
         await base44.entities.InterviewSession.delete(sessionId);
       }
 
-      // Optimistically update the cache
       queryClient.setQueryData(['sessions'], (oldSessions) => 
         oldSessions.filter(s => !sessionsToDelete.includes(s.id))
       );
@@ -249,9 +236,7 @@ export default function InterviewDashboard() {
       setBulkDeleteConfirm(false);
       
     } catch (err) {
-      console.error("Error deleting sessions:", err);
       toast.error("Failed to delete sessions");
-      // Refetch on error
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['all-responses'] });
       queryClient.invalidateQueries({ queryKey: ['all-followups'] });
@@ -422,7 +407,6 @@ export default function InterviewDashboard() {
           ) : processedSessions.length === 0 ? (
             <Card className="bg-slate-800/50 border-slate-700">
               <CardContent className="p-12 text-center space-y-4">
-                <FileText className="w-16 h-16 text-slate-600 mx-auto" />
                 <p className="text-slate-400 text-sm">
                   {searchTerm || statusFilter !== "all" || departmentFilter !== "all"
                     ? "No sessions match your filters" 
@@ -537,7 +521,6 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
       await base44.entities.InterviewSession.delete(session.id);
 
-      // Optimistically update the cache
       queryClient.setQueryData(['sessions'], (oldSessions) => 
         oldSessions.filter(s => s.id !== session.id)
       );
@@ -551,9 +534,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
       toast.success("Session deleted successfully");
       
     } catch (err) {
-      console.error("Error deleting session:", err);
       toast.error("Failed to delete session");
-      // Refetch on error
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['all-responses'] });
       queryClient.invalidateQueries({ queryKey: ['all-followups'] });
