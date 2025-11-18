@@ -162,7 +162,7 @@ export default function StartInterview() {
         
         if (activeSession) {
           console.log("📍 Found active session - navigating to interview");
-          navigate(createPageUrl(`Interview?session=${activeSession.id}`));
+          navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
           return;
         }
 
@@ -210,27 +210,7 @@ export default function StartInterview() {
 
       console.log("✅ Session created:", newSession.id);
 
-      // Create a conversation for the new session
-      const conversation = await base44.agents.createConversation({
-        agent_name: "clearquest_interviewer",
-        metadata: {
-          session_id: newSession.id,
-          session_code: sessionCode,
-          department_code: deptCode,
-          file_number: fileNum
-        }
-      });
-
-      console.log("✅ Conversation created:", conversation.id);
-
-      // Link the conversation ID back to the interview session
-      await base44.entities.InterviewSession.update(newSession.id, {
-        conversation_id: conversation.id
-      });
-
-      console.log("✅ Session linked to conversation");
-
-      navigate(createPageUrl(`Interview?session=${newSession.id}`));
+      navigate(createPageUrl(`InterviewV2?session=${newSession.id}`));
 
     } catch (err) {
       console.error("❌ Error creating session:", err);
