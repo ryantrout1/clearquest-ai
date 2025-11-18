@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, RefreshCw, Lock, AlertCircle, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, Lock, AlertCircle, ShieldAlert } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { getFollowupPackDisplay, getResponseTypeDisplay, FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../components/utils/followupPackNames";
@@ -139,7 +139,6 @@ export default function InterviewStructureManager() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
-  const [isMigrating, setIsMigrating] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -202,146 +201,6 @@ export default function InterviewStructureManager() {
     enabled: !!user
   });
 
-  // Auto-migrate Categories to Sections and link Questions
-  const runMigration = async () => {
-    setIsMigrating(true);
-    try {
-      console.log('=== STARTING MIGRATION ===');
-      console.log('Categories:', categories.length);
-      console.log('Questions:', questions.length);
-      console.log('Existing Sections:', sections.length);
-      
-      // Step 1: Create Section records from Categories (or use existing)
-      const sectionMap = {};
-      const categoriesSorted = [...categories].sort((a, b) => (a.section_order || a.display_order || 999) - (b.section_order || b.display_order || 999));
-      
-      for (const cat of categoriesSorted) {
-        // Check if section already exists
-        const existingSection = sections.find(s => 
-          s.section_name === cat.category_label || 
-          s.section_id === cat.category_id
-        );
-        
-        let sectionId;
-        if (existingSection) {
-          sectionId = existingSection.id;
-          console.log(`✓ Using existing section: ${cat.category_label} -> ${sectionId}`);
-        } else {
-          console.log(`Creating new section for: ${cat.category_label}`);
-          const newSection = await base44.entities.Section.create({
-            section_id: cat.category_id || `SEC_${cat.category_label.replace(/\s+/g, '_').toUpperCase()}`,
-            section_name: cat.category_label,
-            section_order: cat.section_order || cat.display_order || 999,
-            active: cat.active !== false,
-            required: true,
-            description: cat.description || ''
-          });
-          sectionId = newSection.id;
-          console.log(`✓ Created section: ${cat.category_label} -> ${sectionId}`);
-        }
-        
-        // Store multiple keys for matching
-        sectionMap[cat.category_label] = sectionId;
-        sectionMap[cat.category_label.toLowerCase().trim()] = sectionId;
-        if (cat.category_id) {
-          sectionMap[cat.category_id] = sectionId;
-        }
-      }
-
-      console.log('\n=== SECTION MAP ===');
-      console.log(Object.keys(sectionMap).filter(k => !k.startsWith('CAT_')));
-
-      // Step 2: Link ALL Questions to Sections
-      let updatedCount = 0;
-      let alreadyLinkedCount = 0;
-      let skippedCount = 0;
-      const unmatched = [];
-      const byCategoryCount = {};
-      
-      for (const q of questions) {
-        let matched = false;
-        let targetSectionId = null;
-        
-        // Check if already properly linked to an existing section
-        if (q.section_id) {
-          const sectionExists = sections.find(s => s.id === q.section_id);
-          if (sectionExists) {
-            alreadyLinkedCount++;
-            const catName = q.category || 'Unknown';
-            byCategoryCount[catName] = (byCategoryCount[catName] || 0) + 1;
-            console.log(`✓ Already linked: ${q.question_id} -> ${sectionExists.section_name}`);
-            continue;
-          }
-        }
-        
-        // Try to find matching section
-        if (q.category) {
-          // Try exact match
-          if (sectionMap[q.category]) {
-            targetSectionId = sectionMap[q.category];
-            matched = true;
-          }
-          // Try lowercase trimmed match
-          else if (sectionMap[q.category.toLowerCase().trim()]) {
-            targetSectionId = sectionMap[q.category.toLowerCase().trim()];
-            matched = true;
-          }
-        }
-        
-        if (matched && targetSectionId) {
-          await base44.entities.Question.update(q.id, {
-            section_id: targetSectionId
-          });
-          updatedCount++;
-          const catName = q.category || 'Unknown';
-          byCategoryCount[catName] = (byCategoryCount[catName] || 0) + 1;
-          console.log(`✓ Linked: ${q.question_id} (${q.category}) -> section ID ${targetSectionId}`);
-        } else {
-          skippedCount++;
-          unmatched.push({
-            id: q.question_id,
-            category: q.category,
-            section_id: q.section_id,
-            text: q.question_text?.substring(0, 50)
-          });
-          console.warn(`✗ Could not match: ${q.question_id} with category "${q.category}"`);
-        }
-      }
-
-      console.log('\n=== MIGRATION COMPLETE ===');
-      console.log(`Total questions: ${questions.length}`);
-      console.log(`Already linked: ${alreadyLinkedCount}`);
-      console.log(`Newly linked: ${updatedCount}`);
-      console.log(`Could not match: ${skippedCount}`);
-      
-      console.log('\n=== QUESTIONS BY CATEGORY ===');
-      Object.entries(byCategoryCount).forEach(([cat, count]) => {
-        console.log(`${cat}: ${count} questions`);
-      });
-      
-      if (unmatched.length > 0) {
-        console.warn('\n=== UNMATCHED QUESTIONS ===');
-        unmatched.forEach(q => {
-          console.warn(`- ${q.id}: category="${q.category}", section_id="${q.section_id}"`);
-        });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['sections'] });
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      
-      if (skippedCount > 0) {
-        toast.warning(`Migration complete: ${alreadyLinkedCount + updatedCount} questions linked, ${skippedCount} could not be matched. Check console.`);
-      } else {
-        toast.success(`Migration complete: All ${alreadyLinkedCount + updatedCount} questions linked!`);
-      }
-    } catch (err) {
-      console.error('Migration error:', err);
-      toast.error('Migration failed: ' + err.message);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   const sortedSections = [...sections].sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
 
   const toggleNode = (nodeId) => {
@@ -352,7 +211,7 @@ export default function InterviewStructureManager() {
   };
 
   const toggleSectionActive = async (e, section) => {
-    e.stopPropagation(); // Prevent opening the section details
+    e.stopPropagation();
     try {
       await base44.entities.Section.update(section.id, {
         active: !section.active
@@ -365,7 +224,7 @@ export default function InterviewStructureManager() {
   };
 
   const toggleQuestionActive = async (e, question) => {
-    e.stopPropagation(); // Prevent opening the question details
+    e.stopPropagation();
     try {
       await base44.entities.Question.update(question.id, {
         active: !question.active
@@ -469,23 +328,7 @@ export default function InterviewStructureManager() {
                 <p className="text-xs text-slate-400">Manage sections, questions, and follow-up packs</p>
               </div>
             </div>
-            <Button
-              onClick={runMigration}
-              disabled={isMigrating}
-              className="bg-amber-600 hover:bg-amber-700"
-            >
-              {isMigrating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Migrating...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Sync All Questions
-                </>
-              )}
-            </Button>
+            {/* Removed Sync All Questions button and migration related elements */}
           </div>
         </div>
       </div>
@@ -511,7 +354,7 @@ export default function InterviewStructureManager() {
               {sectionsLoading ? (
                 <p className="text-slate-400 text-center py-8">Loading sections...</p>
               ) : sortedSections.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No sections yet. Click "Sync All Questions" to import your data.</p>
+                <p className="text-slate-400 text-center py-8">No sections yet. Create your first section to get started.</p>
               ) : (
                 <DragDropContext onDragEnd={handleSectionDragEnd}>
                   <Droppable droppableId="sections">
@@ -716,7 +559,19 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
   const gateQuestionId = gateCategory?.gate_question_id;
 
   if (sectionQuestions.length === 0) {
-    return <p className="text-sm text-slate-400">No questions yet</p>;
+    return (
+      <div className="flex justify-between items-center bg-slate-800/30 border border-slate-700 rounded-lg p-3">
+        <p className="text-sm text-slate-400">No questions in this section yet.</p>
+        <Button
+          onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-700"
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Add Question
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -946,14 +801,24 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
     if (selectedItem?.data) {
       setFormData(selectedItem.data);
       
-      // Check if this question is a gate question
-      if (selectedItem.type === 'question' && selectedItem.data.category) {
-        const cat = categories.find(c => c.category_label === selectedItem.data.category);
-        if (cat) {
-          setCurrentCategoryEntity(cat);
-          setIsGateQuestion(cat.gate_question_id === selectedItem.data.question_id);
+      // Check if this question is a gate question based on its associated section
+      if (selectedItem.type === 'question' && selectedItem.data.section_id) {
+        const section = sections.find(s => s.id === selectedItem.data.section_id);
+        if (section) {
+          const cat = categories.find(c => c.category_label === section.section_name);
+          if (cat) {
+            setCurrentCategoryEntity(cat);
+            setIsGateQuestion(cat.gate_question_id === selectedItem.data.question_id);
+          } else {
+            setCurrentCategoryEntity(null);
+            setIsGateQuestion(false);
+          }
+        } else {
+          setCurrentCategoryEntity(null);
+          setIsGateQuestion(false);
         }
       } else {
+        setFormData({});
         setIsGateQuestion(false);
         setCurrentCategoryEntity(null);
       }
@@ -962,31 +827,36 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
       setIsGateQuestion(false);
       setCurrentCategoryEntity(null);
     }
-  }, [selectedItem, categories]);
+  }, [selectedItem, categories, sections]);
 
-  // Determine default pack group based on category
+  // Determine default pack group based on category derived from the section
   useEffect(() => {
-    if (formData.category) {
-      const categoryMap = {
-        "Applications with Other Law Enforcement Agencies": "Law Enforcement",
-        "Prior Law Enforcement": "Law Enforcement",
-        "Prior Law Enforcement ONLY": "Law Enforcement",
-        "Driving Record": "Driving & Traffic",
-        "Criminal Involvement / Police Contacts": "Criminal History",
-        "Extremist Organizations": "Extremism",
-        "Sexual Activities": "Sexual Misconduct",
-        "Financial History": "Financial Issues",
-        "Illegal Drug / Narcotic History": "Drug Use & Distribution",
-        "Alcohol History": "Alcohol",
-        "Military History": "Military",
-        "Employment History": "Employment & Discipline",
-        "General Disclosures & Eligibility": "Disclosure & Integrity"
-      };
-      setDefaultPackGroup(categoryMap[formData.category] || null);
+    if (formData.section_id && sections.length > 0) {
+      const section = sections.find(s => s.id === formData.section_id);
+      if (section) {
+        const categoryMap = {
+          "Applications with Other Law Enforcement Agencies": "Law Enforcement",
+          "Prior Law Enforcement": "Law Enforcement",
+          "Prior Law Enforcement ONLY": "Law Enforcement",
+          "Driving Record": "Driving & Traffic",
+          "Criminal Involvement / Police Contacts": "Criminal History",
+          "Extremist Organizations": "Extremism",
+          "Sexual Activities": "Sexual Misconduct",
+          "Financial History": "Financial Issues",
+          "Illegal Drug / Narcotic History": "Drug Use & Distribution",
+          "Alcohol History": "Alcohol",
+          "Military History": "Military",
+          "Employment History": "Employment & Discipline",
+          "General Disclosures & Eligibility": "Disclosure & Integrity"
+        };
+        setDefaultPackGroup(categoryMap[section.section_name] || null);
+      } else {
+        setDefaultPackGroup(null);
+      }
     } else {
       setDefaultPackGroup(null);
     }
-  }, [formData.category]);
+  }, [formData.section_id, sections]);
 
   const handleSave = async () => {
     try {
@@ -995,7 +865,13 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section updated');
       } else if (selectedItem?.type === 'question') {
-        await base44.entities.Question.update(selectedItem.data.id, formData);
+        const section = sections.find(s => s.id === formData.section_id);
+        const saveData = {
+          ...formData,
+          category: section?.section_name || formData.category // Ensure category matches section_name
+        };
+        
+        await base44.entities.Question.update(selectedItem.data.id, saveData);
         
         // Update category gate question setting
         if (currentCategoryEntity) {
@@ -1021,7 +897,9 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         await base44.entities.Section.create({
           ...formData,
           section_id: `SEC_${Date.now()}`,
-          section_order: maxOrder + 1
+          section_order: maxOrder + 1,
+          active: formData.active !== false, // Default to true if not specified
+          required: formData.required !== false // Default to true if not specified
         });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section created');
@@ -1031,10 +909,13 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         const sectionQuestions = questions.filter(q => q.section_id === selectedItem.sectionId);
         const maxOrder = Math.max(0, ...sectionQuestions.map(q => q.display_order || 0));
         
+        const section = sections.find(s => s.id === selectedItem.sectionId);
+        
         await base44.entities.Question.create({
           ...formData,
           question_id: newQuestionId,
           section_id: selectedItem.sectionId,
+          category: section?.section_name || '', // Set category from section name for new questions
           display_order: maxOrder + 1,
           active: true,
           response_type: formData.response_type || 'yes_no'
@@ -1045,7 +926,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
       }
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Failed to save');
+      toast.error('Failed to save: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -1067,7 +948,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <h3 className="text-lg font-semibold text-white">
             {selectedItem.type === 'new-section' ? 'New Section' : 'Edit Section'}
           </h3>
-          {selectedItem.type !== 'new-section' && sectionQuestionsAll.length > 0 && (
+          {selectedItem.type !== 'new-section' && ( // Changed condition here, allow adding questions to empty sections
             <Button
               onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
               size="sm"
@@ -1218,24 +1099,23 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           </Select>
         </div>
 
-        {selectedItem.type === 'question' && (
-          <div>
-            <Label className="text-slate-300">Section</Label>
-            <Select
-              value={formData.section_id || ''}
-              onValueChange={(v) => setFormData({...formData, section_id: v})}
-            >
-              <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sortedSectionsAlpha.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Section selection is available for both existing and new questions when creating via the detail panel directly */}
+        <div>
+          <Label className="text-slate-300">Section</Label>
+          <Select
+            value={formData.section_id || ''}
+            onValueChange={(v) => setFormData({...formData, section_id: v})}
+          >
+            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sortedSectionsAlpha.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div>
           <Label className="text-slate-300 flex items-center gap-2">
