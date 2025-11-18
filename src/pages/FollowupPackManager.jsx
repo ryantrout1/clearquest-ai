@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronDown, ChevronRight, Package, AlertTriangle, FileText, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Package, AlertTriangle, FileText, ExternalLink, Plus, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const BEHAVIOR_TYPE_NAMES = {
@@ -125,6 +125,24 @@ export default function FollowupPackManager() {
     checkAuth();
   }, []);
 
+  const { data: packs = [], isLoading: packsLoading } = useQuery({
+    queryKey: ['followUpPacks'],
+    queryFn: () => base44.entities.FollowUpPack.list(),
+    enabled: !!user
+  });
+
+  const { data: allQuestions = [] } = useQuery({
+    queryKey: ['followUpQuestions'],
+    queryFn: () => base44.entities.FollowUpQuestion.list(),
+    enabled: !!user
+  });
+
+  const { data: interviewQuestions = [] } = useQuery({
+    queryKey: ['questions'],
+    queryFn: () => base44.entities.Question.list(),
+    enabled: !!user
+  });
+
   // Auto-select pack from URL
   useEffect(() => {
     if (highlightPackId && packs.length > 0) {
@@ -194,24 +212,6 @@ export default function FollowupPackManager() {
       }
     }
   };
-
-  const { data: packs = [], isLoading: packsLoading } = useQuery({
-    queryKey: ['followUpPacks'],
-    queryFn: () => base44.entities.FollowUpPack.list(),
-    enabled: !!user
-  });
-
-  const { data: allQuestions = [] } = useQuery({
-    queryKey: ['followUpQuestions'],
-    queryFn: () => base44.entities.FollowUpQuestion.list(),
-    enabled: !!user
-  });
-
-  const { data: interviewQuestions = [] } = useQuery({
-    queryKey: ['questions'],
-    queryFn: () => base44.entities.Question.list(),
-    enabled: !!user
-  });
 
   // Build usage map: which questions trigger which packs
   const packUsageMap = useMemo(() => {
