@@ -895,7 +895,6 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           setIsGateQuestion(false);
         }
       } else {
-        setFormData({});
         setIsGateQuestion(false);
         setCurrentCategoryEntity(null);
       }
