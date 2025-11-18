@@ -291,7 +291,7 @@ export default function StartInterview() {
                 <Input
                   id="fileNumber"
                   type="text"
-                  placeholder="Enter file number"
+                  placeholder="Enter file number (A-Z, 0-9, - only)"
                   value={formData.fileNumber}
                   onChange={(e) => {
                     const value = e.target.value;
