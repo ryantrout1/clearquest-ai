@@ -203,6 +203,12 @@ export default function InterviewStructureManager() {
     enabled: !!user
   });
 
+  const { data: followUpQuestions = [] } = useQuery({
+    queryKey: ['followUpQuestions'],
+    queryFn: () => base44.entities.FollowUpQuestion.list(),
+    enabled: !!user
+  });
+
   // Auto-expand and scroll to highlighted question
   useEffect(() => {
     if (highlightQuestionId && questions.length > 0 && sections.length > 0) {
