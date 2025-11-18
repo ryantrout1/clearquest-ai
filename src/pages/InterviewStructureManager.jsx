@@ -134,6 +134,9 @@ export default function InterviewStructureManager() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
+  const urlParams = new URLSearchParams(window.location.search);
+  const highlightQuestionId = urlParams.get('questionId');
+  
   const [user, setUser] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState({});
   const [selectedItem, setSelectedItem] = useState(null);
@@ -200,6 +203,33 @@ export default function InterviewStructureManager() {
     queryFn: () => base44.entities.FollowUpQuestion.list(),
     enabled: !!user
   });
+
+  // Auto-expand and scroll to highlighted question
+  useEffect(() => {
+    if (highlightQuestionId && questions.length > 0 && sections.length > 0) {
+      const question = questions.find(q => q.question_id === highlightQuestionId);
+      if (question) {
+        const sectionId = question.section_id;
+        setExpandedNodes(prev => ({
+          ...prev,
+          [`section-${sectionId}`]: true
+        }));
+        
+        setTimeout(() => {
+          const element = document.getElementById(`question-${question.id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add a class for visual highlighting (e.g., a pulse animation)
+            element.classList.add('animate-pulse-once');
+            // Remove the class after animation to prevent it from repeating or staying
+            setTimeout(() => {
+              element.classList.remove('animate-pulse-once');
+            }, 2000); // Adjust duration to match your CSS animation
+          }
+        }, 100); // Small delay to ensure DOM update after state change
+      }
+    }
+  }, [highlightQuestionId, questions, sections]);
 
   const sortedSections = [...sections].sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
 
@@ -587,6 +617,7 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
                 <Draggable key={question.id} draggableId={question.id} index={index}>
                   {(provided) => (
                     <div
+                      id={`question-${question.id}`}
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       className={`bg-slate-800/50 border rounded-lg p-3 transition-colors ${

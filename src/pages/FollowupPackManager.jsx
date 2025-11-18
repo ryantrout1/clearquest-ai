@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -17,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronDown, ChevronRight, Package, Layers, AlertTriangle, FileText } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Package, AlertTriangle, FileText, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const BEHAVIOR_TYPE_NAMES = {
@@ -166,6 +165,21 @@ export default function FollowupPackManager() {
     enabled: !!user
   });
 
+  // Build usage map: which questions trigger which packs
+  const packUsageMap = useMemo(() => {
+    const map = {};
+    interviewQuestions.forEach(q => {
+      const packCode = q.followup_pack;
+      if (packCode) {
+        if (!map[packCode]) {
+          map[packCode] = [];
+        }
+        map[packCode].push(q);
+      }
+    });
+    return map;
+  }, [interviewQuestions]);
+
   // Group packs by category
   const groupedPacks = {};
   Object.entries(PACK_GROUPS).forEach(([groupName, packIds]) => {
@@ -214,7 +228,7 @@ export default function FollowupPackManager() {
               </Button>
               <AlertTriangle className="w-6 h-6 text-amber-400" />
               <div>
-                <h1 className="text-xl font-bold text-white">Automated Follow-Up Packs</h1>
+                <h1 className="text-xl font-bold text-white">Follow-Up Pack Manager</h1>
                 <p className="text-xs text-slate-400">Every "Yes" answer triggers a structured deep-dive. No detail missed, no investigator guesswork.</p>
               </div>
             </div>
@@ -256,7 +270,8 @@ export default function FollowupPackManager() {
                         {groupPacks.map((pack) => {
                           const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
                           const activeQuestions = packQuestions.filter(q => q.active !== false).length;
-                          const triggeringQuestions = interviewQuestions.filter(q => q.followup_pack === pack.followup_pack_id);
+                          const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
+                          const isOrphaned = triggeringQuestions.length === 0;
                           
                           return (
                             <div
@@ -281,7 +296,11 @@ export default function FollowupPackManager() {
                                     <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                       {activeQuestions} questions
                                     </Badge>
-                                    {triggeringQuestions.length > 0 && (
+                                    {isOrphaned ? (
+                                      <Badge variant="outline" className="text-xs border-yellow-600 text-yellow-400">
+                                        Not used
+                                      </Badge>
+                                    ) : (
                                       <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
                                         <FileText className="w-3 h-3 mr-1" />
                                         {triggeringQuestions.length} Q
@@ -313,7 +332,7 @@ export default function FollowupPackManager() {
               <PackDetailPanel
                 pack={selectedPack}
                 questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
-                triggeringQuestions={interviewQuestions.filter(q => q.followup_pack === selectedPack?.followup_pack_id)}
+                triggeringQuestions={packUsageMap[selectedPack?.followup_pack_id] || []}
                 onUpdate={() => {
                   queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
                   queryClient.invalidateQueries({ queryKey: ['questions'] });
@@ -328,6 +347,7 @@ export default function FollowupPackManager() {
 }
 
 function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(false);
 
@@ -359,6 +379,10 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
       console.error('Save error:', err);
       toast.error('Failed to save pack');
     }
+  };
+
+  const handleNavigateToQuestion = (questionId) => {
+    navigate(createPageUrl(`InterviewStructureManager?questionId=${questionId}`));
   };
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -543,62 +567,35 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.ai_probe_instructions || 'No instructions provided'}</p>
         )}
       </div>
-      
+
       {/* Triggering Questions - Moved to bottom */}
-      {sortedTriggeringQuestions.length > 0 && (
-        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
-          </h4>
-          <div className="space-y-2">
-            {sortedTriggeringQuestions.map((q) => (
-              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                    {q.question_id}
-                  </Badge>
-                  <p className="text-sm text-slate-300 leading-relaxed flex-1">{q.question_text}</p>
-                </div>
-              </div>
-            ))}
+      <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
+        </h4>
+        {sortedTriggeringQuestions.length === 0 ? (
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
+            <p className="text-sm text-slate-400">
+              No questions in the Interview Structure currently reference this Follow-Up Pack.
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Follow-Up Questions - Read Only */}
-      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-white mb-4">Follow-Up Questions ({sortedQuestions.length})</h4>
-
-        {sortedQuestions.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">No questions configured for this pack yet.</p>
         ) : (
           <div className="space-y-2">
-            {sortedQuestions.map((question, index) => (
-              <div
-                key={question.id}
-                className="bg-slate-800/50 border border-slate-600 rounded-lg p-3"
+            {sortedTriggeringQuestions.map((q) => (
+              <button
+                key={q.id}
+                onClick={() => handleNavigateToQuestion(q.question_id)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-slate-800/70 transition-all text-left group"
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold mt-0.5">
-                    {index + 1}
-                  </div>
-                  <Layers className="w-4 h-4 text-emerald-400 mt-1" />
-                  <div className="flex-1">
-                    <p className="text-sm text-white leading-relaxed">{question.question_text}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                        {question.response_type}
-                      </Badge>
-                      {question.active === false && (
-                        <Badge variant="outline" className="text-xs border-red-600 text-red-400">
-                          Inactive
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
+                    {q.question_id}
+                  </Badge>
+                  <p className="text-sm text-slate-300 leading-relaxed flex-1 group-hover:text-white transition-colors">{q.question_text}</p>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
