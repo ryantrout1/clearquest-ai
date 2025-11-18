@@ -2099,7 +2099,8 @@ const AgentMessageBubble = React.memo(({ message }) => {
           <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{message.content}</p>
         </div>
       </div>
-    );
+    </div>
+  );
 });
 
 AgentMessageBubble.displayName = 'AgentMessageBubble';
