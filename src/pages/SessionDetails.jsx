@@ -592,7 +592,16 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
 
-        const sortedResponses = [...categoryResponses].sort((a, b) => a.display_number - b.display_number);
+        const sortedResponses = [...categoryResponses].sort((a, b) => {
+          const aNum = typeof a.display_number === "number" ? a.display_number : Infinity;
+          const bNum = typeof b.display_number === "number" ? b.display_number : Infinity;
+          
+          if (aNum !== bNum) {
+            return aNum - bNum;
+          }
+          
+          return new Date(a.response_timestamp).getTime() - new Date(b.response_timestamp).getTime();
+        });
         
         const midpoint = Math.ceil(sortedResponses.length / 2);
         const leftColumn = sortedResponses.slice(0, midpoint);
@@ -657,7 +666,8 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
 function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand }) {
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
-  const questionNumber = response.display_number.toString().padStart(3, '0');
+  const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
+  const questionNumber = displayNumber.toString().padStart(3, '0');
   const aiProbingExchanges = response.investigator_probing || [];
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
@@ -793,9 +803,23 @@ function TranscriptView({ responses, followups }) {
     });
   }, [responses]);
 
+  // Sort by canonical question order
+  const sortedResponses = [...responses].sort((a, b) => {
+    const aNum = typeof a.display_number === "number" ? a.display_number : Infinity;
+    const bNum = typeof b.display_number === "number" ? b.display_number : Infinity;
+
+    if (aNum !== bNum) {
+      return aNum - bNum;
+    }
+
+    const aTime = new Date(a.response_timestamp).getTime();
+    const bTime = new Date(b.response_timestamp).getTime();
+    return aTime - bTime;
+  });
+
   const timeline = [];
 
-  responses.forEach(response => {
+  sortedResponses.forEach(response => {
     timeline.push({ type: 'question', data: response });
 
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
