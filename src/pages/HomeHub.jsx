@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen } from "lucide-react";
+import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function HomeHub() {
@@ -19,13 +19,11 @@ export default function HomeHub() {
 
   const loadUser = async () => {
     try {
-      // Check for mock admin authentication first (for Ryan/Dylan local testing)
       const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
           console.log("Mock admin auth found:", auth);
-          // Create a mock super admin user for Ryan/Dylan
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
             first_name: auth.username,
@@ -36,19 +34,16 @@ export default function HomeHub() {
           console.log("Mock user created:", mockUser);
           setUser(mockUser);
           setIsLoading(false);
-          return; // Exit function after handling mock admin
+          return;
         } catch (err) {
           console.error("Error parsing admin auth from sessionStorage:", err);
-          // Continue to attempt regular auth if mock auth fails to parse
         }
       }
 
-      // Otherwise try to get authenticated Base44 user
       const currentUser = await base44.auth.me();
       console.log("Base44 user loaded:", currentUser);
       setUser(currentUser);
 
-      // Load department if user has one
       if (currentUser.department_id) {
         const dept = await base44.entities.Department.get(currentUser.department_id);
         setDepartment(dept);
@@ -57,7 +52,6 @@ export default function HomeHub() {
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading user:", err);
-      // Redirect to login if user is not authenticated or an error occurs
       navigate(createPageUrl("AdminLogin"));
     }
   };
@@ -87,8 +81,7 @@ export default function HomeHub() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
+      <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8 md:mb-12">
           <div className="flex justify-center mb-4 md:mb-6">
             <div className="relative">
@@ -114,11 +107,9 @@ export default function HomeHub() {
           </div>
         </div>
 
-        {/* Action Cards */}
-        <div className={`grid grid-cols-1 ${isSuperAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 md:gap-8 mb-8 md:mb-12 max-w-5xl mx-auto`}>
+        <div className={`grid grid-cols-1 ${isSuperAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-2'} gap-6 md:gap-8 mb-8 md:mb-12 max-w-6xl mx-auto`}>
           {isSuperAdmin ? (
             <>
-              {/* Super Admin: System Admin Card */}
               <div
                 onClick={() => handleNavigate("SystemAdminDashboard")}
                 className="cursor-pointer group"
@@ -132,13 +123,12 @@ export default function HomeHub() {
                     </div>
                     <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
                     <p className="text-base md:text-lg text-slate-400">
-                      Manage all departments and system settings
+                      Manage departments and system settings
                     </p>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Super Admin: Interview Structure Card */}
               <div
                 onClick={() => handleNavigate("InterviewStructureManager")}
                 className="cursor-pointer group"
@@ -157,10 +147,28 @@ export default function HomeHub() {
                   </CardContent>
                 </Card>
               </div>
+
+              <div
+                onClick={() => handleNavigate("FollowupPackManager")}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-amber-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-amber-600/20 group-hover:bg-amber-600/30 transition-colors">
+                        <Package className="w-10 h-10 md:w-12 md:h-12 text-amber-400" />
+                      </div>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
+                    <p className="text-base md:text-lg text-slate-400">
+                      Configure follow-up packs and probing questions
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
             </>
           ) : (
             <>
-              {/* Department User/Admin: Department Card */}
               <div
                 onClick={() => handleNavigate(`DepartmentDashboard?id=${user?.department_id}`)}
                 className="cursor-pointer group"
@@ -182,7 +190,6 @@ export default function HomeHub() {
             </>
           )}
 
-          {/* Interviews Card - For Everyone */}
           <div
             onClick={() => handleNavigate("InterviewDashboard")}
             className="cursor-pointer group"
@@ -203,7 +210,6 @@ export default function HomeHub() {
           </div>
         </div>
 
-        {/* Footer Actions */}
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
           <Link to={createPageUrl("Home")} className="w-full sm:w-auto">
             <Button
@@ -235,7 +241,6 @@ export default function HomeHub() {
           </a>
         </div>
 
-        {/* Version */}
         <p className="text-center text-slate-500 text-xs md:text-sm mt-6 md:mt-8 px-4">
           © 2025 ClearQuest AI™ • CJIS Compliant
         </p>
