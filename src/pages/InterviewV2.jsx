@@ -1489,25 +1489,26 @@ Return ONLY the summary sentence, nothing else.`;
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
-  // Calculate section progress
+  // Calculate section progress - ENHANCED UI/UX
   let currentSection = null;
   let sectionAnswered = 0;
   let sectionTotal = 0;
   let sectionProgress = 0;
+  let sectionColor = 'blue'; // Default color
 
   if (currentPrompt && currentPrompt.type === 'question' && engine) {
     const currentQuestion = engine.QById[currentPrompt.id];
-    if (currentQuestion && currentQuestion.section_id) {
+    if (currentQuestion?.section_id) {
       const sectionId = currentQuestion.section_id;
       const sectionData = engine.sectionConfig[sectionId];
       
       if (sectionData) {
         currentSection = sectionData.section_name;
         
-        // Use questionsBySection with section ID (not category name)
         const sectionQuestions = engine.questionsBySection[sectionId] || [];
         sectionTotal = sectionQuestions.length;
         
+        // Count answered questions in current section
         sectionAnswered = transcript.filter(t => {
           if (t.type !== 'question') return false;
           const q = engine.QById[t.questionId];
@@ -1515,6 +1516,12 @@ Return ONLY the summary sentence, nothing else.`;
         }).length;
         
         sectionProgress = sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0;
+        
+        // Dynamic color based on progress
+        if (sectionProgress >= 75) sectionColor = 'emerald';
+        else if (sectionProgress >= 50) sectionColor = 'blue';
+        else if (sectionProgress >= 25) sectionColor = 'cyan';
+        else sectionColor = 'indigo';
       }
     }
   }
@@ -1570,17 +1577,42 @@ Return ONLY the summary sentence, nothing else.`;
               </div>
             )}
             
-            {/* Section Progress Bar */}
+            {/* Section Progress Bar - ENHANCED */}
             {currentSection && (
-              <div className="mt-2 md:mt-2.5 pb-2 md:pb-2.5 border-b border-slate-700/30">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] md:text-xs text-slate-400 font-medium">Section: {currentSection}</span>
-                  <span className="text-[10px] md:text-xs text-blue-400 font-medium">
-                    {sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0}% • {sectionAnswered}/{sectionTotal}
-                  </span>
+              <div className="mt-2 md:mt-3 pb-2 md:pb-3 border-b border-slate-700/50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      sectionColor === 'emerald' ? 'bg-emerald-400' :
+                      sectionColor === 'blue' ? 'bg-blue-400' :
+                      sectionColor === 'cyan' ? 'bg-cyan-400' :
+                      'bg-indigo-400'
+                    } shadow-lg ${
+                      sectionColor === 'emerald' ? 'shadow-emerald-400/50' :
+                      sectionColor === 'blue' ? 'shadow-blue-400/50' :
+                      sectionColor === 'cyan' ? 'shadow-cyan-400/50' :
+                      'shadow-indigo-400/50'
+                    }`}></div>
+                    <span className="text-[11px] md:text-sm text-slate-300 font-semibold tracking-wide">
+                      {currentSection}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] md:text-sm font-bold ${
+                      sectionColor === 'emerald' ? 'text-emerald-400' :
+                      sectionColor === 'blue' ? 'text-blue-400' :
+                      sectionColor === 'cyan' ? 'text-cyan-400' :
+                      'text-indigo-400'
+                    }`}>
+                      {sectionProgress}%
+                    </span>
+                    <span className="text-[10px] md:text-xs text-slate-500">
+                      {sectionAnswered}/{sectionTotal}
+                    </span>
+                  </div>
                 </div>
                 <div 
-                  className="w-full h-1 md:h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
+                  className="relative w-full h-2 md:h-2.5 bg-slate-700/50 rounded-full overflow-hidden ring-1 ring-slate-600/30"
                   role="progressbar"
                   aria-label="Section progress"
                   aria-valuemin={0}
@@ -1588,35 +1620,72 @@ Return ONLY the summary sentence, nothing else.`;
                   aria-valuenow={sectionProgress}
                 >
                   <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out"
+                    className={`h-full rounded-full transition-all duration-700 ease-out ${
+                      sectionColor === 'emerald' ? 'bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-500' :
+                      sectionColor === 'blue' ? 'bg-gradient-to-r from-blue-500 via-blue-400 to-blue-500' :
+                      sectionColor === 'cyan' ? 'bg-gradient-to-r from-cyan-500 via-cyan-400 to-cyan-500' :
+                      'bg-gradient-to-r from-indigo-500 via-indigo-400 to-indigo-500'
+                    }`}
                     style={{ 
                       width: `${sectionProgress}%`,
-                      boxShadow: sectionProgress > 0 ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none'
+                      boxShadow: sectionProgress > 0 ? (
+                        sectionColor === 'emerald' ? '0 0 16px rgba(16, 185, 129, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)' :
+                        sectionColor === 'blue' ? '0 0 16px rgba(59, 130, 246, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)' :
+                        sectionColor === 'cyan' ? '0 0 16px rgba(34, 211, 238, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)' :
+                        '0 0 16px rgba(99, 102, 241, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)'
+                      ) : 'none'
                     }}
                   />
+                  {/* Animated shimmer effect */}
+                  {sectionProgress > 0 && sectionProgress < 100 && (
+                    <div 
+                      className="absolute inset-0 opacity-30"
+                      style={{
+                        background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                        animation: 'shimmer 2s infinite',
+                        backgroundSize: '200% 100%'
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             )}
             
-            {/* Overall Progress Bar */}
-            <div className="mt-1.5 md:mt-2">
+            {/* Overall Progress Bar - ENHANCED */}
+            <div className="mt-2">
               <div 
-                className="w-full h-1.5 md:h-2 bg-slate-700/30 rounded-full overflow-hidden"
+                className="relative w-full h-2 md:h-2.5 bg-slate-700/50 rounded-full overflow-hidden ring-1 ring-slate-600/30"
                 role="progressbar"
+                aria-label="Overall progress"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={progress}
               >
                 <div 
-                  className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-500 ease-out"
+                  className="h-full bg-gradient-to-r from-green-500 via-green-400 to-green-500 rounded-full transition-all duration-700 ease-out"
                   style={{ 
                     width: `${progress}%`,
-                    boxShadow: progress > 0 ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none'
+                    boxShadow: progress > 0 ? '0 0 16px rgba(34, 197, 94, 0.7), inset 0 1px 0 rgba(255,255,255,0.2)' : 'none'
                   }}
                 />
+                {/* Animated shimmer */}
+                {progress > 0 && progress < 100 && (
+                  <div 
+                    className="absolute inset-0 opacity-30"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                      animation: 'shimmer 2s infinite',
+                      backgroundSize: '200% 100%'
+                    }}
+                  />
+                )}
               </div>
-              <div className="flex justify-end items-center gap-1.5 md:gap-2 mt-1 md:mt-1.5">
-                <span className="text-[10px] md:text-xs font-medium text-green-400">{progress}% • {answeredCount}/{totalQuestions}</span>
+              <div className="flex justify-between items-center mt-1.5">
+                <span className="text-[10px] md:text-xs text-slate-400">Overall Progress</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] md:text-sm font-bold text-green-400">{progress}%</span>
+                  <span className="text-[10px] md:text-xs text-slate-500">{answeredCount}/{totalQuestions}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1933,6 +2002,13 @@ Return ONLY the summary sentence, nothing else.`;
           </div>
         </DialogContent>
       </Dialog>
+
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
     </>
   );
 }
@@ -2023,8 +2099,7 @@ const AgentMessageBubble = React.memo(({ message }) => {
           <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{message.content}</p>
         </div>
       </div>
-    </div>
-  );
+    );
 });
 
 AgentMessageBubble.displayName = 'AgentMessageBubble';
