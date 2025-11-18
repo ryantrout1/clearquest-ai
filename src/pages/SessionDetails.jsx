@@ -39,6 +39,7 @@ export default function SessionDetails() {
   const [responses, setResponses] = useState([]);
   const [followups, setFollowups] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [sections, setSections] = useState([]);
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -82,17 +83,17 @@ export default function SessionDetails() {
         }
       }
 
-      const [responsesData, followupsData, questionsData] = await Promise.all([
+      const [responsesData, followupsData, questionsData, sectionsData] = await Promise.all([
         base44.entities.Response.filter({ session_id: sessionId }),
         base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
-        base44.entities.Question.filter({ active: true })
+        base44.entities.Question.filter({ active: true }),
+        base44.entities.Section.list()
       ]);
 
-      setResponses(responsesData.sort((a, b) =>
-        new Date(a.response_timestamp) - new Date(b.response_timestamp)
-      ));
+      setResponses(responsesData);
       setFollowups(followupsData);
       setQuestions(questionsData);
+      setSections(sectionsData);
       
       setTotalQuestions(questionsData.length);
       setExpandedQuestions(new Set());
@@ -137,17 +138,30 @@ export default function SessionDetails() {
     }
   };
 
-  const categories = [...new Set(responses.map(r => r.category))].filter(Boolean).sort();
+  const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
 
   const allResponsesWithNumbers = responses.map((r, idx) => {
     // Prefer question_number from Question entity, fallback to sequential index
     const questionEntity = questions.find(q => q.question_id === r.question_id);
     const displayNumber = questionEntity?.question_number || (idx + 1);
     
+    // Get section name from Section entity
+    const sectionEntity = sections.find(s => s.id === questionEntity?.section_id);
+    const sectionName = sectionEntity?.section_name || r.category || '';
+    
     return {
       ...r,
-      display_number: displayNumber
+      display_number: displayNumber,
+      section_name: sectionName
     };
+  }).sort((a, b) => {
+    // Sort by question_number first, then timestamp as tiebreaker
+    if (typeof a.display_number === 'number' && typeof b.display_number === 'number') {
+      if (a.display_number !== b.display_number) {
+        return a.display_number - b.display_number;
+      }
+    }
+    return new Date(a.response_timestamp) - new Date(b.response_timestamp);
   });
 
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
@@ -173,7 +187,7 @@ export default function SessionDetails() {
   const responsesByCategory = {};
 
   filteredResponsesWithNumbers.forEach(r => {
-    const cat = r.category || 'Other';
+    const cat = r.section_name || 'Other';
     if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
     responsesByCategory[cat].push(r);
   });
@@ -806,15 +820,16 @@ function TranscriptView({ responses, followups }) {
 function TranscriptEntry({ item }) {
   if (item.type === 'question') {
     const response = item.data;
+    const displayNum = response.display_number ? `Q${response.display_number.toString().padStart(3, '0')}` : response.question_id;
     
     return (
       <div className="space-y-2">
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
           <div className="flex items-center gap-2 mb-1.5">
             <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
-              {response.question_id}
+              {displayNum}
             </Badge>
-            <span className="text-xs text-slate-400">{response.category}</span>
+            <span className="text-xs text-slate-400">{response.section_name || response.category}</span>
           </div>
           <p className="text-white text-sm">{response.question_text}</p>
         </div>
@@ -914,7 +929,7 @@ function generateReportHTML(session, responses, followups, questions, department
 
   const categorizedResponses = {};
   responses.forEach(response => {
-    const category = response.category || 'Other';
+    const category = response.section_name || response.category || 'Other';
     if (!categorizedResponses[category]) {
       categorizedResponses[category] = [];
     }
@@ -1115,9 +1130,11 @@ function generateReportHTML(session, responses, followups, questions, department
             const relatedFollowups = followups.filter(f => f.response_id === response.id);
             const aiProbingExchanges = response.investigator_probing || [];
 
+            const displayNum = response.display_number ? `Q${response.display_number.toString().padStart(3, '0')}` : response.question_id;
+            
             return `
               <div class="question-block">
-                <div class="question-id">${response.question_id}</div>
+                <div class="question-id">${displayNum}</div>
                 <div class="question-text">${response.question_text}</div>
                 <div class="answer">
                   <span class="answer-label">Response:</span> <strong>${response.answer}</strong>
