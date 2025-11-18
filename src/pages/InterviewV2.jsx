@@ -1270,15 +1270,12 @@ Return ONLY the summary sentence, nothing else.`;
         };
 
         const newTranscript = [...transcript, transcriptEntry];
-        setTranscript(newTranscript);
 
         const updatedFollowUpAnswers = {
           ...currentFollowUpAnswers,
           [step.Field_Key]: validation.normalized || value
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
-
-        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
 
         let updatedQueue = [...queue];
         let nextItem = updatedQueue.shift() || null;
@@ -1306,9 +1303,21 @@ Return ONLY the summary sentence, nothing else.`;
 
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
             if (triggeringQuestion) {
+              // Update UI and persist in background
+              setTranscript(newTranscript);
+              void (async () => {
+                try {
+                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+                  await persistStateToDatabase(newTranscript, [], null);
+                } catch (error) {
+                  console.error('❌ Failed to persist follow-up state', error);
+                }
+              })();
               await moveToNextDeterministicQuestion(triggeringQuestion.questionId, triggeringQuestion.answer);
             } else {
               console.error("Could not find triggering question for deterministic skip.");
+              setTranscript(newTranscript);
+              await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
               setCurrentItem(null);
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
@@ -1316,10 +1325,20 @@ Return ONLY the summary sentence, nothing else.`;
             }
           } else {
             if (triggeringQuestion) {
+              // Update UI immediately, persist in background
+              setTranscript(newTranscript);
               setCurrentFollowUpAnswers({});
               setCurrentItem(null);
               setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
+              
+              void (async () => {
+                try {
+                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+                  await persistStateToDatabase(newTranscript, [], null);
+                } catch (error) {
+                  console.error('❌ Failed to persist follow-up state', error);
+                }
+              })();
 
               await handoffToAgentForProbing(
                 triggeringQuestion.questionId,
@@ -1329,6 +1348,8 @@ Return ONLY the summary sentence, nothing else.`;
               );
             } else {
               console.error("Could not find triggering question for AI handoff.");
+              setTranscript(newTranscript);
+              await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
               setCurrentItem(null);
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
@@ -1336,9 +1357,20 @@ Return ONLY the summary sentence, nothing else.`;
             }
           }
         } else {
+          // Update UI immediately
+          setTranscript(newTranscript);
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
-          await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+
+          // Persist in background
+          void (async () => {
+            try {
+              await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+              await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+            } catch (error) {
+              console.error('❌ Failed to persist follow-up state', error);
+            }
+          })();
         }
       }
 
