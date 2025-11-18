@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -418,28 +419,6 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
         </div>
       </div>
 
-      {/* Triggering Questions */}
-      {sortedTriggeringQuestions.length > 0 && (
-        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
-          </h4>
-          <div className="space-y-2">
-            {sortedTriggeringQuestions.map((q) => (
-              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                    {q.question_id}
-                  </Badge>
-                  <p className="text-sm text-slate-300 leading-relaxed flex-1">{q.question_text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Triggered by */}
       <div className="bg-amber-950/20 border border-amber-500/30 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-amber-400 mb-2">Trigger Notes:</h4>
@@ -564,6 +543,28 @@ function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{pack.ai_probe_instructions || 'No instructions provided'}</p>
         )}
       </div>
+      
+      {/* Triggering Questions - Moved to bottom */}
+      {sortedTriggeringQuestions.length > 0 && (
+        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Triggered by {sortedTriggeringQuestions.length} {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}:
+          </h4>
+          <div className="space-y-2">
+            {sortedTriggeringQuestions.map((q) => (
+              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                    {q.question_id}
+                  </Badge>
+                  <p className="text-sm text-slate-300 leading-relaxed flex-1">{q.question_text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Follow-Up Questions - Read Only */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
