@@ -513,6 +513,7 @@ export default function SessionDetails() {
           <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
             followups={followups}
+            followUpQuestionEntities={followUpQuestionEntities}
             categoryRefs={categoryRefs}
             collapsedSections={collapsedSections}
             toggleSection={toggleSection}
@@ -523,6 +524,7 @@ export default function SessionDetails() {
           <TranscriptView
             responses={filteredResponsesWithNumbers}
             followups={followups}
+            followUpQuestionEntities={followUpQuestionEntities}
           />
         )}
 
@@ -588,7 +590,7 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
   return (
     <div className="space-y-0">
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
@@ -639,6 +641,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
                         key={response.id}
                         response={response}
                         followups={followups.filter(f => f.response_id === response.id)}
+                        followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                       />
@@ -650,6 +653,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
                         key={response.id}
                         response={response}
                         followups={followups.filter(f => f.response_id === response.id)}
+                        followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                       />
@@ -665,7 +669,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, categoryRefs, col
   );
 }
 
-function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand }) {
+function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand }) {
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
@@ -723,11 +727,14 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
             <div className="space-y-3">
               {followups.map((followup, idx) => {
                 const details = followup.additional_details || {};
+                const packQuestions = followUpQuestionEntities.filter(
+                  q => q.followup_pack_id === followup.followup_pack
+                );
 
                 return (
                   <div key={idx} className="space-y-1.5">
                     {followup.substance_name && (
-                      <div className="text-xs flex items-center">
+                      <div className="text-xs flex items-start">
                         <span className="text-slate-400 font-medium">Substance:</span>
                         <span className="text-slate-200 ml-2">{followup.substance_name}</span>
                         {needsReview(followup.substance_name) && (
@@ -740,10 +747,16 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
 
                     {Object.entries(details).map(([key, value]) => {
                       const requiresReview = needsReview(value);
+                      const questionEntity = packQuestions.find(q => 
+                        q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
+                        key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+                      );
+                      const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
                       return (
                         <div key={key} className="text-xs flex items-start">
-                          <span className="text-slate-400">
-                            {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                          <span className="text-slate-400 font-medium">
+                            {questionText}:
                           </span>
                           <span className="text-slate-200 ml-2 break-words">{value}</span>
                           {requiresReview && (
@@ -785,25 +798,7 @@ function CompactQuestionRow({ response, followups, isExpanded, onToggleExpand })
   );
 }
 
-function TranscriptView({ responses, followups }) {
-  const [packSteps, setPackSteps] = useState({});
-
-  useEffect(() => {
-    import('../components/interviewEngine').then(module => {
-      const stepsMap = {};
-      responses.forEach(r => {
-        if (r.followup_pack && module.default?.FOLLOWUP_PACK_STEPS?.[r.followup_pack]) {
-          stepsMap[r.followup_pack] = module.default.FOLLOWUP_PACK_STEPS[r.followup_pack];
-        } else if (r.followup_pack && module.injectSubstanceIntoPackSteps) {
-          const dummyEngine = { PackStepsById: module.default?.FOLLOWUP_PACK_STEPS || {} };
-          stepsMap[r.followup_pack] = module.injectSubstanceIntoPackSteps(dummyEngine, r.followup_pack, null);
-        }
-      });
-      setPackSteps(stepsMap);
-    }).catch(err => {
-      console.error('Error loading pack steps:', err);
-    });
-  }, [responses]);
+function TranscriptView({ responses, followups, followUpQuestionEntities }) {
 
   // Sort by canonical question order
   const sortedResponses = [...responses].sort((a, b) => {
@@ -826,7 +821,7 @@ function TranscriptView({ responses, followups }) {
 
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
     relatedFollowups.forEach(fu => {
-      timeline.push({ type: 'followup', data: fu, packSteps: packSteps[fu.followup_pack] });
+      timeline.push({ type: 'followup', data: fu, followUpQuestionEntities });
     });
 
     if (response.investigator_probing && response.investigator_probing.length > 0) {
@@ -871,7 +866,10 @@ function TranscriptEntry({ item }) {
   if (item.type === 'followup') {
     const followup = item.data;
     const details = followup.additional_details || {};
-    const packSteps = item.packSteps || [];
+    const followUpQuestionEntities = item.followUpQuestionEntities || [];
+    const packQuestions = followUpQuestionEntities.filter(
+      q => q.followup_pack_id === followup.followup_pack
+    ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
     return (
       <div className="ml-4 md:ml-8 space-y-2">
@@ -888,17 +886,23 @@ function TranscriptEntry({ item }) {
           </>
         )}
 
-        {Object.entries(details).map(([key, value]) => {
+        {packQuestions.map((questionEntity, idx) => {
+          const key = Object.keys(details).find(k => 
+            questionEntity.question_text?.toLowerCase().includes(k.toLowerCase()) ||
+            k.toLowerCase().includes(questionEntity.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+          );
+          
+          if (!key) return null;
+          
+          const value = details[key];
           const requiresReview = needsReview(value);
-          const step = packSteps.find(s => s.Field_Key === key);
-          const questionText = step?.Prompt || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
           return (
             <React.Fragment key={key}>
               <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-white text-sm">
-                    {questionText}
+                    {questionEntity.question_text}
                   </p>
                   {requiresReview && (
                     <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
