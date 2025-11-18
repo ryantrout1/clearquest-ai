@@ -948,13 +948,12 @@ Return ONLY the summary sentence, nothing else.`;
         };
 
         const newTranscript = [...transcript, transcriptEntry];
-        setTranscript(newTranscript);
 
-        await saveAnswerToDatabase(currentItem.id, value, question);
-
-        // SPECIAL CASE: Q162 is the final question
+        // SPECIAL CASE: Q162 is the final question - keep synchronous
         if (currentItem.id === 'Q162') {
           console.log('✅ Final question (Q162) answered - completing interview');
+          setTranscript(newTranscript);
+          await saveAnswerToDatabase(currentItem.id, value, question);
           setCurrentItem(null);
           setQueue([]);
           await persistStateToDatabase(newTranscript, [], null);
@@ -962,6 +961,7 @@ Return ONLY the summary sentence, nothing else.`;
           return;
         }
 
+        // OPTIMIZATION: Update UI immediately, persist in background
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
 
@@ -987,25 +987,51 @@ Return ONLY the summary sentence, nothing else.`;
               const firstItem = followupQueue[0];
               const remainingQueue = followupQueue.slice(1);
 
+              // Update UI immediately
+              setTranscript(newTranscript);
               setQueue(remainingQueue);
               setCurrentItem(firstItem);
-              await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+
+              // Persist in background
+              void (async () => {
+                try {
+                  await saveAnswerToDatabase(currentItem.id, value, question);
+                  await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+                } catch (error) {
+                  console.error('❌ Failed to persist interview state', error);
+                }
+              })();
             } else {
               // No pack steps - move to next question via section routing
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
+                // Update UI immediately
+                setTranscript(newTranscript);
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
-                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+
+                // Persist in background
+                void (async () => {
+                  try {
+                    await saveAnswerToDatabase(currentItem.id, value, question);
+                    await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+                  } catch (error) {
+                    console.error('❌ Failed to persist interview state', error);
+                  }
+                })();
               } else {
                 // Routing failure - only mark complete if this was Q162
                 if (currentItem.id === 'Q162') {
+                  setTranscript(newTranscript);
+                  await saveAnswerToDatabase(currentItem.id, value, question);
                   setCurrentItem(null);
                   setQueue([]);
                   await persistStateToDatabase(newTranscript, [], null);
                   setShowCompletionModal(true);
                 } else {
                   console.error('❌ Routing failure after Yes answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+                  setTranscript(newTranscript);
+                  await saveAnswerToDatabase(currentItem.id, value, question);
                   setCurrentItem(null);
                   setQueue([]);
                   await persistStateToDatabase(newTranscript, [], null);
@@ -1017,18 +1043,33 @@ Return ONLY the summary sentence, nothing else.`;
             // No follow-up - move to next question via section routing
             const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
             if (nextQuestionId && engine.QById[nextQuestionId]) {
+              // Update UI immediately
+              setTranscript(newTranscript);
               setQueue([]);
               setCurrentItem({ id: nextQuestionId, type: 'question' });
-              await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+
+              // Persist in background
+              void (async () => {
+                try {
+                  await saveAnswerToDatabase(currentItem.id, value, question);
+                  await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+                } catch (error) {
+                  console.error('❌ Failed to persist interview state', error);
+                }
+              })();
             } else {
               // Routing failure - only mark complete if this was Q162
               if (currentItem.id === 'Q162') {
+                setTranscript(newTranscript);
+                await saveAnswerToDatabase(currentItem.id, value, question);
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
                 setShowCompletionModal(true);
               } else {
                 console.error('❌ Routing failure after Yes answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+                setTranscript(newTranscript);
+                await saveAnswerToDatabase(currentItem.id, value, question);
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -1042,18 +1083,33 @@ Return ONLY the summary sentence, nothing else.`;
           const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
           
           if (nextQuestionId && engine.QById[nextQuestionId]) {
+            // Update UI immediately
+            setTranscript(newTranscript);
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
-            await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+
+            // Persist in background
+            void (async () => {
+              try {
+                await saveAnswerToDatabase(currentItem.id, value, question);
+                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+              } catch (error) {
+                console.error('❌ Failed to persist interview state', error);
+              }
+            })();
           } else {
             // Routing failure - only mark complete if this was Q162
             if (currentItem.id === 'Q162') {
+              setTranscript(newTranscript);
+              await saveAnswerToDatabase(currentItem.id, value, question);
               setCurrentItem(null);
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
               setShowCompletionModal(true);
             } else {
               console.error('❌ Routing failure after No answer', { currentQuestionId: currentItem.id, value, engineValidationErrors: engine.validationErrors });
+              setTranscript(newTranscript);
+              await saveAnswerToDatabase(currentItem.id, value, question);
               setCurrentItem(null);
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
@@ -1085,15 +1141,12 @@ Return ONLY the summary sentence, nothing else.`;
           };
 
           const newTranscript = [...transcript, transcriptEntry];
-          setTranscript(newTranscript);
 
           const updatedFollowUpAnswers = {
             ...currentFollowUpAnswers,
             [step.Field_Key]: step.PrefilledAnswer
           };
           setCurrentFollowUpAnswers(updatedFollowUpAnswers);
-
-          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
 
           let updatedQueue = [...queue];
           let nextItem = updatedQueue.shift() || null;
@@ -1120,9 +1173,21 @@ Return ONLY the summary sentence, nothing else.`;
 
             if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
               if (triggeringQuestion) {
+                // Update UI and persist in background
+                setTranscript(newTranscript);
+                void (async () => {
+                  try {
+                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                    await persistStateToDatabase(newTranscript, [], null);
+                  } catch (error) {
+                    console.error('❌ Failed to persist prefilled follow-up state', error);
+                  }
+                })();
                 await moveToNextDeterministicQuestion(triggeringQuestion.questionId, triggeringQuestion.answer);
               } else {
                 console.error("Could not find triggering question for deterministic skip after prefilled answer.");
+                setTranscript(newTranscript);
+                await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -1130,10 +1195,20 @@ Return ONLY the summary sentence, nothing else.`;
               }
             } else {
               if (triggeringQuestion) {
+                // Update UI immediately, persist in background
+                setTranscript(newTranscript);
                 setCurrentFollowUpAnswers({});
                 setCurrentItem(null);
                 setQueue([]);
-                await persistStateToDatabase(newTranscript, [], null);
+                
+                void (async () => {
+                  try {
+                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                    await persistStateToDatabase(newTranscript, [], null);
+                  } catch (error) {
+                    console.error('❌ Failed to persist prefilled follow-up state', error);
+                  }
+                })();
 
                 await handoffToAgentForProbing(
                   triggeringQuestion.questionId,
@@ -1143,6 +1218,8 @@ Return ONLY the summary sentence, nothing else.`;
                 );
               } else {
                 console.error("Could not find triggering question for AI handoff after prefilled answer.");
+                setTranscript(newTranscript);
+                await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -1150,9 +1227,20 @@ Return ONLY the summary sentence, nothing else.`;
               }
             }
           } else {
+            // Update UI immediately
+            setTranscript(newTranscript);
             setQueue(updatedQueue);
             setCurrentItem(nextItem);
-            await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+
+            // Persist in background
+            void (async () => {
+              try {
+                await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+              } catch (error) {
+                console.error('❌ Failed to persist prefilled follow-up state', error);
+              }
+            })();
           }
 
           setIsCommitting(false);
