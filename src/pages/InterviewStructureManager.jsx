@@ -142,10 +142,6 @@ export default function InterviewStructureManager() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [leftWidth, setLeftWidth] = useState(20);
-  const [middleWidth, setMiddleWidth] = useState(35);
-  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
-  const [isDraggingRight, setIsDraggingRight] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -321,52 +317,7 @@ export default function InterviewStructureManager() {
     }
   };
 
-  const handleMouseDownLeft = (e) => {
-    e.preventDefault();
-    setIsDraggingLeft(true);
-  };
 
-  const handleMouseDownRight = (e) => {
-    e.preventDefault();
-    setIsDraggingRight(true);
-  };
-
-  useEffect(() => {
-    if (!isDraggingLeft && !isDraggingRight) return;
-
-    const handleMouseMove = (e) => {
-      const container = document.getElementById('resizable-container');
-      if (!container) return;
-
-      const containerRect = container.getBoundingClientRect();
-      const mouseX = e.clientX - containerRect.left;
-      const totalWidth = containerRect.width;
-
-      if (isDraggingLeft) {
-        const newLeftWidth = (mouseX / totalWidth) * 100;
-        const clampedLeft = Math.min(Math.max(newLeftWidth, 15), 40);
-        setLeftWidth(clampedLeft);
-      } else if (isDraggingRight) {
-        const newMiddleEnd = (mouseX / totalWidth) * 100;
-        const newMiddleWidth = newMiddleEnd - leftWidth;
-        const clampedMiddle = Math.min(Math.max(newMiddleWidth, 20), 60);
-        setMiddleWidth(clampedMiddle);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingLeft(false);
-      setIsDraggingRight(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDraggingLeft, isDraggingRight, leftWidth]);
 
   const recalculateGlobalQuestionNumbers = async () => {
     if (!sections || !questions) {
@@ -412,8 +363,6 @@ export default function InterviewStructureManager() {
     );
   }
 
-  const rightWidth = 100 - leftWidth - middleWidth;
-
   return (
     <div className="min-h-screen bg-[#0f1729]">
       {/* Header */}
@@ -441,11 +390,10 @@ export default function InterviewStructureManager() {
       </div>
 
       {/* Main content - 3 column layout */}
-      <div id="resizable-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Left Column - Sections List */}
         <div 
-          style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-700/30 bg-[#161b2e] p-5"
+          className="w-[25%] overflow-auto border-r border-slate-700/30 bg-[#161b2e] p-5"
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">Sections</h3>
@@ -559,19 +507,9 @@ export default function InterviewStructureManager() {
           )}
         </div>
 
-        {/* Left Drag Handle */}
-        <div 
-          className={`w-[1px] flex-shrink-0 transition-colors ${
-            isDraggingLeft ? 'bg-slate-600' : 'bg-slate-700/30'
-          }`}
-          onMouseDown={handleMouseDownLeft}
-          style={{ cursor: 'col-resize', userSelect: 'none' }}
-        />
-
         {/* Middle Column - Questions List */}
         <div 
-          style={{ width: `${middleWidth}%` }}
-          className="overflow-auto border-r border-slate-700/30 bg-[#0f1729]"
+          className="w-[35%] overflow-auto border-r border-slate-700/30 bg-[#0f1729]"
         >
           <div className="p-5">
             {!selectedSection ? (
@@ -619,19 +557,9 @@ export default function InterviewStructureManager() {
           </div>
         </div>
 
-        {/* Right Drag Handle */}
-        <div 
-          className={`w-[1px] flex-shrink-0 transition-colors ${
-            isDraggingRight ? 'bg-slate-600' : 'bg-slate-700/30'
-          }`}
-          onMouseDown={handleMouseDownRight}
-          style={{ cursor: 'col-resize', userSelect: 'none' }}
-        />
-
         {/* Right Column - Detail Panel */}
         <div 
-          style={{ width: `${rightWidth}%` }}
-          className="overflow-auto bg-[#0f1729]"
+          className="flex-1 overflow-auto bg-[#0f1729]"
         >
           <div className="p-6">
             <DetailPanel
