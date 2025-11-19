@@ -1665,20 +1665,76 @@ export function parseFollowUpPacks() {
     }));
   });
 
-  console.log(`📦 Loaded ${Object.keys(PackStepsById).length} follow-up packs from definitions`);
+  console.log(`📦 Loaded ${Object.keys(PackStepsById).length} legacy follow-up packs from definitions`);
 
   return { PackStepsById };
 }
 
+/**
+ * NEW: Parse V2 Follow-Up Packs from database
+ * Converts FollowUpQuestion entities into the same format as legacy FOLLOWUP_PACK_STEPS
+ */
+export function parseV2FollowUpPacks(v2Packs) {
+  const V2PackStepsById = {};
+  
+  v2Packs.forEach(pack => {
+    const packId = pack.followup_pack_id || pack.cluster_code;
+    if (!packId) {
+      console.warn('⚠️ V2 pack missing followup_pack_id/cluster_code:', pack);
+      return;
+    }
+    
+    // Convert follow_up_questions array to legacy step format
+    const followUpQuestions = pack.follow_up_questions || [];
+    if (followUpQuestions.length === 0) {
+      console.warn(`⚠️ V2 pack ${packId} has no follow_up_questions defined`);
+      return;
+    }
+    
+    V2PackStepsById[packId] = followUpQuestions
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      .map((question, idx) => ({
+        Field_Key: question.followup_question_id || `field_${idx}`,
+        Prompt: question.question_text,
+        Response_Type: question.response_type || 'text',
+        Expected_Type: mapResponseTypeToExpectedType(question.response_type),
+        Order: idx,
+        FollowUpPack: packId,
+        IsV2: true // Mark as V2 pack question
+      }));
+    
+    console.log(`   ✅ V2 Pack ${packId}: ${V2PackStepsById[packId].length} questions loaded from database`);
+  });
+  
+  console.log(`📦 Loaded ${Object.keys(V2PackStepsById).length} V2 follow-up packs from database`);
+  
+  return V2PackStepsById;
+}
+
+/**
+ * Helper: Map response_type to Expected_Type for validation
+ */
+function mapResponseTypeToExpectedType(responseType) {
+  const mapping = {
+    'text': 'TEXT',
+    'yes_no': 'BOOLEAN',
+    'date': 'TEXT', // Store dates as text for flexibility
+    'number': 'NUMBER',
+    'multi_select': 'TEXT'
+  };
+  return mapping[responseType] || 'TEXT';
+}
+
 export async function bootstrapEngine(base44) {
-  console.log('🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN)...');
+  console.log('🚀 Bootstrapping interview engine (SECTION-FIRST + DATABASE-DRIVEN + V2 PACKS)...');
   const startTime = performance.now();
 
   try {
-    const [questions, sections, categories] = await Promise.all([
+    const [questions, sections, categories, v2Packs] = await Promise.all([
       base44.entities.Question.filter({ active: true }),
       base44.entities.Section.list(), // Fetch Section entities
-      base44.entities.Category.list() // Still fetch Categories for gate question backward compatibility
+      base44.entities.Category.list(), // Still fetch Categories for gate question backward compatibility
+      base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }) // Fetch V2 standardized packs
     ]);
 
     const { 
@@ -1696,7 +1752,12 @@ export async function bootstrapEngine(base44) {
     // Apply section-level rules (currently mainly logging/secondary checks)
     applySectionRules(sectionConfig, questionsBySection, categories);
     
+    // V2 PACK SYSTEM: Load both legacy and V2 packs
     const { PackStepsById } = parseFollowUpPacks();
+    const V2PackStepsById = parseV2FollowUpPacks(v2Packs);
+    
+    // Merge V2 packs into PackStepsById (V2 takes precedence over legacy)
+    Object.assign(PackStepsById, V2PackStepsById);
     
     const configValidation = validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById);
     if (!configValidation.valid) {
@@ -1714,6 +1775,7 @@ export async function bootstrapEngine(base44) {
       QById,
       MatrixYesByQ,
       PackStepsById,
+      V2Packs: v2Packs, // Store V2 pack metadata (for AI probe instructions)
       Sections: sections, // Store all section entities
       Categories: categories, // Still store categories for potential legacy use or reporting
       sectionOrder,
@@ -1724,17 +1786,19 @@ export async function bootstrapEngine(base44) {
       Bootstrapped: true,
       TotalQuestions: TotalQuestions,
       UndefinedPacks: Array.from(UndefinedPacks),
-      Architecture: 'section-first-db-driven'
+      Architecture: 'section-first-db-driven-v2-packs'
     };
 
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
-    console.log(`   - Architecture: SECTION-FIRST (Section entities)`);
+    console.log(`   - Architecture: SECTION-FIRST (Section entities) + V2 Packs`);
     console.log(`   - Section order source: Section.section_order`);
     console.log(`   - Sections: ${Object.keys(sectionConfig).length}`);
     console.log(`   - Total active questions: ${TotalQuestions}`);
     console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
-    console.log(`   - Defined packs: ${Object.keys(PackStepsById).length}`);
+    console.log(`   - Legacy packs: ${Object.keys(FOLLOWUP_PACK_STEPS).length}`);
+    console.log(`   - V2 packs: ${Object.keys(V2PackStepsById).length}`);
+    console.log(`   - Total packs available: ${Object.keys(PackStepsById).length}`);
 
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       setTimeout(() => runEntityFollowupSelfTest(engineState), 500);

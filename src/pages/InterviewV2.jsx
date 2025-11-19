@@ -893,6 +893,10 @@ Return ONLY the summary sentence, nothing else.`;
     const question = engine.QById[questionId];
     const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
 
+    // V2 PACK SYSTEM: Get AI probe instructions from V2 pack metadata
+    const v2Pack = engine.V2Packs?.find(p => p.followup_pack_id === packId || p.cluster_code === packId);
+    const customProbingInstructions = v2Pack?.ai_probe_instructions || null;
+
     let summaryLines = [
       `Follow-up pack completed.`,
       ``,
@@ -914,7 +918,16 @@ Return ONLY the summary sentence, nothing else.`;
     });
 
     summaryLines.push(``);
-    summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
+    
+    // V2 PACK SYSTEM: Use custom AI probe instructions if available
+    if (customProbingInstructions) {
+      summaryLines.push(`AI Probing Instructions for this pack:`);
+      summaryLines.push(customProbingInstructions);
+      summaryLines.push(``);
+      summaryLines.push(`When satisfied with the probing, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
+    } else {
+      summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
+    }
 
     try {
       setIsWaitingForAgent(true);
