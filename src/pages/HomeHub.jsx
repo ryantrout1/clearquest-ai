@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package, Beaker } from "lucide-react";
+import { Shield, Settings, LogOut, HelpCircle, Loader2, FolderOpen, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function HomeHub() {
@@ -23,7 +23,6 @@ export default function HomeHub() {
       if (adminAuth) {
         try {
           const auth = JSON.parse(adminAuth);
-          console.log("Mock admin auth found:", auth);
           const mockUser = {
             email: `${auth.username.toLowerCase()}@clearquest.ai`,
             first_name: auth.username,
@@ -31,7 +30,6 @@ export default function HomeHub() {
             role: "SUPER_ADMIN",
             department_id: null
           };
-          console.log("Mock user created:", mockUser);
           setUser(mockUser);
           setIsLoading(false);
           return;
@@ -41,14 +39,7 @@ export default function HomeHub() {
       }
 
       const currentUser = await base44.auth.me();
-      console.log("Base44 user loaded:", currentUser);
       setUser(currentUser);
-
-      if (currentUser.department_id) {
-        const dept = await base44.entities.Department.get(currentUser.department_id);
-        setDepartment(dept);
-      }
-
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading user:", err);
@@ -57,13 +48,11 @@ export default function HomeHub() {
   };
 
   const handleNavigate = (destination) => {
-    console.log("Navigating to:", destination);
     navigate(createPageUrl(destination));
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem("clearquest_admin_auth");
-    localStorage.removeItem("clearquest_home_preference");
     window.location.href = createPageUrl("Home");
   };
 
@@ -74,10 +63,6 @@ export default function HomeHub() {
       </div>
     );
   }
-
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  console.log("User object:", user);
-  console.log("Is super admin:", isSuperAdmin);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
@@ -99,117 +84,68 @@ export default function HomeHub() {
               {user?.first_name} {user?.last_name}
             </p>
             <p className="text-sm md:text-base text-slate-400 break-words">
-              {user?.role === 'SUPER_ADMIN' && 'Super Administrator'}
-              {user?.role === 'DEPT_ADMIN' && 'Department Administrator'}
-              {user?.role === 'DEPT_USER' && 'Department User'}
-              {department && ` • ${department.department_name}`}
+              Super Administrator
             </p>
           </div>
         </div>
 
-        <div className={`grid grid-cols-1 ${isSuperAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-2'} gap-6 md:gap-8 mb-8 md:mb-12 max-w-6xl mx-auto`}>
-          {isSuperAdmin ? (
-            <>
-              <div
-                onClick={() => handleNavigate("SystemAdminDashboard")}
-                className="cursor-pointer group"
-              >
-                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
-                  <CardContent className="p-8 md:p-10 text-center">
-                    <div className="flex justify-center mb-6">
-                      <div className="p-5 md:p-6 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                        <Settings className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
-                      </div>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
-                    <p className="text-base md:text-lg text-slate-400">
-                      Manage departments and system settings
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-12 max-w-4xl mx-auto">
+          <div
+            onClick={() => handleNavigate("SystemAdminDashboard")}
+            className="cursor-pointer group"
+          >
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
+              <CardContent className="p-8 md:p-10 text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="p-5 md:p-6 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                    <Settings className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
+                  </div>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
+                <p className="text-base md:text-lg text-slate-400">
+                  Manage departments and system settings
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
-              <div
-                onClick={() => handleNavigate("InterviewStructureManager")}
-                className="cursor-pointer group"
-              >
-                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-                  <CardContent className="p-8 md:p-10 text-center">
-                    <div className="flex justify-center mb-6">
-                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                        <FolderOpen className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
-                      </div>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Interview Manager</h2>
-                    <p className="text-base md:text-lg text-slate-400">
-                      Manage interview structure and questions
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+          <div
+            onClick={() => handleNavigate("InterviewStructureManager")}
+            className="cursor-pointer group"
+          >
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
+              <CardContent className="p-8 md:p-10 text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                    <FolderOpen className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
+                  </div>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Interview Manager</h2>
+                <p className="text-base md:text-lg text-slate-400">
+                  Manage interview sections and questions
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
-              <div
-                onClick={() => handleNavigate("FollowupPackManager")}
-                className="cursor-pointer group"
-              >
-                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-amber-500/50 transition-all h-full">
-                  <CardContent className="p-8 md:p-10 text-center">
-                    <div className="flex justify-center mb-6">
-                      <div className="p-5 md:p-6 rounded-full bg-amber-600/20 group-hover:bg-amber-600/30 transition-colors">
-                        <Package className="w-10 h-10 md:w-12 md:h-12 text-amber-400" />
-                      </div>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
-                    <p className="text-base md:text-lg text-slate-400">
-                      Legacy system - configure packs
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div
-                onClick={() => handleNavigate("FollowUpPackManagerV2")}
-                className="cursor-pointer group"
-              >
-                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-                  <CardContent className="p-8 md:p-10 text-center">
-                    <div className="flex justify-center mb-6">
-                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                        <Package className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <h2 className="text-2xl md:text-3xl font-bold text-white">Follow-Up Packs V2</h2>
-                    </div>
-                    <p className="text-base md:text-lg text-slate-400">
-                      New standardized pack system
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          ) : (
-            <>
-              <div
-                onClick={() => handleNavigate(`DepartmentDashboard?id=${user?.department_id}`)}
-                className="cursor-pointer group"
-              >
-                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
-                  <CardContent className="p-8 md:p-10 text-center">
-                    <div className="flex justify-center mb-6">
-                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
-                        <Building2 className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
-                      </div>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">My Department</h2>
-                    <p className="text-base md:text-lg text-slate-400">
-                      Department settings and information
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          )}
+          <div
+            onClick={() => handleNavigate("FollowUpPackManagerV2")}
+            className="cursor-pointer group"
+          >
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-amber-500/50 transition-all h-full">
+              <CardContent className="p-8 md:p-10 text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="p-5 md:p-6 rounded-full bg-amber-600/20 group-hover:bg-amber-600/30 transition-colors">
+                    <Package className="w-10 h-10 md:w-12 md:h-12 text-amber-400" />
+                  </div>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
+                <p className="text-base md:text-lg text-slate-400">
+                  Configure standardized follow-up packs (V2)
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
           <div
             onClick={() => handleNavigate("InterviewDashboard")}
