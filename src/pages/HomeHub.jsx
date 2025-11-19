@@ -4,14 +4,17 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package } from "lucide-react";
+import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package, Bug } from "lucide-react";
 import { Link } from "react-router-dom";
+import { runFollowUpIntegrityAudit } from "@/components/utils/followUpIntegrityAudit";
+import { toast } from "sonner";
 
 export default function HomeHub() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRunningAudit, setIsRunningAudit] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -65,6 +68,20 @@ export default function HomeHub() {
     sessionStorage.removeItem("clearquest_admin_auth");
     localStorage.removeItem("clearquest_home_preference");
     window.location.href = createPageUrl("Home");
+  };
+
+  const handleRunAudit = async () => {
+    setIsRunningAudit(true);
+    toast.info("Running Follow-Up Pack Integrity Audit - check console for report...");
+    try {
+      const result = await runFollowUpIntegrityAudit();
+      toast.success(`Audit complete! Found ${result.issues.brokenPackRef.length} broken references, ${result.issues.noPackAssigned.length} missing assignments.`);
+    } catch (err) {
+      toast.error("Audit failed - check console");
+      console.error(err);
+    } finally {
+      setIsRunningAudit(false);
+    }
   };
 
   if (isLoading) {
@@ -239,7 +256,7 @@ export default function HomeHub() {
               Public Home
             </Button>
           </Link>
-          
+
           <Button
             variant="outline"
             className="w-full sm:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white"
@@ -248,7 +265,7 @@ export default function HomeHub() {
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
-          
+
           <a href="mailto:support@clearquest.ai" className="w-full sm:w-auto">
             <Button
               variant="outline"
@@ -258,6 +275,27 @@ export default function HomeHub() {
               Help & Support
             </Button>
           </a>
+
+          {isSuperAdmin && (
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto bg-orange-900/30 border-orange-600/50 text-orange-300 hover:bg-orange-900/50 hover:text-orange-200"
+              onClick={handleRunAudit}
+              disabled={isRunningAudit}
+            >
+              {isRunningAudit ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Bug className="w-4 h-4 mr-2" />
+                  Run Audit (Dev)
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         <p className="text-center text-slate-500 text-xs md:text-sm mt-6 md:mt-8 px-4">
