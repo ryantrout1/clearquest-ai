@@ -415,26 +415,28 @@ export default function InterviewStructureManager() {
   const rightWidth = 100 - leftWidth - middleWidth;
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e]">
+    <div className="min-h-screen bg-[#0f1729]">
       {/* Header */}
-      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
+      <div className="border-b border-slate-800/30 bg-[#1a1f3a] px-6 py-3.5">
         <div className="max-w-[2000px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(createPageUrl("HomeHub"))}
-              className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2"
+              className="text-slate-400 hover:text-white hover:bg-slate-700/50 -ml-2"
             >
-              <ChevronLeft className="w-4 h-4 mr-1" />
+              <ChevronLeft className="w-4 h-4 mr-1.5" />
               Back
             </Button>
-            <FolderOpen className="w-5 h-5 text-blue-400" />
-            <h1 className="text-lg font-semibold text-white">Interview Structure Manager</h1>
-            <span className="text-xs text-slate-500">
-              Manage sections and questions
-            </span>
+            <FolderOpen className="w-5 h-5 text-slate-400" />
+            <div>
+              <h1 className="text-lg font-semibold text-white">Interview Structure Manager</h1>
+            </div>
           </div>
+          <span className="text-xs text-slate-500">
+            Organize and manage sections across {sortedSections.length} sections
+          </span>
         </div>
       </div>
 
@@ -443,10 +445,10 @@ export default function InterviewStructureManager() {
         {/* Left Column - Sections List */}
         <div 
           style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
+          className="overflow-auto border-r border-slate-700/30 bg-[#161b2e] p-5"
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-400">Sections</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">Sections</h3>
             <div className="flex gap-1">
               <Button
                 onClick={recalculateGlobalQuestionNumbers}
@@ -468,22 +470,21 @@ export default function InterviewStructureManager() {
           </div>
 
           {sectionsLoading ? (
-            <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
-              <p className="text-slate-500 text-xs">Loading sections...</p>
+            <div className="text-center py-8">
+              <p className="text-slate-500 text-sm">Loading sections...</p>
             </div>
           ) : sortedSections.length === 0 ? (
-            <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
-              <p className="text-slate-500 text-xs">No sections yet</p>
+            <div className="text-center py-8">
+              <p className="text-slate-500 text-sm">No sections yet</p>
             </div>
           ) : (
             <DragDropContext onDragEnd={handleSectionDragEnd}>
               <Droppable droppableId="sections">
                 {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1.5">
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
                     {sortedSections.map((section, index) => {
                       const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
                       const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
-                      const inactiveCount = sectionQuestionsAll.filter(q => q.active === false).length;
                       const isSelected = selectedSection?.id === section.id;
                       
                       const gateCategory = categories.find(c => c.category_label === section.section_name);
@@ -498,58 +499,52 @@ export default function InterviewStructureManager() {
                               onClick={() => setSelectedSection(section)}
                               className={`px-3 py-2.5 rounded-md transition-all cursor-pointer group ${
                                 isSelected
-                                  ? 'bg-slate-800/50 border border-slate-700'
-                                  : 'bg-slate-900/30 border border-slate-800/50 hover:bg-slate-800/30 hover:border-slate-700/50'
+                                  ? 'bg-[#252d48]'
+                                  : 'hover:bg-[#1e2439]'
                               }`}
                             >
-                              <div className="flex items-start gap-2.5">
+                              <div className="flex items-center gap-2.5">
                                 <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                                  <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-0.5" />
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing" />
                                 </div>
-                                <FolderOpen className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                                  isSelected ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'
+                                <FolderOpen className={`w-4 h-4 flex-shrink-0 ${
+                                  isSelected ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-500'
                                 }`} />
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between gap-2 mb-1">
-                                    <h4 className={`text-xs font-medium leading-tight ${
-                                      isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
-                                    }`}>
-                                      {section.section_name}
-                                    </h4>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedItem({ type: 'section', data: section });
-                                      }}
-                                      className="text-slate-400 hover:text-white hover:bg-slate-700 h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-                                    >
-                                      <Edit className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                    <span className={`text-xs ${
-                                      isSelected ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-500'
-                                    }`}>
-                                      #{section.section_order} • {sectionQuestionsAll.length}q ({activeCount} active)
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-1 flex-wrap">
-                                    <Switch
-                                      checked={section.active !== false}
-                                      onCheckedChange={(checked) => {
-                                        const e = { stopPropagation: () => {} };
-                                        toggleSectionActive(e, section);
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="data-[state=checked]:bg-emerald-600 scale-75"
-                                    />
+                                  <h4 className={`text-sm font-normal leading-tight mb-1 ${
+                                    isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                                  }`}>
+                                    {section.section_name}
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <span>{sectionQuestionsAll.length} questions ({activeCount} active)</span>
                                     {gateQuestionId && (
-                                      <Lock className="w-3 h-3 text-amber-500" />
+                                      <span className="flex items-center gap-1 text-amber-500">
+                                        <Lock className="w-3 h-3" />
+                                      </span>
                                     )}
                                   </div>
                                 </div>
+                                <Switch
+                                  checked={section.active !== false}
+                                  onCheckedChange={(checked) => {
+                                    const e = { stopPropagation: () => {} };
+                                    toggleSectionActive(e, section);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="data-[state=checked]:bg-emerald-500 scale-75"
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedItem({ type: 'section', data: section });
+                                  }}
+                                  className="text-slate-500 hover:text-white hover:bg-slate-700/50 h-7 w-7 p-0 opacity-0 group-hover:opacity-100"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -566,8 +561,8 @@ export default function InterviewStructureManager() {
 
         {/* Left Drag Handle */}
         <div 
-          className={`w-1 flex-shrink-0 transition-colors ${
-            isDraggingLeft ? 'bg-blue-500/50' : 'bg-slate-800/30 hover:bg-blue-600/30'
+          className={`w-[1px] flex-shrink-0 transition-colors ${
+            isDraggingLeft ? 'bg-slate-600' : 'bg-slate-700/30'
           }`}
           onMouseDown={handleMouseDownLeft}
           style={{ cursor: 'col-resize', userSelect: 'none' }}
@@ -576,17 +571,17 @@ export default function InterviewStructureManager() {
         {/* Middle Column - Questions List */}
         <div 
           style={{ width: `${middleWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]"
+          className="overflow-auto border-r border-slate-700/30 bg-[#0f1729]"
         >
-          <div className="p-4">
+          <div className="p-5">
             {!selectedSection ? (
-              <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-8 text-center">
-                <p className="text-slate-500 text-xs">Select a section to view questions</p>
+              <div className="text-center py-12">
+                <p className="text-slate-500 text-sm">Select a section to view questions</p>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-white">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-slate-300">
                     {selectedSection.section_name}
                   </h3>
                   <Button
@@ -599,12 +594,12 @@ export default function InterviewStructureManager() {
                   </Button>
                 </div>
 
-                <div className="mb-3">
+                <div className="mb-4">
                   <Input
                     placeholder="Search questions..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                    className="bg-[#1a1f3a] border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm focus:border-slate-600"
                   />
                 </div>
 
@@ -626,8 +621,8 @@ export default function InterviewStructureManager() {
 
         {/* Right Drag Handle */}
         <div 
-          className={`w-1 flex-shrink-0 transition-colors ${
-            isDraggingRight ? 'bg-blue-500/50' : 'bg-slate-800/30 hover:bg-blue-600/30'
+          className={`w-[1px] flex-shrink-0 transition-colors ${
+            isDraggingRight ? 'bg-slate-600' : 'bg-slate-700/30'
           }`}
           onMouseDown={handleMouseDownRight}
           style={{ cursor: 'col-resize', userSelect: 'none' }}
@@ -636,9 +631,9 @@ export default function InterviewStructureManager() {
         {/* Right Column - Detail Panel */}
         <div 
           style={{ width: `${rightWidth}%` }}
-          className="overflow-auto bg-[#0a0f1e]"
+          className="overflow-auto bg-[#0f1729]"
         >
-          <div className="p-4">
+          <div className="p-6">
             <DetailPanel
               selectedItem={selectedItem}
               sections={sections}
@@ -729,8 +724,8 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
 
   if (filteredQuestions.length === 0) {
     return (
-      <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
-        <p className="text-slate-500 text-xs">
+      <div className="text-center py-8">
+        <p className="text-slate-500 text-sm">
           {searchTerm ? 'No matching questions' : 'No questions in this section'}
         </p>
       </div>
@@ -741,7 +736,7 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
     <DragDropContext onDragEnd={(result) => onDragEnd(result, section.id)}>
       <Droppable droppableId={`questions-${section.id}`}>
         {(provided) => (
-          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1.5">
+          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
             {filteredQuestions.map((question, index) => {
               const isControlQuestion = gateQuestionId === question.question_id;
               const isSelected = selectedItem?.type === 'question' && selectedItem?.data?.id === question.id;
@@ -756,31 +751,33 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                       onClick={() => setSelectedItem({ type: 'question', data: question })}
                       className={`px-3 py-3 rounded-md transition-all cursor-pointer group ${
                         isSelected
-                          ? 'bg-slate-800/50 border border-slate-700'
-                          : isControlQuestion
-                            ? 'bg-amber-950/10 border border-amber-900/30 hover:bg-amber-950/20 hover:border-amber-800/50'
-                            : 'bg-slate-900/30 border border-slate-800/50 hover:bg-slate-800/30 hover:border-slate-700/50'
+                          ? 'bg-[#252d48]'
+                          : 'hover:bg-[#1a1f3a]'
                       } ${question.active === false ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-start gap-2.5">
                         <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                          <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-0.5" />
+                          <GripVertical className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing mt-0.5" />
                         </div>
-                        <FileText className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                          isSelected ? 'text-emerald-400' : 'text-emerald-500/70 group-hover:text-emerald-400'
+                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                          isSelected ? 'bg-purple-500' : 'bg-slate-600'
                         }`} />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-blue-400 font-mono">
-                                #{question.display_order || 1}
-                              </span>
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-slate-400 font-mono">
-                                {question.question_id}
-                              </span>
-                              {isControlQuestion && (
-                                <Lock className="w-3 h-3 text-amber-500" />
-                              )}
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div>
+                              <h4 className={`text-sm font-normal leading-tight mb-1 ${
+                                isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'
+                              }`}>
+                                {question.question_text}
+                              </h4>
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span className="font-mono">{question.question_id}</span>
+                                {isControlQuestion && (
+                                  <span className="flex items-center gap-1 text-amber-500">
+                                    <Lock className="w-3 h-3" />
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <Switch
                               checked={question.active !== false}
@@ -789,25 +786,16 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                                 toggleQuestionActive(e, question);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="data-[state=checked]:bg-emerald-600 scale-75"
+                              className="data-[state=checked]:bg-emerald-500 scale-75"
                             />
                           </div>
                           
-                          <p className="text-sm text-white leading-relaxed mb-2 line-clamp-2">
-                            {question.question_text}
-                          </p>
-                          
-                          <div className="flex gap-1.5 flex-wrap">
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-slate-400">
-                              {getResponseTypeDisplay(question.response_type)}
-                            </span>
+                          <div className="flex gap-2 flex-wrap text-xs text-slate-500">
+                            <span>{getResponseTypeDisplay(question.response_type)}</span>
                             {question.followup_pack && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-900/30 border border-purple-800/50 text-purple-400">
-                                {FOLLOWUP_PACK_NAMES[question.followup_pack] || question.followup_pack}
+                              <span className="text-purple-400">
+                                • Used by {question.followup_pack}
                               </span>
-                            )}
-                            {question.followup_multi_instance && (
-                              <Layers className="w-3 h-3 text-purple-400" />
                             )}
                           </div>
                         </div>
@@ -1012,9 +1000,9 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
   if (!selectedItem) {
     return (
-      <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-8 text-center">
-        <h4 className="text-sm font-semibold text-slate-400 mb-2">Select a question to edit</h4>
-        <p className="text-xs text-slate-500">Choose a question from the middle column to view and edit its details</p>
+      <div className="text-center py-12">
+        <h4 className="text-base font-medium text-slate-400 mb-2">Select a question to edit</h4>
+        <p className="text-sm text-slate-500">Choose a question from the middle column to view and edit its details</p>
       </div>
     );
   }
