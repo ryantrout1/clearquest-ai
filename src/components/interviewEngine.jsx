@@ -1598,6 +1598,18 @@ export function parseQuestionsToMaps(questions, sections, categories) {
         questionsBySection[section.id].forEach(q => {
           ActiveOrdered.push(q.question_id);
         });
+
+        // DEBUG LOG: Prior Law Enforcement section question list
+        if (section.section_name === 'Prior Law Enforcement') {
+          console.log('\n🔍 DEBUG: Prior Law Enforcement Section Questions:');
+          console.log(`   Section ID: ${section.id}`);
+          console.log(`   Total Questions: ${questionsBySection[section.id].length}`);
+          console.log(`   Questions in order:`);
+          questionsBySection[section.id].forEach((q, idx) => {
+            console.log(`      ${idx + 1}. ${q.question_id}: ${q.question_text}`);
+          });
+          console.log('');
+        }
       }
     });
 
