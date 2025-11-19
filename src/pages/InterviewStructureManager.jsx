@@ -440,7 +440,10 @@ export default function InterviewStructureManager() {
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              onClick={() => setSelectedSection(section)}
+                              onClick={() => {
+                                setSelectedSection(section);
+                                setSelectedItem({ type: 'section', data: section });
+                              }}
                               className={`px-3 py-2 rounded-md transition-all cursor-pointer group ${
                                 isSelected
                                   ? 'bg-slate-700/50'
