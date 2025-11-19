@@ -10,7 +10,6 @@ import { Link } from "react-router-dom";
 export default function HomeHub() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
