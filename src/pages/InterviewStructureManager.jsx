@@ -364,28 +364,26 @@ export default function InterviewStructureManager() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1729]">
+    <div className="min-h-screen bg-[#0a0f1e]">
       {/* Header */}
-      <div className="border-b border-slate-800/30 bg-[#1a1f3a] px-6 py-3.5">
+      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
         <div className="max-w-[2000px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(createPageUrl("HomeHub"))}
-              className="text-slate-400 hover:text-white hover:bg-slate-700/50 -ml-2"
+              className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2"
             >
-              <ChevronLeft className="w-4 h-4 mr-1.5" />
+              <ChevronLeft className="w-4 h-4 mr-1" />
               Back
             </Button>
-            <FolderOpen className="w-5 h-5 text-slate-400" />
-            <div>
-              <h1 className="text-lg font-semibold text-white">Interview Structure Manager</h1>
-            </div>
+            <FolderOpen className="w-5 h-5 text-blue-400" />
+            <h1 className="text-lg font-semibold text-white">Interview Structure Manager</h1>
+            <span className="text-xs text-slate-500">
+              Manage sections and questions
+            </span>
           </div>
-          <span className="text-xs text-slate-500">
-            Organize and manage sections across {sortedSections.length} sections
-          </span>
         </div>
       </div>
 
@@ -393,10 +391,10 @@ export default function InterviewStructureManager() {
       <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Left Column - Sections List */}
         <div 
-          className="w-[25%] overflow-auto border-r border-slate-700/30 bg-[#161b2e] p-5"
+          className="w-[25%] overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">Sections</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-400">Sections</h3>
             <div className="flex gap-1">
               <Button
                 onClick={recalculateGlobalQuestionNumbers}
@@ -509,37 +507,41 @@ export default function InterviewStructureManager() {
 
         {/* Middle Column - Questions List */}
         <div 
-          className="w-[35%] overflow-auto border-r border-slate-700/30 bg-[#0f1729]"
+          className="w-[35%] overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]"
         >
-          <div className="p-5">
+          <div className="p-4">
             {!selectedSection ? (
               <div className="text-center py-12">
                 <p className="text-slate-500 text-sm">Select a section to view questions</p>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-slate-300">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white">
                     {selectedSection.section_name}
                   </h3>
-                  <Button
-                    onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 h-8"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Question
-                  </Button>
+                  <span className="text-xs text-slate-500">
+                    {filteredQuestions.length} {filteredQuestions.length === 1 ? 'question' : 'questions'}
+                  </span>
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-3">
                   <Input
                     placeholder="Search questions..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-[#1a1f3a] border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm focus:border-slate-600"
+                    className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
                   />
                 </div>
+
+                <Button
+                  onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 w-full mb-3"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Question
+                </Button>
 
                 <QuestionsList
                   section={selectedSection}
@@ -551,6 +553,7 @@ export default function InterviewStructureManager() {
                   setSelectedItem={setSelectedItem}
                   toggleQuestionActive={toggleQuestionActive}
                   onDragEnd={handleQuestionDragEnd}
+                  filteredQuestions={questions.filter(q => q.section_id === selectedSection.id && (!searchTerm || q.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) || q.question_id?.toLowerCase().includes(searchTerm.toLowerCase())))}
                 />
               </>
             )}
@@ -559,9 +562,9 @@ export default function InterviewStructureManager() {
 
         {/* Right Column - Detail Panel */}
         <div 
-          className="flex-1 overflow-auto bg-[#0f1729]"
+          className="flex-1 overflow-auto bg-[#0a0f1e]"
         >
-          <div className="p-6">
+          <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
               sections={sections}
@@ -632,7 +635,7 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionsList({ section, questions, categories, followUpPacks, searchTerm, selectedItem, setSelectedItem, toggleQuestionActive, onDragEnd }) {
+function QuestionsList({ section, questions, categories, followUpPacks, searchTerm, selectedItem, setSelectedItem, toggleQuestionActive, onDragEnd, setFilteredCount }) {
   const sectionQuestions = questions
     .filter(q => q.section_id === section.id)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
