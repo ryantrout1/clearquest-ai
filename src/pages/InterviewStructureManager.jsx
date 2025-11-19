@@ -861,6 +861,13 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           is_control_question: formData.is_control_question ?? false
         };
         
+        // Auto-disable multi-instance if follow-up pack is removed
+        if (!formData.followup_pack && selectedItem.data.followup_multi_instance) {
+          saveData.followup_multi_instance = false;
+          saveData.max_instances_per_question = undefined;
+          toast.info('Multi-Instance Follow-Up disabled (no Follow-Up Pack assigned)');
+        }
+        
         await base44.entities.Question.update(selectedItem.data.id, saveData);
         queryClient.invalidateQueries({ queryKey: ['questions'] });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
@@ -1157,19 +1164,61 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           />
         </div>
 
-        {formData.followup_pack && (
-          <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-            <div className="flex-1 pr-3">
-              <Label className="text-slate-300 font-semibold">Multi-Instance Follow-Up</Label>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Ask "Do you have another instance?" after completing this pack
-              </p>
+        {formData.followup_pack ? (
+          <>
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <div className="flex-1 pr-3">
+                <Label className="text-slate-300 font-semibold">Multi-Instance Follow-Up</Label>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Ask "Do you have another instance?" after completing this pack
+                </p>
+              </div>
+              <Switch
+                checked={formData.followup_multi_instance || false}
+                onCheckedChange={(checked) => {
+                  setFormData({
+                    ...formData, 
+                    followup_multi_instance: checked,
+                    max_instances_per_question: checked ? (formData.max_instances_per_question || 5) : undefined
+                  });
+                }}
+                className="data-[state=checked]:bg-emerald-600"
+              />
             </div>
-            <Switch
-              checked={formData.followup_multi_instance || false}
-              onCheckedChange={(checked) => setFormData({...formData, followup_multi_instance: checked})}
-              className="data-[state=checked]:bg-emerald-600"
-            />
+            
+            {formData.followup_multi_instance && (
+              <div>
+                <Label className="text-slate-300">Maximum Instances</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={formData.max_instances_per_question || 5}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (val >= 1 && val <= 20) {
+                      setFormData({...formData, max_instances_per_question: val});
+                    }
+                  }}
+                  className="bg-slate-800 border-slate-600 text-white mt-1"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Allowed range: 1-20 instances (default: 5)
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <Label className="text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Requires a Follow-Up Pack. Please select a pack above to enable this feature.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
