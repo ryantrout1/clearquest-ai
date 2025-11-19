@@ -1438,7 +1438,7 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   
   // Validation tracking
   const validationErrors = [];
-  const seenQuestionIds = new Set();
+  const seenQuestionIds = new Map(); // Changed to Map to track section_id -> Set(question_ids)
   
   // Build SECTION_ORDER from Section entities sorted by section_order
   const activeSections = sections
@@ -1501,21 +1501,8 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       return;
     }
 
-    // VALIDATION: Check for duplicate question_id
-    if (seenQuestionIds.has(questionId)) {
-      validationErrors.push(
-        `Duplicate question_id ${questionId} found (db id ${q.id}, section ${q.section_id}). This question was skipped to avoid routing collisions.`
-      );
-      console.warn(`⚠️ Skipping duplicate question_id: ${questionId} (db id: ${q.id})`);
-      return;
-    }
-
-    seenQuestionIds.add(questionId);
-    QById[questionId] = q;
-
-    // Find section object using q.section_id (the numeric database ID)
+    // Find section object to get section string ID for duplicate checking
     const sectionEntity = sections.find(s => s.id === q.section_id);
-
     if (!sectionEntity) {
       console.warn(`⚠️ Question ${questionId} has section_id ${q.section_id} but no matching Section entity found - skipping`);
       validationErrors.push(
@@ -1524,13 +1511,34 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       return;
     }
 
-    // Check if the section is active
+    const sectionIdString = sectionEntity.section_id;
+
+    // VALIDATION: Check for duplicate question_id WITHIN THE SAME SECTION ONLY
+    if (!seenQuestionIds.has(sectionIdString)) {
+      seenQuestionIds.set(sectionIdString, new Set());
+    }
+    
+    const sectionQuestionIds = seenQuestionIds.get(sectionIdString);
+    if (sectionQuestionIds.has(questionId)) {
+      validationErrors.push(
+        `Duplicate question_id ${questionId} found within section ${sectionIdString} (db id ${q.id}). This question was skipped.`
+      );
+      console.warn(`⚠️ Skipping duplicate question_id within section: ${questionId} in ${sectionIdString} (db id: ${q.id})`);
+      return;
+    }
+
+    sectionQuestionIds.add(questionId);
+    
+    // Allow same question_id across different sections - use composite key for QById
+    const compositeKey = `${sectionIdString}:${questionId}`;
+    QById[questionId] = q; // Keep simple key for legacy compatibility
+    QById[compositeKey] = q; // Add composite key for section-aware lookups
+
+    // Check if the section is active (sectionEntity already found above)
     if (!activeDbSectionIds.has(sectionEntity.id)) {
       console.log(`⏭️ Skipping question ${questionId} - section "${sectionEntity.section_name}" is inactive`);
       return;
-    }
-    
-    const sectionIdString = sectionEntity.section_id; // STRING identifier
+    } // STRING identifier
 
     questionsBySection[sectionIdString].push({
       question_id: questionId,
@@ -1830,13 +1838,15 @@ export async function bootstrapEngine(base44) {
 
 /**
  * Audits section question counts: database vs runtime
- * Logs mismatches to help diagnose routing issues
+ * ENHANCED: Shows detailed question text for missing questions
  */
 export async function auditSectionQuestionCounts(base44, engine) {
-  console.log('\n🔍 ========== SECTION QUESTION AUDIT ==========');
+  console.log('\n🔍 ========== SECTION QUESTION AUDIT (ENHANCED) ==========');
   
   const sections = engine.Sections || [];
   const activeSections = sections.filter(s => s.active !== false).sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+  
+  let totalMismatches = 0;
   
   for (const section of activeSections) {
     const sectionId = section.section_id;
@@ -1848,15 +1858,16 @@ export async function auditSectionQuestionCounts(base44, engine) {
       active: true
     });
     
+    // Sort by display_order
+    const sortedDbQuestions = dbQuestions
+      .filter(q => q.question_id && q.question_id.trim() !== '')
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
     // Get runtime sequence from engine
     const runtimeQuestions = engine.questionsBySection[sectionId] || [];
     
-    // Extract IDs
-    const dbQuestionIds = dbQuestions
-      .filter(q => q.question_id && q.question_id.trim() !== '')
-      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-      .map(q => q.question_id);
-    
+    // Build maps for detailed comparison
+    const dbQuestionIds = sortedDbQuestions.map(q => q.question_id);
     const runtimeQuestionIds = runtimeQuestions.map(q => q.question_id);
     
     // Find mismatches
@@ -1866,21 +1877,40 @@ export async function auditSectionQuestionCounts(base44, engine) {
     const match = dbQuestionIds.length === runtimeQuestionIds.length && missingInRuntime.length === 0;
     const status = match ? '✅' : '❌';
     
+    if (!match) totalMismatches++;
+    
     console.log(`\n${status} [${section.section_order}] ${section.section_name}`);
     console.log(`   DB Active Count: ${dbQuestionIds.length}`);
     console.log(`   Runtime Sequence Count: ${runtimeQuestionIds.length}`);
-    console.log(`   DB Question IDs (by display_order):`, dbQuestionIds);
-    console.log(`   Runtime Question IDs:`, runtimeQuestionIds);
     
     if (missingInRuntime.length > 0) {
-      console.error(`   ⚠️ MISSING IN RUNTIME: ${missingInRuntime.join(', ')}`);
+      console.error(`   ❌ MISSING IN RUNTIME (${missingInRuntime.length} questions):`);
+      missingInRuntime.forEach(qId => {
+        const dbQ = sortedDbQuestions.find(q => q.question_id === qId);
+        if (dbQ) {
+          console.error(`      - ${qId} (order ${dbQ.display_order}): "${dbQ.question_text}"`);
+        }
+      });
     }
+    
     if (extraInRuntime.length > 0) {
-      console.warn(`   ⚠️ EXTRA IN RUNTIME: ${extraInRuntime.join(', ')}`);
+      console.warn(`   ⚠️ EXTRA IN RUNTIME (${extraInRuntime.length} questions):`, extraInRuntime);
+    }
+    
+    if (match && dbQuestionIds.length > 0) {
+      console.log(`   ✅ All ${dbQuestionIds.length} active questions will be asked`);
     }
   }
   
-  console.log('\n========== END AUDIT ==========\n');
+  console.log(`\n========== AUDIT SUMMARY ==========`);
+  console.log(`   Total Sections Audited: ${activeSections.length}`);
+  console.log(`   Sections with Mismatches: ${totalMismatches}`);
+  if (totalMismatches === 0) {
+    console.log(`   ✅ ALL SECTIONS MATCH - Database and Runtime are in sync`);
+  } else {
+    console.error(`   ❌ ${totalMismatches} sections have missing or extra questions`);
+  }
+  console.log('========== END AUDIT ==========\n');
 }
 
 // ============================================================================
