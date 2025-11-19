@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, Package, AlertTriangle, Zap, Beaker } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySidebar";
@@ -24,6 +25,7 @@ export default function FollowUpPackManagerV2() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(FOLLOWUP_CATEGORIES[0].id);
   const [selectedPack, setSelectedPack] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showLegacyPacks, setShowLegacyPacks] = useState(false);
   const [leftWidth, setLeftWidth] = useState(25);
   const [middleWidth, setMiddleWidth] = useState(35);
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
@@ -60,11 +62,19 @@ export default function FollowUpPackManagerV2() {
     }
   };
 
-  const { data: packs = [], isLoading: packsLoading } = useQuery({
+  const { data: allPacks = [], isLoading: packsLoading } = useQuery({
     queryKey: ['followUpPacks'],
     queryFn: () => base44.entities.FollowUpPack.list(),
     enabled: !!user
   });
+
+  // Filter packs based on showLegacyPacks toggle
+  const packs = useMemo(() => {
+    if (showLegacyPacks) {
+      return allPacks;
+    }
+    return allPacks.filter(pack => pack.is_standard_cluster === true);
+  }, [allPacks, showLegacyPacks]);
 
   const { data: allQuestions = [] } = useQuery({
     queryKey: ['followUpQuestions'],
@@ -336,18 +346,45 @@ export default function FollowUpPackManagerV2() {
               </span>
             </div>
 
-            <div className="mb-3">
+            <div className="mb-3 space-y-2">
               <Input
                 placeholder="Search packs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
               />
+              
+              <div className="flex items-center gap-2 px-1">
+                <Checkbox
+                  id="show-legacy"
+                  checked={showLegacyPacks}
+                  onCheckedChange={setShowLegacyPacks}
+                  className="border-slate-600"
+                />
+                <label
+                  htmlFor="show-legacy"
+                  className="text-xs text-slate-400 cursor-pointer select-none"
+                >
+                  Show legacy packs
+                </label>
+              </div>
             </div>
 
             {packsLoading ? (
               <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
                 <p className="text-slate-500 text-center text-sm">Loading packs...</p>
+              </div>
+            ) : packs.length === 0 && !showLegacyPacks ? (
+              <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
+                <div className="text-center space-y-3">
+                  <Package className="w-12 h-12 text-slate-600 mx-auto" />
+                  <p className="text-slate-400 text-sm">
+                    No standardized follow-up packs have been created yet.
+                  </p>
+                  <p className="text-slate-500 text-xs">
+                    Use the action below to create them.
+                  </p>
+                </div>
               </div>
             ) : (
               <FollowUpPackList
