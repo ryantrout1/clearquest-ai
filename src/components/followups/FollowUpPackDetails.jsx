@@ -63,6 +63,9 @@ export default function FollowUpPackDetails({
 
   const handleSave = async () => {
     try {
+      const originalCategory = mapPackToCategory(pack.followup_pack_id);
+      const categoryChanged = originalCategory !== formData.categoryId;
+      
       await base44.entities.FollowUpPack.update(pack.id, {
         pack_name: formData.pack_name,
         description: formData.description,
@@ -73,7 +76,7 @@ export default function FollowUpPackDetails({
         active: formData.active,
         category_id: formData.categoryId
       });
-      onUpdate();
+      onUpdate(categoryChanged ? formData.categoryId : null);
       setIsEditing(false);
       toast.success('Pack updated successfully');
     } catch (err) {

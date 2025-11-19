@@ -230,10 +230,16 @@ export default function FollowUpPackManagerV2() {
     }
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = (newCategoryId) => {
     queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
     queryClient.invalidateQueries({ queryKey: ['followUpQuestions'] });
     queryClient.invalidateQueries({ queryKey: ['questions'] });
+    
+    // If category changed, switch to new category and clear selection
+    if (newCategoryId) {
+      setSelectedCategoryId(newCategoryId);
+      setSelectedPack(null);
+    }
   };
 
   if (!user) {
