@@ -1485,17 +1485,7 @@ export function parseQuestionsToMaps(questions, sections, categories) {
 
   console.log(`\n📦 questionsBySection keys after initialization:`, Object.keys(questionsBySection));
 
-  // Apply gate question settings from Categories (for backward compatibility)
-  categories.forEach(cat => {
-    const matchingSection = activeSections.find(s => s.section_name === cat.category_label);
-    if (matchingSection) {
-      const sectionId = matchingSection.section_id;
-      if (cat.gate_question_id && cat.gate_skip_if_value === 'No') {
-        sectionConfig[sectionId].gate_question_id = cat.gate_question_id;
-        sectionConfig[sectionId].mode = "skip_rest_if_control_no";
-      }
-    }
-  });
+  // No longer need Category-based gate settings - using Question.is_control_question instead
 
   // Group and sort questions by section - ONLY include questions from ACTIVE sections
   questions.forEach(q => {
@@ -1551,7 +1541,8 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       question_text: q.question_text,
       followup_pack: q.followup_pack,
       response_type: q.response_type,
-      substance_name: q.substance_name
+      substance_name: q.substance_name,
+      is_control_question: q.is_control_question
     });
 
     // Legacy: Track follow-up packs
@@ -1588,18 +1579,6 @@ export function parseQuestionsToMaps(questions, sections, categories) {
         indexInSection: index
       };
     });
-
-    // Set control question position if gate question is defined
-    const sectionConf = sectionConfig[sectionIdString];
-    if (sectionConf.gate_question_id) {
-      const gateIndex = questionsBySection[sectionIdString].findIndex(q => q.question_id === sectionConf.gate_question_id);
-      if (gateIndex !== -1) {
-        sectionConf.controlQuestionPosition = gateIndex + 1; // 1-based
-        console.log(`   🚪 Section ${sectionConf.section_name}: Gate question #${gateIndex + 1} (${sectionConf.gate_question_id})`);
-      } else {
-        console.warn(`⚠️ Gate question ${sectionConf.gate_question_id} not found in section "${sectionConf.section_name}"`);
-      }
-    }
   });
 
   // Calculate TotalQuestions from active sections only
@@ -1795,13 +1774,13 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   console.log(`   📍 Location: [${section.section_order}] ${section.section_name}, position #${indexInSection + 1}/${questions.length}`);
   console.log(`   🎯 Section mode: ${section.mode}`);
 
-  // 2. Check section-level control question skip rule
-  if (section.mode === "skip_rest_if_control_no" && 
-      section.controlQuestionPosition !== null &&
-      (indexInSection + 1) === section.controlQuestionPosition && // Check if current question is the gate question
+  // 2. Check if current question is a control question (using is_control_question field)
+  const fullQuestion = engine.QById[currentQuestionId];
+  if (fullQuestion?.is_control_question === true && 
+      fullQuestion.response_type === 'yes_no' &&
       normalizeToYesNo(answer) === "No") {
     
-    console.log(`   🚪 Control question answered No - skipping rest of [${section.section_order}] ${section.section_name}`);
+    console.log(`   🚪 Control question ${currentQuestionId} answered No - skipping rest of [${section.section_order}] ${section.section_name}`);
     return firstQuestionIdOfNextSection(engine, sectionId);
   }
 
