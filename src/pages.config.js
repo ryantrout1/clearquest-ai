@@ -19,7 +19,6 @@ import BackfillSummaries from './pages/BackfillSummaries';
 import QuestionsManager from './pages/QuestionsManager';
 import InterviewStructureManager from './pages/InterviewStructureManager';
 import FollowupPackManager from './pages/FollowupPackManager';
-import FollowUpPackAudit from './pages/FollowUpPackAudit';
 import __Layout from './Layout.jsx';
 
 
@@ -45,7 +44,6 @@ export const PAGES = {
     "QuestionsManager": QuestionsManager,
     "InterviewStructureManager": InterviewStructureManager,
     "FollowupPackManager": FollowupPackManager,
-    "FollowUpPackAudit": FollowUpPackAudit,
 }
 
 export const pagesConfig = {

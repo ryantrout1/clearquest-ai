@@ -26,19 +26,6 @@ const BEHAVIOR_TYPE_NAMES = {
   'multi_incident': 'Multi-Incident'
 };
 
-const MASTER_CATEGORIES = [
-  { id: 'DRUG_USE', name: 'Drug Use / Controlled Substances', description: 'Any admission of drug use, drug possession, or drug sales' },
-  { id: 'CRIMINAL', name: 'Criminal Charges & Arrests', description: 'Any arrest, criminal charge, conviction, or investigation' },
-  { id: 'DRIVING', name: 'Driving Incidents', description: 'DUI, reckless driving, license suspension, collisions' },
-  { id: 'EMPLOYMENT', name: 'Employment Terminations', description: 'Being fired, forced to resign, or disciplinary actions at work' },
-  { id: 'FINANCIAL', name: 'Financial Issues', description: 'Bankruptcy, late payments, repossessions, judgments, debt' },
-  { id: 'SEXUAL', name: 'Sexual Misconduct or Exploitation', description: 'Allegations or incidents of sexual misconduct' },
-  { id: 'WEAPONS', name: 'Weapons Violations', description: 'Illegal weapon possession or weapons-related incidents' },
-  { id: 'GANG', name: 'Gang Affiliation', description: 'Gang membership, association, or gang-related activity' },
-  { id: 'MILITARY', name: 'Military Discipline', description: 'Military discipline, discharge issues, or service problems' },
-  { id: 'LAW_ENFORCEMENT', name: 'Law Enforcement Discipline', description: 'Prior LE applications, terminations, or discipline' }
-];
-
 const PACK_GROUPS = {
   "Law Enforcement": [
     'PACK_LE_APPS', 'PACK_LE_PREV', 'PACK_LE_INTERVIEW', 'PACK_LE_COMPLAINT',
@@ -133,7 +120,6 @@ export default function FollowupPackManager() {
   const [searchTerm, setSearchTerm] = useState("");
   const [leftWidth, setLeftWidth] = useState(35);
   const [isDragging, setIsDragging] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(new Set(MASTER_CATEGORIES.map(c => c.id)));
 
   useEffect(() => {
     checkAuth();
@@ -242,58 +228,16 @@ export default function FollowupPackManager() {
     return map;
   }, [interviewQuestions]);
 
-  // Group packs by category
-  const packsByCategory = useMemo(() => {
-    const grouped = {};
-    MASTER_CATEGORIES.forEach(cat => {
-      grouped[cat.id] = [];
-    });
-    grouped['UNCATEGORIZED'] = [];
-
-    packs.forEach(pack => {
-      const category = pack.followup_category || 'UNCATEGORIZED';
-      if (grouped[category]) {
-        grouped[category].push(pack);
-      } else {
-        grouped['UNCATEGORIZED'].push(pack);
-      }
-    });
-
-    return grouped;
-  }, [packs]);
-
   // Filter packs by search
-  const filteredPacksByCategory = useMemo(() => {
-    if (!searchTerm) return packsByCategory;
-
+  const filteredPacks = packs.filter(pack => {
+    if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const filtered = {};
-    
-    Object.entries(packsByCategory).forEach(([catId, catPacks]) => {
-      const matchingPacks = catPacks.filter(pack =>
-        pack.pack_name?.toLowerCase().includes(search) ||
-        pack.followup_pack_id?.toLowerCase().includes(search) ||
-        pack.description?.toLowerCase().includes(search)
-      );
-      if (matchingPacks.length > 0) {
-        filtered[catId] = matchingPacks;
-      }
-    });
-
-    return filtered;
-  }, [packsByCategory, searchTerm]);
-
-  const toggleCategory = (categoryId) => {
-    setExpandedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
-      } else {
-        newSet.add(categoryId);
-      }
-      return newSet;
-    });
-  };
+    return (
+      pack.pack_name?.toLowerCase().includes(search) ||
+      pack.followup_pack_id?.toLowerCase().includes(search) ||
+      pack.description?.toLowerCase().includes(search)
+    );
+  });
 
   if (!user) {
     return (
@@ -344,161 +288,60 @@ export default function FollowupPackManager() {
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {packsLoading ? (
                 <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
                   <p className="text-slate-400 text-center py-8">Loading packs...</p>
                 </div>
-              ) : Object.keys(filteredPacksByCategory).length === 0 ? (
+              ) : filteredPacks.length === 0 ? (
                 <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
                   <p className="text-slate-400 text-center py-8">No packs found</p>
                 </div>
               ) : (
-                <>
-                  {MASTER_CATEGORIES.map(category => {
-                    const categoryPacks = filteredPacksByCategory[category.id] || [];
-                    if (categoryPacks.length === 0 && searchTerm) return null;
-                    
-                    const isExpanded = expandedCategories.has(category.id);
-                    
-                    return (
-                      <div key={category.id} className="bg-slate-800/30 border border-slate-700/50 rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => toggleCategory(category.id)}
-                          className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 flex-1 text-left">
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                            )}
-                            <div className="min-w-0">
-                              <h3 className="text-sm font-semibold text-amber-400">{category.name}</h3>
-                              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{category.description}</p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300 ml-2 flex-shrink-0">
-                            {categoryPacks.length}
-                          </Badge>
-                        </button>
-
-                        {isExpanded && categoryPacks.length > 0 && (
-                          <div className="border-t border-slate-700/50 p-2 space-y-1">
-                            {categoryPacks.map((pack) => {
-                              const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
-                              const activeQuestions = packQuestions.filter(q => q.active !== false).length;
-                              const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
-                              
-                              return (
-                                <div
-                                  key={pack.id}
-                                  onClick={() => setSelectedPack(pack)}
-                                  className={`p-3 rounded-lg transition-all cursor-pointer ${
-                                    selectedPack?.id === pack.id 
-                                      ? 'bg-amber-950/30 border-2 border-amber-500/50' 
-                                      : 'bg-slate-900/50 border border-slate-700 hover:border-amber-500/30'
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <Package className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="text-sm font-medium text-white leading-tight">
-                                        {pack.pack_name}
-                                      </h4>
-                                      <p className="text-xs text-slate-400 mt-0.5 font-mono break-all">
-                                        {pack.followup_pack_id}
-                                      </p>
-                                      <div className="flex gap-1.5 mt-2 flex-wrap">
-                                        <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                          {packQuestions.length} Q • {activeQuestions} active
-                                        </Badge>
-                                        {triggeringQuestions.length > 0 && (
-                                          <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                            Used by {triggeringQuestions.length}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Uncategorized packs */}
-                  {filteredPacksByCategory['UNCATEGORIZED']?.length > 0 && (
-                    <div className="bg-slate-800/30 border border-yellow-700/50 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => toggleCategory('UNCATEGORIZED')}
-                        className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 flex-1 text-left">
-                          {expandedCategories.has('UNCATEGORIZED') ? (
-                            <ChevronDown className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                filteredPacks.map((pack) => {
+                  const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
+                  const activeQuestions = packQuestions.filter(q => q.active !== false).length;
+                  const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
+                  
+                  return (
+                    <div
+                      key={pack.id}
+                      onClick={() => setSelectedPack(pack)}
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
+                        selectedPack?.id === pack.id 
+                          ? 'bg-amber-950/30 border-2 border-amber-500/50' 
+                          : 'bg-slate-800/50 border border-slate-700 hover:border-amber-500/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Package className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-base font-semibold text-white leading-tight">
+                            {pack.pack_name}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1 font-mono break-all">
+                            {pack.followup_pack_id}
+                          </p>
+                          {pack.description && (
+                            <p className="text-xs text-slate-500 mt-2 line-clamp-2">
+                              {pack.description}
+                            </p>
                           )}
-                          <div>
-                            <h3 className="text-sm font-semibold text-yellow-400">Uncategorized</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Packs without a category assigned</p>
+                          <div className="flex gap-1.5 mt-3 flex-wrap">
+                            <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
+                              {packQuestions.length} total • {activeQuestions} active
+                            </Badge>
+                            {triggeringQuestions.length > 0 && (
+                              <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                Used by {triggeringQuestions.length}
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-xs bg-yellow-700/20 border-yellow-600 text-yellow-400 ml-2">
-                          {filteredPacksByCategory['UNCATEGORIZED'].length}
-                        </Badge>
-                      </button>
-
-                      {expandedCategories.has('UNCATEGORIZED') && (
-                        <div className="border-t border-yellow-700/50 p-2 space-y-1">
-                          {filteredPacksByCategory['UNCATEGORIZED'].map((pack) => {
-                            const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
-                            const activeQuestions = packQuestions.filter(q => q.active !== false).length;
-                            const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
-                            
-                            return (
-                              <div
-                                key={pack.id}
-                                onClick={() => setSelectedPack(pack)}
-                                className={`p-3 rounded-lg transition-all cursor-pointer ${
-                                  selectedPack?.id === pack.id 
-                                    ? 'bg-yellow-950/30 border-2 border-yellow-500/50' 
-                                    : 'bg-slate-900/50 border border-slate-700 hover:border-yellow-500/30'
-                                }`}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <Package className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm font-medium text-white leading-tight">
-                                      {pack.pack_name}
-                                    </h4>
-                                    <p className="text-xs text-slate-400 mt-0.5 font-mono break-all">
-                                      {pack.followup_pack_id}
-                                    </p>
-                                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                                      <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                        {packQuestions.length} Q • {activeQuestions} active
-                                      </Badge>
-                                      {triggeringQuestions.length > 0 && (
-                                        <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                          Used by {triggeringQuestions.length}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  )}
-                </>
+                  );
+                })
               )}
             </div>
           </div>
