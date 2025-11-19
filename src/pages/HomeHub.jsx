@@ -78,12 +78,9 @@ export default function HomeHub() {
             Welcome to ClearQuest AI
           </h1>
           
-          <div className="space-y-2 px-4">
+          <div className="px-4">
             <p className="text-lg md:text-xl text-blue-300 break-words">
               {user?.first_name} {user?.last_name}
-            </p>
-            <p className="text-sm md:text-base text-slate-400 break-words">
-              Super Administrator
             </p>
           </div>
         </div>
