@@ -100,7 +100,7 @@ export default function HomeHub() {
                     <Settings className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
                   </div>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">System Admin</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Department Admin</h2>
                 <p className="text-base md:text-lg text-slate-400">
                   Manage departments and system settings
                 </p>
@@ -140,7 +140,7 @@ export default function HomeHub() {
                 </div>
                 <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
                 <p className="text-base md:text-lg text-slate-400">
-                  Configure standardized follow-up packs (V2)
+                  Configure standardized follow-up packs
                 </p>
               </CardContent>
             </Card>
