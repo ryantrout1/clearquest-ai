@@ -888,30 +888,18 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           category: section?.section_name || formData.category // Ensure category matches section_name
         };
         
-        console.log('💾 Saving question:', {
-          questionId: formData.question_id,
-          isGateQuestion,
-          currentCategoryEntity,
-          categoryId: currentCategoryEntity?.id
-        });
-        
         await base44.entities.Question.update(selectedItem.data.id, saveData);
         
         // Update category gate question setting
         if (currentCategoryEntity) {
-          const categoryUpdate = {
+          await base44.entities.Category.update(currentCategoryEntity.id, {
             gate_question_id: isGateQuestion ? formData.question_id : null,
             gate_skip_if_value: isGateQuestion ? 'No' : null
-          };
-          console.log('🔐 Updating category gate:', categoryUpdate);
-          await base44.entities.Category.update(currentCategoryEntity.id, categoryUpdate);
-        } else {
-          console.warn('⚠️ No category entity found for gate question update');
+          });
         }
         
         queryClient.invalidateQueries({ queryKey: ['questions'] });
         queryClient.invalidateQueries({ queryKey: ['categories'] });
-        queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Question updated');
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
