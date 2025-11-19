@@ -166,6 +166,25 @@ export default function HomeHub() {
                   </CardContent>
                 </Card>
               </div>
+
+              <div
+                onClick={() => handleNavigate("FollowUpPackAudit")}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-blue-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                        <Settings className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
+                      </div>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Pack Audit</h2>
+                    <p className="text-base md:text-lg text-slate-400">
+                      Verify pack connections and data integrity
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
             </>
           ) : (
             <>
