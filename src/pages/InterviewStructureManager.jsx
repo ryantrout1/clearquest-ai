@@ -427,14 +427,12 @@ export default function InterviewStructureManager() {
                 {(provided) => (
                   <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
                     {sortedSections.map((section, index) => {
-                      const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
-                      const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
-                      const isSelected = selectedSection?.id === section.id;
-                      
-                      const gateCategory = categories.find(c => c.category_label === section.section_name);
-                      const gateQuestionId = gateCategory?.gate_question_id;
-                      
-                      return (
+                     const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
+                     const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
+                     const isSelected = selectedSection?.id === section.id;
+                     const hasGate = sectionQuestionsAll.some(q => q.is_control_question === true);
+
+                     return (
                         <Draggable key={section.id} draggableId={section.id} index={index}>
                           {(provided) => (
                             <div
@@ -465,7 +463,7 @@ export default function InterviewStructureManager() {
                                   }`}>
                                     {sectionQuestionsAll.length} questions ({activeCount} active)
                                   </span>
-                                  {gateQuestionId && (
+                                  {hasGate && (
                                     <span className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
                                       <Lock className="w-3 h-3" />
                                       Gate
@@ -653,9 +651,6 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
     .filter(q => q.section_id === section.id)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-  const gateCategory = categories.find(c => c.category_label === section.section_name);
-  const gateQuestionId = gateCategory?.gate_question_id;
-
   const filteredQuestions = sectionQuestions.filter(q => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -682,7 +677,6 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
             {filteredQuestions.map((question, index) => {
-              const isControlQuestion = gateQuestionId === question.question_id;
               const isSelected = selectedItem?.type === 'question' && selectedItem?.data?.id === question.id;
               
               return (
@@ -713,7 +707,7 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                               </h4>
                               <p className="text-xs text-slate-500 font-mono mt-0.5">
                                 {question.question_id}
-                                {isControlQuestion && (
+                                {question.is_control_question && (
                                   <span className="ml-2 text-amber-500">
                                     <Lock className="w-3 h-3 inline" /> Gate
                                   </span>
@@ -869,6 +863,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         
         await base44.entities.Question.update(selectedItem.data.id, saveData);
         queryClient.invalidateQueries({ queryKey: ['questions'] });
+        queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Question updated');
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
