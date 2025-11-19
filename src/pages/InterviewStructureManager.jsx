@@ -137,12 +137,15 @@ export default function InterviewStructureManager() {
   const highlightQuestionId = urlParams.get('questionId');
   
   const [user, setUser] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState({});
+  const [selectedSection, setSelectedSection] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
-  const [leftWidth, setLeftWidth] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [leftWidth, setLeftWidth] = useState(20);
+  const [middleWidth, setMiddleWidth] = useState(35);
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -205,41 +208,30 @@ export default function InterviewStructureManager() {
     enabled: !!user
   });
 
-  // Auto-expand and scroll to highlighted question
+  // Auto-select section and question from URL
   useEffect(() => {
     if (highlightQuestionId && questions.length > 0 && sections.length > 0) {
       const question = questions.find(q => q.question_id === highlightQuestionId);
       if (question) {
-        const sectionId = question.section_id;
-        setExpandedNodes(prev => ({
-          ...prev,
-          [`section-${sectionId}`]: true
-        }));
-        
-        setTimeout(() => {
-          const element = document.getElementById(`question-${question.id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Add a class for visual highlighting (e.g., a pulse animation)
-            element.classList.add('animate-pulse-once');
-            // Remove the class after animation to prevent it from repeating or staying
-            setTimeout(() => {
-              element.classList.remove('animate-pulse-once');
-            }, 2000); // Adjust duration to match your CSS animation
-          }
-        }, 100); // Small delay to ensure DOM update after state change
+        const section = sections.find(s => s.id === question.section_id);
+        if (section) {
+          setSelectedSection(section);
+          setTimeout(() => {
+            setSelectedItem({ type: 'question', data: question });
+          }, 100);
+        }
       }
     }
   }, [highlightQuestionId, questions, sections]);
 
   const sortedSections = [...sections].sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
-
-  const toggleNode = (nodeId) => {
-    setExpandedNodes(prev => ({
-      ...prev,
-      [nodeId]: !prev[nodeId]
-    }));
-  };
+  
+  // Auto-select first section if none selected
+  useEffect(() => {
+    if (!selectedSection && sortedSections.length > 0) {
+      setSelectedSection(sortedSections[0]);
+    }
+  }, [sortedSections]);
 
   const toggleSectionActive = async (e, section) => {
     e.stopPropagation();
@@ -329,28 +321,42 @@ export default function InterviewStructureManager() {
     }
   };
 
-  const handleMouseDown = (e) => {
+  const handleMouseDownLeft = (e) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsDraggingLeft(true);
+  };
+
+  const handleMouseDownRight = (e) => {
+    e.preventDefault();
+    setIsDraggingRight(true);
   };
 
   useEffect(() => {
-    if (!isDragging) return;
+    if (!isDraggingLeft && !isDraggingRight) return;
 
     const handleMouseMove = (e) => {
       const container = document.getElementById('resizable-container');
       if (!container) return;
 
       const containerRect = container.getBoundingClientRect();
-      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-      
-      // Clamp between 20% and 80%
-      const clampedWidth = Math.min(Math.max(newLeftWidth, 20), 80);
-      setLeftWidth(clampedWidth);
+      const mouseX = e.clientX - containerRect.left;
+      const totalWidth = containerRect.width;
+
+      if (isDraggingLeft) {
+        const newLeftWidth = (mouseX / totalWidth) * 100;
+        const clampedLeft = Math.min(Math.max(newLeftWidth, 15), 40);
+        setLeftWidth(clampedLeft);
+      } else if (isDraggingRight) {
+        const newMiddleEnd = (mouseX / totalWidth) * 100;
+        const newMiddleWidth = newMiddleEnd - leftWidth;
+        const clampedMiddle = Math.min(Math.max(newMiddleWidth, 20), 60);
+        setMiddleWidth(clampedMiddle);
+      }
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
+      setIsDraggingLeft(false);
+      setIsDraggingRight(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -360,7 +366,7 @@ export default function InterviewStructureManager() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDraggingLeft, isDraggingRight, leftWidth]);
 
   const recalculateGlobalQuestionNumbers = async () => {
     if (!sections || !questions) {
@@ -406,208 +412,233 @@ export default function InterviewStructureManager() {
     );
   }
 
+  const rightWidth = 100 - leftWidth - middleWidth;
+
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0a0f1e]">
       {/* Header */}
-      <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-6 py-4">
-        <div className="max-w-[1600px] mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate(createPageUrl("HomeHub"))}
-                className="text-slate-300 hover:text-white -ml-2"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-              <FolderOpen className="w-6 h-6 text-blue-400" />
-              <div>
-                <h1 className="text-xl font-bold text-white">Interview Structure Manager</h1>
-                <p className="text-xs text-slate-400">Manage sections, questions, and follow-up packs</p>
-              </div>
-            </div>
-            {/* Removed Sync All Questions button and migration related elements */}
+      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
+        <div className="max-w-[2000px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(createPageUrl("HomeHub"))}
+              className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+            <FolderOpen className="w-5 h-5 text-blue-400" />
+            <h1 className="text-lg font-semibold text-white">Interview Structure Manager</h1>
+            <span className="text-xs text-slate-500">
+              Manage sections and questions
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <div id="resizable-container" className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Tree View */}
+      {/* Main content - 3 column layout */}
+      <div id="resizable-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
+        {/* Left Column - Sections List */}
         <div 
           style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-700"
+          className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
-          <div className="p-6">
-            <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-white">Structure Tree</h2>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={recalculateGlobalQuestionNumbers}
-                    size="sm"
-                    variant="outline"
-                    className="bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600"
-                  >
-                    <Layers className="w-4 h-4 mr-1" />
-                    Recalculate Question Numbers
-                  </Button>
-                  <Button
-                    onClick={() => setSelectedItem({ type: 'new-section' })}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    New Section
-                  </Button>
-                </div>
-              </div>
-
-              {sectionsLoading ? (
-                <p className="text-slate-400 text-center py-8">Loading sections...</p>
-              ) : sortedSections.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No sections yet. Create your first section to get started.</p>
-              ) : (
-                <DragDropContext onDragEnd={handleSectionDragEnd}>
-                  <Droppable droppableId="sections">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                        {sortedSections.map((section, index) => {
-                          const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
-                          const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
-                          const inactiveCount = sectionQuestionsAll.filter(q => q.active === false).length;
-                          
-                          // Find gate question for this section
-                          const gateCategory = categories.find(c => c.category_label === section.section_name);
-                          const gateQuestionId = gateCategory?.gate_question_id;
-                          
-                          return (
-                            <Draggable key={section.id} draggableId={section.id} index={index}>
-                              {(provided) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`bg-slate-900/50 border rounded-lg hover:border-blue-500/50 transition-colors ${
-                                    selectedItem?.type === 'section' && selectedItem?.data?.id === section.id
-                                      ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-950/20'
-                                      : section.active ? 'border-slate-700' : 'border-slate-700 opacity-60'
-                                  }`}
-                                >
-                                  {/* Section Header */}
-                                  <div className="p-3">
-                                    <div className="flex items-start gap-2">
-                                      <div {...provided.dragHandleProps}>
-                                        <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-1" />
-                                      </div>
-                                      <button
-                                        onClick={() => toggleNode(`section-${section.id}`)}
-                                        className="text-slate-400 hover:text-white transition-colors mt-1"
-                                      >
-                                        {expandedNodes[`section-${section.id}`] ? 
-                                          <ChevronDown className="w-5 h-5" /> : 
-                                          <ChevronRight className="w-5 h-5" />
-                                        }
-                                      </button>
-                                      <FolderOpen className="w-5 h-5 text-blue-400 mt-1" />
-                                      <div 
-                                        className="flex-1 min-w-0 cursor-pointer"
-                                        onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                      >
-                                        <h3 className="text-base font-semibold text-white hover:text-blue-400 transition-colors">
-                                          {section.section_name}
-                                        </h3>
-                                        <p className="text-sm text-slate-400 mt-1">
-                                          {sectionQuestionsAll.length} questions • {activeCount} active • {inactiveCount} inactive
-                                        </p>
-                                        <div className="flex gap-2 mt-2 flex-wrap">
-                                          <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
-                                            #{section.section_order}
-                                          </Badge>
-                                          <Badge 
-                                            onClick={(e) => toggleSectionActive(e, section)}
-                                            className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
-                                              section.active
-                                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                                                : 'bg-slate-700/50 border-slate-600 text-slate-400'
-                                            }`}
-                                          >
-                                            {section.active ? 'Active' : 'Inactive'}
-                                          </Badge>
-                                          {section.required && (
-                                            <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
-                                              Required
-                                            </Badge>
-                                          )}
-                                          {gateQuestionId && (
-                                            <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
-                                              <Lock className="w-3 h-3 mr-1" />
-                                              Control: {gateQuestionId}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedItem({ type: 'section', data: section })}
-                                        className="text-slate-400 hover:text-white hover:bg-slate-700"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* Questions in Section */}
-                                  {expandedNodes[`section-${section.id}`] && (
-                                    <div className="border-t border-slate-700/50 p-3 pl-12 bg-slate-900/30">
-                                      <QuestionList 
-                                        section={section}
-                                        sectionId={section.id} 
-                                        questions={questions}
-                                        categories={categories}
-                                        followUpPacks={followUpPacks}
-                                        followUpQuestions={followUpQuestions}
-                                        expandedNodes={expandedNodes}
-                                        toggleNode={toggleNode}
-                                        toggleQuestionActive={toggleQuestionActive}
-                                        setSelectedItem={setSelectedItem}
-                                        onDragEnd={handleQuestionDragEnd}
-                                        onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </Draggable>
-                          );
-                        })}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-              )}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-400">Sections</h3>
+            <div className="flex gap-1">
+              <Button
+                onClick={recalculateGlobalQuestionNumbers}
+                size="sm"
+                variant="ghost"
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
+                title="Recalculate Question Numbers"
+              >
+                <Layers className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={() => setSelectedItem({ type: 'new-section' })}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 h-8 px-2"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
           </div>
+
+          {sectionsLoading ? (
+            <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
+              <p className="text-slate-500 text-xs">Loading sections...</p>
+            </div>
+          ) : sortedSections.length === 0 ? (
+            <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
+              <p className="text-slate-500 text-xs">No sections yet</p>
+            </div>
+          ) : (
+            <DragDropContext onDragEnd={handleSectionDragEnd}>
+              <Droppable droppableId="sections">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1.5">
+                    {sortedSections.map((section, index) => {
+                      const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
+                      const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
+                      const inactiveCount = sectionQuestionsAll.filter(q => q.active === false).length;
+                      const isSelected = selectedSection?.id === section.id;
+                      
+                      const gateCategory = categories.find(c => c.category_label === section.section_name);
+                      const gateQuestionId = gateCategory?.gate_question_id;
+                      
+                      return (
+                        <Draggable key={section.id} draggableId={section.id} index={index}>
+                          {(provided) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              onClick={() => setSelectedSection(section)}
+                              className={`px-3 py-2.5 rounded-md transition-all cursor-pointer group ${
+                                isSelected
+                                  ? 'bg-slate-800/50 border border-slate-700'
+                                  : 'bg-slate-900/30 border border-slate-800/50 hover:bg-slate-800/30 hover:border-slate-700/50'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+                                  <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-0.5" />
+                                </div>
+                                <FolderOpen className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                  isSelected ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'
+                                }`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <h4 className={`text-xs font-medium leading-tight ${
+                                      isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                                    }`}>
+                                      {section.section_name}
+                                    </h4>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedItem({ type: 'section', data: section });
+                                      }}
+                                      className="text-slate-400 hover:text-white hover:bg-slate-700 h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                    <span className={`text-xs ${
+                                      isSelected ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-500'
+                                    }`}>
+                                      #{section.section_order} • {sectionQuestionsAll.length}q ({activeCount} active)
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1 flex-wrap">
+                                    <Switch
+                                      checked={section.active !== false}
+                                      onCheckedChange={(checked) => {
+                                        const e = { stopPropagation: () => {} };
+                                        toggleSectionActive(e, section);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="data-[state=checked]:bg-emerald-600 scale-75"
+                                    />
+                                    {gateQuestionId && (
+                                      <Lock className="w-3 h-3 text-amber-500" />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          )}
         </div>
 
-        {/* Vertical Drag Handle */}
+        {/* Left Drag Handle */}
         <div 
-          className={`w-2 flex-shrink-0 transition-colors ${
-            isDragging ? 'bg-blue-500' : 'bg-slate-800 hover:bg-blue-600'
+          className={`w-1 flex-shrink-0 transition-colors ${
+            isDraggingLeft ? 'bg-blue-500/50' : 'bg-slate-800/30 hover:bg-blue-600/30'
           }`}
-          onMouseDown={handleMouseDown}
+          onMouseDown={handleMouseDownLeft}
           style={{ cursor: 'col-resize', userSelect: 'none' }}
         />
 
-        {/* Right Panel - Detail Panel */}
+        {/* Middle Column - Questions List */}
         <div 
-          style={{ width: `${100 - leftWidth}%` }}
-          className="overflow-auto"
+          style={{ width: `${middleWidth}%` }}
+          className="overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]"
         >
-          <div className="p-6">
+          <div className="p-4">
+            {!selectedSection ? (
+              <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-8 text-center">
+                <p className="text-slate-500 text-xs">Select a section to view questions</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white">
+                    {selectedSection.section_name}
+                  </h3>
+                  <Button
+                    onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 h-8"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Question
+                  </Button>
+                </div>
+
+                <div className="mb-3">
+                  <Input
+                    placeholder="Search questions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                  />
+                </div>
+
+                <QuestionsList
+                  section={selectedSection}
+                  questions={questions}
+                  categories={categories}
+                  followUpPacks={followUpPacks}
+                  searchTerm={searchTerm}
+                  selectedItem={selectedItem}
+                  setSelectedItem={setSelectedItem}
+                  toggleQuestionActive={toggleQuestionActive}
+                  onDragEnd={handleQuestionDragEnd}
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right Drag Handle */}
+        <div 
+          className={`w-1 flex-shrink-0 transition-colors ${
+            isDraggingRight ? 'bg-blue-500/50' : 'bg-slate-800/30 hover:bg-blue-600/30'
+          }`}
+          onMouseDown={handleMouseDownRight}
+          style={{ cursor: 'col-resize', userSelect: 'none' }}
+        />
+
+        {/* Right Column - Detail Panel */}
+        <div 
+          style={{ width: `${rightWidth}%` }}
+          className="overflow-auto bg-[#0a0f1e]"
+        >
+          <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
               sections={sections}
