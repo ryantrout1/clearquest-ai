@@ -20,6 +20,7 @@ import QuestionsManager from './pages/QuestionsManager';
 import InterviewStructureManager from './pages/InterviewStructureManager';
 import FollowupPackManager from './pages/FollowupPackManager';
 import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
+import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import __Layout from './Layout.jsx';
 
 
@@ -46,6 +47,7 @@ export const PAGES = {
     "InterviewStructureManager": InterviewStructureManager,
     "FollowupPackManager": FollowupPackManager,
     "FollowUpPackQuickAssign": FollowUpPackQuickAssign,
+    "FollowUpPackManagerV2": FollowUpPackManagerV2,
 }
 
 export const pagesConfig = {

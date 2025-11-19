@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package } from "lucide-react";
+import { Shield, Settings, Building2, LogOut, HelpCircle, Loader2, FolderOpen, Package, Beaker } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function HomeHub() {
@@ -161,7 +161,28 @@ export default function HomeHub() {
                     </div>
                     <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
                     <p className="text-base md:text-lg text-slate-400">
-                      Configure follow-up packs and probing questions
+                      Legacy system - configure packs
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div
+                onClick={() => handleNavigate("FollowUpPackManagerV2")}
+                className="cursor-pointer group"
+              >
+                <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-purple-500/50 transition-all h-full">
+                  <CardContent className="p-8 md:p-10 text-center">
+                    <div className="flex justify-center mb-6">
+                      <div className="p-5 md:p-6 rounded-full bg-purple-600/20 group-hover:bg-purple-600/30 transition-colors">
+                        <Package className="w-10 h-10 md:w-12 md:h-12 text-purple-400" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <h2 className="text-2xl md:text-3xl font-bold text-white">Follow-Up Packs V2</h2>
+                    </div>
+                    <p className="text-base md:text-lg text-slate-400">
+                      New standardized pack system
                     </p>
                   </CardContent>
                 </Card>
