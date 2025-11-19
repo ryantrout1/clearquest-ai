@@ -680,6 +680,19 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const aiProbingExchanges = response.investigator_probing || [];
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
+  
+  // Group followups by instance_number
+  const followupsByInstance = {};
+  followups.forEach(fu => {
+    const instanceNum = fu.instance_number || 1;
+    if (!followupsByInstance[instanceNum]) {
+      followupsByInstance[instanceNum] = [];
+    }
+    followupsByInstance[instanceNum].push(fu);
+  });
+  
+  const instanceNumbers = Object.keys(followupsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
+  const hasMultipleInstances = instanceNumbers.length > 1;
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -727,45 +740,92 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
           <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-3">
-            <div className="space-y-3">
-              {followups.map((followup, idx) => {
-                const details = followup.additional_details || {};
-                const packQuestions = followUpQuestionEntities.filter(
-                  q => q.followup_pack_id === followup.followup_pack
-                );
-
+            <div className="space-y-4">
+              {hasMultipleInstances && (
+                <div className="text-xs font-semibold text-cyan-400 mb-2">
+                  🔁 {instanceNumbers.length} Instances Recorded
+                </div>
+              )}
+              
+              {instanceNumbers.map((instanceNum) => {
+                const instanceFollowups = followupsByInstance[instanceNum];
+                
                 return (
-                  <div key={idx} className="space-y-1.5">
-                    {followup.substance_name && (
-                      <div className="text-xs flex items-start">
-                        <span className="text-slate-400 font-medium">Substance:</span>
-                        <span className="text-slate-200 ml-2">{followup.substance_name}</span>
-                        {needsReview(followup.substance_name) && (
-                          <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                            Needs Review
-                          </Badge>
-                        )}
+                  <div key={instanceNum} className={cn(
+                    "space-y-3",
+                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-3"
+                  )}>
+                    {hasMultipleInstances && (
+                      <div className="text-xs font-semibold text-cyan-400">
+                        Instance {instanceNum}
                       </div>
                     )}
-
-                    {Object.entries(details).map(([key, value]) => {
-                      const requiresReview = needsReview(value);
-                      const questionEntity = packQuestions.find(q => 
-                        q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
-                        key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+                    
+                    {instanceFollowups.map((followup, idx) => {
+                      const details = followup.additional_details || {};
+                      const packQuestions = followUpQuestionEntities.filter(
+                        q => q.followup_pack_id === followup.followup_pack
                       );
-                      const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      
+                      // Extract probing from additional_details if stored there (multi-instance)
+                      const probingFromDetails = details.investigator_probing || [];
+                      const hasInstanceProbing = probingFromDetails.length > 0;
 
                       return (
-                        <div key={key} className="text-xs flex items-start">
-                          <span className="text-slate-400 font-medium">
-                            {questionText}:
-                          </span>
-                          <span className="text-slate-200 ml-2 break-words">{value}</span>
-                          {requiresReview && (
-                            <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                              Needs Review
-                            </Badge>
+                        <div key={idx} className="space-y-1.5">
+                          {followup.substance_name && (
+                            <div className="text-xs flex items-start">
+                              <span className="text-slate-400 font-medium">Substance:</span>
+                              <span className="text-slate-200 ml-2">{followup.substance_name}</span>
+                              {needsReview(followup.substance_name) && (
+                                <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                                  Needs Review
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
+                            const requiresReview = needsReview(value);
+                            const questionEntity = packQuestions.find(q => 
+                              q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
+                              key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+                            );
+                            const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                            return (
+                              <div key={key} className="text-xs flex items-start">
+                                <span className="text-slate-400 font-medium">
+                                  {questionText}:
+                                </span>
+                                <span className="text-slate-200 ml-2 break-words">{value}</span>
+                                {requiresReview && (
+                                  <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                                    Needs Review
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })}
+                          
+                          {hasInstanceProbing && (
+                            <div className="border-t border-slate-600/50 pt-2 mt-2 space-y-2">
+                              <div className="text-xs font-semibold text-purple-400 mb-2">
+                                🔍 Investigator Probing ({probingFromDetails.length} exchanges)
+                              </div>
+                              {probingFromDetails.map((exchange, eidx) => (
+                                <div key={eidx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
+                                  <div className="text-xs">
+                                    <span className="text-blue-400 font-medium">Follow-Up Question:</span>
+                                    <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
+                                  </div>
+                                  <div className="text-xs">
+                                    <span className="text-orange-400 font-medium">Candidate Response:</span>
+                                    <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       );
@@ -774,7 +834,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 );
               })}
 
-              {aiProbingExchanges.length > 0 && (
+              {aiProbingExchanges.length > 0 && !hasMultipleInstances && (
                 <div className="border-t border-slate-600/50 pt-3 space-y-2 ml-3">
                   <div className="text-xs font-semibold text-purple-400 mb-2">
                     🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
@@ -823,11 +883,40 @@ function TranscriptView({ responses, followups, followUpQuestionEntities }) {
     timeline.push({ type: 'question', data: response });
 
     const relatedFollowups = followups.filter(f => f.response_id === response.id);
+    
+    // Group by instance_number
+    const followupsByInstance = {};
     relatedFollowups.forEach(fu => {
-      timeline.push({ type: 'followup', data: fu, followUpQuestionEntities });
+      const instanceNum = fu.instance_number || 1;
+      if (!followupsByInstance[instanceNum]) {
+        followupsByInstance[instanceNum] = [];
+      }
+      followupsByInstance[instanceNum].push(fu);
+    });
+    
+    const instanceNumbers = Object.keys(followupsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
+    
+    instanceNumbers.forEach(instanceNum => {
+      const instanceFollowups = followupsByInstance[instanceNum];
+      instanceFollowups.forEach(fu => {
+        timeline.push({ type: 'followup', data: fu, followUpQuestionEntities, instanceNumber: instanceNum, totalInstances: instanceNumbers.length });
+      });
+      
+      // Show probing for this instance if stored in additional_details
+      const firstFollowup = instanceFollowups[0];
+      if (firstFollowup?.additional_details?.investigator_probing?.length > 0) {
+        timeline.push({ 
+          type: 'probing', 
+          data: firstFollowup.additional_details.investigator_probing, 
+          questionId: response.question_id,
+          instanceNumber: instanceNum,
+          totalInstances: instanceNumbers.length
+        });
+      }
     });
 
-    if (response.investigator_probing && response.investigator_probing.length > 0) {
+    // Legacy single-instance probing stored on Response
+    if (response.investigator_probing && response.investigator_probing.length > 0 && instanceNumbers.length === 1) {
       timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
     }
   });
@@ -873,9 +962,19 @@ function TranscriptEntry({ item }) {
     const packQuestions = followUpQuestionEntities.filter(
       q => q.followup_pack_id === followup.followup_pack
     ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    const instanceNum = item.instanceNumber || 1;
+    const totalInstances = item.totalInstances || 1;
+    const showInstanceLabel = totalInstances > 1;
 
     return (
-      <div className="ml-4 md:ml-8 space-y-2">
+      <div className={cn("ml-4 md:ml-8 space-y-2", showInstanceLabel && "border-l-2 border-cyan-500/30 pl-4")}>
+        {showInstanceLabel && (
+          <div className="text-xs font-semibold text-cyan-400 -ml-4 mb-2">
+            Instance {instanceNum}
+          </div>
+        )}
+        
         {followup.substance_name && (
           <>
             <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
@@ -890,7 +989,7 @@ function TranscriptEntry({ item }) {
         )}
 
         {packQuestions.map((questionEntity, idx) => {
-          const key = Object.keys(details).find(k => 
+          const key = Object.keys(details).filter(k => k !== 'investigator_probing').find(k => 
             questionEntity.question_text?.toLowerCase().includes(k.toLowerCase()) ||
             k.toLowerCase().includes(questionEntity.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
           );
@@ -928,11 +1027,14 @@ function TranscriptEntry({ item }) {
 
   if (item.type === 'probing') {
     const probingExchanges = item.data;
+    const instanceNum = item.instanceNumber;
+    const totalInstances = item.totalInstances || 1;
+    const showInstanceLabel = totalInstances > 1 && instanceNum;
     
     return (
-      <div className="ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30">
+      <div className={cn("ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30", showInstanceLabel && "border-l-2 border-cyan-500/30 pl-4")}>
         <div className="text-xs font-semibold text-purple-400 mb-2">
-          🔍 Investigator Probing ({probingExchanges.length} exchanges)
+          🔍 Investigator Probing{showInstanceLabel && ` - Instance ${instanceNum}`} ({probingExchanges.length} exchanges)
         </div>
         {probingExchanges.map((exchange, idx) => (
           <React.Fragment key={idx}>
