@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ChevronLeft, Package, AlertTriangle } from "lucide-react";
+import { ChevronLeft, Package, AlertTriangle, Zap } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySidebar";
 import FollowUpPackList from "../components/followups/FollowUpPackList";
@@ -260,6 +260,13 @@ export default function FollowupPackManager() {
                 </p>
               </div>
             </div>
+            <Button
+              onClick={() => navigate(createPageUrl("FollowUpPackQuickAssign"))}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Quick Assign
+            </Button>
           </div>
 
           {/* Warning Banners */}
