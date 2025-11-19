@@ -387,12 +387,10 @@ export default function InterviewStructureManager() {
         </div>
       </div>
 
-      {/* Main content - 3 column layout */}
+      {/* Main Content */}
       <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
-        {/* Left Column - Sections List */}
-        <div 
-          className="w-[25%] overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
-        >
+        {/* Left Panel - Sections */}
+        <div className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4" style={{ width: '25%' }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-400">Sections</h3>
             <div className="flex gap-1">
@@ -505,10 +503,8 @@ export default function InterviewStructureManager() {
           )}
         </div>
 
-        {/* Middle Column - Questions List */}
-        <div 
-          className="w-[35%] overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]"
-        >
+        {/* Middle Panel - Questions List */}
+        <div className="overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]" style={{ width: '35%' }}>
           <div className="p-4">
             {!selectedSection ? (
               <div className="text-center py-12">
@@ -576,10 +572,8 @@ export default function InterviewStructureManager() {
           </div>
         </div>
 
-        {/* Right Column - Detail Panel */}
-        <div 
-          className="flex-1 overflow-auto bg-[#0a0f1e]"
-        >
+        {/* Right Panel - Details */}
+        <div className="overflow-auto bg-[#0a0f1e]" style={{ width: '40%' }}>
           <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
