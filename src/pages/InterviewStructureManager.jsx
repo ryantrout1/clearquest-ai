@@ -27,6 +27,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertica
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { getFollowupPackDisplay, getResponseTypeDisplay, FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../components/utils/followupPackNames";
+import { useFollowUpIntegrity } from "../components/utils/useFollowUpIntegrity";
 
 const GROUPED_PACKS = {
   "Law Enforcement": [
@@ -143,6 +144,7 @@ export default function InterviewStructureManager() {
   const [deleteInput, setDeleteInput] = useState("");
   const [leftWidth, setLeftWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
+  const [integrityFilter, setIntegrityFilter] = useState('all');
 
   useEffect(() => {
     checkAuth();
@@ -204,6 +206,9 @@ export default function InterviewStructureManager() {
     queryFn: () => base44.entities.FollowUpQuestion.list(),
     enabled: !!user
   });
+
+  // Integrity analysis
+  const integrity = useFollowUpIntegrity(questions, followUpPacks, followUpQuestions);
 
   // Auto-expand and scroll to highlighted question
   useEffect(() => {
@@ -428,7 +433,43 @@ export default function InterviewStructureManager() {
                 <p className="text-xs text-slate-400">Manage sections, questions, and follow-up packs</p>
               </div>
             </div>
-            {/* Removed Sync All Questions button and migration related elements */}
+            <div className="flex gap-2">
+              <Button
+                variant={integrityFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIntegrityFilter('all')}
+                className={integrityFilter === 'all' ? 'bg-blue-600' : 'border-slate-600'}
+              >
+                All
+              </Button>
+              <Button
+                variant={integrityFilter === 'missing' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIntegrityFilter('missing')}
+                className={integrityFilter === 'missing' ? 'bg-red-600' : 'border-slate-600'}
+              >
+                <AlertCircle className="w-3 h-3 mr-1" />
+                No Pack ({integrity.questionsMissingPackAssignment.length})
+              </Button>
+              <Button
+                variant={integrityFilter === 'missing-ref' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIntegrityFilter('missing-ref')}
+                className={integrityFilter === 'missing-ref' ? 'bg-red-600' : 'border-slate-600'}
+              >
+                <AlertCircle className="w-3 h-3 mr-1" />
+                Missing Ref ({integrity.questionsWithMissingPackReference.length})
+              </Button>
+              <Button
+                variant={integrityFilter === 'empty' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setIntegrityFilter('empty')}
+                className={integrityFilter === 'empty' ? 'bg-yellow-600' : 'border-slate-600'}
+              >
+                <AlertCircle className="w-3 h-3 mr-1" />
+                No Questions ({integrity.questionsWithEmptyPacks.length})
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -575,6 +616,8 @@ export default function InterviewStructureManager() {
                                         setSelectedItem={setSelectedItem}
                                         onDragEnd={handleQuestionDragEnd}
                                         onFollowUpDragEnd={handleFollowUpQuestionDragEnd}
+                                        integrityFilter={integrityFilter}
+                                        integrity={integrity}
                                       />
                                     </div>
                                   )}
@@ -617,6 +660,7 @@ export default function InterviewStructureManager() {
               followUpQuestions={followUpQuestions}
               onClose={() => setSelectedItem(null)}
               onDelete={(item) => setDeleteConfirm(item)}
+              integrity={integrity}
             />
           </div>
         </div>
@@ -678,10 +722,21 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, toggleQuestionActive, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
-  const sectionQuestions = questions
+function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, toggleQuestionActive, setSelectedItem, onDragEnd, onFollowUpDragEnd, integrityFilter, integrity }) {
+  const allSectionQuestions = questions
     .filter(q => q.section_id === sectionId)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  
+  // Apply integrity filter
+  const sectionQuestions = allSectionQuestions.filter(q => {
+    if (integrityFilter === 'all') return true;
+    const status = integrity.getQuestionStatus(q);
+    if (!status) return false;
+    if (integrityFilter === 'missing') return status.type === 'error' && status.label === 'No Follow-Up Pack';
+    if (integrityFilter === 'missing-ref') return status.type === 'error' && status.label.startsWith('Missing Pack:');
+    if (integrityFilter === 'empty') return status.type === 'warning';
+    return true;
+  });
 
   // Find gate question for this section
   const gateCategory = categories.find(c => c.category_label === section.section_name);
@@ -728,53 +783,67 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                          <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
-                        </div>
-                        {pack && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleNode(`question-${question.id}`);
-                            }}
-                            className="text-slate-400 hover:text-white mt-0.5 transition-colors"
-                          >
-                            {expandedNodes[`question-${question.id}`] ? 
-                              <ChevronDown className="w-4 h-4" /> : 
-                              <ChevronRight className="w-4 h-4" />
-                            }
-                          </button>
-                        )}
-                        <FileText className="w-4 h-4 text-emerald-400 mt-0.5" />
-                        <div 
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => setSelectedItem({ type: 'question', data: question })}
+                      <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
+                        <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
+                      </div>
+                      {pack && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleNode(`question-${question.id}`);
+                          }}
+                          className="text-slate-400 hover:text-white mt-0.5 transition-colors"
                         >
-                          {/* Top metadata row */}
-                          <div className="flex items-center gap-2 flex-wrap mb-2">
-                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                              #{question.display_order || 1}
+                          {expandedNodes[`question-${question.id}`] ? 
+                            <ChevronDown className="w-4 h-4" /> : 
+                            <ChevronRight className="w-4 h-4" />
+                          }
+                        </button>
+                      )}
+                      <FileText className="w-4 h-4 text-emerald-400 mt-0.5" />
+                      <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => setSelectedItem({ type: 'question', data: question })}
+                      >
+                        {/* Top metadata row */}
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
+                            #{question.display_order || 1}
+                          </Badge>
+                          <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
+                            {question.question_id}
+                          </Badge>
+                          <Badge 
+                            onClick={(e) => toggleQuestionActive(e, question)}
+                            className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                              question.active
+                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                : 'bg-slate-700/50 border-slate-600 text-slate-400'
+                            }`}
+                          >
+                            {question.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                          {isControlQuestion && (
+                            <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
+                              <Lock className="w-3 h-3 mr-1" />
+                              Control
                             </Badge>
-                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
-                              {question.question_id}
-                            </Badge>
-                            <Badge 
-                              onClick={(e) => toggleQuestionActive(e, question)}
-                              className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
-                                question.active
-                                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                                  : 'bg-slate-700/50 border-slate-600 text-slate-400'
-                              }`}
-                            >
-                              {question.active ? 'Active' : 'Inactive'}
-                            </Badge>
-                            {isControlQuestion && (
-                              <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
-                                <Lock className="w-3 h-3 mr-1" />
-                                Control
+                          )}
+                          {(() => {
+                            const status = integrity.getQuestionStatus(question);
+                            if (!status) return null;
+                            const colorMap = {
+                              green: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400',
+                              yellow: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400',
+                              red: 'bg-red-500/20 border-red-500/50 text-red-400'
+                            };
+                            return (
+                              <Badge className={`text-xs ${colorMap[status.color]}`}>
+                                {status.label}
                               </Badge>
-                            )}
-                          </div>
+                            );
+                          })()}
+                        </div>
                           
                           {/* Question Text */}
                           <p className="text-sm text-white leading-relaxed mb-2">{question.question_text}</p>
@@ -920,7 +989,7 @@ function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, 
   );
 }
 
-function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, followUpQuestions, onClose, onDelete }) {
+function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, followUpQuestions, onClose, onDelete, integrity }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
@@ -1336,6 +1405,43 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
               })}
             </SelectContent>
           </Select>
+
+          {/* Status indicator */}
+          {selectedItem?.type === 'question' && formData.followup_pack && (() => {
+            const analysis = integrity.questionAnalysis.find(a => a.question.id === selectedItem.data.id);
+            if (!analysis) return null;
+
+            if (!analysis.followUpPackExists) {
+              return (
+                <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  This question references "{formData.followup_pack}" but that pack does not exist. Please select an existing pack.
+                </p>
+              );
+            }
+
+            if (!analysis.followUpPackHasDeterministic && !analysis.followUpPackHasAIInstructions) {
+              return (
+                <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  This question's pack has no deterministic questions or AI instructions yet.
+                </p>
+              );
+            }
+
+            return (
+              <p className="text-xs text-emerald-400 mt-2">
+                ✓ This question uses {analysis.followUpPackName}. {analysis.followUpPackDeterministicCount} deterministic questions configured.
+              </p>
+            );
+          })()}
+
+          {selectedItem?.type === 'question' && !formData.followup_pack && (
+            <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              No Follow-Up Pack assigned. Please select one.
+            </p>
+          )}
         </div>
 
         <div>
