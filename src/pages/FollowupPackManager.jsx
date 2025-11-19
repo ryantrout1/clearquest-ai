@@ -291,9 +291,7 @@ export default function FollowupPackManager() {
           style={{ width: `${leftWidth}%` }}
           className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-400">Categories</h3>
-          </div>
+          <h3 className="text-sm font-semibold text-slate-400 mb-3 px-2">Categories</h3>
           <FollowUpCategorySidebar
             categories={FOLLOWUP_CATEGORIES}
             packsByCategory={packsByCategory}

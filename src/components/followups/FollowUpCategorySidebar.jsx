@@ -1,6 +1,5 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { AlertTriangle, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,40 +22,39 @@ export default function FollowUpCategorySidebar({
                 key={category.id}
                 onClick={() => onSelectCategory(category.id)}
                 className={cn(
-                  "w-full text-left px-3 py-2 rounded-md transition-all group flex items-center gap-2.5",
+                  "w-full text-left px-3 py-2.5 rounded-md transition-all group",
                   isSelected
-                    ? "bg-slate-700/50"
-                    : "bg-transparent hover:bg-slate-800/30"
+                    ? "bg-slate-700/50 border border-slate-600"
+                    : "bg-transparent border border-transparent hover:bg-slate-800/30 hover:border-slate-700/50"
                 )}
               >
-                <Folder className={cn(
-                  "w-4 h-4 flex-shrink-0",
-                  isSelected ? "text-slate-400" : "text-slate-500 group-hover:text-slate-400"
-                )} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className={cn(
-                      "text-xs font-normal leading-tight",
-                      isSelected ? "text-white" : "text-slate-400 group-hover:text-slate-300"
-                    )}>
-                      {category.label}
-                    </h4>
-                    {hasIssues && (
-                      <AlertTriangle className="w-3 h-3 text-yellow-500 flex-shrink-0" />
-                    )}
+                <div className="flex items-start gap-2.5">
+                  <Folder className={cn(
+                    "w-4 h-4 mt-0.5 flex-shrink-0",
+                    isSelected ? "text-amber-400" : "text-slate-500 group-hover:text-slate-400"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className={cn(
+                        "text-xs font-medium leading-tight",
+                        isSelected ? "text-white" : "text-slate-400 group-hover:text-slate-300"
+                      )}>
+                        {category.label}
+                      </h4>
+                      {hasIssues && (
+                        <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={cn(
+                        "text-xs",
+                        isSelected ? "text-slate-400" : "text-slate-600 group-hover:text-slate-500"
+                      )}>
+                        {packsInCategory.length} {packsInCategory.length === 1 ? 'pack' : 'packs'}
+                      </span>
+                    </div>
                   </div>
-                  <span className={cn(
-                    "text-xs block mt-0.5",
-                    isSelected ? "text-slate-500" : "text-slate-600 group-hover:text-slate-500"
-                  )}>
-                    {packsInCategory.length} packs ({packsInCategory.filter(p => p.active !== false).length} active)
-                  </span>
                 </div>
-                <Switch
-                  checked={true}
-                  className="data-[state=checked]:bg-emerald-600 scale-75"
-                  onClick={(e) => e.stopPropagation()}
-                />
               </button>
             );
           })}
@@ -66,20 +64,22 @@ export default function FollowUpCategorySidebar({
         <button
           onClick={() => onSelectCategory("UNCATEGORIZED")}
           className={cn(
-            "w-full text-left px-3 py-2 rounded-md transition-all mt-2 flex items-center gap-2.5",
+            "w-full text-left px-3 py-2.5 rounded-md transition-all mt-2 border",
             selectedCategoryId === "UNCATEGORIZED"
-              ? "bg-red-900/20"
-              : "bg-red-950/10 hover:bg-red-900/20"
+              ? "bg-red-900/20 border-red-800/50"
+              : "bg-red-950/10 border-red-900/30 hover:bg-red-900/20 hover:border-red-800/50"
           )}
         >
-          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-normal text-red-400">
-              Uncategorized
-            </h4>
-            <span className="text-xs text-red-500/80 block mt-0.5">
-              {packsByCategory["UNCATEGORIZED"].length} packs
-            </span>
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-medium text-red-400 mb-1">
+                Uncategorized
+              </h4>
+              <span className="text-xs text-red-500/80">
+                {packsByCategory["UNCATEGORIZED"].length} {packsByCategory["UNCATEGORIZED"].length === 1 ? 'pack' : 'packs'}
+              </span>
+            </div>
           </div>
         </button>
       )}

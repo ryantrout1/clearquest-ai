@@ -34,27 +34,22 @@ export default function FollowUpPackList({
             key={pack.id}
             onClick={() => onSelectPack(pack)}
             className={cn(
-              "px-3 py-2.5 rounded-md transition-all cursor-pointer group",
+              "px-3 py-3 rounded-md transition-all cursor-pointer group",
               isSelected
-                ? "bg-slate-800/50"
-                : "bg-transparent hover:bg-slate-800/30"
+                ? "bg-slate-800/50 border border-slate-700"
+                : "bg-slate-900/30 border border-slate-800/50 hover:bg-slate-800/30 hover:border-slate-700/50"
             )}
           >
             <div className="flex items-start gap-2.5">
               <Package className={cn(
                 "w-4 h-4 mt-0.5 flex-shrink-0",
-                isSelected ? "text-purple-400" : "text-slate-500 group-hover:text-slate-400"
+                isSelected ? "text-amber-400" : "text-purple-400 group-hover:text-purple-300"
               )} />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div>
-                    <h4 className="text-xs font-normal text-white leading-tight">
-                      {pack.pack_name}
-                    </h4>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">
-                      {pack.followup_pack_id}
-                    </p>
-                  </div>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <h4 className="text-sm font-medium text-white leading-tight">
+                    {pack.pack_name}
+                  </h4>
                   <Switch
                     checked={pack.active !== false}
                     onCheckedChange={(checked) => {
@@ -64,18 +59,22 @@ export default function FollowUpPackList({
                     className="data-[state=checked]:bg-emerald-600 flex-shrink-0 scale-75"
                   />
                 </div>
+                <p className="text-xs text-slate-500 font-mono break-all mb-2">
+                  {pack.followup_pack_id}
+                </p>
 
-                <div className="flex gap-1 flex-wrap mt-1.5">
-                  <span className="text-xs text-slate-500">
+                <div className="flex gap-1.5 flex-wrap">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-slate-400">
                     {packQuestions.length} q ({activeQuestions} active)
                   </span>
                   {triggeringQuestions.length > 0 ? (
-                    <span className="text-xs text-emerald-500">
-                      • Used by {triggeringQuestions.length}
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-800/50 text-emerald-400">
+                      Used by {triggeringQuestions.length}
                     </span>
                   ) : (
-                    <span className="text-xs text-yellow-500 flex items-center gap-1">
-                      • <AlertTriangle className="w-3 h-3" /> No triggers
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/30 border border-yellow-800/50 text-yellow-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      No triggers
                     </span>
                   )}
                 </div>
