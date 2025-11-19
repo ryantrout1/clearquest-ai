@@ -712,8 +712,8 @@ Return ONLY the summary sentence, nothing else.`;
               }
             }
 
-            // Restore AI investigator probing exchanges
-            if (response.investigator_probing && Array.isArray(response.investigator_probing) && response.investigator_probing.length > 0) {
+            // Restore AI investigator probing exchanges (single-instance only)
+            if (response.investigator_probing && Array.isArray(response.investigator_probing) && response.investigator_probing.length > 0 && relatedFollowups.length <= 1) {
               response.investigator_probing.forEach((exchange, idx) => {
                 // Add investigator question
                 restoredTranscript.push({
@@ -721,6 +721,7 @@ Return ONLY the summary sentence, nothing else.`;
                   questionId: response.question_id,
                   questionText: exchange.probing_question,
                   packId: response.followup_pack,
+                  instanceNumber: 1,
                   type: 'ai_probing_question',
                   timestamp: exchange.timestamp || response.response_timestamp
                 });
@@ -731,9 +732,40 @@ Return ONLY the summary sentence, nothing else.`;
                   questionId: response.question_id,
                   answer: exchange.candidate_response,
                   packId: response.followup_pack,
+                  instanceNumber: 1,
                   type: 'ai_probing_answer',
                   timestamp: exchange.timestamp || response.response_timestamp
                 });
+              });
+            }
+            
+            // Restore multi-instance probing from FollowUpResponse records
+            if (relatedFollowups.length > 0) {
+              relatedFollowups.forEach(fu => {
+                const instanceProbing = fu.additional_details?.investigator_probing;
+                if (instanceProbing && Array.isArray(instanceProbing) && instanceProbing.length > 0) {
+                  instanceProbing.forEach((exchange, idx) => {
+                    restoredTranscript.push({
+                      id: `ai-q-${fu.id}-${idx}`,
+                      questionId: response.question_id,
+                      questionText: exchange.probing_question,
+                      packId: response.followup_pack,
+                      instanceNumber: fu.instance_number || 1,
+                      type: 'ai_probing_question',
+                      timestamp: exchange.timestamp || response.response_timestamp
+                    });
+                    
+                    restoredTranscript.push({
+                      id: `ai-a-${fu.id}-${idx}`,
+                      questionId: response.question_id,
+                      answer: exchange.candidate_response,
+                      packId: response.followup_pack,
+                      instanceNumber: fu.instance_number || 1,
+                      type: 'ai_probing_answer',
+                      timestamp: exchange.timestamp || response.response_timestamp
+                    });
+                  });
+                }
               });
             }
           }
@@ -883,6 +915,63 @@ Return ONLY the summary sentence, nothing else.`;
     const messagesToSave = [...agentMessages];
     const currentInstance = multiInstanceState?.instanceNumber || 1;
 
+    // Extract probing exchanges and add to transcript for display
+    const probingTranscriptEntries = [];
+    let startIndex = -1;
+    
+    for (let i = 0; i < messagesToSave.length; i++) {
+      const msg = messagesToSave[i];
+      
+      if (msg.role === 'user' &&
+          typeof msg.content === 'string' &&
+          msg.content.includes('Follow-up pack completed') &&
+          msg.content.includes(`Question ID: ${questionId}`) &&
+          msg.content.includes(`Follow-up Pack: ${packId}`)) {
+        startIndex = i + 1;
+        continue;
+      }
+      
+      if (startIndex !== -1) {
+        // Check if this is the next question signal
+        if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
+          break;
+        }
+        
+        // Add AI question
+        if (msg.role === 'assistant' && typeof msg.content === 'string' && !msg.content.includes('Follow-up pack completed')) {
+          const cleanQuestion = msg.content.replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}]/g, '').trim();
+          if (cleanQuestion.length > 5) {
+            probingTranscriptEntries.push({
+              id: `ai-q-${Date.now()}-${i}`,
+              questionId: questionId,
+              questionText: cleanQuestion,
+              packId: packId,
+              instanceNumber: currentInstance,
+              type: 'ai_probing_question',
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Add candidate response
+        if (msg.role === 'user' && typeof msg.content === 'string' && !msg.content.includes('Follow-up pack completed')) {
+          probingTranscriptEntries.push({
+            id: `ai-a-${Date.now()}-${i}`,
+            questionId: questionId,
+            answer: msg.content,
+            packId: packId,
+            instanceNumber: currentInstance,
+            type: 'ai_probing_answer',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // Update transcript with probing exchanges
+    const transcriptWithProbing = [...transcript, ...probingTranscriptEntries];
+    setTranscript(transcriptWithProbing);
+
     setIsWaitingForAgent(false);
     setCurrentFollowUpPack(null);
     setCurrentFollowUpAnswers({});
@@ -922,7 +1011,7 @@ Return ONLY the summary sentence, nothing else.`;
         setIsAskingForAnotherInstance(true);
         
         const anotherInstanceItem = {
-          id: `multi-instance-prompt-${questionId}`,
+          id: `multi-instance-prompt-${questionId}-${currentInstance}`,
           type: 'multi_instance_prompt',
           questionId: questionId,
           packId: packId,
@@ -932,6 +1021,7 @@ Return ONLY the summary sentence, nothing else.`;
         
         setCurrentItem(anotherInstanceItem);
         setQueue([]);
+        await persistStateToDatabase(transcriptWithProbing, [], anotherInstanceItem);
       } else {
         // Reached max instances
         if (limitMessage) {
@@ -940,14 +1030,16 @@ Return ONLY the summary sentence, nothing else.`;
         
         setMultiInstanceState(null);
         setIsAskingForAnotherInstance(false);
+        setTranscript(transcriptWithProbing);
         await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
       }
     } else {
       // No multi-instance - continue normally
+      setTranscript(transcriptWithProbing);
       await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
     }
 
-  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript]);
+  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript, persistStateToDatabase]);
 
 
   const handoffToAgentForProbing = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
@@ -1091,6 +1183,11 @@ Return ONLY the summary sentence, nothing else.`;
       if (nextQuestionId !== currentFollowUpPack.questionId) {
         console.log(`🤖 AI signaled completion with next question: ${nextQuestionId}`);
         
+        // Multi-instance takes precedence - ignore AI's next question suggestion
+        if (multiInstanceState) {
+          console.log(`🔁 Multi-instance active - ignoring AI's next question suggestion`);
+        }
+        
         handleCompleteProbingAndContinue(
           currentFollowUpPack.questionId,
           currentFollowUpPack.packId,
@@ -1099,7 +1196,7 @@ Return ONLY the summary sentence, nothing else.`;
         );
       }
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, handleCompleteProbingAndContinue]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, handleCompleteProbingAndContinue, multiInstanceState]);
 
 
   // ============================================================================
@@ -1136,6 +1233,8 @@ Return ONLY the summary sentence, nothing else.`;
           setMultiInstanceState(updatedState);
           setIsAskingForAnotherInstance(false);
 
+          console.log(`🔁 Starting instance ${nextInstanceNumber} for ${currentItem.questionId}`);
+
           // Queue up the follow-up pack again for the new instance
           const question = engine.QById[currentItem.questionId];
           const { packId, substanceName } = checkFollowUpTrigger(engine, currentItem.questionId, 'Yes');
@@ -1143,6 +1242,7 @@ Return ONLY the summary sentence, nothing else.`;
 
           if (packSteps && packSteps.length > 0) {
             setCurrentFollowUpAnswers({});
+            setAgentMessages([]); // Clear agent messages for new instance
 
             const followupQueue = [];
             for (let i = 0; i < packSteps.length; i++) {
@@ -1166,10 +1266,13 @@ Return ONLY the summary sentence, nothing else.`;
           }
         } else {
           // User said No - end multi-instance loop
+          console.log(`✅ Multi-instance loop ended for ${currentItem.questionId} after ${multiInstanceState.instanceNumber} instance(s)`);
+          
           setMultiInstanceState(null);
           setIsAskingForAnotherInstance(false);
           
           const rootQuestion = engine.QById[currentItem.questionId];
+          await persistStateToDatabase(newTranscript, [], null);
           await moveToNextDeterministicQuestion(currentItem.questionId, 'Yes');
         }
 
@@ -2617,6 +2720,7 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
   }
 
   if (entry.type === 'ai_probing_question') {
+    const instanceLabel = entry.instanceNumber > 1 ? ` (Instance ${entry.instanceNumber})` : '';
     return (
       <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
         <div className="flex items-start gap-2 md:gap-3">
@@ -2625,7 +2729,7 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-1.5">
-              <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator</span>
+              <span className="text-xs md:text-sm font-semibold text-purple-400">Investigator{instanceLabel}</span>
             </div>
             <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{entry.questionText}</p>
           </div>
