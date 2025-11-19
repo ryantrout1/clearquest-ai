@@ -516,45 +516,61 @@ export default function InterviewStructureManager() {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-white">
-                    {selectedSection.section_name}
-                  </h3>
-                  <span className="text-xs text-slate-500">
-                    {filteredQuestions.length} {filteredQuestions.length === 1 ? 'question' : 'questions'}
-                  </span>
-                </div>
+                {(() => {
+                  const sectionQuestions = questions.filter(q => q.section_id === selectedSection.id);
+                  const filtered = sectionQuestions.filter(q => {
+                    if (!searchTerm) return true;
+                    const search = searchTerm.toLowerCase();
+                    return (
+                      q.question_text?.toLowerCase().includes(search) ||
+                      q.question_id?.toLowerCase().includes(search) ||
+                      q.followup_pack?.toLowerCase().includes(search)
+                    );
+                  });
+                  
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-white">
+                          {selectedSection.section_name}
+                        </h3>
+                        <span className="text-xs text-slate-500">
+                          {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
+                        </span>
+                      </div>
 
-                <div className="mb-3">
-                  <Input
-                    placeholder="Search questions..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
-                  />
-                </div>
+                      <div className="mb-3">
+                        <Input
+                          placeholder="Search questions..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                        />
+                      </div>
 
-                <Button
-                  onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 w-full mb-3"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Question
-                </Button>
+                      <Button
+                        onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 w-full mb-3"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Question
+                      </Button>
 
-                <QuestionsList
-                  section={selectedSection}
-                  questions={questions}
-                  categories={categories}
-                  followUpPacks={followUpPacks}
-                  searchTerm={searchTerm}
-                  selectedItem={selectedItem}
-                  setSelectedItem={setSelectedItem}
-                  toggleQuestionActive={toggleQuestionActive}
-                  onDragEnd={handleQuestionDragEnd}
-                  filteredQuestions={questions.filter(q => q.section_id === selectedSection.id && (!searchTerm || q.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) || q.question_id?.toLowerCase().includes(searchTerm.toLowerCase())))}
-                />
+                      <QuestionsList
+                        section={selectedSection}
+                        questions={questions}
+                        categories={categories}
+                        followUpPacks={followUpPacks}
+                        searchTerm={searchTerm}
+                        selectedItem={selectedItem}
+                        setSelectedItem={setSelectedItem}
+                        toggleQuestionActive={toggleQuestionActive}
+                        onDragEnd={handleQuestionDragEnd}
+                      />
+                    </>
+                  );
+                })()}
               </>
             )}
           </div>
@@ -635,7 +651,7 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionsList({ section, questions, categories, followUpPacks, searchTerm, selectedItem, setSelectedItem, toggleQuestionActive, onDragEnd, setFilteredCount }) {
+function QuestionsList({ section, questions, categories, followUpPacks, searchTerm, selectedItem, setSelectedItem, toggleQuestionActive, onDragEnd }) {
   const sectionQuestions = questions
     .filter(q => q.section_id === section.id)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
