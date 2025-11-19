@@ -840,6 +840,22 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
     }
   }, [selectedItem, categories, sections]);
 
+  // Update category entity when section_id changes in form
+  useEffect(() => {
+    if (formData.section_id && sections.length > 0 && categories.length > 0) {
+      const section = sections.find(s => s.id === formData.section_id);
+      if (section) {
+        const cat = categories.find(c => c.category_label === section.section_name);
+        if (cat) {
+          setCurrentCategoryEntity(cat);
+        } else {
+          setCurrentCategoryEntity(null);
+          setIsGateQuestion(false);
+        }
+      }
+    }
+  }, [formData.section_id, sections, categories]);
+
   // Determine default pack group based on category derived from the section
   useEffect(() => {
     if (formData.section_id && sections.length > 0) {
