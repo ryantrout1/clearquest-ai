@@ -1813,6 +1813,65 @@ export async function bootstrapEngine(base44) {
 }
 
 // ============================================================================
+// SECTION QUESTION AUDIT UTILITY
+// ============================================================================
+
+/**
+ * Audits section question counts: database vs runtime
+ * Logs mismatches to help diagnose routing issues
+ */
+export async function auditSectionQuestionCounts(base44, engine) {
+  console.log('\n🔍 ========== SECTION QUESTION AUDIT ==========');
+  
+  const sections = engine.Sections || [];
+  const activeSections = sections.filter(s => s.active !== false).sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+  
+  for (const section of activeSections) {
+    const sectionId = section.section_id;
+    const sectionDbId = section.id;
+    
+    // Query database for active questions in this section
+    const dbQuestions = await base44.entities.Question.filter({
+      section_id: sectionDbId,
+      active: true
+    });
+    
+    // Get runtime sequence from engine
+    const runtimeQuestions = engine.questionsBySection[sectionId] || [];
+    
+    // Extract IDs
+    const dbQuestionIds = dbQuestions
+      .filter(q => q.question_id && q.question_id.trim() !== '')
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      .map(q => q.question_id);
+    
+    const runtimeQuestionIds = runtimeQuestions.map(q => q.question_id);
+    
+    // Find mismatches
+    const missingInRuntime = dbQuestionIds.filter(id => !runtimeQuestionIds.includes(id));
+    const extraInRuntime = runtimeQuestionIds.filter(id => !dbQuestionIds.includes(id));
+    
+    const match = dbQuestionIds.length === runtimeQuestionIds.length && missingInRuntime.length === 0;
+    const status = match ? '✅' : '❌';
+    
+    console.log(`\n${status} [${section.section_order}] ${section.section_name}`);
+    console.log(`   DB Active Count: ${dbQuestionIds.length}`);
+    console.log(`   Runtime Sequence Count: ${runtimeQuestionIds.length}`);
+    console.log(`   DB Question IDs (by display_order):`, dbQuestionIds);
+    console.log(`   Runtime Question IDs:`, runtimeQuestionIds);
+    
+    if (missingInRuntime.length > 0) {
+      console.error(`   ⚠️ MISSING IN RUNTIME: ${missingInRuntime.join(', ')}`);
+    }
+    if (extraInRuntime.length > 0) {
+      console.warn(`   ⚠️ EXTRA IN RUNTIME: ${extraInRuntime.join(', ')}`);
+    }
+  }
+  
+  console.log('\n========== END AUDIT ==========\n');
+}
+
+// ============================================================================
 // SECTION-AWARE QUESTION ROUTING (DATABASE-DRIVEN)
 // ============================================================================
 
