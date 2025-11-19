@@ -872,7 +872,13 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   const handleSave = async () => {
     try {
       if (selectedItem?.type === 'section') {
-        await base44.entities.Section.update(selectedItem.data.id, formData);
+        await base44.entities.Section.update(selectedItem.data.id, {
+          section_name: formData.section_name,
+          description: formData.description,
+          section_order: formData.section_order,
+          active: formData.active,
+          required: formData.required
+        });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section updated');
       } else if (selectedItem?.type === 'question') {
