@@ -23,6 +23,14 @@ import {
         shouldSkipProbingForHired,
         auditSectionQuestionCounts
       } from "../components/interviewEngine";
+import {
+        shouldEnterMultiInstanceLoop,
+        getMultiInstanceConfig,
+        shouldAskForAnotherInstance,
+        createMultiInstanceState,
+        recordCompletedInstance,
+        advanceToNextInstance
+      } from "../components/multiInstanceManager";
 import { toast } from "sonner";
 
 // Follow-up pack display names
@@ -120,6 +128,10 @@ export default function InterviewV2() {
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null);
   const [answeredAgentQuestions, setAnsweredAgentQuestions] = useState(new Set());
 
+  // Multi-instance state
+  const [multiInstanceState, setMultiInstanceState] = useState(null);
+  const [isAskingForAnotherInstance, setIsAskingForAnotherInstance] = useState(false);
+
   // AI robustness states
   const [aiProbingDisabled, setAiProbingDisabled] = useState(false);
   const [aiFailureCount, setAiFailureCount] = useState(0);
@@ -187,7 +199,7 @@ export default function InterviewV2() {
     }
   }, [sessionId]);
 
-  const saveFollowUpAnswer = useCallback(async (packId, fieldKey, answer, substanceName) => {
+  const saveFollowUpAnswer = useCallback(async (packId, fieldKey, answer, substanceName, instanceNumber = 1, questionTextSnapshot = null) => {
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -205,7 +217,8 @@ export default function InterviewV2() {
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: triggeringResponse.id,
-        followup_pack: packId
+        followup_pack: packId,
+        instance_number: instanceNumber
       });
 
       if (existingFollowups.length === 0) {
@@ -213,8 +226,9 @@ export default function InterviewV2() {
           session_id: sessionId,
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
+          question_text_snapshot: questionTextSnapshot,
           followup_pack: packId,
-          instance_number: 1,
+          instance_number: instanceNumber,
           substance_name: substanceName || null,
           incident_description: answer,
           additional_details: { [fieldKey]: answer }
@@ -223,6 +237,7 @@ export default function InterviewV2() {
         const existing = existingFollowups[0];
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
+          question_text_snapshot: questionTextSnapshot || existing.question_text_snapshot,
           additional_details: {
             ...(existing.additional_details || {}),
             [fieldKey]: answer
@@ -235,9 +250,9 @@ export default function InterviewV2() {
     }
   }, [sessionId]);
 
-  const saveProbingToDatabase = useCallback(async (questionId, packId, messages) => {
+  const saveProbingToDatabase = useCallback(async (questionId, packId, messages, instanceNumber = 1) => {
     try {
-      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} to database...`);
+      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} (instance ${instanceNumber}) to database...`);
 
       const exchanges = [];
       let startIndex = -1;
@@ -301,29 +316,64 @@ export default function InterviewV2() {
       console.log(`📊 Extracted ${exchanges.length} probing exchanges to save`);
 
       if (exchanges.length > 0) {
-        const responses = await base44.entities.Response.filter({
-          session_id: sessionId,
-          question_id: questionId,
-          followup_pack: packId
-        });
-
-        if (responses.length > 0) {
-          const responseRecord = responses[0];
-
-          await base44.entities.Response.update(responseRecord.id, {
-            investigator_probing: exchanges
+        // For multi-instance, save probing to the specific FollowUpResponse record
+        if (instanceNumber > 1 || multiInstanceState) {
+          const responses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            question_id: questionId,
+            followup_pack: packId
           });
 
-          console.log(`✅ Saved ${exchanges.length} probing exchanges to Response ${responseRecord.id}`);
+          if (responses.length > 0) {
+            const responseRecord = responses[0];
+            
+            const followupResponses = await base44.entities.FollowUpResponse.filter({
+              session_id: sessionId,
+              response_id: responseRecord.id,
+              followup_pack: packId,
+              instance_number: instanceNumber
+            });
+
+            if (followupResponses.length > 0) {
+              const followupRecord = followupResponses[0];
+              const existingDetails = followupRecord.additional_details || {};
+              
+              await base44.entities.FollowUpResponse.update(followupRecord.id, {
+                additional_details: {
+                  ...existingDetails,
+                  investigator_probing: exchanges
+                }
+              });
+
+              console.log(`✅ Saved ${exchanges.length} probing exchanges to FollowUpResponse ${followupRecord.id} (instance ${instanceNumber})`);
+            }
+          }
         } else {
-          console.error(`❌ No Response record found for ${questionId}/${packId}`);
+          // Original behavior for single-instance
+          const responses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            question_id: questionId,
+            followup_pack: packId
+          });
+
+          if (responses.length > 0) {
+            const responseRecord = responses[0];
+
+            await base44.entities.Response.update(responseRecord.id, {
+              investigator_probing: exchanges
+            });
+
+            console.log(`✅ Saved ${exchanges.length} probing exchanges to Response ${responseRecord.id}`);
+          } else {
+            console.error(`❌ No Response record found for ${questionId}/${packId}`);
+          }
         }
       }
 
     } catch (err) {
       console.error('❌ Error saving probing to database:', err);
     }
-  }, [sessionId]);
+  }, [sessionId, multiInstanceState]);
 
   const generateAndSaveInvestigatorSummary = useCallback(async (questionId, packId) => {
     try {
@@ -831,6 +881,7 @@ Return ONLY the summary sentence, nothing else.`;
     }
 
     const messagesToSave = [...agentMessages];
+    const currentInstance = multiInstanceState?.instanceNumber || 1;
 
     setIsWaitingForAgent(false);
     setCurrentFollowUpPack(null);
@@ -842,13 +893,61 @@ Return ONLY the summary sentence, nothing else.`;
     }
 
     if (messagesToSave.length > 0) {
-      await saveProbingToDatabase(questionId, packId, messagesToSave);
+      await saveProbingToDatabase(questionId, packId, messagesToSave, currentInstance);
       await generateAndSaveInvestigatorSummary(questionId, packId);
     }
 
-    await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
+    // Check if this is a multi-instance question
+    if (multiInstanceState) {
+      const followUpAnswersForInstance = transcript.filter(t => 
+        t.type === 'followup' && 
+        t.packId === packId &&
+        t.instanceNumber === currentInstance
+      );
+      
+      const updatedState = recordCompletedInstance(
+        multiInstanceState, 
+        followUpAnswersForInstance,
+        messagesToSave.filter(m => m.role === 'assistant' || m.role === 'user')
+      );
+      
+      const { shouldAsk, limitReached, limitMessage } = shouldAskForAnotherInstance(
+        currentInstance,
+        multiInstanceState.maxInstances
+      );
 
-  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef]);
+      if (shouldAsk) {
+        // Ask if there's another instance
+        setMultiInstanceState(updatedState);
+        setIsAskingForAnotherInstance(true);
+        
+        const anotherInstanceItem = {
+          id: `multi-instance-prompt-${questionId}`,
+          type: 'multi_instance_prompt',
+          questionId: questionId,
+          packId: packId,
+          instanceNumber: currentInstance,
+          customPrompt: multiInstanceState.customPrompt
+        };
+        
+        setCurrentItem(anotherInstanceItem);
+        setQueue([]);
+      } else {
+        // Reached max instances
+        if (limitMessage) {
+          toast.info(limitMessage, { duration: 5000 });
+        }
+        
+        setMultiInstanceState(null);
+        setIsAskingForAnotherInstance(false);
+        await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
+      }
+    } else {
+      // No multi-instance - continue normally
+      await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
+    }
+
+  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript]);
 
 
   const handoffToAgentForProbing = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
@@ -1014,6 +1113,70 @@ Return ONLY the summary sentence, nothing else.`;
     setValidationHint(null);
 
     try {
+      // Handle multi-instance prompt (Yes/No to "another instance?")
+      if (currentItem.type === 'multi_instance_prompt') {
+        const transcriptEntry = {
+          id: `mi-prompt-${Date.now()}`,
+          questionId: currentItem.questionId,
+          questionText: multiInstanceState.customPrompt,
+          answer: value,
+          type: 'multi_instance_prompt',
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          timestamp: new Date().toISOString()
+        };
+
+        const newTranscript = [...transcript, transcriptEntry];
+        setTranscript(newTranscript);
+
+        if (value === 'Yes') {
+          // Start next instance
+          const nextInstanceNumber = multiInstanceState.instanceNumber + 1;
+          const updatedState = advanceToNextInstance(multiInstanceState);
+          setMultiInstanceState(updatedState);
+          setIsAskingForAnotherInstance(false);
+
+          // Queue up the follow-up pack again for the new instance
+          const question = engine.QById[currentItem.questionId];
+          const { packId, substanceName } = checkFollowUpTrigger(engine, currentItem.questionId, 'Yes');
+          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+
+          if (packSteps && packSteps.length > 0) {
+            setCurrentFollowUpAnswers({});
+
+            const followupQueue = [];
+            for (let i = 0; i < packSteps.length; i++) {
+              followupQueue.push({
+                id: `${packId}:${i}:instance${nextInstanceNumber}`,
+                type: 'followup',
+                packId: packId,
+                stepIndex: i,
+                substanceName: substanceName,
+                totalSteps: packSteps.length,
+                instanceNumber: nextInstanceNumber
+              });
+            }
+
+            const firstItem = followupQueue[0];
+            const remainingQueue = followupQueue.slice(1);
+
+            setQueue(remainingQueue);
+            setCurrentItem(firstItem);
+            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+          }
+        } else {
+          // User said No - end multi-instance loop
+          setMultiInstanceState(null);
+          setIsAskingForAnotherInstance(false);
+          
+          const rootQuestion = engine.QById[currentItem.questionId];
+          await moveToNextDeterministicQuestion(currentItem.questionId, 'Yes');
+        }
+
+        setIsCommitting(false);
+        return;
+      }
+
       if (currentItem.type === 'question') {
         const question = engine.QById[currentItem.id];
         if (!question) throw new Error(`Question ${currentItem.id} not found`);
@@ -1053,15 +1216,31 @@ Return ONLY the summary sentence, nothing else.`;
             if (packSteps && packSteps.length > 0) {
               setCurrentFollowUpAnswers({});
 
+              // Check if this should start a multi-instance loop
+              if (shouldEnterMultiInstanceLoop(question, value)) {
+                const config = getMultiInstanceConfig(question);
+                const initialState = createMultiInstanceState(
+                  currentItem.id,
+                  packId,
+                  config.maxInstances,
+                  config.customPrompt
+                );
+                setMultiInstanceState(initialState);
+                console.log(`🔁 Starting multi-instance loop for ${currentItem.id} (max: ${config.maxInstances})`);
+              }
+
+              const instanceNumber = multiInstanceState?.instanceNumber || 1;
+
               const followupQueue = [];
               for (let i = 0; i < packSteps.length; i++) {
                 followupQueue.push({
-                  id: `${packId}:${i}`,
+                  id: `${packId}:${i}:instance${instanceNumber}`,
                   type: 'followup',
                   packId: packId,
                   stepIndex: i,
                   substanceName: substanceName,
-                  totalSteps: packSteps.length
+                  totalSteps: packSteps.length,
+                  instanceNumber: instanceNumber
                 });
               }
 
@@ -1200,8 +1379,9 @@ Return ONLY the summary sentence, nothing else.`;
         }
 
       } else if (currentItem.type === 'followup') {
-        const { packId, stepIndex, substanceName } = currentItem;
+        const { packId, stepIndex, substanceName, instanceNumber } = currentItem;
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+        const currentInstanceNum = instanceNumber || 1;
 
         if (!packSteps || !packSteps[stepIndex]) {
           throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
@@ -1217,6 +1397,7 @@ Return ONLY the summary sentence, nothing else.`;
             answer: step.PrefilledAnswer,
             packId: packId,
             substanceName: substanceName,
+            instanceNumber: currentInstanceNum,
             type: 'followup',
             timestamp: new Date().toISOString()
           };
@@ -1258,7 +1439,7 @@ Return ONLY the summary sentence, nothing else.`;
                 setTranscript(newTranscript);
                 void (async () => {
                   try {
-                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentInstanceNum, step.Prompt);
                     await persistStateToDatabase(newTranscript, [], null);
                   } catch (error) {
                     console.error('❌ Failed to persist prefilled follow-up state', error);
@@ -1284,7 +1465,7 @@ Return ONLY the summary sentence, nothing else.`;
                 
                 void (async () => {
                   try {
-                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                    await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentInstanceNum, step.Prompt);
                     await persistStateToDatabase(newTranscript, [], null);
                   } catch (error) {
                     console.error('❌ Failed to persist prefilled follow-up state', error);
@@ -1295,7 +1476,7 @@ Return ONLY the summary sentence, nothing else.`;
                   triggeringQuestion.questionId,
                   packId,
                   substanceName,
-                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId)
+                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum)
                 );
               } else {
                 console.error("Could not find triggering question for AI handoff after prefilled answer.");
@@ -1316,7 +1497,7 @@ Return ONLY the summary sentence, nothing else.`;
             // Persist in background
             void (async () => {
               try {
-                await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+                await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentInstanceNum, step.Prompt);
                 await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
               } catch (error) {
                 console.error('❌ Failed to persist prefilled follow-up state', error);
@@ -1346,6 +1527,7 @@ Return ONLY the summary sentence, nothing else.`;
           answer: validation.normalized || value,
           packId: packId,
           substanceName: substanceName,
+          instanceNumber: currentInstanceNum,
           type: 'followup',
           timestamp: new Date().toISOString()
         };
@@ -1388,7 +1570,7 @@ Return ONLY the summary sentence, nothing else.`;
               setTranscript(newTranscript);
               void (async () => {
                 try {
-                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentInstanceNum, step.Prompt);
                   await persistStateToDatabase(newTranscript, [], null);
                 } catch (error) {
                   console.error('❌ Failed to persist follow-up state', error);
@@ -1414,7 +1596,7 @@ Return ONLY the summary sentence, nothing else.`;
               
               void (async () => {
                 try {
-                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+                  await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentInstanceNum, step.Prompt);
                   await persistStateToDatabase(newTranscript, [], null);
                 } catch (error) {
                   console.error('❌ Failed to persist follow-up state', error);
@@ -1425,7 +1607,7 @@ Return ONLY the summary sentence, nothing else.`;
                 triggeringQuestion.questionId,
                 packId,
                 substanceName,
-                newTranscript.filter(t => t.type === 'followup' && t.packId === packId)
+                newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum)
               );
             } else {
               console.error("Could not find triggering question for AI handoff.");
@@ -1446,7 +1628,7 @@ Return ONLY the summary sentence, nothing else.`;
           // Persist in background
           void (async () => {
             try {
-              await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+              await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentInstanceNum, step.Prompt);
               await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
             } catch (error) {
               console.error('❌ Failed to persist follow-up state', error);
@@ -1464,7 +1646,7 @@ Return ONLY the summary sentence, nothing else.`;
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing, persistStateToDatabase, saveFollowUpAnswer, saveAnswerToDatabase, moveToNextDeterministicQuestion]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, handoffToAgentForProbing, persistStateToDatabase, saveFollowUpAnswer, saveAnswerToDatabase, moveToNextDeterministicQuestion, multiInstanceState]);
 
   const handleAgentAnswer = useCallback(async (value) => {
     if (!conversation || isCommitting || !isWaitingForAgent || !currentFollowUpPack) return;
@@ -1620,6 +1802,16 @@ Return ONLY the summary sentence, nothing else.`;
   const getCurrentPrompt = () => {
     if (isWaitingForAgent) return null;
     if (!currentItem || !engine) return null;
+
+    if (currentItem.type === 'multi_instance_prompt') {
+      return {
+        type: 'multi_instance_prompt',
+        id: currentItem.id,
+        text: multiInstanceState?.customPrompt || "Do you have another instance we should discuss for this question?",
+        responseType: 'yes_no',
+        instanceNumber: currentItem.instanceNumber
+      };
+    }
 
     if (currentItem.type === 'question') {
       const question = engine.QById[currentItem.id];
@@ -1815,8 +2007,9 @@ Return ONLY the summary sentence, nothing else.`;
     }
   }
 
-  const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
+  const isYesNoQuestion = (currentPrompt?.type === 'question' || currentPrompt?.type === 'multi_instance_prompt') && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
   const isFollowUpMode = currentPrompt?.type === 'followup';
+  const isMultiInstancePrompt = currentPrompt?.type === 'multi_instance_prompt';
   const requiresClarification = validationHint !== null;
 
   const displayableAgentMessages = getDisplayableAgentMessages();
@@ -2152,10 +2345,19 @@ Return ONLY the summary sentence, nothing else.`;
                               {getFollowUpPackName(currentPrompt.packId)}
                             </span>
                           </>
+                        ) : isMultiInstancePrompt ? (
+                          <>
+                            <span className="text-xs md:text-sm font-semibold text-cyan-400">Multiple Instances</span>
+                            <span className="hidden md:inline text-xs text-slate-500">•</span>
+                            <span className="text-[11px] md:text-sm text-cyan-300 truncate">
+                              Instance {currentPrompt.instanceNumber} Complete
+                            </span>
+                          </>
                         ) : isFollowUpMode ? (
                           <>
                             <span className="text-xs md:text-sm font-semibold text-orange-400">
                               Follow-up {currentPrompt.stepNumber}/{currentPrompt.totalSteps}
+                              {multiInstanceState && ` (Instance ${multiInstanceState.instanceNumber})`}
                             </span>
                             <span className="hidden md:inline text-xs text-slate-500">•</span>
                             <span className="text-[11px] md:text-sm text-orange-300 truncate">
@@ -2331,6 +2533,32 @@ Return ONLY the summary sentence, nothing else.`;
 }
 
 function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
+  if (entry.type === 'multi_instance_prompt') {
+    return (
+      <div className="space-y-2 md:space-y-3">
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
+          <div className="flex items-start gap-2 md:gap-3">
+            <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-cyan-600/20 flex items-center justify-center flex-shrink-0">
+              <Layers className="w-3 h-3 md:w-3.5 md:h-3.5 text-cyan-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2 mb-1 md:mb-1.5">
+                <span className="text-xs md:text-sm font-semibold text-cyan-400">Multiple Instances</span>
+                <span className="text-[10px] md:text-sm text-cyan-300 truncate">Instance {entry.instanceNumber} Complete</span>
+              </div>
+              <p className="text-white text-sm md:text-base leading-snug md:leading-relaxed break-words">{entry.questionText}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="bg-cyan-600 rounded-lg md:rounded-xl px-3 md:px-5 py-2 md:py-3 max-w-[85%] md:max-w-2xl">
+            <p className="text-white text-sm md:text-base font-medium break-words">{entry.answer}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (entry.type === 'question') {
     return (
       <div className="space-y-2 md:space-y-3">
@@ -2360,6 +2588,7 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
   }
 
   if (entry.type === 'followup') {
+    const instanceLabel = entry.instanceNumber > 1 ? ` - Instance ${entry.instanceNumber}` : '';
     return (
       <div className="space-y-2 md:space-y-3">
         <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg md:rounded-xl p-3 md:p-5 opacity-85">
@@ -2369,7 +2598,7 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2 mb-1 md:mb-1.5">
-                <span className="text-xs md:text-sm font-semibold text-orange-400">Follow-up</span>
+                <span className="text-xs md:text-sm font-semibold text-orange-400">Follow-up{instanceLabel}</span>
                 <span className="text-[10px] md:text-sm text-orange-300 truncate">
                   {entry.substanceName ? `${entry.substanceName} Use` : getFollowUpPackName(entry.packId)}
                 </span>
