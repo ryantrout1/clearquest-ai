@@ -131,6 +131,8 @@ export default function InterviewV2() {
   // Multi-instance state
   const [multiInstanceState, setMultiInstanceState] = useState(null);
   const [isAskingForAnotherInstance, setIsAskingForAnotherInstance] = useState(false);
+  const [probingStatus, setProbingStatus] = useState('not_started');
+  const probingTimeoutRef = useRef(null);
 
   // AI robustness states
   const [aiProbingDisabled, setAiProbingDisabled] = useState(false);
@@ -485,6 +487,9 @@ Return ONLY the summary sentence, nothing else.`;
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+      }
+      if (probingTimeoutRef.current) {
+        clearTimeout(probingTimeoutRef.current);
       }
     };
   }, [sessionId, navigate]);
@@ -907,13 +912,19 @@ Return ONLY the summary sentence, nothing else.`;
 
 
   const handleCompleteProbingAndContinue = useCallback(async (questionId, packId, originalTriggeringQuestionId, originalTriggeringAnswer) => {
-    if (aiProbingDisabled) {
-        console.log(`⚠️ AI probing already disabled, skipping completion and continuing.`);
-        return;
+    const currentInstance = multiInstanceState?.instanceNumber || 1;
+    
+    console.log(`✅ AI probing complete for ${questionId} instance ${currentInstance}`);
+    
+    // Clear timeout
+    if (probingTimeoutRef.current) {
+      clearTimeout(probingTimeoutRef.current);
+      probingTimeoutRef.current = null;
     }
+    
+    setProbingStatus('completed');
 
     const messagesToSave = [...agentMessages];
-    const currentInstance = multiInstanceState?.instanceNumber || 1;
 
     // Extract probing exchanges and add to transcript for display
     const probingTranscriptEntries = [];
@@ -981,7 +992,7 @@ Return ONLY the summary sentence, nothing else.`;
       unsubscribeRef.current = null;
     }
 
-    if (messagesToSave.length > 0) {
+    if (messagesToSave.length > 0 && !aiProbingDisabled) {
       await saveProbingToDatabase(questionId, packId, messagesToSave, currentInstance);
       await generateAndSaveInvestigatorSummary(questionId, packId);
     }
@@ -1007,8 +1018,10 @@ Return ONLY the summary sentence, nothing else.`;
 
       if (shouldAsk) {
         // Ask if there's another instance
+        console.log(`🔁 Asking for another instance after completing instance ${currentInstance}`);
         setMultiInstanceState(updatedState);
         setIsAskingForAnotherInstance(true);
+        setProbingStatus('not_started');
         
         const anotherInstanceItem = {
           id: `multi-instance-prompt-${questionId}-${currentInstance}`,
@@ -1024,27 +1037,39 @@ Return ONLY the summary sentence, nothing else.`;
         await persistStateToDatabase(transcriptWithProbing, [], anotherInstanceItem);
       } else {
         // Reached max instances
+        console.log(`🔚 Max instances (${multiInstanceState.maxInstances}) reached for ${questionId}`);
         if (limitMessage) {
           toast.info(limitMessage, { duration: 5000 });
         }
         
         setMultiInstanceState(null);
         setIsAskingForAnotherInstance(false);
+        setProbingStatus('not_started');
         setTranscript(transcriptWithProbing);
         await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
       }
     } else {
       // No multi-instance - continue normally
+      setProbingStatus('not_started');
       setTranscript(transcriptWithProbing);
       await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
     }
 
-  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript, persistStateToDatabase]);
+  }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript, persistStateToDatabase, probingStatus]);
 
 
-  const handoffToAgentForProbing = useCallback(async (questionId, packId, substanceName, followUpAnswers) => {
+  const handoffToAgentForProbing = useCallback(async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+    const currentInstance = instanceNumber || multiInstanceState?.instanceNumber || 1;
+    
+    console.log(`🔎 Starting AI probing for ${questionId}/${packId} instance ${currentInstance}`);
+    
     if (aiProbingDisabled) {
-      console.log(`⚠️ AI probing disabled for session, skipping probing for ${questionId}`);
+      console.log(`⚠️ AI probing disabled for session, skipping probing for ${questionId} instance ${currentInstance}`);
+      
+      // Multi-instance fallback
+      if (multiInstanceState) {
+        return handleCompleteProbingAndContinue(questionId, packId, questionId, "Yes");
+      }
       
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
@@ -1065,7 +1090,14 @@ Return ONLY the summary sentence, nothing else.`;
     }
 
     if (!conversation) {
-      console.warn('⚠️ No conversation object available, AI probing skipped.');
+      console.warn(`⚠️ No conversation object available, AI probing skipped for instance ${currentInstance}`);
+      
+      // Multi-instance fallback
+      if (multiInstanceState) {
+        toast.info("AI Investigator unavailable - continuing with next instance check", { duration: 2000 });
+        return handleCompleteProbingAndContinue(questionId, packId, questionId, "Yes");
+      }
+      
       const triggeringQuestionEntry = [...transcript].reverse().find(t =>
         t.type === 'question' &&
         engine.QById[t.questionId]?.followup_pack === packId &&
@@ -1084,6 +1116,7 @@ Return ONLY the summary sentence, nothing else.`;
     }
 
     setAiFailureCount(0);
+    setProbingStatus('in_progress');
 
     const question = engine.QById[questionId];
     const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
@@ -1099,9 +1132,10 @@ Return ONLY the summary sentence, nothing else.`;
       `Question: ${question.question_text}`,
       `Base Answer: Yes`,
       `Follow-up Pack: ${packId}`,
+      multiInstanceState ? `Instance: ${currentInstance}` : '',
       ``,
       `Deterministic Follow-Up Answers:`
-    ];
+    ].filter(Boolean);
 
     followUpAnswers.forEach((answer) => {
       const step = packSteps.find(s => s.Prompt === answer.questionText);
@@ -1126,16 +1160,44 @@ Return ONLY the summary sentence, nothing else.`;
 
     try {
       setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName, originalTriggeringQuestionId: questionId, originalTriggeringAnswer: "Yes" });
+      setCurrentFollowUpPack({ questionId, packId, substanceName, originalTriggeringQuestionId: questionId, originalTriggeringAnswer: "Yes", instanceNumber: currentInstance });
+
+      // Set timeout to prevent hanging
+      if (probingTimeoutRef.current) {
+        clearTimeout(probingTimeoutRef.current);
+      }
+      
+      probingTimeoutRef.current = setTimeout(() => {
+        if (probingStatus === 'in_progress') {
+          console.error(`❌ AI probing TIMED OUT for ${questionId} instance ${currentInstance} (30s). Skipping probing and continuing.`);
+          setProbingStatus('failed');
+          
+          if (multiInstanceState) {
+            toast.warning("AI Investigator timed out - continuing with instance check", { duration: 3000 });
+          } else {
+            toast.warning("AI Investigator timed out - moving to next question", { duration: 3000 });
+          }
+          
+          handleCompleteProbingAndContinue(questionId, packId, questionId, "Yes");
+        }
+      }, 30000);
 
       await base44.agents.addMessage(conversation, {
         role: 'user',
         content: summaryLines.join('\n')
       });
 
+      console.log(`📤 AI probing request sent for ${questionId} instance ${currentInstance}`);
       return true;
+      
     } catch (err) {
-      console.error('❌ Error sending to agent:', err);
+      console.error(`❌ AI probing FAILED for ${questionId} instance ${currentInstance}:`, err);
+      
+      if (probingTimeoutRef.current) {
+        clearTimeout(probingTimeoutRef.current);
+      }
+      
+      setProbingStatus('failed');
       const newFailureCount = aiFailureCount + 1;
       setAiFailureCount(newFailureCount);
 
@@ -1144,34 +1206,25 @@ Return ONLY the summary sentence, nothing else.`;
         setAiProbingDisabled(true);
         toast.error("AI Investigator experienced multiple errors. Disabling AI probing.", { duration: 3000 });
       } else {
-        toast.error("AI Investigator failed to start. Moving to next question...", { duration: 2000 });
+        if (multiInstanceState) {
+          toast.warning("AI Investigator error - continuing with instance check", { duration: 2000 });
+        } else {
+          toast.error("AI Investigator failed to start. Moving to next question...", { duration: 2000 });
+        }
       }
 
       setIsWaitingForAgent(false);
       setCurrentFollowUpPack(null);
 
-      const triggeringQuestionEntry = [...transcript].reverse().find(t =>
-        t.type === 'question' &&
-        engine.QById[t.questionId]?.followup_pack === packId &&
-        t.answer === 'Yes'
-      );
-
-      if (triggeringQuestionEntry) {
-          await moveToNextDeterministicQuestion(triggeringQuestionEntry.questionId, triggeringQuestionEntry.answer);
-      } else {
-          console.error("Could not find triggering question in transcript for deterministic fallback.");
-          setCurrentItem(null);
-          setQueue([]);
-          await persistStateToDatabase(transcript, [], null);
-          setShowCompletionModal(true);
-      }
-
+      // Always continue even on error
+      handleCompleteProbingAndContinue(questionId, packId, questionId, "Yes");
       return false;
     }
-  }, [conversation, engine, aiProbingDisabled, aiFailureCount, transcript, moveToNextDeterministicQuestion, persistStateToDatabase]);
+  }, [conversation, engine, aiProbingDisabled, aiFailureCount, transcript, moveToNextDeterministicQuestion, persistStateToDatabase, multiInstanceState, probingStatus, handleCompleteProbingAndContinue]);
 
   useEffect(() => {
     if (!isWaitingForAgent || agentMessages.length === 0 || !engine || !currentFollowUpPack) return;
+    if (probingStatus === 'completed' || probingStatus === 'failed') return; // Prevent duplicate processing
 
     const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAgentMessage?.content) return;
@@ -1181,11 +1234,12 @@ Return ONLY the summary sentence, nothing else.`;
       const nextQuestionId = allQuestionMatches[allQuestionMatches.length - 1].toUpperCase();
 
       if (nextQuestionId !== currentFollowUpPack.questionId) {
-        console.log(`🤖 AI signaled completion with next question: ${nextQuestionId}`);
+        const instanceNum = currentFollowUpPack.instanceNumber || multiInstanceState?.instanceNumber || 1;
+        console.log(`🤖 AI signaled completion for ${currentFollowUpPack.questionId} instance ${instanceNum} with next question: ${nextQuestionId}`);
         
         // Multi-instance takes precedence - ignore AI's next question suggestion
         if (multiInstanceState) {
-          console.log(`🔁 Multi-instance active - ignoring AI's next question suggestion`);
+          console.log(`🔁 Multi-instance active - will ask for another instance instead of moving to ${nextQuestionId}`);
         }
         
         handleCompleteProbingAndContinue(
@@ -1196,7 +1250,7 @@ Return ONLY the summary sentence, nothing else.`;
         );
       }
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, handleCompleteProbingAndContinue, multiInstanceState]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, handleCompleteProbingAndContinue, multiInstanceState, probingStatus]);
 
 
   // ============================================================================
@@ -1243,6 +1297,7 @@ Return ONLY the summary sentence, nothing else.`;
           if (packSteps && packSteps.length > 0) {
             setCurrentFollowUpAnswers({});
             setAgentMessages([]); // Clear agent messages for new instance
+            setProbingStatus('not_started');
 
             const followupQueue = [];
             for (let i = 0; i < packSteps.length; i++) {
@@ -1270,6 +1325,7 @@ Return ONLY the summary sentence, nothing else.`;
           
           setMultiInstanceState(null);
           setIsAskingForAnotherInstance(false);
+          setProbingStatus('not_started');
           
           const rootQuestion = engine.QById[currentItem.questionId];
           await persistStateToDatabase(newTranscript, [], null);
@@ -1579,7 +1635,8 @@ Return ONLY the summary sentence, nothing else.`;
                   triggeringQuestion.questionId,
                   packId,
                   substanceName,
-                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum)
+                  newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum),
+                  currentInstanceNum
                 );
               } else {
                 console.error("Could not find triggering question for AI handoff after prefilled answer.");
@@ -1710,7 +1767,8 @@ Return ONLY the summary sentence, nothing else.`;
                 triggeringQuestion.questionId,
                 packId,
                 substanceName,
-                newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum)
+                newTranscript.filter(t => t.type === 'followup' && t.packId === packId && t.instanceNumber === currentInstanceNum),
+                currentInstanceNum
               );
             } else {
               console.error("Could not find triggering question for AI handoff.");
