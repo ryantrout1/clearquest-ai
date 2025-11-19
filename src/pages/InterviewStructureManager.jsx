@@ -709,39 +709,42 @@ export default function InterviewStructureManager() {
   );
 }
 
-function QuestionList({ section, sectionId, questions, categories, followUpPacks, followUpQuestions, expandedNodes, toggleNode, toggleQuestionActive, setSelectedItem, onDragEnd, onFollowUpDragEnd }) {
+function QuestionsList({ section, questions, categories, followUpPacks, searchTerm, selectedItem, setSelectedItem, toggleQuestionActive, onDragEnd }) {
   const sectionQuestions = questions
-    .filter(q => q.section_id === sectionId)
+    .filter(q => q.section_id === section.id)
     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-  // Find gate question for this section
   const gateCategory = categories.find(c => c.category_label === section.section_name);
   const gateQuestionId = gateCategory?.gate_question_id;
 
-  if (sectionQuestions.length === 0) {
+  const filteredQuestions = sectionQuestions.filter(q => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
     return (
-      <div className="flex justify-between items-center bg-slate-800/30 border border-slate-700 rounded-lg p-3">
-        <p className="text-sm text-slate-400">No questions in this section yet.</p>
-        <Button
-          onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
-          size="sm"
-          className="bg-emerald-600 hover:bg-emerald-700"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add Question
-        </Button>
+      q.question_text?.toLowerCase().includes(search) ||
+      q.question_id?.toLowerCase().includes(search) ||
+      q.followup_pack?.toLowerCase().includes(search)
+    );
+  });
+
+  if (filteredQuestions.length === 0) {
+    return (
+      <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
+        <p className="text-slate-500 text-xs">
+          {searchTerm ? 'No matching questions' : 'No questions in this section'}
+        </p>
       </div>
     );
   }
 
   return (
-    <DragDropContext onDragEnd={(result) => onDragEnd(result, sectionId)}>
-      <Droppable droppableId={`questions-${sectionId}`}>
+    <DragDropContext onDragEnd={(result) => onDragEnd(result, section.id)}>
+      <Droppable droppableId={`questions-${section.id}`}>
         {(provided) => (
-          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-            {sectionQuestions.map((question, index) => {
-              const pack = followUpPacks.find(p => p.followup_pack_id === question.followup_pack_id || p.pack_name === question.followup_pack);
+          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1.5">
+            {filteredQuestions.map((question, index) => {
               const isControlQuestion = gateQuestionId === question.question_id;
+              const isSelected = selectedItem?.type === 'question' && selectedItem?.data?.id === question.id;
               
               return (
                 <Draggable key={question.id} draggableId={question.id} index={index}>
@@ -750,115 +753,65 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
                       id={`question-${question.id}`}
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className={`bg-slate-800/50 border rounded-lg p-3 transition-colors ${
-                        isControlQuestion 
-                          ? 'border-amber-500/50 bg-amber-950/10 hover:border-amber-500' 
-                          : question.active 
-                            ? 'border-slate-600 hover:border-emerald-500/50' 
-                            : 'border-slate-700 opacity-40 hover:border-slate-600'
-                      }`}
+                      onClick={() => setSelectedItem({ type: 'question', data: question })}
+                      className={`px-3 py-3 rounded-md transition-all cursor-pointer group ${
+                        isSelected
+                          ? 'bg-slate-800/50 border border-slate-700'
+                          : isControlQuestion
+                            ? 'bg-amber-950/10 border border-amber-900/30 hover:bg-amber-950/20 hover:border-amber-800/50'
+                            : 'bg-slate-900/30 border border-slate-800/50 hover:bg-slate-800/30 hover:border-slate-700/50'
+                      } ${question.active === false ? 'opacity-50' : ''}`}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-2.5">
                         <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                          <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing" />
+                          <GripVertical className="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-grab active:cursor-grabbing mt-0.5" />
                         </div>
-                        {pack && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleNode(`question-${question.id}`);
-                            }}
-                            className="text-slate-400 hover:text-white mt-0.5 transition-colors"
-                          >
-                            {expandedNodes[`question-${question.id}`] ? 
-                              <ChevronDown className="w-4 h-4" /> : 
-                              <ChevronRight className="w-4 h-4" />
-                            }
-                          </button>
-                        )}
-                        <FileText className="w-4 h-4 text-emerald-400 mt-0.5" />
-                        <div 
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => setSelectedItem({ type: 'question', data: question })}
-                        >
-                          {/* Top metadata row */}
-                          <div className="flex items-center gap-2 flex-wrap mb-2">
-                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400">
-                              #{question.display_order || 1}
-                            </Badge>
-                            <Badge variant="outline" className="font-mono text-xs border-slate-600 text-slate-300">
-                              {question.question_id}
-                            </Badge>
-                            <Badge 
-                              onClick={(e) => toggleQuestionActive(e, question)}
-                              className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${
-                                question.active
-                                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                                  : 'bg-slate-700/50 border-slate-600 text-slate-400'
-                              }`}
-                            >
-                              {question.active ? 'Active' : 'Inactive'}
-                            </Badge>
-                            {isControlQuestion && (
-                              <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400">
-                                <Lock className="w-3 h-3 mr-1" />
-                                Control
-                              </Badge>
-                            )}
+                        <FileText className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                          isSelected ? 'text-emerald-400' : 'text-emerald-500/70 group-hover:text-emerald-400'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-blue-400 font-mono">
+                                #{question.display_order || 1}
+                              </span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-slate-400 font-mono">
+                                {question.question_id}
+                              </span>
+                              {isControlQuestion && (
+                                <Lock className="w-3 h-3 text-amber-500" />
+                              )}
+                            </div>
+                            <Switch
+                              checked={question.active !== false}
+                              onCheckedChange={(checked) => {
+                                const e = { stopPropagation: () => {} };
+                                toggleQuestionActive(e, question);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="data-[state=checked]:bg-emerald-600 scale-75"
+                            />
                           </div>
                           
-                          {/* Question Text */}
-                          <p className="text-sm text-white leading-relaxed mb-2">{question.question_text}</p>
+                          <p className="text-sm text-white leading-relaxed mb-2 line-clamp-2">
+                            {question.question_text}
+                          </p>
                           
-                          {/* Bottom metadata */}
-                          <div className="flex gap-2 flex-wrap">
-                            <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                          <div className="flex gap-1.5 flex-wrap">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-slate-400">
                               {getResponseTypeDisplay(question.response_type)}
-                            </Badge>
+                            </span>
                             {question.followup_pack && (
-                              <Badge className="text-xs bg-purple-500/20 border-purple-500/50 text-purple-400">
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-900/30 border border-purple-800/50 text-purple-400">
                                 {FOLLOWUP_PACK_NAMES[question.followup_pack] || question.followup_pack}
-                              </Badge>
+                              </span>
                             )}
                             {question.followup_multi_instance && (
-                              <Badge className="text-xs bg-purple-500/20 border-purple-500/50 text-purple-400">
-                                <Layers className="w-3 h-3 mr-1" />
-                                Multi
-                              </Badge>
-                            )}
-                            {question.substance_name && (
-                              <Badge variant="outline" className="text-xs border-amber-600 text-amber-400">
-                                {question.substance_name}
-                              </Badge>
+                              <Layers className="w-3 h-3 text-purple-400" />
                             )}
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedItem({ type: 'question', data: question });
-                          }}
-                          className="text-slate-400 hover:text-white hover:bg-slate-700 h-8"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
                       </div>
-
-                      {/* Follow-up Pack */}
-                      {pack && expandedNodes[`question-${question.id}`] && (
-                        <div className="ml-10 mt-3 border-l-2 border-purple-500/30 pl-4">
-                          <FollowUpPackNode
-                            pack={pack}
-                            followUpQuestions={followUpQuestions}
-                            expandedNodes={expandedNodes}
-                            toggleNode={toggleNode}
-                            setSelectedItem={setSelectedItem}
-                            onDragEnd={onFollowUpDragEnd}
-                          />
-                        </div>
-                      )}
                     </div>
                   )}
                 </Draggable>
@@ -872,84 +825,7 @@ function QuestionList({ section, sectionId, questions, categories, followUpPacks
   );
 }
 
-function FollowUpPackNode({ pack, followUpQuestions, expandedNodes, toggleNode, setSelectedItem, onDragEnd }) {
-  const packQuestions = followUpQuestions
-    .filter(q => q.followup_pack_id === pack.followup_pack_id)
-    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-  return (
-    <div className="bg-purple-950/30 border border-purple-600/40 rounded-lg p-3">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleNode(`pack-${pack.id}`);
-          }}
-          className="text-purple-400 hover:text-purple-300 transition-colors"
-        >
-          {expandedNodes[`pack-${pack.id}`] ? 
-            <ChevronDown className="w-4 h-4" /> : 
-            <ChevronRight className="w-4 h-4" />
-          }
-        </button>
-        <Package className="w-4 h-4 text-purple-400" />
-        <span className="text-sm text-purple-200 font-medium flex-1">{pack.pack_name}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedItem({ type: 'pack', data: pack });
-          }}
-          className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/30 h-7"
-        >
-          <Edit className="w-3 h-3" />
-        </Button>
-      </div>
-
-      {expandedNodes[`pack-${pack.id}`] && packQuestions.length > 0 && (
-        <DragDropContext onDragEnd={(result) => onDragEnd(result, pack.followup_pack_id)}>
-          <Droppable droppableId={`followup-${pack.followup_pack_id}`}>
-            {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef} className="ml-6 mt-3 space-y-2">
-                {packQuestions.map((q, index) => (
-                  <Draggable key={q.id} draggableId={q.id} index={index}>
-                    {(provided) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className="bg-purple-900/20 border border-purple-600/30 rounded p-2 flex items-start gap-2 hover:border-purple-500/50 transition-colors cursor-pointer"
-                        onClick={() => setSelectedItem({ type: 'followup-question', data: q })}
-                      >
-                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                          <GripVertical className="w-3 h-3 text-purple-500/70 hover:text-purple-400 cursor-grab active:cursor-grabbing" />
-                        </div>
-                        <Layers className="w-3 h-3 text-purple-400 mt-0.5" />
-                        <p className="text-xs text-purple-100 flex-1 leading-relaxed">{q.question_text}</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedItem({ type: 'followup-question', data: q });
-                          }}
-                          className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/30 h-6"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-        </DragDropContext>
-      )}
-    </div>
-  );
-}
 
 function DetailPanel({ selectedItem, sections, categories, questions, followUpPacks, followUpQuestions, onClose, onDelete }) {
   const navigate = useNavigate();
@@ -1136,8 +1012,9 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
   if (!selectedItem) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-400 text-sm">Select an item to edit</p>
+      <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-8 text-center">
+        <h4 className="text-sm font-semibold text-slate-400 mb-2">Select a question to edit</h4>
+        <p className="text-xs text-slate-500">Choose a question from the middle column to view and edit its details</p>
       </div>
     );
   }
