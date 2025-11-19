@@ -46,7 +46,7 @@ export default function FollowUpPackDetails({
 
   useEffect(() => {
     if (pack) {
-      const categoryId = mapPackToCategory(pack.followup_pack_id);
+      const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       setFormData({
         pack_name: pack.pack_name || '',
         description: pack.description || '',
@@ -63,7 +63,7 @@ export default function FollowUpPackDetails({
 
   const handleSave = async () => {
     try {
-      const originalCategory = mapPackToCategory(pack.followup_pack_id);
+      const originalCategory = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       const categoryChanged = originalCategory !== formData.categoryId;
       
       await base44.entities.FollowUpPack.update(pack.id, {
@@ -203,7 +203,7 @@ export default function FollowUpPackDetails({
             <>
               <Button
                 onClick={() => {
-                  const categoryId = mapPackToCategory(pack.followup_pack_id);
+                  const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
                   setFormData({
                     pack_name: pack.pack_name || '',
                     description: pack.description || '',
