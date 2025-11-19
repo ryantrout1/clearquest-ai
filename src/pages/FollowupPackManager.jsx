@@ -237,70 +237,61 @@ export default function FollowupPackManager() {
   const rightWidth = 100 - leftWidth - middleWidth;
 
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0a0f1e]">
       {/* Header */}
-      <div className="border-b border-slate-700/50 bg-[#1e293b]/80 backdrop-blur-sm px-6 py-4">
-        <div className="max-w-[1800px] mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate(createPageUrl("HomeHub"))}
-                className="text-slate-300 hover:text-white -ml-2"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-              <Package className="w-6 h-6 text-amber-400" />
-              <div>
-                <h1 className="text-xl font-bold text-white">Follow-Up Pack Manager</h1>
-                <p className="text-xs text-slate-400">
-                  Organize and manage all follow-up packs across {FOLLOWUP_CATEGORIES.length} canonical categories
-                </p>
+      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
+        <div className="max-w-[2000px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(createPageUrl("HomeHub"))}
+              className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+            <Package className="w-5 h-5 text-amber-400" />
+            <h1 className="text-lg font-semibold text-white">Follow-Up Pack Manager</h1>
+            <span className="text-xs text-slate-500">
+              Organize and manage packs across {FOLLOWUP_CATEGORIES.length} categories
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {(uncategorizedCount > 0 || totalPacksWithNoTriggers > 0) && (
+              <div className="flex items-center gap-2 mr-3">
+                {uncategorizedCount > 0 && (
+                  <span className="text-xs px-2 py-1 rounded bg-red-900/30 border border-red-800/50 text-red-400">
+                    {uncategorizedCount} uncategorized
+                  </span>
+                )}
+                {totalPacksWithNoTriggers > 0 && (
+                  <span className="text-xs px-2 py-1 rounded bg-yellow-900/30 border border-yellow-800/50 text-yellow-400">
+                    {totalPacksWithNoTriggers} no triggers
+                  </span>
+                )}
               </div>
-            </div>
+            )}
             <Button
               onClick={() => navigate(createPageUrl("FollowUpPackQuickAssign"))}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               <Zap className="w-4 h-4 mr-2" />
               Quick Assign
             </Button>
           </div>
-
-          {/* Warning Banners */}
-          {(uncategorizedCount > 0 || totalPacksWithNoTriggers > 0) && (
-            <div className="mt-4 space-y-2">
-              {uncategorizedCount > 0 && (
-                <Alert className="bg-red-950/30 border-red-800/50">
-                  <AlertTriangle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300 text-sm">
-                    <strong>{uncategorizedCount}</strong> follow-up {uncategorizedCount === 1 ? 'pack is' : 'packs are'} not assigned to a canonical category. Please review and categorize them.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {totalPacksWithNoTriggers > 0 && (
-                <Alert className="bg-yellow-950/30 border-yellow-800/50">
-                  <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                  <AlertDescription className="text-yellow-300 text-sm">
-                    <strong>{totalPacksWithNoTriggers}</strong> follow-up {totalPacksWithNoTriggers === 1 ? 'pack has' : 'packs have'} no triggering questions and will never be used in interviews.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
       {/* Main Content */}
-      <div id="followup-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 140px)' }}>
+      <div id="followup-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Left Panel - Categories */}
         <div 
           style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-700 p-6"
+          className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
-          <h2 className="text-lg font-semibold text-white mb-4">Categories</h2>
+          <h3 className="text-sm font-semibold text-slate-400 mb-3 px-2">Categories</h3>
           <FollowUpCategorySidebar
             categories={FOLLOWUP_CATEGORIES}
             packsByCategory={packsByCategory}
@@ -312,8 +303,8 @@ export default function FollowupPackManager() {
 
         {/* Left Drag Handle */}
         <div 
-          className={`w-2 flex-shrink-0 transition-colors ${
-            isDraggingLeft ? 'bg-amber-500' : 'bg-slate-800 hover:bg-amber-600'
+          className={`w-1 flex-shrink-0 transition-colors ${
+            isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
           }`}
           onMouseDown={handleMouseDownLeft}
           style={{ cursor: 'col-resize', userSelect: 'none' }}
@@ -322,32 +313,32 @@ export default function FollowupPackManager() {
         {/* Middle Panel - Pack List */}
         <div 
           style={{ width: `${middleWidth}%` }}
-          className="overflow-auto border-r border-slate-700"
+          className="overflow-auto border-r border-slate-800/50 bg-[#0a0f1e]"
         >
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">
                 {selectedCategoryId === "UNCATEGORIZED" 
                   ? "Uncategorized Packs"
                   : FOLLOWUP_CATEGORIES.find(c => c.id === selectedCategoryId)?.label}
-              </h2>
-              <span className="text-sm text-slate-400">
+              </h3>
+              <span className="text-xs text-slate-500">
                 {filteredPacks.length} {filteredPacks.length === 1 ? 'pack' : 'packs'}
               </span>
             </div>
 
-            <div className="mb-4">
+            <div className="mb-3">
               <Input
                 placeholder="Search packs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-slate-800 border-slate-600 text-white"
+                className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
               />
             </div>
 
             {packsLoading ? (
-              <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-8">
-                <p className="text-slate-400 text-center">Loading packs...</p>
+              <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
+                <p className="text-slate-500 text-center text-sm">Loading packs...</p>
               </div>
             ) : (
               <FollowUpPackList
@@ -364,8 +355,8 @@ export default function FollowupPackManager() {
 
         {/* Right Drag Handle */}
         <div 
-          className={`w-2 flex-shrink-0 transition-colors ${
-            isDraggingRight ? 'bg-amber-500' : 'bg-slate-800 hover:bg-amber-600'
+          className={`w-1 flex-shrink-0 transition-colors ${
+            isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
           }`}
           onMouseDown={handleMouseDownRight}
           style={{ cursor: 'col-resize', userSelect: 'none' }}
@@ -374,9 +365,9 @@ export default function FollowupPackManager() {
         {/* Right Panel - Pack Details */}
         <div 
           style={{ width: `${rightWidth}%` }}
-          className="overflow-auto"
+          className="overflow-auto bg-[#0a0f1e]"
         >
-          <div className="p-6">
+          <div className="p-4">
             <FollowUpPackDetails
               pack={selectedPack}
               questions={questionsMap[selectedPack?.followup_pack_id] || []}
