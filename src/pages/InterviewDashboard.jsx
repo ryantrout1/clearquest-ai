@@ -207,19 +207,21 @@ export default function InterviewDashboard() {
     setIsBulkDeleting(true);
     
     try {
-      for (const sessionId of sessionsToDelete) {
-        const responses = await base44.entities.Response.filter({ session_id: sessionId });
-        for (const response of responses) {
-          await base44.entities.Response.delete(response.id);
-        }
-
-        const followups = await base44.entities.FollowUpResponse.filter({ session_id: sessionId });
-        for (const followup of followups) {
-          await base44.entities.FollowUpResponse.delete(followup.id);
-        }
-
+      // Parallel bulk deletion for maximum speed
+      await Promise.all(sessionsToDelete.map(async (sessionId) => {
+        // Parallel delete all related data
+        await Promise.all([
+          base44.entities.Response.filter({ session_id: sessionId }).then(responses => 
+            Promise.all(responses.map(r => base44.entities.Response.delete(r.id)))
+          ),
+          base44.entities.FollowUpResponse.filter({ session_id: sessionId }).then(followups =>
+            Promise.all(followups.map(f => base44.entities.FollowUpResponse.delete(f.id)))
+          )
+        ]);
+        
+        // Delete session after related data is removed
         await base44.entities.InterviewSession.delete(sessionId);
-      }
+      }));
 
       queryClient.setQueryData(['sessions'], (oldSessions) => 
         oldSessions.filter(s => !sessionsToDelete.includes(s.id))
@@ -509,15 +511,16 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
     setIsDeleting(true);
     try {
-      const responses = await base44.entities.Response.filter({ session_id: session.id });
-      for (const response of responses) {
-        await base44.entities.Response.delete(response.id);
-      }
+      // Parallel deletion for speed
+      const [responses, followups] = await Promise.all([
+        base44.entities.Response.filter({ session_id: session.id }),
+        base44.entities.FollowUpResponse.filter({ session_id: session.id })
+      ]);
 
-      const followups = await base44.entities.FollowUpResponse.filter({ session_id: session.id });
-      for (const followup of followups) {
-        await base44.entities.FollowUpResponse.delete(followup.id);
-      }
+      await Promise.all([
+        ...responses.map(r => base44.entities.Response.delete(r.id)),
+        ...followups.map(f => base44.entities.FollowUpResponse.delete(f.id))
+      ]);
 
       await base44.entities.InterviewSession.delete(session.id);
 
