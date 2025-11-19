@@ -763,8 +763,6 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
-  const [isGateQuestion, setIsGateQuestion] = useState(false);
-  const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
 
   // Load follow-up pack details if this is a question with a pack
   // Using same logic as FollowupPackManager to ensure consistency
@@ -811,34 +809,14 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
   useEffect(() => {
     if (selectedItem?.data) {
-      setFormData(selectedItem.data);
-      
-      // Check if this question is a gate question based on its associated section
-      if (selectedItem.type === 'question' && selectedItem.data.section_id) {
-        const section = sections.find(s => s.id === selectedItem.data.section_id);
-        if (section) {
-          const cat = categories.find(c => c.category_label === section.section_name);
-          if (cat) {
-            setCurrentCategoryEntity(cat);
-            setIsGateQuestion(cat.gate_question_id === selectedItem.data.question_id);
-          } else {
-            setCurrentCategoryEntity(null);
-            setIsGateQuestion(false);
-          }
-        } else {
-          setCurrentCategoryEntity(null);
-          setIsGateQuestion(false);
-        }
-      } else {
-        setIsGateQuestion(false);
-        setCurrentCategoryEntity(null);
-      }
+      setFormData({
+        ...selectedItem.data,
+        is_control_question: selectedItem.data.is_control_question ?? false
+      });
     } else {
       setFormData({});
-      setIsGateQuestion(false);
-      setCurrentCategoryEntity(null);
     }
-  }, [selectedItem, categories, sections]);
+  }, [selectedItem]);
 
   // Determine default pack group based on category derived from the section
   useEffect(() => {
@@ -885,21 +863,12 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         const section = sections.find(s => s.id === formData.section_id);
         const saveData = {
           ...formData,
-          category: section?.section_name || formData.category // Ensure category matches section_name
+          category: section?.section_name || formData.category,
+          is_control_question: formData.is_control_question ?? false
         };
         
         await base44.entities.Question.update(selectedItem.data.id, saveData);
-        
-        // Update category gate question setting
-        if (currentCategoryEntity) {
-          await base44.entities.Category.update(currentCategoryEntity.id, {
-            gate_question_id: isGateQuestion ? formData.question_id : null,
-            gate_skip_if_value: isGateQuestion ? 'No' : null
-          });
-        }
-        
         queryClient.invalidateQueries({ queryKey: ['questions'] });
-        queryClient.invalidateQueries({ queryKey: ['categories'] });
         toast.success('Question updated');
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
@@ -1231,8 +1200,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             </p>
           </div>
           <Switch
-            checked={isGateQuestion}
-            onCheckedChange={setIsGateQuestion}
+            checked={formData.is_control_question ?? false}
+            onCheckedChange={(checked) => setFormData({...formData, is_control_question: checked})}
             disabled={formData.response_type !== 'yes_no'}
             className="data-[state=checked]:bg-emerald-600"
           />
