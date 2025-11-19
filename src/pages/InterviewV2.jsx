@@ -14,14 +14,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  bootstrapEngine,
-  validateFollowUpAnswer,
-  checkFollowUpTrigger,
-  computeNextQuestionId,
-  injectSubstanceIntoPackSteps,
-  shouldSkipFollowUpStep,
-  shouldSkipProbingForHired
-} from "../components/interviewEngine";
+        bootstrapEngine,
+        validateFollowUpAnswer,
+        checkFollowUpTrigger,
+        computeNextQuestionId,
+        injectSubstanceIntoPackSteps,
+        shouldSkipFollowUpStep,
+        shouldSkipProbingForHired,
+        auditSectionQuestionCounts
+      } from "../components/interviewEngine";
 import { toast } from "sonner";
 
 // Follow-up pack display names
@@ -522,6 +523,9 @@ Return ONLY the summary sentence, nothing else.`;
       // ALWAYS bootstrap engine from current Question Manager config
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
+
+      // AUDIT: Check database vs runtime question counts for all sections
+      await auditSectionQuestionCounts(base44, engineData);
 
       if (engineData.hasValidationErrors) {
         console.error('❌ Question configuration errors detected:', engineData.validationErrors);
