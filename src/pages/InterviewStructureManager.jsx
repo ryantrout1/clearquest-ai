@@ -892,15 +892,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           });
         }
         
-        await queryClient.invalidateQueries({ queryKey: ['questions'] });
-        await queryClient.invalidateQueries({ queryKey: ['categories'] });
-        await queryClient.refetchQueries({ queryKey: ['questions'] });
-        await queryClient.refetchQueries({ queryKey: ['categories'] });
-        
-        // Update selectedItem to reflect changes
-        const updatedQuestion = await base44.entities.Question.get(selectedItem.data.id);
-        setSelectedItem({ type: 'question', data: updatedQuestion });
-        
+        queryClient.invalidateQueries({ queryKey: ['questions'] });
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
         toast.success('Question updated');
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
