@@ -168,7 +168,8 @@ export function getPacksByCategory(packs) {
   categoryMap["UNCATEGORIZED"] = [];
   
   packs.forEach(pack => {
-    const categoryId = mapPackToCategory(pack.followup_pack_id);
+    // Prioritize database category_id field over automatic mapping
+    const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
     if (categoryMap[categoryId]) {
       categoryMap[categoryId].push(pack);
     } else {
