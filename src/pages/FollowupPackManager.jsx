@@ -662,7 +662,6 @@ function PackDetailPanel({ pack, questions, integrity, onUpdate }) {
   };
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-  const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   if (!pack) {
     return (
