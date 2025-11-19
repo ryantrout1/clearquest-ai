@@ -1214,91 +1214,34 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         {/* Follow-Up Pack Management - Only for existing questions */}
-        {selectedItem.type === 'question' && (
+        {selectedItem.type === 'question' && formData?.followup_pack && selectedFollowUpPack && (
           <div className="mt-6 pt-6 border-t border-slate-700">
-            {!formData?.followup_pack ? (
-              // No pack assigned
-              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-slate-300 mb-2">No Follow-Up Pack assigned</h4>
-                <p className="text-xs text-slate-400 mb-3">
-                  Assign a follow-up pack to enable AI probing and incident collection for this question.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate(createPageUrl("FollowupPackManager"))}
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800"
-                >
-                  <Package className="w-4 h-4 mr-2" />
-                  Open Follow-Up Pack Manager
-                </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-base font-semibold text-white">Follow-Up Pack</h4>
+                <p className="text-xs text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
               </div>
-            ) : selectedFollowUpPack ? (
-              // Pack exists - show purple card
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-base font-semibold text-white">Follow-Up Pack</h4>
-                    <p className="text-xs text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
-                    className="bg-purple-600 hover:bg-purple-700"
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Manage Pack
-                  </Button>
+              <Button
+                size="sm"
+                onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Manage Pack
+              </Button>
+            </div>
+            <div className="mt-3 bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-purple-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">{selectedFollowUpPack.pack_name}</p>
+                  <p className="text-xs text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
                 </div>
-                <div className="mt-3 bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-purple-400" />
-                    <div>
-                      <p className="text-sm font-medium text-white">{selectedFollowUpPack.pack_name}</p>
-                      <p className="text-xs text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
-                    </div>
-                    <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30">
-                      {packQuestions.length} questions
-                    </Badge>
-                  </div>
-                </div>
-              </>
-            ) : (
-              // Pack missing - show error card
-              <div className="bg-red-950/30 border border-red-800/50 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="text-base font-semibold text-red-400 mb-2">Follow-Up Pack not found</h4>
-                    <p className="text-sm text-red-300 mb-3">
-                      This question is assigned to follow-up pack <span className="font-mono bg-red-900/50 px-1.5 py-0.5 rounded">{formData.followup_pack}</span>, but no pack with this code exists in the database.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => navigate(createPageUrl("FollowupPackManager"))}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        <Package className="w-4 h-4 mr-2" />
-                        Create this pack
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setFormData({...formData, followup_pack: null});
-                          const selectElement = document.querySelector('[role="combobox"]');
-                          if (selectElement) selectElement.focus();
-                        }}
-                        className="border-red-600 text-red-400 hover:bg-red-950/30"
-                      >
-                        Change pack
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30">
+                  {packQuestions.length} questions
+                </Badge>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>

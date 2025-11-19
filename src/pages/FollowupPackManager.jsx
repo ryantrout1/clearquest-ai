@@ -272,25 +272,14 @@ export default function FollowupPackManager() {
                 )}
               </div>
             )}
-            <div className="flex gap-2">
-              <Button
-                onClick={() => navigate(createPageUrl("FollowUpPackCoverage"))}
-                size="sm"
-                variant="outline"
-                className="border-slate-600 text-slate-300 hover:bg-slate-800"
-              >
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Coverage
-              </Button>
-              <Button
-                onClick={() => navigate(createPageUrl("FollowUpPackQuickAssign"))}
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                Quick Assign
-              </Button>
-            </div>
+            <Button
+              onClick={() => navigate(createPageUrl("FollowUpPackQuickAssign"))}
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Quick Assign
+            </Button>
           </div>
         </div>
       </div>
@@ -302,9 +291,7 @@ export default function FollowupPackManager() {
           style={{ width: `${leftWidth}%` }}
           className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-400">Categories</h3>
-          </div>
+          <h3 className="text-sm font-semibold text-slate-400 mb-3 px-2">Categories</h3>
           <FollowUpCategorySidebar
             categories={FOLLOWUP_CATEGORIES}
             packsByCategory={packsByCategory}
