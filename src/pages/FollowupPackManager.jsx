@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronDown, ChevronRight, Package, AlertTriangle, FileText, ExternalLink, Plus, Edit, Trash2 } from "lucide-react";
-import { useFollowUpIntegrity } from "../components/utils/useFollowUpIntegrity";
 import { toast } from "sonner";
 
 const BEHAVIOR_TYPE_NAMES = {
@@ -228,8 +227,20 @@ export default function FollowupPackManager() {
     }
   };
 
-  // Integrity analysis
-  const integrity = useFollowUpIntegrity(interviewQuestions, packs, allQuestions);
+  // Build usage map: which questions trigger which packs
+  const packUsageMap = useMemo(() => {
+    const map = {};
+    interviewQuestions.forEach(q => {
+      const packCode = q.followup_pack;
+      if (packCode) {
+        if (!map[packCode]) {
+          map[packCode] = [];
+        }
+        map[packCode].push(q);
+      }
+    });
+    return map;
+  }, [interviewQuestions]);
 
   // Group packs by category
   const packsByCategory = useMemo(() => {
@@ -375,9 +386,9 @@ export default function FollowupPackManager() {
                         {isExpanded && categoryPacks.length > 0 && (
                           <div className="border-t border-slate-700/50 p-2 space-y-1">
                             {categoryPacks.map((pack) => {
-                              const packStatus = integrity.getPackStatus(pack);
                               const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
                               const activeQuestions = packQuestions.filter(q => q.active !== false).length;
+                              const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
                               
                               return (
                                 <div
@@ -402,19 +413,9 @@ export default function FollowupPackManager() {
                                         <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                           {packQuestions.length} Q • {activeQuestions} active
                                         </Badge>
-                                        {packStatus?.usageCount > 0 && (
+                                        {triggeringQuestions.length > 0 && (
                                           <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                            Used by {packStatus.usageCount}
-                                          </Badge>
-                                        )}
-                                        {packStatus?.isUnused && (
-                                          <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
-                                            Unused
-                                          </Badge>
-                                        )}
-                                        {packStatus?.hasNoDeterministic && (
-                                          <Badge className="text-xs bg-yellow-500/20 border-yellow-500/50 text-yellow-400">
-                                            No Questions
+                                            Used by {triggeringQuestions.length}
                                           </Badge>
                                         )}
                                       </div>
@@ -455,9 +456,9 @@ export default function FollowupPackManager() {
                       {expandedCategories.has('UNCATEGORIZED') && (
                         <div className="border-t border-yellow-700/50 p-2 space-y-1">
                           {filteredPacksByCategory['UNCATEGORIZED'].map((pack) => {
-                            const packStatus = integrity.getPackStatus(pack);
                             const packQuestions = allQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
                             const activeQuestions = packQuestions.filter(q => q.active !== false).length;
+                            const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
                             
                             return (
                               <div
@@ -482,19 +483,9 @@ export default function FollowupPackManager() {
                                       <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-300">
                                         {packQuestions.length} Q • {activeQuestions} active
                                       </Badge>
-                                      {packStatus?.usageCount > 0 && (
+                                      {triggeringQuestions.length > 0 && (
                                         <Badge className="text-xs bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
-                                          Used by {packStatus.usageCount}
-                                        </Badge>
-                                      )}
-                                      {packStatus?.isUnused && (
-                                        <Badge variant="outline" className="text-xs bg-slate-700/50 border-slate-600 text-slate-400">
-                                          Unused
-                                        </Badge>
-                                      )}
-                                      {packStatus?.hasNoDeterministic && (
-                                        <Badge className="text-xs bg-yellow-500/20 border-yellow-500/50 text-yellow-400">
-                                          No Questions
+                                          Used by {triggeringQuestions.length}
                                         </Badge>
                                       )}
                                     </div>
@@ -531,7 +522,7 @@ export default function FollowupPackManager() {
             <PackDetailPanel
               pack={selectedPack}
               questions={allQuestions.filter(q => q.followup_pack_id === selectedPack?.followup_pack_id)}
-              integrity={integrity}
+              triggeringQuestions={packUsageMap[selectedPack?.followup_pack_id] || []}
               onUpdate={() => {
                 queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
                 queryClient.invalidateQueries({ queryKey: ['followUpQuestions'] });
@@ -545,7 +536,7 @@ export default function FollowupPackManager() {
   );
 }
 
-function PackDetailPanel({ pack, questions, integrity, onUpdate }) {
+function PackDetailPanel({ pack, questions, triggeringQuestions, onUpdate }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
@@ -662,6 +653,7 @@ function PackDetailPanel({ pack, questions, integrity, onUpdate }) {
   };
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   if (!pack) {
     return (
@@ -996,45 +988,33 @@ function PackDetailPanel({ pack, questions, integrity, onUpdate }) {
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
           <FileText className="w-4 h-4" />
-          Used by Interview Questions
+          Used by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
         </h4>
-        {(() => {
-          const packAnalysis = integrity.packAnalysis.find(p => p.pack.id === pack.id);
-          const usedByQuestions = packAnalysis?.usedByQuestions || [];
-
-          if (usedByQuestions.length === 0) {
-            return (
-              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
-                <p className="text-sm text-slate-400">
-                  No interview questions currently trigger this pack.
-                </p>
-              </div>
-            );
-          }
-
-          return (
-            <div className="space-y-2">
-              {usedByQuestions.map((q) => (
-                <button
-                  key={q.questionId}
-                  onClick={() => handleNavigateToQuestion(q.questionCode)}
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-slate-800/70 transition-all text-left group"
-                >
-                  <div className="flex items-start gap-2">
-                    <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
-                      {q.questionCode}
-                    </Badge>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-300 leading-relaxed group-hover:text-white transition-colors">{q.questionText}</p>
-                      <p className="text-xs text-slate-500 mt-1">{q.section}</p>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          );
-        })()}
+        {sortedTriggeringQuestions.length === 0 ? (
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
+            <p className="text-sm text-slate-400">
+              No interview questions currently trigger this pack.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sortedTriggeringQuestions.map((q) => (
+              <button
+                key={q.id}
+                onClick={() => handleNavigateToQuestion(q.question_id)}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-slate-800/70 transition-all text-left group"
+              >
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
+                    {q.question_id}
+                  </Badge>
+                  <p className="text-sm text-slate-300 leading-relaxed flex-1 group-hover:text-white transition-colors">{q.question_text}</p>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
