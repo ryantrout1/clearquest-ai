@@ -443,33 +443,33 @@ export default function InterviewStructureManager() {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               onClick={() => setSelectedSection(section)}
-                              className={`px-3 py-2.5 rounded-md transition-all cursor-pointer group ${
+                              className={`px-3 py-2 rounded-md transition-all cursor-pointer group ${
                                 isSelected
-                                  ? 'bg-[#252d48]'
-                                  : 'hover:bg-[#1e2439]'
+                                  ? 'bg-slate-700/50'
+                                  : 'bg-transparent hover:bg-slate-800/30'
                               }`}
                             >
                               <div className="flex items-center gap-2.5">
-                                <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                                  <GripVertical className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing" />
-                                </div>
                                 <FolderOpen className={`w-4 h-4 flex-shrink-0 ${
-                                  isSelected ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-500'
+                                  isSelected ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
                                 }`} />
                                 <div className="flex-1 min-w-0">
-                                  <h4 className={`text-sm font-normal leading-tight mb-1 ${
+                                  <h4 className={`text-xs font-normal leading-tight ${
                                     isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
                                   }`}>
                                     {section.section_name}
                                   </h4>
-                                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                                    <span>{sectionQuestionsAll.length} questions ({activeCount} active)</span>
-                                    {gateQuestionId && (
-                                      <span className="flex items-center gap-1 text-amber-500">
-                                        <Lock className="w-3 h-3" />
-                                      </span>
-                                    )}
-                                  </div>
+                                  <span className={`text-xs block mt-0.5 ${
+                                    isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
+                                  }`}>
+                                    {sectionQuestionsAll.length} questions ({activeCount} active)
+                                  </span>
+                                  {gateQuestionId && (
+                                    <span className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
+                                      <Lock className="w-3 h-3" />
+                                      Gate
+                                    </span>
+                                  )}
                                 </div>
                                 <Switch
                                   checked={section.active !== false}
@@ -696,35 +696,32 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       onClick={() => setSelectedItem({ type: 'question', data: question })}
-                      className={`px-3 py-3 rounded-md transition-all cursor-pointer group ${
+                      className={`px-3 py-2.5 rounded-md transition-all cursor-pointer group ${
                         isSelected
-                          ? 'bg-[#252d48]'
-                          : 'hover:bg-[#1a1f3a]'
+                          ? 'bg-slate-800/50'
+                          : 'bg-transparent hover:bg-slate-800/30'
                       } ${question.active === false ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-start gap-2.5">
-                        <div {...provided.dragHandleProps} onClick={(e) => e.stopPropagation()}>
-                          <GripVertical className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing mt-0.5" />
-                        </div>
-                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                          isSelected ? 'bg-purple-500' : 'bg-slate-600'
+                        <FileText className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                          isSelected ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'
                         }`} />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex items-start justify-between gap-2 mb-1">
                             <div>
-                              <h4 className={`text-sm font-normal leading-tight mb-1 ${
+                              <h4 className={`text-xs font-normal leading-tight ${
                                 isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'
                               }`}>
                                 {question.question_text}
                               </h4>
-                              <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <span className="font-mono">{question.question_id}</span>
+                              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                {question.question_id}
                                 {isControlQuestion && (
-                                  <span className="flex items-center gap-1 text-amber-500">
-                                    <Lock className="w-3 h-3" />
+                                  <span className="ml-2 text-amber-500">
+                                    <Lock className="w-3 h-3 inline" /> Gate
                                   </span>
                                 )}
-                              </div>
+                              </p>
                             </div>
                             <Switch
                               checked={question.active !== false}
@@ -737,11 +734,13 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                             />
                           </div>
                           
-                          <div className="flex gap-2 flex-wrap text-xs text-slate-500">
-                            <span>{getResponseTypeDisplay(question.response_type)}</span>
+                          <div className="flex gap-1 flex-wrap mt-1.5">
+                            <span className="text-xs text-slate-500">
+                              {getResponseTypeDisplay(question.response_type)}
+                            </span>
                             {question.followup_pack && (
-                              <span className="text-purple-400">
-                                • Used by {question.followup_pack}
+                              <span className="text-xs text-purple-400">
+                                • {question.followup_pack}
                               </span>
                             )}
                           </div>
