@@ -30,10 +30,14 @@ export default function FollowUpPackAudit() {
   });
 
   const auditData = useMemo(() => {
-    // Build pack lookup
+    // Build pack lookup - index by both followup_pack_id and any aliases
     const packMap = new Map();
     packs.forEach(pack => {
       packMap.set(pack.followup_pack_id, pack);
+      // Also map common aliases
+      if (pack.followup_pack_id === 'PACK_DRUG_USE') {
+        packMap.set('ILLEGAL_DRUG_USE', pack);
+      }
     });
 
     // Count deterministic questions per pack
