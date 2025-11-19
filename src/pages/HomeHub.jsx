@@ -109,6 +109,25 @@ export default function HomeHub() {
           </div>
 
           <div
+            onClick={() => handleNavigate("InterviewDashboard")}
+            className="cursor-pointer group"
+          >
+            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-green-500/50 transition-all h-full">
+              <CardContent className="p-8 md:p-10 text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="p-5 md:p-6 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                    <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-400" />
+                  </div>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Current Interviews</h2>
+                <p className="text-base md:text-lg text-slate-400">
+                  Monitor and manage interview sessions
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div
             onClick={() => handleNavigate("InterviewStructureManager")}
             className="cursor-pointer group"
           >
@@ -141,25 +160,6 @@ export default function HomeHub() {
                 <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Follow-Up Packs</h2>
                 <p className="text-base md:text-lg text-slate-400">
                   Configure standardized follow-up packs
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div
-            onClick={() => handleNavigate("InterviewDashboard")}
-            className="cursor-pointer group"
-          >
-            <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 hover:border-green-500/50 transition-all h-full">
-              <CardContent className="p-8 md:p-10 text-center">
-                <div className="flex justify-center mb-6">
-                  <div className="p-5 md:p-6 rounded-full bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
-                    <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-400" />
-                  </div>
-                </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Current Interviews</h2>
-                <p className="text-base md:text-lg text-slate-400">
-                  Monitor and manage interview sessions
                 </p>
               </CardContent>
             </Card>
