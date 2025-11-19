@@ -70,7 +70,8 @@ export default function FollowUpPackDetails({
         requires_completion: formData.requires_completion,
         max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
         ai_probe_instructions: formData.ai_probe_instructions,
-        active: formData.active
+        active: formData.active,
+        category_id: formData.categoryId
       });
       onUpdate();
       setIsEditing(false);
