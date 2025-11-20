@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -332,7 +331,7 @@ export default function SystemAdminDashboard() {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
                 <Shield className="w-7 h-7 text-blue-400 flex-shrink-0" />
-                <span>System Admin Dashboard</span>
+                <span>Department Dashboard</span>
               </h1>
               <p className="text-sm text-slate-300 mt-1">
                 Platform health, department management, and system-wide metrics
@@ -488,24 +487,24 @@ export default function SystemAdminDashboard() {
                   return (
                     <div
                       key={dept.id}
-                      className="border border-slate-700 rounded-lg p-3 hover:border-blue-500/50 transition-colors"
+                      className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/50 hover:border-slate-600 transition-all"
                     >
                       <div className="flex flex-col lg:flex-row gap-3">
                         {/* Left - Department Info */}
                         <div className="flex-1 min-w-0">
-                          {/* Header Row */}
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                              <h3 className="text-white font-semibold text-sm break-words">{dept.department_name}</h3>
-                              <Badge className={getPlanBadgeColor(dept.plan_level)} variant="outline">
+                        {/* Header Row */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                            <h3 className="text-white font-semibold text-base break-words">{dept.department_name}</h3>
+                              <Badge className={`${getPlanBadgeColor(dept.plan_level)} text-xs`} variant="outline">
                                 {dept.plan_level}
                               </Badge>
                               {daysRemaining !== null && (
-                                <Badge variant="outline" className={
+                                <Badge variant="outline" className={`text-xs ${
                                   daysRemaining <= 3 
                                     ? "border-red-500 text-red-400 bg-red-950/20" 
                                     : "border-orange-500 text-orange-400 bg-orange-950/20"
-                                }>
+                                }`}>
                                   {daysRemaining}d left
                                 </Badge>
                               )}
@@ -514,7 +513,7 @@ export default function SystemAdminDashboard() {
                           </div>
 
                           {/* Department Code & Location */}
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                          <div className="flex items-center gap-2 text-sm text-slate-400 mb-3">
                             <span className="font-mono">{dept.department_code}</span>
                             {dept.city && dept.state && (
                               <>
@@ -525,7 +524,7 @@ export default function SystemAdminDashboard() {
                           </div>
                           
                           {/* Key Stats Grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                          <div className="flex flex-wrap items-center gap-4 mb-3">
                             <StatItem label="Interviews" value={stats.interviewsCount || 0} />
                             <StatItem label="Completed" value={stats.completedInterviewsCount || 0} />
                             <StatItem label="In Progress" value={stats.inProgressCount || 0} highlight={stats.inProgressCount > 0} />
@@ -547,7 +546,7 @@ export default function SystemAdminDashboard() {
 
                           {/* Contact */}
                           {(dept.contact_name || dept.contact_email) && (
-                            <div className="text-xs text-slate-500 mt-2 pt-2 border-t border-slate-700/50">
+                            <div className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-700/50">
                               {dept.contact_name && <span>{dept.contact_name}</span>}
                               {dept.contact_email && (
                                 <>
@@ -562,12 +561,12 @@ export default function SystemAdminDashboard() {
                         {/* Right - Actions */}
                         <div className="flex lg:flex-col gap-2 flex-shrink-0">
                           <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1 lg:flex-none">
-                            <Button size="sm" variant="outline" className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700 text-xs h-8">
+                            <Button size="sm" variant="outline" className="w-full bg-slate-700/50 border-slate-600 text-white hover:bg-slate-600 text-xs h-9">
                               View
                             </Button>
                           </Link>
                           <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1 lg:flex-none">
-                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
+                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-9">
                               Edit
                             </Button>
                           </Link>
@@ -576,12 +575,12 @@ export default function SystemAdminDashboard() {
                             variant="outline"
                             onClick={() => handleDeleteClick(dept)}
                             disabled={dept.plan_level === 'Paid' || isDeleting}
-                            className={`flex-1 lg:flex-none text-xs h-8 ${
+                            className={`flex-1 lg:flex-none text-xs h-9 ${
                               dept.plan_level === 'Paid' 
                                 ? 'opacity-50 cursor-not-allowed border-slate-600 text-slate-500' 
                                 : isInConfirmState
                                 ? 'bg-red-600 text-white hover:bg-red-700 border-red-600 animate-pulse'
-                                : 'bg-slate-900/50 border-slate-600 text-slate-300 hover:bg-red-950/30 hover:border-red-600 hover:text-red-400'
+                                : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-red-900/50 hover:border-red-600 hover:text-red-400'
                             }`}
                             title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
                           >
@@ -620,14 +619,14 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
   };
 
   return (
-    <Card className={`relative overflow-hidden bg-gradient-to-br border ${colorClasses[color]} ${alert ? 'ring-2 ring-orange-500/50' : ''}`}>
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <p className="text-xs text-slate-400">{title}</p>
+    <Card className={`relative overflow-hidden bg-slate-800/50 backdrop-blur-sm border border-slate-700 ${alert ? 'ring-2 ring-orange-500/50' : ''}`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">{title}</p>
           <Icon className={`w-4 h-4 flex-shrink-0 ${iconColorClasses[color]}`} />
         </div>
-        <p className="text-2xl font-bold text-white mb-0.5">{value}</p>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <p className="text-2xl md:text-3xl font-bold text-white mb-1">{value}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </CardContent>
     </Card>
   );
@@ -635,9 +634,9 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
 
 function StatItem({ label, value, highlight }) {
   return (
-    <div className="bg-slate-900/30 rounded px-2 py-1">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`text-sm font-semibold ${highlight ? 'text-orange-400' : 'text-white'}`}>{value}</p>
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-slate-400">{label}:</span>
+      <span className={`text-sm font-semibold ${highlight ? 'text-orange-400' : 'text-white'}`}>{value}</span>
     </div>
   );
 }
