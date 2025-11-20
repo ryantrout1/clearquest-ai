@@ -1805,6 +1805,10 @@ export async function bootstrapEngine(base44) {
       console.log('✅ Engine configuration validated - all packs defined');
     }
 
+    // DEBUG: Print diagnostic maps
+    debugPrintQuestionSectionMap(sections, questions);
+    debugPrintDuplicateQuestionCodes(sections, questions);
+
     const engineState = {
       QById,
       MatrixYesByQ,
@@ -1822,6 +1826,9 @@ export async function bootstrapEngine(base44) {
       UndefinedPacks: Array.from(UndefinedPacks),
       Architecture: 'section-first-db-driven-v2-packs'
     };
+
+    // DEBUG: Print runtime mapping for Criminal vs Illegal
+    debugPrintCriminalVsIllegalMapping(engineState, sections);
 
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
@@ -1849,6 +1856,128 @@ export async function bootstrapEngine(base44) {
 // ============================================================================
 // DIAGNOSTIC HELPERS
 // ============================================================================
+
+/**
+ * DEBUG: Print detailed question-section mapping from database
+ */
+export function debugPrintQuestionSectionMap(sections, questions) {
+  console.log('\n========== SECTION QUESTION MAP ==========\n');
+  
+  const sortedSections = sections
+    .filter(s => s.active !== false)
+    .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+  
+  sortedSections.forEach(section => {
+    const sectionQuestions = questions
+      .filter(q => q.section_id === section.id && q.active !== false)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    console.log(`[Section ${section.section_order}] ${section.section_name} (id=${section.id})`);
+    console.log(`Active questions: ${sectionQuestions.length}\n`);
+    
+    sectionQuestions.forEach(q => {
+      const shortText = (q.question_text || '').substring(0, 80);
+      console.log(`  - dbId: ${q.id}`);
+      console.log(`    code: ${q.question_id}`);
+      console.log(`    text: ${shortText}${q.question_text?.length > 80 ? '...' : ''}`);
+      console.log(`    sectionIdOnRecord: ${q.section_id}`);
+      console.log(`    displayOrder: ${q.display_order}`);
+      console.log('');
+    });
+  });
+  
+  console.log('===========================================\n');
+}
+
+/**
+ * DEBUG: Find duplicate question codes
+ */
+export function debugPrintDuplicateQuestionCodes(sections, questions) {
+  console.log('\n========== DUPLICATE QUESTION CODE AUDIT ==========\n');
+  
+  const codeMap = {};
+  questions.forEach(q => {
+    const code = q.question_id;
+    if (!code || code.trim() === '') return;
+    
+    if (!codeMap[code]) {
+      codeMap[code] = [];
+    }
+    codeMap[code].push(q);
+  });
+  
+  const duplicates = Object.entries(codeMap).filter(([code, occurrences]) => occurrences.length > 1);
+  
+  if (duplicates.length === 0) {
+    console.log('✅ No duplicate question codes found\n');
+  } else {
+    console.log(`⚠️ Found ${duplicates.length} duplicate question codes:\n`);
+    
+    duplicates.forEach(([code, occurrences]) => {
+      console.log(`code: ${code}`);
+      console.log(`Occurrences: ${occurrences.length}\n`);
+      
+      occurrences.forEach(q => {
+        const section = sections.find(s => s.id === q.section_id);
+        const shortText = (q.question_text || '').substring(0, 80);
+        
+        console.log(`  - dbId: ${q.id}`);
+        console.log(`    sectionId: ${q.section_id}`);
+        console.log(`    sectionName: ${section?.section_name || 'Unknown'}`);
+        console.log(`    active: ${q.active}`);
+        console.log(`    displayOrder: ${q.display_order}`);
+        console.log(`    shortText: ${shortText}${q.question_text?.length > 80 ? '...' : ''}`);
+        console.log('');
+      });
+    });
+  }
+  
+  console.log('=============================================\n');
+}
+
+/**
+ * DEBUG: Print runtime mapping for Criminal vs Illegal Drug sections
+ */
+export function debugPrintCriminalVsIllegalMapping(engine, sections) {
+  console.log('\n========== RUNTIME MAPPING: Criminal vs Illegal ==========\n');
+  
+  const criminalSection = sections.find(s => s.section_name?.includes('Criminal Involvement'));
+  const illegalDrugSection = sections.find(s => s.section_name?.includes('Illegal Drug'));
+  
+  if (criminalSection) {
+    const criminalSectionId = criminalSection.section_id;
+    const criminalQuestions = engine.questionsBySection[criminalSectionId] || [];
+    
+    console.log(`[Criminal] sectionId="${criminalSectionId}", dbId=${criminalSection.id}, order=${criminalSection.section_order}`);
+    console.log(`QuestionIds in this section (runtime order): ${criminalQuestions.length} questions\n`);
+    
+    criminalQuestions.forEach((q, idx) => {
+      const fullQ = engine.QById[q.question_id];
+      console.log(`  [${idx + 1}] ${q.question_id} | display_order=${q.display_order} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
+    });
+    console.log('');
+  } else {
+    console.log('⚠️ Criminal Involvement section not found\n');
+  }
+  
+  if (illegalDrugSection) {
+    const illegalDrugSectionId = illegalDrugSection.section_id;
+    const illegalDrugQuestions = engine.questionsBySection[illegalDrugSectionId] || [];
+    
+    console.log(`[Illegal Drug] sectionId="${illegalDrugSectionId}", dbId=${illegalDrugSection.id}, order=${illegalDrugSection.section_order}`);
+    console.log(`QuestionIds in this section (runtime order): ${illegalDrugQuestions.length} questions\n`);
+    
+    illegalDrugQuestions.forEach((q, idx) => {
+      const fullQ = engine.QById[q.question_id];
+      console.log(`  [${idx + 1}] ${q.question_id} | display_order=${q.display_order} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
+    });
+    console.log('');
+  } else {
+    console.log('⚠️ Illegal Drug section not found\n');
+  }
+  
+  console.log('==========================================================\n');
+}
 
 /**
  * DEBUG: Print canonical section and question map at startup
