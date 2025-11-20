@@ -166,7 +166,8 @@ export default function FollowUpPackDetails({
     return (
       <div className="text-center py-12">
         <Package className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-        <p className="text-slate-400 text-sm">Select a pack to view details</p>
+        <p className="text-lg font-semibold text-slate-400 mb-2">Select a pack to view details</p>
+        <p className="text-sm text-slate-500">Choose a pack from the middle column</p>
       </div>
     );
   }
@@ -183,10 +184,10 @@ export default function FollowUpPackDetails({
             <Input
               value={formData.pack_name}
               onChange={(e) => setFormData({...formData, pack_name: e.target.value})}
-              className="text-2xl font-bold bg-slate-800 border-slate-600 text-white mb-2"
+              className="text-lg font-semibold bg-slate-800 border-slate-600 text-white mb-2"
             />
           ) : (
-            <h3 className="text-2xl font-bold text-white">{pack.pack_name}</h3>
+            <h3 className="text-lg font-semibold text-white">{pack.pack_name}</h3>
           )}
           <p className="text-sm text-slate-400 font-mono mt-1">{pack.followup_pack_id}</p>
         </div>
@@ -247,7 +248,7 @@ export default function FollowUpPackDetails({
 
       {/* Category */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-slate-300 text-sm font-semibold mb-2 block">Category</Label>
+        <Label className="text-lg font-semibold text-white mb-3 block">Category</Label>
         {isEditing ? (
           <Select
             value={formData.categoryId}
@@ -266,11 +267,11 @@ export default function FollowUpPackDetails({
           </Select>
         ) : (
           <div>
-            <Badge className="bg-amber-500/20 border-amber-500/50 text-amber-300 mb-2">
+            <Badge className="bg-amber-500/20 border-amber-500/50 text-amber-300 mb-2 text-xs font-medium">
               {categoryInfo?.label || "Uncategorized"}
             </Badge>
             {categoryInfo && (
-              <p className="text-xs text-slate-400 leading-relaxed mt-2">{categoryInfo.description}</p>
+              <p className="text-sm text-slate-400 leading-relaxed mt-2">{categoryInfo.description}</p>
             )}
           </div>
         )}
@@ -278,7 +279,7 @@ export default function FollowUpPackDetails({
 
       {/* Description */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-slate-300 text-sm font-semibold mb-2 block">Description & Purpose</Label>
+        <Label className="text-lg font-semibold text-white mb-3 block">Description & Purpose</Label>
         {isEditing ? (
           <Textarea
             value={formData.description}
@@ -295,13 +296,13 @@ export default function FollowUpPackDetails({
 
       {/* Pack Configuration */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-slate-300 text-sm font-semibold mb-3 block">Pack Configuration</Label>
+        <Label className="text-lg font-semibold text-white mb-3 block">Pack Configuration</Label>
         
         {isEditing ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-slate-300 text-xs">Behavior Type</Label>
+                <Label className="text-sm text-slate-400">Behavior Type</Label>
                 <Select
                   value={formData.behavior_type}
                   onValueChange={(v) => setFormData({...formData, behavior_type: v})}
@@ -320,7 +321,7 @@ export default function FollowUpPackDetails({
 
               {formData.behavior_type === 'multi_incident' && (
                 <div>
-                  <Label className="text-slate-300 text-xs">Max Probe Loops</Label>
+                  <Label className="text-sm text-slate-400">Max Probe Loops</Label>
                   <Input
                     type="number"
                     value={formData.max_probe_loops}
@@ -333,7 +334,7 @@ export default function FollowUpPackDetails({
             </div>
 
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-slate-300 text-xs">Requires Completion</Label>
+              <Label className="text-sm text-slate-400">Requires Completion</Label>
               <Switch
                 checked={formData.requires_completion}
                 onCheckedChange={(checked) => setFormData({...formData, requires_completion: checked})}
@@ -342,7 +343,7 @@ export default function FollowUpPackDetails({
             </div>
 
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-slate-300 text-xs">Active</Label>
+              <Label className="text-sm text-slate-400">Active</Label>
               <Switch
                 checked={formData.active}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
@@ -352,21 +353,21 @@ export default function FollowUpPackDetails({
           </div>
         ) : (
           <div className="flex gap-2 flex-wrap">
-            <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+            <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
               {formData.behavior_type}
             </Badge>
             {pack.requires_completion && (
-              <Badge className="text-xs bg-orange-500/20 border-orange-500/50 text-orange-400">
+              <Badge className="text-xs font-medium bg-orange-500/20 border-orange-500/50 text-orange-400">
                 Required
               </Badge>
             )}
             {pack.max_probe_loops && (
-              <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+              <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
                 Max {pack.max_probe_loops} loops
               </Badge>
             )}
             {pack.active === false && (
-              <Badge variant="outline" className="text-xs border-red-600 text-red-400">
+              <Badge variant="outline" className="text-xs font-medium border-red-600 text-red-400">
                 Inactive
               </Badge>
             )}
@@ -376,7 +377,7 @@ export default function FollowUpPackDetails({
 
       {/* AI Probe Instructions */}
       <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
-        <Label className="text-blue-400 text-sm font-semibold mb-2 block">AI Probe Instructions</Label>
+        <Label className="text-lg font-semibold text-blue-400 mb-3 block">AI Probe Instructions</Label>
         {isEditing ? (
           <Textarea
             value={formData.ai_probe_instructions}
@@ -393,7 +394,7 @@ export default function FollowUpPackDetails({
 
       {/* Triggering Questions */}
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+        <h4 className="text-lg font-semibold text-emerald-400 mb-3 flex items-center gap-2">
           <FileText className="w-4 h-4" />
           Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
         </h4>
@@ -412,10 +413,10 @@ export default function FollowUpPackDetails({
                 className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-slate-800/70 transition-all text-left group"
               >
                 <div className="flex items-start gap-2">
-                  <Badge variant="outline" className="font-mono text-xs border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
+                  <Badge variant="outline" className="font-mono text-xs font-medium border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
                     {q.question_id}
                   </Badge>
-                  <p className="text-sm text-slate-300 leading-relaxed flex-1 group-hover:text-white transition-colors">
+                  <p className="text-base font-medium text-slate-300 leading-relaxed flex-1 group-hover:text-white transition-colors">
                     {q.question_text}
                   </p>
                   <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
@@ -429,7 +430,7 @@ export default function FollowUpPackDetails({
       {/* Deterministic Questions */}
       <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-purple-400">Follow-Up Questions ({sortedQuestions.length})</h4>
+          <h4 className="text-lg font-semibold text-purple-400">Follow-Up Questions ({sortedQuestions.length})</h4>
           <Button
             onClick={() => setShowAddQuestion(true)}
             size="sm"
@@ -533,9 +534,9 @@ export default function FollowUpPackDetails({
                       <span className="text-sm font-bold text-purple-300">#{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white break-words leading-relaxed">{q.question_text}</p>
+                      <p className="text-base font-medium text-white break-words leading-relaxed">{q.question_text}</p>
                       <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
+                        <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
                           {RESPONSE_TYPE_NAMES[q.response_type] || q.response_type}
                         </Badge>
                         <Switch
@@ -543,7 +544,7 @@ export default function FollowUpPackDetails({
                           onCheckedChange={(checked) => handleUpdateQuestion(q.id, { active: checked })}
                           className="data-[state=checked]:bg-emerald-600"
                         />
-                        <span className="text-xs text-slate-400">
+                        <span className="text-sm text-slate-400">
                           {q.active !== false ? 'Active' : 'Inactive'}
                         </span>
                       </div>

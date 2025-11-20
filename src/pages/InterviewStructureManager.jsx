@@ -379,10 +379,12 @@ export default function InterviewStructureManager() {
               Back
             </Button>
             <FolderOpen className="w-5 h-5 text-blue-400" />
-            <h1 className="text-lg font-semibold text-white">Interview Manager</h1>
-            <span className="text-xs text-slate-500">
-              Manage sections and questions
-            </span>
+            <div>
+              <h1 className="text-xl font-semibold text-white">Interview Manager</h1>
+              <span className="text-xs text-slate-400 block mt-0.5">
+                Manage sections and questions
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -392,7 +394,7 @@ export default function InterviewStructureManager() {
         {/* Left Panel - Sections */}
         <div className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4" style={{ width: '25%' }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-400">Sections</h3>
+            <h3 className="text-lg font-semibold text-white">Sections</h3>
             <div className="flex gap-1">
               <Button
                 onClick={recalculateGlobalQuestionNumbers}
@@ -453,21 +455,21 @@ export default function InterviewStructureManager() {
                                   isSelected ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
                                 }`} />
                                 <div className="flex-1 min-w-0">
-                                  <h4 className={`text-xs font-normal leading-tight ${
-                                    isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
-                                  }`}>
-                                    {section.section_name}
-                                  </h4>
-                                  <span className={`text-xs block mt-0.5 ${
-                                    isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
-                                  }`}>
-                                    {sectionQuestionsAll.length} questions ({activeCount} active)
-                                  </span>
+                                 <h4 className={`text-base font-medium leading-tight ${
+                                   isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                                 }`}>
+                                   {section.section_name}
+                                 </h4>
+                                 <span className={`text-sm block mt-0.5 ${
+                                   isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
+                                 }`}>
+                                   {sectionQuestionsAll.length} questions ({activeCount} active)
+                                 </span>
                                   {hasGate && (
-                                    <span className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
-                                      <Lock className="w-3 h-3" />
+                                    <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400 mt-1 px-2 py-0.5">
+                                      <Lock className="w-3 h-3 mr-1" />
                                       Gate
-                                    </span>
+                                    </Badge>
                                   )}
                                 </div>
                                 <Switch
@@ -528,10 +530,10 @@ export default function InterviewStructureManager() {
                   return (
                     <>
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-semibold text-white">
+                        <h3 className="text-lg font-semibold text-white">
                           {selectedSection.section_name}
                         </h3>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-sm text-slate-500">
                           {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
                         </span>
                       </div>
@@ -700,17 +702,18 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div>
-                              <h4 className={`text-xs font-normal leading-tight ${
+                              <h4 className={`text-base font-medium leading-tight ${
                                 isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'
                               }`}>
                                 {question.question_text}
                               </h4>
-                              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                              <p className="text-sm text-slate-500 font-mono mt-0.5">
                                 {question.question_id}
                                 {question.is_control_question && (
-                                  <span className="ml-2 text-amber-500">
-                                    <Lock className="w-3 h-3 inline" /> Gate
-                                  </span>
+                                  <Badge className="ml-2 text-xs bg-amber-500/20 border-amber-500/50 text-amber-400 px-2 py-0.5">
+                                    <Lock className="w-3 h-3 mr-1" />
+                                    Gate
+                                  </Badge>
                                 )}
                               </p>
                             </div>
@@ -726,11 +729,11 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                           </div>
                           
                           <div className="flex gap-1 flex-wrap mt-1.5">
-                            <span className="text-xs text-slate-500">
+                            <span className="text-sm text-slate-500">
                               {getResponseTypeDisplay(question.response_type)}
                             </span>
                             {question.followup_pack && (
-                              <span className="text-xs text-purple-400">
+                              <span className="text-sm text-purple-400">
                                 • {question.followup_pack}
                               </span>
                             )}
@@ -921,7 +924,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   if (!selectedItem) {
     return (
       <div className="text-center py-12">
-        <h4 className="text-base font-medium text-slate-400 mb-2">Select a question to edit</h4>
+        <h4 className="text-lg font-semibold text-slate-400 mb-2">Select a question to edit</h4>
         <p className="text-sm text-slate-500">Choose a question from the middle column to view and edit its details</p>
       </div>
     );
@@ -950,7 +953,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
         
         <div>
-          <Label className="text-slate-300">Section Name</Label>
+          <Label className="text-sm text-slate-400">Section Name</Label>
           <Input
             value={formData.section_name || ''}
             onChange={(e) => setFormData({...formData, section_name: e.target.value})}
@@ -959,7 +962,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         <div>
-          <Label className="text-slate-300">Description</Label>
+          <Label className="text-sm text-slate-400">Description</Label>
           <Textarea
             value={formData.description || ''}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
@@ -970,7 +973,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         {selectedItem.type !== 'new-section' && (
           <>
             <div>
-              <Label className="text-slate-300">Section Order</Label>
+              <Label className="text-sm text-slate-400">Section Order</Label>
               <Input
                 type="number"
                 value={formData.section_order || 0}
@@ -980,7 +983,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             </div>
 
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-slate-300">Active</Label>
+              <Label className="text-sm text-slate-400">Active</Label>
               <Switch
                 checked={formData.active !== false}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
@@ -989,7 +992,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             </div>
 
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-slate-300">Required</Label>
+              <Label className="text-sm text-slate-400">Required</Label>
               <Switch
                 checked={formData.required !== false}
                 onCheckedChange={(checked) => setFormData({...formData, required: checked})}
@@ -1043,7 +1046,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         
         {selectedItem.type === 'question' && (
           <div>
-            <Label className="text-slate-300">Question ID</Label>
+            <Label className="text-sm text-slate-400">Question ID</Label>
             <Input
               value={formData.question_id || ''}
               disabled
@@ -1053,7 +1056,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         )}
 
         <div>
-          <Label className="text-slate-300">Display Order</Label>
+          <Label className="text-sm text-slate-400">Display Order</Label>
           <Input
             type="number"
             value={formData.display_order || 1}
@@ -1063,7 +1066,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         <div>
-          <Label className="text-slate-300">Question Text</Label>
+          <Label className="text-sm text-slate-400">Question Text</Label>
           <Textarea
             value={formData.question_text || ''}
             onChange={(e) => setFormData({...formData, question_text: e.target.value})}
@@ -1072,7 +1075,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         <div>
-          <Label className="text-slate-300">Response Type</Label>
+          <Label className="text-sm text-slate-400">Response Type</Label>
           <Select
             value={formData.response_type || 'yes_no'}
             onValueChange={(v) => setFormData({...formData, response_type: v})}
@@ -1090,7 +1093,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
         {/* Section selection is available for both existing and new questions when creating via the detail panel directly */}
         <div>
-          <Label className="text-slate-300">Section</Label>
+          <Label className="text-sm text-slate-400">Section</Label>
           <Select
             value={formData.section_id || ''}
             onValueChange={(v) => setFormData({...formData, section_id: v})}
@@ -1107,7 +1110,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         <div>
-          <Label className="text-slate-300 flex items-center gap-2">
+          <Label className="text-sm text-slate-400 flex items-center gap-2">
             Follow-Up Pack
             {formData.response_type === 'yes_no' && !formData.followup_pack && (
               <span className="text-xs text-yellow-400 flex items-center gap-1">
@@ -1155,7 +1158,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         </div>
 
         <div>
-          <Label className="text-slate-300">Substance Name (for drug questions)</Label>
+          <Label className="text-sm text-slate-400">Substance Name (for drug questions)</Label>
           <Input
             value={formData.substance_name || ''}
             onChange={(e) => setFormData({...formData, substance_name: e.target.value})}
@@ -1168,7 +1171,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <>
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <div className="flex-1 pr-3">
-                <Label className="text-slate-300 font-semibold">Multi-Instance Follow-Up</Label>
+                <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                   Ask "Do you have another instance?" after completing this pack
                 </p>
@@ -1188,7 +1191,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             
             {formData.followup_multi_instance && (
               <div>
-                <Label className="text-slate-300">Maximum Instances</Label>
+                <Label className="text-sm text-slate-400">Maximum Instances</Label>
                 <Input
                   type="number"
                   min="1"
@@ -1213,7 +1216,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <Label className="text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
+                <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                   Requires a Follow-Up Pack. Please select a pack above to enable this feature.
                 </p>
@@ -1223,7 +1226,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         )}
 
         <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-          <Label className="text-slate-300">Active</Label>
+          <Label className="text-sm text-slate-400">Active</Label>
           <Switch
             checked={formData.active !== false}
             onCheckedChange={(checked) => setFormData({...formData, active: checked})}
@@ -1235,7 +1238,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <div className="flex-1 pr-3">
             <div className="flex items-center gap-2 mb-1">
               <ShieldAlert className="w-4 h-4 text-orange-400" />
-              <Label className="text-slate-300 font-semibold">
+              <Label className="text-sm text-slate-400 font-semibold">
                 Control Question (Gate)
               </Label>
             </div>
@@ -1267,8 +1270,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <div className="mt-6 pt-6 border-t border-slate-700">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-base font-semibold text-white">Follow-Up Pack</h4>
-                <p className="text-xs text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
+                <h4 className="text-lg font-semibold text-white">Follow-Up Pack</h4>
+                <p className="text-sm text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
               </div>
               <Button
                 size="sm"
@@ -1283,10 +1286,10 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5 text-purple-400" />
                 <div>
-                  <p className="text-sm font-medium text-white">{selectedFollowUpPack.pack_name}</p>
-                  <p className="text-xs text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
+                  <p className="text-base font-medium text-white">{selectedFollowUpPack.pack_name}</p>
+                  <p className="text-sm text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
                 </div>
-                <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30">
+                <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs font-medium">
                   {packQuestions.length} questions
                 </Badge>
               </div>
