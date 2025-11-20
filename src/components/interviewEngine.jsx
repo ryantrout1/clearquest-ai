@@ -1466,8 +1466,8 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   const questionsBySection = {}; // section_id (string) -> [QuestionInSection]
   const questionIdToSection = {}; // question_id -> { sectionId: section_id (string), indexInSection }
 
-  // Initialize section configs from Section entities
-  activeSections.forEach(section => {
+  // Initialize section configs from ALL sections (active and inactive) for complete mapping
+  sections.forEach(section => {
     const sectionId = section.section_id; // Use the STRING identifier as the key
     sectionConfig[sectionId] = {
       id: sectionId, // string identifier (e.g. "DRIVING_RECORD")
@@ -1480,7 +1480,11 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       active: section.active !== false
     };
     questionsBySection[sectionId] = [];
-    console.log(`   ✅ Initialized questionsBySection["${sectionId}"] = []`);
+  });
+  
+  console.log(`\n📦 Initialized ${Object.keys(questionsBySection).length} sections (active and inactive)`);
+  activeSections.forEach(s => {
+    console.log(`   ✅ [${s.section_order}] ${s.section_name} (id="${s.section_id}")`);
   });
 
   console.log(`\n📦 questionsBySection keys after initialization:`, Object.keys(questionsBySection));
@@ -1534,11 +1538,16 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     QById[questionId] = q; // Keep simple key for legacy compatibility
     QById[compositeKey] = q; // Add composite key for section-aware lookups
 
-    // Check if the section is active (sectionEntity already found above)
-    if (!activeDbSectionIds.has(sectionEntity.id)) {
+    // Check if the section is active and has been initialized
+    if (sectionEntity.active === false) {
       console.log(`⏭️ Skipping question ${questionId} - section "${sectionEntity.section_name}" is inactive`);
       return;
-    } // STRING identifier
+    }
+    
+    if (!questionsBySection[sectionIdString]) {
+      console.warn(`⚠️ Section "${sectionIdString}" not initialized in questionsBySection - skipping question ${questionId}`);
+      return;
+    }
 
     questionsBySection[sectionIdString].push({
       question_id: questionId,
@@ -1622,14 +1631,19 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     });
 
   console.log(`\n📊 Section-first structure built:`);
-  console.log(`   - Sections in order: ${sectionOrder.length}`);
+  console.log(`   - Sections defined: ${Object.keys(sectionConfig).length}`);
+  console.log(`   - Active sections: ${sectionOrder.length}`);
   console.log(`   - Total active questions: ${totalQuestionsInActiveSections}`);
   
+  console.log(`\n📋 SECTION FLOW (deterministic order):`);
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach((cfg) => {
       const qCount = questionsBySection[cfg.id]?.length || 0;
-      console.log(`   ${cfg.section_order}. ${cfg.section_name} (id="${cfg.id}"): ${qCount} questions`);
+      const isActive = cfg.active !== false;
+      const willBeAsked = isActive && qCount > 0;
+      const status = willBeAsked ? '✅ WILL ASK' : (isActive ? '⏭️ SKIP (no Qs)' : '⏸️ DISABLED');
+      console.log(`   ${cfg.section_order}. ${cfg.section_name} (id="${cfg.id}"): ${qCount} questions - ${status}`);
     });
 
   if (UndefinedPacks.size > 0) {
@@ -1922,54 +1936,65 @@ export async function auditSectionQuestionCounts(base44, engine) {
  * Uses Section.section_order from database for deterministic routing
  */
 export function computeNextQuestionId(engine, currentQuestionId, answer) {
-  console.log(`🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
+  console.log(`\n🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
   
   // 1. Locate current section and index
   const location = engine.questionIdToSection[currentQuestionId];
   if (!location) {
     console.error(`❌ Question ${currentQuestionId} not found in section map.`);
-    return null; // End or error state
+    console.error(`   Available questions in questionIdToSection:`, Object.keys(engine.questionIdToSection).slice(0, 10));
+    return null;
   }
 
-  const { sectionId, indexInSection } = location; // sectionId here is the string identifier (e.g. "DRIVING_RECORD")
+  const { sectionId, indexInSection } = location;
   const section = engine.sectionConfig[sectionId];
   const questions = engine.questionsBySection[sectionId];
+  
+  if (!section) {
+    console.error(`❌ Section config not found for sectionId: ${sectionId}`);
+    return null;
+  }
+  
+  if (!questions || questions.length === 0) {
+    console.error(`❌ No questions found for section: ${sectionId}`);
+    return firstQuestionIdOfNextSection(engine, sectionId);
+  }
+  
   const currentQuestion = questions[indexInSection];
 
-  console.log(`   📍 Location: [${section.section_order}] ${section.section_name}, position #${indexInSection + 1}/${questions.length}`);
-  console.log(`   🎯 Section mode: ${section.mode}`);
+  console.log(`   📍 Current: [${section.section_order}] ${section.section_name}, Q${indexInSection + 1}/${questions.length}: ${currentQuestionId}`);
 
-  // 2. Check if current question is a control question (using is_control_question field)
+  // 2. Check if current question is a control question (gate within section)
   const fullQuestion = engine.QById[currentQuestionId];
   if (fullQuestion?.is_control_question === true && 
       fullQuestion.response_type === 'yes_no' &&
       normalizeToYesNo(answer) === "No") {
     
-    console.log(`   🚪 Control question ${currentQuestionId} answered No - skipping rest of [${section.section_order}] ${section.section_name}`);
+    console.log(`   🚪 GATE: ${currentQuestionId} answered No → skipping remaining ${questions.length - indexInSection - 1} questions in this section`);
     return firstQuestionIdOfNextSection(engine, sectionId);
   }
 
-  // 3. Check intra-section next_question_id (same section only)
+  // 3. Check intra-section next_question_id
   if (currentQuestion.next_question_id) {
     const targetInSection = questions.find(q => q.question_id === currentQuestion.next_question_id);
     if (targetInSection) {
-      console.log(`   ➡️ Intra-section branch to ${currentQuestion.next_question_id}`);
+      console.log(`   ➡️ Intra-section branch: ${currentQuestionId} → ${currentQuestion.next_question_id}`);
       return currentQuestion.next_question_id;
     } else {
-      console.warn(`   ⚠️ Question ${currentQuestion.question_id} has next_question_id ${currentQuestion.next_question_id} which is not found in the same section. Proceeding to next question in sequence.`);
+      console.warn(`   ⚠️ Invalid next_question_id ${currentQuestion.next_question_id} (not in section) - using sequential order`);
     }
   }
 
-  // 4. Default: move to next question in this section
+  // 4. Move to next question in same section
   const nextIndex = indexInSection + 1;
   if (nextIndex < questions.length) {
     const nextQ = questions[nextIndex];
-    console.log(`   ✅ Next question in section: ${nextQ.question_id} (#${nextIndex + 1})`);
+    console.log(`   ✅ Next in section: ${nextQ.question_id} (Q${nextIndex + 1}/${questions.length})`);
     return nextQ.question_id;
   }
 
-  // 5. End of section -> first question of next active section
-  console.log(`   🏁 End of [${section.section_order}] ${section.section_name} - moving to next available section.`);
+  // 5. End of section -> move to next section
+  console.log(`   🏁 Section complete: [${section.section_order}] ${section.section_name}`);
   return firstQuestionIdOfNextSection(engine, sectionId);
 }
 
@@ -1980,56 +2005,64 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
 function firstQuestionIdOfNextSection(engine, currentSectionId) {
   const currentSection = engine.sectionConfig[currentSectionId];
   if (!currentSection) {
-    console.error(`❌ Section "${currentSectionId}" not found in sectionConfig.`);
+    console.error(`❌ Section "${currentSectionId}" not found in sectionConfig`);
+    console.error(`   Available sections:`, Object.keys(engine.sectionConfig));
     return null;
   }
 
   const currentOrder = currentSection.section_order;
   
-  console.log(`[SectionRouting] Current section: [${currentOrder}] "${currentSection.section_name}" (id="${currentSectionId}")`);
-  console.log(`[SectionRouting] Available sectionConfig keys:`, Object.keys(engine.sectionConfig));
-  console.log(`[SectionRouting] Available questionsBySection keys:`, Object.keys(engine.questionsBySection));
+  console.log(`\n   🔄 SECTION TRANSITION from [${currentOrder}] ${currentSection.section_name}`);
   
-  // Find all sections with higher section_order
-  const candidateSections = Object.values(engine.sectionConfig)
-    .filter(s => s.section_order > currentOrder)
+  // Get all sections sorted by section_order
+  const allSections = Object.values(engine.sectionConfig)
     .sort((a, b) => a.section_order - b.section_order);
   
-  console.log(`[SectionRouting] Candidate sections (section_order > ${currentOrder}):`, 
-    candidateSections.map(s => `[${s.section_order}] "${s.section_name}" (id="${s.id}")`));
+  console.log(`   📋 All sections in order:`);
+  allSections.forEach(s => {
+    const qCount = (engine.questionsBySection[s.id] || []).length;
+    const isActive = s.active !== false;
+    const isCurrent = s.id === currentSectionId;
+    const marker = isCurrent ? '👉' : '  ';
+    console.log(`      ${marker} [${s.section_order}] ${s.section_name} - ${isActive ? '✅ Active' : '⏸️ Inactive'} - ${qCount} questions`);
+  });
   
-  // Iterate through candidates in section_order sequence
+  // Find sections after current one
+  const candidateSections = allSections.filter(s => s.section_order > currentOrder);
+  
+  console.log(`\n   🔎 Searching ${candidateSections.length} sections after current position...`);
+  
   for (const candidateSection of candidateSections) {
-    const candidateSectionId = candidateSection.id; // This is the STRING identifier
+    const candidateSectionId = candidateSection.id;
     const candidateQuestions = engine.questionsBySection[candidateSectionId] || [];
     
-    console.log(`[SectionRouting]   Checking [${candidateSection.section_order}] "${candidateSection.section_name}" (id="${candidateSectionId}")`);
-    console.log(`[SectionRouting]     - Active: ${candidateSection.active !== false}`);
-    console.log(`[SectionRouting]     - Questions: ${candidateQuestions.length}`);
+    const isActive = candidateSection.active !== false;
+    const hasQuestions = candidateQuestions.length > 0;
     
-    if (candidateQuestions.length > 0) {
-      console.log(`[SectionRouting]     - First 3 questions:`, candidateQuestions.slice(0, 3).map(q => q.question_id));
-    }
+    console.log(`   🔍 [${candidateSection.section_order}] ${candidateSection.section_name}:`);
+    console.log(`      - Active: ${isActive ? '✅ Yes' : '❌ No'}`);
+    console.log(`      - Questions: ${candidateQuestions.length}`);
     
-    // Skip if section is explicitly inactive OR has no questions
-    if (candidateSection.active === false) { 
-      console.log(`[SectionRouting]     ⏸️ Section inactive - skipping.`);
+    // RULE: Include section if active AND has questions
+    if (!isActive) {
+      console.log(`      ⏭️ Skipping: Section disabled in Interview Manager`);
       continue;
     }
     
-    if (candidateQuestions.length === 0) {
-      console.log(`[SectionRouting]     ⚠️ No questions in section - skipping.`);
+    if (!hasQuestions) {
+      console.log(`      ⏭️ Skipping: No active questions in section`);
       continue;
     }
     
-    // Found a valid next section with active questions!
+    // Found valid next section
     const firstQ = candidateQuestions[0];
-    console.log(`[SectionRouting]   ✅ Next active section found: [${candidateSection.section_order}] "${candidateSection.section_name}", first question: ${firstQ.question_id}`);
+    console.log(`      ✅ SELECTED as next section`);
+    console.log(`      → First question: ${firstQ.question_id}: "${firstQ.question_text}"\n`);
     return firstQ.question_id;
   }
 
-  console.log(`[SectionRouting] 🏁 No more active sections with questions after [${currentOrder}] - interview complete.`);
-  return null; // End of interview
+  console.log(`   🏁 No more sections - interview complete\n`);
+  return null;
 }
 
 /**
