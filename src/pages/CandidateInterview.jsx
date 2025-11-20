@@ -952,51 +952,22 @@ export default function CandidateInterview() {
           console.log(`➡️ Answer is "No" - skipping any follow-ups and advancing to next question`);
           const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
           
-          // CRITICAL: Enhanced logging and validation
           console.log(`🔍 Computing next question after ${currentItem.id}:`);
           console.log(`   - Returned nextQuestionId: ${nextQuestionId}`);
-          console.log(`   - Question exists in engine: ${nextQuestionId ? !!engine.QById[nextQuestionId] : 'N/A'}`);
-          console.log(`   - Total questions answered: ${newTranscript.filter(t => t.type === 'question').length}`);
-          console.log(`   - Total questions in bank: ${engine.TotalQuestions}`);
           
-          // CRITICAL: Only mark complete if we've TRULY answered ALL questions
-          const answeredCount = newTranscript.filter(t => t.type === 'question').length;
-          const hasAnsweredAll = answeredCount >= engine.TotalQuestions;
-          
+          // RESTORED ORIGINAL LOGIC: If no next question, interview is complete
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             console.log(`✅ Advancing to next question: ${nextQuestionId}`);
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
-          } else if (hasAnsweredAll) {
-            // Only mark complete if we've answered ALL questions
-            console.log(`✅ Answered all ${answeredCount}/${engine.TotalQuestions} questions - marking interview complete`);
+          } else {
+            // No next question - interview complete
+            console.log(`✅ No next question found - marking interview complete`);
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(newTranscript, [], null);
             setShowCompletionModal(true);
-          } else {
-            // CRITICAL ERROR: No next question but haven't answered all questions
-            console.error(`❌ CRITICAL ERROR: No next question found for ${currentItem.id}, but only answered ${answeredCount}/${engine.TotalQuestions} questions`);
-            console.error(`   This indicates a data integrity issue - missing next_question_id or broken question chain`);
-            
-            // EMERGENCY FALLBACK: Try to find the next unanswered question manually
-            const answeredIds = new Set(newTranscript.filter(t => t.type === 'question').map(t => t.questionId));
-            const nextUnanswered = engine.ActiveOrdered.find(qid => !answeredIds.has(qid));
-            
-            if (nextUnanswered) {
-              console.log(`🔧 EMERGENCY RECOVERY: Found unanswered question ${nextUnanswered} - continuing interview`);
-              setQueue([]);
-              setCurrentItem({ id: nextUnanswered, type: 'question' });
-              await persistStateToDatabase(newTranscript, [], { id: nextUnanswered, type: 'question' });
-            } else {
-              // Truly no more questions - mark complete
-              console.log(`✅ Emergency scan found no more unanswered questions - marking complete`);
-              setCurrentItem(null);
-              setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
-              setShowCompletionModal(true);
-            }
           }
         }
         
