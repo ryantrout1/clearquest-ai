@@ -124,6 +124,8 @@ export default function CandidateInterview() {
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null); // Track active pack for handoff
+  const [probingTurnCount, setProbingTurnCount] = useState(0); // Safety counter
+  const [lastAgentMessageTime, setLastAgentMessageTime] = useState(null); // Timeout tracker
   
   // Input state
   const [input, setInput] = useState("");
@@ -144,9 +146,14 @@ export default function CandidateInterview() {
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
   const unsubscribeRef = useRef(null);
+  const timeoutRef = useRef(null);
   
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
+  
+  // CONSTANTS
+  const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
+  const AGENT_TIMEOUT_MS = 45000; // 45 seconds
 
   // ============================================================================
   // INITIALIZATION
@@ -637,6 +644,25 @@ export default function CandidateInterview() {
   // NEW: AI AGENT HANDOFF AFTER FOLLOW-UP PACK COMPLETION
   // ============================================================================
 
+  const advanceToNextBaseQuestion = useCallback(async (baseQuestionId) => {
+    console.log(`🎯 Advancing to next base question after ${baseQuestionId}...`);
+    
+    const nextQuestionId = computeNextQuestionId(engine, baseQuestionId, 'Yes');
+    
+    if (nextQuestionId && engine.QById[nextQuestionId]) {
+      console.log(`✅ Next question: ${nextQuestionId}`);
+      setQueue([]);
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+    } else {
+      console.log('✅ No next question - marking interview complete');
+      setCurrentItem(null);
+      setQueue([]);
+      await persistStateToDatabase(transcript, [], null);
+      setShowCompletionModal(true);
+    }
+  }, [engine, transcript]);
+
   const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers) => {
     console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — handing off to agent for probing...`);
     
@@ -662,16 +688,21 @@ export default function CandidateInterview() {
     
     // Add each follow-up answer
     followUpAnswers.forEach((answer, idx) => {
-      const step = packSteps.find(s => s.Prompt === answer.questionText); // Find by prompt as index might be off due to skipping
+      const step = packSteps.find(s => s.Prompt === answer.questionText);
       if (step) {
         summaryLines.push(`- ${step.Prompt}: ${answer.answer}`);
       } else {
-        summaryLines.push(`- ${answer.questionText}: ${answer.answer}`); // Fallback if step not found (shouldn't happen)
+        summaryLines.push(`- ${answer.questionText}: ${answer.answer}`);
       }
     });
     
     summaryLines.push(``);
-    summaryLines.push(`Please evaluate whether this story is complete. If not, ask probing questions (up to 5) to get the full story. When satisfied, ask: "Before we move on, is there anything else investigators should know about this situation?" Then send the next base question.`);
+    summaryLines.push(`INSTRUCTIONS FOR AI INVESTIGATOR:`);
+    summaryLines.push(`1. Ask up to 5 probing questions to clarify the story if needed.`);
+    summaryLines.push(`2. Always conclude by asking: "Before we move on, is there anything else investigators should know about this situation?"`);
+    summaryLines.push(`3. After the candidate answers that closing question, respond with a brief acknowledgment and include the literal marker [[HANDOFF_TO_ENGINE]] in your message.`);
+    summaryLines.push(``);
+    summaryLines.push(`CRITICAL: Do NOT send the next base question yourself. The system will automatically present the next question after you send [[HANDOFF_TO_ENGINE]].`);
     
     const summaryMessage = summaryLines.join('\n');
     
@@ -685,6 +716,8 @@ export default function CandidateInterview() {
       
       setIsWaitingForAgent(true);
       setCurrentFollowUpPack({ questionId, packId, substanceName });
+      setProbingTurnCount(0);
+      setLastAgentMessageTime(Date.now());
       
       return true;
     } catch (err) {
@@ -695,21 +728,45 @@ export default function CandidateInterview() {
   };
 
   // ============================================================================
-  // NEW: DETECT WHEN AGENT SENDS NEXT BASE QUESTION + SAVE PROBING TO DATABASE
+  // NEW: DETECT HANDOFF MARKER + SAVE PROBING TO DATABASE
   // ============================================================================
 
   useEffect(() => {
-    if (!isWaitingForAgent || agentMessages.length === 0) return;
+    if (!isWaitingForAgent || agentMessages.length === 0 || !engine || !currentFollowUpPack) return;
     
     const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAgentMessage?.content) return;
     
-    // Check if agent sent a new base question (Q###)
+    // Update last message time
+    setLastAgentMessageTime(Date.now());
+    
+    // STEP 1: Check for handoff marker [[HANDOFF_TO_ENGINE]]
+    const hasHandoffMarker = lastAgentMessage.content.includes('[[HANDOFF_TO_ENGINE]]');
+    
+    if (hasHandoffMarker) {
+      console.log(`🎯 AI probing complete (handoff marker detected) for base question ${currentFollowUpPack.questionId} — advancing to next deterministic question`);
+      
+      // Save probing to database
+      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      
+      // Clear waiting state
+      setIsWaitingForAgent(false);
+      setProbingTurnCount(0);
+      setLastAgentMessageTime(null);
+      
+      const baseQuestionId = currentFollowUpPack.questionId;
+      setCurrentFollowUpPack(null);
+      
+      // Advance to next base question
+      advanceToNextBaseQuestion(baseQuestionId);
+      return;
+    }
+    
+    // LEGACY FALLBACK: Check if agent sent a base question (Q###) - old behavior
     const questionMatch = lastAgentMessage.content.match(/\b(Q\d{1,3})\b/i);
     if (questionMatch) {
       const nextQuestionId = questionMatch[1].toUpperCase();
       
-      // CRITICAL FIX: Verify question exists before setting it
       if (!engine.QById[nextQuestionId]) {
         console.error(`❌ Agent sent invalid question ID: ${nextQuestionId} - marking interview complete`);
         setIsWaitingForAgent(false);
@@ -720,25 +777,64 @@ export default function CandidateInterview() {
         return;
       }
 
-      console.log(`✅ Agent sent next base question: ${nextQuestionId}`);
+      console.log(`✅ Agent sent next base question (legacy): ${nextQuestionId}`);
       
-      // CRITICAL NEW: Save AI probing exchanges to database before moving on
-      if (currentFollowUpPack) {
-        saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
-      }
+      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
       
-      // Clear waiting state and continue with deterministic engine
       setIsWaitingForAgent(false);
       setCurrentFollowUpPack(null);
+      setProbingTurnCount(0);
+      setLastAgentMessageTime(null);
       
-      // Set next question as current item
       setCurrentItem({ id: nextQuestionId, type: 'question' });
       setQueue([]);
       
-      // Persist state
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, advanceToNextBaseQuestion]);
+
+  // ============================================================================
+  // SAFETY: TIMEOUT AND MAX-TURN FALLBACK
+  // ============================================================================
+
+  useEffect(() => {
+    if (!isWaitingForAgent || !currentFollowUpPack) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+    
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Set new timeout
+    timeoutRef.current = setTimeout(() => {
+      console.warn(`⚠️ AI probing timeout (${AGENT_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine for ${currentFollowUpPack.questionId}`);
+      
+      // Save whatever probing we have
+      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      
+      setIsWaitingForAgent(false);
+      setProbingTurnCount(0);
+      setLastAgentMessageTime(null);
+      
+      const baseQuestionId = currentFollowUpPack.questionId;
+      setCurrentFollowUpPack(null);
+      
+      toast.info('AI probing timed out - continuing with interview');
+      advanceToNextBaseQuestion(baseQuestionId);
+    }, AGENT_TIMEOUT_MS);
+    
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [isWaitingForAgent, currentFollowUpPack, lastAgentMessageTime, agentMessages, advanceToNextBaseQuestion]);
 
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
@@ -1219,13 +1315,40 @@ export default function CandidateInterview() {
         content: value
       });
       
+      // Increment turn count for safety cap
+      const newTurnCount = probingTurnCount + 1;
+      setProbingTurnCount(newTurnCount);
+      setLastAgentMessageTime(Date.now());
+      
+      // Check if we've exceeded max turns
+      if (newTurnCount >= MAX_PROBE_TURNS) {
+        console.warn(`⚠️ AI probing exceeded ${MAX_PROBE_TURNS} turns — forcing handoff to deterministic engine`);
+        
+        // Wait a moment for final AI response, then force handoff
+        setTimeout(() => {
+          if (isWaitingForAgent && currentFollowUpPack) {
+            saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+            
+            setIsWaitingForAgent(false);
+            setProbingTurnCount(0);
+            setLastAgentMessageTime(null);
+            
+            const baseQuestionId = currentFollowUpPack.questionId;
+            setCurrentFollowUpPack(null);
+            
+            toast.info('Probing complete - continuing with interview');
+            advanceToNextBaseQuestion(baseQuestionId);
+          }
+        }, 3000);
+      }
+      
       setIsCommitting(false);
     } catch (err) {
       console.error('❌ Error sending to agent:', err);
       setError('Failed to send message to AI agent');
       setIsCommitting(false);
     }
-  }, [conversation, isCommitting, isWaitingForAgent]);
+  }, [conversation, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion]);
 
   const handleTextSubmit = useCallback((e) => {
     e.preventDefault();
