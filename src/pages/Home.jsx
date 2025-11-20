@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -395,95 +394,50 @@ function SessionDialog({ open, onOpenChange }) {
 }
 
 function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
-  const [expandedCategory, setExpandedCategory] = useState(null);
-  const [allQuestions, setAllQuestions] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [sampleQuestions, setSampleQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadQuestions = async () => {
+    const loadSampleQuestions = async () => {
       try {
         setIsLoading(true);
-        const questions = await base44.entities.Question.filter({ active: true });
-        setAllQuestions(questions.sort((a, b) => a.display_order - b.display_order));
+        const [sectionsData, questionsData] = await Promise.all([
+          base44.entities.Section.filter({ active: true }),
+          base44.entities.Question.filter({ active: true })
+        ]);
+        
+        const sortedSections = sectionsData.sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+        setSections(sortedSections);
+        
+        // For each section, take only the first 3 questions as samples
+        const samples = [];
+        sortedSections.forEach(section => {
+          const sectionQuestions = questionsData
+            .filter(q => q.section_id === section.id)
+            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+            .slice(0, 3); // Only first 3 questions per section
+          
+          samples.push({
+            section: section,
+            questions: sectionQuestions
+          });
+        });
+        
+        setSampleQuestions(samples);
       } catch (err) {
-        console.error("Error loading questions:", err);
+        console.error("Error loading sample questions:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
     if (open) {
-      loadQuestions();
+      loadSampleQuestions();
     }
   }, [open]);
 
-  const categoryConfig = [
-    { name: "Applications with Other Law Enforcement Agencies", description: "Prior applications, hiring outcomes, and withdrawal reasons" },
-    { name: "Driving Record", description: "License history, DUIs, suspensions, accidents, and traffic violations" },
-    { name: "Criminal Involvement / Police Contacts", description: "Arrests, charges, convictions, warrants, gang ties, and weapons violations" },
-    { name: "Extremist Organizations", description: "Membership or support of hate groups and extremist ideologies" },
-    { name: "Sexual Activities", description: "Prostitution, pornography, harassment, assault, and exploitation" },
-    { name: "Financial History", description: "Bankruptcy, foreclosure, liens, debt, and gambling issues" },
-    { name: "Illegal Drug / Narcotic History", description: "47-substance checklist covering use, sales, manufacturing, and prescriptions" },
-    { name: "Alcohol History", description: "Alcohol dependency, treatment programs, and related incidents" },
-    { name: "Military History", description: "Service branch, discharge status, discipline, and courts-martial" },
-    { name: "Employment History", description: "Terminations, resignations, workplace investigations, and policy violations" },
-    { name: "Prior Law Enforcement", description: "LE work history, complaints, use of force, and integrity violations" },
-    { name: "General Disclosures & Eligibility", description: "Citizenship, visible tattoos, sworn statements, and final disclosures" }
-  ];
 
-  const categoriesWithCounts = useMemo(() => {
-    let globalDisplayNumber = 1;
-    
-    const result = categoryConfig.map(config => {
-      const categoryQuestions = allQuestions.filter(q => q.category === config.name);
-      
-      const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
-        ...q,
-        display_number: globalDisplayNumber++
-      }));
-      
-      return {
-        ...config,
-        questions: questionsWithDisplayNumbers,
-        count: categoryQuestions.length
-      };
-    });
-
-    const mappedCategories = new Set(categoryConfig.map(c => c.name));
-    const unmappedCategories = new Set();
-    
-    allQuestions.forEach(q => {
-      if (q.category && !mappedCategories.has(q.category)) {
-        unmappedCategories.add(q.category);
-      }
-    });
-
-    if (unmappedCategories.size > 0) {
-      console.warn('⚠️ Unmapped categories found in Question entity:', Array.from(unmappedCategories));
-      
-      unmappedCategories.forEach(catName => {
-        const categoryQuestions = allQuestions.filter(q => q.category === catName);
-        const questionsWithDisplayNumbers = categoryQuestions.map(q => ({
-          ...q,
-          display_number: globalDisplayNumber++
-        }));
-        
-        result.push({
-          name: catName,
-          description: "Additional category",
-          questions: questionsWithDisplayNumbers,
-          count: categoryQuestions.length
-        });
-      });
-    }
-
-    return result;
-  }, [allQuestions]);
-
-  const toggleCategory = (index) => {
-    setExpandedCategory(expandedCategory === index ? null : index);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -494,7 +448,7 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
             <span className="break-words">{totalQuestions}-Question Master Bank</span>
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
-            Every question, organized by investigative domain. Click any section to see all questions.
+            Sample questions from each investigative section. The full interview includes {totalQuestions} questions.
           </DialogDescription>
         </DialogHeader>
         
@@ -502,58 +456,41 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
           <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
             {isLoading ? (
               <div className="text-center py-12 text-slate-400 text-sm sm:text-base">
-                Loading questions...
+                Loading sample questions...
               </div>
             ) : (
-              categoriesWithCounts.map((category, idx) => {
-                const questionCount = category.count;
+              sampleQuestions.map((sectionData, idx) => {
+                const section = sectionData.section;
+                const questions = sectionData.questions;
 
                 return (
                   <div 
-                    key={idx}
-                    className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden hover:border-blue-500/50 transition-colors"
+                    key={section.id}
+                    className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-blue-500/50 transition-colors"
                   >
-                    <button
-                      onClick={() => toggleCategory(idx)}
-                      className="w-full p-3 sm:p-4 text-left flex items-center justify-between gap-3 sm:gap-4 hover:bg-slate-800/70 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-white text-sm sm:text-base break-words">{category.name}</h3>
-                          <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 whitespace-nowrap text-xs">
-                            {questionCount} {questionCount === 1 ? 'question' : 'questions'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs sm:text-sm text-slate-400 break-words">
-                          {category.description}
-                        </p>
-                      </div>
-                      <ChevronRight 
-                        className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0 transition-transform ${
-                          expandedCategory === idx ? 'rotate-90' : ''
-                        }`}
-                      />
-                    </button>
-
-                    {expandedCategory === idx && (
-                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-slate-700/50">
-                        <div className="pt-3">
-                          <p className="text-xs font-semibold text-blue-400 mb-2 sm:mb-3">All Questions in this Category:</p>
-                          <div className="max-h-48 sm:max-h-64 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
-                            <div className="space-y-2">
-                              {category.questions.map((question) => (
-                                <div key={question.question_id} className="flex items-start gap-2 text-xs sm:text-sm">
-                                  <span className="text-blue-400 flex-shrink-0 font-mono text-xs mt-0.5">
-                                    {question.display_number}
-                                  </span>
-                                  <span className="text-slate-300 break-words">{question.question_text}</span>
-                                </div>
-                              ))}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-white text-sm sm:text-base mb-1 break-words">
+                        {section.section_name}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-400 mb-3 break-words">
+                        {section.description || "Sample questions from this investigative area"}
+                      </p>
+                      
+                      {questions.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          {questions.map((question) => (
+                            <div key={question.id} className="flex items-start gap-2 text-xs sm:text-sm">
+                              <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                              <span className="text-slate-300 break-words">{question.question_text}</span>
                             </div>
-                          </div>
+                          ))}
                         </div>
-                      </div>
-                    )}
+                      )}
+                      
+                      <p className="text-xs text-slate-500 italic mt-2">
+                        Additional questions are asked during the actual interview. These are sample questions only.
+                      </p>
+                    </div>
                   </div>
                 );
               })
@@ -563,7 +500,7 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
         <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3 sm:mt-4">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
-            <strong>Investigator Note:</strong> AI asks one question at a time conversationally. Applicants cannot skip ahead or see what's coming. Every answer is recorded with timestamps.
+            <strong>Investigator Note:</strong> The full interview includes {totalQuestions} questions across all sections. Questions are asked one at a time in a conversational flow. Every answer is recorded with timestamps and encrypted.
           </p>
         </div>
       </DialogContent>
