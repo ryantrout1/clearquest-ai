@@ -161,9 +161,9 @@ export default function Home() {
           <StepCard 
             number="1" 
             title="Structured Screening Starts Here" 
-            description="ClearQuest standardizes the first step of your hiring process. Every applicant begins with the same consistent, defensible, bias-free interview before backgrounds even begin."
+            description="ClearQuest standardizes the first step of your hiring process, ensuring every applicant begins with the same consistent, defensible interview."
             link="See How It Works →"
-            onClick={null}
+            onClick={() => {}}
           />
           <StepCard 
             number="2" 
