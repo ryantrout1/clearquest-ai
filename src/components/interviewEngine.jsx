@@ -14,19 +14,8 @@ const FOLLOWUP_PACK_STEPS = {
   // THESE PACK IDS MATCH THE Question.followup_pack FIELD VALUES EXACTLY
   
   // ========== Applications with Other LE Agencies ==========
-  'PACK_LE_APPS': [
-    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency did you apply to?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'application_date', Prompt: 'When did you apply? (Month and year is fine.)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'application_outcome', Prompt: 'What was the outcome of your application?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { 
-      Field_Key: 'official_reason_not_hired', 
-      Prompt: 'What was the official reason the agency gave you for not selecting you?', 
-      Response_Type: 'text', 
-      Expected_Type: 'TEXT',
-      Conditional_On: 'application_outcome',
-      Conditional_Skip_If: ['hired', 'Hired', 'HIRED', 'was hired', 'I was hired']
-    }
-  ],
+  // DEPRECATED: PACK_LE_APPS migrated to V2 FollowUpPack (see database)
+  // Legacy definition kept as fallback only - V2 takes precedence at runtime
 
   'PACK_WITHHOLD_INFO': [
     { Field_Key: 'what_withheld', Prompt: 'What information did you withhold?', Response_Type: 'text', Expected_Type: 'TEXT' },
@@ -561,14 +550,8 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
-  'PACK_LE_INTERVIEW': [
-    { Field_Key: 'when_occurred', Prompt: 'When were you interviewed by law enforcement?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'agency', Prompt: 'Which law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'reason', Prompt: 'What was the reason for the interview?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'your_role', Prompt: 'Were you a suspect, witness, victim, or informant?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
+  // DEPRECATED: PACK_LE_INTERVIEW migrated to V2 FollowUpPack (see database)
+  // Legacy definition kept as fallback only - V2 takes precedence at runtime
 
   'PACK_ARRESTABLE_ACTIVITY': [
     { Field_Key: 'activity_type', Prompt: 'What type of activity could result in arrest?', Response_Type: 'text', Expected_Type: 'TEXT' },
@@ -1224,84 +1207,10 @@ const FOLLOWUP_PACK_STEPS = {
   ],
 
   // ========== Prior Law Enforcement Employment ==========
-  'PACK_LE_PREV': [
-    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency did you work for?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'employment_dates', Prompt: 'When did you work there? (start and end dates)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'position', Prompt: 'What was your position?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'reason_for_leaving', Prompt: 'Why did you leave?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'eligible_for_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_ACCUSED_FORCE': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the incident and the accusation.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'investigation_outcome', Prompt: 'What was the outcome of the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discipline', Prompt: 'Was any discipline taken?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_GRATUITY': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'what_received', Prompt: 'What gratuity did you accept?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'from_whom', Prompt: 'From whom did you accept it?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_FALSIFY_REPORT': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'report_type', Prompt: 'What type of report did you falsify?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'what_falsified', Prompt: 'What was falsified?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'why', Prompt: 'Why did you falsify it?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_INTERNAL_AFFAIRS': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did the investigation occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'allegation', Prompt: 'What was the allegation?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'investigation_finding', Prompt: 'What was the finding? (sustained, unfounded, exonerated, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discipline', Prompt: 'Was any discipline taken?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_LYING_LE': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'what_lied_about', Prompt: 'What did you lie about?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'to_whom', Prompt: 'To whom did you lie? (supervisor, investigator, court, etc.)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discovered', Prompt: 'Was it discovered?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'consequences', Prompt: 'What were the consequences?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_LE_COMPLAINT': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did the complaint occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'complaint_nature', Prompt: 'What was the nature of the complaint?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'Describe the circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'investigation_outcome', Prompt: 'What was the outcome of the investigation?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'discipline', Prompt: 'Was any discipline taken?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this situation?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
-
-  'PACK_OTHER_PRIOR_LE': [
-    { Field_Key: 'agency', Prompt: 'Which agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'issue_description', Prompt: 'Describe the issue.', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'when_occurred', Prompt: 'When did this occur?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'circumstances', Prompt: 'What were the circumstances?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ],
+  // DEPRECATED: All PACK_LE_* packs migrated to V2 FollowUpPack (see database)
+  // Legacy definitions kept as fallback only - V2 takes precedence at runtime
+  // Migrated: PACK_LE_PREV, PACK_ACCUSED_FORCE, PACK_GRATUITY, PACK_FALSIFY_REPORT,
+  //           PACK_INTERNAL_AFFAIRS, PACK_LYING_LE, PACK_LE_COMPLAINT, PACK_OTHER_PRIOR_LE
 
   // ========== General Disclosures & Eligibility ==========
   'PACK_EMBARRASSMENT': [
@@ -1337,13 +1246,8 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
-  'PACK_PRIOR_LE': [
-    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency did you work for?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'employment_dates', Prompt: 'When did you work there? (start and end dates)', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'position', Prompt: 'What was your position?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'reason_for_leaving', Prompt: 'Why did you leave?', Response_Type: 'text', Expected_Type: 'TEXT' },
-    { Field_Key: 'eligible_for_rehire', Prompt: 'Are you eligible for rehire?', Response_Type: 'text', Expected_Type: 'TEXT' }
-  ]
+  // DEPRECATED: PACK_PRIOR_LE migrated to V2 FollowUpPack (see database)
+  // Legacy definition kept as fallback only - V2 takes precedence at runtime
 };
 
 // Note: For all pack definitions, date fields have been changed to Expected_Type: 'TEXT' to preserve user input exactly as entered
@@ -1727,7 +1631,7 @@ export function parseFollowUpPacks() {
  * NEW: Parse V2 Follow-Up Packs from database
  * Converts FollowUpQuestion entities into the same format as legacy FOLLOWUP_PACK_STEPS
  */
-export function parseV2FollowUpPacks(v2Packs) {
+export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
   const V2PackStepsById = {};
   
   v2Packs.forEach(pack => {
@@ -1737,10 +1641,11 @@ export function parseV2FollowUpPacks(v2Packs) {
       return;
     }
     
-    // Convert follow_up_questions array to legacy step format
-    const followUpQuestions = pack.follow_up_questions || [];
+    // Fetch questions for this pack from the FollowUpQuestion entity
+    const followUpQuestions = allFollowUpQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
+    
     if (followUpQuestions.length === 0) {
-      console.warn(`⚠️ V2 pack ${packId} has no follow_up_questions defined`);
+      console.warn(`⚠️ V2 pack ${packId} has no FollowUpQuestion entities linked`);
       return;
     }
     
@@ -1783,11 +1688,12 @@ export async function bootstrapEngine(base44) {
   const startTime = performance.now();
 
   try {
-    const [questions, sections, categories, v2Packs] = await Promise.all([
+    const [questions, sections, categories, v2Packs, v2FollowUpQuestions] = await Promise.all([
       base44.entities.Question.filter({ active: true }),
       base44.entities.Section.list(), // Fetch Section entities
       base44.entities.Category.list(), // Still fetch Categories for gate question backward compatibility
-      base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }) // Fetch V2 standardized packs
+      base44.entities.FollowUpPack.filter({ is_standard_cluster: true, active: true }), // Fetch V2 standardized packs
+      base44.entities.FollowUpQuestion.filter({ active: true }) // Fetch all V2 follow-up questions
     ]);
 
     const { 
@@ -1808,7 +1714,7 @@ export async function bootstrapEngine(base44) {
     
     // V2 PACK SYSTEM: Load both legacy and V2 packs
     const { PackStepsById } = parseFollowUpPacks();
-    const V2PackStepsById = parseV2FollowUpPacks(v2Packs);
+    const V2PackStepsById = parseV2FollowUpPacks(v2Packs, v2FollowUpQuestions);
     
     // Merge V2 packs into PackStepsById (V2 takes precedence over legacy)
     Object.assign(PackStepsById, V2PackStepsById);
