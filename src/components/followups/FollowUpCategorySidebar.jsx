@@ -57,7 +57,7 @@ export default function FollowUpCategorySidebar({
                     isSelected ? "text-slate-400" : "text-slate-500 group-hover:text-slate-400"
                   )} />
                   <h4 className={cn(
-                    "text-xs font-normal leading-tight flex-1",
+                    "text-base font-medium leading-tight flex-1",
                     isSelected ? "text-white" : "text-slate-400 group-hover:text-slate-300"
                   )}>
                     {category.label}
@@ -69,7 +69,7 @@ export default function FollowUpCategorySidebar({
                   />
                 </div>
                 <div className={cn(
-                  "text-xs ml-6.5 opacity-70",
+                  "text-sm ml-6.5 opacity-70",
                   isSelected ? "text-slate-400" : "text-slate-500"
                 )}>
                   📦 {kpis.packCount} · 📝 {kpis.totalQuestions} · ✔️ {kpis.activeQuestions} · {kpis.validationIcon}
@@ -91,10 +91,10 @@ export default function FollowUpCategorySidebar({
         >
           <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-normal text-red-400">
+            <h4 className="text-base font-medium text-red-400">
               Uncategorized
             </h4>
-            <span className="text-xs text-red-500/80 block mt-0.5">
+            <span className="text-sm text-red-500/80 block mt-0.5">
               {packsByCategory["UNCATEGORIZED"].length} packs
             </span>
           </div>

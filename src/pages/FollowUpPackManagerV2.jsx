@@ -310,7 +310,7 @@ export default function FollowUpPackManagerV2() {
           className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4"
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-400">Categories</h3>
+            <h3 className="text-lg font-semibold text-white">Categories</h3>
           </div>
           <FollowUpCategorySidebar
             categories={FOLLOWUP_CATEGORIES}
@@ -338,12 +338,12 @@ export default function FollowUpPackManagerV2() {
         >
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white">
+              <h3 className="text-lg font-semibold text-white">
                 {selectedCategoryId === "UNCATEGORIZED" 
                   ? "Uncategorized Packs"
                   : FOLLOWUP_CATEGORIES.find(c => c.id === selectedCategoryId)?.label}
               </h3>
-              <span className="text-xs text-slate-500">
+              <span className="text-sm text-slate-500">
                 {filteredPacks.length} {filteredPacks.length === 1 ? 'pack' : 'packs'}
               </span>
             </div>
