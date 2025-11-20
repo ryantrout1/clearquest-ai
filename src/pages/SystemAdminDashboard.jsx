@@ -485,17 +485,14 @@ export default function SystemAdminDashboard() {
                   const isInConfirmState = confirmDeleteId === dept.id;
                   
                   return (
-                    <div
-                      key={dept.id}
-                      className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/50 hover:border-slate-600 transition-all"
-                    >
+                    <Card key={dept.id} className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                    <CardContent className="p-4">
                       <div className="flex flex-col lg:flex-row gap-3">
-                        {/* Left - Department Info */}
-                        <div className="flex-1 min-w-0">
-                        {/* Header Row */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                            <h3 className="text-white font-semibold text-base break-words">{dept.department_name}</h3>
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div>
+                            <h3 className="text-base font-medium text-white mb-1">
+                              {dept.department_name}
+                            </h3>
                               <Badge className={`${getPlanBadgeColor(dept.plan_level)} text-xs`} variant="outline">
                                 {dept.plan_level}
                               </Badge>
@@ -512,23 +509,46 @@ export default function SystemAdminDashboard() {
                             <HealthIndicator status={stats.healthStatus} />
                           </div>
 
-                          {/* Department Code & Location */}
-                          <div className="flex items-center gap-2 text-sm text-slate-400 mb-3">
-                            <span className="font-mono">{dept.department_code}</span>
-                            {dept.city && dept.state && (
-                              <>
-                                <span>•</span>
-                                <span>{dept.city}, {dept.state}</span>
-                              </>
-                            )}
+                              <div className="space-y-0.5">
+                                <p className="text-sm text-slate-400">
+                                  Code: <span className="text-slate-300 font-mono font-normal">{dept.department_code}</span>
+                                </p>
+                                {dept.city && dept.state && (
+                                  <p className="text-sm text-slate-400">
+                                    Location: <span className="text-slate-300 font-normal">{dept.city}, {dept.state}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                              <Clock className="w-3 h-3" />
+                              <span>
+                                {dept.date_joined 
+                                  ? format(new Date(dept.date_joined), "MMM d, yyyy") 
+                                  : 'N/A'}
+                              </span>
+                            </div>
                           </div>
                           
-                          {/* Key Stats Grid */}
-                          <div className="flex flex-wrap items-center gap-4 mb-3">
-                            <StatItem label="Interviews" value={stats.interviewsCount || 0} />
-                            <StatItem label="Completed" value={stats.completedInterviewsCount || 0} />
-                            <StatItem label="In Progress" value={stats.inProgressCount || 0} highlight={stats.inProgressCount > 0} />
-                            <StatItem label="Follow-Ups" value={stats.followUpsCount || 0} />
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Interviews</p>
+                              <p className="text-xl font-bold text-white">{stats.interviewsCount || 0}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Completed</p>
+                              <p className="text-xl font-bold text-white">{stats.completedInterviewsCount || 0}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">In Progress</p>
+                              <p className={cn("text-xl font-bold", stats.inProgressCount > 0 ? "text-orange-400" : "text-white")}>
+                                {stats.inProgressCount || 0}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
+                              <p className="text-xl font-bold text-white">{stats.followUpsCount || 0}</p>
+                            </div>
                           </div>
 
                           {/* Secondary Stats */}
@@ -544,52 +564,44 @@ export default function SystemAdminDashboard() {
                             )}
                           </div>
 
-                          {/* Contact */}
-                          {(dept.contact_name || dept.contact_email) && (
-                            <div className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-700/50">
-                              {dept.contact_name && <span>{dept.contact_name}</span>}
-                              {dept.contact_email && (
-                                <>
-                                  {dept.contact_name && <span> • </span>}
-                                  <span>{dept.contact_email}</span>
-                                </>
-                              )}
-                            </div>
-                          )}
                         </div>
                         
-                        {/* Right - Actions */}
-                        <div className="flex lg:flex-col gap-2 flex-shrink-0">
-                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1 lg:flex-none">
-                            <Button size="sm" variant="outline" className="w-full bg-slate-700/50 border-slate-600 text-white hover:bg-slate-600 text-xs h-9">
-                              View
-                            </Button>
-                          </Link>
-                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="flex-1 lg:flex-none">
-                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-9">
-                              Edit
-                            </Button>
-                          </Link>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleDeleteClick(dept)}
-                            disabled={dept.plan_level === 'Paid' || isDeleting}
-                            className={`flex-1 lg:flex-none text-xs h-9 ${
-                              dept.plan_level === 'Paid' 
-                                ? 'opacity-50 cursor-not-allowed border-slate-600 text-slate-500' 
-                                : isInConfirmState
-                                ? 'bg-red-600 text-white hover:bg-red-700 border-red-600 animate-pulse'
-                                : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-red-900/50 hover:border-red-600 hover:text-red-400'
-                            }`}
-                            title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
-                          >
-                            <Trash2 className="w-3 h-3 lg:mr-1" />
-                            <span className="hidden lg:inline">{isInConfirmState ? 'Confirm' : 'Delete'}</span>
-                          </Button>
-                        </div>
+                          <div className="flex flex-col justify-between gap-3">
+                            <div className="flex justify-end">
+                              <HealthIndicator status={stats.healthStatus} />
+                            </div>
+                            <div className="flex flex-col gap-1.5 items-end">
+                              <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-full">
+                                <Button size="sm" variant="outline" className="w-full bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700 text-xs h-8">
+                                  View
+                                </Button>
+                              </Link>
+                              <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-full">
+                                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
+                                  Edit
+                                </Button>
+                              </Link>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleDeleteClick(dept)}
+                                disabled={dept.plan_level === 'Paid' || isDeleting}
+                                className={cn(
+                                  "text-xs h-8 w-full transition-colors",
+                                  dept.plan_level === 'Paid' 
+                                    ? 'opacity-50 cursor-not-allowed bg-slate-700 text-slate-500' 
+                                    : isInConfirmState
+                                    ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                )}
+                                title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
+                              >
+                                {isInConfirmState ? 'Confirm Delete' : 'Delete'}
+                              </Button>
+                            </div>
+                          </div>
                       </div>
-                    </div>
+                    </CardContent>
+                  </Card>
                   );
                 })
               )}
@@ -602,14 +614,6 @@ export default function SystemAdminDashboard() {
 }
 
 function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
-  const colorClasses = {
-    blue: "from-blue-500/20 to-blue-600/10 border-blue-500/30",
-    orange: "from-orange-500/20 to-orange-600/10 border-orange-500/30",
-    cyan: "from-cyan-500/20 to-cyan-600/10 border-cyan-500/30",
-    green: "from-green-500/20 to-green-600/10 border-green-500/30",
-    purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30"
-  };
-
   const iconColorClasses = {
     blue: "text-blue-400",
     orange: "text-orange-400",
@@ -619,27 +623,14 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
   };
 
   return (
-    <Card className={`relative overflow-hidden bg-slate-800/50 backdrop-blur-sm border border-slate-700 ${alert ? 'ring-2 ring-orange-500/50' : ''}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">{title}</p>
-          <Icon className={`w-4 h-4 flex-shrink-0 ${iconColorClasses[color]}`} />
-        </div>
-        <p className="text-2xl md:text-3xl font-bold text-white mb-1">{value}</p>
-        <p className="text-xs text-slate-500">{subtitle}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatItem({ label, value, highlight }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-slate-400">{label}:</span>
-      <span className={`text-sm font-semibold ${highlight ? 'text-orange-400' : 'text-white'}`}>{value}</span>
+    <div className={`bg-[#0f1629] border border-slate-800/50 rounded-lg p-4 ${alert ? 'ring-2 ring-orange-500/50' : ''}`}>
+      <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{title}</p>
+      <p className={cn("text-2xl font-bold", iconColorClasses[color])}>{value}</p>
     </div>
   );
 }
+
+
 
 function HealthIndicator({ status }) {
   const config = {
