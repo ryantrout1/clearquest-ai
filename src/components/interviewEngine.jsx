@@ -2284,7 +2284,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
     return firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
   }
   
-  const currentDbId = questions[indexInSection];
+  const currentDbId = questions[indexInSection].id;
   const currentQuestionObj = engine.QById[currentDbId];
 
   console.log(`   📍 Current: [${section.section_order}] ${section.section_name}, Q${indexInSection + 1}/${questions.length}: db_id=${currentDbId}, code=${currentCode}`);
@@ -2317,13 +2317,14 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
   if (currentQuestionObj.next_question_id) {
     // next_question_id is a code, need to find the database ID
     const targetInSection = questions.find(q => {
-      const qObj = engine.QById[q];
+      const qObj = engine.QById[q.id];
       return qObj?.question_id === currentQuestionObj.next_question_id;
     });
     if (targetInSection) {
-      const targetCode = engine.QuestionCodeById[targetInSection] || targetInSection;
-      console.log(`   ➡️ Intra-section branch: db_id=${currentQuestionId} → db_id=${targetInSection} (code: ${targetCode})`);
-      return targetInSection;
+      const targetDbId = targetInSection.id;
+      const targetCode = engine.QuestionCodeById[targetDbId] || targetDbId;
+      console.log(`   ➡️ Intra-section branch: db_id=${currentQuestionId} → db_id=${targetDbId} (code: ${targetCode})`);
+      return targetDbId;
     } else {
       console.warn(`   ⚠️ Invalid next_question_id ${currentQuestionObj.next_question_id} (not in section) - using sequential order`);
     }
@@ -2332,7 +2333,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
   // 4. Move to next question in same section
   const nextIndex = indexInSection + 1;
   if (nextIndex < questions.length) {
-    const nextDbId = questions[nextIndex];
+    const nextDbId = questions[nextIndex].id;
     const nextCode = engine.QuestionCodeById[nextDbId] || `db_${nextDbId}`;
     console.log(`   ✅ Next in section: db_id=${nextDbId}, code=${nextCode} (Q${nextIndex + 1}/${questions.length})`);
     return nextDbId;
@@ -2415,7 +2416,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, currentQuestionI
     }
     
     // Found valid next section - return database ID
-    const firstDbId = candidateQuestions[0];
+    const firstDbId = candidateQuestions[0].id;
     const firstQ = engine.QById[firstDbId];
     const firstCode = engine.QuestionCodeById[firstDbId] || `db_${firstDbId}`;
     console.log(`    ✅ CHOSEN\n`);
