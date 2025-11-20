@@ -755,8 +755,8 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
       valueText: "text-white"
     },
     completion: {
-      bg: "bg-blue-900/40",
-      border: "border-blue-700/40",
+      bg: "bg-indigo-800/50",
+      border: "border-indigo-600/50",
       valueText: "text-white"
     }
   };
