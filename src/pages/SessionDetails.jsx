@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SectionHeader from "../components/sessionDetails/SectionHeader";
+import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
+import { Clock } from "lucide-react";
 
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
@@ -338,6 +340,57 @@ export default function SessionDetails() {
     ? Math.round((actualQuestionsAnswered / totalQuestions) * 100) 
     : 0;
 
+  // Calculate time metrics
+  const calculateTimeMetrics = () => {
+    if (responses.length === 0) return { avgTime: 0, totalTime: 0 };
+    
+    const sorted = [...responses].sort((a, b) => 
+      new Date(a.response_timestamp) - new Date(b.response_timestamp)
+    );
+    
+    const timeDiffs = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const diff = (new Date(sorted[i].response_timestamp) - new Date(sorted[i - 1].response_timestamp)) / 1000;
+      if (diff < 300) timeDiffs.push(diff);
+    }
+    
+    const avgTime = timeDiffs.length > 0 
+      ? Math.round(timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length)
+      : 0;
+    
+    const totalTime = sorted.length > 1
+      ? Math.round((new Date(sorted[sorted.length - 1].response_timestamp) - new Date(sorted[0].response_timestamp)) / 60000)
+      : 0;
+    
+    return { avgTime, totalTime };
+  };
+
+  const { avgTime, totalTime } = calculateTimeMetrics();
+  
+  const yesCount = responses.filter(r => r.answer === 'Yes').length;
+  const noCount = responses.filter(r => r.answer === 'No').length;
+  const yesPercent = responses.length > 0 ? ((yesCount / responses.length) * 100).toFixed(1) : 0;
+  const noPercent = responses.length > 0 ? ((noCount / responses.length) * 100).toFixed(1) : 0;
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      const updateData = { status: newStatus };
+      if (newStatus === 'in_progress') {
+        updateData.completed_at = null;
+        updateData.completed_date = null;
+      } else if (newStatus === 'completed' && !session.completed_at) {
+        updateData.completed_at = new Date().toISOString();
+        updateData.completed_date = new Date().toISOString();
+      }
+      
+      await base44.entities.InterviewSession.update(sessionId, updateData);
+      setSession({ ...session, ...updateData });
+      toast.success(`Interview marked as ${newStatus === 'in_progress' ? 'In Progress' : newStatus === 'completed' ? 'Completed' : newStatus}`);
+    } catch (err) {
+      toast.error('Failed to update status');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <div className="max-w-7xl mx-auto p-4 md:p-6">
@@ -348,52 +401,122 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
+        {/* Case Overview Header */}
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+          <CardContent className="p-6">
+            {/* Department Name + Status Row */}
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
               <div className="flex-1">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                <h1 className="text-3xl font-bold text-white mb-3">
                   {department?.department_name || session.department_code}
                 </h1>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                  <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
-                  <span>•</span>
-                  <span>File: <span className="font-mono text-slate-300">{session.file_number || 'RA-1Q0'}</span></span>
+                
+                {/* Dept Code, File, Dates */}
+                <div className="space-y-1.5 text-sm text-slate-400">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
+                    <span className="text-slate-600">•</span>
+                    <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>Interview Date: <span className="text-slate-300">
+                      {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
+                        year: 'numeric', month: 'long', day: 'numeric' 
+                      }) : 'N/A'}
+                    </span></span>
+                    <span className="text-slate-600">•</span>
+                    <span>Last Updated: <span className="text-slate-300">
+                      {session.updated_date ? new Date(session.updated_date).toLocaleDateString('en-US', { 
+                        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                      }) : 'N/A'}
+                    </span></span>
+                  </div>
+                </div>
+
+                {/* Time Pills */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {avgTime > 0 && (
+                    <Badge variant="outline" className="text-xs bg-slate-700/50 text-slate-300 border-slate-600">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Avg. {avgTime}s per question
+                    </Badge>
+                  )}
+                  {totalTime > 0 && (
+                    <Badge variant="outline" className="text-xs bg-slate-700/50 text-slate-300 border-slate-600">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Total time: {totalTime} min
+                    </Badge>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {session.status === 'completed' ? (
-                  <button
-                    onClick={handleStatusClick}
-                    onMouseEnter={() => setIsHoveringStatus(true)}
-                    onMouseLeave={() => setIsHoveringStatus(false)}
-                    className={cn(
-                      "text-sm px-3 py-1 rounded-full border transition-all",
-                      statusConfig.completed.color,
-                      "hover:bg-orange-500/20 hover:text-orange-300 hover:border-orange-500/30 cursor-pointer"
-                    )}
-                  >
-                    {isHoveringStatus ? "Mark In-Progress" : statusConfig.completed.label}
-                  </button>
-                ) : (
-                  <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
-                    {statusConfig[session.status]?.label}
-                  </Badge>
-                )}
-                <Badge className={cn("text-sm", riskConfig[session.risk_rating || 'low']?.color)}>
-                  {riskConfig[session.risk_rating || 'low']?.label}
-                </Badge>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <CompactMetric label="Questions" value={actualQuestionsAnswered} />
-              <CompactMetric label="Follow-Ups" value={actualFollowupsTriggered} />
-              <CompactMetric label="Red Flags" value={session.red_flags?.length || 0} color="red" />
-              <CompactMetric label="Completion" value={`${actualCompletion}%`} />
+              {/* Status Dropdown + Risk Pill */}
+              <div className="flex flex-col gap-2">
+                <Select value={session.status} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white text-sm w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="in_progress" className="text-white text-sm">In Progress</SelectItem>
+                    <SelectItem value="completed" className="text-white text-sm">Completed</SelectItem>
+                    <SelectItem value="under_review" className="text-white text-sm">Under Review</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex gap-2">
+                  <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
+                    {statusConfig[session.status]?.label || session.status}
+                  </Badge>
+                  <Badge className={cn("text-sm", riskConfig[session.risk_rating || 'low']?.color)}>
+                    {riskConfig[session.risk_rating || 'low']?.label}
+                  </Badge>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* KPI Cards Row */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+          <KPICard
+            label="QUESTIONS"
+            value={`${actualQuestionsAnswered} / ${totalQuestions || 207}`}
+            subtext={`${actualCompletion}% Complete`}
+          />
+          <KPICard
+            label="YES RESPONSES"
+            value={yesCount}
+            subtext={`${yesPercent}% of total`}
+          />
+          <KPICard
+            label="NO RESPONSES"
+            value={noCount}
+            subtext={`${noPercent}% of total`}
+          />
+          <KPICard
+            label="FOLLOW-UPS"
+            value={actualFollowupsTriggered}
+            subtext={actualFollowupsTriggered > 0 ? "Triggered" : "None"}
+          />
+          <KPICard
+            label="RED FLAGS"
+            value={session.red_flags?.length || 0}
+            subtext={session.red_flags?.length > 0 ? "Identified" : "None"}
+            highlight={session.red_flags?.length > 0}
+          />
+          <KPICard
+            label="COMPLETION"
+            value={`${actualCompletion}%`}
+            subtext={actualCompletion === 100 ? "Complete" : "In Progress"}
+          />
+        </div>
+
+        {/* Global AI Investigator Assist */}
+        <GlobalAIAssist 
+          responses={responses} 
+          followups={followups} 
+          session={session}
+        />
 
         <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-3 items-center">
@@ -596,6 +719,26 @@ function CompactMetric({ label, value, color = "blue" }) {
       <p className="text-xs text-slate-400 mb-0.5">{label}</p>
       <p className={cn("text-lg md:text-xl font-bold", colorClass)}>{value}</p>
     </div>
+  );
+}
+
+function KPICard({ label, value, subtext, highlight = false }) {
+  return (
+    <Card className={cn(
+      "bg-slate-800/50 backdrop-blur-sm border-slate-700",
+      highlight && "border-red-500/30"
+    )}>
+      <CardContent className="p-4">
+        <div className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{label}</div>
+        <div className={cn(
+          "text-2xl font-bold mb-1",
+          highlight ? "text-red-400" : "text-white"
+        )}>
+          {value}
+        </div>
+        <div className="text-xs text-slate-500">{subtext}</div>
+      </CardContent>
+    </Card>
   );
 }
 
