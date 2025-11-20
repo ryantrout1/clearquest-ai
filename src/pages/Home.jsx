@@ -512,53 +512,53 @@ function FollowupsDialog({ open, onOpenChange }) {
   const followupPacks = [
     {
       name: "Drug Use / Controlled Substances",
-      trigger: "Any \"Yes\" related to drug use, possession, or influence",
-      collects: "Substance name • Frequency and timeline (first use, last use, peak use) • Source & method of obtaining • Context of use • Impact on work, school, or legal standing • Accountability & changes since"
+      trigger: "Any 'Yes' involving illegal drug use, possession, or being under the influence",
+      captures: "Key details about substances used, pattern over time, and impact on reliability and judgment"
     },
     {
       name: "Criminal Charges & Arrests",
-      trigger: "\"Yes\" responses involving charges, arrests, detentions, warrants",
-      collects: "Charge description • Date & location • Legal outcome • Penalties, restitution, probation • Injuries or property damage • Current status & accountability"
+      trigger: "'Yes' responses involving charges, arrests, detentions, or warrants",
+      captures: "Charge details, legal outcomes, penalties, and current status"
     },
     {
       name: "Driving Incidents",
-      trigger: "DUI, suspensions, reckless driving, major violations",
-      collects: "Date & location • BAC (if applicable) • Outcome & penalties • License impact & reinstatement • Insurance impact • Contributing circumstances"
+      trigger: "DUI, license suspensions, reckless driving, or major traffic violations",
+      captures: "Incident details, outcomes, license impact, and accountability"
     },
     {
       name: "Employment Terminations",
-      trigger: "Termination, resignation in lieu of termination, or major discipline",
-      collects: "Employer & position • Date & reason for separation • Circumstances • Prior discipline history • References or follow-on contact • Accountability"
+      trigger: "Termination, resignation in lieu of termination, or major workplace discipline",
+      captures: "Employer details, separation circumstances, and accountability measures"
     },
     {
       name: "Financial Issues",
-      trigger: "Bankruptcy, foreclosure, collections, major debt problems",
-      collects: "Type of issue • Amount involved • Timeline & resolution status • Current financial standing • Steps taken to prevent recurrence"
+      trigger: "Bankruptcy, foreclosure, collections, or significant debt problems",
+      captures: "Type of issue, amounts involved, resolution status, and corrective steps"
     },
     {
       name: "Sexual Misconduct or Exploitation",
       trigger: "Prostitution, harassment, assault, exploitation, or related behavior",
-      collects: "Nature of incident • Individuals involved (non-identifying) • Consequences • Counseling/treatment (if any) • Accountability & behavior change"
+      captures: "Incident nature, consequences, treatment received, and accountability"
     },
     {
       name: "Weapons Violations",
       trigger: "Illegal possession, improper use, unsafe discharge, or threats",
-      collects: "Weapon type • Date & location • Circumstances • Impact on others • Outcome or legal action • Accountability"
+      captures: "Weapon type, circumstances, impact, and legal outcomes"
     },
     {
       name: "Gang Affiliation",
       trigger: "'Yes' to gang membership or association",
-      collects: "Gang name, dates of involvement, level of participation, criminal activity, why left, current contact"
+      captures: "Affiliation details, level of involvement, criminal activity, and current status"
     },
     {
       name: "Military Discipline",
-      trigger: "'Yes' to courts-martial, Article 15s, or discharges",
-      collects: "Type of discipline, date, circumstances, outcome, impact on discharge, accountability"
+      trigger: "'Yes' to courts-martial, Article 15s, or adverse discharges",
+      captures: "Discipline type, circumstances, outcomes, and discharge impact"
     },
     {
       name: "Law Enforcement Discipline",
-      trigger: "'Yes' to LE complaints, suspensions, or integrity issues",
-      collects: "Department, date, nature of complaint, investigation outcome, discipline received, lessons learned"
+      trigger: "'Yes' to LE complaints, suspensions, or integrity violations",
+      captures: "Complaint details, investigation outcomes, discipline received, and lessons learned"
     }
   ];
 
@@ -571,7 +571,7 @@ function FollowupsDialog({ open, onOpenChange }) {
             <span>Automated Follow-Up Packs</span>
           </DialogTitle>
           <DialogDescription className="text-slate-300 mt-2 text-sm sm:text-base">
-            Every "Yes" answer triggers a structured deep-dive. No detail missed, no investigator guesswork.
+            Every "Yes" answer triggers a structured deep-dive. Below are examples of the follow-up packs ClearQuest uses to capture incident-level detail.
           </DialogDescription>
         </DialogHeader>
         
@@ -587,12 +587,15 @@ function FollowupsDialog({ open, onOpenChange }) {
                     <span className="text-xs sm:text-sm font-bold text-orange-400">{idx + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-white text-sm sm:text-base mb-1 sm:mb-2 break-words">{pack.name}</h3>
-                    <p className="text-xs sm:text-sm text-orange-300 mb-2 break-words">
-                      <strong>Triggered by:</strong> {pack.trigger}
+                    <h3 className="font-semibold text-white text-sm sm:text-base mb-2 break-words">{pack.name}</h3>
+                    <p className="text-xs sm:text-sm text-slate-300 mb-1.5 break-words">
+                      <strong>When it triggers:</strong> {pack.trigger}
                     </p>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed break-words">
-                      <strong>Documentation captured:</strong> {pack.collects}
+                    <p className="text-xs sm:text-sm text-slate-300 mb-2 leading-relaxed break-words">
+                      <strong>What it captures:</strong> {pack.captures}
+                    </p>
+                    <p className="text-xs text-slate-500 italic">
+                      Structured follow-ups ensure consistent documentation
                     </p>
                   </div>
                 </div>
@@ -603,7 +606,7 @@ function FollowupsDialog({ open, onOpenChange }) {
 
         <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 flex-shrink-0">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
-            <strong>Note:</strong> ClearQuest handles the entire follow-up interview automatically, delivering structured, consistent documentation for every incident.
+            <strong>Note:</strong> These are high-level summaries. The live system uses additional structured questions and rules not shown here. ClearQuest handles the entire follow-up interview automatically, delivering consistent documentation for every incident.
           </p>
         </div>
       </DialogContent>
