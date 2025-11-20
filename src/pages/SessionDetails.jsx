@@ -527,6 +527,7 @@ export default function SessionDetails() {
             toggleSection={toggleSection}
             expandedQuestions={expandedQuestions}
             toggleQuestionExpanded={toggleQuestionExpanded}
+            sections={sections}
           />
         ) : (
           <TranscriptView
@@ -598,13 +599,22 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
+  // Sort categories by section_order from Section entities
+  const sortedCategories = Object.entries(responsesByCategory).sort((a, b) => {
+    const sectionA = sections.find(s => s.section_name === a[0]);
+    const sectionB = sections.find(s => s.section_name === b[0]);
+    const orderA = sectionA?.section_order ?? 999;
+    const orderB = sectionB?.section_order ?? 999;
+    return orderA - orderB;
+  });
+  
   return (
     <div className="space-y-0">
-      {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
+      {sortedCategories.map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
 
         const sortedResponses = [...categoryResponses].sort((a, b) => {
