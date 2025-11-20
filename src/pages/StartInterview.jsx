@@ -27,7 +27,40 @@ export default function StartInterview() {
 
   useEffect(() => {
     loadQuestionCount();
-  }, []);
+    
+    // FUTURE BRANDING NOTE:
+    // In a future version, the department_code from the URL will be used to load
+    // department-specific branding (logo, colors, welcome message) for the CandidateInterview page.
+    // For now, we only implement prefill behavior.
+    
+    // Parse URL token for prefilling form fields
+    if (token) {
+      try {
+        // Token format: <DEPT> or <DEPT>-<FILE>
+        const firstDashIndex = token.indexOf('-');
+        
+        if (firstDashIndex !== -1) {
+          // Token contains dash - split into dept code and file number
+          const deptCode = token.substring(0, firstDashIndex);
+          const fileNumber = token.substring(firstDashIndex + 1);
+          
+          setFormData({
+            department_code: deptCode,
+            file_number: fileNumber
+          });
+        } else {
+          // No dash - entire token is dept code
+          setFormData(prev => ({
+            ...prev,
+            department_code: token
+          }));
+        }
+      } catch (err) {
+        // Parsing failed - fall back to no prefill (silent failure)
+        console.warn('Failed to parse URL token:', err);
+      }
+    }
+  }, [token]);
 
   const loadQuestionCount = async () => {
     try {

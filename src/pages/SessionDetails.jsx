@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -139,6 +140,10 @@ export default function SessionDetails() {
     } catch (err) {
       toast.error('Failed to update status');
     }
+  };
+
+  const handleContinueInterview = () => {
+    navigate(createPageUrl("CandidateInterview") + `?session=${sessionId}`);
   };
 
   const allResponsesWithNumbers = responses.map((r, idx) => {
