@@ -1827,8 +1827,11 @@ export async function bootstrapEngine(base44) {
       Architecture: 'section-first-db-driven-v2-packs'
     };
 
-    // DEBUG: Print runtime mapping for Criminal vs Illegal
-    debugPrintCriminalVsIllegalMapping(engineState, sections);
+    // DEBUG: Print runtime mapping for sections 3-7
+    debugPrintSuspiciousSectionsMapping(engineState, sections);
+    
+    // DEBUG: Print full section order summary
+    debugPrintSectionOrderSummary(engineState, sections);
 
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
@@ -1864,26 +1867,36 @@ export function debugPrintQuestionSectionMap(sections, questions) {
   console.log('\n========== SECTION QUESTION MAP ==========\n');
   
   const sortedSections = sections
-    .filter(s => s.active !== false)
     .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
   
   sortedSections.forEach(section => {
-    const sectionQuestions = questions
-      .filter(q => q.section_id === section.id && q.active !== false)
+    const allSectionQuestions = questions.filter(q => q.section_id === section.id);
+    const activeSectionQuestions = allSectionQuestions
+      .filter(q => q.active !== false)
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    console.log(`[Section ${section.section_order}] ${section.section_name} (id=${section.id})`);
-    console.log(`Active questions: ${sectionQuestions.length}\n`);
+    console.log(`[Section ${section.section_order}] ${section.section_name}`);
+    console.log(`sectionId: ${section.id}`);
+    console.log(`Active: ${section.active !== false ? 'true' : 'false'}`);
+    console.log(`Required: ${section.required !== false ? 'true' : 'false'}`);
+    console.log(`Total questions in DB for this section: ${allSectionQuestions.length}`);
+    console.log(`Active questions (sorted by display_order): ${activeSectionQuestions.length}\n`);
     
-    sectionQuestions.forEach(q => {
-      const shortText = (q.question_text || '').substring(0, 80);
-      console.log(`  - dbId: ${q.id}`);
-      console.log(`    code: ${q.question_id}`);
-      console.log(`    text: ${shortText}${q.question_text?.length > 80 ? '...' : ''}`);
-      console.log(`    sectionIdOnRecord: ${q.section_id}`);
-      console.log(`    displayOrder: ${q.display_order}`);
-      console.log('');
-    });
+    if (activeSectionQuestions.length > 0) {
+      activeSectionQuestions.forEach(q => {
+        const shortText = (q.question_text || '').substring(0, 80);
+        console.log(`  - dbId: ${q.id}`);
+        console.log(`    code: ${q.question_id}`);
+        console.log(`    displayOrder: ${q.display_order}`);
+        console.log(`    sectionIdOnRecord: ${q.section_id}`);
+        console.log(`    text: ${shortText}${q.question_text?.length > 80 ? '...' : ''}`);
+        console.log('');
+      });
+    } else {
+      console.log(`  (No active questions)\n`);
+    }
+    
+    console.log('---\n');
   });
   
   console.log('===========================================\n');
@@ -1936,47 +1949,71 @@ export function debugPrintDuplicateQuestionCodes(sections, questions) {
 }
 
 /**
- * DEBUG: Print runtime mapping for Criminal vs Illegal Drug sections
+ * DEBUG: Print runtime mapping for suspicious sections (3, 4, 5, 6, 7)
  */
-export function debugPrintCriminalVsIllegalMapping(engine, sections) {
-  console.log('\n========== RUNTIME MAPPING: Criminal vs Illegal ==========\n');
+export function debugPrintSuspiciousSectionsMapping(engine, sections) {
+  console.log('\n========== RUNTIME SECTION MAPPING (Orders 3-7) ==========\n');
   
-  const criminalSection = sections.find(s => s.section_name?.includes('Criminal Involvement'));
-  const illegalDrugSection = sections.find(s => s.section_name?.includes('Illegal Drug'));
+  const targetNames = [
+    'Criminal Involvement',
+    'Extremist Organizations',
+    'Sexual Activities',
+    'Financial History',
+    'Illegal Drug'
+  ];
   
-  if (criminalSection) {
-    const criminalSectionId = criminalSection.section_id;
-    const criminalQuestions = engine.questionsBySection[criminalSectionId] || [];
+  targetNames.forEach(partialName => {
+    const section = sections.find(s => s.section_name?.includes(partialName));
     
-    console.log(`[Criminal] sectionId="${criminalSectionId}", dbId=${criminalSection.id}, order=${criminalSection.section_order}`);
-    console.log(`QuestionIds in this section (runtime order): ${criminalQuestions.length} questions\n`);
+    if (section) {
+      const sectionId = section.section_id;
+      const sectionQuestions = engine.questionsBySection[sectionId] || [];
+      
+      console.log(`Section: ${section.section_name}`);
+      console.log(`section_order=${section.section_order}`);
+      console.log(`sectionId=${sectionId}`);
+      console.log(`Active=${section.active !== false ? 'true' : 'false'}`);
+      console.log(`QuestionIds in runtime map: ${sectionQuestions.length} questions\n`);
+      
+      if (sectionQuestions.length > 0) {
+        sectionQuestions.forEach((q, idx) => {
+          const fullQ = engine.QById[q.question_id];
+          console.log(`  - ${q.question_id} | code=${q.question_id} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
+        });
+      } else {
+        console.log(`  (No questions in runtime map)`);
+      }
+      console.log('\n---\n');
+    } else {
+      console.log(`⚠️ Section matching "${partialName}" not found\n`);
+    }
+  });
+  
+  console.log('=============================================\n');
+}
+
+/**
+ * DEBUG: Print full section order summary
+ */
+export function debugPrintSectionOrderSummary(engine, sections) {
+  console.log('\n========== SECTION ORDER SUMMARY ==========\n');
+  console.log('All sections sorted by section_order:\n');
+  
+  const sortedSections = sections
+    .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
+  
+  sortedSections.forEach(section => {
+    const sectionId = section.section_id;
+    const questionsInRuntime = engine.questionsBySection[sectionId] || [];
     
-    criminalQuestions.forEach((q, idx) => {
-      const fullQ = engine.QById[q.question_id];
-      console.log(`  [${idx + 1}] ${q.question_id} | display_order=${q.display_order} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
-    });
+    console.log(`  [${section.section_order}] ${section.section_name}`);
+    console.log(`     id=${sectionId}`);
+    console.log(`     active=${section.active !== false ? 'true' : 'false'}`);
+    console.log(`     activeQuestions=${questionsInRuntime.length}`);
     console.log('');
-  } else {
-    console.log('⚠️ Criminal Involvement section not found\n');
-  }
+  });
   
-  if (illegalDrugSection) {
-    const illegalDrugSectionId = illegalDrugSection.section_id;
-    const illegalDrugQuestions = engine.questionsBySection[illegalDrugSectionId] || [];
-    
-    console.log(`[Illegal Drug] sectionId="${illegalDrugSectionId}", dbId=${illegalDrugSection.id}, order=${illegalDrugSection.section_order}`);
-    console.log(`QuestionIds in this section (runtime order): ${illegalDrugQuestions.length} questions\n`);
-    
-    illegalDrugQuestions.forEach((q, idx) => {
-      const fullQ = engine.QById[q.question_id];
-      console.log(`  [${idx + 1}] ${q.question_id} | display_order=${q.display_order} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
-    });
-    console.log('');
-  } else {
-    console.log('⚠️ Illegal Drug section not found\n');
-  }
-  
-  console.log('==========================================================\n');
+  console.log('============================================\n');
 }
 
 /**
@@ -2285,26 +2322,19 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, currentQuestionI
 
   const currentOrder = currentSection.section_order;
   
-  console.log(`\n   🔄 SECTION TRANSITION from [${currentOrder}] ${currentSection.section_name}`);
-  console.log(`   🧭 Caller currentQuestionId: ${currentQuestionId}`);
+  console.log(`\n========== NEXT SECTION DECISION ==========`);
+  console.log(`Just completed section_order = ${currentOrder} / id=${currentSectionId}`);
+  console.log(`Section name: ${currentSection.section_name}`);
+  console.log(`Caller currentQuestionId: ${currentQuestionId}\n`);
   
   // Get all sections sorted by section_order
   const allSections = Object.values(engine.sectionConfig)
     .sort((a, b) => a.section_order - b.section_order);
   
-  console.log(`   📋 All sections in order:`);
-  allSections.forEach(s => {
-    const qCount = (engine.questionsBySection[s.id] || []).length;
-    const isActive = s.active !== false;
-    const isCurrent = s.id === currentSectionId;
-    const marker = isCurrent ? '👉' : '  ';
-    console.log(`      ${marker} [${s.section_order}] ${s.section_name} - ${isActive ? '✅ Active' : '⏸️ Inactive'} - ${qCount} questions`);
-  });
+  console.log(`Inspecting each later section in strict section_order order:\n`);
   
   // Find sections after current one
   const candidateSections = allSections.filter(s => s.section_order > currentOrder);
-  
-  console.log(`\n   🔎 Searching ${candidateSections.length} sections after current position...`);
   
   for (const candidateSection of candidateSections) {
     const candidateSectionId = candidateSection.id;
@@ -2312,46 +2342,38 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, currentQuestionI
     
     const isActive = candidateSection.active !== false;
     const hasQuestions = candidateQuestions.length > 0;
-    const hasGateQuestion = candidateQuestions.some(q => q.is_control_question);
+    const shouldSkipBecauseInactive = !isActive;
+    const shouldSkipBecauseZeroQuestions = !hasQuestions;
     
-    console.log(`   🔍 [${candidateSection.section_order}] ${candidateSection.section_name}:`);
-    console.log(`      - Active: ${isActive ? '✅ Yes' : '❌ No'}`);
-    console.log(`      - Questions: ${candidateQuestions.length}`);
-    console.log(`      - isGateSection: ${hasGateQuestion}`);
+    console.log(`  - [${candidateSection.section_order}] ${candidateSection.section_name}`);
+    console.log(`    active=${isActive ? 'true' : 'false'}`);
+    console.log(`    activeQuestions=${candidateQuestions.length}`);
+    console.log(`    shouldSkipBecauseZeroQuestions=${shouldSkipBecauseZeroQuestions}`);
+    console.log(`    shouldSkipBecauseInactive=${shouldSkipBecauseInactive}`);
     
     // RULE: Include section if active AND has questions
     if (!isActive) {
-      console.log(`      ⏭ SKIPPING SECTION: ${candidateSection.section_name}`);
-      console.log(`         sectionIndex: [${candidateSection.section_order}]`);
-      console.log(`         enabled: false`);
-      console.log(`         activeQuestionCount: ${candidateQuestions.length}`);
-      console.log(`         isGateSection: ${hasGateQuestion}`);
-      console.log(`         skipReason: disabled`);
+      console.log(`    ⏭ SKIPPING: disabled\n`);
       continue;
     }
     
     if (!hasQuestions) {
-      console.log(`      ⏭ SKIPPING SECTION: ${candidateSection.section_name}`);
-      console.log(`         sectionIndex: [${candidateSection.section_order}]`);
-      console.log(`         enabled: ${isActive}`);
-      console.log(`         activeQuestionCount: 0`);
-      console.log(`         isGateSection: ${hasGateQuestion}`);
-      console.log(`         skipReason: noActiveQuestions`);
+      console.log(`    ⏭ SKIPPING: no active questions\n`);
       continue;
     }
     
     // Found valid next section
     const firstQ = candidateQuestions[0];
-    console.log(`      ✅ SELECTED as next section`);
-    console.log(`      → First question: ${firstQ.question_id}: "${firstQ.question_text}"\n`);
-    
-    // Print lookahead from the current question position
-    debugPrintLookahead(engine, currentQuestionId, answeredQuestionIds);
+    console.log(`    ✅ CHOSEN\n`);
+    console.log(`Final chosen next section: ${candidateSection.section_name}`);
+    console.log(`First question: ${firstQ.question_id} - "${firstQ.question_text}"`);
+    console.log(`===========================================\n`);
     
     return firstQ.question_id;
   }
 
-  console.log(`   🏁 No more sections - interview complete\n`);
+  console.log(`\n🏁 No more valid sections found - interview complete`);
+  console.log(`===========================================\n`);
   return null;
 }
 
