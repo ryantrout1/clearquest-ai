@@ -1847,6 +1847,122 @@ export async function bootstrapEngine(base44) {
 }
 
 // ============================================================================
+// DIAGNOSTIC HELPERS
+// ============================================================================
+
+/**
+ * DEBUG: Print canonical section and question map at startup
+ */
+export function debugPrintCanonicalMap(engine, answeredQuestionIds = new Set()) {
+  console.log('\n========== SECTION SUMMARY ==========\n');
+  
+  const allSections = Object.values(engine.sectionConfig)
+    .sort((a, b) => a.section_order - b.section_order);
+  
+  allSections.forEach((section, idx) => {
+    const sectionId = section.id;
+    const questions = engine.questionsBySection[sectionId] || [];
+    const activeQuestions = questions.filter(q => q.active !== false);
+    const isEnabled = section.active !== false;
+    const hasActiveQuestions = activeQuestions.length > 0;
+    const hasGateQuestion = questions.some(q => q.is_control_question);
+    const includedInFlow = isEnabled && hasActiveQuestions;
+    
+    console.log(`[Section ${idx + 1}] ${section.section_name}`);
+    console.log(`   id: ${section.dbId}, key: "${sectionId}"`);
+    console.log(`   section_order: ${section.section_order}`);
+    console.log(`   enabled: ${isEnabled}`);
+    console.log(`   isGateSection: ${hasGateQuestion}`);
+    console.log(`   activeQuestionCount: ${activeQuestions.length}`);
+    console.log(`   firstQuestionIds: [${activeQuestions.slice(0, 5).map(q => q.question_id).join(', ')}${activeQuestions.length > 5 ? '...' : ''}]`);
+    console.log(`   includedInInterviewFlow: ${includedInFlow}`);
+    console.log('');
+  });
+  
+  console.log('========== QUESTION MAP ==========\n');
+  
+  let globalIndex = 1;
+  allSections.forEach(section => {
+    const sectionId = section.id;
+    const questions = engine.questionsBySection[sectionId] || [];
+    const activeQuestions = questions.filter(q => q.active !== false);
+    
+    if (section.active === false || activeQuestions.length === 0) {
+      return; // Skip sections not in flow
+    }
+    
+    activeQuestions.forEach((q, localIdx) => {
+      const isAnswered = answeredQuestionIds.has(q.question_id);
+      const isSkipped = false; // We don't have skip tracking yet
+      
+      console.log(`[#${globalIndex}] ${section.section_name}`);
+      console.log(`   questionId: "${q.question_id}"`);
+      console.log(`   sectionIndex: [${section.section_order}]`);
+      console.log(`   sectionLocalIndex: Q${localIdx + 1}/${activeQuestions.length}`);
+      console.log(`   display_order: ${q.display_order}`);
+      console.log(`   gateFlags: { isControlGate: ${q.is_control_question || false}, hasMultiInstance: ${q.followup_multi_instance || false} }`);
+      console.log(`   statusAtStart: { answered: ${isAnswered}, skipped: ${isSkipped} }`);
+      console.log('');
+      
+      globalIndex++;
+    });
+  });
+  
+  console.log('========== END MAP ==========\n');
+}
+
+/**
+ * DEBUG: Print lookahead for next 5 questions from current position
+ */
+export function debugPrintLookahead(engine, currentQuestionId, answeredQuestionIds = new Set()) {
+  console.log(`\n🔭 Lookahead from ${currentQuestionId}:`);
+  
+  const location = engine.questionIdToSection[currentQuestionId];
+  if (!location) {
+    console.log('   ❌ Current question not found in map');
+    return;
+  }
+  
+  // Build flat list of all questions in flow order
+  const flatList = [];
+  Object.values(engine.sectionConfig)
+    .sort((a, b) => a.section_order - b.section_order)
+    .forEach(section => {
+      if (section.active !== false) {
+        const questions = engine.questionsBySection[section.id] || [];
+        questions.forEach(q => {
+          flatList.push({
+            questionId: q.question_id,
+            sectionName: section.section_name,
+            sectionOrder: section.section_order
+          });
+        });
+      }
+    });
+  
+  // Find current index
+  const currentIdx = flatList.findIndex(item => item.questionId === currentQuestionId);
+  if (currentIdx === -1) {
+    console.log('   ❌ Current question not found in flat list');
+    return;
+  }
+  
+  // Show next 5
+  for (let i = 1; i <= 5; i++) {
+    const idx = currentIdx + i;
+    if (idx >= flatList.length) break;
+    
+    const item = flatList[idx];
+    const isAnswered = answeredQuestionIds.has(item.questionId);
+    const isSkipped = false;
+    
+    console.log(`   [+${i}]: [${item.sectionOrder}] ${item.sectionName} | ${item.questionId} | answered=${isAnswered} | skipped=${isSkipped}`);
+  }
+  
+  console.log('');
+}
+
+// ============================================================================
 // SECTION QUESTION AUDIT UTILITY
 // ============================================================================
 
@@ -1935,7 +2051,7 @@ export async function auditSectionQuestionCounts(base44, engine) {
  * NEW: Section-aware computeNextQuestionId
  * Uses Section.section_order from database for deterministic routing
  */
-export function computeNextQuestionId(engine, currentQuestionId, answer) {
+export function computeNextQuestionId(engine, currentQuestionId, answer, answeredQuestionIds = new Set()) {
   console.log(`\n🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
   
   // 1. Locate current section and index
@@ -1957,7 +2073,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
   
   if (!questions || questions.length === 0) {
     console.error(`❌ No questions found for section: ${sectionId}`);
-    return firstQuestionIdOfNextSection(engine, sectionId);
+    return firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
   }
   
   const currentQuestion = questions[indexInSection];
@@ -1971,7 +2087,19 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
       normalizeToYesNo(answer) === "No") {
     
     console.log(`   🚪 GATE: ${currentQuestionId} answered No → skipping remaining ${questions.length - indexInSection - 1} questions in this section`);
-    return firstQuestionIdOfNextSection(engine, sectionId);
+    
+    const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
+    
+    if (nextQuestionId) {
+      const nextLocation = engine.questionIdToSection[nextQuestionId];
+      const nextSection = nextLocation ? engine.sectionConfig[nextLocation.sectionId] : null;
+      console.log(`\n🚦 SECTION CHANGE: ${section.section_name} → ${nextSection?.section_name || 'Unknown'}`);
+      console.log(`   prevQuestionId: ${currentQuestionId}`);
+      console.log(`   nextQuestionId: ${nextQuestionId}`);
+      console.log(`   reason: gate-skip\n`);
+    }
+    
+    return nextQuestionId;
   }
 
   // 3. Check intra-section next_question_id
@@ -1995,14 +2123,30 @@ export function computeNextQuestionId(engine, currentQuestionId, answer) {
 
   // 5. End of section -> move to next section
   console.log(`   🏁 Section complete: [${section.section_order}] ${section.section_name}`);
-  return firstQuestionIdOfNextSection(engine, sectionId);
+  
+  const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
+  
+  if (nextQuestionId) {
+    const nextLocation = engine.questionIdToSection[nextQuestionId];
+    const nextSection = nextLocation ? engine.sectionConfig[nextLocation.sectionId] : null;
+    console.log(`\n🚦 SECTION CHANGE: ${section.section_name} → ${nextSection?.section_name || 'Unknown'}`);
+    console.log(`   prevQuestionId: ${currentQuestionId}`);
+    console.log(`   nextQuestionId: ${nextQuestionId}`);
+    console.log(`   reason: end-of-section\n`);
+  }
+  
+  return nextQuestionId;
 }
+
+// ============================================================================
+// SECTION QUESTION AUDIT UTILITY
+// ============================================================================
 
 /**
  * Find the first question ID of the next active section
  * Uses section_order from database for deterministic sequencing
  */
-function firstQuestionIdOfNextSection(engine, currentSectionId) {
+function firstQuestionIdOfNextSection(engine, currentSectionId, answeredQuestionIds = new Set()) {
   const currentSection = engine.sectionConfig[currentSectionId];
   if (!currentSection) {
     console.error(`❌ Section "${currentSectionId}" not found in sectionConfig`);
@@ -2038,19 +2182,31 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     
     const isActive = candidateSection.active !== false;
     const hasQuestions = candidateQuestions.length > 0;
+    const hasGateQuestion = candidateQuestions.some(q => q.is_control_question);
     
     console.log(`   🔍 [${candidateSection.section_order}] ${candidateSection.section_name}:`);
     console.log(`      - Active: ${isActive ? '✅ Yes' : '❌ No'}`);
     console.log(`      - Questions: ${candidateQuestions.length}`);
+    console.log(`      - isGateSection: ${hasGateQuestion}`);
     
     // RULE: Include section if active AND has questions
     if (!isActive) {
-      console.log(`      ⏭️ Skipping: Section disabled in Interview Manager`);
+      console.log(`      ⏭ SKIPPING SECTION: ${candidateSection.section_name}`);
+      console.log(`         sectionIndex: [${candidateSection.section_order}]`);
+      console.log(`         enabled: false`);
+      console.log(`         activeQuestionCount: ${candidateQuestions.length}`);
+      console.log(`         isGateSection: ${hasGateQuestion}`);
+      console.log(`         skipReason: disabled`);
       continue;
     }
     
     if (!hasQuestions) {
-      console.log(`      ⏭️ Skipping: No active questions in section`);
+      console.log(`      ⏭ SKIPPING SECTION: ${candidateSection.section_name}`);
+      console.log(`         sectionIndex: [${candidateSection.section_order}]`);
+      console.log(`         enabled: ${isActive}`);
+      console.log(`         activeQuestionCount: 0`);
+      console.log(`         isGateSection: ${hasGateQuestion}`);
+      console.log(`         skipReason: noActiveQuestions`);
       continue;
     }
     
@@ -2058,6 +2214,10 @@ function firstQuestionIdOfNextSection(engine, currentSectionId) {
     const firstQ = candidateQuestions[0];
     console.log(`      ✅ SELECTED as next section`);
     console.log(`      → First question: ${firstQ.question_id}: "${firstQ.question_text}"\n`);
+    
+    // Print lookahead from this position
+    debugPrintLookahead(engine, currentQuestionId, answeredQuestionIds);
+    
     return firstQ.question_id;
   }
 

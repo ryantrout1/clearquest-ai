@@ -21,7 +21,9 @@ import {
         injectSubstanceIntoPackSteps,
         shouldSkipFollowUpStep,
         shouldSkipProbingForHired,
-        auditSectionQuestionCounts
+        auditSectionQuestionCounts,
+        debugPrintCanonicalMap,
+        debugPrintLookahead
       } from "../components/interviewEngine";
 import {
         shouldEnterMultiInstanceLoop,
@@ -586,6 +588,10 @@ Return ONLY the summary sentence, nothing else.`;
         console.error('❌ Question configuration errors detected:', engineData.validationErrors);
       }
 
+      // DEBUG: Print canonical map at startup
+      const { debugPrintCanonicalMap } = await import("../components/interviewEngine");
+      debugPrintCanonicalMap(engineData, new Set());
+
       if (!loadedSession.conversation_id) {
         try {
           const newConversation = await base44.agents.createConversation({
@@ -880,7 +886,10 @@ Return ONLY the summary sentence, nothing else.`;
     setCurrentFollowUpPack(null);
     setCurrentFollowUpAnswers({});
 
-    const nextQuestionId = computeNextQuestionId(engine, previousQuestionId, previousAnswer);
+    // Build answered set for lookahead
+    const answeredQuestionIds = new Set(transcript.filter(t => t.type === 'question').map(t => t.questionId));
+
+    const nextQuestionId = computeNextQuestionId(engine, previousQuestionId, previousAnswer, answeredQuestionIds);
     
     console.log(`\n📍 moveToNextDeterministicQuestion called:`);
     console.log(`   Previous: ${previousQuestionId}, Answer: ${previousAnswer}`);
