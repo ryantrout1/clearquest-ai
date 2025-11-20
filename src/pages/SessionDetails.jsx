@@ -698,6 +698,7 @@ export default function SessionDetails() {
             expandedQuestions={expandedQuestions}
             toggleQuestionExpanded={toggleQuestionExpanded}
             sections={sections}
+            session={session}
           />
         ) : (
           <TranscriptView
@@ -822,7 +823,7 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
