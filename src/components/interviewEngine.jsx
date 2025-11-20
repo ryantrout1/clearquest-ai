@@ -1559,19 +1559,11 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       return;
     }
 
-    // Store database ID in questionsBySection array
+    // Store just the database ID in questionsBySection array
+    // Full question data is in QById[dbQuestionId]
     questionsBySection[sectionIdString].push({
       id: dbQuestionId, // Database ID for routing
-      question_id: questionCode, // Code for display only
-      section_id: sectionIdString,
-      display_order: q.display_order || 0,
-      active: q.active,
-      next_question_id: q.next_question_id,
-      question_text: q.question_text,
-      followup_pack: q.followup_pack,
-      response_type: q.response_type,
-      substance_name: q.substance_name,
-      is_control_question: q.is_control_question
+      display_order: q.display_order || 0
     });
 
     // Legacy: Track follow-up packs (using database ID as key)
@@ -2284,8 +2276,14 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
     return firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
   }
   
-  const currentDbId = questions[indexInSection].id;
+  const questionData = questions[indexInSection];
+  const currentDbId = questionData.id;
   const currentQuestionObj = engine.QById[currentDbId];
+
+  if (!currentQuestionObj) {
+    console.error(`❌ Question object not found for db_id=${currentDbId}`);
+    return null;
+  }
 
   console.log(`   📍 Current: [${section.section_order}] ${section.section_name}, Q${indexInSection + 1}/${questions.length}: db_id=${currentDbId}, code=${currentCode}`);
 
