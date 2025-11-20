@@ -269,12 +269,7 @@ export default function FollowUpPackManagerV2() {
             </Button>
             <Beaker className="w-5 h-5 text-amber-400" />
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-white">Follow-Up Pack Manager V2</h1>
-                <span className="px-2 py-0.5 text-[10px] font-medium bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded">
-                  EXPERIMENTAL
-                </span>
-              </div>
+              <h1 className="text-lg font-semibold text-white">Follow-Up Pack Manager V2</h1>
               <span className="text-xs text-slate-400 block mt-0.5">
                 New standardized pack system
               </span>
@@ -323,6 +318,7 @@ export default function FollowUpPackManagerV2() {
             selectedCategoryId={selectedCategoryId}
             onSelectCategory={setSelectedCategoryId}
             validationIssues={validationIssues}
+            questionsMap={questionsMap}
           />
         </div>
 
