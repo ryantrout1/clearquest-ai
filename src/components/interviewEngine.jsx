@@ -1835,7 +1835,7 @@ export async function bootstrapEngine(base44) {
 
     // DEBUG: Print diagnostic maps
     debugPrintQuestionSectionMap(sections, questions);
-    debugPrintDuplicateQuestionCodes(sections, questions);
+    debugPrintDuplicateQuestionCodes(sections, questions, QuestionCodeById);
 
     const engineState = {
       QById, // database question.id -> question object
@@ -1934,7 +1934,7 @@ export function debugPrintQuestionSectionMap(sections, questions) {
 /**
  * DEBUG: Find duplicate question codes
  */
-export function debugPrintDuplicateQuestionCodes(sections, questions) {
+export function debugPrintDuplicateQuestionCodes(sections, questions, QuestionCodeById) {
   console.log('\n========== DUPLICATE QUESTION CODE AUDIT ==========\n');
   
   const codeMap = {};
