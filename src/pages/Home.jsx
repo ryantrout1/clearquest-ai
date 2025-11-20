@@ -160,10 +160,10 @@ export default function Home() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <StepCard 
             number="1" 
-            title="Initiate Interview" 
-            description="Create anonymous session with department code and file number"
-            link="See How to Start"
-            onClick={() => setSessionDialogOpen(true)}
+            title="Structured Screening Starts Here" 
+            description="ClearQuest standardizes the first step of your hiring process. Every applicant begins with the same consistent, defensible, bias-free interview before backgrounds even begin."
+            link="See How It Works →"
+            onClick={null}
           />
           <StepCard 
             number="2" 
