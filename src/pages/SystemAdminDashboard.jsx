@@ -317,52 +317,52 @@ export default function SystemAdminDashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-4" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
-
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
-                <Shield className="w-7 h-7 text-blue-400 flex-shrink-0" />
-                <span>Department Dashboard</span>
-              </h1>
-              <p className="text-sm text-slate-300 mt-1">
-                Platform health, department management, and system-wide metrics
-              </p>
+    <div className="min-h-screen bg-[#0a0f1e]">
+      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3 mb-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link to={createPageUrl("HomeHub")}>
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2">
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-semibold text-white">Department Dashboard</h1>
+                <span className="text-xs text-slate-400 block mt-0.5">
+                  Platform health, department management, and system-wide metrics
+                </span>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link to={createPageUrl("QuestionsManager")} className="w-full md:w-auto">
-                <Button variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700" size="sm">
-                  <FileText className="w-4 h-4 mr-2" />
+            <div className="flex gap-2">
+              <Link to={createPageUrl("QuestionsManager")}>
+                <Button variant="outline" size="sm" className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-800 text-xs hidden md:inline-flex">
+                  <FileText className="w-4 h-4 mr-1" />
                   Questions
                 </Button>
               </Link>
-              <Link to={createPageUrl("BackfillSummaries")} className="w-full md:w-auto">
-                <Button variant="outline" className="w-full md:w-auto bg-slate-900/50 border-slate-600 text-white hover:bg-slate-700" size="sm">
-                  <Shield className="w-4 h-4 mr-2" />
-                  Backfill Tool
+              <Link to={createPageUrl("BackfillSummaries")}>
+                <Button variant="outline" size="sm" className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-800 text-xs hidden md:inline-flex">
+                  <Shield className="w-4 h-4 mr-1" />
+                  Backfill
                 </Button>
               </Link>
-              <Link to={createPageUrl("CreateDepartment")} className="w-full md:w-auto">
-                <Button className="w-full md:w-auto bg-blue-600 hover:bg-blue-700" size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Department
+              <Link to={createPageUrl("CreateDepartment")}>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs">
+                  <Plus className="w-4 h-4 mr-1" />
+                  <span className="hidden md:inline">New Dept</span>
                 </Button>
               </Link>
             </div>
           </div>
         </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4">
 
-        {/* Key Business Metrics */}
         {systemMetrics && (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-3">
             <MetricCard
               title="Departments"
               value={systemMetrics.totalDepartments}
@@ -409,9 +409,8 @@ export default function SystemAdminDashboard() {
           </div>
         )}
 
-        {/* Upgrade Requests */}
         {upgradeRequests.length > 0 && (
-          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
+          <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
             <CardHeader className="pb-3">
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-orange-400" />
@@ -456,158 +455,145 @@ export default function SystemAdminDashboard() {
           </Card>
         )}
 
-        {/* Departments List */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col gap-3">
-              <CardTitle className="text-white text-lg">All Departments</CardTitle>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <Input
-                  placeholder="Search departments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-slate-900/50 border-slate-600 text-white h-9 text-sm"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {departmentsLoading ? (
-                <div className="text-center py-8 text-slate-400 text-sm">Loading departments...</div>
-              ) : filteredDepartments.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm">No departments found</div>
-              ) : (
-                filteredDepartments.map(dept => {
-                  const stats = departmentStats[dept.id] || {};
-                  const daysRemaining = getTrialDaysRemaining(dept);
-                  const isInConfirmState = confirmDeleteId === dept.id;
-                  
-                  return (
-                    <Card key={dept.id} className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex flex-col lg:flex-row gap-3">
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div>
-                            <h3 className="text-base font-medium text-white mb-1">
-                              {dept.department_name}
-                            </h3>
-                              <Badge className={`${getPlanBadgeColor(dept.plan_level)} text-xs`} variant="outline">
-                                {dept.plan_level}
-                              </Badge>
-                              {daysRemaining !== null && (
-                                <Badge variant="outline" className={`text-xs ${
-                                  daysRemaining <= 3 
-                                    ? "border-red-500 text-red-400 bg-red-950/20" 
-                                    : "border-orange-500 text-orange-400 bg-orange-950/20"
-                                }`}>
-                                  {daysRemaining}d left
-                                </Badge>
-                              )}
-                            </div>
-                            <HealthIndicator status={stats.healthStatus} />
-                          </div>
-
-                              <div className="space-y-0.5">
-                                <p className="text-sm text-slate-400">
-                                  Code: <span className="text-slate-300 font-mono font-normal">{dept.department_code}</span>
-                                </p>
-                                {dept.city && dept.state && (
-                                  <p className="text-sm text-slate-400">
-                                    Location: <span className="text-slate-300 font-normal">{dept.city}, {dept.state}</span>
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                              <Clock className="w-3 h-3" />
-                              <span>
-                                {dept.date_joined 
-                                  ? format(new Date(dept.date_joined), "MMM d, yyyy") 
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-4 gap-3">
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">Interviews</p>
-                              <p className="text-xl font-bold text-white">{stats.interviewsCount || 0}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">Completed</p>
-                              <p className="text-xl font-bold text-white">{stats.completedInterviewsCount || 0}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">In Progress</p>
-                              <p className={cn("text-xl font-bold", stats.inProgressCount > 0 ? "text-orange-400" : "text-white")}>
-                                {stats.inProgressCount || 0}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
-                              <p className="text-xl font-bold text-white">{stats.followUpsCount || 0}</p>
-                            </div>
-                          </div>
-
-                          {/* Secondary Stats */}
-                          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-                            {stats.avgCompletionMinutes && (
-                              <span>⏱ {stats.avgCompletionMinutes}m avg</span>
-                            )}
-                            {stats.completionRate > 0 && (
-                              <span>✓ {stats.completionRate}% completion</span>
-                            )}
-                            {stats.lastActivityAt && (
-                              <span>🕐 Last: {format(stats.lastActivityAt, 'MMM d')}</span>
-                            )}
-                          </div>
-
-                        </div>
-                        
-                          <div className="flex flex-col justify-between gap-3">
-                            <div className="flex justify-end">
-                              <HealthIndicator status={stats.healthStatus} />
-                            </div>
-                            <div className="flex flex-col gap-1.5 items-end">
-                              <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-full">
-                                <Button size="sm" variant="outline" className="w-full bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700 text-xs h-8">
-                                  View
-                                </Button>
-                              </Link>
-                              <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-full">
-                                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
-                                  Edit
-                                </Button>
-                              </Link>
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleDeleteClick(dept)}
-                                disabled={dept.plan_level === 'Paid' || isDeleting}
-                                className={cn(
-                                  "text-xs h-8 w-full transition-colors",
-                                  dept.plan_level === 'Paid' 
-                                    ? 'opacity-50 cursor-not-allowed bg-slate-700 text-slate-500' 
-                                    : isInConfirmState
-                                    ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
-                                )}
-                                title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
-                              >
-                                {isInConfirmState ? 'Confirm Delete' : 'Delete'}
-                              </Button>
-                            </div>
-                          </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  );
-                })
-              )}
+        <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
+          <CardContent className="p-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search departments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 text-sm h-9"
+              />
             </div>
           </CardContent>
         </Card>
+
+        <div className="space-y-3">
+          {departmentsLoading ? (
+            <Card className="bg-[#0f1629] border-slate-800/50">
+              <CardContent className="p-12 text-center">
+                <div className="text-slate-400 text-sm">Loading departments...</div>
+              </CardContent>
+            </Card>
+          ) : filteredDepartments.length === 0 ? (
+            <Card className="bg-[#0f1629] border-slate-800/50">
+              <CardContent className="p-12 text-center">
+                <p className="text-slate-400 text-sm">No departments found</p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredDepartments.map(dept => {
+              const stats = departmentStats[dept.id] || {};
+              const daysRemaining = getTrialDaysRemaining(dept);
+              const isInConfirmState = confirmDeleteId === dept.id;
+              
+              return (
+                <Card key={dept.id} className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div className="md:col-span-4 space-y-2">
+                        <div>
+                          <h3 className="text-base font-medium text-white mb-1">
+                            {dept.department_name}
+                          </h3>
+                          <div className="space-y-0.5">
+                            <p className="text-sm text-slate-400">
+                              Code: <span className="text-slate-300 font-mono font-normal">{dept.department_code}</span>
+                            </p>
+                            {dept.city && dept.state && (
+                              <p className="text-sm text-slate-400">
+                                Location: <span className="text-slate-300 font-normal">{dept.city}, {dept.state}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {dept.date_joined 
+                              ? format(new Date(dept.date_joined), "MMM d, yyyy") 
+                              : 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-5 grid grid-cols-4 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Interviews</p>
+                          <p className="text-xl font-bold text-white">{stats.interviewsCount || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Completed</p>
+                          <p className="text-xl font-bold text-white">{stats.completedInterviewsCount || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">In Progress</p>
+                          <p className={cn("text-xl font-bold", stats.inProgressCount > 0 ? "text-orange-400" : "text-white")}>
+                            {stats.inProgressCount || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
+                          <p className="text-xl font-bold text-white">{stats.followUpsCount || 0}</p>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-3 flex flex-col justify-between gap-3">
+                        <div className="flex justify-end gap-2">
+                          <Badge className={cn("text-xs font-medium", getPlanBadgeColor(dept.plan_level))}>
+                            {dept.plan_level}
+                          </Badge>
+                          {daysRemaining !== null && (
+                            <Badge className={cn("text-xs font-medium", 
+                              daysRemaining <= 3 
+                                ? "bg-red-500/20 text-red-300 border-red-500/30" 
+                                : "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                            )}>
+                              {daysRemaining}d left
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5 items-end">
+                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-32">
+                            <Button size="sm" variant="outline" className="w-full bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700 text-xs h-8">
+                              View
+                            </Button>
+                          </Link>
+                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-32">
+                            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
+                              Edit
+                            </Button>
+                          </Link>
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleDeleteClick(dept)}
+                            disabled={dept.plan_level === 'Paid' || isDeleting}
+                            className={cn(
+                              "text-xs h-8 w-32 transition-colors",
+                              dept.plan_level === 'Paid' 
+                                ? 'opacity-50 cursor-not-allowed bg-slate-700 text-slate-500' 
+                                : isInConfirmState
+                                ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
+                                : 'bg-red-600 hover:bg-red-700 text-white'
+                            )}
+                            title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
+                          >
+                            {isInConfirmState ? 'Confirm Delete' : 'Delete'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        <div className="mt-8 text-center">
+          <p className="text-slate-500 text-xs">
+            © 2025 ClearQuest™ • CJIS Compliant
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -632,24 +618,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
 
 
 
-function HealthIndicator({ status }) {
-  const config = {
-    good: { color: 'bg-green-500', label: 'Healthy' },
-    active: { color: 'bg-blue-500', label: 'Active' },
-    warning: { color: 'bg-yellow-500', label: 'Warning' },
-    critical: { color: 'bg-red-500', label: 'Critical' },
-    idle: { color: 'bg-gray-500', label: 'Idle' }
-  };
 
-  const statusConfig = config[status] || config.good;
-
-  return (
-    <div className="flex items-center gap-1.5" title={statusConfig.label}>
-      <div className={`w-2 h-2 rounded-full ${statusConfig.color} animate-pulse`} />
-      <span className="text-xs text-slate-400 hidden sm:inline">{statusConfig.label}</span>
-    </div>
-  );
-}
 
 function getPlanBadgeColor(plan) {
   switch (plan) {
