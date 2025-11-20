@@ -162,8 +162,6 @@ export default function Home() {
             number="1" 
             title="Structured Screening Starts Here" 
             description="ClearQuest standardizes the first step of your hiring process, ensuring every applicant begins with the same consistent, defensible interview."
-            link="See How It Works →"
-            onClick={() => {}}
           />
           <StepCard 
             number="2" 
