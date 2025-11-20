@@ -11,6 +11,7 @@ import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function SystemAdminDashboard() {
   const navigate = useNavigate();
@@ -589,6 +590,8 @@ export default function SystemAdminDashboard() {
               );
             })
           )}
+        </div>
+
         <div className="mt-8 text-center">
           <p className="text-slate-500 text-xs">
             © 2025 ClearQuest™ • CJIS Compliant
