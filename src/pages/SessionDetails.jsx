@@ -170,7 +170,16 @@ export default function SessionDetails() {
     return new Date(a.response_timestamp) - new Date(b.response_timestamp);
   });
 
-  const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
+  // Sort categories by Section.order descending (highest order first)
+  const categoriesSet = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean);
+  const categories = categoriesSet.sort((a, b) => {
+    const sectionA = sections.find(s => s.section_name === a);
+    const sectionB = sections.find(s => s.section_name === b);
+    const orderA = sectionA?.section_order ?? 0;
+    const orderB = sectionB?.section_order ?? 0;
+    // Descending: higher order at the TOP
+    return orderB - orderA;
+  });
 
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
@@ -198,6 +207,14 @@ export default function SessionDetails() {
     const cat = r.section_name || 'Other';
     if (!responsesByCategory[cat]) responsesByCategory[cat] = [];
     responsesByCategory[cat].push(r);
+  });
+
+  // Sort responsesByCategory keys by Section.order descending
+  const sortedResponsesByCategory = {};
+  categories.forEach(cat => {
+    if (responsesByCategory[cat]) {
+      sortedResponsesByCategory[cat] = responsesByCategory[cat];
+    }
   });
 
   const handleExpandAll = () => {
@@ -519,7 +536,7 @@ export default function SessionDetails() {
 
         {viewMode === "structured" ? (
           <TwoColumnStreamView
-            responsesByCategory={responsesByCategory}
+            responsesByCategory={sortedResponsesByCategory}
             followups={followups}
             followUpQuestionEntities={followUpQuestionEntities}
             categoryRefs={categoryRefs}
