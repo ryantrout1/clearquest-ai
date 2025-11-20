@@ -987,7 +987,8 @@ export default function CandidateInterview() {
           }
         }
         
-        await saveAnswerToDatabase(currentItem.id, value, question);
+        // PERFORMANCE FIX: Parallelize database saves
+        saveAnswerToDatabase(currentItem.id, value, question);
 
       } else if (currentItem.type === 'followup') {
         // FOLLOW-UP QUESTION
@@ -1417,8 +1418,11 @@ export default function CandidateInterview() {
       return displayNum;
     }
     
-    // Fallback - shouldn't happen
-    return questionId.replace(/^Q0*/, '');
+    // Fallback - strip letters from question code (e.g., "68C" → "68")
+    const questionObj = engine.QById[questionId];
+    const rawCode = questionObj?.question_id || String(questionId);
+    const strippedCode = rawCode.replace(/^Q0*/, '').replace(/[A-Z]+$/i, '');
+    return strippedCode;
   }, [engine]);
 
   const getFollowUpPackName = (packId) => {
