@@ -180,27 +180,32 @@ export default function SectionHeader({
             </div>
           ) : aiSummary ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
-                  AI Investigator Summary
-                </span>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🧠</span>
+                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
+                    AI Investigator Assist
+                  </span>
+                </div>
                 <Badge className={cn("text-xs", getBadgeColor(
                   aiSummary.riskLevel === "High" ? "red" : 
                   aiSummary.riskLevel === "Medium" ? "yellow" : "green"
                 ))}>
-                  {aiSummary.riskLevel} Risk
+                  AI Section Signal: {aiSummary.riskLevel === "High" ? "High Concern" : 
+                    aiSummary.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
                 </Badge>
               </div>
 
               <div
-                className={cn(
-                  "text-sm text-slate-300 leading-relaxed cursor-pointer hover:text-white transition-colors",
-                  !showFullSummary && "line-clamp-2"
-                )}
-                onClick={() => setShowFullSummary(!showFullSummary)}
+                className="text-sm text-slate-300 leading-relaxed"
               >
-                {aiSummary.text}
+                {showFullSummary ? (
+                  <div>{aiSummary.text}</div>
+                ) : (
+                  <div className="line-clamp-2 cursor-pointer hover:text-white transition-colors" onClick={() => setShowFullSummary(true)}>
+                    {aiSummary.text}
+                  </div>
+                )}
               </div>
 
               {aiSummary.concerns && aiSummary.concerns.length > 0 && showFullSummary && (

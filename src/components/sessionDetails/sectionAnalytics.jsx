@@ -157,7 +157,7 @@ export async function generateSectionSummary(sectionName, sectionResponses, foll
     
     if (yesResponses.length === 0 && !hasFollowUps) {
       const summary = {
-        text: "No disclosures in this section. All questions answered negatively with no follow-up incidents reported.",
+        text: "No disclosures were reported in this section. All questions were answered negatively and no follow-up incidents were triggered. This AI-generated overview is based solely on responses in this section and does not verify truthfulness or completeness. Verification and final judgment remain the responsibility of the background investigator and agency.",
         riskLevel: "Low",
         concerns: []
       };
@@ -172,7 +172,7 @@ export async function generateSectionSummary(sectionName, sectionResponses, foll
       return `  Follow-up: ${fu.followup_pack}\n  Details: ${JSON.stringify(details, null, 2)}`;
     }).join('\n');
     
-    const prompt = `You are an investigator analyzing an applicant's background interview responses for the section "${sectionName}".
+    const prompt = `You are an AI assistant supporting a background investigator analyzing interview responses for the section "${sectionName}".
 
 Section Statistics:
 - Total Questions: ${sectionResponses.length}
@@ -185,15 +185,20 @@ ${yesQuestions || 'None'}
 
 ${hasFollowUps ? `Follow-Up Details:\n${followUpDetails}` : ''}
 
-Provide a SHORT investigator summary (3-5 sentences) that includes:
-1. What was disclosed in this section
-2. Any detected concerns or patterns
-3. Recommended follow-up actions (if any)
-4. Risk assessment (Low/Medium/High)
+Provide a concise AI assist summary that includes:
+1. Main summary: What was disclosed in this section (1-2 sentences)
+2. Any detected patterns worth noting
+3. ALWAYS end with these two sentences EXACTLY:
+   - "This AI-generated overview is based solely on responses in this section and does not verify truthfulness or completeness."
+   - "Verification and final judgment remain the responsibility of the background investigator and agency."
+
+Target length: 3-5 sentences total.
+
+Provide a signal level (Low/Medium/High) indicating concern level, not a final risk determination.
 
 Format your response as JSON:
 {
-  "text": "Your 3-5 sentence summary here",
+  "text": "Your complete summary with the mandatory disclaimer sentences at the end",
   "riskLevel": "Low|Medium|High",
   "concerns": ["concern 1", "concern 2"]
 }`;
