@@ -170,15 +170,7 @@ export default function SessionDetails() {
     return new Date(a.response_timestamp) - new Date(b.response_timestamp);
   });
 
-  // Sort categories by section_order descending (reverse of Interview Manager order)
-  const categoriesUnsorted = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean);
-  const categories = categoriesUnsorted.sort((a, b) => {
-    const sectionA = sections.find(s => s.section_name === a);
-    const sectionB = sections.find(s => s.section_name === b);
-    const orderA = sectionA?.section_order || 0;
-    const orderB = sectionB?.section_order || 0;
-    return orderB - orderA; // Descending order
-  });
+  const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
 
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
@@ -535,7 +527,6 @@ export default function SessionDetails() {
             toggleSection={toggleSection}
             expandedQuestions={expandedQuestions}
             toggleQuestionExpanded={toggleQuestionExpanded}
-            sections={sections}
           />
         ) : (
           <TranscriptView
@@ -607,23 +598,13 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
-  // Sort sections by section_order descending
-  const sortedSections = Object.keys(responsesByCategory).sort((a, b) => {
-    const sectionA = sections.find(s => s.section_name === a);
-    const sectionB = sections.find(s => s.section_name === b);
-    const orderA = sectionA?.section_order || 0;
-    const orderB = sectionB?.section_order || 0;
-    return orderB - orderA; // Descending order
-  });
-  
   return (
     <div className="space-y-0">
-      {sortedSections.map((category) => {
-        const categoryResponses = responsesByCategory[category];
+      {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
 
         const sortedResponses = [...categoryResponses].sort((a, b) => {
