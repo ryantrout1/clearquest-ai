@@ -472,11 +472,12 @@ export default function CandidateInterview() {
       const restoredTranscript = [];
       
       for (const response of sortedResponses) {
+        // CRITICAL FIX: response.question_id is the database ID now, not the code
         const question = engineData.QById[response.question_id];
         if (question) {
           restoredTranscript.push({
             id: `q-${response.id}`,
-            questionId: response.question_id,
+            questionId: response.question_id, // This is database ID
             questionText: question.question_text,
             answer: response.answer,
             category: question.category,
@@ -1451,7 +1452,7 @@ export default function CandidateInterview() {
       
       return {
         type: 'question',
-        id: question.question_id,
+        id: currentItem.id, // Use database ID, not question_code
         text: question.question_text,
         responseType: question.response_type,
         category: question.category
@@ -1818,7 +1819,7 @@ export default function CandidateInterview() {
                         ) : (
                           <>
                             <span className="text-lg font-bold text-blue-400">
-                              Question {getQuestionDisplayNumber(currentPrompt.id)}
+                              Question {getQuestionDisplayNumber(currentItem.id)}
                             </span>
                             <span className="text-sm text-slate-500">•</span>
                             <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
