@@ -349,7 +349,8 @@ export default function SessionDetails() {
   const statusConfig = {
     in_progress: { label: "In Progress", color: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
     completed: { label: "Completed", color: "bg-green-500/20 text-green-300 border-green-500/30" },
-    paused: { label: "Paused", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" }
+    paused: { label: "Paused", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    under_review: { label: "Under Review", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" }
   };
 
   const riskConfig = {
@@ -474,27 +475,47 @@ export default function SessionDetails() {
                 </div>
               </div>
 
-              {/* Status Dropdown + Risk Pill */}
-              <div className="flex flex-col gap-2">
-                <Select value={session.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white text-sm w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700">
-                    <SelectItem value="in_progress" className="text-white text-sm">In Progress</SelectItem>
-                    <SelectItem value="completed" className="text-white text-sm">Completed</SelectItem>
-                    <SelectItem value="under_review" className="text-white text-sm">Under Review</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Generate AI Summaries + Status Pill */}
+              <div className="flex flex-col items-end gap-2">
+                <Button
+                  onClick={handleGenerateSummaries}
+                  disabled={isGeneratingSummaries || responses.length === 0}
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-white h-10"
+                >
+                  {isGeneratingSummaries ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating AI Summaries...
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-lg mr-2">🧠</span>
+                      Generate AI Summaries
+                    </>
+                  )}
+                </Button>
 
-                <div className="flex gap-2">
-                  <Badge className={cn("text-sm", statusConfig[session.status]?.color)}>
-                    {statusConfig[session.status]?.label || session.status}
-                  </Badge>
-                  <Badge className={cn("text-sm", riskConfig[session.risk_rating || 'low']?.color)}>
-                    {riskConfig[session.risk_rating || 'low']?.label}
-                  </Badge>
-                </div>
+                <button
+                  onClick={() => {
+                    if (session.status === 'completed') {
+                      handleStatusChange('in_progress');
+                    }
+                  }}
+                  onMouseEnter={() => setIsHoveringStatus(true)}
+                  onMouseLeave={() => setIsHoveringStatus(false)}
+                  disabled={session.status !== 'completed'}
+                  className={cn(
+                    "text-sm px-3 py-1.5 rounded-full border transition-all font-medium",
+                    session.status === 'completed' && "cursor-pointer hover:opacity-90",
+                    session.status !== 'completed' && "cursor-default",
+                    statusConfig[session.status]?.color
+                  )}
+                >
+                  {session.status === 'completed' && isHoveringStatus 
+                    ? "Mark In-Progress" 
+                    : statusConfig[session.status]?.label || session.status}
+                </button>
               </div>
             </div>
           </CardContent>
@@ -538,28 +559,6 @@ export default function SessionDetails() {
             subtext={actualCompletion === 100 ? "Complete" : "In Progress"}
             variant="completion"
           />
-        </div>
-
-        {/* Generate AI Summaries Button */}
-        <div className="mb-4">
-          <Button
-            onClick={handleGenerateSummaries}
-            disabled={isGeneratingSummaries || responses.length === 0}
-            size="sm"
-            className="bg-purple-600 hover:bg-purple-700 text-white h-10"
-          >
-            {isGeneratingSummaries ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Generating AI Summaries...
-              </>
-            ) : (
-              <>
-                <span className="text-lg mr-2">🧠</span>
-                Generate AI Summaries
-              </>
-            )}
-          </Button>
         </div>
 
         {/* Global AI Investigator Assist */}
