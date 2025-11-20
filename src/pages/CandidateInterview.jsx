@@ -475,12 +475,16 @@ export default function CandidateInterview() {
         // CRITICAL FIX: response.question_id is the database ID now, not the code
         const question = engineData.QById[response.question_id];
         if (question) {
+          // FIX: Get section name from Section entity, not legacy category field
+          const sectionEntity = engineData.Sections.find(s => s.id === question.section_id);
+          const sectionName = sectionEntity?.section_name || question.category || '';
+          
           restoredTranscript.push({
             id: `q-${response.id}`,
             questionId: response.question_id, // This is database ID
             questionText: question.question_text,
             answer: response.answer,
-            category: question.category,
+            category: sectionName, // Use Section name, not legacy category
             type: 'question',
             timestamp: response.response_timestamp
           });
@@ -568,12 +572,16 @@ export default function CandidateInterview() {
     for (const response of sortedResponses) {
       const question = engineData.QById[response.question_id];
       if (question) {
+        // FIX: Get section name from Section entity, not legacy category field
+        const sectionEntity = engineData.Sections.find(s => s.id === question.section_id);
+        const sectionName = sectionEntity?.section_name || question.category || '';
+        
         restoredTranscript.push({
           id: `q-${response.id}`,
           questionId: response.question_id,
           questionText: question.question_text,
           answer: response.answer,
-          category: question.category,
+          category: sectionName, // Use Section name, not legacy category
           type: 'question',
           timestamp: response.response_timestamp
         });
@@ -854,12 +862,16 @@ export default function CandidateInterview() {
         }
 
         // Add to transcript
+        // FIX: Get section name from Section entity, not legacy category field
+        const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+        const sectionName = sectionEntity?.section_name || question.category || '';
+        
         const transcriptEntry = {
           id: `q-${Date.now()}`,
           questionId: currentItem.id,
           questionText: question.question_text,
           answer: value,
-          category: question.category,
+          category: sectionName, // Use Section name, not legacy category
           type: 'question',
           timestamp: new Date().toISOString()
         };
@@ -1275,11 +1287,15 @@ export default function CandidateInterview() {
       const currentDisplayOrder = displayOrderRef.current++;
       const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
       
+      // FIX: Get section name from Section entity, not legacy category field
+      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+      const sectionName = sectionEntity?.section_name || question.category || '';
+      
       await base44.entities.Response.create({
         session_id: sessionId,
         question_id: questionId,
         question_text: question.question_text,
-        category: question.category,
+        category: sectionName, // Use Section name from Interview Manager
         answer: answer,
         answer_array: null,
         triggered_followup: triggersFollowup,
@@ -1450,12 +1466,16 @@ export default function CandidateInterview() {
         return null;
       }
       
+      // FIX: Get section name from Section entity, not legacy category field
+      const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+      const sectionName = sectionEntity?.section_name || question.category || '';
+      
       return {
         type: 'question',
         id: currentItem.id, // Use database ID, not question_code
         text: question.question_text,
         responseType: question.response_type,
-        category: question.category
+        category: sectionName // Use Section name from Interview Manager
       };
     }
 
