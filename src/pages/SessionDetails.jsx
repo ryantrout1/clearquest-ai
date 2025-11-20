@@ -60,6 +60,7 @@ export default function SessionDetails() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
+  const [isGeneratingSummaries, setIsGeneratingSummaries] = useState(false);
 
   const categoryRefs = useRef({});
 
@@ -295,6 +296,28 @@ export default function SessionDetails() {
       toast.error("Failed to generate report");
     } finally {
       setIsGeneratingReport(false);
+    }
+  };
+
+  const handleGenerateSummaries = async () => {
+    setIsGeneratingSummaries(true);
+
+    try {
+      const result = await base44.functions.invoke('generateSessionSummaries', {
+        session_id: sessionId
+      });
+
+      if (result.data.success) {
+        toast.success(`AI summaries updated for ${result.data.updatedCount} questions`);
+        await loadSessionData(); // Reload to show new summaries
+      } else {
+        toast.error('Failed to generate summaries');
+      }
+    } catch (err) {
+      console.error('Error generating summaries:', err);
+      toast.error('Failed to generate summaries');
+    } finally {
+      setIsGeneratingSummaries(false);
     }
   };
 
@@ -603,6 +626,26 @@ export default function SessionDetails() {
                   Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
                 </span>
               )}
+              <Button
+                onClick={handleGenerateSummaries}
+                disabled={isGeneratingSummaries || responses.length === 0}
+                size="sm"
+                variant="outline"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9"
+              >
+                {isGeneratingSummaries ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl mr-2">🧠</span>
+                    <span className="hidden sm:inline">Generate AI Summaries</span>
+                    <span className="sm:hidden">AI</span>
+                  </>
+                )}
+              </Button>
               <Button
                 onClick={generateReport}
                 disabled={isGeneratingReport || responses.length === 0}
@@ -913,7 +956,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
               </p>
             ) : (
               <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
-                No summary available
+                No summary available. Use 'Generate AI Summaries' to create one.
               </p>
             )}
             {isExpanded ? (
