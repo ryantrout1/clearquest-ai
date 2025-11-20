@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import SectionHeader from "../components/sessionDetails/SectionHeader";
 
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
@@ -598,6 +599,9 @@ function CompactMetric({ label, value, color = "blue" }) {
 }
 
 function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded }) {
+  // Flatten all responses for global context
+  const allResponsesFlat = Object.values(responsesByCategory).flat();
+  
   return (
     <div className="space-y-0">
       {Object.entries(responsesByCategory).map(([category, categoryResponses]) => {
@@ -620,23 +624,14 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
 
         return (
           <div key={category} className={isSectionCollapsed ? "mb-0" : "mb-6"}>
-            <div
-              ref={el => categoryRefs.current[category] = el}
-              className="sticky top-28 md:top-32 bg-slate-800 border-l-4 border-blue-500 py-3 px-4 mb-0 z-10 flex items-center justify-between"
-            >
-              <h2 className="text-sm font-bold text-white uppercase tracking-wide">{category}</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => toggleSection(category)}
-                className="text-slate-300 hover:text-white hover:bg-slate-700 h-8 px-2"
-              >
-                {isSectionCollapsed ? (
-                  <ChevronRight className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </Button>
+            <div ref={el => categoryRefs.current[category] = el}>
+              <SectionHeader
+                category={category}
+                allResponses={allResponsesFlat}
+                allFollowups={followups}
+                isCollapsed={isSectionCollapsed}
+                onToggle={() => toggleSection(category)}
+              />
             </div>
 
             {!isSectionCollapsed && (
