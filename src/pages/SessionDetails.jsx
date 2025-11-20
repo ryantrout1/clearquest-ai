@@ -482,32 +482,37 @@ export default function SessionDetails() {
             label="QUESTIONS"
             value={`${actualQuestionsAnswered} / ${totalQuestions || 207}`}
             subtext={`${actualCompletion}% Complete`}
+            variant="neutral"
           />
           <KPICard
             label="YES RESPONSES"
             value={yesCount}
             subtext={`${yesPercent}% of total`}
+            variant="yes"
           />
           <KPICard
             label="NO RESPONSES"
             value={noCount}
             subtext={`${noPercent}% of total`}
+            variant="no"
           />
           <KPICard
             label="FOLLOW-UPS"
             value={actualFollowupsTriggered}
             subtext={actualFollowupsTriggered > 0 ? "Triggered" : "None"}
+            variant="followups"
           />
           <KPICard
             label="RED FLAGS"
             value={session.red_flags?.length || 0}
             subtext={session.red_flags?.length > 0 ? "Identified" : "None"}
-            highlight={session.red_flags?.length > 0}
+            variant="redflags"
           />
           <KPICard
             label="COMPLETION"
             value={`${actualCompletion}%`}
             subtext={actualCompletion === 100 ? "Complete" : "In Progress"}
+            variant="completion"
           />
         </div>
 
@@ -722,18 +727,51 @@ function CompactMetric({ label, value, color = "blue" }) {
   );
 }
 
-function KPICard({ label, value, subtext, highlight = false }) {
+function KPICard({ label, value, subtext, variant = "neutral" }) {
+  const kpiColors = {
+    neutral: {
+      bg: "bg-slate-800/50",
+      border: "border-slate-700",
+      valueText: "text-white"
+    },
+    yes: {
+      bg: "bg-emerald-900/40",
+      border: "border-emerald-700/40",
+      valueText: "text-white"
+    },
+    no: {
+      bg: "bg-slate-700/50",
+      border: "border-slate-600/50",
+      valueText: "text-white"
+    },
+    followups: {
+      bg: "bg-amber-900/40",
+      border: "border-amber-700/40",
+      valueText: "text-white"
+    },
+    redflags: {
+      bg: "bg-red-900/40",
+      border: "border-red-700/50",
+      valueText: "text-white"
+    },
+    completion: {
+      bg: "bg-blue-900/40",
+      border: "border-blue-700/40",
+      valueText: "text-white"
+    }
+  };
+
+  const colors = kpiColors[variant] || kpiColors.neutral;
+
   return (
     <Card className={cn(
-      "bg-slate-800/50 backdrop-blur-sm border-slate-700",
-      highlight && "border-red-500/30"
+      "backdrop-blur-sm transition-colors",
+      colors.bg,
+      colors.border
     )}>
       <CardContent className="p-4">
         <div className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{label}</div>
-        <div className={cn(
-          "text-2xl font-bold mb-1",
-          highlight ? "text-red-400" : "text-white"
-        )}>
+        <div className={cn("text-2xl font-bold mb-1", colors.valueText)}>
           {value}
         </div>
         <div className="text-xs text-slate-500">{subtext}</div>
