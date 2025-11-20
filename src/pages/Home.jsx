@@ -168,21 +168,21 @@ export default function Home() {
           <StepCard 
             number="2" 
             title="Answer Questions" 
-            description="Conversational AI asks one question at a time"
+            description="Conversational AI guides the applicant one question at a time, collecting clear and consistent responses without investigator involvement."
             link="See the Questions"
             onClick={() => setQuestionsDialogOpen(true)}
           />
           <StepCard 
             number="3" 
             title="Follow-Ups" 
-            description="'Yes' answers trigger structured follow-up packs so no detail is ever missed"
+            description="Every 'Yes' automatically triggers structured follow-up questions, ensuring no detail is missed and every incident is documented the same way."
             link="View Follow-Up Packs"
             onClick={() => setFollowupsDialogOpen(true)}
           />
           <StepCard 
             number="4" 
             title="Generate Report" 
-            description="Investigator receives complete PDF summary"
+            description="ClearQuest produces a complete, investigator-ready summary with transcripts, follow-ups, risk notes, and verification sections in one standardized report."
             link="See Report Example"
             onClick={() => setReportDialogOpen(true)}
           />
