@@ -252,57 +252,61 @@ export default function InterviewDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-4">
-          <Link to={createPageUrl("HomeHub")}>
-            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-700 mb-3" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
-          
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-white">Interview Dashboard</h1>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">
-                Monitor and manage interview sessions • Logged in as {currentUser.username}
-              </p>
+    <div className="min-h-screen bg-[#0a0f1e]">
+      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3 mb-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link to={createPageUrl("HomeHub")}>
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2">
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-semibold text-white">Interview Dashboard</h1>
+                <span className="text-xs text-slate-400 block mt-0.5">
+                  Monitor and manage interview sessions
+                </span>
+              </div>
             </div>
             <Button 
               variant="outline" 
               onClick={handleLogout}
               size="sm"
-              className="w-full sm:w-auto bg-slate-800/50 border-slate-600 text-white hover:bg-slate-700"
+              className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-800 text-xs"
             >
               Logout
             </Button>
           </div>
         </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4">
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <CompactStat label="Total Sessions" value={stats.total} color="blue" />
-          <CompactStat label="In Progress" value={stats.inProgress} color="orange" />
-          <CompactStat label="Completed" value={stats.completed} color="green" />
-          <CompactStat label="Flagged" value={stats.flagged} color="red" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+          <CompactStat label="TOTAL SESSIONS" value={stats.total} color="blue" />
+          <CompactStat label="IN PROGRESS" value={stats.inProgress} color="orange" />
+          <CompactStat label="COMPLETED" value={stats.completed} color="green" />
+          <CompactStat label="FLAGGED" value={stats.flagged} color="red" />
         </div>
 
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
-          <CardContent className="p-3 md:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
+        <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
+          <CardContent className="p-3">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mb-2">
               <div className="md:col-span-5 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
                   placeholder="Search by session code, file number, or department..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-slate-900/50 border-slate-600 text-white text-sm h-9"
+                  className="pl-10 bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 text-sm h-9"
                 />
               </div>
 
               <div className="md:col-span-4">
                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white text-sm h-9 w-full">
+                  <SelectTrigger className="bg-slate-900/50 border-slate-700/50 text-white text-sm h-9 w-full">
                     <SelectValue placeholder="All Departments" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-700">
@@ -318,7 +322,7 @@ export default function InterviewDashboard() {
 
               <div className="md:col-span-3">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white text-sm h-9 w-full">
+                  <SelectTrigger className="bg-slate-900/50 border-slate-700/50 text-white text-sm h-9 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-700">
@@ -388,9 +392,9 @@ export default function InterviewDashboard() {
         </Card>
 
         {departmentFilter !== "all" && selectedDepartmentName && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Badge 
-              className="bg-blue-600/20 text-blue-300 border-blue-500/30 px-3 py-1.5 text-sm cursor-pointer hover:bg-blue-600/30"
+              className="bg-blue-600/20 text-blue-300 border border-blue-500/30 px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-600/30"
               onClick={() => setDepartmentFilter("all")}
             >
               Department: {selectedDepartmentName}
@@ -401,13 +405,13 @@ export default function InterviewDashboard() {
 
         <div className="space-y-3">
           {isLoading ? (
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-[#0f1629] border-slate-800/50">
               <CardContent className="p-12 text-center">
-                <div className="text-slate-400">Loading sessions...</div>
+                <div className="text-slate-400 text-sm">Loading sessions...</div>
               </CardContent>
             </Card>
           ) : processedSessions.length === 0 ? (
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-[#0f1629] border-slate-800/50">
               <CardContent className="p-12 text-center space-y-4">
                 <p className="text-slate-400 text-sm">
                   {searchTerm || statusFilter !== "all" || departmentFilter !== "all"
@@ -423,7 +427,7 @@ export default function InterviewDashboard() {
                       setDepartmentFilter("all");
                     }}
                     size="sm"
-                    className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
+                    className="bg-slate-900/50 border-slate-700/50 text-white hover:bg-slate-800/50 text-xs"
                   >
                     Clear Filters
                   </Button>
@@ -464,8 +468,8 @@ function CompactStat({ label, value, color }) {
   };
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-      <p className="text-xs text-slate-400 mb-1">{label}</p>
+    <div className="bg-[#0f1629] border border-slate-800/50 rounded-lg p-4">
+      <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{label}</p>
       <p className={cn("text-2xl font-bold", colorClasses[color])}>{value}</p>
     </div>
   );
@@ -476,10 +480,10 @@ function StatusChip({ label, active, onClick }) {
     <button
       onClick={onClick}
       className={cn(
-        "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
         active 
-          ? "bg-blue-600 text-white" 
-          : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+          ? "bg-blue-600 text-white border-blue-500" 
+          : "bg-slate-800/30 text-slate-400 border-slate-700/50 hover:bg-slate-800/50"
       )}
     >
       {label}
@@ -554,31 +558,31 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
     : 0;
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
+    <Card className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
       <CardContent className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           <div className="md:col-span-1 flex items-center justify-center">
             <Checkbox 
               checked={isSelected} 
               onCheckedChange={onToggleSelect}
-              className="border-slate-400 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              className="border-slate-600"
             />
           </div>
 
           <div className="md:col-span-4 space-y-2">
             <div>
-              <h3 className="text-lg font-bold text-white mb-1">
+              <h3 className="text-base font-medium text-white mb-1">
                 {session.session_code}
               </h3>
               <div className="space-y-0.5">
                 <p className="text-sm text-slate-400">
-                  Department: <span className="text-slate-300">{departmentName}</span>
+                  Department: <span className="text-slate-300 font-normal">{departmentName}</span>
                   {session.department_code !== departmentName && (
                     <span className="text-slate-500"> ({session.department_code})</span>
                   )}
                 </p>
                 <p className="text-sm text-slate-400">
-                  File: <span className="text-slate-300 font-mono">{session.file_number}</span>
+                  File: <span className="text-slate-300 font-mono font-normal">{session.file_number}</span>
                 </p>
               </div>
             </div>
@@ -605,7 +609,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
           <div className="md:col-span-3 flex flex-col justify-between gap-3">
             <div className="flex justify-end">
-              <Badge className={cn("text-xs", statusConfig[session.status]?.color)}>
+              <Badge className={cn("text-xs font-medium", statusConfig[session.status]?.color)}>
                 {statusConfig[session.status]?.label}
               </Badge>
             </div>
@@ -613,20 +617,19 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7 w-32"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-32"
               >
                 View Interview
               </Button>
               <Button
                 onClick={handleDelete}
-                variant="outline"
                 size="sm"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-7 w-32 transition-colors",
+                  "text-xs h-8 w-32 transition-colors",
                   deleteConfirm
                     ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
-                    : "bg-red-950/20 border-red-800/30 text-red-300 hover:bg-red-950/40 hover:text-red-200"
+                    : "bg-red-600 hover:bg-red-700 text-white"
                 )}
               >
                 {isDeleting ? (
