@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { Link } from "react-router-dom";
 
 export default function StartInterview() {
   const navigate = useNavigate();
+  const { token } = useParams(); // Optional URL token for prefilling
+  
   const [formData, setFormData] = useState({
     departmentCode: "",
     fileNumber: ""
@@ -45,14 +47,14 @@ export default function StartInterview() {
           const fileNumber = token.substring(firstDashIndex + 1);
           
           setFormData({
-            department_code: deptCode,
-            file_number: fileNumber
+            departmentCode: deptCode,
+            fileNumber: fileNumber
           });
         } else {
           // No dash - entire token is dept code
           setFormData(prev => ({
             ...prev,
-            department_code: token
+            departmentCode: token
           }));
         }
       } catch (err) {
@@ -190,7 +192,7 @@ export default function StartInterview() {
         
         if (activeSession) {
           console.log("📍 Found active session - navigating to interview");
-          navigate(createPageUrl(`InterviewV2?session=${activeSession.id}`));
+          navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`));
           return;
         }
 
@@ -238,7 +240,7 @@ export default function StartInterview() {
 
       console.log("✅ Session created:", newSession.id);
 
-      navigate(createPageUrl(`InterviewV2?session=${newSession.id}`));
+      navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`));
 
     } catch (err) {
       console.error("❌ Error creating session:", err);
