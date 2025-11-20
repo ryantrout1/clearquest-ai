@@ -882,12 +882,19 @@ Return ONLY the summary sentence, nothing else.`;
 
     const nextQuestionId = computeNextQuestionId(engine, previousQuestionId, previousAnswer);
     
+    console.log(`\n📍 moveToNextDeterministicQuestion called:`);
+    console.log(`   Previous: ${previousQuestionId}, Answer: ${previousAnswer}`);
+    console.log(`   Next: ${nextQuestionId || 'null (end)'}`);
+    
     if (nextQuestionId && engine.QById[nextQuestionId]) {
+      const location = engine.questionIdToSection[nextQuestionId];
+      const nextSection = location ? engine.sectionConfig[location.sectionId] : null;
+      console.log(`   Section: ${nextSection?.section_name || 'Unknown'}\n`);
+      
       const nextItem = { id: nextQuestionId, type: 'question' };
       setQueue([]);
       setCurrentItem(nextItem);
       await persistStateToDatabase(newTranscript, [], nextItem);
-      console.log(`➡️ Moving to next deterministic question: ${nextQuestionId}`);
     } else {
       // Only mark complete if previous was Q162
       if (previousQuestionId === 'Q162') {
@@ -1040,23 +1047,50 @@ Return ONLY the summary sentence, nothing else.`;
         await persistStateToDatabase(transcriptWithProbing, [], anotherInstanceItem);
         console.log(`✅ Instance ${currentInstance} complete - asking for another instance`);
       } else {
-        // Reached max instances
+        // Reached max instances - use deterministic routing
         console.log(`🔚 Max instances (${multiInstanceState.maxInstances}) reached for ${questionId}`);
         if (limitMessage) {
           toast.info(limitMessage, { duration: 5000 });
         }
         
+        const rootQuestionId = originalTriggeringQuestionId;
         setMultiInstanceState(null);
         setIsAskingForAnotherInstance(false);
         setProbingStatus('not_started');
+        
+        // Use deterministic section-based routing
+        const nextQuestionId = computeNextQuestionId(engine, rootQuestionId, 'Yes');
+        
+        console.log(`🔁 Multi-instance FINISHED for ${rootQuestionId} (max reached)`);
+        console.log(`   → Next deterministic question: ${nextQuestionId}`);
+        
+        if (nextQuestionId && engine.QById[nextQuestionId]) {
+          const location = engine.questionIdToSection[nextQuestionId];
+          const nextSection = location ? engine.sectionConfig[location.sectionId] : null;
+          console.log(`   → In section: ${nextSection?.section_name || 'Unknown'}\n`);
+        }
+        
         setTranscript(transcriptWithProbing);
-        await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
+        await moveToNextDeterministicQuestion(rootQuestionId, originalTriggeringAnswer);
       }
     } else {
-      // No multi-instance - continue normally
+      // No multi-instance - use deterministic routing
       setProbingStatus('not_started');
+      
+      const rootQuestionId = originalTriggeringQuestionId;
+      const nextQuestionId = computeNextQuestionId(engine, rootQuestionId, originalTriggeringAnswer);
+      
+      console.log(`✅ Single-instance probing complete for ${rootQuestionId}`);
+      console.log(`   → Next deterministic question: ${nextQuestionId}`);
+      
+      if (nextQuestionId && engine.QById[nextQuestionId]) {
+        const location = engine.questionIdToSection[nextQuestionId];
+        const nextSection = location ? engine.sectionConfig[location.sectionId] : null;
+        console.log(`   → In section: ${nextSection?.section_name || 'Unknown'}\n`);
+      }
+      
       setTranscript(transcriptWithProbing);
-      await moveToNextDeterministicQuestion(originalTriggeringQuestionId, originalTriggeringAnswer);
+      await moveToNextDeterministicQuestion(rootQuestionId, originalTriggeringAnswer);
     }
 
   }, [agentMessages, aiProbingDisabled, generateAndSaveInvestigatorSummary, saveProbingToDatabase, moveToNextDeterministicQuestion, unsubscribeRef, multiInstanceState, transcript, persistStateToDatabase, probingStatus]);
@@ -1295,16 +1329,29 @@ Return ONLY the summary sentence, nothing else.`;
             await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
           }
         } else {
-          // User said No - end multi-instance loop
+          // User said No - end multi-instance loop and use deterministic routing
           console.log(`✅ Multi-instance loop ended for ${currentItem.questionId} after ${multiInstanceState.instanceNumber} instance(s)`);
           
+          const rootQuestionId = currentItem.questionId;
           setMultiInstanceState(null);
           setIsAskingForAnotherInstance(false);
           setProbingStatus('not_started');
           
-          const rootQuestion = engine.QById[currentItem.questionId];
+          // Use deterministic section-based routing
+          const nextQuestionId = computeNextQuestionId(engine, rootQuestionId, 'Yes');
+          
+          console.log(`🔁 Multi-instance FINISHED for ${rootQuestionId}`);
+          console.log(`   → Next deterministic question: ${nextQuestionId}`);
+          
+          if (nextQuestionId && engine.QById[nextQuestionId]) {
+            const location = engine.questionIdToSection[nextQuestionId];
+            const nextSection = location ? engine.sectionConfig[location.sectionId] : null;
+            console.log(`   → In section: ${nextSection?.section_name || 'Unknown'}\n`);
+          }
+          
+          setTranscript(newTranscript);
           await persistStateToDatabase(newTranscript, [], null);
-          await moveToNextDeterministicQuestion(currentItem.questionId, 'Yes');
+          await moveToNextDeterministicQuestion(rootQuestionId, 'Yes');
         }
 
         setIsCommitting(false);
