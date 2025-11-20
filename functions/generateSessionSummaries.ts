@@ -110,11 +110,160 @@ Keep it factual, concise, and suitable for a case file. Do not editorialize or m
       }
     }
 
-    console.log(`✅ Updated ${updatedCount} summaries for session ${session_id}`);
+    console.log(`✅ Updated ${updatedCount} question summaries for session ${session_id}`);
+
+    // Generate global AI summary
+    console.log('🌐 Generating global AI summary...');
+    const yesCount = responses.filter(r => r.answer === 'Yes').length;
+    const noCount = responses.filter(r => r.answer === 'No').length;
+
+    // Compute pattern pills
+    const patterns = [];
+    if (noCount > yesCount * 3) patterns.push("No Major Disclosures");
+    if (responses.length > 0) patterns.push("Consistent Patterns");
+    
+    const sortedResponses = [...responses].sort((a, b) => 
+      new Date(a.response_timestamp) - new Date(b.response_timestamp)
+    );
+    
+    let avgTimePerQuestion = 0;
+    if (sortedResponses.length > 1) {
+      const timeDiffs = [];
+      for (let i = 1; i < sortedResponses.length; i++) {
+        const diff = (new Date(sortedResponses[i].response_timestamp) - new Date(sortedResponses[i - 1].response_timestamp)) / 1000;
+        if (diff < 300) timeDiffs.push(diff);
+      }
+      if (timeDiffs.length > 0) {
+        avgTimePerQuestion = Math.round(timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length);
+      }
+    }
+    
+    if (avgTimePerQuestion > 0 && avgTimePerQuestion < 60) {
+      patterns.push("Normal Response Timing");
+    }
+
+    const globalPrompt = `You are an AI assistant supporting a background investigator reviewing a completed interview.
+
+Interview Statistics:
+- Total Questions Answered: ${responses.length}
+- Yes Responses: ${yesCount}
+- No Responses: ${noCount}
+- Follow-Up Packs Triggered: ${allFollowups.length}
+
+Generate a concise interview-wide summary for investigators that includes:
+
+1. Main overview paragraph (2-3 sentences): Overall pattern of disclosures, response consistency, and timing
+2. Key Observations (3-5 bullet points): Specific notable points across all sections
+3. Suggested verification areas (3-4 bullet points): Standard verification steps the investigator should take
+
+Format your response as JSON:
+{
+  "mainSummary": "2-3 sentence overview paragraph",
+  "keyObservations": ["observation 1", "observation 2", "observation 3"],
+  "suggestedVerification": ["verification step 1", "verification step 2", "verification step 3"],
+  "riskLevel": "Low|Medium|High"
+}`;
+
+    const globalSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt: globalPrompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          mainSummary: { type: "string" },
+          keyObservations: { type: "array", items: { type: "string" } },
+          suggestedVerification: { type: "array", items: { type: "string" } },
+          riskLevel: { type: "string", enum: ["Low", "Medium", "High"] }
+        },
+        required: ["mainSummary", "keyObservations", "suggestedVerification", "riskLevel"]
+      }
+    });
+
+    globalSummary.patterns = patterns;
+
+    // Generate section-level summaries
+    console.log('📊 Generating section-level AI summaries...');
+    const sectionSummaries = {};
+    
+    // Group responses by section
+    const responsesBySection = {};
+    responses.forEach(r => {
+      const section = r.category || r.section_name || 'Other';
+      if (!responsesBySection[section]) {
+        responsesBySection[section] = [];
+      }
+      responsesBySection[section].push(r);
+    });
+
+    for (const [sectionName, sectionResponses] of Object.entries(responsesBySection)) {
+      const sectionYesCount = sectionResponses.filter(r => r.answer === 'Yes').length;
+      
+      if (sectionYesCount === 0) {
+        // No Yes answers - simple summary
+        sectionSummaries[sectionName] = {
+          text: `No disclosures in this section (${sectionResponses.length} questions answered, all "No").`,
+          riskLevel: "Low",
+          concerns: []
+        };
+        continue;
+      }
+
+      const sectionFollowups = allFollowups.filter(fu => {
+        return sectionResponses.some(r => r.id === fu.response_id);
+      });
+
+      const sectionPrompt = `You are an AI assistant supporting a background investigator.
+
+Section: ${sectionName}
+Questions Answered: ${sectionResponses.length}
+Yes Responses: ${sectionYesCount}
+Follow-Ups: ${sectionFollowups.length}
+
+Generate a brief section summary (2-3 sentences) that covers:
+- What was disclosed in this section
+- Any patterns or concerns
+- Risk level: Low, Medium, or High
+
+Format as JSON:
+{
+  "text": "2-3 sentence summary",
+  "riskLevel": "Low|Medium|High",
+  "concerns": ["concern 1", "concern 2"] (optional array, can be empty)
+}`;
+
+      try {
+        const sectionSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: sectionPrompt,
+          response_json_schema: {
+            type: "object",
+            properties: {
+              text: { type: "string" },
+              riskLevel: { type: "string", enum: ["Low", "Medium", "High"] },
+              concerns: { type: "array", items: { type: "string" } }
+            },
+            required: ["text", "riskLevel"]
+          }
+        });
+
+        sectionSummaries[sectionName] = sectionSummary;
+      } catch (err) {
+        console.error(`Error generating summary for section ${sectionName}:`, err);
+      }
+    }
+
+    // Update session with all AI summaries
+    await base44.asServiceRole.entities.InterviewSession.update(session_id, {
+      global_ai_summary: globalSummary,
+      section_ai_summaries: sectionSummaries,
+      ai_summaries_last_generated_at: new Date().toISOString()
+    });
+
+    console.log(`✅ Saved global and ${Object.keys(sectionSummaries).length} section summaries`);
 
     return Response.json({
       success: true,
-      updatedCount: updatedCount
+      updatedCount: updatedCount,
+      globalSummaryGenerated: true,
+      sectionSummariesGenerated: Object.keys(sectionSummaries).length
     });
 
   } catch (error) {

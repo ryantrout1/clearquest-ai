@@ -308,7 +308,8 @@ export default function SessionDetails() {
       });
 
       if (result.data.success) {
-        toast.success(`AI summaries updated for ${result.data.updatedCount} questions`);
+        const { updatedCount, globalSummaryGenerated, sectionSummariesGenerated } = result.data;
+        toast.success(`AI summaries updated: ${updatedCount} questions, global summary, and ${sectionSummariesGenerated} sections`);
         await loadSessionData(); // Reload to show new summaries
       } else {
         toast.error('Failed to generate summaries');
@@ -539,12 +540,30 @@ export default function SessionDetails() {
           />
         </div>
 
+        {/* Generate AI Summaries Button */}
+        <div className="mb-4">
+          <Button
+            onClick={handleGenerateSummaries}
+            disabled={isGeneratingSummaries || responses.length === 0}
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700 text-white h-10"
+          >
+            {isGeneratingSummaries ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating AI Summaries...
+              </>
+            ) : (
+              <>
+                <span className="text-lg mr-2">🧠</span>
+                Generate AI Summaries
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Global AI Investigator Assist */}
-        <GlobalAIAssist 
-          responses={responses} 
-          followups={followups} 
-          session={session}
-        />
+        <GlobalAIAssist session={session} />
 
         <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-3 items-center">
@@ -626,26 +645,6 @@ export default function SessionDetails() {
                   Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
                 </span>
               )}
-              <Button
-                onClick={handleGenerateSummaries}
-                disabled={isGeneratingSummaries || responses.length === 0}
-                size="sm"
-                variant="outline"
-                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9"
-              >
-                {isGeneratingSummaries ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xl mr-2">🧠</span>
-                    <span className="hidden sm:inline">Generate AI Summaries</span>
-                    <span className="sm:hidden">AI</span>
-                  </>
-                )}
-              </Button>
               <Button
                 onClick={generateReport}
                 disabled={isGeneratingReport || responses.length === 0}
@@ -865,6 +864,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                 allFollowups={followups}
                 isCollapsed={isSectionCollapsed}
                 onToggle={() => toggleSection(category)}
+                sectionAISummary={session.section_ai_summaries?.[category]}
               />
             </div>
 

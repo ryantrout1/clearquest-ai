@@ -8,114 +8,10 @@ import { base44 } from "@/api/base44Client";
 /**
  * Global AI Investigator Assist Card
  * Shows interview-wide AI summary with show more/less behavior
+ * Now reads from stored DB summary instead of generating on load
  */
-export default function GlobalAIAssist({ responses, followups, session }) {
-  const [aiSummary, setAiSummary] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+export default function GlobalAIAssist({ session }) {
   const [showMore, setShowMore] = useState(false);
-
-  useEffect(() => {
-    generateGlobalSummary();
-  }, [responses.length, followups.length]);
-
-  const generateGlobalSummary = async () => {
-    setIsLoading(true);
-    
-    try {
-      const yesCount = responses.filter(r => r.answer === 'Yes').length;
-      const noCount = responses.filter(r => r.answer === 'No').length;
-      const hasFollowUps = followups.length > 0;
-      const hasRedFlags = session.red_flags?.length > 0;
-
-      // Simple heuristic for pattern pills
-      const patterns = [];
-      if (noCount > yesCount * 3) patterns.push("No Major Disclosures");
-      if (responses.length > 0) patterns.push("Consistent Patterns");
-      
-      // Calculate avg time per question
-      const sortedResponses = [...responses].sort((a, b) => 
-        new Date(a.response_timestamp) - new Date(b.response_timestamp)
-      );
-      
-      let avgTimePerQuestion = 0;
-      if (sortedResponses.length > 1) {
-        const timeDiffs = [];
-        for (let i = 1; i < sortedResponses.length; i++) {
-          const diff = (new Date(sortedResponses[i].response_timestamp) - new Date(sortedResponses[i - 1].response_timestamp)) / 1000;
-          if (diff < 300) timeDiffs.push(diff); // Exclude outliers > 5 min
-        }
-        if (timeDiffs.length > 0) {
-          avgTimePerQuestion = Math.round(timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length);
-        }
-      }
-      
-      if (avgTimePerQuestion > 0 && avgTimePerQuestion < 60) {
-        patterns.push("Normal Response Timing");
-      }
-
-      // Determine overall risk level
-      let overallRisk = "Low";
-      if (hasRedFlags || (yesCount > responses.length * 0.3 && followups.length > 5)) {
-        overallRisk = "High";
-      } else if (yesCount > responses.length * 0.15 && followups.length > 0) {
-        overallRisk = "Medium";
-      }
-
-      // Generate AI summary
-      const prompt = `You are an AI assistant supporting a background investigator reviewing a completed interview.
-
-Interview Statistics:
-- Total Questions Answered: ${responses.length}
-- Yes Responses: ${yesCount}
-- No Responses: ${noCount}
-- Follow-Up Packs Triggered: ${followups.length}
-- Red Flags: ${session.red_flags?.length || 0}
-
-Generate a concise interview-wide summary for investigators that includes:
-
-1. Main overview paragraph (2-3 sentences): Overall pattern of disclosures, response consistency, and timing
-2. Key Observations (3-5 bullet points): Specific notable points across all sections
-3. Suggested verification areas (3-4 bullet points): Standard verification steps the investigator should take
-
-Format your response as JSON:
-{
-  "mainSummary": "2-3 sentence overview paragraph",
-  "keyObservations": ["observation 1", "observation 2", "observation 3"],
-  "suggestedVerification": ["verification step 1", "verification step 2", "verification step 3"],
-  "riskLevel": "Low|Medium|High"
-}`;
-
-      const result = await base44.integrations.Core.InvokeLLM({
-        prompt: prompt,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            mainSummary: { type: "string" },
-            keyObservations: { type: "array", items: { type: "string" } },
-            suggestedVerification: { type: "array", items: { type: "string" } },
-            riskLevel: { type: "string", enum: ["Low", "Medium", "High"] }
-          },
-          required: ["mainSummary", "keyObservations", "suggestedVerification", "riskLevel"]
-        }
-      });
-
-      setAiSummary({
-        ...result,
-        patterns
-      });
-    } catch (err) {
-      console.error('Error generating global AI summary:', err);
-      setAiSummary({
-        mainSummary: "Summary generation unavailable. Manual review recommended.",
-        keyObservations: [],
-        suggestedVerification: [],
-        riskLevel: "Low",
-        patterns: ["Summary Unavailable"]
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const getRiskColor = (riskLevel) => {
     if (riskLevel === "High") return "bg-red-500/20 text-red-300 border-red-500/30";
@@ -123,20 +19,24 @@ Format your response as JSON:
     return "bg-green-500/20 text-green-300 border-green-500/30";
   };
 
-  if (isLoading) {
+  // Read from stored summary in session
+  const aiSummary = session.global_ai_summary;
+
+  if (!aiSummary) {
     return (
       <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">
         <CardContent className="p-6">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Generating AI analysis...</span>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xl">🧠</span>
+            <h3 className="text-base font-bold text-white">AI Investigator Assist</h3>
           </div>
+          <p className="text-sm text-slate-500 italic">
+            No AI summary available. Click 'Generate AI Summaries' to create one.
+          </p>
         </CardContent>
       </Card>
     );
   }
-
-  if (!aiSummary) return null;
 
   return (
     <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-6">

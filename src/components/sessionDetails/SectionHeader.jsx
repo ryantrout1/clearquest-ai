@@ -19,10 +19,9 @@ export default function SectionHeader({
   allResponses,
   allFollowups,
   isCollapsed,
-  onToggle
+  onToggle,
+  sectionAISummary
 }) {
-  const [aiSummary, setAiSummary] = useState(null);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [showFullSummary, setShowFullSummary] = useState(false);
 
   const sectionResponses = allResponses.filter(r => r.section_name === category);
@@ -31,27 +30,8 @@ export default function SectionHeader({
   const timeAnalytics = computeSectionTimeAnalytics(category, allResponses);
   const badges = computeSectionBadges(kpis, timeAnalytics);
 
-  // Load AI summary on mount (but don't block UI)
-  useEffect(() => {
-    const loadSummary = async () => {
-      setIsLoadingSummary(true);
-      try {
-        const sectionFollowups = allFollowups.filter(fu => {
-          const response = sectionResponses.find(r => r.id === fu.response_id);
-          return response !== undefined;
-        });
-        
-        const summary = await generateSectionSummary(category, sectionResponses, sectionFollowups);
-        setAiSummary(summary);
-      } catch (err) {
-        console.error('Failed to load section summary:', err);
-      } finally {
-        setIsLoadingSummary(false);
-      }
-    };
-
-    loadSummary();
-  }, [category, sectionResponses.length, allFollowups.length]);
+  // Read from stored summary passed as prop
+  const aiSummary = sectionAISummary;
 
   const getBadgeColor = (color) => {
     const colors = {
@@ -173,12 +153,7 @@ export default function SectionHeader({
       {/* AI Summary Section */}
       {!isCollapsed && (
         <div className="border-t border-slate-700 bg-slate-800/50 px-4 py-3">
-          {isLoadingSummary ? (
-            <div className="flex items-center gap-2 text-sm text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Generating AI summary...</span>
-            </div>
-          ) : aiSummary ? (
+          {aiSummary ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -231,7 +206,7 @@ export default function SectionHeader({
             </div>
           ) : (
             <div className="text-sm text-slate-500 italic">
-              No summary available
+              No summary available. Use 'Generate AI Summaries' to create one.
             </div>
           )}
 
