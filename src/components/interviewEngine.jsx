@@ -1799,7 +1799,8 @@ export async function bootstrapEngine(base44) {
     ]);
 
     const { 
-      QById, 
+      QById,
+      QuestionCodeById,
       MatrixYesByQ, 
       UndefinedPacks,
       sectionOrder,
