@@ -88,9 +88,12 @@ export default function FollowUpPackManagerV2() {
     enabled: !!user
   });
 
+  // Categorize packs
+  const packsByCategory = useMemo(() => getPacksByCategory(packs), [packs]);
+
   // Auto-select pack from URL
   useEffect(() => {
-    if (highlightPackId && packs.length > 0) {
+    if (highlightPackId && packs.length > 0 && packsByCategory) {
       const pack = packs.find(p => p.followup_pack_id === highlightPackId);
       if (pack) {
         // Find the category for this pack
@@ -141,9 +144,6 @@ export default function FollowUpPackManagerV2() {
     });
     return map;
   }, [allQuestions]);
-
-  // Categorize packs
-  const packsByCategory = useMemo(() => getPacksByCategory(packs), [packs]);
 
   // Filter packs in selected category by search
   const filteredPacks = useMemo(() => {
