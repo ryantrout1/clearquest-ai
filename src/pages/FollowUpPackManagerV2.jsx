@@ -91,12 +91,29 @@ export default function FollowUpPackManagerV2() {
   // Auto-select pack from URL
   useEffect(() => {
     if (highlightPackId && packs.length > 0) {
-      const pack = packs.find(p => p.id === highlightPackId);
+      const pack = packs.find(p => p.followup_pack_id === highlightPackId);
       if (pack) {
+        // Find the category for this pack
+        const categoryId = pack.category_id || 
+          Object.keys(packsByCategory).find(catId => 
+            packsByCategory[catId]?.some(p => p.id === pack.id)
+          );
+        
+        if (categoryId) {
+          setSelectedCategoryId(categoryId);
+        }
         setSelectedPack(pack);
+        
+        // Scroll to pack after a brief delay to ensure DOM is ready
+        setTimeout(() => {
+          const packElement = document.getElementById(`pack-${pack.id}`);
+          if (packElement) {
+            packElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
       }
     }
-  }, [highlightPackId, packs]);
+  }, [highlightPackId, packs, packsByCategory]);
 
   // Build usage map: which questions trigger which packs
   const packUsageMap = useMemo(() => {

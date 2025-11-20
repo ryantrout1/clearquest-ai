@@ -1275,7 +1275,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
               </div>
               <Button
                 size="sm"
-                onClick={() => navigate(createPageUrl(`FollowupPackManager?packId=${selectedFollowUpPack.id}`))}
+                onClick={() => navigate(createPageUrl(`FollowUpPackManagerV2?packId=${selectedFollowUpPack.followup_pack_id}`))}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 <Edit className="w-4 h-4 mr-2" />

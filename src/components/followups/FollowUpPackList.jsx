@@ -32,6 +32,7 @@ export default function FollowUpPackList({
         return (
           <div
             key={pack.id}
+            id={`pack-${pack.id}`}
             onClick={() => onSelectPack(pack)}
             className={cn(
               "px-3 py-2.5 rounded-md transition-all cursor-pointer group",
