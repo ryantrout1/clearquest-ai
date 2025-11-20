@@ -2088,7 +2088,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
     
     console.log(`   🚪 GATE: ${currentQuestionId} answered No → skipping remaining ${questions.length - indexInSection - 1} questions in this section`);
     
-    const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
+    const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
     
     if (nextQuestionId) {
       const nextLocation = engine.questionIdToSection[nextQuestionId];
@@ -2124,7 +2124,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
   // 5. End of section -> move to next section
   console.log(`   🏁 Section complete: [${section.section_order}] ${section.section_name}`);
   
-  const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
+  const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
   
   if (nextQuestionId) {
     const nextLocation = engine.questionIdToSection[nextQuestionId];
@@ -2146,7 +2146,7 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
  * Find the first question ID of the next active section
  * Uses section_order from database for deterministic sequencing
  */
-function firstQuestionIdOfNextSection(engine, currentSectionId, answeredQuestionIds = new Set()) {
+function firstQuestionIdOfNextSection(engine, currentSectionId, currentQuestionId, answeredQuestionIds = new Set()) {
   const currentSection = engine.sectionConfig[currentSectionId];
   if (!currentSection) {
     console.error(`❌ Section "${currentSectionId}" not found in sectionConfig`);
@@ -2157,6 +2157,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, answeredQuestion
   const currentOrder = currentSection.section_order;
   
   console.log(`\n   🔄 SECTION TRANSITION from [${currentOrder}] ${currentSection.section_name}`);
+  console.log(`   🧭 Caller currentQuestionId: ${currentQuestionId}`);
   
   // Get all sections sorted by section_order
   const allSections = Object.values(engine.sectionConfig)
@@ -2215,7 +2216,7 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, answeredQuestion
     console.log(`      ✅ SELECTED as next section`);
     console.log(`      → First question: ${firstQ.question_id}: "${firstQ.question_text}"\n`);
     
-    // Print lookahead from this position
+    // Print lookahead from the current question position
     debugPrintLookahead(engine, currentQuestionId, answeredQuestionIds);
     
     return firstQ.question_id;
