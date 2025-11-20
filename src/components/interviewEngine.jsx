@@ -1435,10 +1435,12 @@ function validateText(val) {
  */
 export function parseQuestionsToMaps(questions, sections, categories) {
   console.log('🏗️ Building section-first data structures from Section entities...');
+  console.log('🔑 CRITICAL CHANGE: Using database question.id as UNIQUE IDENTIFIER (not question_code)');
   
   // Validation tracking
   const validationErrors = [];
-  const seenQuestionIds = new Map(); // Changed to Map to track section_id -> Set(question_ids)
+  const seenDbIds = new Set(); // Track actual database IDs to prevent true duplicates
+  const codeToDbIds = {}; // Track question_code -> [dbIds] to warn about duplicate codes
   
   // Build SECTION_ORDER from Section entities sorted by section_order
   const activeSections = sections
@@ -1455,16 +1457,17 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   // Create a set of active section IDs for quick lookup (using the database ID, not section_id string)
   const activeDbSectionIds = new Set(activeSections.map(s => s.id));
   
-  // Legacy structures (kept for backward compatibility)
-  const QById = {};
-  const MatrixYesByQ = {};
+  // ARCHITECTURAL CHANGE: All routing maps now use database question.id as key
+  const QById = {}; // database question.id -> question object
+  const MatrixYesByQ = {}; // database question.id -> followup_pack
+  const QuestionCodeById = {}; // database question.id -> question_code (for display only)
   const UndefinedPacks = new Set();
 
-  // NEW: Section-first structures
+  // NEW: Section-first structures (still use section_id strings for section keys)
   const sectionOrder = [...SECTION_ORDER]; // This will contain section_id (string identifiers) in database order
   const sectionConfig = {}; // section_id (string) -> config object
-  const questionsBySection = {}; // section_id (string) -> [QuestionInSection]
-  const questionIdToSection = {}; // question_id -> { sectionId: section_id (string), indexInSection }
+  const questionsBySection = {}; // section_id (string) -> [database question.id]
+  const questionIdToSection = {}; // database question.id -> { sectionId: section_id (string), indexInSection }
 
   // Initialize section configs from ALL sections (active and inactive) for complete mapping
   sections.forEach(section => {
@@ -1495,62 +1498,71 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   questions.forEach(q => {
     if (!q.active) return;
 
-    // VALIDATION: Check for empty or whitespace-only question_id
-    const questionId = (q.question_id || '').trim();
-    if (!questionId) {
+    const dbQuestionId = q.id; // Database ID is now the UNIQUE key
+    const questionCode = (q.question_id || '').trim(); // question_code is display label only
+
+    // VALIDATION: Check for empty or whitespace-only question_code (warn but don't block)
+    if (!questionCode) {
       validationErrors.push(
-        `Question with database id ${q.id} in section ${q.section_id} has empty question_id and was skipped.`
+        `Question with database id ${dbQuestionId} in section ${q.section_id} has empty question_code (will use db id for display).`
       );
-      console.warn(`⚠️ Skipping question with empty question_id (db id: ${q.id})`);
-      return;
+      console.warn(`⚠️ Question ${dbQuestionId} has empty question_code`);
     }
 
-    // Find section object to get section string ID for duplicate checking
+    // Track duplicate question_codes for warning (not blocking)
+    if (questionCode) {
+      if (!codeToDbIds[questionCode]) {
+        codeToDbIds[questionCode] = [];
+      }
+      codeToDbIds[questionCode].push({
+        dbId: dbQuestionId,
+        sectionId: q.section_id,
+        text: q.question_text
+      });
+    }
+
+    // Find section object to get section string ID
     const sectionEntity = sections.find(s => s.id === q.section_id);
     if (!sectionEntity) {
-      console.warn(`⚠️ Question ${questionId} has section_id ${q.section_id} but no matching Section entity found - skipping`);
+      console.warn(`⚠️ Question ${dbQuestionId} (code: ${questionCode}) has section_id ${q.section_id} but no matching Section entity found - skipping`);
       validationErrors.push(
-        `Question ${questionId} references section_id ${q.section_id} which does not exist.`
+        `Question ${dbQuestionId} references section_id ${q.section_id} which does not exist.`
       );
       return;
     }
 
     const sectionIdString = sectionEntity.section_id;
 
-    // VALIDATION: Check for duplicate question_id WITHIN THE SAME SECTION ONLY
-    if (!seenQuestionIds.has(sectionIdString)) {
-      seenQuestionIds.set(sectionIdString, new Set());
-    }
-    
-    const sectionQuestionIds = seenQuestionIds.get(sectionIdString);
-    if (sectionQuestionIds.has(questionId)) {
+    // VALIDATION: Check for true duplicate (same database ID appearing twice - should never happen)
+    if (seenDbIds.has(dbQuestionId)) {
       validationErrors.push(
-        `Duplicate question_id ${questionId} found within section ${sectionIdString} (db id ${q.id}). This question was skipped.`
+        `CRITICAL: Duplicate database ID ${dbQuestionId} detected. This should never happen.`
       );
-      console.warn(`⚠️ Skipping duplicate question_id within section: ${questionId} in ${sectionIdString} (db id: ${q.id})`);
+      console.error(`❌ CRITICAL: Duplicate database ID ${dbQuestionId}`);
       return;
     }
 
-    sectionQuestionIds.add(questionId);
+    seenDbIds.add(dbQuestionId);
     
-    // Allow same question_id across different sections - use composite key for QById
-    const compositeKey = `${sectionIdString}:${questionId}`;
-    QById[questionId] = q; // Keep simple key for legacy compatibility
-    QById[compositeKey] = q; // Add composite key for section-aware lookups
+    // Use database ID as the primary key everywhere
+    QById[dbQuestionId] = q;
+    QuestionCodeById[dbQuestionId] = questionCode; // Store code for display/logging
 
     // Check if the section is active and has been initialized
     if (sectionEntity.active === false) {
-      console.log(`⏭️ Skipping question ${questionId} - section "${sectionEntity.section_name}" is inactive`);
+      console.log(`⏭️ Skipping question ${dbQuestionId} (code: ${questionCode}) - section "${sectionEntity.section_name}" is inactive`);
       return;
     }
     
     if (!questionsBySection[sectionIdString]) {
-      console.warn(`⚠️ Section "${sectionIdString}" not initialized in questionsBySection - skipping question ${questionId}`);
+      console.warn(`⚠️ Section "${sectionIdString}" not initialized in questionsBySection - skipping question ${dbQuestionId}`);
       return;
     }
 
+    // Store database ID in questionsBySection array
     questionsBySection[sectionIdString].push({
-      question_id: questionId,
+      id: dbQuestionId, // Database ID for routing
+      question_id: questionCode, // Code for display only
       section_id: sectionIdString,
       display_order: q.display_order || 0,
       active: q.active,
@@ -1562,15 +1574,30 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       is_control_question: q.is_control_question
     });
 
-    // Legacy: Track follow-up packs
+    // Legacy: Track follow-up packs (using database ID as key)
     if (q.followup_pack && q.response_type === 'yes_no') {
-      MatrixYesByQ[questionId] = q.followup_pack;
+      MatrixYesByQ[dbQuestionId] = q.followup_pack;
       
       if (!FOLLOWUP_PACK_STEPS[q.followup_pack]) {
         UndefinedPacks.add(q.followup_pack);
       }
     }
   });
+
+  // Warn about duplicate question_codes
+  const duplicateCodes = Object.entries(codeToDbIds).filter(([code, instances]) => instances.length > 1);
+  if (duplicateCodes.length > 0) {
+    console.warn(`\n⚠️ WARNING: ${duplicateCodes.length} duplicate question_code(s) detected (not blocking - routing uses database IDs):\n`);
+    duplicateCodes.forEach(([code, instances]) => {
+      console.warn(`   code: ${code}`);
+      console.warn(`   occurrences: ${instances.length}`);
+      instances.forEach(inst => {
+        const section = sections.find(s => s.id === inst.sectionId);
+        console.warn(`     - id=${inst.dbId}, section=${section?.section_name || 'Unknown'}`);
+      });
+      console.warn('');
+    });
+  }
 
   console.log(`\n📦 questionsBySection after adding questions:`);
   Object.entries(questionsBySection).forEach(([key, questions]) => {
@@ -1583,15 +1610,13 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       const orderDiff = a.display_order - b.display_order;
       if (orderDiff !== 0) return orderDiff;
       
-      // Fallback to question_id numeric value
-      const aNum = parseInt(a.question_id.replace(/[^\d]/g, '')) || 0;
-      const bNum = parseInt(b.question_id.replace(/[^\d]/g, '')) || 0;
-      return aNum - bNum;
+      // Fallback to database ID
+      return a.id - b.id;
     });
 
-    // Build reverse index for fast lookup
+    // Build reverse index for fast lookup (using database ID as key)
     questionsBySection[sectionIdString].forEach((q, index) => {
-      questionIdToSection[q.question_id] = {
+      questionIdToSection[q.id] = {
         sectionId: sectionIdString,
         indexInSection: index
       };
@@ -1606,14 +1631,14 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     }
   });
 
-  // Build ActiveOrdered for UI display number lookups ONLY
+  // Build ActiveOrdered for UI display number lookups ONLY (stores database IDs)
   const ActiveOrdered = [];
   Object.values(sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach(section => {
       if (section.active && questionsBySection[section.id]) {
         questionsBySection[section.id].forEach(q => {
-          ActiveOrdered.push(q.question_id);
+          ActiveOrdered.push(q.id); // Use database ID
         });
 
         // DEBUG LOG: Prior Law Enforcement section question list
@@ -1623,7 +1648,8 @@ export function parseQuestionsToMaps(questions, sections, categories) {
           console.log(`   Total Questions: ${questionsBySection[section.id].length}`);
           console.log(`   Questions in order:`);
           questionsBySection[section.id].forEach((q, idx) => {
-            console.log(`      ${idx + 1}. ${q.question_id}: ${q.question_text}`);
+            const code = QuestionCodeById[q.id] || q.question_id || `db_${q.id}`;
+            console.log(`      ${idx + 1}. ${code}: ${q.question_text}`);
           });
           console.log('');
         }
@@ -1655,14 +1681,15 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   }
 
   return { 
-    QById, 
-    MatrixYesByQ, 
+    QById, // database question.id -> question object
+    QuestionCodeById, // database question.id -> question_code (display only)
+    MatrixYesByQ, // database question.id -> followup_pack
     UndefinedPacks,
     sectionOrder,
     sectionConfig,
-    questionsBySection,
-    questionIdToSection,
-    ActiveOrdered,
+    questionsBySection, // section_id -> [database question.id]
+    questionIdToSection, // database question.id -> {sectionId, indexInSection}
+    ActiveOrdered, // [database question.id] in flow order
     TotalQuestions: totalQuestionsInActiveSections,
     validationErrors,
     hasValidationErrors: validationErrors.length > 0
@@ -1810,21 +1837,22 @@ export async function bootstrapEngine(base44) {
     debugPrintDuplicateQuestionCodes(sections, questions);
 
     const engineState = {
-      QById,
-      MatrixYesByQ,
+      QById, // database question.id -> question object
+      QuestionCodeById, // database question.id -> question_code (display)
+      MatrixYesByQ, // database question.id -> followup_pack
       PackStepsById,
       V2Packs: v2Packs, // Store V2 pack metadata (for AI probe instructions)
       Sections: sections, // Store all section entities
       Categories: categories, // Still store categories for potential legacy use or reporting
       sectionOrder,
       sectionConfig,
-      questionsBySection,
-      questionIdToSection,
-      ActiveOrdered,
+      questionsBySection, // section_id -> [database question.id]
+      questionIdToSection, // database question.id -> {sectionId, indexInSection}
+      ActiveOrdered, // [database question.id]
       Bootstrapped: true,
       TotalQuestions: TotalQuestions,
       UndefinedPacks: Array.from(UndefinedPacks),
-      Architecture: 'section-first-db-driven-v2-packs'
+      Architecture: 'section-first-db-id-keyed-v2-packs'
     };
 
     // DEBUG: Print runtime mapping for sections 3-7
@@ -1967,18 +1995,19 @@ export function debugPrintSuspiciousSectionsMapping(engine, sections) {
     
     if (section) {
       const sectionId = section.section_id;
-      const sectionQuestions = engine.questionsBySection[sectionId] || [];
+      const questionDbIds = engine.questionsBySection[sectionId] || [];
       
       console.log(`Section: ${section.section_name}`);
       console.log(`section_order=${section.section_order}`);
       console.log(`sectionId=${sectionId}`);
       console.log(`Active=${section.active !== false ? 'true' : 'false'}`);
-      console.log(`QuestionIds in runtime map: ${sectionQuestions.length} questions\n`);
+      console.log(`QuestionIds in runtime map: ${questionDbIds.length} questions\n`);
       
-      if (sectionQuestions.length > 0) {
-        sectionQuestions.forEach((q, idx) => {
-          const fullQ = engine.QById[q.question_id];
-          console.log(`  - ${q.question_id} | code=${q.question_id} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
+      if (questionDbIds.length > 0) {
+        questionDbIds.forEach((dbId, idx) => {
+          const fullQ = engine.QById[dbId];
+          const code = engine.QuestionCodeById[dbId] || `db_${dbId}`;
+          console.log(`  - db_id=${dbId} | code=${code} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
         });
       } else {
         console.log(`  (No questions in runtime map)`);
@@ -2027,12 +2056,14 @@ export function debugPrintCanonicalMap(engine, answeredQuestionIds = new Set()) 
   
   allSections.forEach((section, idx) => {
     const sectionId = section.id;
-    const questions = engine.questionsBySection[sectionId] || [];
-    const activeQuestions = questions.filter(q => q.active !== false);
+    const questionDbIds = engine.questionsBySection[sectionId] || [];
+    const activeQuestions = questionDbIds.map(dbId => engine.QById[dbId]).filter(q => q && q.active !== false);
     const isEnabled = section.active !== false;
     const hasActiveQuestions = activeQuestions.length > 0;
-    const hasGateQuestion = questions.some(q => q.is_control_question);
+    const hasGateQuestion = activeQuestions.some(q => q.is_control_question);
     const includedInFlow = isEnabled && hasActiveQuestions;
+    
+    const firstCodes = questionDbIds.slice(0, 5).map(dbId => engine.QuestionCodeById[dbId] || `db_${dbId}`);
     
     console.log(`[Section ${idx + 1}] ${section.section_name}`);
     console.log(`   id: ${section.dbId}, key: "${sectionId}"`);
@@ -2040,7 +2071,7 @@ export function debugPrintCanonicalMap(engine, answeredQuestionIds = new Set()) 
     console.log(`   enabled: ${isEnabled}`);
     console.log(`   isGateSection: ${hasGateQuestion}`);
     console.log(`   activeQuestionCount: ${activeQuestions.length}`);
-    console.log(`   firstQuestionIds: [${activeQuestions.slice(0, 5).map(q => q.question_id).join(', ')}${activeQuestions.length > 5 ? '...' : ''}]`);
+    console.log(`   firstQuestionCodes: [${firstCodes.join(', ')}${questionDbIds.length > 5 ? '...' : ''}]`);
     console.log(`   includedInInterviewFlow: ${includedInFlow}`);
     console.log('');
   });
@@ -2050,21 +2081,27 @@ export function debugPrintCanonicalMap(engine, answeredQuestionIds = new Set()) 
   let globalIndex = 1;
   allSections.forEach(section => {
     const sectionId = section.id;
-    const questions = engine.questionsBySection[sectionId] || [];
-    const activeQuestions = questions.filter(q => q.active !== false);
+    const questionDbIds = engine.questionsBySection[sectionId] || [];
+    const activeQuestionDbIds = questionDbIds.filter(dbId => {
+      const q = engine.QById[dbId];
+      return q && q.active !== false;
+    });
     
-    if (section.active === false || activeQuestions.length === 0) {
+    if (section.active === false || activeQuestionDbIds.length === 0) {
       return; // Skip sections not in flow
     }
     
-    activeQuestions.forEach((q, localIdx) => {
-      const isAnswered = answeredQuestionIds.has(q.question_id);
+    activeQuestionDbIds.forEach((dbId, localIdx) => {
+      const q = engine.QById[dbId];
+      const code = engine.QuestionCodeById[dbId] || `db_${dbId}`;
+      const isAnswered = answeredQuestionIds.has(dbId);
       const isSkipped = false; // We don't have skip tracking yet
       
       console.log(`[#${globalIndex}] ${section.section_name}`);
-      console.log(`   questionId: "${q.question_id}"`);
+      console.log(`   database_id: ${dbId}`);
+      console.log(`   question_code: "${code}"`);
       console.log(`   sectionIndex: [${section.section_order}]`);
-      console.log(`   sectionLocalIndex: Q${localIdx + 1}/${activeQuestions.length}`);
+      console.log(`   sectionLocalIndex: Q${localIdx + 1}/${activeQuestionDbIds.length}`);
       console.log(`   display_order: ${q.display_order}`);
       console.log(`   gateFlags: { isControlGate: ${q.is_control_question || false}, hasMultiInstance: ${q.followup_multi_instance || false} }`);
       console.log(`   statusAtStart: { answered: ${isAnswered}, skipped: ${isSkipped} }`);
@@ -2080,25 +2117,28 @@ export function debugPrintCanonicalMap(engine, answeredQuestionIds = new Set()) 
 /**
  * DEBUG: Print lookahead for next 5 questions from current position
  */
-export function debugPrintLookahead(engine, currentQuestionId, answeredQuestionIds = new Set()) {
-  console.log(`\n🔭 Lookahead from ${currentQuestionId}:`);
+export function debugPrintLookahead(engine, currentQuestionDbId, answeredQuestionIds = new Set()) {
+  const currentCode = engine.QuestionCodeById[currentQuestionDbId] || `db_${currentQuestionDbId}`;
+  console.log(`\n🔭 Lookahead from db_id=${currentQuestionDbId} (code: ${currentCode}):`);
   
-  const location = engine.questionIdToSection[currentQuestionId];
+  const location = engine.questionIdToSection[currentQuestionDbId];
   if (!location) {
     console.log('   ❌ Current question not found in map');
     return;
   }
   
-  // Build flat list of all questions in flow order
+  // Build flat list of all questions in flow order (using database IDs)
   const flatList = [];
   Object.values(engine.sectionConfig)
     .sort((a, b) => a.section_order - b.section_order)
     .forEach(section => {
       if (section.active !== false) {
-        const questions = engine.questionsBySection[section.id] || [];
-        questions.forEach(q => {
+        const questionDbIds = engine.questionsBySection[section.id] || [];
+        questionDbIds.forEach(dbId => {
+          const code = engine.QuestionCodeById[dbId] || `db_${dbId}`;
           flatList.push({
-            questionId: q.question_id,
+            questionDbId: dbId,
+            questionCode: code,
             sectionName: section.section_name,
             sectionOrder: section.section_order
           });
@@ -2107,7 +2147,7 @@ export function debugPrintLookahead(engine, currentQuestionId, answeredQuestionI
     });
   
   // Find current index
-  const currentIdx = flatList.findIndex(item => item.questionId === currentQuestionId);
+  const currentIdx = flatList.findIndex(item => item.questionDbId === currentQuestionDbId);
   if (currentIdx === -1) {
     console.log('   ❌ Current question not found in flat list');
     return;
@@ -2119,10 +2159,10 @@ export function debugPrintLookahead(engine, currentQuestionId, answeredQuestionI
     if (idx >= flatList.length) break;
     
     const item = flatList[idx];
-    const isAnswered = answeredQuestionIds.has(item.questionId);
+    const isAnswered = answeredQuestionIds.has(item.questionDbId);
     const isSkipped = false;
     
-    console.log(`   [+${i}]: [${item.sectionOrder}] ${item.sectionName} | ${item.questionId} | answered=${isAnswered} | skipped=${isSkipped}`);
+    console.log(`   [+${i}]: [${item.sectionOrder}] ${item.sectionName} | db_id=${item.questionDbId}, code=${item.questionCode} | answered=${isAnswered} | skipped=${isSkipped}`);
   }
   
   console.log('');
@@ -2218,13 +2258,14 @@ export async function auditSectionQuestionCounts(base44, engine) {
  * Uses Section.section_order from database for deterministic routing
  */
 export function computeNextQuestionId(engine, currentQuestionId, answer, answeredQuestionIds = new Set()) {
-  console.log(`\n🔍 [SECTION-FIRST] Computing next question after ${currentQuestionId}, answer: "${answer}"`);
+  const currentCode = engine.QuestionCodeById[currentQuestionId] || `db_${currentQuestionId}`;
+  console.log(`\n🔍 [SECTION-FIRST] Computing next question after db_id=${currentQuestionId} (code: ${currentCode}), answer: "${answer}"`);
   
-  // 1. Locate current section and index
+  // 1. Locate current section and index (using database ID)
   const location = engine.questionIdToSection[currentQuestionId];
   if (!location) {
-    console.error(`❌ Question ${currentQuestionId} not found in section map.`);
-    console.error(`   Available questions in questionIdToSection:`, Object.keys(engine.questionIdToSection).slice(0, 10));
+    console.error(`❌ Question db_id=${currentQuestionId} not found in section map.`);
+    console.error(`   Available questions (first 10):`, Object.keys(engine.questionIdToSection).slice(0, 10));
     return null;
   }
 
@@ -2239,69 +2280,79 @@ export function computeNextQuestionId(engine, currentQuestionId, answer, answere
   
   if (!questions || questions.length === 0) {
     console.error(`❌ No questions found for section: ${sectionId}`);
-    return firstQuestionIdOfNextSection(engine, sectionId, answeredQuestionIds);
+    return firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
   }
   
-  const currentQuestion = questions[indexInSection];
+  const currentDbId = questions[indexInSection];
+  const currentQuestionObj = engine.QById[currentDbId];
 
-  console.log(`   📍 Current: [${section.section_order}] ${section.section_name}, Q${indexInSection + 1}/${questions.length}: ${currentQuestionId}`);
+  console.log(`   📍 Current: [${section.section_order}] ${section.section_name}, Q${indexInSection + 1}/${questions.length}: db_id=${currentDbId}, code=${currentCode}`);
 
   // 2. Check if current question is a control question (gate within section)
-  const fullQuestion = engine.QById[currentQuestionId];
+  const fullQuestion = currentQuestionObj;
   if (fullQuestion?.is_control_question === true && 
       fullQuestion.response_type === 'yes_no' &&
       normalizeToYesNo(answer) === "No") {
     
-    console.log(`   🚪 GATE: ${currentQuestionId} answered No → skipping remaining ${questions.length - indexInSection - 1} questions in this section`);
+    const remainingInSection = questions.length - indexInSection - 1;
+    console.log(`   🚪 GATE: db_id=${currentQuestionId} (code: ${currentCode}) answered No → skipping remaining ${remainingInSection} questions in this section`);
     
-    const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
+    const nextDbId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
     
-    if (nextQuestionId) {
-      const nextLocation = engine.questionIdToSection[nextQuestionId];
+    if (nextDbId) {
+      const nextLocation = engine.questionIdToSection[nextDbId];
       const nextSection = nextLocation ? engine.sectionConfig[nextLocation.sectionId] : null;
+      const nextCode = engine.QuestionCodeById[nextDbId] || `db_${nextDbId}`;
       console.log(`\n🚦 SECTION CHANGE: ${section.section_name} → ${nextSection?.section_name || 'Unknown'}`);
-      console.log(`   prevQuestionId: ${currentQuestionId}`);
-      console.log(`   nextQuestionId: ${nextQuestionId}`);
+      console.log(`   prevQuestionId: db_id=${currentQuestionId}, code=${currentCode}`);
+      console.log(`   nextQuestionId: db_id=${nextDbId}, code=${nextCode}`);
       console.log(`   reason: gate-skip\n`);
     }
     
-    return nextQuestionId;
+    return nextDbId;
   }
 
-  // 3. Check intra-section next_question_id
-  if (currentQuestion.next_question_id) {
-    const targetInSection = questions.find(q => q.question_id === currentQuestion.next_question_id);
+  // 3. Check intra-section next_question_id (legacy field - rarely used)
+  if (currentQuestionObj.next_question_id) {
+    // next_question_id is a code, need to find the database ID
+    const targetInSection = questions.find(q => {
+      const qObj = engine.QById[q];
+      return qObj?.question_id === currentQuestionObj.next_question_id;
+    });
     if (targetInSection) {
-      console.log(`   ➡️ Intra-section branch: ${currentQuestionId} → ${currentQuestion.next_question_id}`);
-      return currentQuestion.next_question_id;
+      const targetCode = engine.QuestionCodeById[targetInSection] || targetInSection;
+      console.log(`   ➡️ Intra-section branch: db_id=${currentQuestionId} → db_id=${targetInSection} (code: ${targetCode})`);
+      return targetInSection;
     } else {
-      console.warn(`   ⚠️ Invalid next_question_id ${currentQuestion.next_question_id} (not in section) - using sequential order`);
+      console.warn(`   ⚠️ Invalid next_question_id ${currentQuestionObj.next_question_id} (not in section) - using sequential order`);
     }
   }
 
   // 4. Move to next question in same section
   const nextIndex = indexInSection + 1;
   if (nextIndex < questions.length) {
-    const nextQ = questions[nextIndex];
-    console.log(`   ✅ Next in section: ${nextQ.question_id} (Q${nextIndex + 1}/${questions.length})`);
-    return nextQ.question_id;
+    const nextDbId = questions[nextIndex];
+    const nextCode = engine.QuestionCodeById[nextDbId] || `db_${nextDbId}`;
+    console.log(`   ✅ Next in section: db_id=${nextDbId}, code=${nextCode} (Q${nextIndex + 1}/${questions.length})`);
+    return nextDbId;
   }
 
   // 5. End of section -> move to next section
   console.log(`   🏁 Section complete: [${section.section_order}] ${section.section_name}`);
   
-  const nextQuestionId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
+  const nextDbId = firstQuestionIdOfNextSection(engine, sectionId, currentQuestionId, answeredQuestionIds);
   
-  if (nextQuestionId) {
-    const nextLocation = engine.questionIdToSection[nextQuestionId];
+  if (nextDbId) {
+    const nextLocation = engine.questionIdToSection[nextDbId];
     const nextSection = nextLocation ? engine.sectionConfig[nextLocation.sectionId] : null;
+    const nextCode = engine.QuestionCodeById[nextDbId] || `db_${nextDbId}`;
     console.log(`\n🚦 SECTION CHANGE: ${section.section_name} → ${nextSection?.section_name || 'Unknown'}`);
-    console.log(`   prevQuestionId: ${currentQuestionId}`);
-    console.log(`   nextQuestionId: ${nextQuestionId}`);
+    console.log(`   prevQuestionId: db_id=${currentQuestionId}, code=${currentCode}`);
+    console.log(`   nextQuestionId: db_id=${nextDbId}, code=${nextCode}`);
     console.log(`   reason: end-of-section\n`);
   }
   
-  return nextQuestionId;
+  return nextDbId;
 }
 
 // ============================================================================
@@ -2362,14 +2413,16 @@ function firstQuestionIdOfNextSection(engine, currentSectionId, currentQuestionI
       continue;
     }
     
-    // Found valid next section
-    const firstQ = candidateQuestions[0];
+    // Found valid next section - return database ID
+    const firstDbId = candidateQuestions[0];
+    const firstQ = engine.QById[firstDbId];
+    const firstCode = engine.QuestionCodeById[firstDbId] || `db_${firstDbId}`;
     console.log(`    ✅ CHOSEN\n`);
     console.log(`Final chosen next section: ${candidateSection.section_name}`);
-    console.log(`First question: ${firstQ.question_id} - "${firstQ.question_text}"`);
+    console.log(`First question: db_id=${firstDbId}, code=${firstCode} - "${firstQ?.question_text || 'N/A'}"`);
     console.log(`===========================================\n`);
     
-    return firstQ.question_id;
+    return firstDbId;
   }
 
   console.log(`\n🏁 No more valid sections found - interview complete`);
@@ -2391,29 +2444,30 @@ function normalizeToYesNo(answer) {
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
 
-export function checkFollowUpTrigger(engine, questionId, answer) {
-  const { MatrixYesByQ, PackStepsById, QById } = engine;
+export function checkFollowUpTrigger(engine, questionDbId, answer) {
+  const { MatrixYesByQ, PackStepsById, QById, QuestionCodeById } = engine;
+  
+  const questionCode = QuestionCodeById[questionDbId] || `db_${questionDbId}`;
+  console.log(`🔍 Entity-driven follow-up check for db_id=${questionDbId} (code: ${questionCode}), answer="${answer}"`);
 
-  console.log(`🔍 Entity-driven follow-up check for ${questionId}, answer="${answer}"`);
-
-  // DEFENSIVE: Check exemption list first
-  if (NO_FOLLOWUP_QUESTIONS.has(questionId)) {
-    console.log(`   🚫 Question ${questionId} is exempted from follow-ups (eligibility/final disclosure)`);
+  // DEFENSIVE: Check exemption list (using code for backward compatibility)
+  if (NO_FOLLOWUP_QUESTIONS.has(questionCode)) {
+    console.log(`   🚫 Question ${questionCode} is exempted from follow-ups (eligibility/final disclosure)`);
     return null;
   }
 
-  // DETERMINISTIC: Answer must be "Yes" AND Question.followup_pack must exist
-  if (answer === 'Yes' && MatrixYesByQ[questionId]) {
-    const packId = MatrixYesByQ[questionId];
+  // DETERMINISTIC: Answer must be "Yes" AND Question.followup_pack must exist (using database ID as key)
+  if (answer === 'Yes' && MatrixYesByQ[questionDbId]) {
+    const packId = MatrixYesByQ[questionDbId];
     
     // ROBUSTNESS: If pack is undefined, log warning and return null
     if (!PackStepsById[packId]) {
-      console.warn(`⚠️ Pack ${packId} referenced by ${questionId} is not defined - treating as no follow-up`);
+      console.warn(`⚠️ Pack ${packId} referenced by db_id=${questionDbId} is not defined - treating as no follow-up`);
       return null;
     }
     
     // NEW: Extract substance_name from Question entity if it exists
-    const question = QById[questionId];
+    const question = QById[questionDbId];
     const substanceName = question?.substance_name || null;
     
     console.log(`   ✅ Follow-up triggered: ${packId} (${PackStepsById[packId].length} steps)`);
