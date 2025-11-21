@@ -996,9 +996,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     
                     {instanceFollowups.map((followup, idx) => {
                       const details = followup.additional_details || {};
-                      const packQuestions = followUpQuestionEntities.filter(
-                        q => q.followup_pack_id === followup.followup_pack
-                      );
+                      const packQuestions = followUpQuestionEntities
+                        .filter(q => q.followup_pack_id === followup.followup_pack)
+                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                       
                       // Extract probing from additional_details if stored there (multi-instance)
                       const probingFromDetails = details.investigator_probing || [];
@@ -1018,13 +1018,17 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
-                            const requiresReview = needsReview(value);
-                            const questionEntity = packQuestions.find(q => 
-                              q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
-                              key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+                          {packQuestions.map((questionEntity, qIdx) => {
+                            const key = Object.keys(details).filter(k => k !== 'investigator_probing').find(k => 
+                              questionEntity.question_text?.toLowerCase().includes(k.toLowerCase()) ||
+                              k.toLowerCase().includes(questionEntity.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
                             );
-                            const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            
+                            if (!key) return null;
+                            
+                            const value = details[key];
+                            const requiresReview = needsReview(value);
+                            const questionText = questionEntity.question_text;
 
                             return (
                               <div key={key} className="text-xs flex items-start">
