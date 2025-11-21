@@ -18,107 +18,59 @@ const needsReview = (text) => {
 /**
  * Renders structured view: events grouped by base question
  */
-export function StructuredEventRenderer({ event, followUpQuestionEntities, questionNumber }) {
+export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEntities, questionNumber }) {
   const { kind, role, text, instanceNumber, followupPackId, fieldKey } = event;
 
-  // Base question
-  if (kind === "base_question") {
-    return (
-      <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3 mb-2">
-        <div className="flex items-center gap-2 mb-1.5">
-          <Shield className="w-4 h-4 text-blue-400" />
-          <span className="text-xs text-slate-400">Base Question</span>
-        </div>
-        <p className="text-white text-sm leading-relaxed">{text}</p>
-      </div>
-    );
+  // Base question and answer not rendered here (handled in CompactQuestionRow)
+  if (kind === "base_question" || kind === "base_answer") {
+    return null;
   }
 
-  // Base answer
-  if (kind === "base_answer") {
-    return (
-      <div className="flex justify-end mb-3">
-        <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm font-medium">{text}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Deterministic follow-up question
-  if (kind === "deterministic_followup_question") {
+  // Deterministic follow-up Q&A on same line
+  if (kind === "deterministic_followup_question" && nextEvent?.kind === "deterministic_followup_answer") {
     const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
+    const answerText = nextEvent.text;
+    const requiresReview = needsReview(answerText);
     
     return (
-      <div className="mb-1">
-        <p className="text-orange-200 text-xs leading-snug">{resolvedText}</p>
+      <div className="flex items-start gap-2 mb-1 text-xs">
+        <span className="text-slate-300">{resolvedText}:</span>
+        <div className="flex items-center gap-2">
+          <span className="text-white font-medium">{answerText}</span>
+          {requiresReview && (
+            <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+              Needs Review
+            </Badge>
+          )}
+        </div>
       </div>
     );
   }
 
-  // Deterministic follow-up answer
+  // Skip standalone answer (already rendered with question)
   if (kind === "deterministic_followup_answer") {
-    const requiresReview = needsReview(text);
-    
+    return null;
+  }
+
+  // AI probing Q&A together
+  if (kind === "ai_probe_question" && nextEvent?.kind === "ai_probe_answer") {
     return (
-      <div className="flex items-center gap-2 mb-2">
-        <div className="bg-orange-600 rounded px-3 py-1 inline-block">
-          <p className="text-white text-xs font-medium">{text}</p>
+      <div className="mb-2 mt-1">
+        <div className="text-xs">
+          <span className="text-blue-400 font-medium">Follow-Up Question:</span>
+          <p className="text-slate-300 mt-0.5">{text}</p>
         </div>
-        {requiresReview && (
-          <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-            Needs Review
-          </Badge>
-        )}
+        <div className="text-xs mt-1">
+          <span className="text-orange-400 font-medium">Candidate Response:</span>
+          <p className="text-white mt-0.5">{nextEvent.text}</p>
+        </div>
       </div>
     );
   }
 
-  // AI probe question
-  if (kind === "ai_probe_question") {
-    return (
-      <div className="mb-1 mt-2">
-        <div className="flex items-start gap-1.5">
-          <AlertCircle className="w-3 h-3 text-purple-400 flex-shrink-0 mt-0.5" />
-          <span className="text-xs text-purple-400 font-medium">Investigator Follow-Up:</span>
-        </div>
-        <p className="text-purple-200 text-xs leading-snug ml-4">{text}</p>
-      </div>
-    );
-  }
-
-  // AI probe answer
+  // Skip standalone AI answer (already rendered with question)
   if (kind === "ai_probe_answer") {
-    return (
-      <div className="flex items-center gap-2 mb-2 ml-4">
-        <div className="bg-purple-600 rounded px-3 py-1 inline-block">
-          <p className="text-white text-xs font-medium">{text}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Multi-instance prompt
-  if (kind === "multi_instance_prompt") {
-    return (
-      <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-lg p-3 mb-2">
-        <div className="flex items-start gap-2">
-          <span className="text-xs text-cyan-400 font-medium">Additional Instance Check:</span>
-          <p className="text-white text-sm">{text}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Multi-instance answer
-  if (kind === "multi_instance_answer") {
-    return (
-      <div className="flex justify-end mb-2">
-        <div className="bg-cyan-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm font-medium">{text}</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return null;
