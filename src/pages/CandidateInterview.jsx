@@ -131,6 +131,7 @@ export default function CandidateInterview() {
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
   const [aiFailureReason, setAiFailureReason] = useState(null);
+  const [handoffProcessed, setHandoffProcessed] = useState(false);
   
   // Input state
   const [input, setInput] = useState("");
@@ -829,6 +830,7 @@ export default function CandidateInterview() {
       setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
       setProbingTurnCount(0);
       setLastAgentMessageTime(Date.now());
+      setHandoffProcessed(false); // Reset for new probing session
       
       return true;
     } catch (err) {
@@ -853,21 +855,21 @@ export default function CandidateInterview() {
   // ============================================================================
 
   useEffect(() => {
-    if (!isWaitingForAgent || agentMessages.length === 0 || !engine || !currentFollowUpPack) return;
+    if (!isWaitingForAgent || agentMessages.length === 0 || !engine || !currentFollowUpPack || handoffProcessed) return;
     
-    const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
-    if (!lastAgentMessage?.content) return;
+    // Find ANY message with handoff marker (not just last)
+    const handoffMessage = agentMessages.find(m => 
+      m.role === 'assistant' && 
+      m.content?.includes('[[HANDOFF_TO_ENGINE]]')
+    );
     
-    // Update last message time
-    setLastAgentMessageTime(Date.now());
-    
-    // STEP 1: Check for handoff marker [[HANDOFF_TO_ENGINE]]
-    const hasHandoffMarker = lastAgentMessage.content.includes('[[HANDOFF_TO_ENGINE]]');
-    
-    if (hasHandoffMarker) {
+    if (handoffMessage) {
       console.log(`🎯 AI probing complete (handoff marker detected) for base question ${currentFollowUpPack.questionId} — delegating to follow-up completion handler`);
       
-      // NEW: Add AI probing messages to transcript
+      // Set flag to prevent re-processing
+      setHandoffProcessed(true);
+      
+      // NEW: Add AI probing messages to transcript (only up to handoff marker)
       const probingEntries = extractProbingFromAgentMessages(agentMessages, currentFollowUpPack.questionId, currentFollowUpPack.packId);
       const newTranscript = [...transcript, ...probingEntries];
       setTranscript(newTranscript);
@@ -891,6 +893,12 @@ export default function CandidateInterview() {
       onFollowupPackComplete(baseQuestionId, packId);
       return;
     }
+    
+    const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
+    if (!lastAgentMessage?.content) return;
+    
+    // Update last message time
+    setLastAgentMessageTime(Date.now());
     
     // LEGACY FALLBACK: Check if agent sent a base question (Q###) - old behavior
     const questionMatch = lastAgentMessage.content.match(/\b(Q\d{1,3})\b/i);
@@ -973,8 +981,9 @@ export default function CandidateInterview() {
   const extractProbingFromAgentMessages = (messages, questionId, packId) => {
     const probingEntries = [];
     
-    // Find the handoff message
+    // Find the handoff summary message (start)
     let startIndex = -1;
+    let endIndex = -1;
     
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
@@ -985,18 +994,26 @@ export default function CandidateInterview() {
           msg.content.includes(`Question ID: ${questionId}`) &&
           msg.content.includes(`Follow-up Pack: ${packId}`)) {
         startIndex = i + 1;
+      }
+      
+      // Find handoff marker (end)
+      if (startIndex !== -1 && msg.role === 'assistant' && msg.content?.includes('[[HANDOFF_TO_ENGINE]]')) {
+        endIndex = i;
         break;
       }
     }
     
     if (startIndex === -1) return probingEntries;
     
-    const probingMessages = messages.slice(startIndex);
+    // Only process messages between start and handoff marker
+    const probingMessages = endIndex !== -1
+      ? messages.slice(startIndex, endIndex + 1)
+      : messages.slice(startIndex);
     
     for (let i = 0; i < probingMessages.length; i++) {
       const msg = probingMessages[i];
       
-      // Skip handoff marker and base questions
+      // Skip handoff marker message itself and base questions
       if (msg.content?.includes('[[HANDOFF_TO_ENGINE]]')) continue;
       if (msg.content?.match(/\b(Q\d{1,3})\b/i)) continue;
       if (msg.content?.includes('Follow-up pack completed')) continue;
@@ -1033,7 +1050,7 @@ export default function CandidateInterview() {
       // Extract Q&A pairs from agent conversation
       const exchanges = [];
       
-      // Find the handoff message
+      // Find the handoff summary message (start) and handoff marker (end)
       let startIndex = -1;
       let endIndex = -1;
       
@@ -1048,9 +1065,16 @@ export default function CandidateInterview() {
           startIndex = i + 1;
         }
         
-        if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.match(/\bQ\d{1,3}\b/i)) {
-          endIndex = i;
-          break;
+        // Look for handoff marker first, then Q### pattern
+        if (startIndex !== -1 && msg.role === 'assistant' && typeof msg.content === 'string') {
+          if (msg.content.includes('[[HANDOFF_TO_ENGINE]]')) {
+            endIndex = i;
+            break;
+          }
+          if (msg.content.match(/\bQ\d{1,3}\b/i)) {
+            endIndex = i;
+            break;
+          }
         }
       }
       
@@ -2068,14 +2092,26 @@ export default function CandidateInterview() {
 
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
   const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
-    ? agentMessages.filter(msg => {
-        // Filter out system summary messages
-        if (msg.content?.includes('Follow-up pack completed')) return false;
-        // Filter out base question signals (Q###)
-        if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
-        // Keep everything else (both assistant and user messages)
-        return true;
-      })
+    ? (() => {
+        // Find handoff marker index
+        const handoffIdx = agentMessages.findIndex(m => 
+          m.role === 'assistant' && m.content?.includes('[[HANDOFF_TO_ENGINE]]')
+        );
+        
+        // If handoff found, only show messages up to (not including) handoff
+        const messagesToShow = handoffIdx !== -1 
+          ? agentMessages.slice(0, handoffIdx)
+          : agentMessages;
+        
+        return messagesToShow.filter(msg => {
+          // Filter out system summary messages
+          if (msg.content?.includes('Follow-up pack completed')) return false;
+          // Filter out base question signals (Q###)
+          if (msg.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+          // Keep everything else (both assistant and user messages)
+          return true;
+        });
+      })()
     : [];
 
   return (
