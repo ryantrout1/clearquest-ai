@@ -50,10 +50,8 @@ export function StructuredEventRenderer({ event, followUpQuestionEntities, quest
     const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
     
     return (
-      <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3 mb-2">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-white text-sm">{resolvedText}</p>
-        </div>
+      <div className="mb-1">
+        <p className="text-orange-200 text-xs leading-snug">{resolvedText}</p>
       </div>
     );
   }
@@ -63,15 +61,15 @@ export function StructuredEventRenderer({ event, followUpQuestionEntities, quest
     const requiresReview = needsReview(text);
     
     return (
-      <div className="flex justify-end mb-2">
-        <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md flex items-center gap-2">
-          <p className="text-white text-sm break-words">{text}</p>
-          {requiresReview && (
-            <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-              Needs Review
-            </Badge>
-          )}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="bg-orange-600 rounded px-3 py-1 inline-block">
+          <p className="text-white text-xs font-medium">{text}</p>
         </div>
+        {requiresReview && (
+          <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+            Needs Review
+          </Badge>
+        )}
       </div>
     );
   }
@@ -79,14 +77,12 @@ export function StructuredEventRenderer({ event, followUpQuestionEntities, quest
   // AI probe question
   if (kind === "ai_probe_question") {
     return (
-      <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3 mb-2">
-        <div className="flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <span className="text-xs text-purple-400 font-medium">Investigator Follow-Up:</span>
-            <p className="text-white text-sm mt-0.5 leading-relaxed">{text}</p>
-          </div>
+      <div className="mb-1 mt-2">
+        <div className="flex items-start gap-1.5">
+          <AlertCircle className="w-3 h-3 text-purple-400 flex-shrink-0 mt-0.5" />
+          <span className="text-xs text-purple-400 font-medium">Investigator Follow-Up:</span>
         </div>
+        <p className="text-purple-200 text-xs leading-snug ml-4">{text}</p>
       </div>
     );
   }
@@ -94,9 +90,9 @@ export function StructuredEventRenderer({ event, followUpQuestionEntities, quest
   // AI probe answer
   if (kind === "ai_probe_answer") {
     return (
-      <div className="flex justify-end mb-2">
-        <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm break-words">{text}</p>
+      <div className="flex items-center gap-2 mb-2 ml-4">
+        <div className="bg-purple-600 rounded px-3 py-1 inline-block">
+          <p className="text-white text-xs font-medium">{text}</p>
         </div>
       </div>
     );

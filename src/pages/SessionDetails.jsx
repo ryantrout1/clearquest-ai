@@ -1024,10 +1024,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
         <div className="flex items-start gap-3">
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
-          <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-3">
-            <div className="space-y-2">
+          <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-2">
+            <div className="space-y-1">
               {hasMultipleInstances && (
-                <div className="text-xs font-semibold text-cyan-400 mb-2">
+                <div className="text-xs font-semibold text-cyan-400 mb-1">
                   🔁 {instanceNumbers.length} Instances Recorded
                 </div>
               )}
@@ -1037,11 +1037,11 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 return (
                   <div key={instanceNum} className={cn(
-                    "space-y-1",
-                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-3 mb-3"
+                    "space-y-0.5",
+                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-2 mb-2"
                   )}>
                     {hasMultipleInstances && (
-                      <div className="text-xs font-semibold text-cyan-400 mb-2">
+                      <div className="text-xs font-semibold text-cyan-400 mb-1">
                         Instance {instanceIdx + 1}
                       </div>
                     )}
