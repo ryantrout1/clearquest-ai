@@ -108,6 +108,25 @@ export default function SessionDetails() {
         sampleFollowup: followupsData[0],
         sampleFollowUpQuestion: followUpQuestionsData.find(q => q.followup_pack_id === 'PACK_LE_APPS')
       });
+
+      // DIAGNOSTIC LOG: Check for AI probing data
+      const followupsWithProbing = followupsData.filter(f => 
+        f.additional_details?.investigator_probing?.length > 0
+      );
+      console.log("SESSIONDETAILS: Loaded AI probing exchanges", {
+        sessionId,
+        followupsWithProbing: followupsWithProbing.length,
+        totalProbingExchanges: followupsWithProbing.reduce(
+          (sum, f) => sum + (f.additional_details.investigator_probing?.length || 0), 
+          0
+        ),
+        samples: followupsWithProbing.slice(0, 2).map(f => ({
+          packId: f.followup_pack,
+          instanceNumber: f.instance_number,
+          probingCount: f.additional_details.investigator_probing?.length,
+          firstExchange: f.additional_details.investigator_probing?.[0]
+        }))
+      });
       
       // DIAGNOSTIC: Log PACK_LE_APPS question metadata
       const packLeAppsQuestions = followUpQuestionsData.filter(q => q.followup_pack_id === 'PACK_LE_APPS');
