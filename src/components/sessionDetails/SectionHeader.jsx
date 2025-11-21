@@ -157,7 +157,7 @@ export default function SectionHeader({
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🧠</span>
+                  <span className="text-xl">🧠</span>
                   <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
                     AI Investigator Assist
                   </span>
