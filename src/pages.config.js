@@ -22,7 +22,6 @@ import FollowupPackManager from './pages/FollowupPackManager';
 import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
 import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import CandidateInterview from './pages/CandidateInterview';
-import AIProbeTestTemp from './pages/AIProbeTestTemp';
 import __Layout from './Layout.jsx';
 
 
@@ -51,7 +50,6 @@ export const PAGES = {
     "FollowUpPackQuickAssign": FollowUpPackQuickAssign,
     "FollowUpPackManagerV2": FollowUpPackManagerV2,
     "CandidateInterview": CandidateInterview,
-    "AIProbeTestTemp": AIProbeTestTemp,
 }
 
 export const pagesConfig = {
