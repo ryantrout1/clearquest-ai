@@ -23,7 +23,7 @@ import {
   shouldSkipProbingForHired
 } from "../components/interviewEngine";
 import { toast } from "sonner";
-import { getAiAgentConfig } from "../utils/aiConfig";
+import { getAiAgentConfig } from "../components/utils/aiConfig";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
