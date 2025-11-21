@@ -369,6 +369,7 @@ export default function SessionDetails() {
   }
 
   const statusConfig = {
+    active: { label: "In-Progress", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
     in_progress: { label: "In-Progress", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
     completed: { label: "Completed", color: "bg-green-500/20 text-green-300 border-green-500/30" },
     paused: { label: "Paused", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
