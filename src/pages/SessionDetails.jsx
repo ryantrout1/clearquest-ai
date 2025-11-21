@@ -914,6 +914,27 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
   
+  // Helper to get follow-up question text
+  const getFollowupQuestionText = (packId, details) => {
+    const packQuestions = followUpQuestionEntities
+      .filter(q => q.followup_pack_id === packId)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    const result = [];
+    Object.entries(details).filter(([key]) => key !== 'investigator_probing').forEach(([key, value]) => {
+      const questionEntity = packQuestions.find(q => {
+        const qText = q.question_text?.toLowerCase() || '';
+        const keyLower = key.toLowerCase();
+        return qText.includes(keyLower) || keyLower.includes(qText.split(' ').slice(0, 3).join(' '));
+      });
+      
+      const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      result.push({ questionText, value, needsReview: needsReview(value) });
+    });
+    
+    return result;
+  };
+  
   // Group followups by instance_number
   const followupsByInstance = {};
   followups.forEach(fu => {
