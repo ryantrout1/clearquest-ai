@@ -207,35 +207,31 @@ export default function InterviewDashboard() {
     setIsBulkDeleting(true);
     
     try {
-      // Parallel bulk deletion for maximum speed
-      await Promise.all(sessionsToDelete.map(async (sessionId) => {
-        // Parallel delete all related data
-        await Promise.all([
-          base44.entities.Response.filter({ session_id: sessionId }).then(responses => 
-            Promise.all(responses.map(r => base44.entities.Response.delete(r.id)))
-          ),
-          base44.entities.FollowUpResponse.filter({ session_id: sessionId }).then(followups =>
-            Promise.all(followups.map(f => base44.entities.FollowUpResponse.delete(f.id)))
-          )
-        ]);
-        
-        // Delete session after related data is removed
-        await base44.entities.InterviewSession.delete(sessionId);
-      }));
+      // Fetch all related data in parallel
+      const [allRelatedResponses, allRelatedFollowups] = await Promise.all([
+        Promise.all(sessionsToDelete.map(sid => base44.entities.Response.filter({ session_id: sid }))),
+        Promise.all(sessionsToDelete.map(sid => base44.entities.FollowUpResponse.filter({ session_id: sid })))
+      ]);
 
-      queryClient.setQueryData(['sessions'], (oldSessions) => 
-        oldSessions.filter(s => !sessionsToDelete.includes(s.id))
-      );
-      queryClient.setQueryData(['all-responses'], (oldResponses) =>
-        oldResponses.filter(r => !sessionsToDelete.includes(r.session_id))
-      );
-      queryClient.setQueryData(['all-followups'], (oldFollowups) =>
-        oldFollowups.filter(f => !sessionsToDelete.includes(f.session_id))
-      );
+      const responsesToDelete = allRelatedResponses.flat();
+      const followupsToDelete = allRelatedFollowups.flat();
+
+      // Delete all related data in parallel
+      await Promise.all([
+        ...responsesToDelete.map(r => base44.entities.Response.delete(r.id)),
+        ...followupsToDelete.map(f => base44.entities.FollowUpResponse.delete(f.id))
+      ]);
+
+      // Delete all sessions in parallel
+      await Promise.all(sessionsToDelete.map(sid => base44.entities.InterviewSession.delete(sid)));
 
       toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
       setBulkDeleteConfirm(false);
+      
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
       
     } catch (err) {
       toast.error("Failed to delete sessions");
@@ -515,7 +511,6 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
     setIsDeleting(true);
     try {
-      // Parallel deletion for speed
       const [responses, followups] = await Promise.all([
         base44.entities.Response.filter({ session_id: session.id }),
         base44.entities.FollowUpResponse.filter({ session_id: session.id })
@@ -523,23 +518,16 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
       await Promise.all([
         ...responses.map(r => base44.entities.Response.delete(r.id)),
-        ...followups.map(f => base44.entities.FollowUpResponse.delete(f.id))
+        ...followups.map(f => base44.entities.FollowUpResponse.delete(f.id)),
+        base44.entities.InterviewSession.delete(session.id)
       ]);
 
-      await base44.entities.InterviewSession.delete(session.id);
-
-      queryClient.setQueryData(['sessions'], (oldSessions) => 
-        oldSessions.filter(s => s.id !== session.id)
-      );
-      queryClient.setQueryData(['all-responses'], (oldResponses) =>
-        oldResponses.filter(r => r.session_id !== session.id)
-      );
-      queryClient.setQueryData(['all-followups'], (oldFollowups) =>
-        oldFollowups.filter(f => f.session_id !== session.id)
-      );
-
       toast.success("Session deleted successfully");
-      
+
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
+
     } catch (err) {
       toast.error("Failed to delete session");
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
