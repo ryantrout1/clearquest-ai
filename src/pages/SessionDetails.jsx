@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import SectionHeader from "../components/sessionDetails/SectionHeader";
 import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
 import { Clock } from "lucide-react";
+import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
+import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
 
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
@@ -61,6 +63,7 @@ export default function SessionDetails() {
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
   const [isGeneratingSummaries, setIsGeneratingSummaries] = useState(false);
+  const [transcriptEvents, setTranscriptEvents] = useState([]);
 
   const categoryRefs = useRef({});
 
@@ -123,6 +126,10 @@ export default function SessionDetails() {
       setQuestions(questionsData);
       setSections(sectionsData);
       setFollowUpQuestionEntities(followUpQuestionsData);
+      
+      // Build unified transcript events
+      const events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
+      setTranscriptEvents(events);
       
       setTotalQuestions(questionsData.length);
       setExpandedQuestions(new Set());
@@ -721,12 +728,13 @@ export default function SessionDetails() {
             toggleQuestionExpanded={toggleQuestionExpanded}
             sections={sections}
             session={session}
+            transcriptEvents={transcriptEvents}
           />
         ) : (
-          <TranscriptView
-            responses={filteredResponsesWithNumbers}
-            followups={followups}
+          <UnifiedTranscriptView
+            transcriptEvents={transcriptEvents}
             followUpQuestionEntities={followUpQuestionEntities}
+            questions={questions}
           />
         )}
 
@@ -845,9 +853,12 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
+  
+  // Group events by base question
+  const eventsByQuestion = groupEventsByBaseQuestion(transcriptEvents);
   
   // Sort categories by section_order from Section entities
   const sortedCategories = Object.entries(responsesByCategory).sort((a, b) => {
@@ -903,6 +914,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
+                        questionEvents={eventsByQuestion[response.question_id] || []}
                       />
                     ))}
                   </div>
@@ -915,6 +927,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
+                        questionEvents={eventsByQuestion[response.question_id] || []}
                       />
                     ))}
                   </div>
@@ -928,26 +941,28 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   );
 }
 
-function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand }) {
+function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents }) {
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
   const questionNumber = displayNumber.toString().padStart(3, '0');
-  const aiProbingExchanges = response.investigator_probing || [];
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
   
-  // Group followups by instance_number
-  const followupsByInstance = {};
-  followups.forEach(fu => {
-    const instanceNum = fu.instance_number || 1;
-    if (!followupsByInstance[instanceNum]) {
-      followupsByInstance[instanceNum] = [];
-    }
-    followupsByInstance[instanceNum].push(fu);
+  // Filter to events after base answer (followups + probing only)
+  const followupEvents = questionEvents.filter(e => 
+    e.kind !== "base_question" && e.kind !== "base_answer"
+  );
+  
+  // Group events by instance
+  const eventsByInstance = {};
+  followupEvents.forEach(evt => {
+    const instNum = evt.instanceNumber || 1;
+    if (!eventsByInstance[instNum]) eventsByInstance[instNum] = [];
+    eventsByInstance[instNum].push(evt);
   });
   
-  const instanceNumbers = Object.keys(followupsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
+  const instanceNumbers = Object.keys(eventsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
   
   // DIAGNOSTIC: Multi-instance summary
@@ -959,7 +974,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
       instancesCount: instanceNumbers.length,
       instances: instanceNumbers.map(num => ({
         instanceNumber: num,
-        detailKeys: Object.keys(followupsByInstance[num][0]?.additional_details || {})
+        eventCount: eventsByInstance[num]?.length || 0
       }))
     });
   }
@@ -1010,7 +1025,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
           <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-3">
-            <div className="space-y-4">
+            <div className="space-y-2">
               {hasMultipleInstances && (
                 <div className="text-xs font-semibold text-cyan-400 mb-2">
                   🔁 {instanceNumbers.length} Instances Recorded
@@ -1018,113 +1033,30 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
               )}
               
               {instanceNumbers.map((instanceNum, instanceIdx) => {
-                const instanceFollowups = followupsByInstance[instanceNum];
+                const instanceEvents = eventsByInstance[instanceNum] || [];
                 
                 return (
                   <div key={instanceNum} className={cn(
-                    "space-y-3",
-                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-3"
+                    "space-y-1",
+                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-3 mb-3"
                   )}>
                     {hasMultipleInstances && (
-                      <div className="text-xs font-semibold text-cyan-400">
+                      <div className="text-xs font-semibold text-cyan-400 mb-2">
                         Instance {instanceIdx + 1}
                       </div>
                     )}
                     
-                    {instanceFollowups.map((followup, idx) => {
-                      const details = followup.additional_details || {};
-                      const packQuestions = followUpQuestionEntities
-                        .filter(q => q.followup_pack_id === followup.followup_pack)
-                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                      
-                      // Helper to resolve question text from followup_question_id
-                      const getFollowupQuestionText = (detailKey) => {
-                        const match = packQuestions.find(q => q.followup_question_id === detailKey);
-                        return match?.question_text || detailKey;
-                      };
-                      
-                      // Extract probing from additional_details if stored there (multi-instance)
-                      const probingFromDetails = details.investigator_probing || [];
-                      const hasInstanceProbing = probingFromDetails.length > 0;
-
-                      return (
-                        <div key={idx} className="space-y-1.5">
-                          {followup.substance_name && (
-                            <div className="text-xs flex items-start">
-                              <span className="text-slate-400 font-medium">Substance:</span>
-                              <span className="text-slate-200 ml-2">{followup.substance_name}</span>
-                              {needsReview(followup.substance_name) && (
-                                <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                                  Needs Review
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-
-                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
-                            const requiresReview = needsReview(value);
-                            const label = getFollowupQuestionText(key);
-
-                            return (
-                              <div key={key} className="text-xs flex items-start">
-                                <span className="text-slate-400 font-medium">
-                                  {label}:
-                                </span>
-                                <span className="text-slate-200 ml-2 break-words">{value}</span>
-                                {requiresReview && (
-                                  <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                                    Needs Review
-                                  </Badge>
-                                )}
-                              </div>
-                            );
-                          })}
-                          
-                          {hasInstanceProbing && (
-                            <div className="border-t border-slate-600/50 pt-2 mt-2 space-y-2">
-                              <div className="text-xs font-semibold text-purple-400 mb-2">
-                                🔍 Investigator Probing ({probingFromDetails.length} exchanges)
-                              </div>
-                              {probingFromDetails.map((exchange, eidx) => (
-                                <div key={eidx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
-                                  <div className="text-xs">
-                                    <span className="text-blue-400 font-medium">Follow-Up Question:</span>
-                                    <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
-                                  </div>
-                                  <div className="text-xs">
-                                    <span className="text-orange-400 font-medium">Candidate Response:</span>
-                                    <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {instanceEvents.map((event) => (
+                      <StructuredEventRenderer 
+                        key={event.id}
+                        event={event}
+                        followUpQuestionEntities={followUpQuestionEntities}
+                        questionNumber={displayNumber}
+                      />
+                    ))}
                   </div>
                 );
               })}
-
-              {aiProbingExchanges.length > 0 && (
-                <div className="border-t border-slate-600/50 pt-3 space-y-2 ml-3">
-                  <div className="text-xs font-semibold text-purple-400 mb-2">
-                    🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
-                  </div>
-                  {aiProbingExchanges.map((exchange, idx) => (
-                    <div key={idx} className="space-y-1.5 pl-2 border-l-2 border-purple-500/30">
-                      <div className="text-xs">
-                        <span className="text-blue-400 font-medium">Follow-Up Question:</span>
-                        <p className="text-slate-200 mt-0.5 break-words leading-relaxed">{exchange.probing_question}</p>
-                      </div>
-                      <div className="text-xs">
-                        <span className="text-orange-400 font-medium">Candidate Response:</span>
-                        <p className="text-orange-200 mt-0.5 break-words leading-relaxed">{exchange.candidate_response}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1133,78 +1065,27 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   );
 }
 
-function TranscriptView({ responses, followups, followUpQuestionEntities }) {
-
-  // Sort by canonical question order
-  const sortedResponses = [...responses].sort((a, b) => {
-    const aNum = typeof a.display_number === "number" ? a.display_number : Infinity;
-    const bNum = typeof b.display_number === "number" ? b.display_number : Infinity;
-
-    if (aNum !== bNum) {
-      return aNum - bNum;
-    }
-
-    const aTime = new Date(a.response_timestamp).getTime();
-    const bTime = new Date(b.response_timestamp).getTime();
-    return aTime - bTime;
-  });
-
-  const timeline = [];
-
-  sortedResponses.forEach(response => {
-    timeline.push({ type: 'question', data: response });
-
-    const relatedFollowups = followups.filter(f => f.response_id === response.id);
-    
-    // Group by instance_number
-    const followupsByInstance = {};
-    relatedFollowups.forEach(fu => {
-      const instanceNum = fu.instance_number || 1;
-      if (!followupsByInstance[instanceNum]) {
-        followupsByInstance[instanceNum] = [];
-      }
-      followupsByInstance[instanceNum].push(fu);
-    });
-    
-    const instanceNumbers = Object.keys(followupsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
-    
-    instanceNumbers.forEach(instanceNum => {
-      const instanceFollowups = followupsByInstance[instanceNum];
-      instanceFollowups.forEach(fu => {
-        timeline.push({ type: 'followup', data: fu, followUpQuestionEntities, instanceNumber: instanceNum, totalInstances: instanceNumbers.length });
-      });
-      
-      // Show probing for this instance if stored in additional_details
-      const firstFollowup = instanceFollowups[0];
-      if (firstFollowup?.additional_details?.investigator_probing?.length > 0) {
-        timeline.push({ 
-          type: 'probing', 
-          data: firstFollowup.additional_details.investigator_probing, 
-          questionId: response.question_id,
-          instanceNumber: instanceNum,
-          totalInstances: instanceNumbers.length
-        });
-      }
-    });
-
-    // Legacy single-instance probing stored on Response (show if not already shown per-instance)
-    if (response.investigator_probing && response.investigator_probing.length > 0) {
-      // Check if probing wasn't already shown in instances
-      const hasInstanceProbing = instanceNumbers.some(num => 
-        followupsByInstance[num]?.[0]?.additional_details?.investigator_probing?.length > 0
-      );
-      
-      if (!hasInstanceProbing) {
-        timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
-      }
-    }
+function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, questions }) {
+  // Get question numbers mapping
+  const questionNumberMap = {};
+  questions.forEach((q, idx) => {
+    questionNumberMap[q.id] = q.question_number || (idx + 1);
   });
 
   return (
     <div className="space-y-2">
-      {timeline.map((item, idx) => (
-        <TranscriptEntry key={idx} item={item} />
-      ))}
+      {transcriptEvents.map((event) => {
+        const questionNum = questionNumberMap[event.baseQuestionId] || 0;
+        
+        return (
+          <TranscriptEventRenderer 
+            key={event.id}
+            event={event}
+            followUpQuestionEntities={followUpQuestionEntities}
+            questionNumber={questionNum}
+          />
+        );
+      })}
     </div>
   );
 }
