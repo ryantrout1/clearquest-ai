@@ -524,47 +524,149 @@ export default function SessionDetails() {
                 </div>
               </div>
 
-              {/* Generate AI Summaries + Status Pill */}
-              <div className="flex flex-col items-end gap-2">
-                <Button
-                  onClick={handleGenerateSummaries}
-                  disabled={isGeneratingSummaries || responses.length === 0}
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white h-10"
-                >
-                  {isGeneratingSummaries ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating AI Summaries...
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-lg mr-2">🧠</span>
-                      Generate AI Summaries
-                    </>
-                  )}
-                </Button>
+              {/* Two-Row Header: Row 1 (Primary Actions) + Row 2 (Filters & Tools) */}
+              <div className="rounded-xl bg-indigo-900/60 border border-indigo-700/70 px-4 py-3 flex flex-col gap-3">
+                {/* Row 1 – Primary Actions */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={handleGenerateSummaries}
+                    disabled={isGeneratingSummaries || responses.length === 0}
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white h-10"
+                  >
+                    {isGeneratingSummaries ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating AI Summaries...
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-lg mr-2">🧠</span>
+                        Generate AI Summaries
+                      </>
+                    )}
+                  </Button>
 
-                <button
-                  onClick={() => {
-                    if (session.status === 'completed') {
-                      handleStatusChange('in_progress');
-                    }
-                  }}
-                  onMouseEnter={() => setIsHoveringStatus(true)}
-                  onMouseLeave={() => setIsHoveringStatus(false)}
-                  disabled={session.status !== 'completed'}
-                  className={cn(
-                    "text-sm px-3 py-1.5 rounded-full border transition-all font-medium",
-                    session.status === 'completed' && "cursor-pointer hover:opacity-90",
-                    session.status !== 'completed' && "cursor-default",
-                    statusConfig[session.status]?.color
-                  )}
-                >
-                  {session.status === 'completed' && isHoveringStatus 
-                    ? "Mark In-Progress" 
-                    : statusConfig[session.status]?.label || session.status}
-                </button>
+                  <button
+                    onClick={() => {
+                      if (session.status === 'completed') {
+                        handleStatusChange('in_progress');
+                      }
+                    }}
+                    onMouseEnter={() => setIsHoveringStatus(true)}
+                    onMouseLeave={() => setIsHoveringStatus(false)}
+                    disabled={session.status !== 'completed'}
+                    className={cn(
+                      "text-sm px-3 py-1.5 rounded-full border transition-all font-medium",
+                      session.status === 'completed' && "cursor-pointer hover:opacity-90",
+                      session.status !== 'completed' && "cursor-default",
+                      statusConfig[session.status]?.color
+                    )}
+                  >
+                    {session.status === 'completed' && isHoveringStatus 
+                      ? "Mark In-Progress" 
+                      : statusConfig[session.status]?.label || session.status}
+                  </button>
+                </div>
+
+                {/* Row 2 – Filters & Tools */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Search */}
+                  <div className="flex-1 min-w-[200px] md:min-w-[260px] relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search questions or answers..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
+                    />
+                  </div>
+
+                  {/* Category dropdown */}
+                  <div className="w-[170px]">
+                    <Select value={selectedCategory} onValueChange={handleCategoryJump}>
+                      <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
+                        <SelectValue placeholder="Jump to Category" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-slate-700">
+                        <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
+                        {categories.map(cat => (
+                          <SelectItem key={cat} value={cat} className="text-white text-sm">
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Transcript/Structured toggle */}
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
+                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                    >
+                      {viewMode === "structured" ? "Transcript" : "Structured"}
+                    </Button>
+                  </div>
+
+                  {/* Expand / Collapse */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExpandAll}
+                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                    >
+                      <ChevronsDown className="w-4 h-4 mr-1" />
+                      <span className="hidden sm:inline">Expand</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCollapseAll}
+                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                    >
+                      <ChevronsUp className="w-4 h-4 mr-1" />
+                      <span className="hidden sm:inline">Collapse</span>
+                    </Button>
+                  </div>
+
+                  {/* Show Only Questions with Follow-Ups toggle */}
+                  <button
+                    onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
+                    className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors px-2"
+                  >
+                    {showOnlyFollowUps ? (
+                      <ToggleRight className="w-5 h-5 text-blue-400" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5 text-slate-500" />
+                    )}
+                    <span className="hidden lg:inline">Follow-Ups Only</span>
+                  </button>
+
+                  {/* Generate PDF */}
+                  <Button
+                    onClick={generateReport}
+                    disabled={isGeneratingReport || responses.length === 0}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white h-9"
+                  >
+                    {isGeneratingReport ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">Generate PDF</span>
+                        <span className="sm:hidden">PDF</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -613,108 +715,14 @@ export default function SessionDetails() {
         {/* Global AI Investigator Assist */}
         <GlobalAIAssist session={session} />
 
-        <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 md:p-4 mb-4">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-3 items-center">
-            <div className="lg:col-span-4 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                placeholder="Search questions or answers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
-              />
-            </div>
-
-            <div className="lg:col-span-3">
-              <Select value={selectedCategory} onValueChange={handleCategoryJump}>
-                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
-                  <SelectValue placeholder="Jump to Category" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700">
-                  <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
-                  {categories.map(cat => (
-                    <SelectItem key={cat} value={cat} className="text-white text-sm">
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="lg:col-span-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
-                className="w-full bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-              >
-                {viewMode === "structured" ? "Transcript" : "Structured"}
-              </Button>
-            </div>
-
-            <div className="lg:col-span-3 grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExpandAll}
-                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-              >
-                <ChevronsDown className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Expand</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCollapseAll}
-                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-              >
-                <ChevronsUp className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Collapse</span>
-              </Button>
-            </div>
+        {/* Optional: Small spacer or result count */}
+        {searchTerm && (
+          <div className="mb-4 text-center">
+            <span className="text-xs text-slate-400">
+              Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
+            </span>
           </div>
-
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-3 pt-3 border-t border-slate-700">
-            <button
-              onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
-              className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors"
-            >
-              {showOnlyFollowUps ? (
-                <ToggleRight className="w-5 h-5 text-blue-400" />
-              ) : (
-                <ToggleLeft className="w-5 h-5 text-slate-500" />
-              )}
-              <span>Show Only Questions with Follow-Ups</span>
-            </button>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              {searchTerm && (
-                <span className="text-xs text-slate-400">
-                  Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
-                </span>
-              )}
-              <Button
-                onClick={generateReport}
-                disabled={isGeneratingReport || responses.length === 0}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white h-9"
-              >
-                {isGeneratingReport ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    <span className="hidden sm:inline">Generate PDF</span>
-                    <span className="sm:hidden">PDF</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
+        )}
 
         {session.red_flags?.length > 0 && (
           <Card className="bg-red-950/20 border-red-800/50 mb-4">
