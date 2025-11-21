@@ -1046,10 +1046,11 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       </div>
                     )}
                     
-                    {instanceEvents.map((event) => (
+                    {instanceEvents.map((event, idx) => (
                       <StructuredEventRenderer 
                         key={event.id}
                         event={event}
+                        nextEvent={instanceEvents[idx + 1]}
                         followUpQuestionEntities={followUpQuestionEntities}
                         questionNumber={displayNumber}
                       />
