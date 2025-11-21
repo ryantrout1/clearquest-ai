@@ -1235,23 +1235,24 @@ function TranscriptEntry({ item }) {
           </>
         )}
 
-        {packQuestions.map((questionEntity, idx) => {
-          const key = Object.keys(details).filter(k => k !== 'investigator_probing').find(k => 
-            questionEntity.question_text?.toLowerCase().includes(k.toLowerCase()) ||
-            k.toLowerCase().includes(questionEntity.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
+        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
+          const requiresReview = needsReview(value);
+          
+          // Find matching question entity for this key
+          const questionEntity = packQuestions.find(q => 
+            q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
+            key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
           );
           
-          if (!key) return null;
-          
-          const value = details[key];
-          const requiresReview = needsReview(value);
+          const questionText = questionEntity?.question_text || 
+                             key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
           return (
             <React.Fragment key={key}>
               <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-white text-sm">
-                    {questionEntity.question_text}
+                    {questionText}
                   </p>
                   {requiresReview && (
                     <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
