@@ -1463,8 +1463,6 @@ export default function CandidateInterview() {
           
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
-      }
-
       } else if (currentItem.type === 'multi_instance') {
         // MULTI-INSTANCE QUESTION
         const { questionId, packId, instanceNumber } = currentItem;
