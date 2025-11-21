@@ -968,35 +968,35 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
   
-  // Filter to events after base answer (followups + probing only)
-  const followupEvents = questionEvents.filter(e => 
-    e.kind !== "base_question" && e.kind !== "base_answer"
-  );
-  
-  // Group events by instance
-  const eventsByInstance = {};
-  followupEvents.forEach(evt => {
-    const instNum = evt.instanceNumber || 1;
-    if (!eventsByInstance[instNum]) eventsByInstance[instNum] = [];
-    eventsByInstance[instNum].push(evt);
+  // Build instances from raw FollowUpResponse data
+  const instancesMap = {};
+  followups.forEach(f => {
+    const instNum = f.instance_number || 1;
+    if (!instancesMap[instNum]) {
+      instancesMap[instNum] = {
+        instanceNumber: instNum,
+        followupPackId: f.followup_pack,
+        details: {},
+        aiExchanges: []
+      };
+    }
+    
+    // Extract deterministic follow-up answers
+    const details = f.additional_details || {};
+    Object.entries(details).forEach(([key, value]) => {
+      if (key !== 'investigator_probing') {
+        instancesMap[instNum].details[key] = value;
+      }
+    });
+    
+    // Extract AI probing exchanges
+    if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
+      instancesMap[instNum].aiExchanges = details.investigator_probing;
+    }
   });
   
-  const instanceNumbers = Object.keys(eventsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
+  const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
-  
-  // DIAGNOSTIC: Multi-instance summary
-  if (followups.length > 0) {
-    console.log("[MI SUMMARY - SESSION DETAILS]", {
-      baseQuestionId: response.question_id,
-      baseQuestionCode: response.question_id,
-      followupPackId: followups[0]?.followup_pack,
-      instancesCount: instanceNumbers.length,
-      instances: instanceNumbers.map(num => ({
-        instanceNumber: num,
-        eventCount: eventsByInstance[num]?.length || 0
-      }))
-    });
-  }
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -1052,10 +1052,32 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
               )}
               
               {instanceNumbers.map((instanceNum, instanceIdx) => {
-                const instanceEvents = eventsByInstance[instanceNum] || [];
+                const instance = instancesMap[instanceNum];
+                if (!instance) return null;
                 
-                // Find first AI probing event in this instance
-                const firstAiProbingIdx = instanceEvents.findIndex(e => e.kind === "ai_probe_question");
+                // Build and sort deterministic entries by display_order
+                const deterministicEntries = Object.entries(instance.details || {}).map(([detailKey, detailValue]) => {
+                  const meta = followUpQuestionEntities.find(q => 
+                    q.followup_question_id === detailKey && 
+                    q.followup_pack_id === instance.followupPackId
+                  ) || {};
+                  
+                  return {
+                    detailKey,
+                    detailValue,
+                    displayOrder: meta.display_order ?? 999,
+                    questionText: meta.question_text || detailKey
+                  };
+                });
+                
+                deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
+                
+                // Sort AI exchanges by sequence_number
+                const sortedAiExchanges = (instance.aiExchanges || []).slice().sort((a, b) => {
+                  const seqA = a.sequence_number || 0;
+                  const seqB = b.sequence_number || 0;
+                  return seqA - seqB;
+                });
                 
                 return (
                   <div key={instanceNum} className={cn(
@@ -1068,16 +1090,41 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       </div>
                     )}
                     
-                    {instanceEvents.map((event, idx) => (
-                      <StructuredEventRenderer 
-                        key={event.id}
-                        event={event}
-                        nextEvent={instanceEvents[idx + 1]}
-                        followUpQuestionEntities={followUpQuestionEntities}
-                        questionNumber={displayNumber}
-                        isFirstAiProbing={idx === firstAiProbingIdx}
-                      />
+                    {/* DETERMINISTIC FOLLOW-UPS IN ORDER */}
+                    {deterministicEntries.map((entry) => (
+                      <div key={entry.detailKey} className="mb-2 text-xs">
+                        <div className="mb-1">
+                          <span className="text-slate-400 font-medium">Follow-Up Question:</span>
+                          <p className="text-slate-300 mt-0.5 leading-relaxed">{entry.questionText}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Candidate Response:</span>
+                          <p className="text-white mt-0.5 leading-relaxed">{entry.detailValue}</p>
+                        </div>
+                      </div>
                     ))}
+                    
+                    {/* AI PROBING AFTER ALL DETERMINISTIC FOLLOW-UPS */}
+                    {sortedAiExchanges.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-purple-500/20">
+                        <div className="text-xs font-semibold text-purple-400 mb-2">
+                          🔍 AI Investigator Probing
+                        </div>
+                        
+                        {sortedAiExchanges.map((exchange, idx) => (
+                          <div key={idx} className="mb-2 text-xs pl-2 border-l-2 border-purple-500/20">
+                            <div className="mb-1">
+                              <span className="text-purple-400 font-medium">AI Investigator Question:</span>
+                              <p className="text-slate-300 mt-0.5 leading-relaxed">{exchange.probing_question}</p>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 font-medium">Candidate Response:</span>
+                              <p className="text-white mt-0.5 leading-relaxed">{exchange.candidate_response}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
