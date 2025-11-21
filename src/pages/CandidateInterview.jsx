@@ -1138,11 +1138,24 @@ export default function CandidateInterview() {
       if (followUpResponses.length > 0) {
         const followUpResponse = followUpResponses[0];
         
+        console.log("[MI AI-SAVE BEFORE]", {
+          instanceNumber,
+          existingDetails: followUpResponse.additional_details || {},
+          probingExchangesCount: exchanges.length
+        });
+        
+        const updatedDetails = {
+          ...(followUpResponse.additional_details || {}),
+          investigator_probing: exchanges
+        };
+        
         await base44.entities.FollowUpResponse.update(followUpResponse.id, {
-          additional_details: {
-            ...(followUpResponse.additional_details || {}),
-            investigator_probing: exchanges
-          }
+          additional_details: updatedDetails
+        });
+        
+        console.log("[MI AI-SAVE AFTER]", {
+          instanceNumber,
+          updatedDetails: updatedDetails
         });
         
         console.log(`✅ Saved ${exchanges.length} invokeLLM probing exchanges to instance ${instanceNumber}`);
@@ -1314,12 +1327,25 @@ export default function CandidateInterview() {
           if (followUpResponses.length > 0) {
             const followUpResponse = followUpResponses[0];
             
+            console.log("[MI AI-SAVE BEFORE]", {
+              instanceNumber,
+              existingDetails: followUpResponse.additional_details || {},
+              probingExchangesCount: exchanges.length
+            });
+            
+            const updatedDetails = {
+              ...(followUpResponse.additional_details || {}),
+              investigator_probing: exchanges
+            };
+            
             // Save probing to this instance's additional_details
             await base44.entities.FollowUpResponse.update(followUpResponse.id, {
-              additional_details: {
-                ...(followUpResponse.additional_details || {}),
-                investigator_probing: exchanges
-              }
+              additional_details: updatedDetails
+            });
+            
+            console.log("[MI AI-SAVE AFTER]", {
+              instanceNumber,
+              updatedDetails: updatedDetails
             });
             
             console.log(`✅ Saved ${exchanges.length} probing exchanges to FollowUpResponse instance ${instanceNumber} (${followUpResponse.id})`);
@@ -1530,6 +1556,15 @@ export default function CandidateInterview() {
           setCurrentItem(nextItem);
           
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+          
+          console.log("[MI INSTANCES SNAPSHOT]", {
+            packId,
+            currentInstanceNumber: currentItem.instanceNumber || 1,
+            fieldKey: step.Field_Key,
+            answer: step.PrefilledAnswer,
+            note: "prefilled_answer"
+          });
+          
           await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem.instanceNumber || 1);
           
           setIsCommitting(false);
@@ -1581,6 +1616,13 @@ export default function CandidateInterview() {
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
         // Save to database - dates stored as plain text
+        console.log("[MI INSTANCES SNAPSHOT]", {
+          packId,
+          currentInstanceNumber: currentItem.instanceNumber || 1,
+          fieldKey: step.Field_Key,
+          answer: validation.normalized || value
+        });
+        
         await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentItem.instanceNumber || 1);
         
         // Check if there are more steps in the queue
@@ -1606,6 +1648,12 @@ export default function CandidateInterview() {
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
         if (isLastFollowUp) {
+          console.log("[MI INSTANCE FINALIZED]", {
+            packId,
+            instanceNumber: currentItem.instanceNumber || 1,
+            allDeterministicAnswers: updatedFollowUpAnswers
+          });
+          
           console.log(`🎯 Last follow-up in ${packId} completed`);
           
           // NEW: Check if we should skip probing for PACK_LE_APPS when hired
@@ -1748,13 +1796,14 @@ export default function CandidateInterview() {
           const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
           
           if (packSteps && packSteps.length > 0) {
-            console.log("[MI CREATE]", {
+            console.log("[MI INSTANCE NEW CREATED]", {
               baseQuestionId: questionId,
               baseQuestionCode: question?.question_id,
               followupPackId: packId,
               instanceNumber: instanceNumber + 1,
               totalSteps: packSteps.length,
-              substanceName
+              substanceName,
+              details: {}
             });
             
             setCurrentFollowUpAnswers({});
@@ -2076,16 +2125,17 @@ export default function CandidateInterview() {
       });
       
       if (existingFollowups.length === 0) {
-        console.log("[MI SAVE]", {
+        console.log("[MI SAVE-DET BEFORE]", {
           action: "create",
           baseQuestionId: triggeringResponse.question_id,
           followupPackId: packId,
           instanceNumber,
-          fieldKey,
-          responseId: triggeringResponse.id
+          savingKey: fieldKey,
+          savingValue: answer,
+          existingDetails: null
         });
         
-        await base44.entities.FollowUpResponse.create({
+        const createdRecord = await base44.entities.FollowUpResponse.create({
           session_id: sessionId,
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
@@ -2096,25 +2146,41 @@ export default function CandidateInterview() {
           completed: false,
           additional_details: { [fieldKey]: answer }
         });
+        
+        console.log("[MI SAVE-DET AFTER]", {
+          action: "create",
+          instanceNumber,
+          createdRecordId: createdRecord.id,
+          updatedDetails: { [fieldKey]: answer }
+        });
       } else {
         const existing = existingFollowups[0];
         
-        console.log("[MI SAVE]", {
+        console.log("[MI SAVE-DET BEFORE]", {
           action: "update",
           baseQuestionId: triggeringResponse.question_id,
           followupPackId: packId,
           instanceNumber,
-          fieldKey,
-          responseId: triggeringResponse.id,
-          existingFollowupId: existing.id
+          savingKey: fieldKey,
+          savingValue: answer,
+          existingDetails: existing.additional_details || {}
         });
+        
+        const updatedDetails = {
+          ...(existing.additional_details || {}),
+          [fieldKey]: answer
+        };
         
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
-          additional_details: {
-            ...(existing.additional_details || {}),
-            [fieldKey]: answer
-          }
+          additional_details: updatedDetails
+        });
+        
+        console.log("[MI SAVE-DET AFTER]", {
+          action: "update",
+          instanceNumber,
+          existingFollowupId: existing.id,
+          updatedDetails: updatedDetails
         });
       }
 
