@@ -30,19 +30,11 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
   if (kind === "deterministic_followup_question" && nextEvent?.kind === "deterministic_followup_answer") {
     const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
     const answerText = nextEvent.text;
-    const requiresReview = needsReview(answerText);
     
     return (
       <div className="flex items-start gap-2 mb-1 text-xs">
         <span className="text-slate-300">{resolvedText}:</span>
-        <div className="flex items-center gap-2">
-          <span className="text-white font-medium">{answerText}</span>
-          {requiresReview && (
-            <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
-              Needs Review
-            </Badge>
-          )}
-        </div>
+        <span className="text-white font-medium">{answerText}</span>
       </div>
     );
   }
