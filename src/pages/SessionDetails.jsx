@@ -1022,20 +1022,11 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         .filter(q => q.followup_pack_id === followup.followup_pack)
                         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                       
-                      // DIAGNOSTIC LOG: Inspect followup instance structure
-                      console.log("[FOLLOWUP INSTANCE DEBUG - Structured View]", {
-                        baseQuestionId: response.question_id,
-                        instanceNumber: instanceNum,
-                        followupPackId: followup.followup_pack,
-                        followup: followup,
-                        details: details,
-                        packQuestionsAvailable: packQuestions.map(q => ({
-                          id: q.id,
-                          pack: q.followup_pack_id,
-                          stepNumber: q.display_order,
-                          text: q.question_text
-                        }))
-                      });
+                      // Helper to resolve question text from followup_question_id
+                      const getFollowupQuestionText = (detailKey) => {
+                        const match = packQuestions.find(q => q.followup_question_id === detailKey);
+                        return match?.question_text || detailKey;
+                      };
                       
                       // Extract probing from additional_details if stored there (multi-instance)
                       const probingFromDetails = details.investigator_probing || [];
@@ -1055,19 +1046,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value], detailIdx) => {
+                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
                             const requiresReview = needsReview(value);
-                            
-                            // DIAGNOSTIC: Show what we're working with
-                            console.log("[FOLLOWUP DETAIL ENTRY]", {
-                              packId: followup.followup_pack,
-                              detailKey: key,
-                              detailValue: value,
-                              detailIndex: detailIdx
-                            });
-                            
-                            // Current behavior: use key as label (shows as "PACK LE APPS Q1")
-                            const label = `${followup.followup_pack} Q${detailIdx + 1}`;
+                            const label = getFollowupQuestionText(key);
 
                             return (
                               <div key={key} className="text-xs flex items-start">
@@ -1264,20 +1245,12 @@ function TranscriptEntry({ item }) {
           </>
         )}
 
-        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value], detailIdx) => {
+        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
           const requiresReview = needsReview(value);
           
-          // DIAGNOSTIC LOG: Transcript view detail entry
-          console.log("[TRANSCRIPT FOLLOWUP DETAIL]", {
-            packId: followup.followup_pack,
-            detailKey: key,
-            detailValue: value,
-            detailIndex: detailIdx,
-            packQuestionsAvailable: packQuestions.length
-          });
-          
-          // Current behavior: use key as label (shows as "PACK LE APPS Q#")
-          const label = `${followup.followup_pack} Q${detailIdx + 1}`;
+          // Helper to resolve question text from followup_question_id
+          const match = packQuestions.find(q => q.followup_question_id === key);
+          const label = match?.question_text || key;
 
           return (
             <React.Fragment key={key}>
