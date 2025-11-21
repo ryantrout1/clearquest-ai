@@ -53,6 +53,7 @@ export default function FollowUpPackDetails({
         behavior_type: pack.behavior_type || 'standard',
         requires_completion: pack.requires_completion !== false,
         max_probe_loops: pack.max_probe_loops || '',
+        max_ai_followups: pack.max_ai_followups ?? 2,
         ai_probe_instructions: pack.ai_probe_instructions || '',
         active: pack.active !== false,
         categoryId: categoryId
@@ -72,6 +73,7 @@ export default function FollowUpPackDetails({
         behavior_type: formData.behavior_type,
         requires_completion: formData.requires_completion,
         max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
+        max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 2,
         ai_probe_instructions: formData.ai_probe_instructions,
         active: formData.active,
         category_id: formData.categoryId
@@ -211,6 +213,7 @@ export default function FollowUpPackDetails({
                     behavior_type: pack.behavior_type || 'standard',
                     requires_completion: pack.requires_completion !== false,
                     max_probe_loops: pack.max_probe_loops || '',
+                    max_ai_followups: pack.max_ai_followups ?? 2,
                     ai_probe_instructions: pack.ai_probe_instructions || '',
                     active: pack.active !== false,
                     categoryId: categoryId
@@ -331,6 +334,22 @@ export default function FollowUpPackDetails({
                   />
                 </div>
               )}
+            </div>
+
+            <div>
+              <Label className="text-sm text-slate-400 mb-1 block">Max AI Follow-ups</Label>
+              <Input
+                type="number"
+                min="0"
+                max="10"
+                value={formData.max_ai_followups}
+                onChange={(e) => setFormData({...formData, max_ai_followups: e.target.value})}
+                className="bg-slate-800 border-slate-600 text-white"
+                placeholder="Default: 2"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Maximum AI probing questions per pack instance (0-10)
+              </p>
             </div>
 
             <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">

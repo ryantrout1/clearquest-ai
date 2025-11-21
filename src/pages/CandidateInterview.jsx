@@ -131,6 +131,10 @@ export default function CandidateInterview() {
   const [probingTurnCount, setProbingTurnCount] = useState(0); // Safety counter
   const [lastAgentMessageTime, setLastAgentMessageTime] = useState(null); // Timeout tracker
   
+  // NEW: Track AI follow-up counts per pack instance
+  const [aiFollowupCounts, setAiFollowupCounts] = useState({});
+  const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false); // Track if using invokeLLM vs agent
+  
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
   const [aiFailureReason, setAiFailureReason] = useState(null);
@@ -814,7 +818,35 @@ export default function CandidateInterview() {
     
     // NEW: Check feature flag and attempt invokeLLM-based AI
     if (ENABLE_LIVE_AI_FOLLOWUPS) {
-      console.log('LIVE_AI_FOLLOWUP start', { interviewId: sessionId, questionId, followupPackId: packId });
+      // Check if we've reached the AI follow-up limit for this pack instance
+      const countKey = `${packId}:${instanceNumber}`;
+      const currentCount = aiFollowupCounts[countKey] || 0;
+      
+      // Get max_ai_followups from pack (default to 2)
+      const followUpPacks = await base44.entities.FollowUpPack.filter({
+        followup_pack_id: packId
+      });
+      const packEntity = followUpPacks[0];
+      const maxAiFollowups = packEntity?.max_ai_followups ?? 2;
+      
+      if (currentCount >= maxAiFollowups) {
+        console.log('LIVE_AI_FOLLOWUP limit_reached', { 
+          interviewId: sessionId, 
+          questionId, 
+          followupPackId: packId,
+          currentCount,
+          maxAiFollowups
+        });
+        return false;
+      }
+      
+      console.log('LIVE_AI_FOLLOWUP start', { 
+        interviewId: sessionId, 
+        questionId, 
+        followupPackId: packId,
+        currentCount,
+        maxAiFollowups
+      });
       
       const lastFollowUpAnswer = followUpAnswers[followUpAnswers.length - 1];
       const transcriptWindow = buildTranscriptWindowForAi(questionId, packId);
@@ -829,6 +861,12 @@ export default function CandidateInterview() {
       
       if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
         console.log('LIVE_AI_FOLLOWUP success', { interviewId: sessionId, questionId, followupPackId: packId });
+        
+        // Increment counter for this pack instance
+        setAiFollowupCounts(prev => ({
+          ...prev,
+          [countKey]: currentCount + 1
+        }));
         
         // Add AI question to transcript
         const aiQuestionEntry = {
@@ -850,7 +888,8 @@ export default function CandidateInterview() {
         
         await persistStateToDatabase(newTranscript, [], null);
         
-        // Set waiting state for user response
+        // Set invokeLLM mode and waiting state
+        setIsInvokeLLMMode(true);
         setIsWaitingForAgent(true);
         setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
         return true;
@@ -1725,14 +1764,120 @@ export default function CandidateInterview() {
 
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
-    if (!conversation || isCommitting || !isWaitingForAgent) return;
+    if (isCommitting || !isWaitingForAgent) return;
     
     setIsCommitting(true);
     setInput("");
     
+    // NEW: Check if we're in invokeLLM mode (no agent calls needed)
+    if (isInvokeLLMMode) {
+      try {
+        // Add answer to transcript
+        const aiAnswerEntry = {
+          id: `ai-a-${Date.now()}`,
+          type: 'ai_answer',
+          content: value,
+          questionId: currentFollowUpPack.questionId,
+          packId: currentFollowUpPack.packId,
+          timestamp: new Date().toISOString()
+        };
+        
+        const newTranscript = [...transcript, aiAnswerEntry];
+        setTranscript(newTranscript);
+        
+        // Save to database
+        await saveProbingToDatabase(
+          currentFollowUpPack.questionId, 
+          currentFollowUpPack.packId, 
+          [
+            { role: 'user', content: value }
+          ]
+        );
+        
+        await persistStateToDatabase(newTranscript, [], null);
+        
+        // Check if we should ask another AI question or continue
+        const countKey = `${currentFollowUpPack.packId}:${currentFollowUpPack.instanceNumber}`;
+        const currentCount = aiFollowupCounts[countKey] || 0;
+        
+        const followUpPacks = await base44.entities.FollowUpPack.filter({
+          followup_pack_id: currentFollowUpPack.packId
+        });
+        const packEntity = followUpPacks[0];
+        const maxAiFollowups = packEntity?.max_ai_followups ?? 2;
+        
+        if (currentCount < maxAiFollowups) {
+          // Ask another AI question
+          const transcriptWindow = buildTranscriptWindowForAi(
+            currentFollowUpPack.questionId, 
+            currentFollowUpPack.packId
+          );
+          
+          const aiResult = await requestLiveAiFollowup({
+            interviewId: sessionId,
+            questionId: currentFollowUpPack.questionId,
+            followupPackId: currentFollowUpPack.packId,
+            transcriptWindow,
+            candidateAnswer: value
+          });
+          
+          if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
+            // Increment counter
+            setAiFollowupCounts(prev => ({
+              ...prev,
+              [countKey]: currentCount + 1
+            }));
+            
+            // Add AI question to transcript
+            const nextAiQuestion = {
+              id: `ai-q-${Date.now()}`,
+              type: 'ai_question',
+              content: aiResult.followupQuestion,
+              questionId: currentFollowUpPack.questionId,
+              packId: currentFollowUpPack.packId,
+              timestamp: new Date().toISOString()
+            };
+            
+            const updatedTranscript = [...newTranscript, nextAiQuestion];
+            setTranscript(updatedTranscript);
+            
+            await saveProbingToDatabase(
+              currentFollowUpPack.questionId,
+              currentFollowUpPack.packId,
+              [{ role: 'assistant', content: aiResult.followupQuestion }]
+            );
+            
+            await persistStateToDatabase(updatedTranscript, [], null);
+            
+            setIsCommitting(false);
+            return;
+          }
+        }
+        
+        // Done with AI probing - continue interview
+        setIsWaitingForAgent(false);
+        setIsInvokeLLMMode(false);
+        
+        const baseQuestionId = currentFollowUpPack.questionId;
+        const packId = currentFollowUpPack.packId;
+        setCurrentFollowUpPack(null);
+        
+        onFollowupPackComplete(baseQuestionId, packId);
+        setIsCommitting(false);
+        return;
+        
+      } catch (err) {
+        console.error('❌ Error handling invokeLLM answer:', err);
+        setError('Failed to process answer');
+        setIsCommitting(false);
+        return;
+      }
+    }
+    
+    // Legacy agent mode
+    if (!conversation) return;
+    
     try {
-      console.log('📤 Sending answer to AI agent:', value);
-      
       await base44.agents.addMessage(conversation, {
         role: 'user',
         content: value
