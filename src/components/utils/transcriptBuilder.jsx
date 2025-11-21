@@ -11,10 +11,11 @@
 export async function buildTranscriptEventsForSession(sessionId, base44, engine) {
   try {
     // Fetch all data in parallel
-    const [responses, followups, questions] = await Promise.all([
+    const [responses, followups, questions, followUpQuestionEntities] = await Promise.all([
       base44.entities.Response.filter({ session_id: sessionId }),
       base44.entities.FollowUpResponse.filter({ session_id: sessionId }),
-      base44.entities.Question.filter({ active: true })
+      base44.entities.Question.filter({ active: true }),
+      base44.entities.FollowUpQuestion.list()
     ]);
 
     const events = [];
@@ -82,10 +83,24 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
 
         let detailCounter = 0;
 
-        // Deterministic follow-up Q&A pairs (should appear FIRST)
-        Object.entries(details)
+        // Get follow-up questions for this pack and sort by display_order
+        const packQuestions = followUpQuestionEntities
+          .filter(q => q.followup_pack_id === packId)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+        // Map detail keys to their display order
+        const detailEntries = Object.entries(details)
           .filter(([key]) => key !== 'investigator_probing')
-          .forEach(([key, value]) => {
+          .sort((a, b) => {
+            const qA = packQuestions.find(q => q.followup_question_id === a[0]);
+            const qB = packQuestions.find(q => q.followup_question_id === b[0]);
+            const orderA = qA?.display_order || 9999;
+            const orderB = qB?.display_order || 9999;
+            return orderA - orderB;
+          });
+
+        // Deterministic follow-up Q&A pairs (should appear FIRST, in display_order)
+        detailEntries.forEach(([key, value]) => {
             // Follow-up question
             events.push({
               id: `evt_${sessionId}_${eventCounter++}`,
