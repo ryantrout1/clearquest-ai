@@ -751,6 +751,21 @@ export default function CandidateInterview() {
           prompt: multiInstancePrompt
         });
         
+        // Add multi-instance question to transcript
+        const multiInstanceQuestionEntry = {
+          id: `mi-q-${Date.now()}`,
+          type: 'multi_instance_question',
+          content: multiInstancePrompt,
+          questionId: baseQuestionId,
+          packId: packId,
+          instanceNumber: currentInstanceCount + 1,
+          maxInstances: maxInstances,
+          timestamp: new Date().toISOString()
+        };
+        
+        const newTranscript = [...transcript, multiInstanceQuestionEntry];
+        setTranscript(newTranscript);
+        
         // Queue multi-instance question
         setCurrentItem({
           id: `multi-instance-${baseQuestionId}-${packId}`,
@@ -762,7 +777,7 @@ export default function CandidateInterview() {
           prompt: multiInstancePrompt
         });
         
-        await persistStateToDatabase(transcript, [], {
+        await persistStateToDatabase(newTranscript, [], {
           id: `multi-instance-${baseQuestionId}-${packId}`,
           type: 'multi_instance',
           questionId: baseQuestionId,
@@ -2978,6 +2993,26 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
       <div className="flex justify-end">
         <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
           <p className="text-white font-medium">{entry.content}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'multi_instance_question') {
+    return (
+      <div className="space-y-3">
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-cyan-600/20 flex items-center justify-center flex-shrink-0">
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-cyan-400">Additional Instance Check</span>
+              </div>
+              <p className="text-white leading-relaxed">{entry.content}</p>
+            </div>
+          </div>
         </div>
       </div>
     );

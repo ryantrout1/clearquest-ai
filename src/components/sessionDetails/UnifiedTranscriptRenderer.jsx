@@ -184,6 +184,17 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
+  // Multi-instance question
+  if (kind === "multi_instance_question") {
+    return (
+      <div className="ml-4 md:ml-8">
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-lg p-3 mb-2">
+          <p className="text-white text-sm">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Multi-instance answer
   if (kind === "multi_instance_answer") {
     return (
