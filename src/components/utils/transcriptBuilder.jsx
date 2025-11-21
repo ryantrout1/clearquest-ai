@@ -83,6 +83,38 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
 
         let detailCounter = 0;
 
+        // Multi-instance question (before instance starts)
+        if (instanceIdx > 0) {
+          events.push({
+            id: `evt_${sessionId}_${eventCounter++}`,
+            sessionId,
+            baseQuestionId: response.question_id,
+            baseQuestionCode: questionCode,
+            followupPackId: packId,
+            instanceNumber: instanceNum,
+            role: "investigator",
+            kind: "multi_instance_question",
+            text: "Do you have another instance we should discuss for this question?",
+            createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 - 100,
+            sortKey: responseIdx * 10000 + 90 + instanceIdx * 500
+          });
+
+          // Multi-instance answer (Yes, to trigger this instance)
+          events.push({
+            id: `evt_${sessionId}_${eventCounter++}`,
+            sessionId,
+            baseQuestionId: response.question_id,
+            baseQuestionCode: questionCode,
+            followupPackId: packId,
+            instanceNumber: instanceNum,
+            role: "candidate",
+            kind: "multi_instance_answer",
+            text: "Yes",
+            createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 - 50,
+            sortKey: responseIdx * 10000 + 95 + instanceIdx * 500
+          });
+        }
+
         // Get follow-up questions for this pack and sort by display_order
         const packQuestions = followUpQuestionEntities
           .filter(q => q.followup_pack_id === packId)
