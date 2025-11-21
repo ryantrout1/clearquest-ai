@@ -1024,28 +1024,40 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
-                            const requiresReview = needsReview(value);
+                          {packQuestions.map((questionEntity, qIdx) => {
+                            // Find corresponding value in details using multiple matching strategies
+                            const qTextLower = (questionEntity.question_text || '').toLowerCase();
                             
-                            // Try to find matching question entity for this key
-                            const questionEntity = packQuestions.find(q => {
-                              const qText = q.question_text?.toLowerCase() || '';
-                              const keyLower = key.toLowerCase();
+                            let matchedKey = null;
+                            let matchedValue = null;
+                            
+                            // Strategy 1: Direct field name match
+                            const possibleKeys = Object.keys(details).filter(k => k !== 'investigator_probing');
+                            for (const key of possibleKeys) {
+                              const keyLower = key.toLowerCase().replace(/_/g, ' ');
                               
-                              // Check if key matches question text
-                              return qText.includes(keyLower) || 
-                                     keyLower.includes(qText.split(' ').slice(0, 3).join(' '));
-                            });
+                              // Check if question contains key words
+                              const keyWords = keyLower.split(' ').filter(w => w.length > 3);
+                              const matchCount = keyWords.filter(kw => qTextLower.includes(kw)).length;
+                              
+                              if (matchCount > 0) {
+                                matchedKey = key;
+                                matchedValue = details[key];
+                                break;
+                              }
+                            }
                             
-                            const questionText = questionEntity?.question_text || 
-                                               key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            // If no match found, skip this question
+                            if (!matchedKey || !matchedValue) return null;
+                            
+                            const requiresReview = needsReview(matchedValue);
 
                             return (
-                              <div key={key} className="text-xs flex items-start">
+                              <div key={qIdx} className="text-xs flex items-start">
                                 <span className="text-slate-400 font-medium">
-                                  {questionText}:
+                                  {questionEntity.question_text}:
                                 </span>
-                                <span className="text-slate-200 ml-2 break-words">{value}</span>
+                                <span className="text-slate-200 ml-2 break-words">{matchedValue}</span>
                                 {requiresReview && (
                                   <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
                                     Needs Review
@@ -1053,7 +1065,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                                 )}
                               </div>
                             );
-                          })}
+                          }).filter(Boolean)}
                           
                           {hasInstanceProbing && (
                             <div className="border-t border-slate-600/50 pt-2 mt-2 space-y-2">
