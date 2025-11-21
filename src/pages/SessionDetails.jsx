@@ -1017,7 +1017,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 </div>
               )}
               
-              {instanceNumbers.map((instanceNum) => {
+              {instanceNumbers.map((instanceNum, instanceIdx) => {
                 const instanceFollowups = followupsByInstance[instanceNum];
                 
                 return (
@@ -1027,7 +1027,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   )}>
                     {hasMultipleInstances && (
                       <div className="text-xs font-semibold text-cyan-400">
-                        Instance {instanceNum}
+                        Instance {instanceIdx + 1}
                       </div>
                     )}
                     
@@ -1106,7 +1106,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 );
               })}
 
-              {aiProbingExchanges.length > 0 && !hasMultipleInstances && (
+              {aiProbingExchanges.length > 0 && (
                 <div className="border-t border-slate-600/50 pt-3 space-y-2 ml-3">
                   <div className="text-xs font-semibold text-purple-400 mb-2">
                     🔍 Investigator Probing ({aiProbingExchanges.length} exchanges)
@@ -1187,9 +1187,16 @@ function TranscriptView({ responses, followups, followUpQuestionEntities }) {
       }
     });
 
-    // Legacy single-instance probing stored on Response
-    if (response.investigator_probing && response.investigator_probing.length > 0 && instanceNumbers.length === 1) {
-      timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
+    // Legacy single-instance probing stored on Response (show if not already shown per-instance)
+    if (response.investigator_probing && response.investigator_probing.length > 0) {
+      // Check if probing wasn't already shown in instances
+      const hasInstanceProbing = instanceNumbers.some(num => 
+        followupsByInstance[num]?.[0]?.additional_details?.investigator_probing?.length > 0
+      );
+      
+      if (!hasInstanceProbing) {
+        timeline.push({ type: 'probing', data: response.investigator_probing, questionId: response.question_id });
+      }
     }
   });
 
