@@ -93,6 +93,9 @@ const FOLLOWUP_PACK_NAMES = {
   'PACK_TRAFFIC': 'Traffic Violation'
 };
 
+// FEATURE FLAG: Enable live AI follow-ups (via invokeLLM server function)
+const ENABLE_LIVE_AI_FOLLOWUPS = true;
+
 /**
  * CandidateInterview - CANONICAL INTERVIEW PAGE (v2.5)
  * Deterministic base questions + follow-up packs (UI-driven) with conditional logic
@@ -769,8 +772,93 @@ export default function CandidateInterview() {
     advanceToNextBaseQuestion(baseQuestionId);
   }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
 
+  // NEW: Helper to call server-side AI function for live follow-ups
+  const requestLiveAiFollowup = async (params) => {
+    const { interviewId, questionId, followupPackId, transcriptWindow, candidateAnswer } = params;
+    
+    try {
+      const response = await base44.functions.invoke("interviewAiFollowup", {
+        interviewId,
+        questionId,
+        followupPackId,
+        transcriptWindow,
+        candidateAnswer,
+        mode: "FOLLOWUP_PROBE"
+      });
+      
+      return response.data;
+    } catch (err) {
+      console.error('LIVE_AI_FOLLOWUP_ERROR', { interviewId, questionId, followupPackId, error: err.message });
+      return { status: 'error' };
+    }
+  };
+
+  // Helper to build transcript window for AI context
+  const buildTranscriptWindowForAi = (questionId, packId) => {
+    const recentTranscript = [...transcript].slice(-10); // Last 10 exchanges
+    
+    const window = recentTranscript.map(entry => {
+      if (entry.type === 'question') {
+        return { role: 'assistant', content: entry.questionText };
+      } else if (entry.type === 'followup') {
+        return { role: 'user', content: entry.answer };
+      }
+      return null;
+    }).filter(Boolean);
+    
+    return window;
+  };
+
   const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
     console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} (instance ${instanceNumber}) — checking AI availability...`);
+    
+    // NEW: Check feature flag and attempt invokeLLM-based AI
+    if (ENABLE_LIVE_AI_FOLLOWUPS) {
+      console.log('LIVE_AI_FOLLOWUP start', { interviewId: sessionId, questionId, followupPackId: packId });
+      
+      const lastFollowUpAnswer = followUpAnswers[followUpAnswers.length - 1];
+      const transcriptWindow = buildTranscriptWindowForAi(questionId, packId);
+      
+      const aiResult = await requestLiveAiFollowup({
+        interviewId: sessionId,
+        questionId,
+        followupPackId: packId,
+        transcriptWindow,
+        candidateAnswer: lastFollowUpAnswer?.answer || ''
+      });
+      
+      if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
+        console.log('LIVE_AI_FOLLOWUP success', { interviewId: sessionId, questionId, followupPackId: packId });
+        
+        // Add AI question to transcript
+        const aiQuestionEntry = {
+          id: `ai-q-${Date.now()}`,
+          type: 'ai_question',
+          content: aiResult.followupQuestion,
+          questionId: questionId,
+          packId: packId,
+          timestamp: new Date().toISOString()
+        };
+        
+        const newTranscript = [...transcript, aiQuestionEntry];
+        setTranscript(newTranscript);
+        
+        // Save to database and persist state
+        await saveProbingToDatabase(questionId, packId, [
+          { role: 'assistant', content: aiResult.followupQuestion }
+        ]);
+        
+        await persistStateToDatabase(newTranscript, [], null);
+        
+        // Set waiting state for user response
+        setIsWaitingForAgent(true);
+        setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
+        return true;
+      } else {
+        console.log('LIVE_AI_FOLLOWUP skipped_or_failed', { interviewId: sessionId, questionId, followupPackId: packId });
+        // Fall through to agent-based probing or skip
+      }
+    }
     
     // NEW: Check session-level AI flag first
     if (!aiProbingEnabled) {
