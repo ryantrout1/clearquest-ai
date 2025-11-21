@@ -1000,6 +1000,12 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         .filter(q => q.followup_pack_id === followup.followup_pack)
                         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                       
+                      // Create lookup map for faster question text resolution
+                      const questionTextLookup = {};
+                      packQuestions.forEach((q, idx) => {
+                        questionTextLookup[idx] = q.question_text;
+                      });
+                      
                       // Extract probing from additional_details if stored there (multi-instance)
                       const probingFromDetails = details.investigator_probing || [];
                       const hasInstanceProbing = probingFromDetails.length > 0;
@@ -1018,17 +1024,21 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {packQuestions.map((questionEntity, qIdx) => {
-                            const key = Object.keys(details).filter(k => k !== 'investigator_probing').find(k => 
-                              questionEntity.question_text?.toLowerCase().includes(k.toLowerCase()) ||
-                              k.toLowerCase().includes(questionEntity.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
-                            );
-                            
-                            if (!key) return null;
-                            
-                            const value = details[key];
+                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
                             const requiresReview = needsReview(value);
-                            const questionText = questionEntity.question_text;
+                            
+                            // Try to find matching question entity for this key
+                            const questionEntity = packQuestions.find(q => {
+                              const qText = q.question_text?.toLowerCase() || '';
+                              const keyLower = key.toLowerCase();
+                              
+                              // Check if key matches question text
+                              return qText.includes(keyLower) || 
+                                     keyLower.includes(qText.split(' ').slice(0, 3).join(' '));
+                            });
+                            
+                            const questionText = questionEntity?.question_text || 
+                                               key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                             return (
                               <div key={key} className="text-xs flex items-start">
