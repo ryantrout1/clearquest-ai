@@ -96,6 +96,28 @@ export default function SessionDetails() {
         base44.entities.FollowUpQuestion.list()
       ]);
 
+      // DIAGNOSTIC LOG: Inspect raw session data
+      console.log("[SESSION DETAILS RAW DATA]", {
+        sessionId,
+        responsesCount: responsesData.length,
+        followupsCount: followupsData.length,
+        followUpQuestionEntitiesCount: followUpQuestionsData.length,
+        sampleFollowup: followupsData[0],
+        sampleFollowUpQuestion: followUpQuestionsData.find(q => q.followup_pack_id === 'PACK_LE_APPS')
+      });
+      
+      // DIAGNOSTIC: Log PACK_LE_APPS question metadata
+      const packLeAppsQuestions = followUpQuestionsData.filter(q => q.followup_pack_id === 'PACK_LE_APPS');
+      console.log("[FOLLOWUP QUESTION METADATA] PACK_LE_APPS", {
+        totalQuestions: packLeAppsQuestions.length,
+        questions: packLeAppsQuestions.map(q => ({
+          id: q.id,
+          pack: q.followup_pack_id,
+          displayOrder: q.display_order,
+          text: q.question_text
+        }))
+      });
+
       setResponses(responsesData);
       setFollowups(followupsData);
       setQuestions(questionsData);
@@ -914,27 +936,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
   
-  // Helper to get follow-up question text
-  const getFollowupQuestionText = (packId, details) => {
-    const packQuestions = followUpQuestionEntities
-      .filter(q => q.followup_pack_id === packId)
-      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    
-    const result = [];
-    Object.entries(details).filter(([key]) => key !== 'investigator_probing').forEach(([key, value]) => {
-      const questionEntity = packQuestions.find(q => {
-        const qText = q.question_text?.toLowerCase() || '';
-        const keyLower = key.toLowerCase();
-        return qText.includes(keyLower) || keyLower.includes(qText.split(' ').slice(0, 3).join(' '));
-      });
-      
-      const questionText = questionEntity?.question_text || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      result.push({ questionText, value, needsReview: needsReview(value) });
-    });
-    
-    return result;
-  };
-  
   // Group followups by instance_number
   const followupsByInstance = {};
   followups.forEach(fu => {
@@ -1017,7 +1018,24 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     
                     {instanceFollowups.map((followup, idx) => {
                       const details = followup.additional_details || {};
-                      const followupQA = getFollowupQuestionText(followup.followup_pack, details);
+                      const packQuestions = followUpQuestionEntities
+                        .filter(q => q.followup_pack_id === followup.followup_pack)
+                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                      
+                      // DIAGNOSTIC LOG: Inspect followup instance structure
+                      console.log("[FOLLOWUP INSTANCE DEBUG - Structured View]", {
+                        baseQuestionId: response.question_id,
+                        instanceNumber: instanceNum,
+                        followupPackId: followup.followup_pack,
+                        followup: followup,
+                        details: details,
+                        packQuestionsAvailable: packQuestions.map(q => ({
+                          id: q.id,
+                          pack: q.followup_pack_id,
+                          stepNumber: q.display_order,
+                          text: q.question_text
+                        }))
+                      });
                       
                       // Extract probing from additional_details if stored there (multi-instance)
                       const probingFromDetails = details.investigator_probing || [];
@@ -1037,19 +1055,34 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {followupQA.map((item, qIdx) => (
-                            <div key={qIdx} className="text-xs flex items-start">
-                              <span className="text-slate-400 font-medium">
-                                {item.questionText}:
-                              </span>
-                              <span className="text-slate-200 ml-2 break-words">{item.value}</span>
-                              {item.needsReview && (
-                                <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                                  Needs Review
-                                </Badge>
-                              )}
-                            </div>
-                          ))}
+                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value], detailIdx) => {
+                            const requiresReview = needsReview(value);
+                            
+                            // DIAGNOSTIC: Show what we're working with
+                            console.log("[FOLLOWUP DETAIL ENTRY]", {
+                              packId: followup.followup_pack,
+                              detailKey: key,
+                              detailValue: value,
+                              detailIndex: detailIdx
+                            });
+                            
+                            // Current behavior: use key as label (shows as "PACK LE APPS Q1")
+                            const label = `${followup.followup_pack} Q${detailIdx + 1}`;
+
+                            return (
+                              <div key={key} className="text-xs flex items-start">
+                                <span className="text-slate-400 font-medium">
+                                  {label}:
+                                </span>
+                                <span className="text-slate-200 ml-2 break-words">{value}</span>
+                                {requiresReview && (
+                                  <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                                    Needs Review
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })}
                           
                           {hasInstanceProbing && (
                             <div className="border-t border-slate-600/50 pt-2 mt-2 space-y-2">
@@ -1231,24 +1264,27 @@ function TranscriptEntry({ item }) {
           </>
         )}
 
-        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
+        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value], detailIdx) => {
           const requiresReview = needsReview(value);
           
-          // Find matching question entity for this key
-          const questionEntity = packQuestions.find(q => 
-            q.question_text?.toLowerCase().includes(key.toLowerCase()) ||
-            key.toLowerCase().includes(q.question_text?.toLowerCase().split(' ').slice(0, 3).join(' ').toLowerCase())
-          );
+          // DIAGNOSTIC LOG: Transcript view detail entry
+          console.log("[TRANSCRIPT FOLLOWUP DETAIL]", {
+            packId: followup.followup_pack,
+            detailKey: key,
+            detailValue: value,
+            detailIndex: detailIdx,
+            packQuestionsAvailable: packQuestions.length
+          });
           
-          const questionText = questionEntity?.question_text || 
-                             key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          // Current behavior: use key as label (shows as "PACK LE APPS Q#")
+          const label = `${followup.followup_pack} Q${detailIdx + 1}`;
 
           return (
             <React.Fragment key={key}>
               <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-white text-sm">
-                    {questionText}
+                    {label}
                   </p>
                   {requiresReview && (
                     <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
