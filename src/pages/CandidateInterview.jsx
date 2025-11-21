@@ -23,6 +23,7 @@ import {
   shouldSkipProbingForHired
 } from "../components/interviewEngine";
 import { toast } from "sonner";
+import { getAiAgentConfig } from "../utils/aiConfig";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -127,6 +128,10 @@ export default function CandidateInterview() {
   const [probingTurnCount, setProbingTurnCount] = useState(0); // Safety counter
   const [lastAgentMessageTime, setLastAgentMessageTime] = useState(null); // Timeout tracker
   
+  // NEW: Session-level AI probing control
+  const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
+  const [aiFailureReason, setAiFailureReason] = useState(null);
+  
   // Input state
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
@@ -154,6 +159,20 @@ export default function CandidateInterview() {
   // CONSTANTS
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
   const AGENT_TIMEOUT_MS = 45000; // 45 seconds
+  
+  // NEW: Helper to disable AI probing for this session
+  const disableAiForSession = useCallback((reason, error) => {
+    if (!aiProbingEnabled) return;
+    
+    console.warn('[AI DISABLED FOR SESSION]', { reason, error });
+    setAiProbingEnabled(false);
+    setAiFailureReason(reason);
+    
+    // Show user-friendly message
+    if (reason.includes('500')) {
+      toast.info('AI assistance temporarily unavailable - continuing with standard interview');
+    }
+  }, [aiProbingEnabled]);
 
   // ============================================================================
   // INITIALIZATION
@@ -302,18 +321,22 @@ export default function CandidateInterview() {
       console.log('✅ [PRODUCTION] Engine bootstrapped');
       setEngine(engineData);
       
-      // Step 3: Initialize or restore AI conversation
-      if (!loadedSession.conversation_id) {
+      // Step 3: Initialize or restore AI conversation (FAIL-SAFE)
+      if (!loadedSession.conversation_id && aiProbingEnabled) {
         console.log('🤖 [PRODUCTION] Creating new AI conversation...');
         
         try {
+          const aiConfig = getAiAgentConfig(loadedSession.department_code);
+          console.log('🔧 [AI CONFIG] Using config:', aiConfig);
+          
           const newConversation = await base44.agents.createConversation({
-            agent_name: 'clearquest_interviewer',
+            agent_name: aiConfig.agentName,
             metadata: {
               session_id: sessionId,
               department_code: loadedSession.department_code,
               file_number: loadedSession.file_number,
-              debug_mode: loadedSession.metadata?.debug_mode || false
+              debug_mode: loadedSession.metadata?.debug_mode || false,
+              ai_config: aiConfig
             }
           });
           
@@ -322,9 +345,7 @@ export default function CandidateInterview() {
           // ROBUSTNESS: Check if conversation was created successfully
           if (!newConversation || !newConversation.id) {
             console.error('❌ [PRODUCTION] Conversation creation returned invalid object:', newConversation);
-            console.warn('⚠️ [PRODUCTION] AI conversation unavailable - continuing without AI probing');
-            
-            // Set conversation to null and continue - interview will work without AI
+            disableAiForSession('init_invalid_response', newConversation);
             setConversation(null);
             loadedSession.conversation_id = null;
           } else {
@@ -337,21 +358,25 @@ export default function CandidateInterview() {
           }
         } catch (convError) {
           console.error('❌ [PRODUCTION] Error creating AI conversation:', convError);
+          console.error('   Error status:', convError?.status || convError?.response?.status);
           console.error('   Error message:', convError?.message || 'Unknown');
-          console.warn('⚠️ [PRODUCTION] Continuing without AI probing - deterministic questions will still work');
           
-          // Set conversation to null and continue
+          // Check for 500 error specifically
+          const is500Error = convError?.status === 500 || convError?.response?.status === 500;
+          disableAiForSession(is500Error ? 'init_500' : 'init_error', convError);
+          
           setConversation(null);
           loadedSession.conversation_id = null;
         }
-      } else {
+      } else if (aiProbingEnabled) {
         console.log('🤖 [PRODUCTION] Loading existing AI conversation:', loadedSession.conversation_id);
         
         try {
           const existingConversation = await base44.agents.getConversation(loadedSession.conversation_id);
           
           if (!existingConversation || !existingConversation.id) {
-            console.warn('⚠️ [PRODUCTION] Existing conversation not found or invalid - continuing without AI');
+            console.warn('⚠️ [PRODUCTION] Existing conversation not found or invalid');
+            disableAiForSession('load_invalid_response', null);
             setConversation(null);
           } else {
             setConversation(existingConversation);
@@ -363,13 +388,14 @@ export default function CandidateInterview() {
           }
         } catch (convError) {
           console.error('❌ [PRODUCTION] Error loading existing conversation:', convError);
-          console.warn('⚠️ [PRODUCTION] Continuing without AI probing');
+          const is500Error = convError?.status === 500 || convError?.response?.status === 500;
+          disableAiForSession(is500Error ? 'load_500' : 'load_error', convError);
           setConversation(null);
         }
       }
       
-      // Step 4: Subscribe to agent conversation updates (only if conversation exists)
-      if (loadedSession.conversation_id) {
+      // Step 4: Subscribe to agent conversation updates (FAIL-SAFE)
+      if (loadedSession.conversation_id && aiProbingEnabled) {
         console.log('📡 [PRODUCTION] Subscribing to conversation updates...');
         
         try {
@@ -381,7 +407,13 @@ export default function CandidateInterview() {
             }
           );
         } catch (subError) {
-          console.warn('⚠️ [PRODUCTION] Could not subscribe to conversation:', subError);
+          console.error('⚠️ [PRODUCTION] Could not subscribe to conversation:', subError);
+          console.error('   Error status:', subError?.status || subError?.response?.status);
+          
+          const is500Error = subError?.status === 500 || subError?.response?.status === 500;
+          if (is500Error) {
+            disableAiForSession('subscribe_500', subError);
+          }
         }
       }
       
@@ -664,7 +696,13 @@ export default function CandidateInterview() {
   }, [engine, transcript]);
 
   const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers) => {
-    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — handing off to agent for probing...`);
+    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — checking AI availability...`);
+    
+    // NEW: Check session-level AI flag first
+    if (!aiProbingEnabled) {
+      console.warn(`⚠️ AI probing disabled for this session (reason: ${aiFailureReason}) - skipping probing`);
+      return false;
+    }
     
     if (!conversation) {
       console.warn('⚠️ No AI conversation available - skipping probing, moving to next question');
@@ -722,7 +760,17 @@ export default function CandidateInterview() {
       return true;
     } catch (err) {
       console.error('❌ Error sending to agent:', err);
-      toast.error('Failed to connect to AI agent');
+      console.error('   Error status:', err?.status || err?.response?.status);
+      
+      // NEW: Check for 500 error and disable AI for session
+      const is500Error = err?.status === 500 || err?.response?.status === 500;
+      if (is500Error) {
+        disableAiForSession('handoff_500', err);
+      } else {
+        // Non-500 errors also disable AI
+        disableAiForSession('handoff_error', err);
+      }
+      
       return false;
     }
   };
@@ -1244,7 +1292,7 @@ export default function CandidateInterview() {
               setShowCompletionModal(true);
             }
           } else {
-            // Normal flow: hand off to AI for probing
+            // Normal flow: hand off to AI for probing (FAIL-SAFE)
             const packAnswers = newTranscript.filter(t => 
               t.type === 'followup' && t.packId === packId
             );
@@ -1264,13 +1312,19 @@ export default function CandidateInterview() {
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
               
-              // Hand off to AI agent
-              await handoffToAgentForProbing(
+              // NEW: Hand off to AI agent (with fallback)
+              const aiHandoffSuccessful = await handoffToAgentForProbing(
                 triggeringQuestion.questionId,
                 packId,
                 substanceName,
                 packAnswers
               );
+              
+              // FAIL-SAFE: If AI handoff failed, advance to next base question immediately
+              if (!aiHandoffSuccessful) {
+                console.log('⚠️ AI handoff failed - advancing to next base question');
+                advanceToNextBaseQuestion(triggeringQuestion.questionId);
+              }
             } else {
               // If triggering question not found (error case), fallback to showing completion modal.
               console.error(`❌ Could not find triggering question for pack ${packId} when trying to hand off to AI. Marking interview complete.`);
@@ -1300,7 +1354,7 @@ export default function CandidateInterview() {
 
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers]);
 
-  // NEW: Handle agent probing questions
+  // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
     if (!conversation || isCommitting || !isWaitingForAgent) return;
     
@@ -1345,10 +1399,33 @@ export default function CandidateInterview() {
       setIsCommitting(false);
     } catch (err) {
       console.error('❌ Error sending to agent:', err);
-      setError('Failed to send message to AI agent');
+      console.error('   Error status:', err?.status || err?.response?.status);
+      
+      // NEW: Check for 500 error and disable AI for session
+      const is500Error = err?.status === 500 || err?.response?.status === 500;
+      if (is500Error) {
+        disableAiForSession('probing_500', err);
+        
+        // Force handoff to deterministic engine
+        if (currentFollowUpPack) {
+          saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+          
+          setIsWaitingForAgent(false);
+          setProbingTurnCount(0);
+          setLastAgentMessageTime(null);
+          
+          const baseQuestionId = currentFollowUpPack.questionId;
+          setCurrentFollowUpPack(null);
+          
+          advanceToNextBaseQuestion(baseQuestionId);
+        }
+      } else {
+        setError('Failed to send message to AI agent');
+      }
+      
       setIsCommitting(false);
     }
-  }, [conversation, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion]);
+  }, [conversation, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion, disableAiForSession]);
 
   const handleTextSubmit = useCallback((e) => {
     e.preventDefault();
