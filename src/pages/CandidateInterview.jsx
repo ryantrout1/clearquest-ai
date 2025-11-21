@@ -695,6 +695,63 @@ export default function CandidateInterview() {
     }
   }, [engine, transcript]);
 
+  const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
+    console.log(`🎯 Follow-up pack ${packId} completed for question ${baseQuestionId} — checking multi-instance...`);
+    
+    const question = engine.QById[baseQuestionId];
+    if (!question) {
+      console.error(`❌ Question ${baseQuestionId} not found`);
+      advanceToNextBaseQuestion(baseQuestionId);
+      return;
+    }
+    
+    // Check if multi-instance is enabled for this question
+    if (question.followup_multi_instance) {
+      const maxInstances = question.max_instances_per_question || 5;
+      
+      // Count existing instances for this question
+      const existingFollowups = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        question_id: baseQuestionId,
+        followup_pack: packId
+      });
+      
+      const currentInstanceCount = existingFollowups.length;
+      
+      console.log(`🔁 Multi-instance check: ${currentInstanceCount} of ${maxInstances} instances recorded`);
+      
+      if (currentInstanceCount < maxInstances) {
+        const multiInstancePrompt = question.multi_instance_prompt || 
+          'Do you have another instance we should discuss for this question?';
+        
+        console.log(`❓ Asking multi-instance question (instance ${currentInstanceCount + 1}/${maxInstances})`);
+        
+        // Queue multi-instance question
+        setCurrentItem({
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId,
+          instanceNumber: currentInstanceCount + 1,
+          maxInstances: maxInstances,
+          prompt: multiInstancePrompt
+        });
+        
+        await persistStateToDatabase(transcript, [], {
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId
+        });
+        return;
+      }
+    }
+    
+    // No multi-instance or max reached - advance to next base question
+    console.log(`✅ No multi-instance or max reached - advancing to next base question`);
+    advanceToNextBaseQuestion(baseQuestionId);
+  }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
+
   const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers) => {
     console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — checking AI availability...`);
     
@@ -792,10 +849,18 @@ export default function CandidateInterview() {
     const hasHandoffMarker = lastAgentMessage.content.includes('[[HANDOFF_TO_ENGINE]]');
     
     if (hasHandoffMarker) {
-      console.log(`🎯 AI probing complete (handoff marker detected) for base question ${currentFollowUpPack.questionId} — advancing to next deterministic question`);
+      console.log(`🎯 AI probing complete (handoff marker detected) for base question ${currentFollowUpPack.questionId} — delegating to follow-up completion handler`);
+      
+      // NEW: Add AI probing messages to transcript
+      const probingEntries = extractProbingFromAgentMessages(agentMessages, currentFollowUpPack.questionId, currentFollowUpPack.packId);
+      const newTranscript = [...transcript, ...probingEntries];
+      setTranscript(newTranscript);
       
       // Save probing to database
-      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      await saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      
+      // Persist transcript with AI probing entries
+      await persistStateToDatabase(newTranscript, [], null);
       
       // Clear waiting state
       setIsWaitingForAgent(false);
@@ -803,10 +868,11 @@ export default function CandidateInterview() {
       setLastAgentMessageTime(null);
       
       const baseQuestionId = currentFollowUpPack.questionId;
+      const packId = currentFollowUpPack.packId;
       setCurrentFollowUpPack(null);
       
-      // Advance to next base question
-      advanceToNextBaseQuestion(baseQuestionId);
+      // NEW: Delegate to follow-up completion handler (checks multi-instance)
+      onFollowupPackComplete(baseQuestionId, packId);
       return;
     }
     
@@ -888,6 +954,61 @@ export default function CandidateInterview() {
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
   // ============================================================================
 
+  const extractProbingFromAgentMessages = (messages, questionId, packId) => {
+    const probingEntries = [];
+    
+    // Find the handoff message
+    let startIndex = -1;
+    
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      
+      if (msg.role === 'user' &&
+          typeof msg.content === 'string' &&
+          msg.content.includes('Follow-up pack completed') &&
+          msg.content.includes(`Question ID: ${questionId}`) &&
+          msg.content.includes(`Follow-up Pack: ${packId}`)) {
+        startIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (startIndex === -1) return probingEntries;
+    
+    const probingMessages = messages.slice(startIndex);
+    
+    for (let i = 0; i < probingMessages.length; i++) {
+      const msg = probingMessages[i];
+      
+      // Skip handoff marker and base questions
+      if (msg.content?.includes('[[HANDOFF_TO_ENGINE]]')) continue;
+      if (msg.content?.match(/\b(Q\d{1,3})\b/i)) continue;
+      if (msg.content?.includes('Follow-up pack completed')) continue;
+      
+      if (msg.role === 'assistant') {
+        probingEntries.push({
+          id: `ai-q-${Date.now()}-${i}`,
+          type: 'ai_question',
+          content: msg.content,
+          questionId: questionId,
+          packId: packId,
+          timestamp: new Date().toISOString()
+        });
+      } else if (msg.role === 'user') {
+        probingEntries.push({
+          id: `ai-a-${Date.now()}-${i}`,
+          type: 'ai_answer',
+          content: msg.content,
+          questionId: questionId,
+          packId: packId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    return probingEntries;
+  };
+
   const saveProbingToDatabase = async (questionId, packId, messages) => {
     try {
       console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} to database...`);
@@ -931,6 +1052,7 @@ export default function CandidateInterview() {
               typeof currentMsg.content === 'string' &&
               !currentMsg.content.includes('Follow-up pack completed') &&
               !currentMsg.content.match(/\bQ\d{1,3}\b/i) &&
+              !currentMsg.content.includes('[[HANDOFF_TO_ENGINE]]') &&
               nextMsg?.role === 'user' &&
               typeof nextMsg.content === 'string' &&
               !nextMsg.content.includes('Follow-up pack completed')) {
@@ -1176,7 +1298,7 @@ export default function CandidateInterview() {
           setCurrentItem(nextItem);
           
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
-          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName);
+          await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem.instanceNumber || 1);
           
           setIsCommitting(false);
           setInput("");
@@ -1227,7 +1349,7 @@ export default function CandidateInterview() {
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
         // Save to database - dates stored as plain text
-        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName);
+        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentItem.instanceNumber || 1);
         
         // Check if there are more steps in the queue
         let updatedQueue = [...queue];
@@ -1343,6 +1465,77 @@ export default function CandidateInterview() {
         }
       }
 
+      } else if (currentItem.type === 'multi_instance') {
+        // MULTI-INSTANCE QUESTION
+        const { questionId, packId, instanceNumber } = currentItem;
+        
+        const normalized = value.trim().toLowerCase();
+        if (normalized !== 'yes' && normalized !== 'no') {
+          setValidationHint('Please answer "Yes" or "No".');
+          setIsCommitting(false);
+          return;
+        }
+        
+        const answer = normalized === 'yes' ? 'Yes' : 'No';
+        
+        // Add to transcript
+        const transcriptEntry = {
+          id: `mi-${Date.now()}`,
+          type: 'multi_instance_answer',
+          content: answer,
+          questionId: questionId,
+          packId: packId,
+          instanceNumber: instanceNumber,
+          timestamp: new Date().toISOString()
+        };
+        
+        const newTranscript = [...transcript, transcriptEntry];
+        setTranscript(newTranscript);
+        
+        if (answer === 'Yes') {
+          console.log(`🔁 User has another instance - re-triggering ${packId} for instance ${instanceNumber + 1}`);
+          
+          // Re-trigger the same follow-up pack for new instance
+          const question = engine.QById[questionId];
+          const substanceName = question?.substance_name || null;
+          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+          
+          if (packSteps && packSteps.length > 0) {
+            setCurrentFollowUpAnswers({});
+            
+            const followupQueue = [];
+            for (let i = 0; i < packSteps.length; i++) {
+              followupQueue.push({
+                id: `${packId}:${i}:instance${instanceNumber + 1}`,
+                type: 'followup',
+                packId: packId,
+                stepIndex: i,
+                substanceName: substanceName,
+                totalSteps: packSteps.length,
+                instanceNumber: instanceNumber + 1
+              });
+            }
+            
+            const firstItem = followupQueue[0];
+            const remainingQueue = followupQueue.slice(1);
+            
+            setQueue(remainingQueue);
+            setCurrentItem(firstItem);
+            
+            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+          }
+        } else {
+          console.log(`✅ No more instances - advancing to next base question`);
+          
+          // No more instances - advance to next base question
+          setCurrentItem(null);
+          setQueue([]);
+          await persistStateToDatabase(newTranscript, [], null);
+          
+          advanceToNextBaseQuestion(questionId);
+        }
+      }
+
       setIsCommitting(false);
       setInput("");
 
@@ -1352,7 +1545,7 @@ export default function CandidateInterview() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion]);
 
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
@@ -1482,7 +1675,7 @@ export default function CandidateInterview() {
     }
   };
 
-  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName) => {
+  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1) => {
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -1500,7 +1693,8 @@ export default function CandidateInterview() {
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: triggeringResponse.id,
-        followup_pack: packId
+        followup_pack: packId,
+        instance_number: instanceNumber
       });
       
       if (existingFollowups.length === 0) {
@@ -1509,9 +1703,9 @@ export default function CandidateInterview() {
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
           followup_pack: packId,
-          instance_number: 1,
+          instance_number: instanceNumber,
           substance_name: substanceName || null,
-          incident_description: answer, // This field is less dynamic, using `additional_details` for specific keys
+          incident_description: answer,
           completed: false,
           additional_details: { [fieldKey]: answer }
         });
@@ -1680,6 +1874,17 @@ export default function CandidateInterview() {
       };
     }
 
+    if (currentItem.type === 'multi_instance') {
+      return {
+        type: 'multi_instance',
+        id: currentItem.id,
+        text: currentItem.prompt,
+        responseType: 'yes_no',
+        instanceNumber: currentItem.instanceNumber,
+        maxInstances: currentItem.maxInstances
+      };
+    }
+
     return null;
   };
 
@@ -1768,11 +1973,13 @@ export default function CandidateInterview() {
 
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
-  // 2. Current prompt exists AND is of type 'question'
+  // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
   // 3. Question response_type is 'yes_no'
   // 4. NOT in agent mode
-  const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent;
+  const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent) ||
+                          (currentPrompt?.type === 'multi_instance' && !isWaitingForAgent);
   const isFollowUpMode = currentPrompt?.type === 'followup';
+  const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
   const requiresClarification = validationHint !== null;
 
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
@@ -1898,7 +2105,7 @@ export default function CandidateInterview() {
                 </Alert>
               )}
               
-              {/* Show deterministic transcript */}
+              {/* Show deterministic transcript + AI probing */}
               {transcript.map((entry) => (
                 <HistoryEntry 
                   key={entry.id} 
@@ -1995,6 +2202,16 @@ export default function CandidateInterview() {
                             <span className="text-xs text-slate-500">•</span>
                             <span className="text-sm text-purple-300">
                               {getFollowUpPackName(currentPrompt.packId)}
+                            </span>
+                          </>
+                        ) : isMultiInstanceMode ? (
+                          <>
+                            <span className="text-sm font-semibold text-cyan-400">
+                              Additional Instance Check
+                            </span>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-sm text-cyan-300">
+                              Instance {currentPrompt.instanceNumber} of {currentPrompt.maxInstances}
                             </span>
                           </>
                         ) : isFollowUpMode ? (
@@ -2198,7 +2415,7 @@ export default function CandidateInterview() {
   );
 }
 
-// Deterministic transcript entries
+// Deterministic transcript entries + AI probing
 function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
   if (entry.type === 'question') {
     return (
@@ -2253,6 +2470,48 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
           <div className="bg-orange-600 rounded-xl px-5 py-3 max-w-2xl">
             <p className="text-white font-medium">{entry.answer}</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'ai_question') {
+    return (
+      <div className="space-y-3">
+        <div className="bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-purple-400">AI Investigator</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-sm text-purple-300">Story Clarification</span>
+              </div>
+              <p className="text-white leading-relaxed">{entry.content}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'ai_answer') {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{entry.content}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === 'multi_instance_answer') {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-cyan-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{entry.content}</p>
         </div>
       </div>
     );
