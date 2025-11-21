@@ -1172,9 +1172,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                                   </div>
 
                                   {/* Answer (no bubble) */}
-                                  <div className="text-right text-slate-50">
-                                    <span className="font-semibold">Response: </span>
-                                    <span>{entry.detailValue}</span>
+                                  <div className="text-right text-slate-50 font-semibold">
+                                    {entry.detailValue}
                                   </div>
                                 </div>
                               ))}
