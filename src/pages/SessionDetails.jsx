@@ -1054,6 +1054,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
               {instanceNumbers.map((instanceNum, instanceIdx) => {
                 const instanceEvents = eventsByInstance[instanceNum] || [];
                 
+                // Find first AI probing event in this instance
+                const firstAiProbingIdx = instanceEvents.findIndex(e => e.kind === "ai_probe_question");
+                
                 return (
                   <div key={instanceNum} className={cn(
                     "space-y-0.5",
@@ -1072,6 +1075,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         nextEvent={instanceEvents[idx + 1]}
                         followUpQuestionEntities={followUpQuestionEntities}
                         questionNumber={displayNumber}
+                        isFirstAiProbing={idx === firstAiProbingIdx}
                       />
                     ))}
                   </div>

@@ -18,7 +18,7 @@ const needsReview = (text) => {
 /**
  * Renders structured view: events grouped by base question
  */
-export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEntities, questionNumber }) {
+export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEntities, questionNumber, isFirstAiProbing }) {
   const { kind, role, text, instanceNumber, followupPackId, fieldKey } = event;
 
   // Base question and answer not rendered here (handled in CompactQuestionRow)
@@ -47,14 +47,21 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
   // AI probing Q&A together
   if (kind === "ai_probe_question" && nextEvent?.kind === "ai_probe_answer") {
     return (
-      <div className="mb-2 mt-1">
-        <div className="text-xs">
-          <span className="text-blue-400 font-medium">Follow-Up Question:</span>
-          <p className="text-slate-300 mt-0.5">{text}</p>
-        </div>
-        <div className="text-xs mt-1">
-          <span className="text-orange-400 font-medium">Candidate Response:</span>
-          <p className="text-white mt-0.5">{nextEvent.text}</p>
+      <div className="mb-2">
+        {isFirstAiProbing && (
+          <div className="text-xs font-semibold text-purple-400 mb-2 mt-3 pt-2 border-t border-purple-500/20">
+            🔍 AI Investigator Probing
+          </div>
+        )}
+        <div className="text-xs pl-2 border-l-2 border-purple-500/20">
+          <div className="mb-1">
+            <span className="text-purple-400 font-medium">AI Investigator Question:</span>
+            <p className="text-slate-300 mt-0.5 leading-relaxed">{text}</p>
+          </div>
+          <div className="text-xs mt-1">
+            <span className="text-slate-400 font-medium">Candidate Response:</span>
+            <p className="text-white mt-0.5 leading-relaxed">{nextEvent.text}</p>
+          </div>
         </div>
       </div>
     );
