@@ -475,96 +475,58 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
-        {/* Unified Header Card */}
+        {/* Unified Header Card - Three Rows */}
         <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 space-y-4 mb-4">
-          {/* Row 1 – Identity + Status + CTA */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Left: Department + File + Meta */}
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold text-slate-50">
-                  {department?.department_name || session.department_code}
-                </h1>
-                <button
-                  onClick={() => {
-                    if (session.status === 'completed') {
-                      handleStatusChange('in_progress');
-                    }
-                  }}
-                  onMouseEnter={() => setIsHoveringStatus(true)}
-                  onMouseLeave={() => setIsHoveringStatus(false)}
-                  disabled={session.status !== 'completed'}
-                  className={cn(
-                    "text-xs px-2.5 py-1 rounded-full border transition-all font-medium",
-                    session.status === 'completed' && "cursor-pointer hover:opacity-90",
-                    session.status !== 'completed' && "cursor-default",
-                    statusConfig[session.status]?.color
-                  )}
-                >
-                  {session.status === 'completed' && isHoveringStatus 
-                    ? "Mark In-Progress" 
-                    : statusConfig[session.status]?.label || session.status}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                <span>
-                  # <span className="font-medium text-slate-200">{session.file_number}</span>
-                </span>
-                <span>•</span>
-                <span>
-                  Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
-                </span>
-                <span>•</span>
-                <span>
-                  {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
-                    year: 'numeric', month: 'short', day: 'numeric' 
-                  }) : 'N/A'}
-                </span>
-                {totalTime > 0 && (
-                  <>
-                    <span>•</span>
-                    <span>
-                      {totalTime} min {avgTime > 0 && `(~${avgTime}s/q)`}
-                    </span>
-                  </>
+          {/* Row 1 – Identity + Status */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-slate-50">
+                {department?.department_name || session.department_code}
+              </h1>
+              <button
+                onClick={() => {
+                  if (session.status === 'completed') {
+                    handleStatusChange('in_progress');
+                  }
+                }}
+                onMouseEnter={() => setIsHoveringStatus(true)}
+                onMouseLeave={() => setIsHoveringStatus(false)}
+                disabled={session.status !== 'completed'}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border transition-all font-medium",
+                  session.status === 'completed' && "cursor-pointer hover:opacity-90",
+                  session.status !== 'completed' && "cursor-default",
+                  statusConfig[session.status]?.color
                 )}
-              </div>
+              >
+                {session.status === 'completed' && isHoveringStatus 
+                  ? "Mark In-Progress" 
+                  : statusConfig[session.status]?.label || session.status}
+              </button>
             </div>
 
-            {/* Right: CTA + Download */}
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleGenerateSummaries}
-                disabled={isGeneratingSummaries || responses.length === 0}
-                className="bg-purple-600 hover:bg-purple-700 text-slate-50 px-5 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-purple-500/20 flex items-center gap-2"
-              >
-                {isGeneratingSummaries ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <span className="text-lg">🧠</span>
-                    Generate AI Summaries
-                  </>
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={generateReport}
-                disabled={isGeneratingReport || responses.length === 0}
-                className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-200 rounded-xl"
-              >
-                {isGeneratingReport ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-              </Button>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+              <span>
+                # <span className="font-medium text-slate-200">{session.file_number}</span>
+              </span>
+              <span>•</span>
+              <span>
+                Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
+              </span>
+              <span>•</span>
+              <span>
+                {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
+                  year: 'numeric', month: 'short', day: 'numeric' 
+                }) : 'N/A'}
+              </span>
+              {totalTime > 0 && (
+                <>
+                  <span>•</span>
+                  <span>
+                    {totalTime} min {avgTime > 0 && `(~${avgTime}s/q)`}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -578,7 +540,7 @@ export default function SessionDetails() {
                 {actualQuestionsAnswered}
               </div>
               <div className="text-[10px] text-slate-500">
-                {actualCompletion}% complete
+                of {totalQuestions || 207}
               </div>
             </div>
 
@@ -643,9 +605,12 @@ export default function SessionDetails() {
             </div>
           </div>
 
+          {/* Divider */}
+          <div className="h-px bg-slate-800/80" />
+
           {/* Row 3 – Search & Filters */}
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            {/* Search */}
+            {/* Search on left */}
             <div className="flex-1 min-w-[220px] relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
               <Input
@@ -716,6 +681,24 @@ export default function SessionDetails() {
                   <ToggleLeft className="w-5 h-5 text-slate-500" />
                 )}
                 <span className="hidden lg:inline text-xs">Follow-Ups Only</span>
+              </button>
+
+              <button
+                onClick={handleGenerateSummaries}
+                disabled={isGeneratingSummaries || responses.length === 0}
+                className="hidden md:inline-flex items-center gap-2 rounded-lg border border-purple-500/60 bg-transparent px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingSummaries ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">🧠</span>
+                    <span>Generate AI</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
