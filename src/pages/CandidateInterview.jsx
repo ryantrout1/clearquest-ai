@@ -856,11 +856,11 @@ export default function CandidateInterview() {
       const newTranscript = [...transcript, ...probingEntries];
       setTranscript(newTranscript);
       
-      // Save probing to database
-      await saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
+      // Save probing to database (async but don't await)
+      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
       
       // Persist transcript with AI probing entries
-      await persistStateToDatabase(newTranscript, [], null);
+      persistStateToDatabase(newTranscript, [], null);
       
       // Clear waiting state
       setIsWaitingForAgent(false);
