@@ -210,13 +210,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
       }
     });
 
-    // Sort by createdAt, then by sortKey for deterministic ordering
-    events.sort((a, b) => {
-      if (a.createdAt !== b.createdAt) {
-        return a.createdAt - b.createdAt;
-      }
-      return a.sortKey - b.sortKey;
-    });
+    // Sort by sortKey only for proper deterministic ordering
+    events.sort((a, b) => a.sortKey - b.sortKey);
 
     console.log(`📋 Built ${events.length} transcript events for session ${sessionId}`);
 
