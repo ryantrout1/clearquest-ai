@@ -475,254 +475,254 @@ export default function SessionDetails() {
           </Button>
         </Link>
 
-        {/* Case Overview Header */}
-        <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 mb-4">
-          <CardContent className="p-6">
-            {/* Department Name + Status Row */}
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-white mb-3">
+        {/* Unified Header Card */}
+        <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 space-y-4 mb-4">
+          {/* Row 1 – Identity + Status + CTA */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {/* Left: Department + File + Meta */}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold text-slate-50">
                   {department?.department_name || session.department_code}
                 </h1>
-                
-                {/* Dept Code, File, Dates */}
-                <div className="space-y-1.5 text-sm text-slate-400">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span>Dept Code: <span className="font-mono text-slate-300">{session.department_code}</span></span>
-                    <span className="text-slate-600">•</span>
-                    <span>File: <span className="font-mono text-slate-300">{session.file_number}</span></span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span>Interview Date: <span className="text-slate-300">
-                      {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
-                        year: 'numeric', month: 'long', day: 'numeric' 
-                      }) : 'N/A'}
-                    </span></span>
-                    <span className="text-slate-600">•</span>
-                    <span>Last Updated: <span className="text-slate-300">
-                      {session.updated_date ? new Date(session.updated_date).toLocaleDateString('en-US', { 
-                        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                      }) : 'N/A'}
-                    </span></span>
-                  </div>
-                </div>
-
-                {/* Time Pills */}
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {avgTime > 0 && (
-                    <Badge variant="outline" className="text-xs bg-slate-700/50 text-slate-300 border-slate-600">
-                      <Clock className="w-3 h-3 mr-1" />
-                      Avg. {avgTime}s per question
-                    </Badge>
+                <button
+                  onClick={() => {
+                    if (session.status === 'completed') {
+                      handleStatusChange('in_progress');
+                    }
+                  }}
+                  onMouseEnter={() => setIsHoveringStatus(true)}
+                  onMouseLeave={() => setIsHoveringStatus(false)}
+                  disabled={session.status !== 'completed'}
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-all font-medium",
+                    session.status === 'completed' && "cursor-pointer hover:opacity-90",
+                    session.status !== 'completed' && "cursor-default",
+                    statusConfig[session.status]?.color
                   )}
-                  {totalTime > 0 && (
-                    <Badge variant="outline" className="text-xs bg-slate-700/50 text-slate-300 border-slate-600">
-                      <Clock className="w-3 h-3 mr-1" />
-                      Total time: {totalTime} min
-                    </Badge>
-                  )}
-                </div>
+                >
+                  {session.status === 'completed' && isHoveringStatus 
+                    ? "Mark In-Progress" 
+                    : statusConfig[session.status]?.label || session.status}
+                </button>
               </div>
 
-              {/* Two-Row Header: Row 1 (Primary Actions) + Row 2 (Filters & Tools) */}
-              <div className="rounded-xl bg-indigo-900/60 border border-indigo-700/70 px-4 py-3 flex flex-col gap-3">
-                {/* Row 1 – Primary Actions */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    onClick={handleGenerateSummaries}
-                    disabled={isGeneratingSummaries || responses.length === 0}
-                    size="sm"
-                    className="bg-purple-600 hover:bg-purple-700 text-white h-10"
-                  >
-                    {isGeneratingSummaries ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating AI Summaries...
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg mr-2">🧠</span>
-                        Generate AI Summaries
-                      </>
-                    )}
-                  </Button>
-
-                  <button
-                    onClick={() => {
-                      if (session.status === 'completed') {
-                        handleStatusChange('in_progress');
-                      }
-                    }}
-                    onMouseEnter={() => setIsHoveringStatus(true)}
-                    onMouseLeave={() => setIsHoveringStatus(false)}
-                    disabled={session.status !== 'completed'}
-                    className={cn(
-                      "text-sm px-3 py-1.5 rounded-full border transition-all font-medium",
-                      session.status === 'completed' && "cursor-pointer hover:opacity-90",
-                      session.status !== 'completed' && "cursor-default",
-                      statusConfig[session.status]?.color
-                    )}
-                  >
-                    {session.status === 'completed' && isHoveringStatus 
-                      ? "Mark In-Progress" 
-                      : statusConfig[session.status]?.label || session.status}
-                  </button>
-                </div>
-
-                {/* Row 2 – Filters & Tools */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Search */}
-                  <div className="flex-1 min-w-[200px] md:min-w-[260px] relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <Input
-                      placeholder="Search questions or answers..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
-                    />
-                  </div>
-
-                  {/* Category dropdown */}
-                  <div className="w-[170px]">
-                    <Select value={selectedCategory} onValueChange={handleCategoryJump}>
-                      <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
-                        <SelectValue placeholder="Jump to Category" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-700">
-                        <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
-                        {categories.map(cat => (
-                          <SelectItem key={cat} value={cat} className="text-white text-sm">
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Transcript/Structured toggle */}
-                  <div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
-                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                    >
-                      {viewMode === "structured" ? "Transcript" : "Structured"}
-                    </Button>
-                  </div>
-
-                  {/* Expand / Collapse */}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExpandAll}
-                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                    >
-                      <ChevronsDown className="w-4 h-4 mr-1" />
-                      <span className="hidden sm:inline">Expand</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCollapseAll}
-                      className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
-                    >
-                      <ChevronsUp className="w-4 h-4 mr-1" />
-                      <span className="hidden sm:inline">Collapse</span>
-                    </Button>
-                  </div>
-
-                  {/* Show Only Questions with Follow-Ups toggle */}
-                  <button
-                    onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
-                    className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors px-2"
-                  >
-                    {showOnlyFollowUps ? (
-                      <ToggleRight className="w-5 h-5 text-blue-400" />
-                    ) : (
-                      <ToggleLeft className="w-5 h-5 text-slate-500" />
-                    )}
-                    <span className="hidden lg:inline">Follow-Ups Only</span>
-                  </button>
-
-                  {/* Generate PDF */}
-                  <Button
-                    onClick={generateReport}
-                    disabled={isGeneratingReport || responses.length === 0}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white h-9"
-                  >
-                    {isGeneratingReport ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        <span className="hidden sm:inline">Generate PDF</span>
-                        <span className="sm:hidden">PDF</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                <span>
+                  # <span className="font-medium text-slate-200">{session.file_number}</span>
+                </span>
+                <span>•</span>
+                <span>
+                  Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
+                </span>
+                <span>•</span>
+                <span>
+                  {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
+                    year: 'numeric', month: 'short', day: 'numeric' 
+                  }) : 'N/A'}
+                </span>
+                {totalTime > 0 && (
+                  <>
+                    <span>•</span>
+                    <span>
+                      {totalTime} min {avgTime > 0 && `(~${avgTime}s/q)`}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* KPI Cards Row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-          <KPICard
-            label="QUESTIONS"
-            value={`${actualQuestionsAnswered} / ${totalQuestions || 207}`}
-            subtext={`${actualCompletion}% Complete`}
-            variant="neutral"
-          />
-          <KPICard
-            label="YES RESPONSES"
-            value={yesCount}
-            subtext={`${yesPercent}% of total`}
-            variant="yes"
-          />
-          <KPICard
-            label="NO RESPONSES"
-            value={noCount}
-            subtext={`${noPercent}% of total`}
-            variant="no"
-          />
-          <KPICard
-            label="FOLLOW-UPS"
-            value={actualFollowupsTriggered}
-            subtext={actualFollowupsTriggered > 0 ? "Triggered" : "None"}
-            variant="followups"
-          />
-          <KPICard
-            label="RED FLAGS"
-            value={session.red_flags?.length || 0}
-            subtext={session.red_flags?.length > 0 ? "Identified" : "None"}
-            variant="redflags"
-          />
-          <KPICard
-            label="COMPLETION"
-            value={`${actualCompletion}%`}
-            subtext={actualCompletion === 100 ? "Complete" : "In Progress"}
-            variant="completion"
-          />
+            {/* Right: CTA + Download */}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleGenerateSummaries}
+                disabled={isGeneratingSummaries || responses.length === 0}
+                className="bg-purple-600 hover:bg-purple-700 text-slate-50 px-5 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-purple-500/20 flex items-center gap-2"
+              >
+                {isGeneratingSummaries ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">🧠</span>
+                    Generate AI Summaries
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={generateReport}
+                disabled={isGeneratingReport || responses.length === 0}
+                className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-200 rounded-xl"
+              >
+                {isGeneratingReport ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Row 2 – Metric Tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="rounded-xl bg-slate-900/70 border border-slate-800 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                Questions
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {actualQuestionsAnswered}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {actualCompletion}% complete
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-emerald-900/70 to-slate-900/70 border border-emerald-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Yes
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {yesCount}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {yesPercent}%
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-slate-800/70 to-slate-900/70 border border-slate-700 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                No
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {noCount}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {noPercent}%
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-indigo-900/70 to-slate-900/70 border border-indigo-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Follow-Ups
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {actualFollowupsTriggered}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {actualFollowupsTriggered > 0 ? "triggered" : "none"}
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-red-900/70 to-slate-900/70 border border-red-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Red Flags
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {session.red_flags?.length || 0}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {session.red_flags?.length > 0 ? "identified" : "none"}
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-amber-900/70 to-slate-900/70 border border-amber-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Complete
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {actualCompletion}%
+              </div>
+              <div className="text-[10px] text-slate-400">
+                {actualCompletion === 100 ? "finished" : "in progress"}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3 – Search & Filters */}
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            {/* Search */}
+            <div className="flex-1 min-w-[220px] relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search questions or answers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-slate-800 border-slate-600 text-white text-sm h-9"
+              />
+            </div>
+
+            {/* Right-side controls */}
+            <div className="flex flex-wrap items-center gap-2 justify-start md:justify-end">
+              <div className="w-[170px]">
+                <Select value={selectedCategory} onValueChange={handleCategoryJump}>
+                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-full">
+                    <SelectValue placeholder="Jump to Category" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="all" className="text-white text-sm">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat} className="text-white text-sm">
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "structured" ? "transcript" : "structured")}
+                  className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                >
+                  {viewMode === "structured" ? "Transcript" : "Structured"}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExpandAll}
+                  className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                >
+                  <ChevronsDown className="w-4 h-4 mr-1" />
+                  <span className="hidden sm:inline">Expand</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCollapseAll}
+                  className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm"
+                >
+                  <ChevronsUp className="w-4 h-4 mr-1" />
+                  <span className="hidden sm:inline">Collapse</span>
+                </Button>
+              </div>
+
+              <button
+                onClick={() => setShowOnlyFollowUps(!showOnlyFollowUps)}
+                className="flex items-center gap-1 text-sm text-slate-300 hover:text-white transition-colors px-2"
+              >
+                {showOnlyFollowUps ? (
+                  <ToggleRight className="w-5 h-5 text-blue-400" />
+                ) : (
+                  <ToggleLeft className="w-5 h-5 text-slate-500" />
+                )}
+                <span className="hidden lg:inline text-xs">Follow-Ups Only</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Global AI Investigator Assist */}
         <GlobalAIAssist session={session} />
-
-        {/* Optional: Small spacer or result count */}
-        {searchTerm && (
-          <div className="mb-4 text-center">
-            <span className="text-xs text-slate-400">
-              Found {filteredResponsesWithNumbers.length} of {responses.length} result{filteredResponsesWithNumbers.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        )}
 
         {session.red_flags?.length > 0 && (
           <Card className="bg-red-950/20 border-red-800/50 mb-4">
