@@ -999,8 +999,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const hasMultipleInstances = instanceNumbers.length > 1;
 
   const [expandedInstances, setExpandedInstances] = React.useState(() => {
-    if (!hasMultipleInstances) return new Set(["1"]);
-    return new Set(["1"]); // Default: only first instance expanded
+    // For single-instance, we ignore this set and always show the body.
+    // For multiple instances, start with ALL collapsed.
+    return new Set(); // nothing expanded initially
   });
 
   const toggleInstance = (instanceNumber) => {
@@ -1099,6 +1100,16 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
                 
+                // Build a simple summary from the first few responses
+                const summaryValues = deterministicEntries
+                  .map((e) => e.detailValue)
+                  .filter(Boolean);
+
+                const summaryText =
+                  summaryValues.length > 0
+                    ? summaryValues.slice(0, 3).join(" • ")
+                    : null;
+                
                 return (
                   <div
                     key={instanceNum}
@@ -1111,17 +1122,15 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       onClick={() => hasMultipleInstances && toggleInstance(instanceNum)}
                       disabled={!hasMultipleInstances}
                     >
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                      <div className="flex flex-col gap-0.5 text-left">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                        </div>
 
-                        {/* Simple inline summary */}
-                        {deterministicEntries.length > 0 && (
-                          <span className="text-[11px] text-slate-400">
-                            {deterministicEntries
-                              .slice(0, 3)
-                              .map((e) => e.detailValue)
-                              .join(" • ")}
-                          </span>
+                        {summaryText && (
+                          <div className="text-[11px] text-slate-400">
+                            {summaryText}
+                          </div>
                         )}
                       </div>
 
