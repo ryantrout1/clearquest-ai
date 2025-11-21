@@ -1089,68 +1089,81 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 });
                 
                 return (
-                  <div key={instanceNum} className={cn(
-                    "space-y-0.5",
-                    hasMultipleInstances && "border-l-2 border-cyan-500/30 pl-2 mb-2"
-                  )}>
-                    {hasMultipleInstances && (
-                      <div className="text-xs font-semibold text-cyan-400 mb-1">
+                  <div
+                    key={instanceNum}
+                    className="mt-2 rounded-xl border border-slate-800/80 bg-slate-950/60 px-3 py-3 space-y-2"
+                  >
+                    {/* Instance header */}
+                    <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
+                      <div className="font-semibold text-slate-100">
                         Instance {instanceIdx + 1}
                       </div>
-                    )}
-                    
-                    {/* DETERMINISTIC FOLLOW-UPS IN ORDER */}
-                    {deterministicEntries.map((entry) => (
-                      <div key={entry.detailKey} className="mb-2 text-xs">
-                        <div className="mb-1">
-                          <span className="text-slate-400 font-medium">Follow-Up Question:</span>
-                          <p className="text-slate-300 mt-0.5 leading-relaxed">{entry.questionText}</p>
+                    </div>
+
+                    {/* Deterministic follow-ups as two-column fact sheet */}
+                    {deterministicEntries.length > 0 && (
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                          Deterministic Follow-Ups
                         </div>
-                        <div>
-                          <span className="text-slate-400 font-medium">Candidate Response:</span>
-                          <p className="text-white mt-0.5 leading-relaxed">{entry.detailValue}</p>
+                        <div className="rounded-lg bg-slate-900/40 border border-slate-800/80">
+                          {deterministicEntries.map((entry, idx) => (
+                            <div
+                              key={entry.detailKey}
+                              className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 text-xs px-3 py-1.5 border-b last:border-b-0 border-slate-800/70"
+                            >
+                              {/* Full question text, word-for-word */}
+                              <div className="text-slate-300">
+                                <span className="mr-1 font-medium">{idx + 1}.</span>
+                                <span className="italic">{entry.questionText}</span>
+                              </div>
+
+                              {/* Answer pill on the right */}
+                              <div className="text-right">
+                                <span className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-950/80 px-2 py-0.5 text-[11px] font-medium text-slate-50">
+                                  {entry.detailValue}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                    
-                    {/* AI PROBING AFTER ALL DETERMINISTIC FOLLOW-UPS */}
+                    )}
+
+                    {/* AI Investigator Probing – always visible, no collapse, with "Response" label */}
                     {sortedAiExchanges.length > 0 && (
-                      <div className="mt-2 rounded-lg bg-slate-900/60 border border-slate-800/80">
-                        {/* Header row */}
-                        <button
-                          type="button"
-                          onClick={() => toggleAiAccordion(instanceNum)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-900/80 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-300 mb-1">
+                          <span className="flex items-center gap-1">
                             <span>🧠</span>
                             <span>AI Investigator Probing</span>
-                            <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-300">
-                              {sortedAiExchanges.length} exchanges
-                            </span>
                           </span>
-                          <span className="text-slate-400 text-[10px]">
-                            {aiAccordionsOpen[instanceNum] ? "Hide" : "Show"}
+                          <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-300 border border-slate-700/80">
+                            {sortedAiExchanges.length} exchanges
                           </span>
-                        </button>
+                        </div>
 
-                        {/* Body */}
-                        {aiAccordionsOpen[instanceNum] && (
-                          <div className="border-t border-slate-800 px-3 py-2 space-y-2">
-                            {sortedAiExchanges.map((exchange, idx) => (
-                              <div key={idx} className="text-xs leading-snug space-y-1">
-                                <div className="text-slate-300">
-                                  <span className="font-semibold">AI Investigator Question:</span>{" "}
-                                  {exchange.probing_question}
-                                </div>
-                                <div className="text-slate-400">
-                                  <span className="font-semibold text-slate-200">Candidate Response:</span>{" "}
-                                  {exchange.candidate_response}
-                                </div>
+                        <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 px-3 py-2 space-y-2">
+                          {sortedAiExchanges.map((ex, idx) => (
+                            <div key={idx} className="text-xs leading-snug space-y-1">
+                              {/* AI Question, full text */}
+                              <div className="text-slate-300">
+                                <span className="font-semibold">Investigator:</span>{" "}
+                                <span className="italic">
+                                  {ex.probing_question}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        )}
+
+                              {/* Candidate answer, with "Response" label */}
+                              <div className="text-slate-400">
+                                <span className="font-semibold text-slate-100">
+                                  Response:
+                                </span>{" "}
+                                {ex.candidate_response}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
