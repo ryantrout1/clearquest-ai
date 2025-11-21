@@ -961,21 +961,12 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
 }
 
 function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents }) {
-  const [aiAccordionsOpen, setAiAccordionsOpen] = React.useState({});
-  
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
   const questionNumber = displayNumber.toString().padStart(3, '0');
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
-  
-  const toggleAiAccordion = (instanceNum) => {
-    setAiAccordionsOpen(prev => ({
-      ...prev,
-      [instanceNum]: !prev[instanceNum]
-    }));
-  };
   
   // Build instances from raw FollowUpResponse data
   const instancesMap = {};
@@ -1006,6 +997,24 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   
   const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
+
+  const [expandedInstances, setExpandedInstances] = React.useState(() => {
+    if (!hasMultipleInstances) return new Set(["1"]);
+    return new Set(["1"]); // Default: only first instance expanded
+  });
+
+  const toggleInstance = (instanceNumber) => {
+    setExpandedInstances((prev) => {
+      const next = new Set(prev);
+      const key = String(instanceNumber);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
@@ -1088,77 +1097,105 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   return seqA - seqB;
                 });
                 
+                const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
+                
                 return (
                   <div
                     key={instanceNum}
-                    className="mt-2 rounded-lg border border-slate-700/60 bg-transparent px-3 py-3 space-y-2"
+                    className="mt-2 rounded-lg border border-slate-700/60 bg-transparent"
                   >
-                    {/* Instance header */}
-                    <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
-                      <div className="font-semibold text-slate-100">
-                        Instance {instanceIdx + 1}
-                      </div>
-                    </div>
+                    {/* Header row – always visible */}
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40"
+                      onClick={() => hasMultipleInstances && toggleInstance(instanceNum)}
+                      disabled={!hasMultipleInstances}
+                    >
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-semibold">Instance {instanceIdx + 1}</span>
 
-                    {/* Deterministic follow-ups as two-column fact sheet */}
-                    {deterministicEntries.length > 0 && (
-                      <div>
-                        <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
-                          Deterministic Follow-Ups
-                        </div>
-
-                        <div className="divide-y divide-slate-700/60 text-xs">
-                          {deterministicEntries.map((entry, idx) => (
-                            <div
-                              key={entry.detailKey}
-                              className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5"
-                            >
-                              {/* Question */}
-                              <div className="text-slate-200">
-                                <span className="mr-1 font-medium">{idx + 1}.</span>
-                                <span className="italic">{entry.questionText}</span>
-                              </div>
-
-                              {/* Answer (no bubble) */}
-                              <div className="text-right text-slate-50">
-                                <span className="font-semibold">Response: </span>
-                                <span>{entry.detailValue}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AI Investigator Probing – always visible, no collapse, with "Response" label */}
-                    {sortedAiExchanges.length > 0 && (
-                      <div className="pt-2">
-                        <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide text-slate-300 mb-1">
-                          <span className="flex items-center gap-1">
-                            <span>🧠</span>
-                            <span>AI Investigator Probing</span>
+                        {/* Simple inline summary */}
+                        {deterministicEntries.length > 0 && (
+                          <span className="text-[11px] text-slate-400">
+                            {deterministicEntries
+                              .slice(0, 3)
+                              .map((e) => e.detailValue)
+                              .join(" • ")}
                           </span>
-                          <span className="text-[10px] text-slate-400">
-                            {sortedAiExchanges.length} exchanges
-                          </span>
-                        </div>
+                        )}
+                      </div>
 
-                        <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
-                          {sortedAiExchanges.map((ex, idx) => (
-                            <div key={idx} className="space-y-1">
-                              <div className="text-slate-200">
-                                <span className="font-semibold">Investigator: </span>
-                                <span className="italic">
-                                  {ex.probing_question}
-                                </span>
-                              </div>
-                              <div className="text-slate-300">
-                                <span className="font-semibold">Response: </span>
-                                <span>{ex.candidate_response}</span>
-                              </div>
+                      {hasMultipleInstances && (
+                        <span className="text-[10px] text-slate-400">
+                          {isExpanded ? "Hide" : "Show"}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Body – only shown when expanded */}
+                    {isExpanded && (
+                      <div className="px-3 pb-3 pt-1 space-y-2">
+                        {/* Deterministic follow-ups as two-column fact sheet */}
+                        {deterministicEntries.length > 0 && (
+                          <div>
+                            <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
+                              Deterministic Follow-Ups
                             </div>
-                          ))}
-                        </div>
+
+                            <div className="divide-y divide-slate-700/60 text-xs">
+                              {deterministicEntries.map((entry, idx) => (
+                                <div
+                                  key={entry.detailKey}
+                                  className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5"
+                                >
+                                  {/* Question */}
+                                  <div className="text-slate-200">
+                                    <span className="mr-1 font-medium">{idx + 1}.</span>
+                                    <span className="italic">{entry.questionText}</span>
+                                  </div>
+
+                                  {/* Answer (no bubble) */}
+                                  <div className="text-right text-slate-50">
+                                    <span className="font-semibold">Response: </span>
+                                    <span>{entry.detailValue}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* AI Investigator Probing – full Q&A, always shown when instance expanded */}
+                        {sortedAiExchanges.length > 0 && (
+                          <div className="pt-2">
+                            <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide text-slate-300 mb-1">
+                              <span className="flex items-center gap-1">
+                                <span>🧠</span>
+                                <span>AI Investigator Probing</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {sortedAiExchanges.length} exchanges
+                              </span>
+                            </div>
+
+                            <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
+                              {sortedAiExchanges.map((ex, idx) => (
+                                <div key={idx} className="space-y-1">
+                                  <div className="text-slate-200">
+                                    <span className="font-semibold">Investigator: </span>
+                                    <span className="italic">
+                                      {ex.probing_question}
+                                    </span>
+                                  </div>
+                                  <div className="text-slate-300">
+                                    <span className="font-semibold">Response: </span>
+                                    <span>{ex.candidate_response}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
