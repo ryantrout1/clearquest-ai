@@ -82,7 +82,7 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
 
         let detailCounter = 0;
 
-        // Deterministic follow-up Q&A pairs
+        // Deterministic follow-up Q&A pairs (should appear FIRST)
         Object.entries(details)
           .filter(([key]) => key !== 'investigator_probing')
           .forEach(([key, value]) => {
@@ -98,8 +98,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               kind: "deterministic_followup_question",
               text: key, // Will be resolved to actual question text in UI
               fieldKey: key,
-              createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 100 + detailCounter * 2,
-              sortKey: responseIdx * 1000 + 100 + instanceIdx * 50 + detailCounter * 2
+              createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 + detailCounter * 10,
+              sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + detailCounter * 10
             });
 
             // Follow-up answer
@@ -113,17 +113,17 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               role: "candidate",
               kind: "deterministic_followup_answer",
               text: value,
-              createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 100 + detailCounter * 2 + 1,
-              sortKey: responseIdx * 1000 + 100 + instanceIdx * 50 + detailCounter * 2 + 1
+              createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 + detailCounter * 10 + 1,
+              sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + detailCounter * 10 + 1
             });
 
             detailCounter++;
           });
 
-        // AI probing for this instance
+        // AI probing for this instance (should appear AFTER deterministic follow-ups)
         const probingExchanges = details.investigator_probing || [];
         probingExchanges.forEach((exchange, exIdx) => {
-          // AI question
+          // AI question - use higher sortKey to ensure it comes after all deterministic follow-ups
           events.push({
             id: `evt_${sessionId}_${eventCounter++}`,
             sessionId,
@@ -134,8 +134,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
             role: "investigator",
             kind: "ai_probe_question",
             text: exchange.probing_question,
-            createdAt: new Date(exchange.timestamp || followup.created_date).getTime(),
-            sortKey: responseIdx * 1000 + 100 + instanceIdx * 50 + detailCounter * 2 + exIdx * 2
+            createdAt: new Date(exchange.timestamp || followup.created_date).getTime() + instanceIdx * 1000 + 5000 + exIdx * 100,
+            sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + 400 + exIdx * 10
           });
 
           // Candidate answer
@@ -149,8 +149,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
             role: "candidate",
             kind: "ai_probe_answer",
             text: exchange.candidate_response,
-            createdAt: new Date(exchange.timestamp || followup.created_date).getTime() + 500,
-            sortKey: responseIdx * 1000 + 100 + instanceIdx * 50 + detailCounter * 2 + exIdx * 2 + 1
+            createdAt: new Date(exchange.timestamp || followup.created_date).getTime() + instanceIdx * 1000 + 5000 + exIdx * 100 + 1,
+            sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + 400 + exIdx * 10 + 1
           });
         });
       });
@@ -173,8 +173,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               role: "investigator",
               kind: "ai_probe_question",
               text: exchange.probing_question,
-              createdAt: new Date(exchange.timestamp || response.response_timestamp).getTime() + 5000 + exIdx * 1000,
-              sortKey: responseIdx * 1000 + 500 + exIdx * 2
+              createdAt: new Date(exchange.timestamp || response.response_timestamp).getTime() + 10000 + exIdx * 1000,
+              sortKey: responseIdx * 10000 + 5000 + exIdx * 10
             });
 
             events.push({
@@ -187,8 +187,8 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               role: "candidate",
               kind: "ai_probe_answer",
               text: exchange.candidate_response,
-              createdAt: new Date(exchange.timestamp || response.response_timestamp).getTime() + 5500 + exIdx * 1000,
-              sortKey: responseIdx * 1000 + 500 + exIdx * 2 + 1
+              createdAt: new Date(exchange.timestamp || response.response_timestamp).getTime() + 10000 + exIdx * 1000 + 1,
+              sortKey: responseIdx * 10000 + 5000 + exIdx * 10 + 1
             });
           });
         }
