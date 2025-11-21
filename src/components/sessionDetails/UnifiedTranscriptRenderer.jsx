@@ -26,15 +26,21 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
     return null;
   }
 
-  // Deterministic follow-up Q&A on same line
+  // Deterministic follow-up Q&A on separate lines with clear labels
   if (kind === "deterministic_followup_question" && nextEvent?.kind === "deterministic_followup_answer") {
     const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
     const answerText = nextEvent.text;
     
     return (
-      <div className="flex items-start gap-2 mb-1 text-xs">
-        <span className="text-slate-300">{resolvedText}:</span>
-        <span className="text-white font-medium">{answerText}</span>
+      <div className="mb-2 text-xs">
+        <div className="mb-1">
+          <span className="text-slate-400 font-medium">Follow-Up Question:</span>
+          <p className="text-slate-300 mt-0.5 leading-relaxed">{resolvedText}</p>
+        </div>
+        <div>
+          <span className="text-slate-400 font-medium">Candidate Response:</span>
+          <p className="text-white mt-0.5 leading-relaxed">{answerText}</p>
+        </div>
       </div>
     );
   }
