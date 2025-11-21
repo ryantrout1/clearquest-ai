@@ -134,6 +134,7 @@ export default function CandidateInterview() {
   // NEW: Track AI follow-up counts per pack instance
   const [aiFollowupCounts, setAiFollowupCounts] = useState({});
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false); // Track if using invokeLLM vs agent
+  const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]); // Accumulate Q&A for current pack
   
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
@@ -881,10 +882,13 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, aiQuestionEntry];
         setTranscript(newTranscript);
         
-        // Save to database and persist state
-        await saveProbingToDatabase(questionId, packId, [
-          { role: 'assistant', content: aiResult.followupQuestion }
-        ]);
+        // Initialize probing exchanges array for this instance
+        setInvokeLLMProbingExchanges([{
+          sequence_number: 1,
+          probing_question: aiResult.followupQuestion,
+          candidate_response: null, // Will be filled when candidate answers
+          timestamp: new Date().toISOString()
+        }]);
         
         await persistStateToDatabase(newTranscript, [], null);
         
@@ -1104,6 +1108,49 @@ export default function CandidateInterview() {
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
   // ============================================================================
+
+  // NEW: Save invokeLLM-based probing exchanges directly
+  const saveInvokeLLMProbingToDatabase = async (questionId, packId, exchanges, instanceNumber = 1) => {
+    try {
+      console.log(`💾 Saving ${exchanges.length} invokeLLM probing exchanges for ${questionId}/${packId} (instance ${instanceNumber})`);
+      
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId,
+        question_id: questionId,
+        followup_pack: packId,
+        triggered_followup: true
+      });
+      
+      if (responses.length === 0) {
+        console.error(`❌ No triggering response found for pack ${packId}`);
+        return;
+      }
+      
+      const triggeringResponse = responses[responses.length - 1];
+      
+      const followUpResponses = await base44.entities.FollowUpResponse.filter({
+        session_id: sessionId,
+        response_id: triggeringResponse.id,
+        followup_pack: packId,
+        instance_number: instanceNumber
+      });
+      
+      if (followUpResponses.length > 0) {
+        const followUpResponse = followUpResponses[0];
+        
+        await base44.entities.FollowUpResponse.update(followUpResponse.id, {
+          additional_details: {
+            ...(followUpResponse.additional_details || {}),
+            investigator_probing: exchanges
+          }
+        });
+        
+        console.log(`✅ Saved ${exchanges.length} invokeLLM probing exchanges to instance ${instanceNumber}`);
+      }
+    } catch (err) {
+      console.error('❌ Error saving invokeLLM probing:', err);
+    }
+  };
 
   const extractProbingFromAgentMessages = (messages, questionId, packId) => {
     const probingEntries = [];
@@ -1785,14 +1832,12 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, aiAnswerEntry];
         setTranscript(newTranscript);
         
-        // Save to database
-        await saveProbingToDatabase(
-          currentFollowUpPack.questionId, 
-          currentFollowUpPack.packId, 
-          [
-            { role: 'user', content: value }
-          ]
-        );
+        // Update the last exchange with candidate's response
+        const updatedExchanges = [...invokeLLMProbingExchanges];
+        const lastExchange = updatedExchanges[updatedExchanges.length - 1];
+        if (lastExchange && !lastExchange.candidate_response) {
+          lastExchange.candidate_response = value;
+        }
         
         await persistStateToDatabase(newTranscript, [], null);
         
@@ -1841,11 +1886,14 @@ export default function CandidateInterview() {
             const updatedTranscript = [...newTranscript, nextAiQuestion];
             setTranscript(updatedTranscript);
             
-            await saveProbingToDatabase(
-              currentFollowUpPack.questionId,
-              currentFollowUpPack.packId,
-              [{ role: 'assistant', content: aiResult.followupQuestion }]
-            );
+            // Add new exchange to array
+            updatedExchanges.push({
+              sequence_number: updatedExchanges.length + 1,
+              probing_question: aiResult.followupQuestion,
+              candidate_response: null,
+              timestamp: new Date().toISOString()
+            });
+            setInvokeLLMProbingExchanges(updatedExchanges);
             
             await persistStateToDatabase(updatedTranscript, [], null);
             
@@ -1854,9 +1902,18 @@ export default function CandidateInterview() {
           }
         }
         
-        // Done with AI probing - continue interview
+        // Done with AI probing - save all exchanges and continue interview
+        console.log(`💾 Saving ${updatedExchanges.length} invokeLLM probing exchanges for ${currentFollowUpPack.questionId}/${currentFollowUpPack.packId}`);
+        await saveInvokeLLMProbingToDatabase(
+          currentFollowUpPack.questionId,
+          currentFollowUpPack.packId,
+          updatedExchanges,
+          currentFollowUpPack.instanceNumber
+        );
+        
         setIsWaitingForAgent(false);
         setIsInvokeLLMMode(false);
+        setInvokeLLMProbingExchanges([]);
         
         const baseQuestionId = currentFollowUpPack.questionId;
         const packId = currentFollowUpPack.packId;
