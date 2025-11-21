@@ -1017,15 +1017,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     
                     {instanceFollowups.map((followup, idx) => {
                       const details = followup.additional_details || {};
-                      const packQuestions = followUpQuestionEntities
-                        .filter(q => q.followup_pack_id === followup.followup_pack)
-                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                      
-                      // Create lookup map for faster question text resolution
-                      const questionTextLookup = {};
-                      packQuestions.forEach((q, idx) => {
-                        questionTextLookup[idx] = q.question_text;
-                      });
+                      const followupQA = getFollowupQuestionText(followup.followup_pack, details);
                       
                       // Extract probing from additional_details if stored there (multi-instance)
                       const probingFromDetails = details.investigator_probing || [];
@@ -1045,36 +1037,19 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             </div>
                           )}
 
-                          {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
-                            const requiresReview = needsReview(value);
-                            
-                            // Try to find matching question entity for this key
-                            const questionEntity = packQuestions.find(q => {
-                              const qText = q.question_text?.toLowerCase() || '';
-                              const keyLower = key.toLowerCase();
-                              
-                              // Check if key matches question text
-                              return qText.includes(keyLower) || 
-                                     keyLower.includes(qText.split(' ').slice(0, 3).join(' '));
-                            });
-                            
-                            const questionText = questionEntity?.question_text || 
-                                               key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-                            return (
-                              <div key={key} className="text-xs flex items-start">
-                                <span className="text-slate-400 font-medium">
-                                  {questionText}:
-                                </span>
-                                <span className="text-slate-200 ml-2 break-words">{value}</span>
-                                {requiresReview && (
-                                  <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                                    Needs Review
-                                  </Badge>
-                                )}
-                              </div>
-                            );
-                          })}
+                          {followupQA.map((item, qIdx) => (
+                            <div key={qIdx} className="text-xs flex items-start">
+                              <span className="text-slate-400 font-medium">
+                                {item.questionText}:
+                              </span>
+                              <span className="text-slate-200 ml-2 break-words">{item.value}</span>
+                              {item.needsReview && (
+                                <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                                  Needs Review
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
                           
                           {hasInstanceProbing && (
                             <div className="border-t border-slate-600/50 pt-2 mt-2 space-y-2">
