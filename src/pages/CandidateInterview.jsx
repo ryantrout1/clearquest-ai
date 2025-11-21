@@ -768,8 +768,8 @@ export default function CandidateInterview() {
     advanceToNextBaseQuestion(baseQuestionId);
   }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
 
-  const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers) => {
-    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} — checking AI availability...`);
+  const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} (instance ${instanceNumber}) — checking AI availability...`);
     
     // NEW: Check session-level AI flag first
     if (!aiProbingEnabled) {
@@ -826,7 +826,7 @@ export default function CandidateInterview() {
       });
       
       setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName });
+      setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
       setProbingTurnCount(0);
       setLastAgentMessageTime(Date.now());
       
@@ -1027,7 +1027,8 @@ export default function CandidateInterview() {
 
   const saveProbingToDatabase = async (questionId, packId, messages) => {
     try {
-      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} to database...`);
+      const instanceNumber = currentFollowUpPack?.instanceNumber || 1;
+      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} (instance ${instanceNumber}) to database...`);
       
       // Extract Q&A pairs from agent conversation
       const exchanges = [];
@@ -1091,7 +1092,7 @@ export default function CandidateInterview() {
         }
       }
       
-      console.log(`📊 Extracted ${exchanges.length} probing exchanges to save`);
+      console.log(`📊 Extracted ${exchanges.length} probing exchanges to save for instance ${instanceNumber}`);
       
       if (exchanges.length > 0) {
         // Find the Response record for this question
@@ -1104,12 +1105,29 @@ export default function CandidateInterview() {
         if (responses.length > 0) {
           const responseRecord = responses[0];
           
-          // Update Response with probing exchanges
-          await base44.entities.Response.update(responseRecord.id, {
-            investigator_probing: exchanges
+          // Find the FollowUpResponse for this specific instance
+          const followUpResponses = await base44.entities.FollowUpResponse.filter({
+            session_id: sessionId,
+            response_id: responseRecord.id,
+            followup_pack: packId,
+            instance_number: instanceNumber
           });
           
-          console.log(`✅ Saved ${exchanges.length} probing exchanges to Response ${responseRecord.id}`);
+          if (followUpResponses.length > 0) {
+            const followUpResponse = followUpResponses[0];
+            
+            // Save probing to this instance's additional_details
+            await base44.entities.FollowUpResponse.update(followUpResponse.id, {
+              additional_details: {
+                ...(followUpResponse.additional_details || {}),
+                investigator_probing: exchanges
+              }
+            });
+            
+            console.log(`✅ Saved ${exchanges.length} probing exchanges to FollowUpResponse instance ${instanceNumber} (${followUpResponse.id})`);
+          } else {
+            console.error(`❌ No FollowUpResponse found for instance ${instanceNumber}`);
+          }
         } else {
           console.error(`❌ No Response record found for ${questionId}/${packId}`);
         }
@@ -1455,7 +1473,8 @@ export default function CandidateInterview() {
                 triggeringQuestion.questionId,
                 packId,
                 substanceName,
-                packAnswers
+                packAnswers,
+                currentItem.instanceNumber || 1
               );
               
               // FAIL-SAFE: If AI handoff failed, advance to next base question immediately
