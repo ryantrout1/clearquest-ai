@@ -961,12 +961,21 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
 }
 
 function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents }) {
+  const [aiAccordionsOpen, setAiAccordionsOpen] = React.useState({});
+  
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
   const questionNumber = displayNumber.toString().padStart(3, '0');
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
+  
+  const toggleAiAccordion = (instanceNum) => {
+    setAiAccordionsOpen(prev => ({
+      ...prev,
+      [instanceNum]: !prev[instanceNum]
+    }));
+  };
   
   // Build instances from raw FollowUpResponse data
   const instancesMap = {};
@@ -1106,23 +1115,42 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     
                     {/* AI PROBING AFTER ALL DETERMINISTIC FOLLOW-UPS */}
                     {sortedAiExchanges.length > 0 && (
-                      <div className="mt-3 pt-2 border-t border-purple-500/20">
-                        <div className="text-xs font-semibold text-purple-400 mb-2">
-                          🔍 AI Investigator Probing
-                        </div>
-                        
-                        {sortedAiExchanges.map((exchange, idx) => (
-                          <div key={idx} className="mb-2 text-xs pl-2 border-l-2 border-purple-500/20">
-                            <div className="mb-1">
-                              <span className="text-purple-400 font-medium">AI Investigator Question:</span>
-                              <p className="text-slate-300 mt-0.5 leading-relaxed">{exchange.probing_question}</p>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 font-medium">Candidate Response:</span>
-                              <p className="text-white mt-0.5 leading-relaxed">{exchange.candidate_response}</p>
-                            </div>
+                      <div className="mt-2 rounded-lg bg-slate-900/60 border border-slate-800/80">
+                        {/* Header row */}
+                        <button
+                          type="button"
+                          onClick={() => toggleAiAccordion(instanceNum)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-900/80 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>🧠</span>
+                            <span>AI Investigator Probing</span>
+                            <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-300">
+                              {sortedAiExchanges.length} exchanges
+                            </span>
+                          </span>
+                          <span className="text-slate-400 text-[10px]">
+                            {aiAccordionsOpen[instanceNum] ? "Hide" : "Show"}
+                          </span>
+                        </button>
+
+                        {/* Body */}
+                        {aiAccordionsOpen[instanceNum] && (
+                          <div className="border-t border-slate-800 px-3 py-2 space-y-2">
+                            {sortedAiExchanges.map((exchange, idx) => (
+                              <div key={idx} className="text-xs leading-snug space-y-1">
+                                <div className="text-slate-300">
+                                  <span className="font-semibold">AI Investigator Question:</span>{" "}
+                                  {exchange.probing_question}
+                                </div>
+                                <div className="text-slate-400">
+                                  <span className="font-semibold text-slate-200">Candidate Response:</span>{" "}
+                                  {exchange.candidate_response}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
                     )}
                   </div>
