@@ -949,6 +949,20 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   
   const instanceNumbers = Object.keys(followupsByInstance).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
+  
+  // DIAGNOSTIC: Multi-instance summary
+  if (followups.length > 0) {
+    console.log("[MI SUMMARY - SESSION DETAILS]", {
+      baseQuestionId: response.question_id,
+      baseQuestionCode: response.question_id,
+      followupPackId: followups[0]?.followup_pack,
+      instancesCount: instanceNumbers.length,
+      instances: instanceNumbers.map(num => ({
+        instanceNumber: num,
+        detailKeys: Object.keys(followupsByInstance[num][0]?.additional_details || {})
+      }))
+    });
+  }
 
   return (
     <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">

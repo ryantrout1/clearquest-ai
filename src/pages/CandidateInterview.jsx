@@ -718,13 +718,29 @@ export default function CandidateInterview() {
       
       const currentInstanceCount = existingFollowups.length;
       
-      console.log(`🔁 Multi-instance check: ${currentInstanceCount} of ${maxInstances} instances recorded`);
+      console.log("[MI PACK COMPLETE]", {
+        baseQuestionId,
+        baseQuestionCode: question.question_id,
+        followupPackId: packId,
+        existingInstancesCount: currentInstanceCount,
+        maxInstancesAllowed: maxInstances,
+        multiInstanceEnabled: question.followup_multi_instance
+      });
       
       if (currentInstanceCount < maxInstances) {
         const multiInstancePrompt = question.multi_instance_prompt || 
           'Do you have another instance we should discuss for this question?';
         
-        console.log(`❓ Asking multi-instance question (instance ${currentInstanceCount + 1}/${maxInstances})`);
+        console.log("[MI ASK]", {
+          baseQuestionId,
+          baseQuestionCode: question.question_id,
+          followupPackId: packId,
+          existingInstancesCount: currentInstanceCount,
+          nextInstanceNumber: currentInstanceCount + 1,
+          maxInstancesAllowed: maxInstances,
+          multiInstanceQuestionId: `multi-instance-${baseQuestionId}-${packId}`,
+          prompt: multiInstancePrompt
+        });
         
         // Queue multi-instance question
         setCurrentItem({
@@ -1476,6 +1492,17 @@ export default function CandidateInterview() {
         
         const answer = normalized === 'yes' ? 'Yes' : 'No';
         
+        const question = engine.QById[questionId];
+        
+        console.log("[MI ANSWER]", {
+          baseQuestionId: questionId,
+          baseQuestionCode: question?.question_id,
+          followupPackId: packId,
+          answer,
+          instanceNumber,
+          existingInstancesCount: instanceNumber - 1
+        });
+        
         // Add to transcript
         const transcriptEntry = {
           id: `mi-${Date.now()}`,
@@ -1491,14 +1518,28 @@ export default function CandidateInterview() {
         setTranscript(newTranscript);
         
         if (answer === 'Yes') {
-          console.log(`🔁 User has another instance - re-triggering ${packId} for instance ${instanceNumber + 1}`);
+          console.log("[MI DECISION]", {
+            action: "create_new_instance",
+            baseQuestionId: questionId,
+            baseQuestionCode: question?.question_id,
+            followupPackId: packId,
+            newInstanceNumber: instanceNumber + 1
+          });
           
           // Re-trigger the same follow-up pack for new instance
-          const question = engine.QById[questionId];
           const substanceName = question?.substance_name || null;
           const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
           
           if (packSteps && packSteps.length > 0) {
+            console.log("[MI CREATE]", {
+              baseQuestionId: questionId,
+              baseQuestionCode: question?.question_id,
+              followupPackId: packId,
+              instanceNumber: instanceNumber + 1,
+              totalSteps: packSteps.length,
+              substanceName
+            });
+            
             setCurrentFollowUpAnswers({});
             
             const followupQueue = [];
@@ -1523,7 +1564,13 @@ export default function CandidateInterview() {
             await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
           }
         } else {
-          console.log(`✅ No more instances - advancing to next base question`);
+          console.log("[MI DECISION]", {
+            action: "stop_multi_instance_and_advance",
+            baseQuestionId: questionId,
+            baseQuestionCode: question?.question_id,
+            followupPackId: packId,
+            recordedInstancesCount: instanceNumber
+          });
           
           // No more instances - advance to next base question
           setCurrentItem(null);
@@ -1696,6 +1743,15 @@ export default function CandidateInterview() {
       });
       
       if (existingFollowups.length === 0) {
+        console.log("[MI SAVE]", {
+          action: "create",
+          baseQuestionId: triggeringResponse.question_id,
+          followupPackId: packId,
+          instanceNumber,
+          fieldKey,
+          responseId: triggeringResponse.id
+        });
+        
         await base44.entities.FollowUpResponse.create({
           session_id: sessionId,
           response_id: triggeringResponse.id,
@@ -1709,6 +1765,17 @@ export default function CandidateInterview() {
         });
       } else {
         const existing = existingFollowups[0];
+        
+        console.log("[MI SAVE]", {
+          action: "update",
+          baseQuestionId: triggeringResponse.question_id,
+          followupPackId: packId,
+          instanceNumber,
+          fieldKey,
+          responseId: triggeringResponse.id,
+          existingFollowupId: existing.id
+        });
+        
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
           additional_details: {
