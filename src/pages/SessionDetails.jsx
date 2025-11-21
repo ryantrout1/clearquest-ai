@@ -1335,6 +1335,71 @@ function TranscriptEntry({ item }) {
   return null;
 }
 
+/**
+ * FOLLOW-UP LABEL DIAGNOSTIC (PACK_LE_APPS and all packs)
+ *
+ * STATUS: Reverted to baseline behavior showing "PACK LE APPS Q#" labels
+ * 
+ * Findings from diagnostic logs:
+ * 
+ * 1. DATA STRUCTURE - FollowUpResponse entity:
+ *    - followup_pack: "PACK_LE_APPS" (pack identifier)
+ *    - additional_details: { key1: "value1", key2: "value2", ... }
+ *    - The keys in additional_details are database field names (e.g., "agency_name", "application_date")
+ *    - NO question_text or question_id stored on each detail entry
+ * 
+ * 2. DATA STRUCTURE - FollowUpQuestion entity:
+ *    - followup_pack_id: "PACK_LE_APPS"
+ *    - display_order: 1, 2, 3, 4 (step sequence)
+ *    - question_text: "Which law enforcement agency did you apply to?", etc.
+ *    - This metadata exists but is NOT joined with FollowUpResponse
+ * 
+ * 3. CURRENT RENDERING LOGIC:
+ *    - SessionDetails iterates over Object.entries(followup.additional_details)
+ *    - Each entry becomes: `${followup.followup_pack} Q${index + 1}: ${value}`
+ *    - Result: "PACK LE APPS Q1: Yuma", "PACK LE APPS Q2: June 2012", etc.
+ * 
+ * 4. MISSING LINK:
+ *    - There's NO reliable mapping between additional_details keys and FollowUpQuestion records
+ *    - Keys like "agency_name" don't match any field on FollowUpQuestion
+ *    - Display order from Object.entries() doesn't guarantee alignment with display_order
+ * 
+ * 5. ROOT CAUSE:
+ *    - When FollowUpResponse is created, it stores raw field-value pairs in additional_details
+ *    - The question text is NOT stored alongside each answer
+ *    - SessionDetails has no way to look up "which question produced this answer"
+ * 
+ * 6. SOLUTION PATHS:
+ *    
+ *    Option A: Store question text snapshot when creating FollowUpResponse
+ *    - Modify CandidateInterview to include question_text_snapshot in additional_details
+ *    - Format: { "question_1_text": "Which agency?", "question_1_answer": "Yuma", ... }
+ *    - Pro: Simple, works immediately, no joins needed
+ *    - Con: Increases storage, snapshot could become stale if questions change
+ *    
+ *    Option B: Create deterministic key mapping
+ *    - Define a standard mapping: PACK_LE_APPS Q1 = "agency_name", Q2 = "application_date"
+ *    - Use FollowUpQuestion.display_order to match keys
+ *    - Pro: No schema changes
+ *    - Con: Fragile, requires maintenance, key names must stay stable
+ *    
+ *    Option C: Store question_id references in additional_details
+ *    - Format: { "question_ids": ["q1_id", "q2_id"], "answers": ["Yuma", "June 2012"] }
+ *    - Look up question text by ID at render time
+ *    - Pro: Flexible, survives question text changes
+ *    - Con: Requires refactor of how FollowUpResponse is created
+ * 
+ * RECOMMENDATION: Option A (snapshot) for immediate fix + stability
+ * 
+ * NO CHANGES IMPLEMENTED YET - This is diagnostic only
+ * Check browser console for detailed logs with prefix:
+ * - [SESSION DETAILS RAW DATA]
+ * - [FOLLOWUP QUESTION METADATA] PACK_LE_APPS
+ * - [FOLLOWUP INSTANCE DEBUG - Structured View]
+ * - [FOLLOWUP DETAIL ENTRY]
+ * - [TRANSCRIPT FOLLOWUP DETAIL]
+ */
+
 function generateReportHTML(session, responses, followups, questions, department, totalQuestions) {
   const now = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
