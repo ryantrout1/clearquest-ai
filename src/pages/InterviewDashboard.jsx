@@ -252,7 +252,7 @@ export default function InterviewDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3 mb-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
