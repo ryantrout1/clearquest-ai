@@ -1,348 +1,318 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * Generate AI Investigator Summaries for interview session (SINGLE LLM CALL)
- * Input: { session_id }
- * Output: { ok: true, data: { interviewSummary, sectionSummaries, redFlags } }
- * 
- * NOTE (MVP):
- * This function is intentionally app-scoped and does not enforce per-user RBAC.
- * Only internal admins (owner + co-founder) can reach this page right now.
- * When we add tenant/investigator logins, revisit this to add proper role checks.
- * 
- * OPTIMIZATION: Uses a single invokeLLM call to generate all summaries at once.
+ * Unified AI Summary Generation
+ * Generates all 4 layers in a single LLM call:
+ * 1. Interview-level summary
+ * 2. Section-level summaries
+ * 3. Question-level summaries (for Yes + follow-ups)
+ * 4. Instance-level narratives (per incident)
  */
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // Basic auth check - any logged-in user can run this (MVP)
     const user = await base44.auth.me();
     if (!user) {
       return Response.json({ 
         ok: false, 
-        error: { message: 'Unauthorized', details: 'User not authenticated' } 
+        error: { message: 'Unauthorized' } 
       }, { status: 401 });
     }
 
-    // Handle different request body formats
     const body = typeof req.json === "function" ? await req.json() : req.body;
-    const sessionId = body?.sessionId || body?.session_id || body?.interviewId;
-    const transcriptEvents = body?.transcriptEvents || [];
+    const sessionId = body?.sessionId || body?.session_id;
+    const generateGlobal = body?.generateGlobal !== false;
+    const generateSections = body?.generateSections !== false;
+    const generateQuestions = body?.generateQuestions !== false;
 
-    // Scope flags - determine what to regenerate
-    const generateGlobal = body?.generateGlobal !== false; // default true
-    const generateSections = body?.generateSections !== false; // default true
-    const generateQuestions = body?.generateQuestions !== false; // default true
-    const sectionId = body?.sectionId || null; // specific section to regenerate
-
-    console.log('[FUNC generateSessionSummaries] start', { 
-      sessionId, 
-      hasTranscriptEvents: transcriptEvents.length > 0,
-      eventCount: transcriptEvents.length,
-      bodyKeys: Object.keys(body || {}),
-      scope: { generateGlobal, generateSections, generateQuestions, sectionId }
-    });
+    console.log('[AI-UNIFIED] START', { sessionId, generateGlobal, generateSections, generateQuestions });
 
     if (!sessionId) {
-      return Response.json({ 
-        ok: false,
-        error: { message: 'sessionId required' }
-      }, { status: 400 });
+      return Response.json({ ok: false, error: { message: 'sessionId required' } }, { status: 400 });
     }
 
-    console.log(`🤖 [generateSessionSummaries] Starting single-call generation`, {
-      sessionId,
-      eventCount: transcriptEvents.length
-    });
-
-    // Use transcript events passed from client (already built with all context)
-    const transcript = transcriptEvents;
+    // Build rich context from database
+    const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
+    const followUps = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId });
+    const questions = await base44.asServiceRole.entities.Question.list();
+    const sections = await base44.asServiceRole.entities.Section.list();
     
-    console.log('[FUNC generateSessionSummaries] Transcript analysis', {
-      totalEvents: transcript.length,
-      eventKinds: [...new Set(transcript.map(e => e.kind))],
-      sampleEvent: transcript[0],
-      yesAnswers: transcript.filter(e => e.answer === 'Yes' || (e.kind === 'base_answer' && e.text === 'Yes')).length,
-      followupQuestions: transcript.filter(e => e.kind === 'followup_question').length,
-      aiProbes: transcript.filter(e => e.kind === 'ai_probe_question').length
+    // Build structured context
+    const context = {
+      sessionId,
+      sections: [],
+      questions: []
+    };
+    
+    // Group responses by section
+    const responsesBySection = {};
+    for (const response of responses) {
+      const question = questions.find(q => q.question_id === response.question_id);
+      const sectionId = question?.section_id || response.category || 'Unknown';
+      
+      if (!responsesBySection[sectionId]) {
+        const section = sections.find(s => s.id === sectionId);
+        responsesBySection[sectionId] = {
+          section_id: sectionId,
+          section_name: section?.section_name || sectionId,
+          responses: []
+        };
+      }
+      responsesBySection[sectionId].responses.push(response);
+    }
+    
+    context.sections = Object.values(responsesBySection);
+    
+    // Build question-level details for Yes + follow-ups
+    for (const response of responses) {
+      if (response.answer !== 'Yes') continue;
+      
+      const questionFollowUps = followUps.filter(f => f.response_id === response.id);
+      if (questionFollowUps.length === 0) continue;
+      
+      const question = questions.find(q => q.question_id === response.question_id);
+      const sectionId = question?.section_id || response.category;
+      
+      // Group by instance
+      const instancesMap = {};
+      for (const fu of questionFollowUps) {
+        const instNum = fu.instance_number || 1;
+        const key = `${fu.followup_pack}_${instNum}`;
+        
+        if (!instancesMap[key]) {
+          instancesMap[key] = {
+            instance_number: instNum,
+            pack_id: fu.followup_pack,
+            details: fu.additional_details || {}
+          };
+        }
+      }
+      
+      context.questions.push({
+        question_id: response.question_id,
+        section_id: sectionId,
+        question_text: response.question_text,
+        instances: Object.values(instancesMap)
+      });
+    }
+
+    // Build unified prompt for all layers
+    const llmPrompt = `You are an AI assistant for law enforcement background investigations.
+
+Generate a comprehensive structured summary covering:
+1. Interview-level overview
+2. Section-level summaries
+3. Question-level summaries (for Yes + follow-ups)
+4. Instance-level narratives
+
+CONTEXT:
+${JSON.stringify(context, null, 2)}
+
+Return STRICT JSON:
+{
+  "interview_summary": "2-3 sentence overview",
+  "sections": [
+    {
+      "section_id": "section ID",
+      "summary": "2-3 sentence section summary"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "question ID",
+      "summary": "1-2 sentence question summary",
+      "instances": [
+        {
+          "instance_number": 1,
+          "pack_id": "PACK_ID",
+          "summary": "1-2 sentence incident narrative"
+        }
+      ]
+    }
+  ]
+}`;
+
+    const responseSchema = {
+      type: "object",
+      properties: {
+        interview_summary: { type: "string" },
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              section_id: { type: "string" },
+              summary: { type: "string" }
+            }
+          }
+        },
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              question_id: { type: "string" },
+              summary: { type: "string" },
+              instances: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    instance_number: { type: "number" },
+                    pack_id: { type: "string" },
+                    summary: { type: "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    // Call LLM once
+    const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt: llmPrompt,
+      response_json_schema: responseSchema
     });
 
-    // Count basic stats from transcript
-    const yesCount = transcript.filter(e => e.answer === 'Yes' || e.kind === 'base_answer' && e.text === 'Yes').length;
-    const noCount = transcript.filter(e => e.answer === 'No' || e.kind === 'base_answer' && e.text === 'No').length;
+    // Parse results
+    const interviewSummary = llmResult.interview_summary || '';
+    const sectionSummaries = llmResult.sections || [];
+    const questionSummaries = llmResult.questions || [];
 
-    // Build scoped prompt based on what needs to be regenerated
-    let llmPrompt;
-    let responseSchema;
+    let updatedGlobalSummary = false;
+    let updatedSectionSummariesCount = 0;
+    let updatedQuestionSummariesCount = 0;
+    let updatedInstanceSummariesCount = 0;
 
-    if (!generateGlobal && !generateSections && generateQuestions) {
-      // BLUE BRAIN: Questions only - Generate instance and question summaries
-      console.log('[AI-QUESTIONS-BE] START', {
-        sessionId,
-        generateGlobal,
-        generateSections,
-        generateQuestions
+    // Write interview summary
+    if (generateGlobal && interviewSummary) {
+      await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
+        global_ai_summary: { text: interviewSummary, riskLevel: "Low" },
+        ai_summaries_last_generated_at: new Date().toISOString()
       });
+      updatedGlobalSummary = true;
+    }
 
-      // Discover incidents: find all FollowUpPack instances for this session
-      const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
-      const followUpResponses = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId });
-      const packs = await base44.asServiceRole.entities.FollowUpPack.list();
-      
-      // Build list of incidents (question + pack + instance combinations)
-      const incidents = [];
-      
-      for (const response of responses) {
-        if (response.answer !== 'Yes') continue;
-        
-        // Find follow-up responses for this question
-        const questionFollowUps = followUpResponses.filter(f => f.response_id === response.id);
-        
-        // Group by pack and instance
-        const instanceMap = {};
-        for (const followUp of questionFollowUps) {
-          const key = `${followUp.followup_pack}_${followUp.instance_number || 1}`;
-          if (!instanceMap[key]) {
-            instanceMap[key] = {
-              questionId: response.question_id,
-              sectionId: response.section_id || response.category,
-              packId: followUp.followup_pack,
-              instanceNumber: followUp.instance_number || 1,
-              followUpResponses: []
-            };
-          }
-          instanceMap[key].followUpResponses.push(followUp);
-        }
-        
-        // Add each instance to incidents list
-        for (const incident of Object.values(instanceMap)) {
-          incidents.push(incident);
-        }
-      }
-      
-      console.log('[AI-QUESTIONS-BE] INCIDENTS_FOUND', {
-        sessionId,
-        totalIncidents: incidents.length,
-        sampleIncidents: incidents.slice(0, 3).map(i => ({
-          questionId: i.questionId,
-          packId: i.packId,
-          instanceNumber: i.instanceNumber
-        }))
-      });
-      
-      let updatedInstanceSummariesCount = 0;
-      const questionSummariesMap = {};
-      
-      // Generate summary for each incident
-      for (const incident of incidents) {
-        const pack = packs.find(p => p.followup_pack_id === incident.packId);
-        const summaryInstructions = pack?.ai_summary_instructions || null;
-        
-        console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_CALL', {
-          sessionId,
-          questionId: incident.questionId,
-          packId: incident.packId,
-          instanceNumber: incident.instanceNumber,
-          hasSummaryInstructions: !!summaryInstructions
-        });
-        
-        // Build incident transcript for this specific instance
-        const incidentTranscript = transcript.filter(e => 
-          e.baseQuestionId === incident.questionId &&
-          e.packId === incident.packId &&
-          e.instanceNumber === incident.instanceNumber
-        );
-        
-        // Build LLM prompt for this incident
-        const incidentPrompt = `You are an AI assistant for law enforcement background investigations.
-        
-Generate a concise investigator summary for this specific incident.
-
-INCIDENT DATA:
-Question ID: ${incident.questionId}
-Pack: ${incident.packId}
-Instance: ${incident.instanceNumber}
-
-${summaryInstructions ? `SUMMARY INSTRUCTIONS:\n${summaryInstructions}\n` : ''}
-
-TRANSCRIPT:
-${JSON.stringify(incidentTranscript, null, 2)}
-
-Return a JSON object with:
-{
-  "summary": "1-2 sentence investigator summary of this incident"
-}`;
-        
-        let instanceSummaryText = null;
-        
+    // Write section summaries
+    if (generateSections) {
+      for (const section of sectionSummaries) {
         try {
-          const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: incidentPrompt,
-            response_json_schema: {
-              type: "object",
-              properties: {
-                summary: { type: "string" }
-              },
-              required: ["summary"]
-            }
-          });
-          
-          console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_RAW', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            rawOutputPreview: JSON.stringify(llmResult).slice(0, 200)
-          });
-          
-          instanceSummaryText = llmResult.summary || null;
-          
-          console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_PARSED', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            hasSummaryText: !!instanceSummaryText,
-            summaryLength: instanceSummaryText ? instanceSummaryText.length : 0
-          });
-        } catch (err) {
-          console.error('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_ERROR', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            error: err.message
-          });
-        }
-        
-        // Fallback for debugging if LLM fails
-        if (!instanceSummaryText) {
-          console.warn('[AI-QUESTIONS-BE] No summary from LLM, writing placeholder', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber
-          });
-          instanceSummaryText = 'TEST PLACEHOLDER SUMMARY - this confirms the write path works.';
-        }
-        
-        // Save to InstanceSummary entity
-        try {
-          // Check if already exists
-          const existing = await base44.asServiceRole.entities.InstanceSummary.filter({
+          const existing = await base44.asServiceRole.entities.SectionSummary.filter({
             session_id: sessionId,
-            question_id: incident.questionId,
-            pack_id: incident.packId,
-            instance_number: incident.instanceNumber
+            section_id: section.section_id
           });
-          
-          let savedInstanceSummary;
+
           if (existing.length > 0) {
-            savedInstanceSummary = await base44.asServiceRole.entities.InstanceSummary.update(existing[0].id, {
-              instance_summary_text: instanceSummaryText,
+            await base44.asServiceRole.entities.SectionSummary.update(existing[0].id, {
+              section_summary_text: section.summary,
               generated_at: new Date().toISOString()
             });
           } else {
-            savedInstanceSummary = await base44.asServiceRole.entities.InstanceSummary.create({
+            await base44.asServiceRole.entities.SectionSummary.create({
               session_id: sessionId,
-              section_id: incident.sectionId,
-              question_id: incident.questionId,
-              pack_id: incident.packId,
-              instance_number: incident.instanceNumber,
-              instance_summary_text: instanceSummaryText,
+              section_id: section.section_id,
+              section_summary_text: section.summary,
               generated_at: new Date().toISOString()
             });
           }
-          
-          console.log('[AI-QUESTIONS-BE] INSTANCE_SUMMARY_SAVED', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            summaryId: savedInstanceSummary.id
-          });
-          
-          updatedInstanceSummariesCount++;
-          
-          // Add to question summaries map for aggregation
-          if (!questionSummariesMap[incident.questionId]) {
-            questionSummariesMap[incident.questionId] = {
-              sectionId: incident.sectionId,
-              instances: []
-            };
-          }
-          questionSummariesMap[incident.questionId].instances.push(instanceSummaryText);
-          
+          updatedSectionSummariesCount++;
         } catch (err) {
-          console.error('[AI-QUESTIONS-BE] INSTANCE_SUMMARY_SAVE_ERROR', {
-            sessionId,
-            questionId: incident.questionId,
-            error: err.message
-          });
+          console.error('[AI-UNIFIED] Section save error:', err.message);
         }
       }
-      
-      // Aggregate instance summaries into question summaries
-      let updatedQuestionSummariesCount = 0;
-      
-      for (const [questionId, data] of Object.entries(questionSummariesMap)) {
-        const aggregatedSummary = data.instances.length === 1
-          ? data.instances[0]
-          : data.instances.join(' | ');
-        
+    }
+
+    // Write question and instance summaries
+    if (generateQuestions) {
+      for (const question of questionSummaries) {
         try {
-          const existing = await base44.asServiceRole.entities.QuestionSummary.filter({
+          // Save question summary
+          const existingQ = await base44.asServiceRole.entities.QuestionSummary.filter({
             session_id: sessionId,
-            question_id: questionId
+            question_id: question.question_id
           });
-          
-          let savedQuestionSummary;
-          if (existing.length > 0) {
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.update(existing[0].id, {
-              question_summary_text: aggregatedSummary,
+
+          const questionData = context.questions.find(q => q.question_id === question.question_id);
+          const sectionId = questionData?.section_id || null;
+
+          if (existingQ.length > 0) {
+            await base44.asServiceRole.entities.QuestionSummary.update(existingQ[0].id, {
+              question_summary_text: question.summary,
               generated_at: new Date().toISOString()
             });
           } else {
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.create({
+            await base44.asServiceRole.entities.QuestionSummary.create({
               session_id: sessionId,
-              section_id: data.sectionId,
-              question_id: questionId,
-              question_summary_text: aggregatedSummary,
+              section_id: sectionId,
+              question_id: question.question_id,
+              question_summary_text: question.summary,
               generated_at: new Date().toISOString()
             });
           }
-          
-          console.log('[AI-QUESTIONS-BE] QUESTION_SUMMARY_SAVED', {
-            sessionId,
-            questionId,
-            instanceCount: data.instances.length,
-            summaryId: savedQuestionSummary.id
-          });
-          
           updatedQuestionSummariesCount++;
+
+          // Save instance summaries
+          for (const instance of (question.instances || [])) {
+            const existingI = await base44.asServiceRole.entities.InstanceSummary.filter({
+              session_id: sessionId,
+              question_id: question.question_id,
+              pack_id: instance.pack_id,
+              instance_number: instance.instance_number
+            });
+
+            if (existingI.length > 0) {
+              await base44.asServiceRole.entities.InstanceSummary.update(existingI[0].id, {
+                instance_summary_text: instance.summary,
+                generated_at: new Date().toISOString()
+              });
+            } else {
+              await base44.asServiceRole.entities.InstanceSummary.create({
+                session_id: sessionId,
+                section_id: sectionId,
+                question_id: question.question_id,
+                pack_id: instance.pack_id,
+                instance_number: instance.instance_number,
+                instance_summary_text: instance.summary,
+                generated_at: new Date().toISOString()
+              });
+            }
+            updatedInstanceSummariesCount++;
+          }
         } catch (err) {
-          console.error('[AI-QUESTIONS-BE] QUESTION_SUMMARY_SAVE_ERROR', {
-            sessionId,
-            questionId,
-            error: err.message
-          });
+          console.error('[AI-UNIFIED] Question/instance save error:', err.message);
         }
       }
-      
-      console.log('[AI-QUESTIONS-BE] DONE', {
-        sessionId,
-        updatedInstanceSummariesCount,
-        updatedQuestionSummariesCount
-      });
-      
-      return Response.json({
-        ok: true,
-        success: true,
-        updatedInstanceSummariesCount,
-        updatedQuestionSummariesCount
-      });
-    } else if (generateGlobal && !generateSections && !generateQuestions) {
+    }
+
+    console.log('[AI-UNIFIED] DONE', {
+      sessionId,
+      updatedGlobalSummary,
+      updatedSectionSummariesCount,
+      updatedQuestionSummariesCount,
+      updatedInstanceSummariesCount
+    });
+
+    return Response.json({
+      ok: true,
+      success: true,
+      updatedCount: updatedSectionSummariesCount + updatedQuestionSummariesCount + updatedInstanceSummariesCount,
+      updatedGlobalSummary,
+      updatedSectionSummariesCount,
+      updatedQuestionSummariesCount,
+      updatedInstanceSummariesCount
+    });
+
+  } catch (error) {
+    console.error('[AI-UNIFIED] ERROR:', error.message);
+    return Response.json({
+      ok: false,
+      error: { message: error.message }
+    }, { status: 500 });
+  }
+});
       // PINK BRAIN: Global only
       llmPrompt = `You are an AI assistant for law enforcement background investigations. Generate a global interview summary.
 
