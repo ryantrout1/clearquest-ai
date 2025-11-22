@@ -157,7 +157,7 @@ export default function SectionHeader({
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">🧠</span>
+                  <span className="text-purple-400 text-base">🧠</span>
                   <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">
                     AI Investigator Assist
                   </span>
@@ -206,7 +206,7 @@ export default function SectionHeader({
             </div>
           ) : (
             <div className="text-sm text-slate-500 italic">
-              No summary available. Use 'Generate AI Summaries' to create one.
+              No summary available. Use purple brain button to generate.
             </div>
           )}
 
