@@ -111,10 +111,13 @@ Return STRICT JSON with this exact structure (no extra text):
 }
 
 RULES:
-- Include questionSummaries ONLY for "Yes" answers that have follow-up details or AI probing
+- Include questionSummaries for EVERY "Yes" answer that has follow-up details, AI probing, or additional context
+- Look for these event kinds in transcript: 'followup_question', 'followup_answer', 'ai_probe_question', 'ai_probe_answer'
+- Each questionSummary should be 1-2 sentences summarizing what was disclosed for that specific question
 - If interview is mostly "No" answers, still provide thoughtful analysis
 - Base risk levels on actual disclosures, not just counts
-- Be factual and professional, no recommendations`;
+- Be factual and professional, no recommendations
+- IMPORTANT: Generate questionSummaries for ALL questions that received "Yes" answers and have any follow-up activity`;
 
     // Single LLM call with structured JSON output
     let llmResult;
