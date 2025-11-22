@@ -650,11 +650,11 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
               <div className="text-2xl font-bold text-amber-400">{progress}%</div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
             </div>
-            <div className="flex flex-col gap-1.5 w-32">
+            <div className="flex flex-row gap-1.5 w-full">
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 flex-1"
               >
                 View Interview
               </Button>
@@ -664,7 +664,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 variant="outline"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-8 w-full transition-colors",
+                  "text-xs h-8 flex-1 transition-colors",
                   deleteConfirm
                     ? "bg-red-600/20 text-red-300 border-red-600 hover:bg-red-600/30"
                     : "bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white"

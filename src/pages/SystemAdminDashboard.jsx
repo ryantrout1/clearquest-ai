@@ -560,8 +560,8 @@ export default function SystemAdminDashboard() {
                           <div className="text-2xl font-bold text-amber-400">{stats.completionRate || 0}%</div>
                           <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
                         </div>
-                        <div className="flex flex-col gap-1.5 w-32">
-                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-full">
+                        <div className="flex flex-row gap-1.5 w-full">
+                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="flex-1">
                             <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
                               View
                             </Button>
@@ -572,7 +572,7 @@ export default function SystemAdminDashboard() {
                             disabled={dept.plan_level === 'Paid' || isDeleting}
                             variant="outline"
                             className={cn(
-                              "text-xs h-8 w-full transition-colors",
+                              "text-xs h-8 flex-1 transition-colors",
                               dept.plan_level === 'Paid' 
                                 ? 'opacity-50 cursor-not-allowed bg-slate-700 text-slate-500' 
                                 : isInConfirmState
