@@ -30,6 +30,13 @@ Deno.serve(async (req) => {
     const sessionId = body?.sessionId || body?.session_id || body?.interviewId;
     const transcriptEvents = body?.transcriptEvents || [];
 
+    console.log('[FUNC generateSessionSummaries] start', { 
+      sessionId, 
+      hasTranscriptEvents: transcriptEvents.length > 0,
+      eventCount: transcriptEvents.length,
+      bodyKeys: Object.keys(body || {})
+    });
+
     if (!sessionId) {
       return Response.json({ 
         ok: false,
@@ -212,6 +219,13 @@ RULES:
       global_ai_summary: interviewSummary,
       section_ai_summaries: sectionSummariesObj,
       ai_summaries_last_generated_at: new Date().toISOString()
+    });
+
+    console.log('[FUNC generateSessionSummaries] wrote', {
+      questionSummaries: updatedQuestionCount,
+      sectionSummaries: Object.keys(sectionSummariesObj).length,
+      globalSummary: interviewSummary ? 1 : 0,
+      redFlags: redFlags.length
     });
 
     console.log(`✅ Saved summaries to session ${sessionId}`);

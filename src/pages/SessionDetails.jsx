@@ -99,7 +99,7 @@ export default function SessionDetails() {
         base44.entities.FollowUpQuestion.list()
       ]);
 
-      // DIAGNOSTIC LOG: Inspect raw session data
+      // DIAGNOSTIC LOG: Inspect raw session data and AI summaries
       console.log("[SESSION DETAILS RAW DATA]", {
         sessionId,
         responsesCount: responsesData.length,
@@ -107,6 +107,14 @@ export default function SessionDetails() {
         followUpQuestionEntitiesCount: followUpQuestionsData.length,
         sampleFollowup: followupsData[0],
         sampleFollowUpQuestion: followUpQuestionsData.find(q => q.followup_pack_id === 'PACK_LE_APPS')
+      });
+
+      console.log('[SESSIONDETAILS] Loaded AI summaries', {
+        hasGlobalAISummary: !!sessionData.global_ai_summary,
+        hasSectionAISummaries: !!sessionData.section_ai_summaries,
+        sectionSummaryCount: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries).length : 0,
+        responsesWithSummaries: responsesData.filter(r => r.investigator_summary).length,
+        lastGenerated: sessionData.ai_summaries_last_generated_at
       });
 
       // DIAGNOSTIC LOG: Check for AI probing data
