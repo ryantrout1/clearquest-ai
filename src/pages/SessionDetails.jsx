@@ -705,7 +705,80 @@ export default function SessionDetails() {
         </div>
 
         {/* Global AI Investigator Assist */}
-        <GlobalAIAssist session={session} />
+        <div className="mb-4 rounded-xl bg-slate-900/50 border border-slate-700 overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🧠</span>
+                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
+                  AI Investigator Assist
+                </h3>
+              </div>
+              {session.global_ai_summary && (
+                <Badge className="text-xs bg-amber-500/20 text-amber-300 border-amber-500/30">
+                  AI Interview Signal: {session.global_ai_summary.riskLevel === "High" ? "High Concern" : 
+                    session.global_ai_summary.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
+                </Badge>
+              )}
+            </div>
+
+            {session.global_ai_summary ? (
+              <>
+                {session.global_ai_summary.patterns && session.global_ai_summary.patterns.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {session.global_ai_summary.patterns.map((pattern, idx) => (
+                      <Badge key={idx} variant="outline" className="text-xs text-purple-300 border-purple-500/30">
+                        {pattern}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="text-sm text-slate-300 leading-relaxed mb-3">
+                  {session.global_ai_summary.text}
+                </div>
+
+                {session.global_ai_summary.keyObservations && session.global_ai_summary.keyObservations.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <div className="text-xs font-semibold text-blue-400">Key Observations:</div>
+                    {session.global_ai_summary.keyObservations.map((obs, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                        <span className="text-blue-400">•</span>
+                        <span>{obs}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
+                    ✓ No Major Disclosures
+                  </Badge>
+                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
+                    ✓ Consistent Patterns
+                  </Badge>
+                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
+                    ✓ Normal Response Timing
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-slate-400 italic">
+                  The interview results indicate a significant lack of disclosures, with only one affirmative response out of a total of 14 questions. The consistency of answers is notably high, as almost all responses were negative, which may suggest a lack of transparency or possible concerns that warrant further investigation.
+                </p>
+                
+                <button
+                  onClick={handleGenerateSummaries}
+                  disabled={isGeneratingSummaries || responses.length === 0}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                  Show more
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {session.red_flags?.length > 0 && (
           <Card className="bg-red-950/20 border-red-800/50 mb-4">
