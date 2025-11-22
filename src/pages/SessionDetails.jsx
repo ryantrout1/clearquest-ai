@@ -62,7 +62,9 @@ export default function SessionDetails() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);
+  const [isGeneratingSection, setIsGeneratingSection] = useState(false);
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [transcriptEvents, setTranscriptEvents] = useState([]);
 
   const categoryRefs = useRef({});
@@ -375,11 +377,11 @@ export default function SessionDetails() {
 
   // Pink brain: Regenerate only global AI Investigator Assist summary
   const handleGenerateGlobalAISummary = async () => {
-    if (!sessionId) return;
+    if (!sessionId || isGeneratingGlobal) return;
+    setIsGeneratingGlobal(true);
+    console.log('[SESSIONDETAILS] Global AI generation started', { sessionId });
 
     try {
-      setIsGenerating(true);
-
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId,
         transcriptEvents: transcriptEvents,
@@ -388,28 +390,32 @@ export default function SessionDetails() {
         generateQuestions: false
       });
 
+      console.log('[SESSIONDETAILS] Global AI generation finished');
+
       if (result.data.success || result.data.ok) {
         toast.success('Global AI summary updated');
       } else {
         toast.error('Failed to generate global summary');
       }
 
-      await loadSessionData();
+      // Reload only global summary
+      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      setSession(sessionData);
     } catch (err) {
       console.error('[SESSIONDETAILS] Error generating global AI summary', err);
       toast.error('Failed to generate global summary');
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingGlobal(false);
     }
   };
 
   // Purple brain: Regenerate only current section's AI summary
   const handleGenerateSectionSummary = async (targetSectionName) => {
-    if (!sessionId || !targetSectionName) return;
+    if (!sessionId || !targetSectionName || isGeneratingSection) return;
+    setIsGeneratingSection(true);
+    console.log('[SESSIONDETAILS] Section AI generation started', { sessionId, sectionId: targetSectionName });
 
     try {
-      setIsGenerating(true);
-
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId,
         transcriptEvents: transcriptEvents,
@@ -419,28 +425,32 @@ export default function SessionDetails() {
         sectionId: targetSectionName
       });
 
+      console.log('[SESSIONDETAILS] Section AI generation finished');
+
       if (result.data.success || result.data.ok) {
         toast.success(`Section summary updated: ${targetSectionName}`);
       } else {
         toast.error('Failed to generate section summary');
       }
 
-      await loadSessionData();
+      // Reload only section summaries
+      const sessionData = await base44.entities.InterviewSession.get(sessionId);
+      setSession(sessionData);
     } catch (err) {
       console.error('[SESSIONDETAILS] Error generating section AI summary', err);
       toast.error('Failed to generate section summary');
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingSection(false);
     }
   };
 
   // Blue brain: Regenerate only question summaries (all instances)
   const handleGenerateQuestionSummaries = async () => {
-    if (!sessionId) return;
+    if (!sessionId || isGeneratingQuestions) return;
+    setIsGeneratingQuestions(true);
+    console.log('[SESSIONDETAILS] Question AI generation started', { sessionId });
 
     try {
-      setIsGenerating(true);
-
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId,
         transcriptEvents: transcriptEvents,
@@ -449,6 +459,8 @@ export default function SessionDetails() {
         generateQuestions: true
       });
 
+      console.log('[SESSIONDETAILS] Question AI generation finished');
+
       if (result.data.success || result.data.ok) {
         const count = result.data?.updatedCount || 0;
         toast.success(`Question summaries updated: ${count} questions`);
@@ -456,12 +468,14 @@ export default function SessionDetails() {
         toast.error('Failed to generate question summaries');
       }
 
-      await loadSessionData();
+      // Reload only question-level summaries
+      const responsesData = await base44.entities.Response.filter({ session_id: sessionId });
+      setResponses(responsesData);
     } catch (err) {
       console.error('[SESSIONDETAILS] Error generating question summaries', err);
       toast.error('Failed to generate question summaries');
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingQuestions(false);
     }
   };
 
@@ -783,11 +797,11 @@ export default function SessionDetails() {
                 {/* Pink brain: Global AI Investigator Assist */}
                 <button
                   onClick={handleGenerateGlobalAISummary}
-                  disabled={isGenerating || responses.length === 0}
+                  disabled={isGeneratingGlobal || responses.length === 0}
                   className="inline-flex items-center justify-center rounded-lg border border-pink-500/60 bg-transparent p-2 text-pink-300 hover:bg-pink-500/10 hover:border-pink-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Regenerate Global AI Summary"
                 >
-                  {isGenerating ? (
+                  {isGeneratingGlobal ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <span className="text-base">🧠</span>
@@ -803,11 +817,11 @@ export default function SessionDetails() {
                       handleGenerateSectionSummary(firstCategory);
                     }
                   }}
-                  disabled={isGenerating || responses.length === 0}
+                  disabled={isGeneratingSection || responses.length === 0}
                   className="inline-flex items-center justify-center rounded-lg border border-purple-500/60 bg-transparent p-2 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Regenerate Section Summaries"
                 >
-                  {isGenerating ? (
+                  {isGeneratingSection ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <span className="text-base">🧠</span>
@@ -817,11 +831,11 @@ export default function SessionDetails() {
                 {/* Blue brain: Question summaries */}
                 <button
                   onClick={handleGenerateQuestionSummaries}
-                  disabled={isGenerating || responses.length === 0}
+                  disabled={isGeneratingQuestions || responses.length === 0}
                   className="inline-flex items-center justify-center rounded-lg border border-blue-500/60 bg-transparent p-2 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Regenerate Question Summaries"
                 >
-                  {isGenerating ? (
+                  {isGeneratingQuestions ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <span className="text-base">🧠</span>
@@ -898,7 +912,7 @@ export default function SessionDetails() {
                 
                 <button
                   onClick={handleGenerateGlobalAISummary}
-                  disabled={isGenerating || responses.length === 0}
+                  disabled={isGeneratingGlobal || responses.length === 0}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                 >
                   Show more
