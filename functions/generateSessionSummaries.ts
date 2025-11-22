@@ -177,21 +177,31 @@ Format your response as JSON:
   "riskLevel": "Low|Medium|High"
 }`;
 
-    const globalSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt: globalPrompt,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          mainSummary: { type: "string" },
-          keyObservations: { type: "array", items: { type: "string" } },
-          suggestedVerification: { type: "array", items: { type: "string" } },
-          riskLevel: { type: "string", enum: ["Low", "Medium", "High"] }
-        },
-        required: ["mainSummary", "keyObservations", "suggestedVerification", "riskLevel"]
-      }
-    });
+    let globalSummary;
+    try {
+      globalSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt: globalPrompt,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            mainSummary: { type: "string" },
+            keyObservations: { type: "array", items: { type: "string" } },
+            suggestedVerification: { type: "array", items: { type: "string" } },
+            riskLevel: { type: "string", enum: ["Low", "Medium", "High"] }
+          },
+          required: ["mainSummary", "keyObservations", "suggestedVerification", "riskLevel"]
+        }
+      });
 
-    globalSummary.patterns = patterns;
+      globalSummary.patterns = patterns;
+    } catch (err) {
+      console.error('❌ Error generating global summary:', {
+        error: err.message || String(err),
+        stack: err.stack,
+        sessionId: session_id
+      });
+      throw new Error(`Failed to generate global summary: ${err.message || String(err)}`);
+    }
 
     // Generate section-level summaries
     console.log('📊 Generating section-level AI summaries...');
