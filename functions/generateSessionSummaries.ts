@@ -269,7 +269,12 @@ Format as JSON:
 
         sectionSummaries[sectionName] = sectionSummary;
       } catch (err) {
-        console.error(`Error generating summary for section ${sectionName}:`, err);
+        console.error(`❌ Error generating summary for section ${sectionName}:`, {
+          error: err.message || String(err),
+          stack: err.stack,
+          sectionName
+        });
+        // Continue with other sections
       }
     }
 
