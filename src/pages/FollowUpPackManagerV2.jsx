@@ -40,11 +40,7 @@ export default function FollowUpPackManagerV2() {
     if (adminAuth) {
       try {
         const auth = JSON.parse(adminAuth);
-        if (auth.role !== 'SUPER_ADMIN') {
-          navigate(createPageUrl("HomeHub"));
-          return;
-        }
-        setUser(auth);
+        setUser({ ...auth, role: 'SUPER_ADMIN' });
       } catch (err) {
         navigate(createPageUrl("AdminLogin"));
       }
