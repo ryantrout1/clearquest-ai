@@ -363,112 +363,107 @@ export default function SystemAdminDashboard() {
       <div className="max-w-7xl mx-auto px-4">
 
         {systemMetrics && (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-3">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
             <MetricCard
               title="Departments"
               value={systemMetrics.totalDepartments}
               subtitle={`${systemMetrics.paidDepartments} paid`}
-              icon={Building2}
               color="blue"
             />
             <MetricCard
               title="Active Trials"
               value={systemMetrics.activeTrials}
               subtitle={`${systemMetrics.trialsExpiringSoon} expiring soon`}
-              icon={Rocket}
               color="orange"
               alert={systemMetrics.trialsExpiringSoon > 0}
             />
             <MetricCard
               title="Conversion"
               value={`${systemMetrics.conversionRate}%`}
-              subtitle="Trial → Paid"
-              icon={TrendingUp}
+              subtitle="trial → paid"
               color="green"
             />
             <MetricCard
               title="Interviews"
               value={systemMetrics.totalInterviews}
               subtitle={`${systemMetrics.inProgressInterviews} active`}
-              icon={FileText}
               color="cyan"
             />
             <MetricCard
               title="Completion"
               value={`${systemMetrics.completionRate}%`}
               subtitle={`${systemMetrics.completedInterviews} done`}
-              icon={CheckCircle}
               color="green"
             />
             <MetricCard
               title="Avg/Dept"
               value={systemMetrics.avgInterviewsPerDept}
               subtitle="interviews"
-              icon={Target}
               color="purple"
             />
           </div>
         )}
 
         {upgradeRequests.length > 0 && (
-          <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-base flex items-center gap-2">
+          <div className="mb-4 rounded-xl bg-red-950/20 border border-red-800/50 overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle className="w-5 h-5 text-orange-400" />
-                Pending Upgrade Requests ({upgradeRequests.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {upgradeRequests.map(request => {
-                const dept = departments.find(d => d.id === request.department_id);
-                return (
-                  <div key={request.id} className="border border-slate-700 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-medium text-sm break-words">{dept?.department_name}</h3>
-                      <p className="text-slate-400 text-xs">
-                        {request.current_plan_level} → {request.requested_plan_level}
-                      </p>
-                      {request.note && <p className="text-slate-400 text-xs mt-1">{request.note}</p>}
+                <h3 className="text-sm font-semibold text-orange-300 uppercase tracking-wide">
+                  Pending Upgrade Requests ({upgradeRequests.length})
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {upgradeRequests.map(request => {
+                  const dept = departments.find(d => d.id === request.department_id);
+                  return (
+                    <div key={request.id} className="border border-slate-700 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium text-sm break-words">{dept?.department_name}</h3>
+                        <p className="text-slate-400 text-xs">
+                          {request.current_plan_level} → {request.requested_plan_level}
+                        </p>
+                        {request.note && <p className="text-slate-400 text-xs mt-1">{request.note}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-xs h-8"
+                          onClick={() => handleApproveUpgrade(request)}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-600 text-red-400 hover:bg-red-950/30 text-xs h-8"
+                          onClick={() => handleDeclineUpgrade(request)}
+                        >
+                          <XCircle className="w-3 h-3 mr-1" />
+                          Decline
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-xs h-8"
-                        onClick={() => handleApproveUpgrade(request)}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-600 text-red-400 hover:bg-red-950/30 text-xs h-8"
-                        onClick={() => handleDeclineUpgrade(request)}
-                      >
-                        <XCircle className="w-3 h-3 mr-1" />
-                        Decline
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         )}
 
-        <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
-          <CardContent className="p-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                placeholder="Search departments..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 text-sm h-9"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* Search Card */}
+        <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              placeholder="Search departments..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-sm h-9"
+            />
+          </div>
+        </div>
 
         <div className="space-y-3">
           {departmentsLoading ? (
@@ -490,78 +485,88 @@ export default function SystemAdminDashboard() {
               const isInConfirmState = confirmDeleteId === dept.id;
               
               return (
-                <Card key={dept.id} className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                <Card key={dept.id} className="bg-[#0f1629] border-slate-800/50 hover:border-slate-700 hover:shadow-lg transition-all">
                   <CardContent className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                      <div className="md:col-span-4 space-y-2">
-                        <div>
-                          <h3 className="text-base font-medium text-white mb-1">
-                            {dept.department_name}
-                          </h3>
-                          <div className="space-y-0.5">
-                            <p className="text-sm text-slate-400">
-                              Code: <span className="text-slate-300 font-mono font-normal">{dept.department_code}</span>
-                            </p>
-                            {dept.city && dept.state && (
-                              <p className="text-sm text-slate-400">
-                                Location: <span className="text-slate-300 font-normal">{dept.city}, {dept.state}</span>
-                              </p>
+                    <div className="flex items-start justify-between gap-4">
+                      {/* Left side - Content */}
+                      <div className="flex-1 space-y-2.5">
+                        {/* Row 1: Department Name + Plan Badge */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex-1 min-w-[200px]">
+                            <h3 className="text-xl font-semibold text-slate-50">
+                              {dept.department_name}
+                            </h3>
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", getPlanBadgeColor(dept.plan_level))}>
+                              {dept.plan_level}
+                            </Badge>
+                            {daysRemaining !== null && (
+                              <Badge className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", 
+                                daysRemaining <= 3 
+                                  ? "bg-red-500/20 text-red-300 border-red-500/30" 
+                                  : "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                              )}>
+                                {daysRemaining}d left
+                              </Badge>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Clock className="w-3 h-3" />
+
+                        {/* Row 2: Meta Info */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                          <span>
+                            Code: <span className="font-medium text-slate-200 font-mono">{dept.department_code}</span>
+                          </span>
+                          {dept.city && dept.state && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                {dept.city}, {dept.state}
+                              </span>
+                            </>
+                          )}
+                          <span>•</span>
                           <span>
                             {dept.date_joined 
                               ? format(new Date(dept.date_joined), "MMM d, yyyy") 
                               : 'N/A'}
                           </span>
                         </div>
+
+                        {/* Row 3: Metrics Strip */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+                          <span>
+                            <span className="text-slate-400">Interviews</span> <span className="font-semibold text-slate-50">{stats.interviewsCount || 0}</span>
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span>
+                            <span className="text-slate-400">Completed</span> <span className="font-semibold text-green-400">{stats.completedInterviewsCount || 0}</span>
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span>
+                            <span className="text-slate-400">In Progress</span> <span className={cn("font-semibold", stats.inProgressCount > 0 ? "text-orange-400" : "text-slate-50")}>{stats.inProgressCount || 0}</span>
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span>
+                            <span className="text-slate-400">Follow-Ups</span> <span className="font-semibold text-indigo-400">{stats.followUpsCount || 0}</span>
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="md:col-span-5 grid grid-cols-4 gap-3">
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Interviews</p>
-                          <p className="text-xl font-bold text-white">{stats.interviewsCount || 0}</p>
+                      {/* Right side - Actions */}
+                      <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-amber-400">{stats.completionRate || 0}%</div>
+                          <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Completed</p>
-                          <p className="text-xl font-bold text-white">{stats.completedInterviewsCount || 0}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">In Progress</p>
-                          <p className={cn("text-xl font-bold", stats.inProgressCount > 0 ? "text-orange-400" : "text-white")}>
-                            {stats.inProgressCount || 0}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
-                          <p className="text-xl font-bold text-white">{stats.followUpsCount || 0}</p>
-                        </div>
-                      </div>
-
-                      <div className="md:col-span-3 flex flex-col justify-between gap-3">
-                        <div className="flex justify-end gap-2">
-                          <Badge className={cn("text-xs font-medium", getPlanBadgeColor(dept.plan_level))}>
-                            {dept.plan_level}
-                          </Badge>
-                          {daysRemaining !== null && (
-                            <Badge className={cn("text-xs font-medium", 
-                              daysRemaining <= 3 
-                                ? "bg-red-500/20 text-red-300 border-red-500/30" 
-                                : "bg-orange-500/20 text-orange-300 border-orange-500/30"
-                            )}>
-                              {daysRemaining}d left
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1.5 items-end">
-                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-32">
-                            <Button size="sm" variant="outline" className="w-full bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700 text-xs h-8">
+                        <div className="flex flex-col gap-1.5 w-32">
+                          <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-full">
+                            <Button size="sm" variant="outline" className="w-full bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white text-xs h-8">
                               View
                             </Button>
                           </Link>
-                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-32">
+                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-full">
                             <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
                               Edit
                             </Button>
@@ -570,17 +575,18 @@ export default function SystemAdminDashboard() {
                             size="sm" 
                             onClick={() => handleDeleteClick(dept)}
                             disabled={dept.plan_level === 'Paid' || isDeleting}
+                            variant="outline"
                             className={cn(
-                              "text-xs h-8 w-32 transition-colors",
+                              "text-xs h-8 w-full transition-colors",
                               dept.plan_level === 'Paid' 
                                 ? 'opacity-50 cursor-not-allowed bg-slate-700 text-slate-500' 
                                 : isInConfirmState
-                                ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
-                                : 'bg-red-600 hover:bg-red-700 text-white'
+                                ? 'bg-red-600/20 text-red-300 border-red-600 hover:bg-red-600/30 animate-pulse'
+                                : 'bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
                             )}
                             title={dept.plan_level === 'Paid' ? 'Contact support to remove paid departments' : isInConfirmState ? 'Click again to confirm' : 'Delete'}
                           >
-                            {isInConfirmState ? 'Confirm Delete' : 'Delete'}
+                            {isInConfirmState ? 'Confirm' : 'Delete'}
                           </Button>
                         </div>
                       </div>
@@ -602,19 +608,33 @@ export default function SystemAdminDashboard() {
   );
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, color, alert }) {
-  const iconColorClasses = {
-    blue: "text-blue-400",
-    orange: "text-orange-400",
-    cyan: "text-cyan-400",
-    green: "text-green-400",
-    purple: "text-purple-400"
+function MetricCard({ title, value, subtitle, color, alert }) {
+  const colorClasses = {
+    blue: { bg: "bg-slate-900/70", border: "border-slate-800" },
+    orange: { bg: "bg-gradient-to-br from-amber-900/70 to-slate-900/70", border: "border-amber-900" },
+    cyan: { bg: "bg-gradient-to-br from-cyan-900/70 to-slate-900/70", border: "border-cyan-900" },
+    green: { bg: "bg-gradient-to-br from-emerald-900/70 to-slate-900/70", border: "border-emerald-900" },
+    purple: { bg: "bg-gradient-to-br from-purple-900/70 to-slate-900/70", border: "border-purple-900" }
   };
 
+  const styles = colorClasses[color] || colorClasses.blue;
+
   return (
-    <div className={`bg-[#0f1629] border border-slate-800/50 rounded-lg p-4 ${alert ? 'ring-2 ring-orange-500/50' : ''}`}>
-      <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{title}</p>
-      <p className={cn("text-2xl font-bold", iconColorClasses[color])}>{value}</p>
+    <div className={cn(
+      "rounded-xl border px-3 py-2 flex flex-col justify-between",
+      styles.bg,
+      styles.border,
+      alert && "ring-2 ring-orange-500/50"
+    )}>
+      <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+        {title}
+      </div>
+      <div className="text-xl font-semibold text-slate-50">
+        {value}
+      </div>
+      <div className="text-[10px] text-slate-400">
+        {subtitle}
+      </div>
     </div>
   );
 }
