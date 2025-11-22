@@ -2142,7 +2142,7 @@ export default function CandidateInterview() {
       handleAiResponseTimeout();
       setIsCommitting(false);
     }
-  }, [conversation, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion, disableAiForSession]);
+  }, [aiSessionId, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion, clearTypingTimeout, startAiResponseTimeout, clearAiResponseTimeout, handleAiResponseTimeout, isInvokeLLMMode, invokeLLMProbingExchanges, aiFollowupCounts, transcript, sessionId, onFollowupPackComplete]);
 
   const handleTextSubmit = useCallback((e) => {
     e.preventDefault();
