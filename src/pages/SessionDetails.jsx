@@ -366,7 +366,8 @@ export default function SessionDetails() {
       setIsGenerating(true);
 
       const result = await base44.functions.invoke('generateSessionSummaries', {
-        session_id: sessionId
+        session_id: sessionId,
+        transcriptEvents: transcriptEvents
       });
 
       console.log('[SESSIONDETAILS] Generate AI result', result);
