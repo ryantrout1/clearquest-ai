@@ -266,7 +266,7 @@ export default function FollowUpPackManagerV2() {
   const rightWidth = 100 - leftWidth - middleWidth;
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Header */}
       <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
         <div className="max-w-[2000px] mx-auto flex items-center justify-between">
