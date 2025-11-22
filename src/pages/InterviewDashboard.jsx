@@ -287,37 +287,6 @@ export default function InterviewDashboard() {
           <CompactStat label="Flagged" value={stats.flagged} color="red" />
         </div>
 
-        {/* AI Overview Band */}
-        <div className="mb-4 rounded-xl bg-slate-900/50 border border-slate-700 overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🧠</span>
-                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
-                  AI Investigator Overview
-                </h3>
-              </div>
-              <Badge className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
-                {stats.flagged === 0 ? 'No Critical Flags' : `${stats.flagged} Sessions Flagged`}
-              </Badge>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-start gap-2 text-xs text-slate-300">
-                <span className="text-blue-400">•</span>
-                <span>{stats.total} total interview sessions tracked across all departments</span>
-              </div>
-              <div className="flex items-start gap-2 text-xs text-slate-300">
-                <span className="text-blue-400">•</span>
-                <span>{stats.completed} sessions completed with full AI analysis</span>
-              </div>
-              <div className="flex items-start gap-2 text-xs text-slate-300">
-                <span className="text-blue-400">•</span>
-                <span>{stats.inProgress} sessions currently in progress</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Search & Filters Card */}
         <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 space-y-3 mb-4">
           {/* Search Row */}
