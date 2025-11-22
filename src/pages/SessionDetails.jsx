@@ -62,7 +62,7 @@ export default function SessionDetails() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
-  const [isGeneratingSummaries, setIsGeneratingSummaries] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [transcriptEvents, setTranscriptEvents] = useState([]);
 
   const categoryRefs = useRef({});
@@ -356,25 +356,34 @@ export default function SessionDetails() {
 
   const handleGenerateAISummaries = async () => {
     console.log('[SESSIONDETAILS] Generate AI clicked', { sessionId });
-    setIsGeneratingSummaries(true);
+
+    if (!sessionId) {
+      console.warn('[SESSIONDETAILS] No sessionId, aborting generate AI.');
+      return;
+    }
 
     try {
+      setIsGenerating(true);
+
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId
       });
 
+      console.log('[SESSIONDETAILS] Generate AI result', result);
+
       if (result.data.success) {
         const { updatedCount, globalSummaryGenerated, sectionSummariesGenerated } = result.data;
         toast.success(`AI summaries updated: ${updatedCount} questions, global summary, and ${sectionSummariesGenerated} sections`);
-        await loadSessionData();
       } else {
         toast.error('Failed to generate summaries');
       }
+
+      await loadSessionData();
     } catch (err) {
       console.error('[SESSIONDETAILS] Error generating AI summaries', err);
       toast.error('Failed to generate summaries');
     } finally {
-      setIsGeneratingSummaries(false);
+      setIsGenerating(false);
     }
   };
 
@@ -693,10 +702,10 @@ export default function SessionDetails() {
 
               <button
                 onClick={handleGenerateAISummaries}
-                disabled={isGeneratingSummaries}
+                disabled={isGenerating}
                 className="hidden md:inline-flex items-center gap-2 rounded-lg border border-purple-500/60 bg-transparent px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isGeneratingSummaries ? (
+                {isGenerating ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Generating...
