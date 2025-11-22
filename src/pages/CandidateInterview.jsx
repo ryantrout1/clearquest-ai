@@ -25,6 +25,8 @@ import {
 import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
+import StartInterviewMessage from "../components/interview/StartInterviewMessage";
+import ResumeInterviewMessage from "../components/interview/ResumeInterviewMessage";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -172,6 +174,10 @@ export default function CandidateInterview() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [wasPaused, setWasPaused] = useState(false);
+  
+  // NEW: Start/Resume interview state
+  const [hasStarted, setHasStarted] = useState(false);
+  const [showResumeMessage, setShowResumeMessage] = useState(false);
 
   // Refs
   const historyRef = useRef(null);
@@ -328,7 +334,6 @@ export default function CandidateInterview() {
       // Check if session was paused
       if (loadedSession.status === 'paused') {
         setWasPaused(true);
-        setShowResumeBanner(true);
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
         });
@@ -378,6 +383,21 @@ export default function CandidateInterview() {
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
+      }
+      
+      // NEW: Detect new vs resume interview
+      const isNewInterview = !hasValidSnapshots && (!loadedSession.transcript_snapshot || loadedSession.transcript_snapshot.length === 0);
+      const isResumeInterview = hasValidSnapshots && loadedSession.transcript_snapshot.length > 0;
+      
+      if (isNewInterview) {
+        console.log('🆕 [PRODUCTION] New interview - showing start message');
+        setHasStarted(false);
+      } else if (isResumeInterview) {
+        console.log('🔄 [PRODUCTION] Resume interview - showing resume message');
+        setShowResumeMessage(true);
+        setHasStarted(true); // Already started previously
+      } else {
+        setHasStarted(true); // Default to started
       }
       
       setIsLoading(false);
@@ -2613,33 +2633,7 @@ export default function CandidateInterview() {
           </div>
         </header>
 
-        {showResumeBanner && (
-          <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-4 py-3">
-            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                <div className="flex flex-wrap items-center gap-2 text-sm text-emerald-100">
-                  <span>Welcome back! Resuming interview with</span>
-                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
-                    {session?.department_code}
-                  </span>
-                  <span>•</span>
-                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
-                    {session?.file_number}
-                  </span>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowResumeBanner(false)}
-                className="text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/30"
-              >
-                Dismiss
-              </Button>
-            </div>
-          </div>
-        )}
+
 
         {/* Main Content */}
         <main className="flex-1 overflow-hidden flex flex-col">
@@ -2648,7 +2642,17 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {answeredCount > 0 && (
+              {/* NEW: Start interview message (for new interviews) */}
+              {!hasStarted && (
+                <StartInterviewMessage onStart={() => setHasStarted(true)} />
+              )}
+              
+              {/* NEW: Resume interview message */}
+              {showResumeMessage && hasStarted && (
+                <ResumeInterviewMessage onContinue={() => setShowResumeMessage(false)} />
+              )}
+              
+              {answeredCount > 0 && hasStarted && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
@@ -2696,8 +2700,8 @@ export default function CandidateInterview() {
             </div>
           </div>
 
-          {/* Active Question (Deterministic) or Agent Probing */}
-          {lastAgentQuestion && isWaitingForAgent ? (
+          {/* Active Question (Deterministic) or Agent Probing - only show if interview has started */}
+          {hasStarted && !showResumeMessage && lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -2726,7 +2730,7 @@ export default function CandidateInterview() {
                 </div>
               </div>
             </div>
-          ) : currentPrompt ? (
+          ) : hasStarted && !showResumeMessage && currentPrompt ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -2817,15 +2821,16 @@ export default function CandidateInterview() {
           ) : null}
         </main>
 
-        {/* Footer */}
-        <footer 
-          className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
-          role="form"
-          aria-label="Response area"
-        >
-          <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-            {isYesNoQuestion ? (
+        {/* Footer - only show if interview has started and not showing resume message */}
+        {hasStarted && !showResumeMessage && (
+          <footer 
+            className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
+            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            role="form"
+            aria-label="Response area"
+          >
+            <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
+              {isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
@@ -2872,13 +2877,14 @@ export default function CandidateInterview() {
               </form>
             )}
             
-            <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
-              {isWaitingForAgent 
-                ? "Responding to investigator's probing questions..." 
-                : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
-            </p>
-          </div>
-        </footer>
+              <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
+                {isWaitingForAgent 
+                  ? "Responding to investigator's probing questions..." 
+                  : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+              </p>
+            </div>
+          </footer>
+        )}
       </div>
 
       {/* Pause Modal */}
