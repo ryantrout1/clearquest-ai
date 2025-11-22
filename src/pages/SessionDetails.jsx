@@ -62,9 +62,7 @@ export default function SessionDetails() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
-  const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);      // Pink brain
-  const [isGeneratingSection, setIsGeneratingSection] = useState(false);    // Purple brain
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false); // Blue brain
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [transcriptEvents, setTranscriptEvents] = useState([]);
 
   const categoryRefs = useRef({});
@@ -375,149 +373,41 @@ export default function SessionDetails() {
     }
   };
 
-  // Pink brain: Regenerate only global AI Investigator Assist summary
-  const handleGenerateGlobalAISummary = async () => {
-    if (!sessionId || isGeneratingGlobal) return;
-    setIsGeneratingGlobal(true);
-    console.log('[AI-GLOBAL] START', { sessionId });
+  // Unified AI generation handler
+  const handleGenerateAllSummaries = async () => {
+    if (!sessionId || isGeneratingAI) return;
+    setIsGeneratingAI(true);
 
     try {
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId,
-        transcriptEvents: transcriptEvents,
         generateGlobal: true,
-        generateSections: false,
-        generateQuestions: false
-      });
-
-      console.log('[AI-GLOBAL] FINISH', {
-        sessionId,
-        updatedInterviewSummary: result?.data?.interviewSummary ? true : false
-      });
-
-      if (result.data.success || result.data.ok) {
-        toast.success('Global AI summary updated');
-      } else {
-        toast.error('Failed to generate global summary');
-      }
-
-      // Reload only global summary
-      const sessionData = await base44.entities.InterviewSession.get(sessionId);
-      setSession(sessionData);
-      console.log('[AI-GLOBAL] RELOADED', { sessionId });
-    } catch (err) {
-      console.error('[AI-GLOBAL] ERROR', { sessionId, error: err });
-      toast.error('Failed to generate global summary');
-    } finally {
-      setIsGeneratingGlobal(false);
-    }
-  };
-
-  // Purple brain: Regenerate only current section's AI summary
-  const handleGenerateSectionSummary = async (targetSectionName) => {
-    if (!sessionId || !targetSectionName || isGeneratingSection) return;
-    setIsGeneratingSection(true);
-    console.log('[AI-SECTION] START', { sessionId, sectionId: targetSectionName });
-
-    try {
-      const result = await base44.functions.invoke('generateSessionSummaries', {
-        session_id: sessionId,
-        transcriptEvents: transcriptEvents,
-        generateGlobal: false,
         generateSections: true,
-        generateQuestions: false,
-        sectionId: targetSectionName
-      });
-
-      console.log('[AI-SECTION] FINISH', {
-        sessionId,
-        sectionId: targetSectionName,
-        updatedSectionSummaries: result?.data?.sectionSummariesGenerated || 0
-      });
-
-      if (result.data.success || result.data.ok) {
-        toast.success(`Section summary updated: ${targetSectionName}`);
-      } else {
-        toast.error('Failed to generate section summary');
-      }
-
-      // Reload only section summaries
-      const sessionData = await base44.entities.InterviewSession.get(sessionId);
-      setSession(sessionData);
-      console.log('[AI-SECTION] RELOADED', { sessionId, sectionId: targetSectionName });
-    } catch (err) {
-      console.error('[AI-SECTION] ERROR', { sessionId, sectionId: targetSectionName, error: err });
-      toast.error('Failed to generate section summary');
-    } finally {
-      setIsGeneratingSection(false);
-    }
-  };
-
-  // Blue brain: Regenerate only question summaries (all instances)
-  const handleGenerateQuestionSummaries = async () => {
-    if (!sessionId || isGeneratingQuestions) return;
-    setIsGeneratingQuestions(true);
-    console.log('[AI-QUESTIONS] START', { 
-      sessionId,
-      transcriptEventCount: transcriptEvents.length,
-      yesAnswersWithFollowups: responses.filter(r => 
-        r.answer === 'Yes' && (
-          followups.some(f => f.response_id === r.id) || 
-          r.investigator_probing?.length > 0
-        )
-      ).length,
-      sampleQuestionIds: responses
-        .filter(r => r.answer === 'Yes')
-        .slice(0, 3)
-        .map(r => ({ id: r.question_id, hasFollowups: followups.some(f => f.response_id === r.id) }))
-    });
-
-    try {
-      const result = await base44.functions.invoke('generateSessionSummaries', {
-        session_id: sessionId,
-        transcriptEvents: transcriptEvents,
-        generateGlobal: false,
-        generateSections: false,
         generateQuestions: true
       });
 
-      console.log('[AI-QUESTIONS] FINISH', {
-        sessionId,
-        updatedCount: result.data?.updatedCount,
-        success: result.data?.success || result.data?.ok
-      });
-      
-      // Log what actually came back from backend
-      if (result.data?.updatedCount === 0) {
-        console.warn('[AI-QUESTIONS] ⚠️ Backend returned 0 updated questions - check server logs for LLM output');
-      }
-
       if (result.data.success || result.data.ok) {
-        const count = result.data?.updatedCount || 0;
-        toast.success(`Question summaries updated: ${count} questions`);
+        toast.success('AI summaries generated');
       } else {
-        toast.error('Failed to generate question summaries');
+        toast.error('Failed to generate summaries');
       }
 
-      // Reload only question-level summaries - force fresh data
-      const responsesData = await base44.entities.Response.filter({ session_id: sessionId });
-      console.log('[AI-QUESTIONS] RELOADED', {
-        sessionId,
-        count: responsesData.length,
-        withSummaries: responsesData.filter(r => r.investigator_summary).length,
-        sampleSummaries: responsesData.filter(r => r.investigator_summary).slice(0, 2).map(r => ({
-          questionId: r.question_id,
-          summary: r.investigator_summary?.substring(0, 60)
-        }))
-      });
-      setResponses(responsesData);
+      // Reload all data
+      await loadSessionData();
     } catch (err) {
-      console.error('[AI-QUESTIONS] ERROR', { sessionId, error: err });
-      toast.error('Failed to generate question summaries');
+      console.error('[AI-UNIFIED] ERROR', { sessionId, error: err });
+      toast.error('Failed to generate summaries');
     } finally {
-      setIsGeneratingQuestions(false);
+      setIsGeneratingAI(false);
     }
   };
+
+  // Auto-run on load if no global summary exists
+  useEffect(() => {
+    if (session && !session.global_ai_summary && responses.length > 0 && !isGeneratingAI) {
+      handleGenerateAllSummaries();
+    }
+  }, [session?.id, responses.length]);
 
   if (isLoading) {
     return (
@@ -832,50 +722,15 @@ export default function SessionDetails() {
                 <span className="hidden lg:inline text-xs">Follow-Ups Only</span>
               </button>
 
-              {/* Three scoped brain buttons */}
+              {/* Single unified AI brain button */}
               <div className="hidden md:flex items-center gap-1.5">
-                {/* Pink brain: Global AI Investigator Assist */}
                 <button
-                  onClick={handleGenerateGlobalAISummary}
-                  disabled={isGeneratingGlobal || responses.length === 0}
-                  className="inline-flex items-center justify-center rounded-lg border border-pink-500/60 bg-transparent p-2 text-pink-300 hover:bg-pink-500/10 hover:border-pink-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Regenerate Global AI Summary"
-                >
-                  {isGeneratingGlobal ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span className="text-base">🧠</span>
-                  )}
-                </button>
-                
-                {/* Purple brain: Section summaries */}
-                <button
-                  onClick={() => {
-                    // Get first visible/expanded section or default to first category
-                    const firstCategory = Object.keys(responsesByCategory)[0];
-                    if (firstCategory) {
-                      handleGenerateSectionSummary(firstCategory);
-                    }
-                  }}
-                  disabled={isGeneratingSection || responses.length === 0}
+                  onClick={handleGenerateAllSummaries}
+                  disabled={isGeneratingAI || responses.length === 0}
                   className="inline-flex items-center justify-center rounded-lg border border-purple-500/60 bg-transparent p-2 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Regenerate Section Summaries"
+                  title="Generate AI Summaries"
                 >
-                  {isGeneratingSection ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span className="text-base">🧠</span>
-                  )}
-                </button>
-                
-                {/* Blue brain: Question summaries */}
-                <button
-                  onClick={handleGenerateQuestionSummaries}
-                  disabled={isGeneratingQuestions || responses.length === 0}
-                  className="inline-flex items-center justify-center rounded-lg border border-blue-500/60 bg-transparent p-2 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Regenerate Question Summaries"
-                >
-                  {isGeneratingQuestions ? (
+                  {isGeneratingAI ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <span className="text-base">🧠</span>
