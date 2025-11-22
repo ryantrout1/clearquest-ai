@@ -337,18 +337,6 @@ export default function SystemAdminDashboard() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Link to={createPageUrl("QuestionsManager")}>
-                <Button variant="outline" size="sm" className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-800 text-xs hidden md:inline-flex">
-                  <FileText className="w-4 h-4 mr-1" />
-                  Questions
-                </Button>
-              </Link>
-              <Link to={createPageUrl("BackfillSummaries")}>
-                <Button variant="outline" size="sm" className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-800 text-xs hidden md:inline-flex">
-                  <Shield className="w-4 h-4 mr-1" />
-                  Backfill
-                </Button>
-              </Link>
               <Link to={createPageUrl("CreateDepartment")}>
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs">
                   <Plus className="w-4 h-4 mr-1" />
