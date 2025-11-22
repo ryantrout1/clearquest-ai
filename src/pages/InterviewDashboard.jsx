@@ -208,18 +208,27 @@ export default function InterviewDashboard() {
     
     try {
       // Fetch all related data in parallel
-      const [allRelatedResponses, allRelatedFollowups] = await Promise.all([
+      const [allRelatedResponses, allRelatedFollowups, allQuestionSummaries, allSectionSummaries, allInstanceSummaries] = await Promise.all([
         Promise.all(sessionsToDelete.map(sid => base44.entities.Response.filter({ session_id: sid }))),
-        Promise.all(sessionsToDelete.map(sid => base44.entities.FollowUpResponse.filter({ session_id: sid })))
+        Promise.all(sessionsToDelete.map(sid => base44.entities.FollowUpResponse.filter({ session_id: sid }))),
+        Promise.all(sessionsToDelete.map(sid => base44.entities.QuestionSummary.filter({ session_id: sid }))),
+        Promise.all(sessionsToDelete.map(sid => base44.entities.SectionSummary.filter({ session_id: sid }))),
+        Promise.all(sessionsToDelete.map(sid => base44.entities.InstanceSummary.filter({ session_id: sid })))
       ]);
 
       const responsesToDelete = allRelatedResponses.flat();
       const followupsToDelete = allRelatedFollowups.flat();
+      const questionSummariesToDelete = allQuestionSummaries.flat();
+      const sectionSummariesToDelete = allSectionSummaries.flat();
+      const instanceSummariesToDelete = allInstanceSummaries.flat();
 
       // Delete all related data in parallel
       await Promise.all([
         ...responsesToDelete.map(r => base44.entities.Response.delete(r.id)),
-        ...followupsToDelete.map(f => base44.entities.FollowUpResponse.delete(f.id))
+        ...followupsToDelete.map(f => base44.entities.FollowUpResponse.delete(f.id)),
+        ...questionSummariesToDelete.map(qs => base44.entities.QuestionSummary.delete(qs.id)),
+        ...sectionSummariesToDelete.map(ss => base44.entities.SectionSummary.delete(ss.id)),
+        ...instanceSummariesToDelete.map(is => base44.entities.InstanceSummary.delete(is.id))
       ]);
 
       // Delete all sessions in parallel
@@ -521,14 +530,20 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
     setIsDeleting(true);
     try {
-      const [responses, followups] = await Promise.all([
+      const [responses, followups, questionSummaries, sectionSummaries, instanceSummaries] = await Promise.all([
         base44.entities.Response.filter({ session_id: session.id }),
-        base44.entities.FollowUpResponse.filter({ session_id: session.id })
+        base44.entities.FollowUpResponse.filter({ session_id: session.id }),
+        base44.entities.QuestionSummary.filter({ session_id: session.id }),
+        base44.entities.SectionSummary.filter({ session_id: session.id }),
+        base44.entities.InstanceSummary.filter({ session_id: session.id })
       ]);
 
       await Promise.all([
         ...responses.map(r => base44.entities.Response.delete(r.id)),
         ...followups.map(f => base44.entities.FollowUpResponse.delete(f.id)),
+        ...questionSummaries.map(qs => base44.entities.QuestionSummary.delete(qs.id)),
+        ...sectionSummaries.map(ss => base44.entities.SectionSummary.delete(ss.id)),
+        ...instanceSummaries.map(is => base44.entities.InstanceSummary.delete(is.id)),
         base44.entities.InterviewSession.delete(session.id)
       ]);
 
