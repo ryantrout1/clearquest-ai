@@ -216,213 +216,158 @@ export default function DepartmentDashboard() {
           </Link>
         </div>
 
-        <style>{`
-          :root {
-            --brand: ${department.color_primary || 'rgba(120,160,255,.25)'};
-          }
-          .dept-header-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            padding: 16px 20px;
-            border-radius: 12px;
-            background: rgba(20,24,44,.9);
-            border: 1px solid rgba(255,255,255,.08);
-            box-shadow: 0 8px 28px rgba(0,0,0,.35), 0 0 0 2px var(--brand) inset;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-          }
-          .dept-header-left {
-            display: flex;
-            gap: 14px;
-            align-items: center;
-            min-width: 0;
-            flex: 1;
-          }
-          .dept-header-logo {
-            width: 42px;
-            height: 42px;
-            object-fit: contain;
-            border-radius: 6px;
-            background: #0e1325;
-            flex-shrink: 0;
-          }
-          .dept-header-logo-initials {
-            width: 42px;
-            height: 42px;
-            border-radius: 6px;
-            background: rgba(59, 130, 246, 0.2);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 16px;
-            color: rgb(96, 165, 250);
-            flex-shrink: 0;
-          }
-          .dept-header-titles {
-            min-width: 0;
-            flex: 1;
-          }
-          .dept-header-name {
-            font-weight: 700;
-            font-size: 18px;
-            color: white;
-            margin-bottom: 4px;
-          }
-          .dept-header-meta, .dept-header-contact {
-            opacity: 0.8;
-            font-size: 12px;
-            color: rgb(203, 213, 225);
-          }
-          .dept-header-right {
-            display: flex;
-            gap: 18px;
-            align-items: center;
-            flex-wrap: wrap;
-          }
-          .dept-header-stat {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          .dept-header-stat-key {
-            opacity: 0.7;
-            font-size: 11px;
-            color: rgb(148, 163, 184);
-          }
-          .dept-header-stat-value {
-            font-weight: 700;
-            font-size: 16px;
-            color: white;
-          }
-          .dept-header-badges {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-          }
-          .dept-header-badge {
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-size: 11px;
-            border: 1px solid rgba(255,255,255,.12);
-          }
-          .dept-header-badge.status-Active {
-            background: rgba(46,204,113,.15);
-            color: rgb(74, 222, 128);
-          }
-          .dept-header-badge.status-Suspended {
-            background: rgba(231,76,60,.15);
-            color: rgb(248, 113, 113);
-          }
-          .dept-header-badge.risk-Low {
-            background: rgba(39,174,96,.15);
-            color: rgb(74, 222, 128);
-          }
-          .dept-header-badge.risk-Medium {
-            background: rgba(241,196,15,.15);
-            color: rgb(250, 204, 21);
-          }
-          .dept-header-badge.risk-High {
-            background: rgba(231,76,60,.15);
-            color: rgb(248, 113, 113);
-          }
-          .dept-actions {
-            margin-top: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-          }
-          @media (max-width: 768px) {
-            .dept-header-card {
-              flex-direction: column;
-              align-items: flex-start;
-            }
-            .dept-header-right {
-              width: 100%;
-            }
-          }
-        `}</style>
-
-        <div className="dept-header-card">
-          <div className="dept-header-left">
-            {department.logo_url && !department.use_default_branding ? (
-              <img
-                src={department.logo_url}
-                alt={department.department_name}
-                className="dept-header-logo"
-              />
-            ) : (
-              <div className="dept-header-logo-initials">
-                {getInitials(department.department_name)}
-              </div>
-            )}
-            <div className="dept-header-titles">
-              <div className="dept-header-name">{department.department_name}</div>
-              <div className="dept-header-meta">
-                Dept Code: {department.department_code} • Tier: {department.plan_level}
-              </div>
-              <div className="dept-header-contact">
-                {department.phone_number} • {department.contact_email}
-              </div>
-            </div>
-          </div>
-          <div className="dept-header-right">
-            <div className="dept-header-stat">
-              <span className="dept-header-stat-key">Open</span>
-              <span className="dept-header-stat-value">{metrics.openInterviews}</span>
-            </div>
-            <div className="dept-header-stat">
-              <span className="dept-header-stat-key">Completed (7d)</span>
-              <span className="dept-header-stat-value">{metrics.completed7d}</span>
-            </div>
-            <div className="dept-header-stat">
-              <span className="dept-header-stat-key">Avg Completion</span>
-              <span className="dept-header-stat-value">{metrics.avgCompletion}%</span>
-            </div>
-            <div className="dept-header-stat">
-              <span className="dept-header-stat-key">Follow-ups</span>
-              <span className="dept-header-stat-value">{metrics.followupsPending}</span>
-            </div>
-            <div className="dept-header-badges">
-              <span className={`dept-header-badge status-${department.active_status || 'Active'}`}>
+        {/* Unified Header Card - Three Rows (SessionDetails Style) */}
+        <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 space-y-4 mb-4">
+          {/* Row 1 – Department Name + Status Badge */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-slate-50">
+                {department.department_name}
+              </h1>
+              <Badge className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-all font-medium",
+                department.active_status === 'Active' 
+                  ? "bg-green-500/20 text-green-300 border-green-500/30"
+                  : "bg-red-500/20 text-red-300 border-red-500/30"
+              )}>
                 {department.active_status || 'Active'}
-              </span>
-              <span className={`dept-header-badge risk-${deptRiskLevel}`}>
+              </Badge>
+              <Badge className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-all font-medium",
+                deptRiskLevel === 'Low' && "bg-green-500/20 text-green-300 border-green-500/30",
+                deptRiskLevel === 'Medium' && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+                deptRiskLevel === 'High' && "bg-red-500/20 text-red-300 border-red-500/30"
+              )}>
                 {deptRiskLevel} Risk
+              </Badge>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+              <span>
+                Code: <span className="font-medium text-slate-200">{department.department_code}</span>
               </span>
+              <span>•</span>
+              <span>
+                Tier: <span className="font-medium text-slate-200">{department.plan_level}</span>
+              </span>
+              {department.phone_number && (
+                <>
+                  <span>•</span>
+                  <span>{department.phone_number}</span>
+                </>
+              )}
+              {department.contact_email && (
+                <>
+                  <span>•</span>
+                  <span>{department.contact_email}</span>
+                </>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Actions Row */}
-        <div className="dept-actions">
-          <Link to={createPageUrl("InterviewDashboard")}>
-            <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
-              <FileText className="w-4 h-4 mr-2" />
-              View
-            </Button>
-          </Link>
+          {/* Row 2 – Metric Tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="rounded-xl bg-slate-900/70 border border-slate-800 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                Open
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {metrics.openInterviews}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                in progress
+              </div>
+            </div>
 
-          {canEdit && (
-            <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Settings className="w-4 h-4 mr-2" />
-                Edit
+            <div className="rounded-xl bg-gradient-to-br from-emerald-900/70 to-slate-900/70 border border-emerald-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Completed
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {metrics.completed7d}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                last 7 days
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-indigo-900/70 to-slate-900/70 border border-indigo-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Avg Complete
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {metrics.avgCompletion}%
+              </div>
+              <div className="text-[10px] text-slate-400">
+                completion
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-amber-900/70 to-slate-900/70 border border-amber-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Follow-Ups
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {metrics.followupsPending}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                pending
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-blue-900/70 to-slate-900/70 border border-blue-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Total Users
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {departmentUsers.length}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                contacts
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-gradient-to-br from-purple-900/70 to-slate-900/70 border border-purple-900 px-3 py-2 flex flex-col justify-between">
+              <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+                Retention
+              </div>
+              <div className="text-xl font-semibold text-slate-50">
+                {department.retention_period}d
+              </div>
+              <div className="text-[10px] text-slate-400">
+                data kept
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-slate-800/80" />
+
+          {/* Row 3 – Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 justify-start">
+            <Link to={createPageUrl("InterviewDashboard")}>
+              <Button variant="outline" size="sm" className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm">
+                <FileText className="w-4 h-4 mr-2" />
+                View Interviews
               </Button>
             </Link>
-          )}
 
-          <Button
-            variant="outline"
-            className="bg-transparent border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white"
-            onClick={() => alert('Delete functionality coming soon')}
-          >
-            Delete
-          </Button>
+            {canEdit && (
+              <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white h-9 text-sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Edit Department
+                </Button>
+              </Link>
+            )}
+
+            <Link to={createPageUrl(`ManageDepartmentUsers?id=${department.id}`)}>
+              <Button variant="outline" size="sm" className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700 h-9 text-sm">
+                <Users className="w-4 h-4 mr-2" />
+                Manage Contacts
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Trial Expiring Warning */}
