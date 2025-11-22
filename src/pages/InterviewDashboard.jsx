@@ -551,9 +551,9 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
   const questionsAnswered = actualCounts?.questions || 0;
   const followupsTriggered = actualCounts?.followups || 0;
-  const progress = totalActiveQuestions > 0 
+  const progress = session.status === 'completed' ? 100 : (totalActiveQuestions > 0 
     ? Math.round((questionsAnswered / totalActiveQuestions) * 100)
-    : 0;
+    : 0);
 
   // Calculate Yes/No counts
   const [yesCount, setYesCount] = useState(0);
