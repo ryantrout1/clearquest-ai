@@ -475,8 +475,14 @@ export default function SessionDetails() {
       console.log('[SESSIONDETAILS] Question AI generation finished', {
         success: result.data?.success || result.data?.ok,
         updatedCount: result.data?.updatedCount,
-        fullResult: result.data
+        fullResult: result.data,
+        rawResponseData: result.data?.data
       });
+      
+      // Log what actually came back from backend
+      if (result.data?.updatedCount === 0) {
+        console.warn('[SESSIONDETAILS] ⚠️ Backend returned 0 updated questions - check server logs for LLM output');
+      }
 
       if (result.data.success || result.data.ok) {
         const count = result.data?.updatedCount || 0;
