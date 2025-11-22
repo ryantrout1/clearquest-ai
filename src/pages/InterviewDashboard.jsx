@@ -15,6 +15,17 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+// Helper to batch delete with rate limit protection
+async function batchDelete(items, deleteFn, batchSize = 10, delayMs = 100) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(item => deleteFn(item)));
+    if (i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export default function InterviewDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -222,17 +233,13 @@ export default function InterviewDashboard() {
       const sectionSummariesToDelete = allSectionSummaries.flat();
       const instanceSummariesToDelete = allInstanceSummaries.flat();
 
-      // Delete all related data in parallel
-      await Promise.all([
-        ...responsesToDelete.map(r => base44.entities.Response.delete(r.id)),
-        ...followupsToDelete.map(f => base44.entities.FollowUpResponse.delete(f.id)),
-        ...questionSummariesToDelete.map(qs => base44.entities.QuestionSummary.delete(qs.id)),
-        ...sectionSummariesToDelete.map(ss => base44.entities.SectionSummary.delete(ss.id)),
-        ...instanceSummariesToDelete.map(is => base44.entities.InstanceSummary.delete(is.id))
-      ]);
-
-      // Delete all sessions in parallel
-      await Promise.all(sessionsToDelete.map(sid => base44.entities.InterviewSession.delete(sid)));
+      // Delete in batches to avoid rate limits
+      await batchDelete(responsesToDelete, (r) => base44.entities.Response.delete(r.id));
+      await batchDelete(followupsToDelete, (f) => base44.entities.FollowUpResponse.delete(f.id));
+      await batchDelete(questionSummariesToDelete, (qs) => base44.entities.QuestionSummary.delete(qs.id));
+      await batchDelete(sectionSummariesToDelete, (ss) => base44.entities.SectionSummary.delete(ss.id));
+      await batchDelete(instanceSummariesToDelete, (is) => base44.entities.InstanceSummary.delete(is.id));
+      await batchDelete(sessionsToDelete, (sid) => base44.entities.InterviewSession.delete(sid));
 
       toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
@@ -538,14 +545,13 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
         base44.entities.InstanceSummary.filter({ session_id: session.id })
       ]);
 
-      await Promise.all([
-        ...responses.map(r => base44.entities.Response.delete(r.id)),
-        ...followups.map(f => base44.entities.FollowUpResponse.delete(f.id)),
-        ...questionSummaries.map(qs => base44.entities.QuestionSummary.delete(qs.id)),
-        ...sectionSummaries.map(ss => base44.entities.SectionSummary.delete(ss.id)),
-        ...instanceSummaries.map(is => base44.entities.InstanceSummary.delete(is.id)),
-        base44.entities.InterviewSession.delete(session.id)
-      ]);
+      // Delete in batches to avoid rate limits
+      await batchDelete(responses, (r) => base44.entities.Response.delete(r.id));
+      await batchDelete(followups, (f) => base44.entities.FollowUpResponse.delete(f.id));
+      await batchDelete(questionSummaries, (qs) => base44.entities.QuestionSummary.delete(qs.id));
+      await batchDelete(sectionSummaries, (ss) => base44.entities.SectionSummary.delete(ss.id));
+      await batchDelete(instanceSummaries, (is) => base44.entities.InstanceSummary.delete(is.id));
+      await base44.entities.InterviewSession.delete(session.id);
 
       toast.success("Session deleted successfully");
 
