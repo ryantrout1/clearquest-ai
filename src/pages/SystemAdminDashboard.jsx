@@ -562,13 +562,8 @@ export default function SystemAdminDashboard() {
                         </div>
                         <div className="flex flex-col gap-1.5 w-32">
                           <Link to={createPageUrl(`DepartmentDashboard?id=${dept.id}`)} className="w-full">
-                            <Button size="sm" variant="outline" className="w-full bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white text-xs h-8">
-                              View
-                            </Button>
-                          </Link>
-                          <Link to={createPageUrl(`EditDepartment?id=${dept.id}`)} className="w-full">
                             <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8">
-                              Edit
+                              View
                             </Button>
                           </Link>
                           <Button 
