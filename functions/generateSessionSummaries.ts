@@ -310,10 +310,15 @@ Deno.serve(async (req) => {
     // Single LLM call with structured JSON output
     let llmResult;
     try {
+      console.log('[FUNC] Calling LLM with scope:', { generateGlobal, generateSections, generateQuestions, sectionId });
+      console.log('[FUNC] Transcript sample being sent to LLM:', JSON.stringify(transcript.slice(0, 3), null, 2));
+
       llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt: llmPrompt,
         response_json_schema: responseSchema
       });
+
+      console.log('[FUNC] LLM raw result:', JSON.stringify(llmResult, null, 2));
     } catch (err) {
       console.error('❌ LLM invocation failed:', {
         error: err.message || String(err),
@@ -348,20 +353,23 @@ Deno.serve(async (req) => {
     if (generateQuestions && questionSummaries.length > 0) {
       console.log('[FUNC generateSessionSummaries] Processing question summaries', {
         questionSummariesFromLLM: questionSummaries.length,
-        questionIds: questionSummaries.map(q => q.questionId)
+        questionIds: questionSummaries.map(q => q.questionId),
+        fullSummaries: questionSummaries
       });
 
       const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
       console.log('[FUNC generateSessionSummaries] Found responses to update', {
         totalResponses: responses.length,
         yesResponses: responses.filter(r => r.answer === 'Yes').length,
-        sampleResponseQuestionIds: responses.slice(0, 3).map(r => r.question_id)
+        sampleResponseQuestionIds: responses.slice(0, 3).map(r => r.question_id),
+        allResponseQuestionIds: responses.map(r => r.question_id)
       });
 
       for (const qSummary of questionSummaries) {
         console.log('[FUNC generateSessionSummaries] Looking up response', {
           llmQuestionId: qSummary.questionId,
-          summaryPreview: qSummary.summary?.substring(0, 50)
+          summaryPreview: qSummary.summary?.substring(0, 50),
+          summaryFull: qSummary.summary
         });
 
         const response = responses.find(r => r.question_id === qSummary.questionId);
@@ -378,9 +386,17 @@ Deno.serve(async (req) => {
           }
         } else {
           console.warn(`[FUNC generateSessionSummaries] ✗ No response found for questionId: ${qSummary.questionId}`, {
-            availableQuestionIds: responses.map(r => r.question_id).slice(0, 10)
+            availableQuestionIds: responses.map(r => r.question_id),
+            searchingFor: qSummary.questionId
           });
         }
+      }
+      } else if (generateQuestions && questionSummaries.length === 0) {
+      console.warn('[FUNC generateSessionSummaries] ⚠️ LLM returned ZERO question summaries', {
+        transcriptLength: transcript.length,
+        transcriptSample: transcript.slice(0, 5),
+        llmResultKeys: Object.keys(llmResult || {})
+      });
       }
     }
 
