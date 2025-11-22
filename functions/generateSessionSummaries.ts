@@ -220,7 +220,7 @@ RULES:
       ok: true,
       success: true,
       data: {
-        sessionId: session_id,
+        sessionId: sessionId,
         interviewSummary,
         sectionSummaries: sectionSummariesObj,
         redFlags
