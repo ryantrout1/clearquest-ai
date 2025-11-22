@@ -46,6 +46,12 @@ export default function FollowUpPackDetails({
 
   useEffect(() => {
     if (pack) {
+      console.log('[PACK-LOAD] Selected pack AI config', {
+        packId: pack.id,
+        hasProbeInstructions: !!pack.ai_probe_instructions,
+        hasSummaryInstructions: !!pack.ai_summary_instructions,
+      });
+      
       const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       setFormData({
         pack_name: pack.pack_name || '',
@@ -55,6 +61,7 @@ export default function FollowUpPackDetails({
         max_probe_loops: pack.max_probe_loops || '',
         max_ai_followups: pack.max_ai_followups ?? 2,
         ai_probe_instructions: pack.ai_probe_instructions || '',
+        ai_summary_instructions: pack.ai_summary_instructions || '',
         active: pack.active !== false,
         categoryId: categoryId
       });
@@ -64,6 +71,12 @@ export default function FollowUpPackDetails({
 
   const handleSave = async () => {
     try {
+      console.log('[PACK-SAVE] Saving AI summary instructions', {
+        packId: pack.id,
+        hasSummaryInstructions: !!formData.ai_summary_instructions,
+        summaryLength: formData.ai_summary_instructions ? formData.ai_summary_instructions.length : 0,
+      });
+      
       const originalCategory = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       const categoryChanged = originalCategory !== formData.categoryId;
       
@@ -75,6 +88,7 @@ export default function FollowUpPackDetails({
         max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
         max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 2,
         ai_probe_instructions: formData.ai_probe_instructions,
+        ai_summary_instructions: formData.ai_summary_instructions,
         active: formData.active,
         category_id: formData.categoryId
       });
@@ -215,6 +229,7 @@ export default function FollowUpPackDetails({
                     max_probe_loops: pack.max_probe_loops || '',
                     max_ai_followups: pack.max_ai_followups ?? 2,
                     ai_probe_instructions: pack.ai_probe_instructions || '',
+                    ai_summary_instructions: pack.ai_summary_instructions || '',
                     active: pack.active !== false,
                     categoryId: categoryId
                   });
@@ -407,6 +422,31 @@ export default function FollowUpPackDetails({
         ) : (
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
             {pack.ai_probe_instructions || 'No instructions provided'}
+          </p>
+        )}
+      </div>
+
+      {/* AI Investigator Summary Instructions */}
+      <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+        <Label className="text-lg font-semibold text-purple-400 mb-3 block">AI Investigator Summary Instructions</Label>
+        <p className="text-xs text-slate-400 mb-3">
+          Used to guide AI when generating narrative summaries for investigators about this incident type.
+        </p>
+        {isEditing ? (
+          <>
+            <Textarea
+              value={formData.ai_summary_instructions}
+              onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
+              className="bg-slate-800 border-slate-600 text-white min-h-32"
+              placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
+            />
+            <p className="text-xs text-slate-500 mt-2">
+              Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {pack.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
           </p>
         )}
       </div>
