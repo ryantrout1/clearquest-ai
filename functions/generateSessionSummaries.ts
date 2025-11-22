@@ -178,17 +178,21 @@ RULES:
 
     // Update individual question summaries in Response entities
     let updatedQuestionCount = 0;
-    for (const qSummary of questionSummaries) {
-      const response = responses.find(r => r.question_id === qSummary.questionId);
-      if (response) {
-        try {
-          await base44.asServiceRole.entities.Response.update(response.id, {
-            investigator_summary: qSummary.summary,
-            investigator_summary_last_generated_at: new Date().toISOString()
-          });
-          updatedQuestionCount++;
-        } catch (err) {
-          console.error(`Failed to update response ${response.id}:`, err.message);
+    if (questionSummaries.length > 0) {
+      const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
+      
+      for (const qSummary of questionSummaries) {
+        const response = responses.find(r => r.question_id === qSummary.questionId);
+        if (response) {
+          try {
+            await base44.asServiceRole.entities.Response.update(response.id, {
+              investigator_summary: qSummary.summary,
+              investigator_summary_last_generated_at: new Date().toISOString()
+            });
+            updatedQuestionCount++;
+          } catch (err) {
+            console.error(`Failed to update response ${response.id}:`, err.message);
+          }
         }
       }
     }
