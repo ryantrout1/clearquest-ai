@@ -223,6 +223,13 @@ export default function SessionDetails() {
 
   const categories = [...new Set(allResponsesWithNumbers.map(r => r.section_name))].filter(Boolean).sort();
 
+  // Initialize collapsed sections with all categories on first load
+  useEffect(() => {
+    if (categories.length > 0 && collapsedSections.size === 0) {
+      setCollapsedSections(new Set(categories));
+    }
+  }, [categories.length]);
+
   const filteredResponsesWithNumbers = allResponsesWithNumbers.filter(response => {
     const matchesSearch = !searchTerm ||
       response.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
