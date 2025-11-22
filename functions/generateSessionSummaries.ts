@@ -4,14 +4,23 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * Generate AI Investigator Summaries for all questions in a session
  * Input: { session_id }
  * Output: { success: true, updatedCount: N }
+ * 
+ * NOTE (MVP):
+ * This function is intentionally app-scoped and does not enforce per-user RBAC.
+ * Only internal admins (owner + co-founder) can reach this page right now.
+ * When we add tenant/investigator logins, revisit this to add proper role checks.
  */
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    
+    // Basic auth check - any logged-in user can run this (MVP)
     const user = await base44.auth.me();
-
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ 
+        ok: false, 
+        error: { message: 'Unauthorized', details: 'User not authenticated' } 
+      }, { status: 401 });
     }
 
     const { session_id } = await req.json();
