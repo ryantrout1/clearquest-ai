@@ -1828,15 +1828,6 @@ export default function CandidateInterview() {
               setQueue([]);
               await persistStateToDatabase(newTranscript, [], null);
               
-              // NEW: Hand off to AI agent (with fallback)
-              const aiHandoffSuccessful = await handoffToAgentForProbing(
-                triggeringQuestion.questionId,
-                packId,
-                substanceName,
-                packAnswers,
-                currentItem.instanceNumber || 1
-              );
-              
               // Call the new per-pack AI probing starter
               const aiHandoffSuccessful = await startAiProbingForPackInstance(
                 triggeringQuestion.questionId,
