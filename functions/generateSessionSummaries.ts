@@ -1,14 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * Generate AI Investigator Summaries for all questions in a session
+ * Generate AI Investigator Summaries for interview session (SINGLE LLM CALL)
  * Input: { session_id }
- * Output: { success: true, updatedCount: N }
+ * Output: { ok: true, data: { interviewSummary, sectionSummaries, redFlags } }
  * 
  * NOTE (MVP):
  * This function is intentionally app-scoped and does not enforce per-user RBAC.
  * Only internal admins (owner + co-founder) can reach this page right now.
  * When we add tenant/investigator logins, revisit this to add proper role checks.
+ * 
+ * OPTIMIZATION: Uses a single invokeLLM call to generate all summaries at once.
  */
 Deno.serve(async (req) => {
   try {
@@ -26,272 +28,237 @@ Deno.serve(async (req) => {
     const { session_id } = await req.json();
 
     if (!session_id) {
-      return Response.json({ error: 'session_id required' }, { status: 400 });
+      return Response.json({ 
+        ok: false,
+        error: { message: 'session_id required' }
+      }, { status: 400 });
     }
 
-    console.log(`🤖 Generating AI summaries for session: ${session_id}`);
+    console.log(`🤖 [generateSessionSummaries] Starting single-call generation for session: ${session_id}`);
 
-    // Fetch all responses for this session
-    const responses = await base44.asServiceRole.entities.Response.filter({
-      session_id: session_id
-    });
+    // Fetch all data for this session
+    const [responses, allFollowups, questions, sections] = await Promise.all([
+      base44.asServiceRole.entities.Response.filter({ session_id: session_id }),
+      base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: session_id }),
+      base44.asServiceRole.entities.Question.filter({ active: true }),
+      base44.asServiceRole.entities.Section.list()
+    ]);
 
-    console.log(`📊 Found ${responses.length} responses`);
+    console.log(`📊 Fetched data: ${responses.length} responses, ${allFollowups.length} followups`);
 
-    // Fetch all follow-up responses for this session
-    const allFollowups = await base44.asServiceRole.entities.FollowUpResponse.filter({
-      session_id: session_id
-    });
-
-    let updatedCount = 0;
-
-    // Process each "Yes" response
-    for (const response of responses) {
-      if (response.answer !== 'Yes') continue;
-
-      // Find related follow-ups
-      const relatedFollowups = allFollowups.filter(f => f.response_id === response.id);
+    // Build structured transcript for LLM
+    const transcript = [];
+    
+    responses.forEach(response => {
+      const question = questions.find(q => q.id === response.question_id);
+      const section = sections.find(s => s.id === question?.section_id);
       
-      // Skip if no follow-ups and no probing (nothing to summarize)
-      if (relatedFollowups.length === 0 && (!response.investigator_probing || response.investigator_probing.length === 0)) {
-        continue;
+      const entry = {
+        questionId: response.question_id,
+        questionText: response.question_text,
+        sectionName: section?.section_name || response.category || 'Other',
+        answer: response.answer
+      };
+
+      // Add follow-up details if Yes answer
+      if (response.answer === 'Yes') {
+        const relatedFollowups = allFollowups.filter(f => f.response_id === response.id);
+        
+        if (relatedFollowups.length > 0) {
+          entry.followUps = relatedFollowups.map(fu => ({
+            packId: fu.followup_pack,
+            instanceNumber: fu.instance_number || 1,
+            substanceName: fu.substance_name,
+            details: fu.additional_details || {},
+            probingExchanges: fu.additional_details?.investigator_probing || []
+          }));
+        }
+
+        // Legacy probing on Response entity
+        if (response.investigator_probing?.length > 0) {
+          entry.probingExchanges = response.investigator_probing;
+        }
       }
 
-      // Build context for AI
-      let context = `Question: ${response.question_text}\n`;
-      context += `Base Answer: Yes\n\n`;
+      transcript.push(entry);
+    });
 
-      // Add follow-up details
-      if (relatedFollowups.length > 0) {
-        context += `Follow-up Details:\n`;
-        relatedFollowups.forEach(fu => {
-          if (fu.substance_name) {
-            context += `- Substance: ${fu.substance_name}\n`;
-          }
-          const details = fu.additional_details || {};
-          Object.entries(details).forEach(([key, value]) => {
-            if (key !== 'investigator_probing') {
-              context += `- ${key.replace(/_/g, ' ')}: ${value}\n`;
-            }
-          });
-        });
-        context += `\n`;
-      }
+    // Build comprehensive prompt for single LLM call
+    const llmPrompt = `You are an AI assistant for law enforcement background investigations. You will receive a structured transcript of a completed applicant interview. Generate a comprehensive JSON summary.
 
-      // Add AI probing exchanges
-      if (response.investigator_probing && response.investigator_probing.length > 0) {
-        context += `Investigator Probing:\n`;
-        response.investigator_probing.forEach((exchange, idx) => {
-          context += `Q${idx + 1}: ${exchange.probing_question}\n`;
-          context += `A: ${exchange.candidate_response}\n\n`;
-        });
-      }
+TRANSCRIPT DATA:
+${JSON.stringify({ 
+  sessionId: session_id,
+  totalQuestions: responses.length,
+  yesCount: responses.filter(r => r.answer === 'Yes').length,
+  noCount: responses.filter(r => r.answer === 'No').length,
+  followUpsTriggered: allFollowups.length,
+  transcript: transcript
+}, null, 2)}
 
-      // Generate summary via LLM
-      const prompt = `You are assisting a background investigator reviewing a law enforcement applicant interview.
-
-${context}
-
-Create a brief, professional investigator summary (1-2 sentences) that captures:
-- What was disclosed
-- Key details (dates, circumstances, outcomes if mentioned)
-- Any notable patterns or concerns
-
-Keep it factual, concise, and suitable for a case file. Do not editorialize or make hiring recommendations.`;
-
-      try {
-        const summary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: prompt
-        });
-
-        // Update Response with summary
-        await base44.asServiceRole.entities.Response.update(response.id, {
-          investigator_summary: summary,
-          investigator_summary_last_generated_at: new Date().toISOString()
-        });
-
-        updatedCount++;
-        console.log(`✅ Updated summary for response ${response.id}`);
-
-      } catch (err) {
-        console.error(`❌ Error generating summary for response ${response.id}:`, {
-          error: err.message || String(err),
-          stack: err.stack,
-          responseId: response.id
-        });
-        // Continue with other responses
-      }
-    }
-
-    console.log(`✅ Updated ${updatedCount} question summaries for session ${session_id}`);
-
-    // Generate global AI summary
-    console.log('🌐 Generating global AI summary...');
-    const yesCount = responses.filter(r => r.answer === 'Yes').length;
-    const noCount = responses.filter(r => r.answer === 'No').length;
-
-    // Compute pattern pills
-    const patterns = [];
-    if (noCount > yesCount * 3) patterns.push("No Major Disclosures");
-    if (responses.length > 0) patterns.push("Consistent Patterns");
-    
-    const sortedResponses = [...responses].sort((a, b) => 
-      new Date(a.response_timestamp) - new Date(b.response_timestamp)
-    );
-    
-    let avgTimePerQuestion = 0;
-    if (sortedResponses.length > 1) {
-      const timeDiffs = [];
-      for (let i = 1; i < sortedResponses.length; i++) {
-        const diff = (new Date(sortedResponses[i].response_timestamp) - new Date(sortedResponses[i - 1].response_timestamp)) / 1000;
-        if (diff < 300) timeDiffs.push(diff);
-      }
-      if (timeDiffs.length > 0) {
-        avgTimePerQuestion = Math.round(timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length);
-      }
-    }
-    
-    if (avgTimePerQuestion > 0 && avgTimePerQuestion < 60) {
-      patterns.push("Normal Response Timing");
-    }
-
-    const globalPrompt = `You are an AI assistant supporting a background investigator reviewing a completed interview.
-
-Interview Statistics:
-- Total Questions Answered: ${responses.length}
-- Yes Responses: ${yesCount}
-- No Responses: ${noCount}
-- Follow-Up Packs Triggered: ${allFollowups.length}
-
-Generate a concise interview-wide summary for investigators that includes:
-
-1. Main overview paragraph (2-3 sentences): Overall pattern of disclosures, response consistency, and timing
-2. Key Observations (3-5 bullet points): Specific notable points across all sections
-3. Suggested verification areas (3-4 bullet points): Standard verification steps the investigator should take
-
-Format your response as JSON:
+Return STRICT JSON with this exact structure (no extra text):
 {
-  "mainSummary": "2-3 sentence overview paragraph",
-  "keyObservations": ["observation 1", "observation 2", "observation 3"],
-  "suggestedVerification": ["verification step 1", "verification step 2", "verification step 3"],
-  "riskLevel": "Low|Medium|High"
-}`;
+  "interviewSummary": {
+    "riskLevel": "Low" | "Moderate" | "High",
+    "text": "2-3 sentence overview of the entire interview",
+    "patterns": ["pattern 1", "pattern 2"],
+    "keyObservations": ["observation 1", "observation 2", "observation 3"],
+    "suggestedVerification": ["verification step 1", "verification step 2"]
+  },
+  "sectionSummaries": [
+    {
+      "sectionName": "section name from transcript",
+      "riskLevel": "Low" | "Moderate" | "High",
+      "text": "2-3 sentence summary for this section",
+      "concerns": ["concern 1"] or []
+    }
+  ],
+  "questionSummaries": [
+    {
+      "questionId": "question ID from transcript",
+      "summary": "1-2 sentence investigator summary (only for Yes answers with follow-ups/probing)"
+    }
+  ],
+  "redFlags": [
+    {
+      "sectionName": "section name",
+      "questionId": "question ID or null",
+      "severity": "Low" | "Moderate" | "High",
+      "description": "brief description"
+    }
+  ]
+}
 
-    let globalSummary;
+RULES:
+- Include questionSummaries ONLY for "Yes" answers that have follow-up details or AI probing
+- If interview is mostly "No" answers, still provide thoughtful analysis
+- Base risk levels on actual disclosures, not just counts
+- Be factual and professional, no recommendations`;
+
+    // Single LLM call with structured JSON output
+    let llmResult;
     try {
-      globalSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-        prompt: globalPrompt,
+      llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt: llmPrompt,
         response_json_schema: {
           type: "object",
           properties: {
-            mainSummary: { type: "string" },
-            keyObservations: { type: "array", items: { type: "string" } },
-            suggestedVerification: { type: "array", items: { type: "string" } },
-            riskLevel: { type: "string", enum: ["Low", "Medium", "High"] }
+            interviewSummary: {
+              type: "object",
+              properties: {
+                riskLevel: { type: "string", enum: ["Low", "Moderate", "High"] },
+                text: { type: "string" },
+                patterns: { type: "array", items: { type: "string" } },
+                keyObservations: { type: "array", items: { type: "string" } },
+                suggestedVerification: { type: "array", items: { type: "string" } }
+              },
+              required: ["riskLevel", "text", "keyObservations"]
+            },
+            sectionSummaries: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  sectionName: { type: "string" },
+                  riskLevel: { type: "string", enum: ["Low", "Moderate", "High"] },
+                  text: { type: "string" },
+                  concerns: { type: "array", items: { type: "string" } }
+                },
+                required: ["sectionName", "riskLevel", "text"]
+              }
+            },
+            questionSummaries: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  questionId: { type: "string" },
+                  summary: { type: "string" }
+                },
+                required: ["questionId", "summary"]
+              }
+            },
+            redFlags: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  sectionName: { type: "string" },
+                  questionId: { type: "string" },
+                  severity: { type: "string", enum: ["Low", "Moderate", "High"] },
+                  description: { type: "string" }
+                }
+              }
+            }
           },
-          required: ["mainSummary", "keyObservations", "suggestedVerification", "riskLevel"]
+          required: ["interviewSummary", "sectionSummaries"]
         }
       });
-
-      globalSummary.patterns = patterns;
     } catch (err) {
-      console.error('❌ Error generating global summary:', {
+      console.error('❌ LLM invocation failed:', {
         error: err.message || String(err),
         stack: err.stack,
         sessionId: session_id
       });
-      throw new Error(`Failed to generate global summary: ${err.message || String(err)}`);
+      throw new Error(`LLM call failed: ${err.message || String(err)}`);
     }
 
-    // Generate section-level summaries
-    console.log('📊 Generating section-level AI summaries...');
-    const sectionSummaries = {};
-    
-    // Group responses by section
-    const responsesBySection = {};
-    responses.forEach(r => {
-      const section = r.category || r.section_name || 'Other';
-      if (!responsesBySection[section]) {
-        responsesBySection[section] = [];
+    // Parse results
+    const interviewSummary = llmResult.interviewSummary || {};
+    const sectionSummaries = llmResult.sectionSummaries || [];
+    const questionSummaries = llmResult.questionSummaries || [];
+    const redFlags = llmResult.redFlags || [];
+
+    console.log(`✅ LLM returned: ${sectionSummaries.length} section summaries, ${questionSummaries.length} question summaries, ${redFlags.length} red flags`);
+
+    // Update individual question summaries in Response entities
+    let updatedQuestionCount = 0;
+    for (const qSummary of questionSummaries) {
+      const response = responses.find(r => r.question_id === qSummary.questionId);
+      if (response) {
+        try {
+          await base44.asServiceRole.entities.Response.update(response.id, {
+            investigator_summary: qSummary.summary,
+            investigator_summary_last_generated_at: new Date().toISOString()
+          });
+          updatedQuestionCount++;
+        } catch (err) {
+          console.error(`Failed to update response ${response.id}:`, err.message);
+        }
       }
-      responsesBySection[section].push(r);
+    }
+
+    // Convert section summaries array to object keyed by section name
+    const sectionSummariesObj = {};
+    sectionSummaries.forEach(section => {
+      sectionSummariesObj[section.sectionName] = {
+        text: section.text,
+        riskLevel: section.riskLevel,
+        concerns: section.concerns || []
+      };
     });
-
-    for (const [sectionName, sectionResponses] of Object.entries(responsesBySection)) {
-      const sectionYesCount = sectionResponses.filter(r => r.answer === 'Yes').length;
-      
-      if (sectionYesCount === 0) {
-        // No Yes answers - simple summary
-        sectionSummaries[sectionName] = {
-          text: `No disclosures in this section (${sectionResponses.length} questions answered, all "No").`,
-          riskLevel: "Low",
-          concerns: []
-        };
-        continue;
-      }
-
-      const sectionFollowups = allFollowups.filter(fu => {
-        return sectionResponses.some(r => r.id === fu.response_id);
-      });
-
-      const sectionPrompt = `You are an AI assistant supporting a background investigator.
-
-Section: ${sectionName}
-Questions Answered: ${sectionResponses.length}
-Yes Responses: ${sectionYesCount}
-Follow-Ups: ${sectionFollowups.length}
-
-Generate a brief section summary (2-3 sentences) that covers:
-- What was disclosed in this section
-- Any patterns or concerns
-- Risk level: Low, Medium, or High
-
-Format as JSON:
-{
-  "text": "2-3 sentence summary",
-  "riskLevel": "Low|Medium|High",
-  "concerns": ["concern 1", "concern 2"] (optional array, can be empty)
-}`;
-
-      try {
-        const sectionSummary = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: sectionPrompt,
-          response_json_schema: {
-            type: "object",
-            properties: {
-              text: { type: "string" },
-              riskLevel: { type: "string", enum: ["Low", "Medium", "High"] },
-              concerns: { type: "array", items: { type: "string" } }
-            },
-            required: ["text", "riskLevel"]
-          }
-        });
-
-        sectionSummaries[sectionName] = sectionSummary;
-      } catch (err) {
-        console.error(`❌ Error generating summary for section ${sectionName}:`, {
-          error: err.message || String(err),
-          stack: err.stack,
-          sectionName
-        });
-        // Continue with other sections
-      }
-    }
 
     // Update session with all AI summaries
     await base44.asServiceRole.entities.InterviewSession.update(session_id, {
-      global_ai_summary: globalSummary,
-      section_ai_summaries: sectionSummaries,
+      global_ai_summary: interviewSummary,
+      section_ai_summaries: sectionSummariesObj,
       ai_summaries_last_generated_at: new Date().toISOString()
     });
 
-    console.log(`✅ Saved global and ${Object.keys(sectionSummaries).length} section summaries`);
+    console.log(`✅ Saved summaries to session ${session_id}`);
 
     return Response.json({
+      ok: true,
       success: true,
-      updatedCount: updatedCount,
+      data: {
+        sessionId: session_id,
+        interviewSummary,
+        sectionSummaries: sectionSummariesObj,
+        redFlags
+      },
+      updatedCount: updatedQuestionCount,
       globalSummaryGenerated: true,
-      sectionSummariesGenerated: Object.keys(sectionSummaries).length
+      sectionSummariesGenerated: Object.keys(sectionSummariesObj).length
     });
 
   } catch (error) {
