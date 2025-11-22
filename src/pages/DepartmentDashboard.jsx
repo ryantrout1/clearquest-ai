@@ -406,13 +406,14 @@ export default function DepartmentDashboard() {
                     {allSessions
                       .filter(s => s.status === 'in_progress' || s.status === 'active')
                       .map(session => {
-                      const sessionResponses = allResponses.filter(r => r.session_id === session.id);
-                      const questionsAnswered = sessionResponses.length;
-                      const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
+                        const sessionResponses = allResponses.filter(r => r.session_id === session.id);
+                        const questionsAnswered = sessionResponses.length;
+                        const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
+                        const completionPercentage = Math.round((questionsAnswered / 207) * 100);
 
-                      const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
-                      const noCount = sessionResponses.filter(r => r.answer === 'No').length;
-                      const redFlagsCount = session.red_flags?.length || 0;
+                        const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
+                        const noCount = sessionResponses.filter(r => r.answer === 'No').length;
+                        const redFlagsCount = session.red_flags?.length || 0;
                       
                       return (
                         <Card key={session.id} className="bg-[#0f1629] border-slate-800/50 hover:border-slate-700 hover:shadow-lg transition-all">
@@ -477,7 +478,7 @@ export default function DepartmentDashboard() {
                               {/* Right side - Completion + Actions */}
                               <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
                                 <div className="text-right">
-                                  <div className="text-2xl font-bold text-amber-400">{session.completion_percentage || 0}%</div>
+                                  <div className="text-2xl font-bold text-amber-400">{completionPercentage}%</div>
                                   <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
                                 </div>
                                 <div className="flex flex-row gap-1.5 w-full">
@@ -537,6 +538,7 @@ export default function DepartmentDashboard() {
                       const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
+                      const completionPercentage = Math.round((questionsAnswered / 207) * 100);
 
                       const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
                       const noCount = sessionResponses.filter(r => r.answer === 'No').length;
@@ -605,7 +607,7 @@ export default function DepartmentDashboard() {
                               {/* Right side - Completion + Actions */}
                               <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
                                 <div className="text-right">
-                                  <div className="text-2xl font-bold text-amber-400">{session.completion_percentage || 0}%</div>
+                                  <div className="text-2xl font-bold text-amber-400">{completionPercentage}%</div>
                                   <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
                                 </div>
                                 <div className="flex flex-row gap-1.5 w-full">
