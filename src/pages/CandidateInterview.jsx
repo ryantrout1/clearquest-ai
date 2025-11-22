@@ -1963,7 +1963,7 @@ export default function CandidateInterview() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, conversation, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance]);
 
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
