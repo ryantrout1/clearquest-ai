@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -403,26 +402,25 @@ export default function DepartmentDashboard() {
           <Link to={createPageUrl("InterviewDashboard")}>
             <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
               <FileText className="w-4 h-4 mr-2" />
-              Interviews
+              View
             </Button>
           </Link>
 
           {canEdit && (
             <Link to={createPageUrl(`EditDepartment?id=${department.id}`)}>
-              <Button variant="outline" className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                 <Settings className="w-4 h-4 mr-2" />
-                Settings
+                Edit
               </Button>
             </Link>
           )}
 
           <Button
             variant="outline"
-            className="bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800"
-            onClick={() => alert('Export functionality coming soon')}
+            className="bg-transparent border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white"
+            onClick={() => alert('Delete functionality coming soon')}
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export
+            Delete
           </Button>
         </div>
 
