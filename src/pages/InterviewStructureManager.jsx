@@ -942,23 +942,60 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   if (selectedItem.type === 'section' || selectedItem.type === 'new-section') {
     const section = selectedItem.data;
     const sectionQuestionsAll = questions.filter(q => q.section_id === section?.id);
+    const isNewSection = selectedItem.type === 'new-section';
+    const isReadOnly = !isEditMode && !isNewSection;
     
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">
-            {selectedItem.type === 'new-section' ? 'New Section' : 'Edit Section'}
+            {isNewSection ? 'New Section' : 'Section Details'}
           </h3>
-          {selectedItem.type !== 'new-section' && ( // Changed condition here, allow adding questions to empty sections
-            <Button
-              onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Question
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {!isNewSection && !isEditMode && (
+              <Button
+                onClick={() => setIsEditMode(true)}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )}
+            {!isNewSection && isEditMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFormData(originalData);
+                  setIsEditMode(false);
+                }}
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </Button>
+            )}
+            {!isNewSection && (
+              <Button
+                onClick={() => setSelectedItem({ type: 'new-question', sectionId: section.id, sectionName: section.section_name })}
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Question
+              </Button>
+            )}
+            {!isNewSection && !isEditMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(selectedItem)}
+                className="text-red-400 hover:text-red-300 hover:bg-red-950/30"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
         
         <div>
@@ -966,6 +1003,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Input
             value={formData.section_name || ''}
             onChange={(e) => setFormData({...formData, section_name: e.target.value})}
+            disabled={isReadOnly}
             className="bg-slate-800 border-slate-600 text-white mt-1"
           />
         </div>
@@ -975,11 +1013,12 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Textarea
             value={formData.description || ''}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
+            disabled={isReadOnly}
             className="bg-slate-800 border-slate-600 text-white mt-1"
           />
         </div>
 
-        {selectedItem.type !== 'new-section' && (
+        {!isNewSection && (
           <>
             <div>
               <Label className="text-sm text-slate-400">Section Order</Label>
@@ -987,6 +1026,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                 type="number"
                 value={formData.section_order || 0}
                 onChange={(e) => setFormData({...formData, section_order: parseInt(e.target.value)})}
+                disabled={isReadOnly}
                 className="bg-slate-800 border-slate-600 text-white mt-1"
               />
             </div>
@@ -996,6 +1036,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
               <Switch
                 checked={formData.active !== false}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                disabled={isReadOnly}
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
@@ -1005,27 +1046,20 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
               <Switch
                 checked={formData.required !== false}
                 onCheckedChange={(checked) => setFormData({...formData, required: checked})}
-                disabled={formData.active === false}
+                disabled={isReadOnly || formData.active === false}
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
           </>
         )}
 
-        <div className="flex gap-2 pt-4">
-          <Button onClick={handleSave} className="flex-1 bg-blue-600 hover:bg-blue-700">
-            Save
-          </Button>
-          {selectedItem.type !== 'new-section' && (
-            <Button
-              variant="outline"
-              onClick={() => onDelete(selectedItem)}
-              className="border-red-600 text-red-400 hover:bg-red-950/30"
-            >
-              <Trash2 className="w-4 h-4" />
+        {(isEditMode || isNewSection) && (
+          <div className="flex gap-2 pt-4">
+            <Button onClick={handleSave} className="flex-1 bg-blue-600 hover:bg-blue-700">
+              {isNewSection ? 'Create Section' : 'Save Changes'}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
