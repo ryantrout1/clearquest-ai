@@ -1188,20 +1188,32 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 const instance = instancesMap[instanceNum];
                 if (!instance) return null;
                 
-                // Build deterministic entries by matching field keys to FollowUpQuestion entities
+                // Get pack questions sorted by display_order
+                const packQuestions = followUpQuestionEntities
+                  .filter(q => q.followup_pack_id === instance.followupPackId)
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+                // Build deterministic entries and match by position
                 const detailEntries = Object.entries(instance.details || {});
-                const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
-                  // Match by followup_question_id
-                  const matchedQuestion = followUpQuestionEntities.find(q => 
-                    q.followup_question_id === detailKey && 
-                    q.followup_pack_id === instance.followupPackId
-                  );
+                const deterministicEntries = detailEntries.map(([detailKey, detailValue], idx) => {
+                  // First try snapshot lookup
+                  let questionText = instance.questionTextSnapshot?.[detailKey];
+
+                  // Fall back to positional matching with pack questions
+                  if (!questionText && packQuestions[idx]) {
+                    questionText = packQuestions[idx].question_text;
+                  }
+
+                  // Last resort: use the key itself
+                  if (!questionText) {
+                    questionText = detailKey.replace(/_/g, ' ');
+                  }
 
                   return {
                     detailKey,
                     detailValue,
-                    displayOrder: matchedQuestion?.display_order ?? 999,
-                    questionText: matchedQuestion?.question_text || detailKey.replace(/_/g, ' ')
+                    displayOrder: packQuestions[idx]?.display_order ?? (idx + 1),
+                    questionText
                   };
                 });
 
@@ -1270,7 +1282,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       <div className="px-3 pb-3 pt-1 space-y-2">
                         {/* Deterministic follow-ups as two-column fact sheet */}
                         {deterministicEntries.length > 0 && (
-                          <div className="mb-3">
+                          <div>
                             <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
                               Deterministic Follow-Ups
                             </div>
