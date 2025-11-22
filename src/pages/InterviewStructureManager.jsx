@@ -760,6 +760,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({});
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [originalData, setOriginalData] = useState({});
 
   // Load follow-up pack details if this is a question with a pack
   // Using same logic as FollowupPackManager to ensure consistency
@@ -806,12 +808,17 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
   useEffect(() => {
     if (selectedItem?.data) {
-      setFormData({
+      const data = {
         ...selectedItem.data,
         is_control_question: selectedItem.data.is_control_question ?? false
-      });
+      };
+      setFormData(data);
+      setOriginalData(data);
+      setIsEditMode(false);
     } else {
       setFormData({});
+      setOriginalData({});
+      setIsEditMode(false);
     }
   }, [selectedItem]);
 
@@ -875,6 +882,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         queryClient.invalidateQueries({ queryKey: ['questions'] });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Question updated');
+        setIsEditMode(false);
+        setOriginalData(saveData);
       } else if (selectedItem?.type === 'pack') {
         await base44.entities.FollowUpPack.update(selectedItem.data.id, formData);
         queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
@@ -1026,25 +1035,53 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
       (a.section_name || '').localeCompare(b.section_name || '')
     );
     
+    const isNewQuestion = selectedItem.type === 'new-question';
+    const isReadOnly = !isEditMode && !isNewQuestion;
+    
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">
-            {selectedItem.type === 'new-question' ? `Add Question to ${selectedItem.sectionName}` : 'Edit Question'}
+            {isNewQuestion ? `Add Question to ${selectedItem.sectionName}` : 'Question Details'}
           </h3>
-          {selectedItem.type === 'question' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDelete(selectedItem)}
-              className="text-red-400 hover:text-red-300 hover:bg-red-950/30"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {!isNewQuestion && !isEditMode && (
+              <Button
+                onClick={() => setIsEditMode(true)}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )}
+            {!isNewQuestion && isEditMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFormData(originalData);
+                  setIsEditMode(false);
+                }}
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </Button>
+            )}
+            {!isNewQuestion && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(selectedItem)}
+                className="text-red-400 hover:text-red-300 hover:bg-red-950/30"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
         
-        {selectedItem.type === 'question' && (
+        {!isNewQuestion && (
           <div>
             <Label className="text-sm text-slate-400">Question ID</Label>
             <Input
@@ -1061,6 +1098,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             type="number"
             value={formData.display_order || 1}
             onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value)})}
+            disabled={isReadOnly}
             className="bg-slate-800 border-slate-600 text-white mt-1"
           />
         </div>
@@ -1070,6 +1108,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Textarea
             value={formData.question_text || ''}
             onChange={(e) => setFormData({...formData, question_text: e.target.value})}
+            disabled={isReadOnly}
             className="bg-slate-800 border-slate-600 text-white mt-1 min-h-24"
           />
         </div>
@@ -1079,6 +1118,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Select
             value={formData.response_type || 'yes_no'}
             onValueChange={(v) => setFormData({...formData, response_type: v})}
+            disabled={isReadOnly}
           >
             <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
               <SelectValue />
@@ -1097,6 +1137,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Select
             value={formData.section_id || ''}
             onValueChange={(v) => setFormData({...formData, section_id: v})}
+            disabled={isReadOnly}
           >
             <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
               <SelectValue />
@@ -1122,6 +1163,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Select 
             value={formData.followup_pack || ""} 
             onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}
+            disabled={isReadOnly}
           >
             <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
               <SelectValue placeholder="None">
@@ -1163,6 +1205,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             value={formData.substance_name || ''}
             onChange={(e) => setFormData({...formData, substance_name: e.target.value})}
             placeholder="e.g., Marijuana, Cocaine"
+            disabled={isReadOnly}
             className="bg-slate-800 border-slate-600 text-white mt-1"
           />
         </div>
@@ -1185,6 +1228,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                     max_instances_per_question: checked ? (formData.max_instances_per_question || 5) : undefined
                   });
                 }}
+                disabled={isReadOnly}
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
@@ -1203,6 +1247,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                       setFormData({...formData, max_instances_per_question: val});
                     }
                   }}
+                  disabled={isReadOnly}
                   className="bg-slate-800 border-slate-600 text-white mt-1"
                 />
                 <p className="text-xs text-slate-500 mt-1">
@@ -1230,6 +1275,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Switch
             checked={formData.active !== false}
             onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+            disabled={isReadOnly}
             className="data-[state=checked]:bg-emerald-600"
           />
         </div>
@@ -1249,7 +1295,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           <Switch
             checked={formData.is_control_question ?? false}
             onCheckedChange={(checked) => setFormData({...formData, is_control_question: checked})}
-            disabled={formData.response_type !== 'yes_no'}
+            disabled={isReadOnly || formData.response_type !== 'yes_no'}
             className="data-[state=checked]:bg-emerald-600"
           />
         </div>
@@ -1259,14 +1305,16 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           </p>
         )}
 
-        <div className="flex gap-2 pt-4">
-          <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-            {selectedItem.type === 'new-question' ? 'Create Question' : 'Save Changes'}
-          </Button>
-        </div>
+        {(isEditMode || isNewQuestion) && (
+          <div className="flex gap-2 pt-4">
+            <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+              {isNewQuestion ? 'Create Question' : 'Save Changes'}
+            </Button>
+          </div>
+        )}
 
         {/* Follow-Up Pack Management - Only for existing questions */}
-        {selectedItem.type === 'question' && formData?.followup_pack && selectedFollowUpPack && (
+        {!isNewQuestion && formData?.followup_pack && selectedFollowUpPack && (
           <div className="mt-6 pt-6 border-t border-slate-700">
             <div className="flex items-center justify-between">
               <div>
