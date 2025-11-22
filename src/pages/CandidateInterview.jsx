@@ -170,7 +170,9 @@ export default function CandidateInterview() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
-  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
+  const [showResumeBanner, setShowResumeBanner] = useState(false);
+  const [wasPaused, setWasPaused] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
 
   // Refs
@@ -379,15 +381,15 @@ export default function CandidateInterview() {
         setCurrentItem({ id: firstQuestionId, type: 'question' });
       }
       
-      // Determine if we should show welcome message
+      // Determine if we should show welcome modal
       const answeredCount = (loadedSession.transcript_snapshot || []).filter(t => t.type === 'question').length;
       if (answeredCount === 0) {
         // New interview - show welcome
-        setShowWelcomeMessage(true);
+        setShowWelcomeModal(true);
         setIsResuming(false);
-      } else if (loadedSession.status === 'in_progress') {
+      } else if (loadedSession.status === 'in_progress' || wasPaused) {
         // Resuming - show welcome back
-        setShowWelcomeMessage(true);
+        setShowWelcomeModal(true);
         setIsResuming(true);
       }
       
@@ -2368,14 +2370,6 @@ export default function CandidateInterview() {
       return null; // Agent messages will be rendered separately
     }
     
-    // Show welcome message before first question
-    if (showWelcomeMessage) {
-      return {
-        type: 'welcome',
-        isResuming: isResuming
-      };
-    }
-    
     if (!currentItem || !engine) return null;
 
     if (currentItem.type === 'question') {
@@ -2539,7 +2533,6 @@ export default function CandidateInterview() {
                           (currentPrompt?.type === 'multi_instance' && !isWaitingForAgent);
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
-  const isWelcomeMode = currentPrompt?.type === 'welcome';
   const requiresClarification = validationHint !== null;
 
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
@@ -2817,17 +2810,7 @@ export default function CandidateInterview() {
           aria-label="Response area"
         >
           <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-            {isWelcomeMode ? (
-              <div className="flex justify-center mb-3">
-                <Button
-                  onClick={() => setShowWelcomeMessage(false)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12 text-base"
-                  size="lg"
-                >
-                  {isResuming ? 'Resume Interview' : 'Start Interview'}
-                </Button>
-              </div>
-            ) : isYesNoQuestion ? (
+            {isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
@@ -2874,13 +2857,11 @@ export default function CandidateInterview() {
               </form>
             )}
             
-            {!isWelcomeMode && (
-              <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
-                {isWaitingForAgent 
-                  ? "Responding to investigator's probing questions..." 
-                  : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
-              </p>
-            )}
+            <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
+              {isWaitingForAgent 
+                ? "Responding to investigator's probing questions..." 
+                : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+            </p>
           </div>
         </footer>
       </div>
@@ -2932,6 +2913,87 @@ export default function CandidateInterview() {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
               Keep Working
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Welcome Modal */}
+      <Dialog open={showWelcomeModal} onOpenChange={() => {}}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-lg" hideClose>
+          <DialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-blue-600/20">
+                <Shield className="w-12 h-12 text-blue-400" />
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold text-center">
+              {isResuming ? "Welcome back – let's pick up where you left off" : "Welcome to your ClearQuest Interview"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {isResuming ? (
+              <>
+                <p className="text-slate-300 text-center">
+                  You're resuming your ClearQuest interview for <strong className="text-white">{department?.department_name || session?.department_code}</strong>.
+                </p>
+                
+                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Progress:</span>
+                    <span className="text-white font-semibold">
+                      {transcript.filter(t => t.type === 'question').length} of {engine?.TotalQuestions || 207} questions
+                    </span>
+                  </div>
+                </div>
+                
+                <p className="text-slate-300 text-sm text-center">
+                  We'll take you straight to the next question in your interview.
+                </p>
+                
+                <p className="text-slate-400 text-sm text-center italic">
+                  Take a moment to get settled, and then continue when you're ready.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-300 text-center">
+                  This interview is part of your application for a public safety position. You'll be asked a series of questions about your background and experiences.
+                </p>
+                
+                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                  <h4 className="text-white font-semibold mb-3 text-sm">What to expect:</h4>
+                  <ul className="space-y-2 text-sm text-slate-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span>You'll answer one question at a time, at your own pace.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span>Clear, complete, and honest answers help investigators understand the full picture.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span>If you need to pause, you can return and pick up right where you left off.</span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <p className="text-slate-400 text-sm text-center italic">
+                  Take a breath, take your time, and do your best to answer each question as accurately as you can.
+                </p>
+              </>
+            )}
+          </div>
+          
+          <div className="flex justify-center pt-2">
+            <Button
+              onClick={() => setShowWelcomeModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12"
+              size="lg"
+            >
+              {isResuming ? 'Resume Interview' : 'Start Interview'}
             </Button>
           </div>
         </DialogContent>
