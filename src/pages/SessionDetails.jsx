@@ -111,16 +111,19 @@ export default function SessionDetails() {
 
       console.log('[SESSIONDETAILS] Loaded AI summaries', {
         hasGlobalAISummary: !!sessionData.global_ai_summary,
+        globalSummaryText: sessionData.global_ai_summary?.text?.substring(0, 100),
         hasSectionAISummaries: !!sessionData.section_ai_summaries,
+        sectionSummaryKeys: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries) : [],
         sectionSummaryCount: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries).length : 0,
+        sectionSummarySample: sessionData.section_ai_summaries ? Object.entries(sessionData.section_ai_summaries)[0] : null,
         responsesWithSummaries: responsesData.filter(r => r.investigator_summary).length,
         totalResponses: responsesData.length,
         yesResponses: responsesData.filter(r => r.answer === 'Yes').length,
         lastGenerated: sessionData.ai_summaries_last_generated_at,
-        sampleSummaries: responsesData
+        sampleQuestionSummaries: responsesData
           .filter(r => r.investigator_summary)
           .slice(0, 3)
-          .map(r => ({ questionId: r.question_id, summary: r.investigator_summary?.substring(0, 50) }))
+          .map(r => ({ questionId: r.question_id, summary: r.investigator_summary?.substring(0, 80) }))
       });
 
       // DIAGNOSTIC LOG: Check for AI probing data
@@ -385,6 +388,13 @@ export default function SessionDetails() {
       });
 
       console.log('[SESSIONDETAILS] Generate AI result', result);
+      console.log('[SESSIONDETAILS] Summary counts', {
+        sessionId,
+        globalSummaryGenerated: result.data?.globalSummaryGenerated,
+        sectionSummariesGenerated: result.data?.sectionSummariesGenerated,
+        sectionSummaryKeys: result.data?.sectionSummaryKeys,
+        questionSummaries: result.data?.updatedCount
+      });
 
       if (result.data.success) {
         const { updatedCount, globalSummaryGenerated, sectionSummariesGenerated } = result.data;

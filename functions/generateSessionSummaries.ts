@@ -190,6 +190,16 @@ RULES:
     const questionSummaries = llmResult.questionSummaries || [];
     const redFlags = llmResult.redFlags || [];
 
+    console.log('[FUNC generateSessionSummaries] LLM returned data', {
+      sessionId,
+      hasInterviewSummary: !!interviewSummary.text,
+      sectionSummariesCount: sectionSummaries.length,
+      sectionNames: sectionSummaries.map(s => s.sectionName),
+      questionSummariesCount: questionSummaries.length,
+      questionIds: questionSummaries.map(q => q.questionId),
+      redFlagsCount: redFlags.length
+    });
+
     console.log(`✅ LLM returned: ${sectionSummaries.length} section summaries, ${questionSummaries.length} question summaries, ${redFlags.length} red flags`);
 
     // Update individual question summaries in Response entities
@@ -245,13 +255,19 @@ RULES:
     });
 
     console.log('[FUNC generateSessionSummaries] wrote', {
+      sessionId,
       questionSummaries: updatedQuestionCount,
       sectionSummaries: Object.keys(sectionSummariesObj).length,
+      sectionSummaryKeys: Object.keys(sectionSummariesObj),
       globalSummary: interviewSummary ? 1 : 0,
       redFlags: redFlags.length
     });
 
-    console.log(`✅ Saved summaries to session ${sessionId}`);
+    console.log(`✅ Saved summaries to session ${sessionId}`, {
+      global_ai_summary: !!interviewSummary.text,
+      section_ai_summaries: Object.keys(sectionSummariesObj),
+      updated_responses: updatedQuestionCount
+    });
 
     return Response.json({
       ok: true,
@@ -263,8 +279,9 @@ RULES:
         redFlags
       },
       updatedCount: updatedQuestionCount,
-      globalSummaryGenerated: true,
-      sectionSummariesGenerated: Object.keys(sectionSummariesObj).length
+      globalSummaryGenerated: !!interviewSummary.text,
+      sectionSummariesGenerated: Object.keys(sectionSummariesObj).length,
+      sectionSummaryKeys: Object.keys(sectionSummariesObj)
     });
 
   } catch (error) {
