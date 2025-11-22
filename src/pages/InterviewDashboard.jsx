@@ -496,8 +496,10 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
   const department = departments.find(d => d.department_code === session.department_code);
   const departmentName = department?.department_name || session.department_code;
 
+  // Match SessionDetails status config
   const statusConfig = {
-    in_progress: { label: "In Progress", color: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
+    active: { label: "In-Progress", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
+    in_progress: { label: "In-Progress", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
     completed: { label: "Completed", color: "bg-green-500/20 text-green-300 border-green-500/30" },
     paused: { label: "Paused", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" }
   };
@@ -545,79 +547,115 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
     ? Math.round((questionsAnswered / totalActiveQuestions) * 100)
     : 0;
 
+  // Calculate Yes/No counts
+  const [yesCount, setYesCount] = useState(0);
+  const [noCount, setNoCount] = useState(0);
+  
+  useEffect(() => {
+    const fetchResponseCounts = async () => {
+      try {
+        const responses = await base44.entities.Response.filter({ session_id: session.id });
+        const yes = responses.filter(r => r.answer === 'Yes').length;
+        const no = responses.filter(r => r.answer === 'No').length;
+        setYesCount(yes);
+        setNoCount(no);
+      } catch (err) {
+        console.error('Error fetching response counts:', err);
+      }
+    };
+    fetchResponseCounts();
+  }, [session.id]);
+
+  const redFlagsCount = session.red_flags?.length || 0;
+
   return (
     <Card className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-1 flex items-center justify-center">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left side - Checkbox + Content */}
+          <div className="flex items-start gap-3 flex-1">
             <Checkbox 
               checked={isSelected} 
               onCheckedChange={onToggleSelect}
-              className="border-slate-600"
+              className="border-slate-600 mt-1"
             />
-          </div>
 
-          <div className="md:col-span-4 space-y-2">
-            <div>
-              <h3 className="text-base font-medium text-white mb-1">
-                {session.session_code}
-              </h3>
-              <div className="space-y-0.5">
-                <p className="text-sm text-slate-400">
-                  Department: <span className="text-slate-300 font-normal">{departmentName}</span>
-                  {session.department_code !== departmentName && (
-                    <span className="text-slate-500"> ({session.department_code})</span>
-                  )}
-                </p>
-                <p className="text-sm text-slate-400">
-                  File: <span className="text-slate-300 font-mono font-normal">{session.file_number}</span>
-                </p>
+            <div className="flex-1 space-y-3">
+              {/* Row 1: Department + Session Code + Status */}
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="text-xs text-slate-400 mb-0.5">
+                    {departmentName}
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">
+                    {session.session_code}
+                  </h3>
+                </div>
+                <Badge className={cn("text-xs font-medium px-2.5 py-1", statusConfig[session.status]?.color)}>
+                  {statusConfig[session.status]?.label || session.status}
+                </Badge>
+              </div>
+
+              {/* Row 2: Meta Info */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                <span>
+                  File: <span className="font-medium text-slate-300">{session.file_number}</span>
+                </span>
+                <span>•</span>
+                <span>
+                  {format(new Date(session.created_date), "MMM d, yyyy")}
+                </span>
+              </div>
+
+              {/* Row 3: Metrics Strip */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+                <span>
+                  <span className="text-slate-400">Questions</span> <span className="font-semibold">{questionsAnswered}/{totalActiveQuestions || 207}</span>
+                </span>
+                <span className="text-slate-600">•</span>
+                <span>
+                  <span className="text-slate-400">Yes</span> <span className="font-semibold text-green-400">{yesCount}</span>
+                </span>
+                <span className="text-slate-600">•</span>
+                <span>
+                  <span className="text-slate-400">No</span> <span className="font-semibold">{noCount}</span>
+                </span>
+                <span className="text-slate-600">•</span>
+                <span>
+                  <span className="text-slate-400">Follow-Ups</span> <span className="font-semibold text-indigo-400">{followupsTriggered}</span>
+                </span>
+                <span className="text-slate-600">•</span>
+                <span>
+                  <span className="text-slate-400">Red Flags</span> <span className={cn("font-semibold", redFlagsCount > 0 ? "text-red-400" : "")}>{redFlagsCount}</span>
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Clock className="w-3 h-3" />
-              <span>{format(new Date(session.created_date), "MMM d, yyyy 'at' h:mm a")}</span>
-            </div>
           </div>
 
-          <div className="md:col-span-4 grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Progress</p>
-              <p className="text-xl font-bold text-blue-400">{progress}%</p>
+          {/* Right side - Completion + Actions */}
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <div className="text-right">
+              <div className="text-2xl font-bold text-amber-400">{progress}%</div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Questions</p>
-              <p className="text-xl font-bold text-white">{questionsAnswered}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Follow-Ups</p>
-              <p className="text-xl font-bold text-white">{followupsTriggered}</p>
-            </div>
-          </div>
-
-          <div className="md:col-span-3 flex flex-col justify-between gap-3">
-            <div className="flex justify-end">
-              <Badge className={cn("text-xs font-medium", statusConfig[session.status]?.color)}>
-                {statusConfig[session.status]?.label}
-              </Badge>
-            </div>
-            <div className="flex flex-col gap-1.5 items-end">
+            <div className="flex flex-col gap-1.5">
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-32"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4"
               >
                 View Interview
               </Button>
               <Button
                 onClick={handleDelete}
                 size="sm"
+                variant="outline"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-8 w-32 transition-colors",
+                  "text-xs h-8 px-4 transition-colors",
                   deleteConfirm
-                    ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
-                    : "bg-red-600 hover:bg-red-700 text-white"
+                    ? "bg-red-600/20 text-red-300 border-red-600 hover:bg-red-600/30"
+                    : "bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white"
                 )}
               >
                 {isDeleting ? (
@@ -626,7 +664,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                     Deleting...
                   </>
                 ) : (
-                  deleteConfirm ? "Confirm Delete" : "Delete"
+                  deleteConfirm ? "Confirm" : "Delete"
                 )}
               </Button>
             </div>
