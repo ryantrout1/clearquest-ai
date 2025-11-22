@@ -208,13 +208,13 @@ RULES:
     });
 
     // Update session with all AI summaries
-    await base44.asServiceRole.entities.InterviewSession.update(session_id, {
+    await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
       global_ai_summary: interviewSummary,
       section_ai_summaries: sectionSummariesObj,
       ai_summaries_last_generated_at: new Date().toISOString()
     });
 
-    console.log(`✅ Saved summaries to session ${session_id}`);
+    console.log(`✅ Saved summaries to session ${sessionId}`);
 
     return Response.json({
       ok: true,
