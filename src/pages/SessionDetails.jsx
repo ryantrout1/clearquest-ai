@@ -778,23 +778,56 @@ export default function SessionDetails() {
                 <span className="hidden lg:inline text-xs">Follow-Ups Only</span>
               </button>
 
-              <button
-                onClick={handleGenerateAISummaries}
-                disabled={isGenerating}
-                className="hidden md:inline-flex items-center gap-2 rounded-lg border border-purple-500/60 bg-transparent px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <span className="text-sm">🧠</span>
-                    <span>Generate AI</span>
-                  </>
-                )}
-              </button>
+              {/* Three scoped brain buttons */}
+              <div className="hidden md:flex items-center gap-1.5">
+                {/* Pink brain: Global AI Investigator Assist */}
+                <button
+                  onClick={handleGenerateGlobalAISummary}
+                  disabled={isGenerating || responses.length === 0}
+                  className="inline-flex items-center justify-center rounded-lg border border-pink-500/60 bg-transparent p-2 text-pink-300 hover:bg-pink-500/10 hover:border-pink-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Regenerate Global AI Summary"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span className="text-base">🧠</span>
+                  )}
+                </button>
+                
+                {/* Purple brain: Section summaries */}
+                <button
+                  onClick={() => {
+                    // Get first visible/expanded section or default to first category
+                    const firstCategory = Object.keys(responsesByCategory)[0];
+                    if (firstCategory) {
+                      handleGenerateSectionSummary(firstCategory);
+                    }
+                  }}
+                  disabled={isGenerating || responses.length === 0}
+                  className="inline-flex items-center justify-center rounded-lg border border-purple-500/60 bg-transparent p-2 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Regenerate Section Summaries"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span className="text-base">🧠</span>
+                  )}
+                </button>
+                
+                {/* Blue brain: Question summaries */}
+                <button
+                  onClick={handleGenerateQuestionSummaries}
+                  disabled={isGenerating || responses.length === 0}
+                  className="inline-flex items-center justify-center rounded-lg border border-blue-500/60 bg-transparent p-2 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Regenerate Question Summaries"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span className="text-base">🧠</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -864,7 +897,7 @@ export default function SessionDetails() {
                 </p>
                 
                 <button
-                  onClick={handleGenerateAISummaries}
+                  onClick={handleGenerateGlobalAISummary}
                   disabled={isGenerating || responses.length === 0}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                 >
