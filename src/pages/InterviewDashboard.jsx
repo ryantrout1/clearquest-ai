@@ -280,112 +280,142 @@ export default function InterviewDashboard() {
       
       <div className="max-w-7xl mx-auto px-4">
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          <CompactStat label="TOTAL SESSIONS" value={stats.total} color="blue" />
-          <CompactStat label="IN PROGRESS" value={stats.inProgress} color="orange" />
-          <CompactStat label="COMPLETED" value={stats.completed} color="green" />
-          <CompactStat label="FLAGGED" value={stats.flagged} color="red" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <CompactStat label="Total Sessions" value={stats.total} color="blue" />
+          <CompactStat label="In Progress" value={stats.inProgress} color="orange" />
+          <CompactStat label="Completed" value={stats.completed} color="green" />
+          <CompactStat label="Flagged" value={stats.flagged} color="red" />
         </div>
 
-        <Card className="bg-[#0f1629] border-slate-800/50 mb-3">
-          <CardContent className="p-3">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mb-2">
-              <div className="md:col-span-5 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by session code, file number, or department..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 text-sm h-9"
-                />
+        {/* AI Overview Band */}
+        <div className="mb-4 rounded-xl bg-slate-900/50 border border-slate-700 overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🧠</span>
+                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
+                  AI Investigator Overview
+                </h3>
               </div>
-
-              <div className="md:col-span-4">
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger className="bg-slate-900/50 border-slate-700/50 text-white text-sm h-9 w-full">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700">
-                    <SelectItem value="all" className="text-white text-sm">All Departments</SelectItem>
-                    {uniqueDepartments.map(dept => (
-                      <SelectItem key={dept.code} value={dept.code} className="text-white text-sm">
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Badge className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
+                {stats.flagged === 0 ? 'No Critical Flags' : `${stats.flagged} Sessions Flagged`}
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-start gap-2 text-xs text-slate-300">
+                <span className="text-blue-400">•</span>
+                <span>{stats.total} total interview sessions tracked across all departments</span>
               </div>
-
-              <div className="md:col-span-3">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="bg-slate-900/50 border-slate-700/50 text-white text-sm h-9 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700">
-                    <SelectItem value="most_recent" className="text-white text-sm">Most Recent</SelectItem>
-                    <SelectItem value="oldest" className="text-white text-sm">Oldest</SelectItem>
-                    <SelectItem value="highest_progress" className="text-white text-sm">Highest Progress</SelectItem>
-                    <SelectItem value="lowest_progress" className="text-white text-sm">Lowest Progress</SelectItem>
-                    <SelectItem value="department_az" className="text-white text-sm">Department A–Z</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-start gap-2 text-xs text-slate-300">
+                <span className="text-blue-400">•</span>
+                <span>{stats.completed} sessions completed with full AI analysis</span>
+              </div>
+              <div className="flex items-start gap-2 text-xs text-slate-300">
+                <span className="text-blue-400">•</span>
+                <span>{stats.inProgress} sessions currently in progress</span>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusChip 
-                label="All" 
-                active={statusFilter === "all"} 
-                onClick={() => setStatusFilter("all")}
+        {/* Search & Filters Card */}
+        <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 space-y-3 mb-4">
+          {/* Search Row */}
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search by session code, file number, or department..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-sm h-9"
               />
-              <StatusChip 
-                label="In Progress" 
-                active={statusFilter === "in_progress"} 
-                onClick={() => setStatusFilter("in_progress")}
-              />
-              <StatusChip 
-                label="Completed" 
-                active={statusFilter === "completed"} 
-                onClick={() => setStatusFilter("completed")}
-              />
-              <StatusChip 
-                label="Paused" 
-                active={statusFilter === "paused"} 
-                onClick={() => setStatusFilter("paused")}
-              />
-              
-              {selectedSessions.size > 0 && (
-                <>
-                  <div className="h-4 w-px bg-slate-600 mx-1" />
-                  <Button
-                    onClick={handleBulkDelete}
-                    size="sm"
-                    variant="destructive"
-                    disabled={isBulkDeleting}
-                    className={cn(
-                      "h-7 px-3 text-xs transition-colors",
-                      bulkDeleteConfirm && !isBulkDeleting
-                        ? "bg-red-700 hover:bg-red-800 text-white animate-pulse"
-                        : "bg-red-600 hover:bg-red-700 text-white"
-                    )}
-                  >
-                    {isBulkDeleting ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="w-3 h-3 mr-1.5" />
-                        {bulkDeleteConfirm ? 'Confirm Delete' : `Delete ${selectedSessions.size} Selected`}
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="flex gap-2">
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-[180px]">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="all" className="text-white text-sm">All Departments</SelectItem>
+                  {uniqueDepartments.map(dept => (
+                    <SelectItem key={dept.code} value={dept.code} className="text-white text-sm">
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white text-sm h-9 w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="most_recent" className="text-white text-sm">Most Recent</SelectItem>
+                  <SelectItem value="oldest" className="text-white text-sm">Oldest</SelectItem>
+                  <SelectItem value="highest_progress" className="text-white text-sm">Highest Progress</SelectItem>
+                  <SelectItem value="lowest_progress" className="text-white text-sm">Lowest Progress</SelectItem>
+                  <SelectItem value="department_az" className="text-white text-sm">Department A–Z</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Status Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusChip 
+              label="All" 
+              active={statusFilter === "all"} 
+              onClick={() => setStatusFilter("all")}
+            />
+            <StatusChip 
+              label="In Progress" 
+              active={statusFilter === "in_progress"} 
+              onClick={() => setStatusFilter("in_progress")}
+            />
+            <StatusChip 
+              label="Completed" 
+              active={statusFilter === "completed"} 
+              onClick={() => setStatusFilter("completed")}
+            />
+            <StatusChip 
+              label="Paused" 
+              active={statusFilter === "paused"} 
+              onClick={() => setStatusFilter("paused")}
+            />
+            
+            {selectedSessions.size > 0 && (
+              <>
+                <div className="h-4 w-px bg-slate-600 mx-1" />
+                <Button
+                  onClick={handleBulkDelete}
+                  size="sm"
+                  variant="destructive"
+                  disabled={isBulkDeleting}
+                  className={cn(
+                    "h-7 px-3 text-xs transition-colors",
+                    bulkDeleteConfirm && !isBulkDeleting
+                      ? "bg-red-700 hover:bg-red-800 text-white animate-pulse"
+                      : "bg-red-600 hover:bg-red-700 text-white"
+                  )}
+                >
+                  {isBulkDeleting ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3 h-3 mr-1.5" />
+                      {bulkDeleteConfirm ? 'Confirm Delete' : `Delete ${selectedSessions.size} Selected`}
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
 
         {departmentFilter !== "all" && selectedDepartmentName && (
           <div className="mb-3">
@@ -457,16 +487,25 @@ export default function InterviewDashboard() {
 
 function CompactStat({ label, value, color }) {
   const colorClasses = {
-    blue: "text-blue-400",
-    orange: "text-orange-400",
-    green: "text-green-400",
-    red: "text-red-400"
+    blue: { bg: "bg-slate-900/70", border: "border-slate-800", text: "text-slate-50" },
+    orange: { bg: "bg-gradient-to-br from-amber-900/70 to-slate-900/70", border: "border-amber-900", text: "text-slate-50" },
+    green: { bg: "bg-gradient-to-br from-emerald-900/70 to-slate-900/70", border: "border-emerald-900", text: "text-slate-50" },
+    red: { bg: "bg-gradient-to-br from-red-900/70 to-slate-900/70", border: "border-red-900", text: "text-slate-50" }
   };
 
+  const styles = colorClasses[color] || colorClasses.blue;
+
   return (
-    <div className="bg-[#0f1629] border border-slate-800/50 rounded-lg p-4">
-      <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">{label}</p>
-      <p className={cn("text-2xl font-bold", colorClasses[color])}>{value}</p>
+    <div className={cn("rounded-xl border px-3 py-2 flex flex-col justify-between", styles.bg, styles.border)}>
+      <div className="text-[11px] font-semibold tracking-wide text-slate-300 uppercase">
+        {label}
+      </div>
+      <div className={cn("text-xl font-semibold", styles.text)}>
+        {value}
+      </div>
+      <div className="text-[10px] text-slate-400">
+        {color === 'orange' ? 'active' : color === 'green' ? 'done' : color === 'red' && value > 0 ? 'identified' : 'tracked'}
+      </div>
     </div>
   );
 }
@@ -476,10 +515,10 @@ function StatusChip({ label, active, onClick }) {
     <button
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+        "px-3 py-1 rounded-full text-xs font-medium transition-all border",
         active 
-          ? "bg-blue-600 text-white border-blue-500" 
-          : "bg-slate-800/30 text-slate-400 border-slate-700/50 hover:bg-slate-800/50"
+          ? "bg-purple-600/30 text-purple-200 border-purple-500/40" 
+          : "bg-slate-800/20 text-slate-400 border-slate-700/40 hover:bg-slate-800/40 hover:border-slate-600"
       )}
     >
       {label}
@@ -569,7 +608,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
   const redFlagsCount = session.red_flags?.length || 0;
 
   return (
-    <Card className="bg-[#0f1629] border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+    <Card className="bg-[#0f1629] border-slate-800/50 hover:border-slate-700 hover:shadow-lg transition-all">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           {/* Left side - Checkbox + Content */}
@@ -580,18 +619,18 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
               className="border-slate-600 mt-1"
             />
 
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 space-y-2.5">
               {/* Row 1: Department + Session Code + Status */}
-              <div className="flex flex-wrap items-start gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="flex-1 min-w-[200px]">
-                  <div className="text-xs text-slate-400 mb-0.5">
+                  <div className="text-xs text-slate-400">
                     {departmentName}
                   </div>
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-xl font-semibold text-slate-50">
                     {session.session_code}
                   </h3>
                 </div>
-                <Badge className={cn("text-xs font-medium px-2.5 py-1", statusConfig[session.status]?.color)}>
+                <Badge className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", statusConfig[session.status]?.color)}>
                   {statusConfig[session.status]?.label || session.status}
                 </Badge>
               </div>
@@ -599,7 +638,11 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
               {/* Row 2: Meta Info */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
                 <span>
-                  File: <span className="font-medium text-slate-300">{session.file_number}</span>
+                  # <span className="font-medium text-slate-200">{session.file_number}</span>
+                </span>
+                <span>•</span>
+                <span>
+                  Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
                 </span>
                 <span>•</span>
                 <span>
@@ -610,7 +653,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
               {/* Row 3: Metrics Strip */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
                 <span>
-                  <span className="text-slate-400">Questions</span> <span className="font-semibold">{questionsAnswered}/{totalActiveQuestions || 207}</span>
+                  <span className="text-slate-400">Questions</span> <span className="font-semibold text-slate-50">{questionsAnswered}/{totalActiveQuestions || 207}</span>
                 </span>
                 <span className="text-slate-600">•</span>
                 <span>
@@ -618,7 +661,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 </span>
                 <span className="text-slate-600">•</span>
                 <span>
-                  <span className="text-slate-400">No</span> <span className="font-semibold">{noCount}</span>
+                  <span className="text-slate-400">No</span> <span className="font-semibold text-slate-50">{noCount}</span>
                 </span>
                 <span className="text-slate-600">•</span>
                 <span>
@@ -626,23 +669,23 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 </span>
                 <span className="text-slate-600">•</span>
                 <span>
-                  <span className="text-slate-400">Red Flags</span> <span className={cn("font-semibold", redFlagsCount > 0 ? "text-red-400" : "")}>{redFlagsCount}</span>
+                  <span className="text-slate-400">Red Flags</span> <span className={cn("font-semibold", redFlagsCount > 0 ? "text-red-400" : "text-slate-50")}>{redFlagsCount}</span>
                 </span>
               </div>
             </div>
           </div>
 
           {/* Right side - Completion + Actions */}
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
             <div className="text-right">
               <div className="text-2xl font-bold text-amber-400">{progress}%</div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 w-32">
               <Button
                 onClick={() => navigate(createPageUrl(`SessionDetails?id=${session.id}`))}
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 w-full"
               >
                 View Interview
               </Button>
@@ -652,7 +695,7 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 variant="outline"
                 disabled={isDeleting}
                 className={cn(
-                  "text-xs h-8 px-4 transition-colors",
+                  "text-xs h-8 w-full transition-colors",
                   deleteConfirm
                     ? "bg-red-600/20 text-red-300 border-red-600 hover:bg-red-600/30"
                     : "bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white"
