@@ -114,7 +114,11 @@ Keep it factual, concise, and suitable for a case file. Do not editorialize or m
         console.log(`✅ Updated summary for response ${response.id}`);
 
       } catch (err) {
-        console.error(`❌ Error generating summary for response ${response.id}:`, err);
+        console.error(`❌ Error generating summary for response ${response.id}:`, {
+          error: err.message || String(err),
+          stack: err.stack,
+          responseId: response.id
+        });
         // Continue with other responses
       }
     }
