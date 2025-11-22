@@ -1452,70 +1452,6 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, transcriptEntry];
         setTranscript(newTranscript);
 
-        // NEW: Detect section transition and emit completion message
-        const computeNextQuestionForTransition = (currentQuestionId, answerValue) => {
-          if (answerValue === 'Yes') {
-            // Check for follow-ups first
-            const followUpResult = checkFollowUpTrigger(engine, currentQuestionId, answerValue);
-            if (followUpResult) {
-              // Will trigger follow-up, so no immediate next question
-              return null;
-            }
-          }
-          // Get next base question
-          return computeNextQuestionId(engine, currentQuestionId, answerValue);
-        };
-        
-        const nextQuestionId = computeNextQuestionForTransition(currentItem.id, value);
-        
-        if (nextQuestionId && engine.QById[nextQuestionId]) {
-          const nextQuestion = engine.QById[nextQuestionId];
-          const currentSectionId = question.section_id;
-          const nextSectionId = nextQuestion.section_id;
-          
-          // Check if we're transitioning between sections
-          const isSectionTransition = currentSectionId && nextSectionId && currentSectionId !== nextSectionId;
-          
-          if (isSectionTransition) {
-            console.log('[SECTION-MESSAGE] Section transition detected', {
-              fromSection: currentSectionId,
-              toSection: nextSectionId,
-              fromSectionName: sectionName,
-              toSectionName: engine.Sections.find(s => s.id === nextSectionId)?.section_name
-            });
-            
-            // Count questions in completed section
-            const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
-            const isLong = sectionQuestions.length >= 10;
-            
-            // Check if section had any incidents (Yes answers)
-            const sectionResponses = newTranscript.filter(t => 
-              t.type === 'question' && 
-              t.sectionId === currentSectionId
-            );
-            const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
-            
-            // Check if section is "heavy"
-            const isHeavy = HEAVY_SECTIONS.includes(sectionName);
-            
-            console.log('[SECTION-MESSAGE] Emitting completion message', {
-              sectionId: currentSectionId,
-              sectionName,
-              isHeavy,
-              isLong,
-              hadIncidents
-            });
-            
-            setSectionCompletionMessage({
-              sectionId: currentSectionId,
-              sectionName,
-              isHeavy,
-              isLong,
-              hadIncidents
-            });
-          }
-        }
-        
         // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
@@ -1572,6 +1508,27 @@ export default function CandidateInterview() {
             // No follow-up triggered - advance to next question
             const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
             if (nextQuestionId && engine.QById[nextQuestionId]) {
+              // Check for section transition
+              const nextQuestion = engine.QById[nextQuestionId];
+              const currentSectionId = question.section_id;
+              const nextSectionId = nextQuestion.section_id;
+              
+              if (currentSectionId && nextSectionId && currentSectionId !== nextSectionId) {
+                const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
+                const isLong = sectionQuestions.length >= 10;
+                const sectionResponses = newTranscript.filter(t => t.type === 'question' && t.sectionId === currentSectionId);
+                const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
+                const isHeavy = HEAVY_SECTIONS.includes(sectionName);
+                
+                setSectionCompletionMessage({
+                  sectionId: currentSectionId,
+                  sectionName,
+                  isHeavy,
+                  isLong,
+                  hadIncidents
+                });
+              }
+              
               setQueue([]);
               setCurrentItem({ id: nextQuestionId, type: 'question' });
               await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
@@ -1595,6 +1552,36 @@ export default function CandidateInterview() {
           // RESTORED ORIGINAL LOGIC: If no next question, interview is complete
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             console.log(`✅ Advancing to next question: ${nextQuestionId}`);
+            
+            // Check for section transition
+            const nextQuestion = engine.QById[nextQuestionId];
+            const currentSectionId = question.section_id;
+            const nextSectionId = nextQuestion.section_id;
+            
+            if (currentSectionId && nextSectionId && currentSectionId !== nextSectionId) {
+              const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
+              const isLong = sectionQuestions.length >= 10;
+              const sectionResponses = newTranscript.filter(t => t.type === 'question' && t.sectionId === currentSectionId);
+              const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
+              const isHeavy = HEAVY_SECTIONS.includes(sectionName);
+              
+              console.log('[SECTION-MESSAGE] Emitting completion message', {
+                sectionId: currentSectionId,
+                sectionName,
+                isHeavy,
+                isLong,
+                hadIncidents
+              });
+              
+              setSectionCompletionMessage({
+                sectionId: currentSectionId,
+                sectionName,
+                isHeavy,
+                isLong,
+                hadIncidents
+              });
+            }
+            
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
