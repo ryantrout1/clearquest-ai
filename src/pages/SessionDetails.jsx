@@ -950,6 +950,7 @@ export default function SessionDetails() {
             sections={sections}
             session={session}
             transcriptEvents={transcriptEvents}
+            sectionSummariesBySectionId={sectionSummariesBySectionId}
           />
         ) : (
           <UnifiedTranscriptView
@@ -1074,7 +1075,7 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
