@@ -1485,7 +1485,7 @@ export default function CandidateInterview() {
             });
             
             // Count questions in completed section
-            const sectionQuestions = engine.Questions.filter(q => q.section_id === currentSectionId && q.active !== false);
+            const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
             const isLong = sectionQuestions.length >= 10;
             
             // Check if section had any incidents (Yes answers)
