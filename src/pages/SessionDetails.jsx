@@ -1073,6 +1073,13 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const questionNumber = displayNumber.toString().padStart(3, '0');
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
+
+  console.log('[SESSIONDETAILS] Question summary check', {
+    questionId: response.question_id,
+    hasFollowups,
+    hasSummary: !!summary,
+    summaryText: summary?.substring(0, 80)
+  });
   
   // Build instances from raw FollowUpResponse data
   const instancesMap = {};
@@ -1143,22 +1150,22 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
           <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
           <div 
-            className="flex-1 bg-slate-800/40 border border-slate-600/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-colors group"
+            className="flex-1 bg-amber-950/30 border border-amber-800/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-amber-950/40 transition-colors group"
             onClick={onToggleExpand}
           >
             {summary ? (
-              <p className="text-xs text-slate-300 italic flex-1 leading-relaxed">
+              <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">
                 {summary}
               </p>
             ) : (
               <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
-                No summary available. Use 'Generate AI Summaries' to create one.
+                No summary available. Use 'Generate AI' to create one.
               </p>
             )}
             {isExpanded ? (
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
+              <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300 flex-shrink-0 ml-3 transition-colors" />
+              <ChevronDown className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
             )}
           </div>
         </div>
