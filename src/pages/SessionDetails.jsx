@@ -113,8 +113,10 @@ export default function SessionDetails() {
         hasGlobalAISummary: !!sessionData.global_ai_summary,
         globalSummaryText: sessionData.global_ai_summary?.text?.substring(0, 100),
         hasSectionAISummaries: !!sessionData.section_ai_summaries,
+        sectionAISummariesType: typeof sessionData.section_ai_summaries,
         sectionSummaryKeys: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries) : [],
         sectionSummaryCount: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries).length : 0,
+        sectionSummariesFullData: sessionData.section_ai_summaries,
         sectionSummarySample: sessionData.section_ai_summaries ? Object.entries(sessionData.section_ai_summaries)[0] : null,
         responsesWithSummaries: responsesData.filter(r => r.investigator_summary).length,
         totalResponses: responsesData.length,
@@ -404,13 +406,19 @@ export default function SessionDetails() {
       }
 
       await loadSessionData();
-    } catch (err) {
+
+      // Diagnostic: Check what was loaded after refresh
+      console.log('[SESSIONDETAILS] After reload - checking section summaries', {
+        sessionHasSectionSummaries: !!session?.section_ai_summaries,
+        sectionSummaryKeys: session?.section_ai_summaries ? Object.keys(session.section_ai_summaries) : []
+      });
+      } catch (err) {
       console.error('[SESSIONDETAILS] Error generating AI summaries', err);
       toast.error('Failed to generate summaries');
-    } finally {
+      } finally {
       setIsGenerating(false);
-    }
-  };
+      }
+      };
 
   if (isLoading) {
     return (
