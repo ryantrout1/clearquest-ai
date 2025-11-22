@@ -129,7 +129,7 @@ export default function DepartmentDashboard() {
 
     const sevenDaysAgo = subDays(new Date(), 7);
 
-    const openInterviews = allSessions.filter(s => s.status === 'in_progress').length;
+    const openInterviews = allSessions.filter(s => s.status === 'in_progress' || s.status === 'active').length;
 
     const completed7d = allSessions.filter(s => {
       if (s.status !== 'completed') return false;
@@ -484,7 +484,7 @@ export default function DepartmentDashboard() {
               <CardContent>
                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
                   {allSessions
-                    .filter(s => s.status === 'in_progress')
+                    .filter(s => s.status === 'in_progress' || s.status === 'active')
                     .map(session => {
                       const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                       const questionsAnswered = sessionResponses.length;
