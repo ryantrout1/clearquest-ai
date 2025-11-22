@@ -459,7 +459,10 @@ export default function SessionDetails() {
         generateQuestions: true
       });
 
-      console.log('[SESSIONDETAILS] Question AI generation finished');
+      console.log('[SESSIONDETAILS] Question AI generation finished', {
+        result: result.data,
+        updatedCount: result.data?.updatedCount
+      });
 
       if (result.data.success || result.data.ok) {
         const count = result.data?.updatedCount || 0;
@@ -468,8 +471,16 @@ export default function SessionDetails() {
         toast.error('Failed to generate question summaries');
       }
 
-      // Reload only question-level summaries
+      // Reload only question-level summaries - force fresh data
       const responsesData = await base44.entities.Response.filter({ session_id: sessionId });
+      console.log('[SESSIONDETAILS] Reloaded responses after question summaries', {
+        count: responsesData.length,
+        withSummaries: responsesData.filter(r => r.investigator_summary).length,
+        sampleSummaries: responsesData.filter(r => r.investigator_summary).slice(0, 2).map(r => ({
+          questionId: r.question_id,
+          summary: r.investigator_summary?.substring(0, 60)
+        }))
+      });
       setResponses(responsesData);
     } catch (err) {
       console.error('[SESSIONDETAILS] Error generating question summaries', err);
