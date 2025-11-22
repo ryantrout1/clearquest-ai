@@ -268,7 +268,7 @@ export default function FollowUpPackManagerV2() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Header */}
-      <div className="border-b border-slate-800/50 bg-[#0f1629] px-4 py-3">
+      <div className="border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-sm px-4 py-3">
         <div className="max-w-[2000px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -297,7 +297,7 @@ export default function FollowUpPackManagerV2() {
         {/* Left Panel - Categories */}
         <div 
           style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-[#0f1629] p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
         >
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-white">Categories</h3>
@@ -324,7 +324,7 @@ export default function FollowUpPackManagerV2() {
         {/* Middle Panel - Pack List */}
         <div 
           style={{ width: `${middleWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-[#0a0f1e] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
         >
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -403,7 +403,7 @@ export default function FollowUpPackManagerV2() {
         {/* Right Panel - Pack Details */}
         <div 
           style={{ width: `${rightWidth}%` }}
-          className="overflow-auto bg-[#0a0f1e] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
         >
           <div className="p-4">
             <FollowUpPackDetails
