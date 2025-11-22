@@ -216,10 +216,16 @@ RULES:
       const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
       console.log('[FUNC generateSessionSummaries] Found responses to update', {
         totalResponses: responses.length,
-        yesResponses: responses.filter(r => r.answer === 'Yes').length
+        yesResponses: responses.filter(r => r.answer === 'Yes').length,
+        sampleResponseQuestionIds: responses.slice(0, 3).map(r => r.question_id)
       });
       
       for (const qSummary of questionSummaries) {
+        console.log('[FUNC generateSessionSummaries] Looking up response', {
+          llmQuestionId: qSummary.questionId,
+          summaryPreview: qSummary.summary?.substring(0, 50)
+        });
+        
         const response = responses.find(r => r.question_id === qSummary.questionId);
         if (response) {
           try {
@@ -227,13 +233,15 @@ RULES:
               investigator_summary: qSummary.summary,
               investigator_summary_last_generated_at: new Date().toISOString()
             });
-            console.log(`[FUNC generateSessionSummaries] Updated response ${response.id} (${qSummary.questionId}) with summary`);
+            console.log(`[FUNC generateSessionSummaries] ✓ Updated response ${response.id} (question_id: ${qSummary.questionId}) with summary`);
             updatedQuestionCount++;
           } catch (err) {
             console.error(`Failed to update response ${response.id}:`, err.message);
           }
         } else {
-          console.warn(`[FUNC generateSessionSummaries] No response found for questionId: ${qSummary.questionId}`);
+          console.warn(`[FUNC generateSessionSummaries] ✗ No response found for questionId: ${qSummary.questionId}`, {
+            availableQuestionIds: responses.map(r => r.question_id).slice(0, 10)
+          });
         }
       }
     } else {
