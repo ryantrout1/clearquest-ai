@@ -172,8 +172,6 @@ export default function CandidateInterview() {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [wasPaused, setWasPaused] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [isResuming, setIsResuming] = useState(false);
 
   // Refs
   const historyRef = useRef(null);
@@ -330,6 +328,7 @@ export default function CandidateInterview() {
       // Check if session was paused
       if (loadedSession.status === 'paused') {
         setWasPaused(true);
+        setShowResumeBanner(true);
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
         });
@@ -379,18 +378,6 @@ export default function CandidateInterview() {
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
-      }
-      
-      // Determine if we should show welcome modal
-      const answeredCount = (loadedSession.transcript_snapshot || []).filter(t => t.type === 'question').length;
-      if (answeredCount === 0) {
-        // New interview - show welcome
-        setShowWelcomeModal(true);
-        setIsResuming(false);
-      } else if (loadedSession.status === 'in_progress' || wasPaused) {
-        // Resuming - show welcome back
-        setShowWelcomeModal(true);
-        setIsResuming(true);
       }
       
       setIsLoading(false);
@@ -2626,6 +2613,34 @@ export default function CandidateInterview() {
           </div>
         </header>
 
+        {showResumeBanner && (
+          <div className="flex-shrink-0 bg-emerald-950/90 border-b border-emerald-800/50 px-4 py-3">
+            <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <div className="flex flex-wrap items-center gap-2 text-sm text-emerald-100">
+                  <span>Welcome back! Resuming interview with</span>
+                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
+                    {session?.department_code}
+                  </span>
+                  <span>•</span>
+                  <span className="px-2 py-0.5 bg-emerald-900/50 rounded font-mono text-xs text-emerald-300">
+                    {session?.file_number}
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResumeBanner(false)}
+                className="text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/30"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
         <main className="flex-1 overflow-hidden flex flex-col">
           <div 
@@ -2913,87 +2928,6 @@ export default function CandidateInterview() {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
               Keep Working
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Welcome Modal */}
-      <Dialog open={showWelcomeModal} onOpenChange={() => {}}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-lg" hideClose>
-          <DialogHeader>
-            <div className="flex justify-center mb-4">
-              <div className="p-4 rounded-full bg-blue-600/20">
-                <Shield className="w-12 h-12 text-blue-400" />
-              </div>
-            </div>
-            <DialogTitle className="text-2xl font-bold text-center">
-              {isResuming ? "Welcome back – let's pick up where you left off" : "Welcome to your ClearQuest Interview"}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {isResuming ? (
-              <>
-                <p className="text-slate-300 text-center">
-                  You're resuming your ClearQuest interview for <strong className="text-white">{department?.department_name || session?.department_code}</strong>.
-                </p>
-                
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Progress:</span>
-                    <span className="text-white font-semibold">
-                      {transcript.filter(t => t.type === 'question').length} of {engine?.TotalQuestions || 207} questions
-                    </span>
-                  </div>
-                </div>
-                
-                <p className="text-slate-300 text-sm text-center">
-                  We'll take you straight to the next question in your interview.
-                </p>
-                
-                <p className="text-slate-400 text-sm text-center italic">
-                  Take a moment to get settled, and then continue when you're ready.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-slate-300 text-center">
-                  This interview is part of your application for a public safety position. You'll be asked a series of questions about your background and experiences.
-                </p>
-                
-                <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-3 text-sm">What to expect:</h4>
-                  <ul className="space-y-2 text-sm text-slate-300">
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-400 flex-shrink-0">•</span>
-                      <span>You'll answer one question at a time, at your own pace.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-400 flex-shrink-0">•</span>
-                      <span>Clear, complete, and honest answers help investigators understand the full picture.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-400 flex-shrink-0">•</span>
-                      <span>If you need to pause, you can return and pick up right where you left off.</span>
-                    </li>
-                  </ul>
-                </div>
-                
-                <p className="text-slate-400 text-sm text-center italic">
-                  Take a breath, take your time, and do your best to answer each question as accurately as you can.
-                </p>
-              </>
-            )}
-          </div>
-          
-          <div className="flex justify-center pt-2">
-            <Button
-              onClick={() => setShowWelcomeModal(false)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12"
-              size="lg"
-            >
-              {isResuming ? 'Resume Interview' : 'Start Interview'}
             </Button>
           </div>
         </DialogContent>
