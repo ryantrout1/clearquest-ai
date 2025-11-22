@@ -409,7 +409,7 @@ export default function DepartmentDashboard() {
                         const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                         const questionsAnswered = sessionResponses.length;
                         const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
-                        const completionPercentage = Math.round((questionsAnswered / 207) * 100);
+                        const completionPercentage = session.status === 'completed' ? 100 : Math.round((questionsAnswered / 207) * 100);
 
                         const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
                         const noCount = sessionResponses.filter(r => r.answer === 'No').length;
@@ -538,7 +538,7 @@ export default function DepartmentDashboard() {
                       const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
-                      const completionPercentage = Math.round((questionsAnswered / 207) * 100);
+                      const completionPercentage = session.status === 'completed' ? 100 : Math.round((questionsAnswered / 207) * 100);
 
                       const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
                       const noCount = sessionResponses.filter(r => r.answer === 'No').length;
