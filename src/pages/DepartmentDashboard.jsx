@@ -381,37 +381,9 @@ export default function DepartmentDashboard() {
           </Alert>
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
-          <StatCard
-            title="Applicants Processed"
-            value={department.applicants_processed || 0}
-            icon={FileText}
-            color="blue"
-          />
-          <StatCard
-            title="Active Users"
-            value={departmentUsers.length}
-            icon={Users}
-            color="green"
-          />
-          <StatCard
-            title="Avg Time"
-            value={`${department.avg_processing_time || 0}m`}
-            icon={TrendingUp}
-            color="purple"
-          />
-          <StatCard
-            title="Retention"
-            value={`${department.retention_period}d`}
-            icon={Calendar}
-            color="orange"
-          />
-        </div>
-
         <div className="grid md:grid-cols-2 gap-4 md:gap-6">
           {/* In-Progress Interviews Section - Scrollable */}
-          {metrics.openInterviews > 0 && (
+          {(
             <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 md:col-span-2">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -427,10 +399,13 @@ export default function DepartmentDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
-                  {allSessions
-                    .filter(s => s.status === 'in_progress' || s.status === 'active')
-                    .map(session => {
+                {allSessions.filter(s => s.status === 'in_progress' || s.status === 'active').length === 0 ? (
+                  <p className="text-slate-400 text-sm text-center py-6">No in-progress interviews</p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #1e293b' }}>
+                    {allSessions
+                      .filter(s => s.status === 'in_progress' || s.status === 'active')
+                      .map(session => {
                       const sessionResponses = allResponses.filter(r => r.session_id === session.id);
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
@@ -529,7 +504,8 @@ export default function DepartmentDashboard() {
                         </Card>
                       );
                     })}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
