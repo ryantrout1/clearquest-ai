@@ -330,7 +330,7 @@ export default function SystemAdminDashboard() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-xl font-semibold text-white">Department Dashboard</h1>
+                <h1 className="text-xl font-semibold text-white">System Admin Dashboard</h1>
                 <span className="text-xs text-slate-400 block mt-0.5">
                   Platform health, department management, and system-wide metrics
                 </span>
