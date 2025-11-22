@@ -373,52 +373,97 @@ export default function SessionDetails() {
     }
   };
 
-  const handleGenerateAISummaries = async () => {
-    console.log('[SESSIONDETAILS] Generate AI clicked', { sessionId });
-
-    if (!sessionId) {
-      console.warn('[SESSIONDETAILS] No sessionId, aborting generate AI.');
-      return;
-    }
+  // Pink brain: Regenerate only global AI Investigator Assist summary
+  const handleGenerateGlobalAISummary = async () => {
+    if (!sessionId) return;
 
     try {
       setIsGenerating(true);
 
       const result = await base44.functions.invoke('generateSessionSummaries', {
         session_id: sessionId,
-        transcriptEvents: transcriptEvents
+        transcriptEvents: transcriptEvents,
+        generateGlobal: true,
+        generateSections: false,
+        generateQuestions: false
       });
 
-      console.log('[SESSIONDETAILS] Generate AI result', result);
-      console.log('[SESSIONDETAILS] Summary counts', {
-        sessionId,
-        globalSummaryGenerated: result.data?.globalSummaryGenerated,
-        sectionSummariesGenerated: result.data?.sectionSummariesGenerated,
-        sectionSummaryKeys: result.data?.sectionSummaryKeys,
-        questionSummaries: result.data?.updatedCount
-      });
-
-      if (result.data.success) {
-        const { updatedCount, globalSummaryGenerated, sectionSummariesGenerated } = result.data;
-        toast.success(`AI summaries updated: ${updatedCount} questions, global summary, and ${sectionSummariesGenerated} sections`);
+      if (result.data.success || result.data.ok) {
+        toast.success('Global AI summary updated');
       } else {
-        toast.error('Failed to generate summaries');
+        toast.error('Failed to generate global summary');
       }
 
       await loadSessionData();
-
-      // Diagnostic: Check what was loaded after refresh
-      console.log('[SESSIONDETAILS] After reload - checking section summaries', {
-        sessionHasSectionSummaries: !!session?.section_ai_summaries,
-        sectionSummaryKeys: session?.section_ai_summaries ? Object.keys(session.section_ai_summaries) : []
-      });
-      } catch (err) {
-      console.error('[SESSIONDETAILS] Error generating AI summaries', err);
-      toast.error('Failed to generate summaries');
-      } finally {
+    } catch (err) {
+      console.error('[SESSIONDETAILS] Error generating global AI summary', err);
+      toast.error('Failed to generate global summary');
+    } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Purple brain: Regenerate only current section's AI summary
+  const handleGenerateSectionSummary = async (targetSectionName) => {
+    if (!sessionId || !targetSectionName) return;
+
+    try {
+      setIsGenerating(true);
+
+      const result = await base44.functions.invoke('generateSessionSummaries', {
+        session_id: sessionId,
+        transcriptEvents: transcriptEvents,
+        generateGlobal: false,
+        generateSections: true,
+        generateQuestions: false,
+        sectionId: targetSectionName
+      });
+
+      if (result.data.success || result.data.ok) {
+        toast.success(`Section summary updated: ${targetSectionName}`);
+      } else {
+        toast.error('Failed to generate section summary');
       }
-      };
+
+      await loadSessionData();
+    } catch (err) {
+      console.error('[SESSIONDETAILS] Error generating section AI summary', err);
+      toast.error('Failed to generate section summary');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Blue brain: Regenerate only question summaries (all instances)
+  const handleGenerateQuestionSummaries = async () => {
+    if (!sessionId) return;
+
+    try {
+      setIsGenerating(true);
+
+      const result = await base44.functions.invoke('generateSessionSummaries', {
+        session_id: sessionId,
+        transcriptEvents: transcriptEvents,
+        generateGlobal: false,
+        generateSections: false,
+        generateQuestions: true
+      });
+
+      if (result.data.success || result.data.ok) {
+        const count = result.data?.updatedCount || 0;
+        toast.success(`Question summaries updated: ${count} questions`);
+      } else {
+        toast.error('Failed to generate question summaries');
+      }
+
+      await loadSessionData();
+    } catch (err) {
+      console.error('[SESSIONDETAILS] Error generating question summaries', err);
+      toast.error('Failed to generate question summaries');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   if (isLoading) {
     return (
