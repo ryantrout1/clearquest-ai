@@ -262,6 +262,7 @@ RULES:
       questionSummaries: updatedQuestionCount,
       sectionSummaries: Object.keys(sectionSummariesObj).length,
       sectionSummaryKeys: Object.keys(sectionSummariesObj),
+      questionSummaryCount: updatedQuestionCount
       globalSummary: interviewSummary ? 1 : 0,
       redFlags: redFlags.length
     });
