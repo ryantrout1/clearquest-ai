@@ -182,17 +182,6 @@ export default function HomeHub() {
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
-          
-          <a href="mailto:support@clearquest.ai" className="w-full sm:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full bg-slate-900/50 border-slate-600 text-white hover:bg-slate-800 hover:text-white"
-            >
-              <HelpCircle className="w-4 h-4 mr-2" />
-              Help & Support
-            </Button>
-          </a>
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-3 md:mt-4 px-4">
