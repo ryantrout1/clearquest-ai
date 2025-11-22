@@ -295,7 +295,19 @@ Format as JSON:
     });
 
   } catch (error) {
-    console.error('❌ Error in generateSessionSummaries:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error in generateSessionSummaries:', {
+      message: error.message || String(error),
+      stack: error.stack,
+      name: error.name,
+      code: error.code
+    });
+    
+    return Response.json({
+      ok: false,
+      error: {
+        message: "Failed to generate summaries",
+        details: error.message || String(error)
+      }
+    }, { status: 500 });
   }
 });
