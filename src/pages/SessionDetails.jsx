@@ -354,7 +354,8 @@ export default function SessionDetails() {
     }
   };
 
-  const handleGenerateSummaries = async () => {
+  const handleGenerateAISummaries = async () => {
+    console.log('[SESSIONDETAILS] Generate AI clicked', { sessionId });
     setIsGeneratingSummaries(true);
 
     try {
@@ -365,12 +366,12 @@ export default function SessionDetails() {
       if (result.data.success) {
         const { updatedCount, globalSummaryGenerated, sectionSummariesGenerated } = result.data;
         toast.success(`AI summaries updated: ${updatedCount} questions, global summary, and ${sectionSummariesGenerated} sections`);
-        await loadSessionData(); // Reload to show new summaries
+        await loadSessionData();
       } else {
         toast.error('Failed to generate summaries');
       }
     } catch (err) {
-      console.error('Error generating summaries:', err);
+      console.error('[SESSIONDETAILS] Error generating AI summaries', err);
       toast.error('Failed to generate summaries');
     } finally {
       setIsGeneratingSummaries(false);
@@ -691,8 +692,8 @@ export default function SessionDetails() {
               </button>
 
               <button
-                onClick={handleGenerateSummaries}
-                disabled={isGeneratingSummaries || responses.length === 0}
+                onClick={handleGenerateAISummaries}
+                disabled={isGeneratingSummaries}
                 className="hidden md:inline-flex items-center gap-2 rounded-lg border border-purple-500/60 bg-transparent px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/10 hover:border-purple-400/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGeneratingSummaries ? (
