@@ -811,8 +811,8 @@ export default function SessionDetails() {
                 </p>
                 
                 <button
-                  onClick={handleGenerateSummaries}
-                  disabled={isGeneratingSummaries || responses.length === 0}
+                  onClick={handleGenerateAISummaries}
+                  disabled={isGenerating || responses.length === 0}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
                 >
                   Show more
