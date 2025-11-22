@@ -62,9 +62,9 @@ export default function SessionDetails() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
   const [followUpQuestionEntities, setFollowUpQuestionEntities] = useState([]);
-  const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);
-  const [isGeneratingSection, setIsGeneratingSection] = useState(false);
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [isGeneratingGlobal, setIsGeneratingGlobal] = useState(false);      // Pink brain
+  const [isGeneratingSection, setIsGeneratingSection] = useState(false);    // Purple brain
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false); // Blue brain
   const [transcriptEvents, setTranscriptEvents] = useState([]);
 
   const categoryRefs = useRef({});
@@ -379,7 +379,7 @@ export default function SessionDetails() {
   const handleGenerateGlobalAISummary = async () => {
     if (!sessionId || isGeneratingGlobal) return;
     setIsGeneratingGlobal(true);
-    console.log('[SESSIONDETAILS] Global AI generation started', { sessionId });
+    console.log('[AI-GLOBAL] START', { sessionId });
 
     try {
       const result = await base44.functions.invoke('generateSessionSummaries', {
@@ -390,7 +390,10 @@ export default function SessionDetails() {
         generateQuestions: false
       });
 
-      console.log('[SESSIONDETAILS] Global AI generation finished');
+      console.log('[AI-GLOBAL] FINISH', {
+        sessionId,
+        updatedInterviewSummary: result?.data?.interviewSummary ? true : false
+      });
 
       if (result.data.success || result.data.ok) {
         toast.success('Global AI summary updated');
@@ -401,8 +404,9 @@ export default function SessionDetails() {
       // Reload only global summary
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
+      console.log('[AI-GLOBAL] RELOADED', { sessionId });
     } catch (err) {
-      console.error('[SESSIONDETAILS] Error generating global AI summary', err);
+      console.error('[AI-GLOBAL] ERROR', { sessionId, error: err });
       toast.error('Failed to generate global summary');
     } finally {
       setIsGeneratingGlobal(false);
@@ -413,7 +417,7 @@ export default function SessionDetails() {
   const handleGenerateSectionSummary = async (targetSectionName) => {
     if (!sessionId || !targetSectionName || isGeneratingSection) return;
     setIsGeneratingSection(true);
-    console.log('[SESSIONDETAILS] Section AI generation started', { sessionId, sectionId: targetSectionName });
+    console.log('[AI-SECTION] START', { sessionId, sectionId: targetSectionName });
 
     try {
       const result = await base44.functions.invoke('generateSessionSummaries', {
@@ -425,7 +429,11 @@ export default function SessionDetails() {
         sectionId: targetSectionName
       });
 
-      console.log('[SESSIONDETAILS] Section AI generation finished');
+      console.log('[AI-SECTION] FINISH', {
+        sessionId,
+        sectionId: targetSectionName,
+        updatedSectionSummaries: result?.data?.sectionSummariesGenerated || 0
+      });
 
       if (result.data.success || result.data.ok) {
         toast.success(`Section summary updated: ${targetSectionName}`);
@@ -436,8 +444,9 @@ export default function SessionDetails() {
       // Reload only section summaries
       const sessionData = await base44.entities.InterviewSession.get(sessionId);
       setSession(sessionData);
+      console.log('[AI-SECTION] RELOADED', { sessionId, sectionId: targetSectionName });
     } catch (err) {
-      console.error('[SESSIONDETAILS] Error generating section AI summary', err);
+      console.error('[AI-SECTION] ERROR', { sessionId, sectionId: targetSectionName, error: err });
       toast.error('Failed to generate section summary');
     } finally {
       setIsGeneratingSection(false);
@@ -448,7 +457,7 @@ export default function SessionDetails() {
   const handleGenerateQuestionSummaries = async () => {
     if (!sessionId || isGeneratingQuestions) return;
     setIsGeneratingQuestions(true);
-    console.log('[SESSIONDETAILS] Question AI generation started', { 
+    console.log('[AI-QUESTIONS] START', { 
       sessionId,
       transcriptEventCount: transcriptEvents.length,
       yesAnswersWithFollowups: responses.filter(r => 
@@ -472,16 +481,15 @@ export default function SessionDetails() {
         generateQuestions: true
       });
 
-      console.log('[SESSIONDETAILS] Question AI generation finished', {
-        success: result.data?.success || result.data?.ok,
+      console.log('[AI-QUESTIONS] FINISH', {
+        sessionId,
         updatedCount: result.data?.updatedCount,
-        fullResult: result.data,
-        rawResponseData: result.data?.data
+        success: result.data?.success || result.data?.ok
       });
       
       // Log what actually came back from backend
       if (result.data?.updatedCount === 0) {
-        console.warn('[SESSIONDETAILS] ⚠️ Backend returned 0 updated questions - check server logs for LLM output');
+        console.warn('[AI-QUESTIONS] ⚠️ Backend returned 0 updated questions - check server logs for LLM output');
       }
 
       if (result.data.success || result.data.ok) {
@@ -493,7 +501,8 @@ export default function SessionDetails() {
 
       // Reload only question-level summaries - force fresh data
       const responsesData = await base44.entities.Response.filter({ session_id: sessionId });
-      console.log('[SESSIONDETAILS] Reloaded responses after question summaries', {
+      console.log('[AI-QUESTIONS] RELOADED', {
+        sessionId,
         count: responsesData.length,
         withSummaries: responsesData.filter(r => r.investigator_summary).length,
         sampleSummaries: responsesData.filter(r => r.investigator_summary).slice(0, 2).map(r => ({
@@ -503,7 +512,7 @@ export default function SessionDetails() {
       });
       setResponses(responsesData);
     } catch (err) {
-      console.error('[SESSIONDETAILS] Error generating question summaries', err);
+      console.error('[AI-QUESTIONS] ERROR', { sessionId, error: err });
       toast.error('Failed to generate question summaries');
     } finally {
       setIsGeneratingQuestions(false);
