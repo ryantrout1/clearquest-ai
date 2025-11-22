@@ -448,7 +448,20 @@ export default function SessionDetails() {
   const handleGenerateQuestionSummaries = async () => {
     if (!sessionId || isGeneratingQuestions) return;
     setIsGeneratingQuestions(true);
-    console.log('[SESSIONDETAILS] Question AI generation started', { sessionId });
+    console.log('[SESSIONDETAILS] Question AI generation started', { 
+      sessionId,
+      transcriptEventCount: transcriptEvents.length,
+      yesAnswersWithFollowups: responses.filter(r => 
+        r.answer === 'Yes' && (
+          followups.some(f => f.response_id === r.id) || 
+          r.investigator_probing?.length > 0
+        )
+      ).length,
+      sampleQuestionIds: responses
+        .filter(r => r.answer === 'Yes')
+        .slice(0, 3)
+        .map(r => ({ id: r.question_id, hasFollowups: followups.some(f => f.response_id === r.id) }))
+    });
 
     try {
       const result = await base44.functions.invoke('generateSessionSummaries', {
@@ -460,8 +473,9 @@ export default function SessionDetails() {
       });
 
       console.log('[SESSIONDETAILS] Question AI generation finished', {
-        result: result.data,
-        updatedCount: result.data?.updatedCount
+        success: result.data?.success || result.data?.ok,
+        updatedCount: result.data?.updatedCount,
+        fullResult: result.data
       });
 
       if (result.data.success || result.data.ok) {
