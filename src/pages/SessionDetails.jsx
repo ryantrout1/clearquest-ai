@@ -114,7 +114,13 @@ export default function SessionDetails() {
         hasSectionAISummaries: !!sessionData.section_ai_summaries,
         sectionSummaryCount: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries).length : 0,
         responsesWithSummaries: responsesData.filter(r => r.investigator_summary).length,
-        lastGenerated: sessionData.ai_summaries_last_generated_at
+        totalResponses: responsesData.length,
+        yesResponses: responsesData.filter(r => r.answer === 'Yes').length,
+        lastGenerated: sessionData.ai_summaries_last_generated_at,
+        sampleSummaries: responsesData
+          .filter(r => r.investigator_summary)
+          .slice(0, 3)
+          .map(r => ({ questionId: r.question_id, summary: r.investigator_summary?.substring(0, 50) }))
       });
 
       // DIAGNOSTIC LOG: Check for AI probing data
