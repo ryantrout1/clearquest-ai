@@ -15,17 +15,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// Helper to batch delete with rate limit protection
-async function batchDelete(items, deleteFn, batchSize = 10, delayMs = 100) {
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    await Promise.all(batch.map(item => deleteFn(item)));
-    if (i + batchSize < items.length) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
-}
-
 export default function InterviewDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -68,7 +57,10 @@ export default function InterviewDashboard() {
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions'],
-    queryFn: () => base44.entities.InterviewSession.list('-created_date'),
+    queryFn: async () => {
+      const allSessions = await base44.entities.InterviewSession.list('-created_date');
+      return allSessions.filter(s => !s.is_archived);
+    },
     refetchInterval: 5000,
     enabled: !!currentUser
   });
@@ -218,42 +210,24 @@ export default function InterviewDashboard() {
     setIsBulkDeleting(true);
     
     try {
-      // Fetch all related data in parallel
-      const [allRelatedResponses, allRelatedFollowups, allQuestionSummaries, allSectionSummaries, allInstanceSummaries] = await Promise.all([
-        Promise.all(sessionsToDelete.map(sid => base44.entities.Response.filter({ session_id: sid }))),
-        Promise.all(sessionsToDelete.map(sid => base44.entities.FollowUpResponse.filter({ session_id: sid }))),
-        Promise.all(sessionsToDelete.map(sid => base44.entities.QuestionSummary.filter({ session_id: sid }))),
-        Promise.all(sessionsToDelete.map(sid => base44.entities.SectionSummary.filter({ session_id: sid }))),
-        Promise.all(sessionsToDelete.map(sid => base44.entities.InstanceSummary.filter({ session_id: sid })))
-      ]);
+      await Promise.all(
+        sessionsToDelete.map(sid => 
+          base44.entities.InterviewSession.update(sid, {
+            is_archived: true,
+            status: 'Deleted'
+          })
+        )
+      );
 
-      const responsesToDelete = allRelatedResponses.flat();
-      const followupsToDelete = allRelatedFollowups.flat();
-      const questionSummariesToDelete = allQuestionSummaries.flat();
-      const sectionSummariesToDelete = allSectionSummaries.flat();
-      const instanceSummariesToDelete = allInstanceSummaries.flat();
-
-      // Delete in batches to avoid rate limits
-      await batchDelete(responsesToDelete, (r) => base44.entities.Response.delete(r.id));
-      await batchDelete(followupsToDelete, (f) => base44.entities.FollowUpResponse.delete(f.id));
-      await batchDelete(questionSummariesToDelete, (qs) => base44.entities.QuestionSummary.delete(qs.id));
-      await batchDelete(sectionSummariesToDelete, (ss) => base44.entities.SectionSummary.delete(ss.id));
-      await batchDelete(instanceSummariesToDelete, (is) => base44.entities.InstanceSummary.delete(is.id));
-      await batchDelete(sessionsToDelete, (sid) => base44.entities.InterviewSession.delete(sid));
-
-      toast.success(`Deleted ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
+      toast.success(`Archived ${sessionsToDelete.length} session${sessionsToDelete.length > 1 ? 's' : ''}`);
       setSelectedSessions(new Set());
       setBulkDeleteConfirm(false);
       
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
       
     } catch (err) {
-      toast.error("Failed to delete sessions");
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
+      console.error('Failed to archive sessions:', err);
+      toast.error("Failed to archive sessions");
     } finally {
       setIsBulkDeleting(false);
     }
@@ -537,33 +511,17 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
 
     setIsDeleting(true);
     try {
-      const [responses, followups, questionSummaries, sectionSummaries, instanceSummaries] = await Promise.all([
-        base44.entities.Response.filter({ session_id: session.id }),
-        base44.entities.FollowUpResponse.filter({ session_id: session.id }),
-        base44.entities.QuestionSummary.filter({ session_id: session.id }),
-        base44.entities.SectionSummary.filter({ session_id: session.id }),
-        base44.entities.InstanceSummary.filter({ session_id: session.id })
-      ]);
+      await base44.entities.InterviewSession.update(session.id, {
+        is_archived: true,
+        status: 'Deleted'
+      });
 
-      // Delete in batches to avoid rate limits
-      await batchDelete(responses, (r) => base44.entities.Response.delete(r.id));
-      await batchDelete(followups, (f) => base44.entities.FollowUpResponse.delete(f.id));
-      await batchDelete(questionSummaries, (qs) => base44.entities.QuestionSummary.delete(qs.id));
-      await batchDelete(sectionSummaries, (ss) => base44.entities.SectionSummary.delete(ss.id));
-      await batchDelete(instanceSummaries, (is) => base44.entities.InstanceSummary.delete(is.id));
-      await base44.entities.InterviewSession.delete(session.id);
-
-      toast.success("Session deleted successfully");
-
+      toast.success("Session archived successfully");
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
 
     } catch (err) {
-      toast.error("Failed to delete session");
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-responses'] });
-      queryClient.invalidateQueries({ queryKey: ['all-followups'] });
+      console.error(`Failed to archive session ${session.id}:`, err);
+      toast.error("Failed to archive session");
     } finally {
       setIsDeleting(false);
       setDeleteConfirm(false);
