@@ -1105,8 +1105,30 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
     // Extract AI probing exchanges
     if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
+      console.log('[SESSIONDETAILS] Found AI probing for response', {
+        responseId: f.id,
+        questionId: response.question_id,
+        packId: f.followup_pack,
+        instanceNumber: instNum,
+        probingCount: details.investigator_probing.length,
+        exchanges: details.investigator_probing.map(ex => ({
+          seq: ex.sequence_number,
+          question: ex.probing_question?.substring(0, 50)
+        }))
+      });
       instancesMap[instNum].aiExchanges.push(...details.investigator_probing);
     }
+  });
+
+  console.log('[SESSIONDETAILS] Built instancesMap for question', {
+    questionId: response.question_id,
+    instanceCount: Object.keys(instancesMap).length,
+    instances: Object.entries(instancesMap).map(([num, inst]) => ({
+      instanceNumber: num,
+      packId: inst.followupPackId,
+      deterministicCount: Object.keys(inst.details).length,
+      aiExchangeCount: inst.aiExchanges.length
+    }))
   });
   
   const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
