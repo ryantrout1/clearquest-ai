@@ -1069,19 +1069,14 @@ export default function CandidateInterview() {
       // Persist transcript with AI probing entries
       persistStateToDatabase(newTranscript, [], null);
       
-      // Clear waiting state
-      setIsWaitingForAgent(false);
-      setProbingTurnCount(0);
-      setLastAgentMessageTime(null);
-      
       const baseQuestionId = currentFollowUpPack.questionId;
       const packId = currentFollowUpPack.packId;
-      setCurrentFollowUpPack(null);
       
       // End AI session cleanly
       endAiProbingSession();
       setIsWaitingForAgent(false);
       setProbingTurnCount(0);
+      setCurrentFollowUpPack(null);
 
       // NEW: Delegate to follow-up completion handler (checks multi-instance)
       onFollowupPackComplete(baseQuestionId, packId);
@@ -1091,9 +1086,6 @@ export default function CandidateInterview() {
     const lastAgentMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAgentMessage?.content) return;
     
-    // Update last message time
-    setLastAgentMessageTime(Date.now());
-    
     // LEGACY FALLBACK: Check if agent sent a base question (Q###) - old behavior
     const questionMatch = lastAgentMessage.content.match(/\b(Q\d{1,3})\b/i);
     if (questionMatch) {
@@ -1101,6 +1093,7 @@ export default function CandidateInterview() {
       
       if (!engine.QById[nextQuestionId]) {
         console.error(`❌ Agent sent invalid question ID: ${nextQuestionId} - marking interview complete`);
+        endAiProbingSession();
         setIsWaitingForAgent(false);
         setCurrentFollowUpPack(null);
         setCurrentItem(null);
@@ -1124,7 +1117,7 @@ export default function CandidateInterview() {
 
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
-  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, advanceToNextBaseQuestion]);
+  }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, advanceToNextBaseQuestion, endAiProbingSession, onFollowupPackComplete]);
 
   // ============================================================================
   // NEW: TIMEOUT HELPERS - Separate typing and AI response timeouts
