@@ -95,7 +95,7 @@ export default function HomeHub() {
                     <Settings className="w-8 h-8 md:w-9 md:h-9 text-blue-400" />
                   </div>
                 </div>
-                <h2 className="text-lg md:text-xl font-bold text-white mb-1.5">Department Dashboard</h2>
+                <h2 className="text-lg md:text-xl font-bold text-white mb-1.5">System Dashboard</h2>
                 <p className="text-sm text-slate-400">
                   Manage departments and system settings
                 </p>
