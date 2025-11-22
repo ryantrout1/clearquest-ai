@@ -288,30 +288,7 @@ export default function FollowUpPackManagerV2() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {(uncategorizedCount > 0 || totalPacksWithNoTriggers > 0) && (
-              <div className="flex items-center gap-2 mr-3">
-                {uncategorizedCount > 0 && (
-                  <span className="text-xs px-2 py-1 rounded bg-red-900/30 border border-red-800/50 text-red-400">
-                    {uncategorizedCount} uncategorized
-                  </span>
-                )}
-                {totalPacksWithNoTriggers > 0 && (
-                  <span className="text-xs px-2 py-1 rounded bg-yellow-900/30 border border-yellow-800/50 text-yellow-400">
-                    {totalPacksWithNoTriggers} no triggers
-                  </span>
-                )}
-              </div>
-            )}
-            <Button
-              onClick={() => navigate(createPageUrl("FollowUpPackQuickAssign"))}
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              Quick Assign
-            </Button>
-          </div>
+
         </div>
       </div>
 
