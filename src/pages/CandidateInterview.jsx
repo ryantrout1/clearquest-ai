@@ -102,6 +102,11 @@ const ENABLE_LIVE_AI_FOLLOWUPS = true;
  * AI agent handles probing + closure (after follow-up packs complete)
  * State persisted to database for seamless resume
  * PATCH: Smooth chat UI for investigator follow-ups (no refresh)
+ * 
+ * AI probing architecture (2025-11 refactor):
+ * - Per-pack mini-sessions (start after last deterministic follow-up, end after probing/timeout)
+ * - Separate typing timeout (4 min) and AI response timeout (45s)
+ * - Graceful fallback: system message + deterministic handoff + disable further AI probing
  */
 export default function CandidateInterview() {
   const navigate = useNavigate();
@@ -123,13 +128,14 @@ export default function CandidateInterview() {
   // Track answers within current follow-up pack for conditional logic
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
   
-  // AI agent integration
-  const [conversation, setConversation] = useState(null);
+  // AI agent integration - per-pack mini-sessions
+  const [aiSessionId, setAiSessionId] = useState(null); // Current conversation ID for active probing
+  const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null); // e.g. "PACK_COLLISION#1"
   const [agentMessages, setAgentMessages] = useState([]);
   const [isWaitingForAgent, setIsWaitingForAgent] = useState(false);
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null); // Track active pack for handoff
   const [probingTurnCount, setProbingTurnCount] = useState(0); // Safety counter
-  const [lastAgentMessageTime, setLastAgentMessageTime] = useState(null); // Timeout tracker
+  const [aiProbingDisabledForSession, setAiProbingDisabledForSession] = useState(false); // Global disable flag
   
   // NEW: Track AI follow-up counts per pack instance
   const [aiFollowupCounts, setAiFollowupCounts] = useState({});
@@ -160,14 +166,16 @@ export default function CandidateInterview() {
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
   const unsubscribeRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const typingTimeoutRef = useRef(null); // Typing timeout (4 min)
+  const aiResponseTimeoutRef = useRef(null); // AI response timeout (45s)
   
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
   
-  // CONSTANTS
+  // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
-  const AGENT_TIMEOUT_MS = 45000; // 45 seconds
+  const AI_RESPONSE_TIMEOUT_MS = 45000; // 45 seconds - how long we wait for AI to respond
+  const TYPING_TIMEOUT_MS = 240000; // 4 minutes - how long candidate can type
   
   // NEW: Helper to disable AI probing for this session
   const disableAiForSession = useCallback((reason, error) => {
@@ -208,6 +216,9 @@ export default function CandidateInterview() {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
+      // Clear all timers on unmount
+      clearTimeout(typingTimeoutRef.current);
+      clearTimeout(aiResponseTimeoutRef.current);
     };
   }, [sessionId, navigate]);
 
@@ -330,8 +341,9 @@ export default function CandidateInterview() {
       console.log('✅ [PRODUCTION] Engine bootstrapped');
       setEngine(engineData);
       
-      // Step 3: Initialize or restore AI conversation (FAIL-SAFE)
-      if (!loadedSession.conversation_id && aiProbingEnabled) {
+      // Step 3: AI conversation NOT initialized globally - we create per-pack mini-sessions
+      // Do NOT create global conversation here anymore
+      if (false && !loadedSession.conversation_id && aiProbingEnabled) {
         console.log('🤖 [PRODUCTION] Creating new AI conversation...');
         
         try {
@@ -403,8 +415,8 @@ export default function CandidateInterview() {
         }
       }
       
-      // Step 4: Subscribe to agent conversation updates (FAIL-SAFE)
-      if (loadedSession.conversation_id && aiProbingEnabled) {
+      // Step 4: Subscription will be handled per mini-session - skip global subscription
+      if (false && loadedSession.conversation_id && aiProbingEnabled) {
         console.log('📡 [PRODUCTION] Subscribing to conversation updates...');
         
         try {
@@ -829,10 +841,20 @@ export default function CandidateInterview() {
     return window;
   };
 
-  const handoffToAgentForProbing = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
-    console.log(`🤖 Follow-up pack ${packId} completed for ${questionId} (instance ${instanceNumber}) — checking AI availability...`);
+  // NEW: Start per-pack AI mini-session
+  const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+    console.log(`🤖 Starting AI probing mini-session for ${packId} (instance ${instanceNumber})...`);
+
+    // Check if AI is disabled for this session
+    if (aiProbingDisabledForSession) {
+      console.log('⚠️ AI probing disabled for session - skipping');
+      return false;
+    }
     
-    // NEW: Check feature flag and attempt invokeLLM-based AI
+    const packInstanceKey = `${packId}#${instanceNumber}`;
+    setAiProbingPackInstanceKey(packInstanceKey);
+
+    // NEW: Check feature flag and attempt invokeLLM-based AI (lightweight alternative)
     if (ENABLE_LIVE_AI_FOLLOWUPS) {
       // Check if we've reached the AI follow-up limit for this pack instance
       const countKey = `${packId}:${instanceNumber}`;
@@ -918,23 +940,38 @@ export default function CandidateInterview() {
       }
     }
     
-    // NEW: Check session-level AI flag first
-    if (!aiProbingEnabled) {
-      console.warn(`⚠️ AI probing disabled for this session (reason: ${aiFailureReason}) - skipping probing`);
-      return false;
-    }
+    // Create a fresh AI conversation JUST for this pack instance
+    try {
+      const aiConfig = getAiAgentConfig(session.department_code);
+      console.log('🔧 [AI MINI-SESSION] Creating conversation for', packInstanceKey);
+
+      const newConversation = await base44.agents.createConversation({
+        agent_name: aiConfig.agentName,
+        metadata: {
+          session_id: sessionId,
+          department_code: session.department_code,
+          file_number: session.file_number,
+          pack_id: packId,
+          instance_number: instanceNumber,
+          ai_config: aiConfig
+        }
+      });
+
+      if (!newConversation || !newConversation.id) {
+        console.error('❌ Failed to create AI mini-session');
+        handleAiResponseTimeout();
+        return false;
+      }
+
+      setAiSessionId(newConversation.id);
+      console.log('✅ AI mini-session created:', newConversation.id);
     
-    if (!conversation) {
-      console.warn('⚠️ No AI conversation available - skipping probing, moving to next question');
-      return false;
-    }
-    
-    // Build summary message for the agent
+    // Build summary message for the agent (context for THIS pack only)
     const question = engine.QById[questionId];
     const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-    
+
     let summaryLines = [
-      `Follow-up pack completed.`,
+      `Follow-up pack completed for instance ${instanceNumber}.`,
       ``,
       `Question ID: ${questionId}`,
       `Question: ${question.question_text}`,
@@ -943,7 +980,7 @@ export default function CandidateInterview() {
       ``,
       `Deterministic Follow-Up Answers:`
     ];
-    
+
     // Add each follow-up answer
     followUpAnswers.forEach((answer, idx) => {
       const step = packSteps.find(s => s.Prompt === answer.questionText);
@@ -953,48 +990,54 @@ export default function CandidateInterview() {
         summaryLines.push(`- ${answer.questionText}: ${answer.answer}`);
       }
     });
-    
+
     summaryLines.push(``);
     summaryLines.push(`INSTRUCTIONS FOR AI INVESTIGATOR:`);
-    summaryLines.push(`1. Ask up to 5 probing questions to clarify the story if needed.`);
+    summaryLines.push(`1. Ask up to 3 probing questions to clarify the story if needed.`);
     summaryLines.push(`2. Always conclude by asking: "Before we move on, is there anything else investigators should know about this situation?"`);
     summaryLines.push(`3. After the candidate answers that closing question, respond with a brief acknowledgment and include the literal marker [[HANDOFF_TO_ENGINE]] in your message.`);
     summaryLines.push(``);
     summaryLines.push(`CRITICAL: Do NOT send the next base question yourself. The system will automatically present the next question after you send [[HANDOFF_TO_ENGINE]].`);
-    
+
     const summaryMessage = summaryLines.join('\n');
-    
-    console.log('📤 Sending follow-up summary to agent:', summaryMessage);
-    
-    try {
-      await base44.agents.addMessage(conversation, {
-        role: 'user',
-        content: summaryMessage
-      });
-      
-      setIsWaitingForAgent(true);
-      setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
-      setProbingTurnCount(0);
-      setLastAgentMessageTime(Date.now());
-      setHandoffProcessed(false); // Reset for new probing session
-      
-      return true;
-    } catch (err) {
-      console.error('❌ Error sending to agent:', err);
-      console.error('   Error status:', err?.status || err?.response?.status);
-      
-      // NEW: Check for 500 error and disable AI for session
-      const is500Error = err?.status === 500 || err?.response?.status === 500;
-      if (is500Error) {
-        disableAiForSession('handoff_500', err);
-      } else {
-        // Non-500 errors also disable AI
-        disableAiForSession('handoff_error', err);
+
+    console.log('📤 [AI MINI-SESSION] Sending context to agent');
+
+    await base44.agents.addMessage(newConversation, {
+      role: 'user',
+      content: summaryMessage
+    });
+
+    // Subscribe to this specific conversation
+    const unsubscribe = base44.agents.subscribeToConversation(
+      newConversation.id,
+      (data) => {
+        console.log('📨 [AI MINI-SESSION] Message update');
+        setAgentMessages(data.messages || []);
       }
-      
-      return false;
+    );
+
+    // Store unsubscribe for cleanup
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
     }
-  };
+    unsubscribeRef.current = unsubscribe;
+
+    setIsWaitingForAgent(true);
+    setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
+    setProbingTurnCount(0);
+    setHandoffProcessed(false);
+
+    // Start typing timeout (candidate has 4 min to start typing)
+    startTypingTimeout();
+
+    return true;
+    } catch (err) {
+    console.error('❌ [AI MINI-SESSION] Error creating conversation:', err);
+    handleAiResponseTimeout();
+    return false;
+    }
+    };
 
   // ============================================================================
   // NEW: DETECT HANDOFF MARKER + SAVE PROBING TO DATABASE
@@ -1035,6 +1078,11 @@ export default function CandidateInterview() {
       const packId = currentFollowUpPack.packId;
       setCurrentFollowUpPack(null);
       
+      // End AI session cleanly
+      endAiProbingSession();
+      setIsWaitingForAgent(false);
+      setProbingTurnCount(0);
+
       // NEW: Delegate to follow-up completion handler (checks multi-instance)
       onFollowupPackComplete(baseQuestionId, packId);
       return;
@@ -1062,63 +1110,114 @@ export default function CandidateInterview() {
       }
 
       console.log(`✅ Agent sent next base question (legacy): ${nextQuestionId}`);
-      
+
       saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
-      
+
+      // End AI session cleanly
+      endAiProbingSession();
       setIsWaitingForAgent(false);
       setCurrentFollowUpPack(null);
       setProbingTurnCount(0);
-      setLastAgentMessageTime(null);
-      
+
       setCurrentItem({ id: nextQuestionId, type: 'question' });
       setQueue([]);
-      
+
       persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
     }
   }, [agentMessages, isWaitingForAgent, transcript, engine, currentFollowUpPack, advanceToNextBaseQuestion]);
 
   // ============================================================================
-  // SAFETY: TIMEOUT AND MAX-TURN FALLBACK
+  // NEW: TIMEOUT HELPERS - Separate typing and AI response timeouts
   // ============================================================================
 
-  useEffect(() => {
-    if (!isWaitingForAgent || !currentFollowUpPack) {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      return;
+  const startTypingTimeout = useCallback(() => {
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      console.log('⏰ Typing timeout reached (4 min) - showing gentle reminder');
+      // Add system message reminder (non-blocking)
+      const reminderEntry = {
+        id: `sys-reminder-${Date.now()}`,
+        type: 'system_message',
+        content: "Take your time—when you're ready, type your answer and press Send to continue.",
+        timestamp: new Date().toISOString()
+      };
+      setTranscript(prev => [...prev, reminderEntry]);
+    }, TYPING_TIMEOUT_MS);
+  }, []);
+
+  const clearTypingTimeout = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
-    
-    // Clear existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+  }, []);
+
+  const startAiResponseTimeout = useCallback(() => {
+    clearTimeout(aiResponseTimeoutRef.current);
+    aiResponseTimeoutRef.current = setTimeout(() => {
+      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
+      handleAiResponseTimeout();
+    }, AI_RESPONSE_TIMEOUT_MS);
+  }, []);
+
+  const clearAiResponseTimeout = useCallback(() => {
+    if (aiResponseTimeoutRef.current) {
+      clearTimeout(aiResponseTimeoutRef.current);
+      aiResponseTimeoutRef.current = null;
     }
-    
-    // Set new timeout
-    timeoutRef.current = setTimeout(() => {
-      console.warn(`⚠️ AI probing timeout (${AGENT_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine for ${currentFollowUpPack.questionId}`);
-      
-      // Save whatever probing we have
-      saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
-      
-      setIsWaitingForAgent(false);
-      setProbingTurnCount(0);
-      setLastAgentMessageTime(null);
-      
-      const baseQuestionId = currentFollowUpPack.questionId;
-      setCurrentFollowUpPack(null);
-      
-      toast.info('AI probing timed out - continuing with interview');
-      advanceToNextBaseQuestion(baseQuestionId);
-    }, AGENT_TIMEOUT_MS);
-    
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+  }, []);
+
+  // NEW: End AI mini-session cleanly
+  const endAiProbingSession = useCallback(() => {
+    console.log('🔚 [AI MINI-SESSION] Ending session');
+    setAiSessionId(null);
+    setAiProbingPackInstanceKey(null);
+    clearTypingTimeout();
+    clearAiResponseTimeout();
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+  }, [clearTypingTimeout, clearAiResponseTimeout]);
+
+  // NEW: Graceful fallback handler
+  const handleAiResponseTimeout = useCallback(() => {
+    console.log('🚨 [AI TIMEOUT] Graceful fallback initiated');
+
+    // 1) Add system message to chat
+    const systemEntry = {
+      id: `sys-timeout-${Date.now()}`,
+      type: 'system_message',
+      content: "Our AI assistant is taking too long to respond, so we'll continue with the standard questions.",
+      timestamp: new Date().toISOString()
     };
-  }, [isWaitingForAgent, currentFollowUpPack, lastAgentMessageTime, agentMessages, advanceToNextBaseQuestion]);
+    setTranscript(prev => [...prev, systemEntry]);
+
+    // 2) Disable AI for rest of session
+    setAiProbingDisabledForSession(true);
+
+    // 3) Save any probing we got before timeout
+    if (currentFollowUpPack) {
+      saveProbingToDatabase(
+        currentFollowUpPack.questionId,
+        currentFollowUpPack.packId,
+        agentMessages
+      );
+    }
+
+    // 4) End AI session cleanly
+    endAiProbingSession();
+    setIsWaitingForAgent(false);
+    setProbingTurnCount(0);
+
+    // 5) Handoff to deterministic engine
+    const baseQuestionId = currentFollowUpPack?.questionId;
+    setCurrentFollowUpPack(null);
+
+    if (baseQuestionId) {
+      advanceToNextBaseQuestion(baseQuestionId);
+    }
+  }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion, transcript]);
 
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
@@ -1738,6 +1837,15 @@ export default function CandidateInterview() {
                 currentItem.instanceNumber || 1
               );
               
+              // Call the new per-pack AI probing starter
+              const aiHandoffSuccessful = await startAiProbingForPackInstance(
+                triggeringQuestion.questionId,
+                packId,
+                substanceName,
+                packAnswers,
+                currentItem.instanceNumber || 1
+              );
+              
               // FAIL-SAFE: If AI handoff failed, advance to next base question immediately
               if (!aiHandoffSuccessful) {
                 console.log('⚠️ AI handoff failed - advancing to next base question');
@@ -1995,69 +2103,52 @@ export default function CandidateInterview() {
       }
     }
     
-    // Legacy agent mode
-    if (!conversation) return;
-    
+    // NEW: Agent mode with per-pack mini-session
+    if (!aiSessionId) {
+      console.error('❌ No AI session ID - cannot send message');
+      setIsCommitting(false);
+      return;
+    }
+
     try {
-      await base44.agents.addMessage(conversation, {
+      // Clear typing timeout (candidate submitted)
+      clearTypingTimeout();
+
+      // Start AI response timeout
+      startAiResponseTimeout();
+
+      // Get conversation object
+      const currentConversation = await base44.agents.getConversation(aiSessionId);
+      if (!currentConversation) {
+        throw new Error('Conversation not found');
+      }
+
+      await base44.agents.addMessage(currentConversation, {
         role: 'user',
         content: value
       });
-      
+
       // Increment turn count for safety cap
       const newTurnCount = probingTurnCount + 1;
       setProbingTurnCount(newTurnCount);
-      setLastAgentMessageTime(Date.now());
-      
+
       // Check if we've exceeded max turns
       if (newTurnCount >= MAX_PROBE_TURNS) {
-        console.warn(`⚠️ AI probing exceeded ${MAX_PROBE_TURNS} turns — forcing handoff to deterministic engine`);
-        
+        console.warn(`⚠️ AI probing exceeded ${MAX_PROBE_TURNS} turns — forcing handoff`);
+
         // Wait a moment for final AI response, then force handoff
         setTimeout(() => {
           if (isWaitingForAgent && currentFollowUpPack) {
-            saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
-            
-            setIsWaitingForAgent(false);
-            setProbingTurnCount(0);
-            setLastAgentMessageTime(null);
-            
-            const baseQuestionId = currentFollowUpPack.questionId;
-            setCurrentFollowUpPack(null);
-            
-            toast.info('Probing complete - continuing with interview');
-            advanceToNextBaseQuestion(baseQuestionId);
+            handleAiResponseTimeout();
           }
         }, 3000);
       }
-      
+
       setIsCommitting(false);
     } catch (err) {
       console.error('❌ Error sending to agent:', err);
-      console.error('   Error status:', err?.status || err?.response?.status);
-      
-      // NEW: Check for 500 error and disable AI for session
-      const is500Error = err?.status === 500 || err?.response?.status === 500;
-      if (is500Error) {
-        disableAiForSession('probing_500', err);
-        
-        // Force handoff to deterministic engine
-        if (currentFollowUpPack) {
-          saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
-          
-          setIsWaitingForAgent(false);
-          setProbingTurnCount(0);
-          setLastAgentMessageTime(null);
-          
-          const baseQuestionId = currentFollowUpPack.questionId;
-          setCurrentFollowUpPack(null);
-          
-          advanceToNextBaseQuestion(baseQuestionId);
-        }
-      } else {
-        setError('Failed to send message to AI agent');
-      }
-      
+      clearAiResponseTimeout();
+      handleAiResponseTimeout();
       setIsCommitting(false);
     }
   }, [conversation, isCommitting, isWaitingForAgent, probingTurnCount, currentFollowUpPack, agentMessages, advanceToNextBaseQuestion, disableAiForSession]);
@@ -2908,6 +2999,17 @@ export default function CandidateInterview() {
 
 // Deterministic transcript entries + AI probing
 function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
+  // System messages (timeouts, reminders)
+  if (entry.type === 'system_message') {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2 max-w-lg text-center">
+          <p className="text-slate-300 text-sm">{entry.content}</p>
+        </div>
+      </div>
+    );
+  }
+  
   if (entry.type === 'question') {
     return (
       <div className="space-y-3">
