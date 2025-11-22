@@ -11,6 +11,7 @@ import {
   Building2, Users, FileText, Settings, ArrowLeft,
   AlertCircle, Calendar, Shield, TrendingUp, PlayCircle, Download, Mail, Phone, User
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { format, subDays } from "date-fns";
 
@@ -489,35 +490,98 @@ export default function DepartmentDashboard() {
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
 
+                      const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
+                      const noCount = sessionResponses.filter(r => r.answer === 'No').length;
+                      const redFlagsCount = session.red_flags?.length || 0;
+                      
                       return (
-                        <Link key={session.id} to={createPageUrl(`SessionDetails?id=${session.id}`)} className="block">
-                          <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-900/50 transition-all cursor-pointer">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h3 className="text-white font-semibold text-sm break-all">{session.session_code}</h3>
-                                  <Badge className="bg-orange-600/20 text-orange-300 border-orange-500/30 text-xs whitespace-nowrap">
-                                    In Progress
+                        <Card key={session.id} className="bg-[#0f1629] border-slate-800/50 hover:border-slate-700 hover:shadow-lg transition-all">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              {/* Left side - Content */}
+                              <div className="flex-1 space-y-2.5">
+                                {/* Row 1: Department + Session Code + Status */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex-1 min-w-[200px]">
+                                    <div className="text-xs text-slate-400">
+                                      {department.department_name}
+                                    </div>
+                                    <h3 className="text-xl font-semibold text-slate-50">
+                                      {session.session_code}
+                                    </h3>
+                                  </div>
+                                  <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs font-medium px-2.5 py-1 rounded-full border">
+                                    In-Progress
                                   </Badge>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3 text-xs">
-                                  <div>
-                                    <p className="text-slate-500">Progress</p>
-                                    <p className="text-white font-semibold">{session.completion_percentage || 0}%</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500">Questions</p>
-                                    <p className="text-white font-semibold">{questionsAnswered}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500">Follow-Ups</p>
-                                    <p className="text-white font-semibold">{followupsCount}</p>
-                                  </div>
+
+                                {/* Row 2: Meta Info */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                                  <span>
+                                    # <span className="font-medium text-slate-200">{session.file_number}</span>
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    {format(new Date(session.created_date), "MMM d, yyyy")}
+                                  </span>
+                                </div>
+
+                                {/* Row 3: Metrics Strip */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+                                  <span>
+                                    <span className="text-slate-400">Questions</span> <span className="font-semibold text-slate-50">{questionsAnswered}/207</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Yes</span> <span className="font-semibold text-green-400">{yesCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">No</span> <span className="font-semibold text-slate-50">{noCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Follow-Ups</span> <span className="font-semibold text-indigo-400">{followupsCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Red Flags</span> <span className={cn("font-semibold", redFlagsCount > 0 ? "text-red-400" : "text-slate-50")}>{redFlagsCount}</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Right side - Completion + Actions */}
+                              <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
+                                <div className="text-right">
+                                  <div className="text-2xl font-bold text-amber-400">{session.completion_percentage || 0}%</div>
+                                  <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
+                                </div>
+                                <div className="flex flex-row gap-1.5 w-full">
+                                  <Link to={createPageUrl(`SessionDetails?id=${session.id}`)}>
+                                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8">
+                                      View Interview
+                                    </Button>
+                                  </Link>
+                                  <Button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      alert('Delete functionality coming soon');
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white text-xs h-8"
+                                  >
+                                    Delete
+                                  </Button>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </Link>
+                          </CardContent>
+                        </Card>
                       );
                     })}
                 </div>
@@ -553,37 +617,98 @@ export default function DepartmentDashboard() {
                       const questionsAnswered = sessionResponses.length;
                       const followupsCount = sessionResponses.filter(r => r.triggered_followup).length;
 
+                      const yesCount = sessionResponses.filter(r => r.answer === 'Yes').length;
+                      const noCount = sessionResponses.filter(r => r.answer === 'No').length;
+                      const redFlagsCount = session.red_flags?.length || 0;
+                      
                       return (
-                        <Link key={session.id} to={createPageUrl(`SessionDetails?id=${session.id}`)} className="block">
-                          <div className="p-4 rounded-lg bg-slate-900/30 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-900/50 transition-all cursor-pointer">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h3 className="text-white font-semibold text-sm break-all">{session.session_code}</h3>
-                                  <Badge className="bg-green-600/20 text-green-300 border-green-500/30 text-xs whitespace-nowrap">
+                        <Card key={session.id} className="bg-[#0f1629] border-slate-800/50 hover:border-slate-700 hover:shadow-lg transition-all">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              {/* Left side - Content */}
+                              <div className="flex-1 space-y-2.5">
+                                {/* Row 1: Department + Session Code + Status */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex-1 min-w-[200px]">
+                                    <div className="text-xs text-slate-400">
+                                      {department.department_name}
+                                    </div>
+                                    <h3 className="text-xl font-semibold text-slate-50">
+                                      {session.session_code}
+                                    </h3>
+                                  </div>
+                                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs font-medium px-2.5 py-1 rounded-full border">
                                     Completed
                                   </Badge>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3 text-xs">
-                                  <div>
-                                    <p className="text-slate-500">Completed</p>
-                                    <p className="text-white font-semibold">
-                                      {session.completed_date ? format(new Date(session.completed_date), 'MMM d, yyyy') : 'N/A'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500">Questions</p>
-                                    <p className="text-white font-semibold">{questionsAnswered}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-slate-500">Follow-Ups</p>
-                                    <p className="text-white font-semibold">{followupsCount}</p>
-                                  </div>
+
+                                {/* Row 2: Meta Info */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                                  <span>
+                                    # <span className="font-medium text-slate-200">{session.file_number}</span>
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    Dept: <span className="font-medium text-slate-200">{session.department_code}</span>
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    {format(new Date(session.created_date), "MMM d, yyyy")}
+                                  </span>
+                                </div>
+
+                                {/* Row 3: Metrics Strip */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+                                  <span>
+                                    <span className="text-slate-400">Questions</span> <span className="font-semibold text-slate-50">{questionsAnswered}/207</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Yes</span> <span className="font-semibold text-green-400">{yesCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">No</span> <span className="font-semibold text-slate-50">{noCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Follow-Ups</span> <span className="font-semibold text-indigo-400">{followupsCount}</span>
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span>
+                                    <span className="text-slate-400">Red Flags</span> <span className={cn("font-semibold", redFlagsCount > 0 ? "text-red-400" : "text-slate-50")}>{redFlagsCount}</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Right side - Completion + Actions */}
+                              <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
+                                <div className="text-right">
+                                  <div className="text-2xl font-bold text-amber-400">{session.completion_percentage || 0}%</div>
+                                  <div className="text-[10px] text-slate-400 uppercase tracking-wide">Complete</div>
+                                </div>
+                                <div className="flex flex-row gap-1.5 w-full">
+                                  <Link to={createPageUrl(`SessionDetails?id=${session.id}`)}>
+                                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8">
+                                      View Interview
+                                    </Button>
+                                  </Link>
+                                  <Button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      alert('Delete functionality coming soon');
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-transparent text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white text-xs h-8"
+                                  >
+                                    Delete
+                                  </Button>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </Link>
+                          </CardContent>
+                        </Card>
                       );
                     })}
                 </div>
