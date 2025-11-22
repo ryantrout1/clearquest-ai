@@ -1090,21 +1090,22 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
         instanceNumber: instNum,
         followupPackId: f.followup_pack,
         details: {},
-        aiExchanges: []
+        aiExchanges: [],
+        questionTextSnapshot: f.additional_details?.question_text_snapshot || {}
       };
     }
-    
+
     // Extract deterministic follow-up answers
     const details = f.additional_details || {};
     Object.entries(details).forEach(([key, value]) => {
-      if (key !== 'investigator_probing') {
+      if (key !== 'investigator_probing' && key !== 'question_text_snapshot') {
         instancesMap[instNum].details[key] = value;
       }
     });
-    
+
     // Extract AI probing exchanges
     if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
-      instancesMap[instNum].aiExchanges = details.investigator_probing;
+      instancesMap[instNum].aiExchanges.push(...details.investigator_probing);
     }
   });
   
@@ -1187,25 +1188,47 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 const instance = instancesMap[instanceNum];
                 if (!instance) return null;
                 
-                // Build and sort deterministic entries by display_order
-                const deterministicEntries = Object.entries(instance.details || {}).map(([detailKey, detailValue]) => {
-                  const meta = followUpQuestionEntities.find(q => 
-                    q.followup_question_id === detailKey && 
-                    q.followup_pack_id === instance.followupPackId
-                  ) || {};
-                  
+                // Get pack questions sorted by display_order
+                const packQuestions = followUpQuestionEntities
+                  .filter(q => q.followup_pack_id === instance.followupPackId)
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+                // Build deterministic entries and match by position
+                const detailEntries = Object.entries(instance.details || {});
+                const deterministicEntries = detailEntries.map(([detailKey, detailValue], idx) => {
+                  // First try snapshot lookup
+                  let questionText = instance.questionTextSnapshot?.[detailKey];
+
+                  // Fall back to positional matching with pack questions
+                  if (!questionText && packQuestions[idx]) {
+                    questionText = packQuestions[idx].question_text;
+                  }
+
+                  // Last resort: use the key itself
+                  if (!questionText) {
+                    questionText = detailKey.replace(/_/g, ' ');
+                  }
+
                   return {
                     detailKey,
                     detailValue,
-                    displayOrder: meta.display_order ?? 999,
-                    questionText: meta.question_text || detailKey
+                    displayOrder: packQuestions[idx]?.display_order ?? (idx + 1),
+                    questionText
                   };
                 });
-                
+
                 deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
                 
-                // Sort AI exchanges by sequence_number
-                const sortedAiExchanges = (instance.aiExchanges || []).slice().sort((a, b) => {
+                // Sort and deduplicate AI exchanges by sequence_number
+                const uniqueExchanges = Array.from(
+                  new Map(
+                    (instance.aiExchanges || []).map(ex => [
+                      `${ex.sequence_number}-${ex.probing_question}`,
+                      ex
+                    ])
+                  ).values()
+                );
+                const sortedAiExchanges = uniqueExchanges.sort((a, b) => {
                   const seqA = a.sequence_number || 0;
                   const seqB = b.sequence_number || 0;
                   return seqA - seqB;
@@ -1286,17 +1309,11 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           </div>
                         )}
 
-                        {/* AI Investigator Probing – full Q&A, always shown when instance expanded */}
+                        {/* AI Investigator Follow-Ups */}
                         {sortedAiExchanges.length > 0 && (
                           <div className="pt-2">
-                            <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide text-slate-300 mb-1">
-                              <span className="flex items-center gap-1">
-                                <span>🧠</span>
-                                <span>AI Investigator Probing</span>
-                              </span>
-                              <span className="text-[10px] text-slate-400">
-                                {sortedAiExchanges.length} exchanges
-                              </span>
+                            <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
+                              AI Investigator Follow-Ups
                             </div>
 
                             <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
