@@ -147,7 +147,12 @@ ${JSON.stringify(sectionData.responses.map(r => ({
           }
 
           updatedSectionCount++;
-          console.log('[AI-SECTIONS-BE] SECTION_SUMMARY_SAVED', { sessionId, sectionId });
+          console.log('[AI-SUMMARY] SECTION_SUMMARY_SAVED', {
+            sessionId,
+            sectionId,
+            questionCount: sectionData.responses.length,
+            summaryId: existing.length > 0 ? existing[0].id : 'new'
+          });
         } catch (err) {
           console.error('[AI-SECTIONS-BE] ERROR', { sectionId, error: err.message });
         }
@@ -203,8 +208,12 @@ ${JSON.stringify(sectionData.responses.map(r => ({
       for (const incident of incidents) {
         const pack = packs.find(p => p.followup_pack_id === incident.packId);
         const summaryInstructions = pack?.ai_summary_instructions || '';
+        
+        if (!summaryInstructions) {
+          console.warn('[AI-SUMMARY] No ai_summary_instructions for pack', { packId: incident.packId });
+        }
 
-        console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_CALL', {
+        console.log('[AI-SUMMARY] INCIDENT_SUMMARY_LLM_CALL', {
           sessionId,
           questionId: incident.questionId,
           packId: incident.packId,
@@ -298,7 +307,7 @@ Return 1-2 sentence summary.`;
             });
           }
 
-          console.log('[AI-QUESTIONS-BE] INSTANCE_SUMMARY_SAVED', {
+          console.log('[AI-SUMMARY] INSTANCE_SUMMARY_SAVED', {
             sessionId,
             questionId: incident.questionId,
             packId: incident.packId,
@@ -354,7 +363,7 @@ Return 1-2 sentence summary.`;
             });
           }
 
-          console.log('[AI-QUESTIONS-BE] QUESTION_SUMMARY_SAVED', {
+          console.log('[AI-SUMMARY] QUESTION_SUMMARY_SAVED', {
             sessionId,
             questionId,
             instanceCount: data.instances.length,
@@ -371,7 +380,7 @@ Return 1-2 sentence summary.`;
         }
       }
 
-      console.log('[AI-QUESTIONS-BE] DONE', {
+      console.log('[AI-SUMMARY] DONE', {
         sessionId,
         updatedInstanceCount,
         updatedQuestionCount
