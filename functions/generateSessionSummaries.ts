@@ -45,16 +45,19 @@ Deno.serve(async (req) => {
     // Use transcript events passed from client (already built with all context)
     const transcript = transcriptEvents;
 
+    // Count basic stats from transcript
+    const yesCount = transcript.filter(e => e.answer === 'Yes' || e.kind === 'base_answer' && e.text === 'Yes').length;
+    const noCount = transcript.filter(e => e.answer === 'No' || e.kind === 'base_answer' && e.text === 'No').length;
+
     // Build comprehensive prompt for single LLM call
     const llmPrompt = `You are an AI assistant for law enforcement background investigations. You will receive a structured transcript of a completed applicant interview. Generate a comprehensive JSON summary.
 
 TRANSCRIPT DATA:
 ${JSON.stringify({ 
-  sessionId: session_id,
-  totalQuestions: responses.length,
-  yesCount: responses.filter(r => r.answer === 'Yes').length,
-  noCount: responses.filter(r => r.answer === 'No').length,
-  followUpsTriggered: allFollowups.length,
+  sessionId: sessionId,
+  totalQuestions: transcript.length,
+  yesCount: yesCount,
+  noCount: noCount,
   transcript: transcript
 }, null, 2)}
 
