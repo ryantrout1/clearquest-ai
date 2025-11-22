@@ -25,63 +25,25 @@ Deno.serve(async (req) => {
       }, { status: 401 });
     }
 
-    const { session_id } = await req.json();
+    // Handle different request body formats
+    const body = typeof req.json === "function" ? await req.json() : req.body;
+    const sessionId = body?.sessionId || body?.session_id || body?.interviewId;
+    const transcriptEvents = body?.transcriptEvents || [];
 
-    if (!session_id) {
+    if (!sessionId) {
       return Response.json({ 
         ok: false,
-        error: { message: 'session_id required' }
+        error: { message: 'sessionId required' }
       }, { status: 400 });
     }
 
-    console.log(`🤖 [generateSessionSummaries] Starting single-call generation for session: ${session_id}`);
-
-    // Fetch all data for this session
-    const [responses, allFollowups, questions, sections] = await Promise.all([
-      base44.asServiceRole.entities.Response.filter({ session_id: session_id }),
-      base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: session_id }),
-      base44.asServiceRole.entities.Question.filter({ active: true }),
-      base44.asServiceRole.entities.Section.list()
-    ]);
-
-    console.log(`📊 Fetched data: ${responses.length} responses, ${allFollowups.length} followups`);
-
-    // Build structured transcript for LLM
-    const transcript = [];
-    
-    responses.forEach(response => {
-      const question = questions.find(q => q.id === response.question_id);
-      const section = sections.find(s => s.id === question?.section_id);
-      
-      const entry = {
-        questionId: response.question_id,
-        questionText: response.question_text,
-        sectionName: section?.section_name || response.category || 'Other',
-        answer: response.answer
-      };
-
-      // Add follow-up details if Yes answer
-      if (response.answer === 'Yes') {
-        const relatedFollowups = allFollowups.filter(f => f.response_id === response.id);
-        
-        if (relatedFollowups.length > 0) {
-          entry.followUps = relatedFollowups.map(fu => ({
-            packId: fu.followup_pack,
-            instanceNumber: fu.instance_number || 1,
-            substanceName: fu.substance_name,
-            details: fu.additional_details || {},
-            probingExchanges: fu.additional_details?.investigator_probing || []
-          }));
-        }
-
-        // Legacy probing on Response entity
-        if (response.investigator_probing?.length > 0) {
-          entry.probingExchanges = response.investigator_probing;
-        }
-      }
-
-      transcript.push(entry);
+    console.log(`🤖 [generateSessionSummaries] Starting single-call generation`, {
+      sessionId,
+      eventCount: transcriptEvents.length
     });
+
+    // Use transcript events passed from client (already built with all context)
+    const transcript = transcriptEvents;
 
     // Build comprehensive prompt for single LLM call
     const llmPrompt = `You are an AI assistant for law enforcement background investigations. You will receive a structured transcript of a completed applicant interview. Generate a comprehensive JSON summary.
