@@ -78,6 +78,13 @@ Deno.serve(async (req) => {
 
     if (!generateGlobal && !generateSections && generateQuestions) {
       // BLUE BRAIN: Questions only
+      console.log('[FUNC generateSessionSummaries] Building question-only prompt', {
+        transcriptLength: transcript.length,
+        yesAnswersInTranscript: transcript.filter(e => e.answer === 'Yes' || (e.kind === 'base_answer' && e.text === 'Yes')).length,
+        eventsWithBaseQuestionId: transcript.filter(e => e.baseQuestionId).length,
+        sampleBaseQuestionIds: transcript.filter(e => e.baseQuestionId).slice(0, 5).map(e => e.baseQuestionId)
+      });
+      
       llmPrompt = `You are an AI assistant for law enforcement background investigations. Generate question-level summaries for this interview session.
 
       TRANSCRIPT DATA:
@@ -87,7 +94,7 @@ Deno.serve(async (req) => {
       {
         "questionSummaries": [
           {
-            "questionId": "question ID",
+            "questionId": "question ID from transcript baseQuestionId field",
             "summary": "1-2 sentence investigator summary"
           }
         ]
@@ -95,7 +102,9 @@ Deno.serve(async (req) => {
 
       RULES:
       - Include questionSummaries for EVERY "Yes" answer that has follow-up details or AI probing
-      - Each summary should be 1-2 sentences summarizing what was disclosed`;
+      - Use the baseQuestionId field from transcript events as the questionId
+      - Each summary should be 1-2 sentences summarizing what was disclosed
+      - Look for events with kind: 'followup_answer', 'ai_probe_answer' to identify questions with follow-ups`;
 
       responseSchema = {
         type: "object",
@@ -327,7 +336,9 @@ Deno.serve(async (req) => {
       sectionNames: sectionSummaries.map(s => s.sectionName),
       questionSummariesCount: questionSummaries.length,
       questionIds: questionSummaries.map(q => q.questionId),
-      redFlagsCount: redFlags.length
+      questionSummariesFull: questionSummaries,
+      redFlagsCount: redFlags.length,
+      rawLLMResult: llmResult
     });
 
     console.log(`✅ LLM returned: ${sectionSummaries.length} section summaries, ${questionSummaries.length} question summaries, ${redFlags.length} red flags`);
