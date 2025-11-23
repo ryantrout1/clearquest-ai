@@ -2963,8 +2963,8 @@ export default function CandidateInterview() {
           ) : null}
         </main>
 
-        {/* Footer - only show if not showing start/resume messages */}
-        {!showStartMessage && !showResumeMessage && (
+        {/* Footer - show for intro (with Next button) and normal questions */}
+        {!showResumeMessage && (
           <footer 
             className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
