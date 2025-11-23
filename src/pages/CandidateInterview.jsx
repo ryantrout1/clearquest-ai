@@ -172,6 +172,7 @@ export default function CandidateInterview() {
   // Start/Resume interview state
   const [showStartMessage, setShowStartMessage] = useState(false);
   const [showResumeMessage, setShowResumeMessage] = useState(false);
+  const introLoggedRef = useRef(false);
   
   // Section completion message state
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
@@ -2628,6 +2629,19 @@ export default function CandidateInterview() {
 
   // Intro phase flag
   const isIntroPhase = showStartMessage && answeredCount === 0 && currentItem?.type === 'question';
+
+  // Log intro transcript event once
+  useEffect(() => {
+    if (showStartMessage && !introLoggedRef.current) {
+      introLoggedRef.current = true;
+      appendTranscriptEvent({
+        role: "system",
+        type: "intro",
+        text: "Welcome to your ClearQuest Interview.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [showStartMessage]);
 
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
