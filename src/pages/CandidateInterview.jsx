@@ -816,7 +816,10 @@ export default function CandidateInterview() {
         id: `sys-reminder-${Date.now()}`,
         type: 'system_message',
         content: "Take your time—when you're ready, type your answer and press Send to continue.",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        kind: 'system_message',
+        role: 'system',
+        text: "Take your time—when you're ready, type your answer and press Send to continue."
       };
       setTranscript(prev => [...prev, reminderEntry]);
     }, TYPING_TIMEOUT_MS);
