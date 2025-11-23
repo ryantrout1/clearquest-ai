@@ -23,6 +23,7 @@ import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
 import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import CandidateInterview from './pages/CandidateInterview';
 import SystemConfiguration from './pages/SystemConfiguration';
+import AiSettings from './pages/AiSettings';
 import __Layout from './Layout.jsx';
 
 
@@ -52,6 +53,7 @@ export const PAGES = {
     "FollowUpPackManagerV2": FollowUpPackManagerV2,
     "CandidateInterview": CandidateInterview,
     "SystemConfiguration": SystemConfiguration,
+    "AiSettings": AiSettings,
 }
 
 export const pagesConfig = {
