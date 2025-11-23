@@ -869,7 +869,10 @@ export default function CandidateInterview() {
       id: `sys-timeout-${Date.now()}`,
       type: 'system_message',
       content: "Our AI assistant is taking too long to respond, so we'll continue with the standard questions.",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      kind: 'system_message',
+      role: 'system',
+      text: "Our AI assistant is taking too long to respond, so we'll continue with the standard questions."
     };
     setTranscript(prev => [...prev, systemEntry]);
 
