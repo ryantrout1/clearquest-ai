@@ -810,16 +810,17 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
     if (selectedItem?.data) {
       const data = {
         ...selectedItem.data,
-        is_control_question: selectedItem.data.is_control_question ?? false
+        is_control_question: selectedItem.data.is_control_question ?? false,
+        ai_section_summary_instructions: selectedItem.data.ai_section_summary_instructions || ''
       };
       setFormData(data);
       setOriginalData(data);
       setIsEditMode(false);
-    } else {
+      } else {
       setFormData({});
       setOriginalData({});
       setIsEditMode(false);
-    }
+      }
   }, [selectedItem]);
 
   // Determine default pack group based on category derived from the section
@@ -1050,8 +1051,22 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
-          </>
-        )}
+
+            <div>
+              <Label className="text-sm text-slate-400">Section Summary Instructions (optional)</Label>
+              <Textarea
+                value={formData.ai_section_summary_instructions || ''}
+                onChange={(e) => setFormData({...formData, ai_section_summary_instructions: e.target.value})}
+                disabled={isReadOnly}
+                className="bg-slate-800 border-slate-600 text-white mt-1 min-h-32"
+                placeholder="Optional AI instructions for summarizing this section..."
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                If provided, these instructions will be used when AI generates summaries for this section
+              </p>
+            </div>
+            </>
+            )}
 
         {(isEditMode || isNewSection) && (
           <div className="flex gap-2 pt-4">
