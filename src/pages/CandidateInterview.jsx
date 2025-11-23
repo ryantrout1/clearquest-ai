@@ -2626,6 +2626,9 @@ export default function CandidateInterview() {
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
+  // Intro phase flag
+  const isIntroPhase = showStartMessage && answeredCount === 0 && currentItem?.type === 'question';
+
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
@@ -2797,16 +2800,7 @@ export default function CandidateInterview() {
           </div>
 
           {/* Active Question (Deterministic) or Agent Probing or Intro */}
-          {showStartMessage ? (
-            <div className="flex-shrink-0 px-4 pb-4">
-              <div className="max-w-5xl mx-auto">
-                <StartResumeMessage
-                  mode="start"
-                  onStart={() => setShowStartMessage(false)}
-                />
-              </div>
-            </div>
-          ) : lastAgentQuestion && isWaitingForAgent ? (
+          {lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -2830,6 +2824,49 @@ export default function CandidateInterview() {
                       <p className="text-white text-lg font-semibold leading-relaxed">
                         {lastAgentQuestion}
                       </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : isIntroPhase ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(59, 130, 246, 0.2) inset'
+                  }}
+                  data-active-question="true"
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                      <Shield className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-bold text-white mb-2">
+                        Welcome to your ClearQuest Interview
+                      </h2>
+                      <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                        This interview is part of your application process. Here's what to expect:
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-slate-300 text-sm">One question at a time, at your own pace</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-slate-300 text-sm">Clear, complete, and honest answers help investigators understand the full picture</p>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2935,7 +2972,19 @@ export default function CandidateInterview() {
             aria-label="Response area"
           >
             <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-              {isYesNoQuestion ? (
+              {isIntroPhase ? (
+                <div className="flex justify-center mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowStartMessage(false)}
+                    disabled={isCommitting || showPauseModal}
+                    className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                    aria-label="Continue to first question"
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
@@ -2983,9 +3032,11 @@ export default function CandidateInterview() {
             )}
             
               <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
-                {isWaitingForAgent 
-                  ? "Responding to investigator's probing questions..." 
-                  : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+                {isIntroPhase
+                  ? "Click Next to begin your interview"
+                  : isWaitingForAgent 
+                    ? "Responding to investigator's probing questions..." 
+                    : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
               </p>
             </div>
           </footer>
