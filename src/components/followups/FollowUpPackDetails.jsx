@@ -45,7 +45,7 @@ export default function FollowUpPackDetails({
   });
 
   useEffect(() => {
-    if (pack) {
+    if (pack && !isEditing) {
       console.log('[PACK-LOAD] Selected pack AI config', {
         packId: pack.id,
         hasProbeInstructions: !!pack.ai_probe_instructions,
@@ -65,9 +65,8 @@ export default function FollowUpPackDetails({
         active: pack.active !== false,
         categoryId: categoryId
       });
-      setIsEditing(false);
     }
-  }, [pack]);
+  }, [pack, isEditing]);
 
   const handleSave = async () => {
     try {
@@ -80,7 +79,8 @@ export default function FollowUpPackDetails({
       const originalCategory = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       const categoryChanged = originalCategory !== formData.categoryId;
       
-      await base44.entities.FollowUpPack.update(pack.id, {
+      // Save to database
+      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, {
         pack_name: formData.pack_name,
         description: formData.description,
         behavior_type: formData.behavior_type,
@@ -93,14 +93,14 @@ export default function FollowUpPackDetails({
         category_id: formData.categoryId
       });
       
-      // Trigger query invalidation and wait a moment for refetch to complete
-      onUpdate(categoryChanged ? formData.categoryId : null);
+      console.log('[PACK-SAVE] Database updated successfully', updatedPack);
       
-      // Wait for queries to refetch before switching back to view mode
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
+      // Exit edit mode immediately (don't wait for refetch)
       setIsEditing(false);
       toast.success('Pack updated successfully');
+      
+      // Trigger background refetch (but don't block on it)
+      onUpdate(categoryChanged ? formData.categoryId : null);
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Failed to save pack');
