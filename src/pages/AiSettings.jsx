@@ -73,12 +73,12 @@ export default function AiSettings() {
     try {
       setIsSaving(true);
       
-      const settings = await base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' });
+      const settings = await base44.entities.GlobalSettings.filter({ settings_id: 'global' });
       
       if (settings.length > 0) {
-        await base44.asServiceRole.entities.GlobalSettings.update(settings[0].id, formData);
+        await base44.entities.GlobalSettings.update(settings[0].id, formData);
       } else {
-        await base44.asServiceRole.entities.GlobalSettings.create({
+        await base44.entities.GlobalSettings.create({
           settings_id: 'global',
           ...formData
         });
