@@ -374,7 +374,13 @@ export default function CandidateInterview() {
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
         console.log('🔄 [PRODUCTION] Restoring from session snapshots...');
-        restoreFromSnapshots(engineData, loadedSession);
+        const restoreSuccessful = restoreFromSnapshots(engineData, loadedSession);
+        
+        // SAFETY: If restore detected invalid state, rebuild instead
+        if (!restoreSuccessful) {
+          console.log('🔧 [PRODUCTION] Snapshot validation failed - rebuilding from Response entities...');
+          await rebuildSessionFromResponses(engineData, loadedSession);
+        }
       } else {
         console.log('🎯 [PRODUCTION] Starting fresh interview');
         const firstQuestionId = engineData.ActiveOrdered[0];
