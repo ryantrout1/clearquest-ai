@@ -45,9 +45,10 @@ export default function FollowUpPackDetails({
   });
 
   useEffect(() => {
-    if (pack) {
-      console.log('[PACK-LOAD] Selected pack AI config', {
+    if (pack && !isEditing) {
+      console.log('[PACK-LOAD] Loading pack data', {
         packId: pack.id,
+        currentCategory: pack.category_id,
         hasProbeInstructions: !!pack.ai_probe_instructions,
         hasSummaryInstructions: !!pack.ai_summary_instructions,
       });
@@ -65,50 +66,53 @@ export default function FollowUpPackDetails({
         active: pack.active !== false,
         categoryId: categoryId
       });
-      setIsEditing(false);
     }
-  }, [pack?.id]);
+  }, [pack?.id, isEditing]);
 
   const handleSave = async () => {
     try {
-      console.log('[PACK-SAVE] Saving AI summary instructions', {
+      console.log('[PACK-SAVE] Starting save', {
         packId: pack.id,
+        categoryId: formData.categoryId,
         hasSummaryInstructions: !!formData.ai_summary_instructions,
-        summaryLength: formData.ai_summary_instructions ? formData.ai_summary_instructions.length : 0,
+        summaryLength: formData.ai_summary_instructions?.length || 0,
       });
       
       const originalCategory = pack.category_id || mapPackToCategory(pack.followup_pack_id);
       const categoryChanged = originalCategory !== formData.categoryId;
       
-      // Save to database
-      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, {
+      // Prepare update data - ensure category_id is not undefined or null
+      const updateData = {
         pack_name: formData.pack_name,
         description: formData.description,
         behavior_type: formData.behavior_type,
         requires_completion: formData.requires_completion,
         max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
         max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 2,
-        ai_probe_instructions: formData.ai_probe_instructions,
-        ai_summary_instructions: formData.ai_summary_instructions,
+        ai_probe_instructions: formData.ai_probe_instructions || '',
+        ai_summary_instructions: formData.ai_summary_instructions || '',
         active: formData.active,
-        category_id: formData.categoryId
-      });
+        category_id: formData.categoryId || null
+      };
       
-      console.log('[PACK-SAVE] Database updated successfully', updatedPack);
+      console.log('[PACK-SAVE] Update data', updateData);
+      
+      // Save to database
+      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, updateData);
+      
+      console.log('[PACK-SAVE] Database response', updatedPack);
+      
+      // Exit edit mode FIRST to prevent form reset
+      setIsEditing(false);
       
       toast.success('Pack updated successfully');
       
-      // Trigger refetch and wait for it to complete
+      // Trigger refetch in background
       onUpdate(categoryChanged ? formData.categoryId : null);
       
-      // Wait for query to refetch before exiting edit mode
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Exit edit mode after refetch
-      setIsEditing(false);
     } catch (err) {
-      console.error('Save error:', err);
-      toast.error('Failed to save pack');
+      console.error('[PACK-SAVE] Error:', err);
+      toast.error('Failed to save pack: ' + (err.message || 'Unknown error'));
     }
   };
 
