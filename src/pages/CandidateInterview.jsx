@@ -882,7 +882,7 @@ export default function CandidateInterview() {
       console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
       handleAiResponseTimeout();
     }, AI_RESPONSE_TIMEOUT_MS);
-  }, []);
+  }, [handleAiResponseTimeout]);
 
   const clearAiResponseTimeout = useCallback(() => {
     if (aiResponseTimeoutRef.current) {
