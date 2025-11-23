@@ -24,8 +24,6 @@ import {
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
-import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
-import StartResumeMessage from "../components/interview/StartResumeMessage";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
