@@ -1660,18 +1660,38 @@ export default function CandidateInterview() {
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
           console.log(`💉 Auto-filling substance_name: ${step.PrefilledAnswer}`);
           
-          const transcriptEntry = {
-            id: `fu-${Date.now()}`,
+          const prefilledQuestionEntry = {
+            id: `fu-${Date.now()}-q`,
             questionId: currentItem.id,
             questionText: step.Prompt,
+            packId: packId,
+            substanceName: substanceName,
+            type: 'followup_question',
+            timestamp: new Date().toISOString(),
+            kind: 'deterministic_followup_question',
+            role: 'investigator',
+            text: step.Prompt,
+            fieldKey: step.Field_Key,
+            followupPackId: packId,
+            instanceNumber: currentItem.instanceNumber || 1
+          };
+
+          const prefilledAnswerEntry = {
+            id: `fu-${Date.now()}-a`,
+            questionId: currentItem.id,
             answer: step.PrefilledAnswer,
             packId: packId,
             substanceName: substanceName,
-            type: 'followup',
-            timestamp: new Date().toISOString()
+            type: 'followup_answer',
+            timestamp: new Date().toISOString(),
+            kind: 'deterministic_followup_answer',
+            role: 'candidate',
+            text: step.PrefilledAnswer,
+            followupPackId: packId,
+            instanceNumber: currentItem.instanceNumber || 1
           };
-          
-          const newTranscript = [...transcript, transcriptEntry];
+
+          const newTranscript = [...transcript, prefilledQuestionEntry, prefilledAnswerEntry];
           setTranscript(newTranscript);
 
           // Update follow-up answers tracker
