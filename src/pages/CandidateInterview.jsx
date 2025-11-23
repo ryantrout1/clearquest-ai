@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
 import StartResumeMessage from "../components/interview/StartResumeMessage";
-import SystemIntroCard from "../components/interview/SystemIntroCard";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -2738,15 +2737,6 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* Start interview message (for new interviews) */}
-              {showStartMessage && (
-                <SystemIntroCard
-                  onNext={() => {
-                    setShowStartMessage(false);
-                  }}
-                />
-              )}
-              
               {/* Resume interview message */}
               {showResumeMessage && !showStartMessage && (
                 <StartResumeMessage
@@ -2806,8 +2796,17 @@ export default function CandidateInterview() {
             </div>
           </div>
 
-          {/* Active Question (Deterministic) or Agent Probing */}
-          {lastAgentQuestion && isWaitingForAgent ? (
+          {/* Active Question (Deterministic) or Agent Probing or Intro */}
+          {showStartMessage ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <StartResumeMessage
+                  mode="start"
+                  onStart={() => setShowStartMessage(false)}
+                />
+              </div>
+            </div>
+          ) : lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
