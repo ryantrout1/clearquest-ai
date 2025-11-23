@@ -8,13 +8,7 @@ export default function SectionCompletionMessage({
   hadIncidents,
   onDismiss 
 }) {
-  // Auto-dismiss after first render
-  useEffect(() => {
-    if (onDismiss) {
-      const timer = setTimeout(onDismiss, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [onDismiss]);
+  // Don't auto-dismiss - let it stay visible until user answers next question
 
   // Choose message text based on section characteristics
   const getMessage = () => {
