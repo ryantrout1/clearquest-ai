@@ -221,17 +221,18 @@ ${JSON.stringify(sectionData.responses.map(r => ({
           hasSummaryInstructions: !!summaryInstructions
         });
 
+        const packName = pack?.pack_name || incident.packId;
+        
         const incidentPrompt = `Generate a concise investigator summary for this incident.
 
 ${summaryInstructions ? `INSTRUCTIONS: ${summaryInstructions}\n` : ''}
 
-INCIDENT:
-Question: ${incident.questionId}
-Pack: ${incident.packId}
-Instance: ${incident.instanceNumber}
-Details: ${JSON.stringify(incident.details, null, 2)}
+IMPORTANT: Write in plain language for investigators. Do NOT include technical codes like "PACK_LE_APPS" or question IDs. Use natural descriptions instead (e.g., "law enforcement application" not "PACK_LE_APPS").
 
-Return 1-2 sentence summary.`;
+INCIDENT DETAILS:
+${JSON.stringify(incident.details, null, 2)}
+
+Return 1-2 sentence summary focusing on what happened, when, and key facts.`;
 
         let instanceSummaryText = null;
 
