@@ -1489,9 +1489,9 @@ export default function CandidateInterview() {
     setIsCommitting(true);
     setValidationHint(null);
     
-    // Clear section completion message when answering any question
-    if (sectionCompletionMessage) {
-      setSectionCompletionMessage(null);
+    // Clear pending system action when answering any question
+    if (pendingSystemAction) {
+      setPendingSystemAction(null);
     }
 
     try {
