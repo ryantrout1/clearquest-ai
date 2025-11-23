@@ -938,6 +938,14 @@ export default function CandidateInterview() {
     }
   }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion]);
 
+  const startAiResponseTimeout = useCallback(() => {
+    clearTimeout(aiResponseTimeoutRef.current);
+    aiResponseTimeoutRef.current = setTimeout(() => {
+      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
+      handleAiResponseTimeout();
+    }, AI_RESPONSE_TIMEOUT_MS);
+  }, [handleAiResponseTimeout]);
+
   // NEW: Start per-pack AI mini-session
   const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
     console.log(`🤖 Starting AI probing mini-session for ${packId} (instance ${instanceNumber})...`);
