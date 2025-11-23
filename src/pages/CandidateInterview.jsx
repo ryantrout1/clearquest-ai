@@ -876,14 +876,6 @@ export default function CandidateInterview() {
     }
   }, []);
 
-  const startAiResponseTimeout = useCallback(() => {
-    clearTimeout(aiResponseTimeoutRef.current);
-    aiResponseTimeoutRef.current = setTimeout(() => {
-      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
-      handleAiResponseTimeout();
-    }, AI_RESPONSE_TIMEOUT_MS);
-  }, [handleAiResponseTimeout]);
-
   const clearAiResponseTimeout = useCallback(() => {
     if (aiResponseTimeoutRef.current) {
       clearTimeout(aiResponseTimeoutRef.current);
@@ -904,7 +896,7 @@ export default function CandidateInterview() {
     }
   }, [clearTypingTimeout, clearAiResponseTimeout]);
 
-  // NEW: Graceful fallback handler
+  // NEW: Graceful fallback handler - MUST be defined before startAiResponseTimeout
   const handleAiResponseTimeout = useCallback(() => {
     console.log('🚨 [AI TIMEOUT] Graceful fallback initiated');
 
