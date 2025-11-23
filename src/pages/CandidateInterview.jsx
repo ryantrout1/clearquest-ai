@@ -1147,7 +1147,7 @@ export default function CandidateInterview() {
     handleAiResponseTimeout();
     return false;
     }
-    };
+  }, [aiProbingDisabledForSession, sessionId, transcript, aiFollowupCounts, currentFollowUpPack, engine, handleAiResponseTimeout, startTypingTimeout, session]);
 
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
