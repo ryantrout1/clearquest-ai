@@ -1286,15 +1286,19 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   .filter(q => q.followup_pack_id === instance.followupPackId)
                   .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-                // Build deterministic entries and match by position
+                // Build deterministic entries and match by ID, not index
                 const detailEntries = Object.entries(instance.details || {});
-                const deterministicEntries = detailEntries.map(([detailKey, detailValue], idx) => {
+                const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
                   // First try snapshot lookup
                   let questionText = instance.questionTextSnapshot?.[detailKey];
+                  let matchedQuestion = null;
 
-                  // Fall back to positional matching with pack questions
-                  if (!questionText && packQuestions[idx]) {
-                    questionText = packQuestions[idx].question_text;
+                  // Try to find matching question by followup_question_id (matches the detailKey)
+                  if (!questionText) {
+                    matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
+                    if (matchedQuestion) {
+                      questionText = matchedQuestion.question_text;
+                    }
                   }
 
                   // Last resort: use the key itself
@@ -1305,7 +1309,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   return {
                     detailKey,
                     detailValue,
-                    displayOrder: packQuestions[idx]?.display_order ?? (idx + 1),
+                    displayOrder: matchedQuestion?.display_order ?? 999,
                     questionText
                   };
                 });
