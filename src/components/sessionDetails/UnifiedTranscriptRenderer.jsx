@@ -206,5 +206,38 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
+  // System message
+  if (kind === "system_message") {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2 max-w-lg text-center">
+          <p className="text-slate-300 text-sm">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Section completion message
+  if (kind === "section_completion") {
+    return (
+      <div className="flex justify-center my-3">
+        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-lg px-4 py-3 max-w-lg">
+          <p className="text-emerald-100 text-sm leading-relaxed">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Resume/welcome message
+  if (kind === "resume_message" || kind === "welcome_message") {
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-blue-950/40 border border-blue-700/60 rounded-lg px-4 py-3 max-w-lg">
+          <p className="text-blue-100 text-sm leading-relaxed">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
