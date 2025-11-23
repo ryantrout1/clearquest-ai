@@ -2643,13 +2643,6 @@ export default function CandidateInterview() {
     }
   }, [showStartMessage]);
 
-  // Auto-scroll when system messages appear
-  useEffect(() => {
-    if (showStartMessage || showResumeMessage || sectionCompletionMessage) {
-      autoScrollToBottom();
-    }
-  }, [showStartMessage, showResumeMessage, sectionCompletionMessage, autoScrollToBottom]);
-
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
