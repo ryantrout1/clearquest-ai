@@ -390,7 +390,10 @@ export default function CandidateInterview() {
         setShowStartMessage(true);
         setShowResumeMessage(false);
       } else {
-        console.log('🔄 [PRODUCTION] Resume interview - showing resume message');
+        console.log('🔄 [PRODUCTION] Resume interview - showing resume message and current item');
+        console.log('   - Current item after restore:', loadedSession.current_item_snapshot);
+        console.log('   - Queue after restore:', loadedSession.queue_snapshot);
+        console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
         setShowStartMessage(false);
         setShowResumeMessage(true);
       }
