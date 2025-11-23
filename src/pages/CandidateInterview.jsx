@@ -2630,19 +2630,6 @@ export default function CandidateInterview() {
   // Intro phase flag
   const isIntroPhase = showStartMessage && answeredCount === 0 && currentItem?.type === 'question';
 
-  // Log intro transcript event once
-  useEffect(() => {
-    if (showStartMessage && !introLoggedRef.current) {
-      introLoggedRef.current = true;
-      appendTranscriptEvent({
-        role: "system",
-        type: "intro",
-        text: "Welcome to your ClearQuest Interview.",
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [showStartMessage]);
-
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
@@ -2994,6 +2981,15 @@ export default function CandidateInterview() {
                   <button
                     type="button"
                     onClick={() => {
+                      setTranscript(prev => [
+                        ...prev,
+                        {
+                          role: "system",
+                          type: "intro",
+                          text: "Welcome to your ClearQuest Interview.",
+                          timestamp: new Date().toISOString()
+                        }
+                      ]);
                       setShowStartMessage(false);
                       setTimeout(() => autoScrollToBottom(), 0);
                     }}
