@@ -1464,18 +1464,33 @@ export default function CandidateInterview() {
         const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
         const sectionName = sectionEntity?.section_name || question.category || '';
         
-        const transcriptEntry = {
-          id: `q-${Date.now()}`,
+        const questionEntry = {
+          id: `q-${Date.now()}-q`,
           questionId: currentItem.id,
           questionText: question.question_text,
-          answer: value,
-          category: sectionName, // Use Section name, not legacy category
+          category: sectionName,
           type: 'question',
           timestamp: new Date().toISOString(),
-          sectionId: question.section_id
+          sectionId: question.section_id,
+          kind: 'base_question',
+          role: 'investigator',
+          text: question.question_text
         };
-        
-        const newTranscript = [...transcript, transcriptEntry];
+
+        const answerEntry = {
+          id: `q-${Date.now()}-a`,
+          questionId: currentItem.id,
+          answer: value,
+          category: sectionName,
+          type: 'answer',
+          timestamp: new Date().toISOString(),
+          sectionId: question.section_id,
+          kind: 'base_answer',
+          role: 'candidate',
+          text: value
+        };
+
+        const newTranscript = [...transcript, questionEntry, answerEntry];
         setTranscript(newTranscript);
         
         // Detect section transition BEFORE advancing to next question
