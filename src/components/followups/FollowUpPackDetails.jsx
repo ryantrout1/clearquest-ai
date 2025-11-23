@@ -102,13 +102,14 @@ export default function FollowUpPackDetails({
       
       console.log('[PACK-SAVE] Database response', updatedPack);
       
-      // Exit edit mode FIRST to prevent form reset
-      setIsEditing(false);
-      
       toast.success('Pack updated successfully');
       
-      // Trigger refetch but don't change category navigation
+      // Trigger refetch and wait for it to complete
       onUpdate(null);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Exit edit mode AFTER refetch completes
+      setIsEditing(false);
       
     } catch (err) {
       console.error('[PACK-SAVE] Error:', err);
