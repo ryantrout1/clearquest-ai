@@ -47,9 +47,11 @@ export default function FollowUpPackDetails({
   useEffect(() => {
     if (!pack) return;
     
+    const currentCategory = pack?.category_id ?? undefined;
+    
     console.log('[PACK-LOAD] Loading pack data', {
       packId: pack.followup_pack_id,
-      currentCategory: pack.category_id,
+      currentCategory: currentCategory,
       hasProbeInstructions: !!pack.ai_probe_instructions,
       hasSummaryInstructions: !!pack.ai_summary_instructions,
     });
@@ -92,12 +94,12 @@ export default function FollowUpPackDetails({
         hasSummaryInstructions: !!formData.ai_summary_instructions,
         summaryLength: formData.ai_summary_instructions?.length || 0,
       });
-      console.log('[PACK-SAVE] Update data', payload);
+      console.log('[PACK-SAVE] Update data full', JSON.stringify(payload, null, 2));
       
       // Save to database
       const updatedPack = await base44.entities.FollowUpPack.update(pack.id, payload);
       
-      console.log('[PACK-SAVE] Database response', updatedPack);
+      console.log('[PACK-SAVE] Database response full', JSON.stringify(updatedPack, null, 2));
       
       // Update local form data immediately with saved values
       setFormData({
