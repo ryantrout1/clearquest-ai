@@ -2643,6 +2643,13 @@ export default function CandidateInterview() {
     }
   }, [showStartMessage]);
 
+  // Auto-scroll when system messages appear
+  useEffect(() => {
+    if (showStartMessage || showResumeMessage || sectionCompletionMessage) {
+      autoScrollToBottom();
+    }
+  }, [showStartMessage, showResumeMessage, sectionCompletionMessage, autoScrollToBottom]);
+
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
@@ -2761,7 +2768,10 @@ export default function CandidateInterview() {
                   currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
                   currentQuestionNumber={currentQuestion?.question_number}
                   progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
-                  onStart={() => setShowResumeMessage(false)}
+                  onStart={() => {
+                    setShowResumeMessage(false);
+                    setTimeout(() => autoScrollToBottom(), 0);
+                  }}
                 />
               )}
               
@@ -2990,7 +3000,10 @@ export default function CandidateInterview() {
                 <div className="flex justify-center mb-3">
                   <button
                     type="button"
-                    onClick={() => setShowStartMessage(false)}
+                    onClick={() => {
+                      setShowStartMessage(false);
+                      setTimeout(() => autoScrollToBottom(), 0);
+                    }}
                     disabled={isCommitting || showPauseModal}
                     className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                     aria-label="Continue to first question"
