@@ -1417,6 +1417,11 @@ export default function CandidateInterview() {
 
     setIsCommitting(true);
     setValidationHint(null);
+    
+    // Clear section completion message when answering any question
+    if (sectionCompletionMessage) {
+      setSectionCompletionMessage(null);
+    }
 
     try {
       console.log(`📝 Processing answer for ${currentItem.type}:`, value);
@@ -1957,7 +1962,7 @@ export default function CandidateInterview() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, sectionCompletionMessage]);
 
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
