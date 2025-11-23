@@ -172,6 +172,9 @@ export default function CandidateInterview() {
   // Start/Resume interview state
   const [showStartMessage, setShowStartMessage] = useState(false);
   const [showResumeMessage, setShowResumeMessage] = useState(false);
+  
+  // Section completion message state
+  const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
 
   // Refs
   const historyRef = useRef(null);
