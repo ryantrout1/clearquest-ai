@@ -422,17 +422,32 @@ export default function CandidateInterview() {
     console.log('📸 Restoring from snapshots...');
     
     const restoredTranscript = loadedSession.transcript_snapshot || [];
-    setTranscript(restoredTranscript);
-    
     const restoredQueue = loadedSession.queue_snapshot || [];
-    setQueue(restoredQueue);
-    
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-    setCurrentItem(restoredCurrentItem);
     
     console.log(`✅ Restored ${restoredTranscript.length} transcript entries`);
     console.log(`✅ Restored queue with ${restoredQueue.length} pending items`);
     console.log(`✅ Current item:`, restoredCurrentItem);
+    
+    // VALIDATION: Check if restored state is valid
+    const hasTranscript = restoredTranscript.length > 0;
+    const isCompleted = loadedSession.status === 'completed';
+    const hasValidCurrentItem = restoredCurrentItem && 
+                                 typeof restoredCurrentItem === 'object' && 
+                                 !Array.isArray(restoredCurrentItem) &&
+                                 restoredCurrentItem.type;
+    const hasQueue = restoredQueue.length > 0;
+    
+    // If not completed but has transcript and invalid state, flag for rebuild
+    if (!isCompleted && hasTranscript && !hasValidCurrentItem && !hasQueue) {
+      console.warn('⚠️ [RESUME] Snapshot invalid (no current item or empty queue for non-complete interview). Will rebuild.');
+      return false; // Signal that restore failed
+    }
+    
+    // Apply restored state
+    setTranscript(restoredTranscript);
+    setQueue(restoredQueue);
+    setCurrentItem(restoredCurrentItem);
     
     if (!restoredCurrentItem && restoredQueue.length > 0) {
       console.warn('⚠️ No current item but queue exists - self-healing...');
@@ -447,11 +462,13 @@ export default function CandidateInterview() {
         console.log('✅ Interview marked as completed - showing completion modal.');
         setShowCompletionModal(true);
       } else {
-        console.warn('⚠️ No current item or queue, but status is not completed. This should have been caught by rebuild logic.');
+        console.warn('⚠️ No current item or queue, but status is not completed. Should rebuild.');
+        return false; // Signal that restore failed
       }
     }
     
     setTimeout(() => autoScrollToBottom(), 100);
+    return true; // Restore successful
   };
 
   // ENHANCED: Rebuild session queue from Response entities
