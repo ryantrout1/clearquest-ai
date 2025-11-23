@@ -2465,6 +2465,11 @@ export default function CandidateInterview() {
     return "Type your answer...";
   };
   
+  // Get current question object for resume message
+  const currentQuestion = currentItem?.type === 'question' && engine?.QById?.[currentItem.id]
+    ? engine.QById[currentItem.id]
+    : null;
+  
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
