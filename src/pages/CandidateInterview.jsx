@@ -1142,11 +1142,11 @@ export default function CandidateInterview() {
     startTypingTimeout();
 
     return true;
-    } catch (err) {
+  } catch (err) {
     console.error('❌ [AI MINI-SESSION] Error creating conversation:', err);
     handleAiResponseTimeout();
     return false;
-    }
+  }
   }, [aiProbingDisabledForSession, sessionId, transcript, aiFollowupCounts, currentFollowUpPack, engine, handleAiResponseTimeout, startTypingTimeout, session]);
 
   // ============================================================================
