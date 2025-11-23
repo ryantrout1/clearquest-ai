@@ -2525,12 +2525,9 @@ export default function CandidateInterview() {
     if (currentItem.type === 'question') {
       const question = engine.QById[currentItem.id];
       
-      // CRITICAL FIX: If question doesn't exist, mark interview complete
+      // CRITICAL FIX: If question doesn't exist, return null (don't setState during render)
       if (!question) {
-        console.error(`❌ Question ${currentItem.id} not found in engine - marking interview complete`);
-        setCurrentItem(null);
-        setQueue([]);
-        setShowCompletionModal(true);
+        console.error(`❌ Question ${currentItem.id} not found in engine`);
         return null;
       }
       
