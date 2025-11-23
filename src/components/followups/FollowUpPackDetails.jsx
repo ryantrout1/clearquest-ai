@@ -107,8 +107,8 @@ export default function FollowUpPackDetails({
       
       toast.success('Pack updated successfully');
       
-      // Trigger refetch in background
-      onUpdate(categoryChanged ? formData.categoryId : null);
+      // Trigger refetch but don't change category navigation
+      onUpdate(null);
       
     } catch (err) {
       console.error('[PACK-SAVE] Error:', err);
