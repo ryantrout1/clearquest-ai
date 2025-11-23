@@ -223,16 +223,24 @@ ${JSON.stringify(sectionData.responses.map(r => ({
 
         const packName = pack?.pack_name || incident.packId;
         
-        const incidentPrompt = `Generate a concise investigator summary for this incident.
+        // Format details as natural text instead of JSON
+        const detailsText = Object.entries(incident.details)
+          .filter(([key, value]) => value && key !== 'investigator_probing' && key !== 'question_text_snapshot')
+          .map(([key, value]) => {
+            const label = key.replace(/_/g, ' ');
+            return `${label}: ${value}`;
+          })
+          .join('\n');
+        
+        const incidentPrompt = `You are writing an investigator summary. Write ONLY in complete sentences using the actual facts provided. Do NOT use brackets, placeholders, variable names, or field labels in your output.
 
 ${summaryInstructions ? `INSTRUCTIONS: ${summaryInstructions}\n` : ''}
 
-IMPORTANT: Write in plain language for investigators. Do NOT include technical codes like "PACK_LE_APPS" or question IDs. Use natural descriptions instead (e.g., "law enforcement application" not "PACK_LE_APPS").
+INCIDENT INFORMATION:
+${detailsText}
 
-INCIDENT DETAILS:
-${JSON.stringify(incident.details, null, 2)}
+Write a 1-2 sentence summary stating the facts naturally (e.g., "In May 2010, the individual applied to Scottsdale Police Department..." NOT "In [insert date], individual applied to [agency]...").`;
 
-Return 1-2 sentence summary focusing on what happened, when, and key facts.`;
 
         let instanceSummaryText = null;
 
