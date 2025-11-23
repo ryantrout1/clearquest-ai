@@ -288,7 +288,14 @@ export default function FollowUpPackManagerV2() {
               </span>
             </div>
           </div>
-
+          
+          <Button
+            variant="outline"
+            onClick={() => navigate(createPageUrl("SystemConfiguration"))}
+            className="bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
+          >
+            ⚙️ Config
+          </Button>
         </div>
       </div>
 
