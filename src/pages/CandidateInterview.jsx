@@ -169,12 +169,8 @@ export default function CandidateInterview() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   
-  // Start/Resume interview state
-  const [showStartMessage, setShowStartMessage] = useState(false);
-  const [showResumeMessage, setShowResumeMessage] = useState(false);
-  
-  // Section completion message state
-  const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
+  // System message state (inline in chat)
+  const [pendingSystemAction, setPendingSystemAction] = useState(null); // 'intro' | 'resume' | null
 
   // Refs
   const historyRef = useRef(null);
