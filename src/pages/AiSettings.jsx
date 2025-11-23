@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Settings, Save, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import { Settings, Save, Loader2, ArrowLeft, AlertCircle, Edit } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AiSettings() {
@@ -14,6 +14,7 @@ export default function AiSettings() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   
   const [formData, setFormData] = useState({
     ai_report_instructions: "",
@@ -83,6 +84,7 @@ export default function AiSettings() {
         });
       }
       
+      setIsEditing(false);
       toast.success('AI settings saved successfully');
     } catch (err) {
       console.error('Error saving settings:', err);
@@ -122,6 +124,35 @@ export default function AiSettings() {
               </span>
             </div>
           </div>
+          {!isEditing ? (
+            <Button
+              onClick={() => setIsEditing(true)}
+              size="sm"
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -150,6 +181,7 @@ export default function AiSettings() {
               <Textarea
                 value={formData.ai_report_instructions}
                 onChange={(e) => setFormData({...formData, ai_report_instructions: e.target.value})}
+                disabled={!isEditing}
                 className="bg-slate-900/50 border-slate-600 text-white font-mono text-sm min-h-64"
                 placeholder="Enter instructions for generating investigator reports..."
               />
@@ -167,6 +199,7 @@ export default function AiSettings() {
               <Textarea
                 value={formData.ai_default_section_summary_instructions}
                 onChange={(e) => setFormData({...formData, ai_default_section_summary_instructions: e.target.value})}
+                disabled={!isEditing}
                 className="bg-slate-900/50 border-slate-600 text-white font-mono text-sm min-h-64"
                 placeholder="Enter default instructions for section summaries..."
               />
@@ -184,6 +217,7 @@ export default function AiSettings() {
               <Textarea
                 value={formData.ai_default_probing_instructions}
                 onChange={(e) => setFormData({...formData, ai_default_probing_instructions: e.target.value})}
+                disabled={!isEditing}
                 className="bg-slate-900/50 border-slate-600 text-white font-mono text-sm min-h-64"
                 placeholder="Enter default instructions for AI probing..."
               />
@@ -191,25 +225,7 @@ export default function AiSettings() {
           </Card>
         </div>
 
-        <div className="flex gap-3 mt-8">
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Save AI Settings
-              </>
-            )}
-          </Button>
-        </div>
+
       </div>
     </div>
   );
