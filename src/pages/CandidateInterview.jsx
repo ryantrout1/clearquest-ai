@@ -947,7 +947,7 @@ export default function CandidateInterview() {
   }, [handleAiResponseTimeout]);
 
   // NEW: Start per-pack AI mini-session
-  const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+  const startAiProbingForPackInstance = useCallback(async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
     console.log(`🤖 Starting AI probing mini-session for ${packId} (instance ${instanceNumber})...`);
 
     // Check if AI is disabled for this session
