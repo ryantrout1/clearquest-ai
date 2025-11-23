@@ -541,7 +541,7 @@ export default function FollowUpPackDetails({
         ) : (
           <div className="space-y-2">
             {sortedQuestions.map((q, idx) => (
-              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-2">
                 {editingQuestion?.id === q.id ? (
                   <div className="space-y-2">
                     <Textarea
@@ -593,20 +593,17 @@ export default function FollowUpPackDetails({
                       <span className="text-sm font-bold text-purple-300">#{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-base font-medium text-white break-words leading-relaxed">{q.question_text}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
-                          {RESPONSE_TYPE_NAMES[q.response_type] || q.response_type}
-                        </Badge>
-                        <Switch
-                          checked={q.active !== false}
-                          onCheckedChange={(checked) => handleUpdateQuestion(q.id, { active: checked })}
-                          className="data-[state=checked]:bg-emerald-600"
-                        />
-                        <span className="text-sm text-slate-400">
-                          {q.active !== false ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
+                      <p className="text-sm font-medium text-white break-words leading-snug">{q.question_text}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Switch
+                        checked={q.active !== false}
+                        onCheckedChange={(checked) => handleUpdateQuestion(q.id, { active: checked })}
+                        className="data-[state=checked]:bg-emerald-600"
+                      />
+                      <span className="text-xs text-slate-400">
+                        {q.active !== false ? 'Active' : 'Inactive'}
+                      </span>
                     </div>
                     <div className="flex gap-1">
                       <Button
