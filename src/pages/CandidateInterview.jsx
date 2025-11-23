@@ -2742,7 +2742,7 @@ export default function CandidateInterview() {
                 </div>
               </div>
             </div>
-          ) : !showStartMessage && !showResumeMessage && currentPrompt ? (
+          ) : currentPrompt ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
