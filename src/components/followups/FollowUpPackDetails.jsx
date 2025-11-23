@@ -92,7 +92,13 @@ export default function FollowUpPackDetails({
         active: formData.active,
         category_id: formData.categoryId
       });
+      
+      // Trigger query invalidation and wait a moment for refetch to complete
       onUpdate(categoryChanged ? formData.categoryId : null);
+      
+      // Wait for queries to refetch before switching back to view mode
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setIsEditing(false);
       toast.success('Pack updated successfully');
     } catch (err) {
