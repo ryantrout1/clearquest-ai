@@ -45,44 +45,35 @@ export default function FollowUpPackDetails({
   });
 
   useEffect(() => {
-    if (pack && !isEditing) {
-      console.log('[PACK-LOAD] Loading pack data', {
-        packId: pack.id,
-        currentCategory: pack.category_id,
-        hasProbeInstructions: !!pack.ai_probe_instructions,
-        hasSummaryInstructions: !!pack.ai_summary_instructions,
-      });
-      
-      const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
-      setFormData({
-        pack_name: pack.pack_name || '',
-        description: pack.description || '',
-        behavior_type: pack.behavior_type || 'standard',
-        requires_completion: pack.requires_completion !== false,
-        max_probe_loops: pack.max_probe_loops || '',
-        max_ai_followups: pack.max_ai_followups ?? 2,
-        ai_probe_instructions: pack.ai_probe_instructions || '',
-        ai_summary_instructions: pack.ai_summary_instructions || '',
-        active: pack.active !== false,
-        categoryId: categoryId
-      });
-    }
-  }, [pack?.id, isEditing]);
+    if (!pack) return;
+    
+    console.log('[PACK-LOAD] Loading pack data', {
+      packId: pack.followup_pack_id,
+      currentCategory: pack.category_id,
+      hasProbeInstructions: !!pack.ai_probe_instructions,
+      hasSummaryInstructions: !!pack.ai_summary_instructions,
+    });
+    
+    const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
+    setFormData({
+      pack_name: pack.pack_name || '',
+      description: pack.description || '',
+      behavior_type: pack.behavior_type || 'standard',
+      requires_completion: pack.requires_completion !== false,
+      max_probe_loops: pack.max_probe_loops || '',
+      max_ai_followups: pack.max_ai_followups ?? 2,
+      ai_probe_instructions: pack.ai_probe_instructions || '',
+      ai_summary_instructions: pack.ai_summary_instructions || '',
+      active: pack.active !== false,
+      categoryId: categoryId
+    });
+  }, [pack?.followup_pack_id]);
 
   const handleSave = async () => {
+    if (!pack) return;
+    
     try {
-      console.log('[PACK-SAVE] Starting save', {
-        packId: pack.id,
-        categoryId: formData.categoryId,
-        hasSummaryInstructions: !!formData.ai_summary_instructions,
-        summaryLength: formData.ai_summary_instructions?.length || 0,
-      });
-      
-      const originalCategory = pack.category_id || mapPackToCategory(pack.followup_pack_id);
-      const categoryChanged = originalCategory !== formData.categoryId;
-      
-      // Prepare update data - ensure category_id is not undefined or null
-      const updateData = {
+      const payload = {
         pack_name: formData.pack_name,
         description: formData.description,
         behavior_type: formData.behavior_type,
@@ -95,21 +86,40 @@ export default function FollowUpPackDetails({
         category_id: formData.categoryId || null
       };
       
-      console.log('[PACK-SAVE] Update data', updateData);
+      console.log('[PACK-SAVE] Starting save', {
+        packId: pack.followup_pack_id,
+        categoryId: formData.categoryId,
+        hasSummaryInstructions: !!formData.ai_summary_instructions,
+        summaryLength: formData.ai_summary_instructions?.length || 0,
+      });
+      console.log('[PACK-SAVE] Update data', payload);
       
       // Save to database
-      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, updateData);
+      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, payload);
       
       console.log('[PACK-SAVE] Database response', updatedPack);
       
+      // Update local form data immediately with saved values
+      setFormData({
+        pack_name: updatedPack.pack_name || formData.pack_name,
+        description: updatedPack.description || formData.description,
+        behavior_type: updatedPack.behavior_type || formData.behavior_type,
+        requires_completion: updatedPack.requires_completion !== false,
+        max_probe_loops: updatedPack.max_probe_loops || '',
+        max_ai_followups: updatedPack.max_ai_followups ?? 2,
+        ai_probe_instructions: updatedPack.ai_probe_instructions || '',
+        ai_summary_instructions: updatedPack.ai_summary_instructions || '',
+        active: updatedPack.active !== false,
+        categoryId: updatedPack.category_id || formData.categoryId
+      });
+      
+      // Exit edit mode immediately
+      setIsEditing(false);
+      
       toast.success('Pack updated successfully');
       
-      // Trigger refetch and wait for it to complete
-      onUpdate(null);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Exit edit mode AFTER refetch completes
-      setIsEditing(false);
+      // Notify parent to refetch (without navigating away)
+      onUpdate(updatedPack);
       
     } catch (err) {
       console.error('[PACK-SAVE] Error:', err);
@@ -219,7 +229,7 @@ export default function FollowUpPackDetails({
               className="text-lg font-semibold bg-slate-800 border-slate-600 text-white mb-2"
             />
           ) : (
-            <h3 className="text-lg font-semibold text-white">{pack.pack_name}</h3>
+            <h3 className="text-lg font-semibold text-white">{formData.pack_name}</h3>
           )}
           <p className="text-sm text-slate-400 font-mono mt-1">{pack.followup_pack_id}</p>
         </div>
@@ -323,7 +333,7 @@ export default function FollowUpPackDetails({
           />
         ) : (
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {pack.description || 'No description provided'}
+            {formData.description || 'No description provided'}
           </p>
         )}
       </div>
@@ -437,7 +447,7 @@ export default function FollowUpPackDetails({
           />
         ) : (
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {pack.ai_probe_instructions || 'No instructions provided'}
+            {formData.ai_probe_instructions || 'No instructions provided'}
           </p>
         )}
       </div>
@@ -462,7 +472,7 @@ export default function FollowUpPackDetails({
           </>
         ) : (
           <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {pack.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
+            {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
           </p>
         )}
       </div>

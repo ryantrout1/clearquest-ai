@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySidebar";
 import FollowUpPackList from "../components/followups/FollowUpPackList";
 import FollowUpPackDetails from "../components/followups/FollowUpPackDetails";
-import { FOLLOWUP_CATEGORIES, getPacksByCategory } from "../components/followups/categoryMapping";
+import { FOLLOWUP_CATEGORIES, getPacksByCategory, mapPackToCategory } from "../components/followups/categoryMapping";
 
 export default function FollowUpPackManagerV2() {
   const navigate = useNavigate();
@@ -243,15 +243,19 @@ export default function FollowUpPackManagerV2() {
     }
   };
 
-  const handleUpdate = (newCategoryId) => {
+  const handleUpdate = (updatedPack) => {
     queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
     queryClient.invalidateQueries({ queryKey: ['followUpQuestions'] });
     queryClient.invalidateQueries({ queryKey: ['questions'] });
     
-    // If category changed, switch to new category and clear selection
-    if (newCategoryId) {
-      setSelectedCategoryId(newCategoryId);
-      setSelectedPack(null);
+    // If pack object provided and category changed, switch to new category
+    if (updatedPack && updatedPack.category_id) {
+      const originalCategory = selectedPack?.category_id || mapPackToCategory(selectedPack?.followup_pack_id);
+      if (updatedPack.category_id !== originalCategory) {
+        setSelectedCategoryId(updatedPack.category_id);
+      }
+      // Keep the pack selected after save
+      setSelectedPack(updatedPack);
     }
   };
 
