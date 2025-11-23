@@ -2791,54 +2791,15 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* Start interview message (for new interviews) */}
-              {showStartMessage && (
-                <StartResumeMessage
-                  mode="start"
-                  onStart={() => {
-                    setShowStartMessage(false);
-                  }}
-                />
-              )}
-              
-              {/* Resume interview message */}
-              {showResumeMessage && !showStartMessage && (
-                <StartResumeMessage
-                  mode="resume"
-                  currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
-                  currentQuestionNumber={currentQuestion?.question_number}
-                  progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
-                  onStart={() => setShowResumeMessage(false)}
-                />
-              )}
-              
-              {/* Section completion message */}
-              {sectionCompletionMessage && !showStartMessage && (
-                <SectionCompletionMessage
-                  sectionName={sectionCompletionMessage.sectionName}
-                  isHeavy={sectionCompletionMessage.isHeavy}
-                  isLong={sectionCompletionMessage.isLong}
-                  hadIncidents={sectionCompletionMessage.hadIncidents}
-                  onDismiss={() => setSectionCompletionMessage(null)}
-                />
-              )}
-              
-              {answeredCount > 0 && !showStartMessage && (
-                <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    You've completed {answeredCount} of {totalQuestions} questions. Keep going!
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Show deterministic transcript + AI probing */}
+              {/* Show deterministic transcript + AI probing + system messages */}
               {transcript.map((entry) => (
                 <HistoryEntry 
                   key={entry.id} 
                   entry={entry}
                   getQuestionDisplayNumber={getQuestionDisplayNumber}
                   getFollowUpPackName={getFollowUpPackName}
+                  onSystemAction={entry.type === 'system_intro' || entry.type === 'system_resume' ? handleSystemAction : null}
+                  pendingAction={pendingSystemAction}
                 />
               ))}
               
