@@ -444,7 +444,7 @@ export default function FollowUpPackDetails({
           <Textarea
             value={formData.ai_probe_instructions}
             onChange={(e) => setFormData({...formData, ai_probe_instructions: e.target.value})}
-            className="bg-slate-800 border-slate-600 text-white min-h-32"
+            className="bg-slate-800 border-slate-600 text-white min-h-64"
             placeholder="Instructions for AI probing behavior for this pack..."
           />
         ) : (
@@ -465,7 +465,7 @@ export default function FollowUpPackDetails({
             <Textarea
               value={formData.ai_summary_instructions}
               onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
-              className="bg-slate-800 border-slate-600 text-white min-h-32"
+              className="bg-slate-800 border-slate-600 text-white min-h-64"
               placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
             />
             <p className="text-xs text-slate-500 mt-2">
