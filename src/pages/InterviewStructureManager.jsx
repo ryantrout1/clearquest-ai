@@ -860,7 +860,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           description: formData.description,
           section_order: formData.section_order,
           active: formData.active,
-          required: formData.required
+          required: formData.required,
+          ai_section_summary_instructions: formData.ai_section_summary_instructions || null
         });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section updated');
@@ -900,7 +901,8 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           section_id: `SEC_${Date.now()}`,
           section_order: maxOrder + 1,
           active: formData.active !== false, // Default to true if not specified
-          required: formData.required !== false // Default to true if not specified
+          required: formData.required !== false, // Default to true if not specified
+          ai_section_summary_instructions: formData.ai_section_summary_instructions || null
         });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
         toast.success('Section created');
