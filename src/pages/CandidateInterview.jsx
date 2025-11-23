@@ -2680,6 +2680,17 @@ export default function CandidateInterview() {
   const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
   const requiresClarification = validationHint !== null;
 
+  // Handler for system message actions
+  const handleSystemAction = useCallback(async (action) => {
+    if (action === 'intro') {
+      console.log('✅ User clicked Next on intro - proceeding to first question');
+      setPendingSystemAction(null);
+    } else if (action === 'resume') {
+      console.log('✅ User clicked Continue on resume - proceeding to current question');
+      setPendingSystemAction(null);
+    }
+  }, []);
+
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
   const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
     ? (() => {
