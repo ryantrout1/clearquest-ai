@@ -968,7 +968,12 @@ export default function CandidateInterview() {
           content: aiResult.followupQuestion,
           questionId: questionId,
           packId: packId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          kind: 'ai_probe_question',
+          role: 'investigator',
+          text: aiResult.followupQuestion,
+          followupPackId: packId,
+          instanceNumber: instanceNumber
         };
         
         const newTranscript = [...transcript, aiQuestionEntry];
