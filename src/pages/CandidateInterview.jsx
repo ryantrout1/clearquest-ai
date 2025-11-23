@@ -2634,13 +2634,12 @@ export default function CandidateInterview() {
   useEffect(() => {
     if (showStartMessage && !introLoggedRef.current) {
       introLoggedRef.current = true;
-      setTranscript(prev => [...prev, {
-        id: `sys-intro-${Date.now()}`,
+      appendTranscriptEvent({
         role: "system",
         type: "intro",
         text: "Welcome to your ClearQuest Interview.",
         timestamp: new Date().toISOString(),
-      }]);
+      });
     }
   }, [showStartMessage]);
 
