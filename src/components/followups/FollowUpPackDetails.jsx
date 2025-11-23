@@ -45,7 +45,7 @@ export default function FollowUpPackDetails({
   });
 
   useEffect(() => {
-    if (pack && !isEditing) {
+    if (pack) {
       console.log('[PACK-LOAD] Selected pack AI config', {
         packId: pack.id,
         hasProbeInstructions: !!pack.ai_probe_instructions,
@@ -65,8 +65,9 @@ export default function FollowUpPackDetails({
         active: pack.active !== false,
         categoryId: categoryId
       });
+      setIsEditing(false);
     }
-  }, [pack, isEditing]);
+  }, [pack?.id]);
 
   const handleSave = async () => {
     try {
@@ -95,12 +96,16 @@ export default function FollowUpPackDetails({
       
       console.log('[PACK-SAVE] Database updated successfully', updatedPack);
       
-      // Exit edit mode immediately (don't wait for refetch)
-      setIsEditing(false);
       toast.success('Pack updated successfully');
       
-      // Trigger background refetch (but don't block on it)
+      // Trigger refetch and wait for it to complete
       onUpdate(categoryChanged ? formData.categoryId : null);
+      
+      // Wait for query to refetch before exiting edit mode
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Exit edit mode after refetch
+      setIsEditing(false);
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Failed to save pack');
