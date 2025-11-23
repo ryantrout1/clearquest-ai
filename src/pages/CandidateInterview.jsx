@@ -324,7 +324,6 @@ export default function CandidateInterview() {
       
       // Check if session was paused
       if (loadedSession.status === 'paused') {
-        setWasPaused(true);
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
         });
