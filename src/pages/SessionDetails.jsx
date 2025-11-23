@@ -410,11 +410,15 @@ export default function SessionDetails() {
 
       await base44.entities.Response.delete(lastResponse.id);
 
+      // CRITICAL: Clear engine snapshots to force rebuild on next resume
       await base44.entities.InterviewSession.update(sessionId, {
         status: 'in_progress',
         completed_at: null,
         completed_date: null,
-        total_questions_answered: responses.length - 1
+        total_questions_answered: responses.length - 1,
+        transcript_snapshot: null,
+        queue_snapshot: null,
+        current_item_snapshot: null
       });
 
       toast.success("Last question deleted successfully");
