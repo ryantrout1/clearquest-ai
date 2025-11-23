@@ -412,6 +412,19 @@ export default function CandidateInterview() {
         console.log('   - Queue after restore:', loadedSession.queue_snapshot);
         console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
 
+        // Compute current question for resume message
+        const currentItemData = loadedSession.current_item_snapshot;
+        const currentQuestionForResume = currentItemData?.type === 'question' && engineData?.QById?.[currentItemData.id]
+          ? engineData.QById[currentItemData.id]
+          : null;
+        
+        const currentSectionForResume = currentQuestionForResume?.section_id 
+          ? Object.values(engineData?.SectionById || {}).find(s => s.id === currentQuestionForResume.section_id)?.section_name 
+          : undefined;
+        
+        const answeredCount = (loadedSession.transcript_snapshot || []).filter(t => t.type === 'question').length;
+        const totalQuestions = engineData.TotalQuestions || 0;
+        
         // Add resume message to transcript
         const resumeEntry = {
           id: `sys-resume-${Date.now()}`,
@@ -419,8 +432,8 @@ export default function CandidateInterview() {
           kind: 'system_resume',
           role: 'system',
           text: 'Welcome back. Your interview has been restored.',
-          currentSectionName: currentQuestion?.section_id ? Object.values(engineData?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined,
-          currentQuestionNumber: currentQuestion?.question_number,
+          currentSectionName: currentSectionForResume,
+          currentQuestionNumber: currentQuestionForResume?.question_number,
           progressPercent: totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0,
           timestamp: new Date().toISOString()
         };
