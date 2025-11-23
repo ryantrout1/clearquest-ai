@@ -1741,18 +1741,38 @@ export default function CandidateInterview() {
         }
 
         // Add to transcript - store answer exactly as entered (no date normalization)
-        const transcriptEntry = {
-          id: `fu-${Date.now()}`,
+        const followupQuestionEntry = {
+          id: `fu-${Date.now()}-q`,
           questionId: currentItem.id,
           questionText: step.Prompt,
-          answer: validation.normalized || value, // Plain text, no date conversion
           packId: packId,
           substanceName: substanceName,
-          type: 'followup',
-          timestamp: new Date().toISOString()
+          type: 'followup_question',
+          timestamp: new Date().toISOString(),
+          kind: 'deterministic_followup_question',
+          role: 'investigator',
+          text: step.Prompt,
+          fieldKey: step.Field_Key,
+          followupPackId: packId,
+          instanceNumber: currentItem.instanceNumber || 1
         };
-        
-        const newTranscript = [...transcript, transcriptEntry];
+
+        const followupAnswerEntry = {
+          id: `fu-${Date.now()}-a`,
+          questionId: currentItem.id,
+          answer: validation.normalized || value,
+          packId: packId,
+          substanceName: substanceName,
+          type: 'followup_answer',
+          timestamp: new Date().toISOString(),
+          kind: 'deterministic_followup_answer',
+          role: 'candidate',
+          text: validation.normalized || value,
+          followupPackId: packId,
+          instanceNumber: currentItem.instanceNumber || 1
+        };
+
+        const newTranscript = [...transcript, followupQuestionEntry, followupAnswerEntry];
         setTranscript(newTranscript);
 
         // Update follow-up answers tracker
