@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2, Pause, Copy, XCircle, ArrowRight } from "lucide-react";
+import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2, Pause, Copy, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -24,6 +24,8 @@ import {
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
+import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
+import StartResumeMessage from "../components/interview/StartResumeMessage";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -167,8 +169,12 @@ export default function CandidateInterview() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   
-  // System message state (inline in chat)
-  const [pendingSystemAction, setPendingSystemAction] = useState(null); // 'intro' | 'resume' | null
+  // Start/Resume interview state
+  const [showStartMessage, setShowStartMessage] = useState(false);
+  const [showResumeMessage, setShowResumeMessage] = useState(false);
+  
+  // Section completion message state
+  const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
 
   // Refs
   const historyRef = useRef(null);
@@ -324,6 +330,7 @@ export default function CandidateInterview() {
       
       // Check if session was paused
       if (loadedSession.status === 'paused') {
+        setWasPaused(true);
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
         });
@@ -383,69 +390,18 @@ export default function CandidateInterview() {
       
       // Detect new vs resume interview
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
-
+      
       if (!hasAnyResponses) {
-        console.log('🆕 [PRODUCTION] New interview - adding intro system message to transcript');
-
-        // Add intro message to transcript as first entry
-        const introEntry = {
-          id: `sys-intro-${Date.now()}`,
-          type: 'system_intro',
-          kind: 'system_intro',
-          role: 'system',
-          text: 'Welcome to your ClearQuest Interview. This interview is part of your application process.',
-          timestamp: new Date().toISOString()
-        };
-
-        const newTranscript = [introEntry];
-        setTranscript(newTranscript);
-        setPendingSystemAction('intro');
-
-        // Persist intro to database
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: newTranscript
-        });
+        console.log('🆕 [PRODUCTION] New interview - showing start message');
+        setShowStartMessage(true);
+        setShowResumeMessage(false);
       } else {
-        console.log('🔄 [PRODUCTION] Resume interview - adding resume message to transcript');
+        console.log('🔄 [PRODUCTION] Resume interview - showing resume message and current item');
         console.log('   - Current item after restore:', loadedSession.current_item_snapshot);
         console.log('   - Queue after restore:', loadedSession.queue_snapshot);
         console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
-
-        // Compute current question for resume message
-        const currentItemData = loadedSession.current_item_snapshot;
-        const currentQuestionForResume = currentItemData?.type === 'question' && engineData?.QById?.[currentItemData.id]
-          ? engineData.QById[currentItemData.id]
-          : null;
-        
-        const currentSectionForResume = currentQuestionForResume?.section_id 
-          ? Object.values(engineData?.SectionById || {}).find(s => s.id === currentQuestionForResume.section_id)?.section_name 
-          : undefined;
-        
-        const answeredCount = (loadedSession.transcript_snapshot || []).filter(t => t.type === 'question').length;
-        const totalQuestions = engineData.TotalQuestions || 0;
-        
-        // Add resume message to transcript
-        const resumeEntry = {
-          id: `sys-resume-${Date.now()}`,
-          type: 'system_resume',
-          kind: 'system_resume',
-          role: 'system',
-          text: 'Welcome back. Your interview has been restored.',
-          currentSectionName: currentSectionForResume,
-          currentQuestionNumber: currentQuestionForResume?.question_number,
-          progressPercent: totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0,
-          timestamp: new Date().toISOString()
-        };
-
-        const existingTranscript = loadedSession.transcript_snapshot || [];
-        const newTranscript = [...existingTranscript, resumeEntry];
-        setTranscript(newTranscript);
-        setPendingSystemAction('resume');
-
-        // Persist resume message to database
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: newTranscript
-        });
+        setShowStartMessage(false);
+        setShowResumeMessage(true);
       }
       
       setIsLoading(false);
@@ -876,6 +832,14 @@ export default function CandidateInterview() {
     }
   }, []);
 
+  const startAiResponseTimeout = useCallback(() => {
+    clearTimeout(aiResponseTimeoutRef.current);
+    aiResponseTimeoutRef.current = setTimeout(() => {
+      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
+      handleAiResponseTimeout();
+    }, AI_RESPONSE_TIMEOUT_MS);
+  }, []);
+
   const clearAiResponseTimeout = useCallback(() => {
     if (aiResponseTimeoutRef.current) {
       clearTimeout(aiResponseTimeoutRef.current);
@@ -896,7 +860,7 @@ export default function CandidateInterview() {
     }
   }, [clearTypingTimeout, clearAiResponseTimeout]);
 
-  // NEW: Graceful fallback handler - MUST be defined before startAiResponseTimeout
+  // NEW: Graceful fallback handler
   const handleAiResponseTimeout = useCallback(() => {
     console.log('🚨 [AI TIMEOUT] Graceful fallback initiated');
 
@@ -936,18 +900,10 @@ export default function CandidateInterview() {
     if (baseQuestionId) {
       advanceToNextBaseQuestion(baseQuestionId);
     }
-  }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion]);
-
-  const startAiResponseTimeout = useCallback(() => {
-    clearTimeout(aiResponseTimeoutRef.current);
-    aiResponseTimeoutRef.current = setTimeout(() => {
-      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
-      handleAiResponseTimeout();
-    }, AI_RESPONSE_TIMEOUT_MS);
-  }, [handleAiResponseTimeout]);
+  }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion, transcript]);
 
   // NEW: Start per-pack AI mini-session
-  const startAiProbingForPackInstance = useCallback(async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+  const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
     console.log(`🤖 Starting AI probing mini-session for ${packId} (instance ${instanceNumber})...`);
 
     // Check if AI is disabled for this session
@@ -1142,12 +1098,12 @@ export default function CandidateInterview() {
     startTypingTimeout();
 
     return true;
-  } catch (err) {
+    } catch (err) {
     console.error('❌ [AI MINI-SESSION] Error creating conversation:', err);
     handleAiResponseTimeout();
     return false;
-  }
-  }, [aiProbingDisabledForSession, sessionId, transcript, aiFollowupCounts, currentFollowUpPack, engine, handleAiResponseTimeout, startTypingTimeout, session]);
+    }
+    };
 
   // ============================================================================
   // NEW: SAVE PROBING EXCHANGES TO DATABASE
@@ -1499,9 +1455,9 @@ export default function CandidateInterview() {
     setIsCommitting(true);
     setValidationHint(null);
     
-    // Clear pending system action when answering any question
-    if (pendingSystemAction) {
-      setPendingSystemAction(null);
+    // Clear section completion message when answering any question
+    if (sectionCompletionMessage) {
+      setSectionCompletionMessage(null);
     }
 
     try {
@@ -1552,7 +1508,7 @@ export default function CandidateInterview() {
         const detectAndSetSectionTransition = (currentQuestionId, answerValue) => {
           // Compute what the next question will be
           let nextQuestionId = null;
-
+          
           if (answerValue === 'Yes') {
             // Check if follow-up will be triggered
             const followUpResult = checkFollowUpTrigger(engine, currentQuestionId, answerValue);
@@ -1561,57 +1517,48 @@ export default function CandidateInterview() {
               return;
             }
           }
-
+          
           // Get next base question
           nextQuestionId = computeNextQuestionId(engine, currentQuestionId, answerValue);
-
+          
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             const nextQuestion = engine.QById[nextQuestionId];
             const currentSectionId = question.section_id;
             const nextSectionId = nextQuestion.section_id;
-
+            
             const isSectionTransition = currentSectionId && nextSectionId && currentSectionId !== nextSectionId;
-
+            
             if (isSectionTransition) {
               const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
               const isLong = sectionQuestions.length >= 10;
-
+              
               const sectionResponses = newTranscript.filter(t => 
                 t.type === 'question' && 
                 t.sectionId === currentSectionId
               );
               const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
-
+              
               const isHeavy = HEAVY_SECTIONS.includes(sectionName);
-
-              console.log('[SECTION-MESSAGE] Adding completion message to transcript', {
+              
+              console.log('[SECTION-MESSAGE] Emitting completion message', {
                 sectionId: currentSectionId,
                 sectionName,
                 isHeavy,
                 isLong,
                 hadIncidents
               });
-
-              // Add section completion message to transcript
-              const sectionCompletionEntry = {
-                id: `sys-section-${Date.now()}`,
-                type: 'system_section_complete',
-                kind: 'system_section_complete',
-                role: 'system',
-                text: `Section complete: ${sectionName}`,
+              
+              setSectionCompletionMessage({
                 sectionId: currentSectionId,
                 sectionName,
                 isHeavy,
                 isLong,
-                hadIncidents,
-                timestamp: new Date().toISOString()
-              };
-
-              newTranscript.push(sectionCompletionEntry);
+                hadIncidents
+              });
             }
           }
         };
-
+        
         detectAndSetSectionTransition(currentItem.id, value);
         
         // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
@@ -2107,7 +2054,7 @@ export default function CandidateInterview() {
       setError(`Error: ${err.message}`);
     }
 
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, pendingSystemAction]);
+  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, sectionCompletionMessage]);
 
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
@@ -2525,9 +2472,12 @@ export default function CandidateInterview() {
     if (currentItem.type === 'question') {
       const question = engine.QById[currentItem.id];
       
-      // CRITICAL FIX: If question doesn't exist, return null (don't setState during render)
+      // CRITICAL FIX: If question doesn't exist, mark interview complete
       if (!question) {
-        console.error(`❌ Question ${currentItem.id} not found in engine`);
+        console.error(`❌ Question ${currentItem.id} not found in engine - marking interview complete`);
+        setCurrentItem(null);
+        setQueue([]);
+        setShowCompletionModal(true);
         return null;
       }
       
@@ -2612,6 +2562,11 @@ export default function CandidateInterview() {
     return "Type your answer...";
   };
   
+  // Get current question object for resume message
+  const currentQuestion = currentItem?.type === 'question' && engine?.QById?.[currentItem.id]
+    ? engine.QById[currentItem.id]
+    : null;
+  
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
@@ -2681,17 +2636,6 @@ export default function CandidateInterview() {
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
   const requiresClarification = validationHint !== null;
-
-  // Handler for system message actions
-  const handleSystemAction = useCallback(async (action) => {
-    if (action === 'intro') {
-      console.log('✅ User clicked Next on intro - proceeding to first question');
-      setPendingSystemAction(null);
-    } else if (action === 'resume') {
-      console.log('✅ User clicked Continue on resume - proceeding to current question');
-      setPendingSystemAction(null);
-    }
-  }, []);
 
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
   const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
@@ -2793,15 +2737,54 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* Show deterministic transcript + AI probing + system messages */}
+              {/* Start interview message (for new interviews) */}
+              {showStartMessage && (
+                <StartResumeMessage
+                  mode="start"
+                  onStart={() => {
+                    setShowStartMessage(false);
+                  }}
+                />
+              )}
+              
+              {/* Resume interview message */}
+              {showResumeMessage && !showStartMessage && (
+                <StartResumeMessage
+                  mode="resume"
+                  currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
+                  currentQuestionNumber={currentQuestion?.question_number}
+                  progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
+                  onStart={() => setShowResumeMessage(false)}
+                />
+              )}
+              
+              {/* Section completion message */}
+              {sectionCompletionMessage && !showStartMessage && (
+                <SectionCompletionMessage
+                  sectionName={sectionCompletionMessage.sectionName}
+                  isHeavy={sectionCompletionMessage.isHeavy}
+                  isLong={sectionCompletionMessage.isLong}
+                  hadIncidents={sectionCompletionMessage.hadIncidents}
+                  onDismiss={() => setSectionCompletionMessage(null)}
+                />
+              )}
+              
+              {answeredCount > 0 && !showStartMessage && (
+                <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    You've completed {answeredCount} of {totalQuestions} questions. Keep going!
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Show deterministic transcript + AI probing */}
               {transcript.map((entry) => (
                 <HistoryEntry 
                   key={entry.id} 
                   entry={entry}
                   getQuestionDisplayNumber={getQuestionDisplayNumber}
                   getFollowUpPackName={getFollowUpPackName}
-                  onSystemAction={entry.type === 'system_intro' || entry.type === 'system_resume' ? handleSystemAction : null}
-                  pendingAction={pendingSystemAction}
                 />
               ))}
               
@@ -2944,8 +2927,8 @@ export default function CandidateInterview() {
           ) : null}
         </main>
 
-        {/* Footer - only show if not showing system action prompts */}
-        {!pendingSystemAction && (
+        {/* Footer - only show if not showing start/resume messages */}
+        {!showStartMessage && !showResumeMessage && (
           <footer 
             className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
@@ -3107,154 +3090,8 @@ export default function CandidateInterview() {
   );
 }
 
-// Deterministic transcript entries + AI probing + system messages
-function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName, onSystemAction, pendingAction }) {
-  // System intro message
-  if (entry.type === 'system_intro') {
-    return (
-      <div className="flex justify-center my-6">
-        <div className="bg-slate-800/95 border-2 border-blue-500/50 rounded-xl p-6 max-w-2xl shadow-2xl">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-              <Shield className="w-6 h-6 text-blue-400" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-white mb-2">
-                Welcome to your ClearQuest Interview
-              </h2>
-              <p className="text-slate-300 text-sm leading-relaxed mb-4">
-                This interview is part of your application process. Here's what to expect:
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2 mb-6 ml-16">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">One question at a time, at your own pace</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">Clear, complete, and honest answers help investigators understand the full picture</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
-            </div>
-          </div>
-
-          {pendingAction === 'intro' && (
-            <div className="flex justify-center">
-              <Button
-                onClick={() => onSystemAction('intro')}
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-12"
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // System resume message
-  if (entry.type === 'system_resume') {
-    return (
-      <div className="flex justify-center my-6">
-        <div className="bg-emerald-950/40 border-2 border-emerald-700/60 rounded-xl p-6 max-w-2xl shadow-xl">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="flex-1 space-y-3">
-              <h3 className="text-lg font-bold text-white">
-                Welcome back
-              </h3>
-              <p className="text-emerald-100 text-sm leading-relaxed">
-                You're resuming your interview from <strong>{entry.currentSectionName || 'where you left off'}</strong>
-                {entry.currentQuestionNumber && `, around Question ${entry.currentQuestionNumber}`}.
-              </p>
-              {entry.progressPercent !== undefined && (
-                <p className="text-emerald-100 text-sm leading-relaxed">
-                  You're about <strong>{entry.progressPercent}%</strong> complete. Take a breath and continue when you're ready.
-                </p>
-              )}
-              {pendingAction === 'resume' && (
-                <div className="pt-2">
-                  <Button 
-                    onClick={() => onSystemAction('resume')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6"
-                  >
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Continue Interview
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // System section completion message
-  if (entry.type === 'system_section_complete') {
-    // Choose message text based on section characteristics
-    const getMessage = () => {
-      if (entry.isHeavy && entry.hadIncidents) {
-        return (
-          <>
-            <strong>Section complete:</strong> You've finished the questions about <strong>{entry.sectionName}</strong>. 
-            Thank you for your honesty — clear, complete answers help investigators understand the full picture.
-          </>
-        );
-      }
-
-      if (entry.isHeavy && !entry.hadIncidents) {
-        return (
-          <>
-            <strong>Section complete:</strong> You've finished the questions about <strong>{entry.sectionName}</strong>. 
-            We'll move on to the next area of your background.
-          </>
-        );
-      }
-
-      if (entry.isLong) {
-        return (
-          <>
-            <strong>Nice work — that was a longer section.</strong> You've finished the questions about <strong>{entry.sectionName}</strong>. 
-            Take a breath if you need to, then continue when you're ready.
-          </>
-        );
-      }
-
-      // Default
-      return (
-        <>
-          <strong>Section complete:</strong> You've finished the questions about <strong>{entry.sectionName}</strong>. 
-          We'll now move into a new topic. Please continue answering as accurately as you can.
-        </>
-      );
-    };
-
-    return (
-      <div className="flex justify-center my-3">
-        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-xl px-5 py-3 max-w-2xl">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            </div>
-            <p className="text-emerald-100 text-sm leading-relaxed">
-              {getMessage()}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+// Deterministic transcript entries + AI probing
+function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
   // System messages (timeouts, reminders)
   if (entry.type === 'system_message') {
     return (

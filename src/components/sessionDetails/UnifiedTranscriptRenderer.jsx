@@ -206,43 +206,6 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // System intro message
-  if (kind === "system_intro") {
-    return (
-      <div className="flex justify-center my-3">
-        <div className="bg-blue-950/40 border border-blue-700/60 rounded-lg px-4 py-3 max-w-lg">
-          <p className="text-blue-100 text-sm leading-relaxed">
-            <strong>Interview started:</strong> Welcome to your ClearQuest Interview
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // System resume message
-  if (kind === "system_resume") {
-    return (
-      <div className="flex justify-center my-3">
-        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-lg px-4 py-3 max-w-lg">
-          <p className="text-emerald-100 text-sm leading-relaxed">
-            <strong>Interview resumed:</strong> {text}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // System section completion
-  if (kind === "system_section_complete") {
-    return (
-      <div className="flex justify-center my-3">
-        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-lg px-4 py-3 max-w-lg">
-          <p className="text-emerald-100 text-sm leading-relaxed">{text}</p>
-        </div>
-      </div>
-    );
-  }
-
   // System message
   if (kind === "system_message") {
     return (
@@ -254,7 +217,7 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // Section completion message (legacy)
+  // Section completion message
   if (kind === "section_completion") {
     return (
       <div className="flex justify-center my-3">
@@ -265,7 +228,7 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // Resume/welcome message (legacy)
+  // Resume/welcome message
   if (kind === "resume_message" || kind === "welcome_message") {
     return (
       <div className="flex justify-center my-4">
