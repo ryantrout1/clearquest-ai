@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
 import StartResumeMessage from "../components/interview/StartResumeMessage";
+import SystemIntroCard from "../components/interview/SystemIntroCard";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -2739,9 +2740,8 @@ export default function CandidateInterview() {
             <div className="max-w-5xl mx-auto space-y-4">
               {/* Start interview message (for new interviews) */}
               {showStartMessage && (
-                <StartResumeMessage
-                  mode="start"
-                  onStart={() => {
+                <SystemIntroCard
+                  onNext={() => {
                     setShowStartMessage(false);
                   }}
                 />
