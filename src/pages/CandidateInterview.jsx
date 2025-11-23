@@ -386,18 +386,56 @@ export default function CandidateInterview() {
       
       // Detect new vs resume interview
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
-      
+
       if (!hasAnyResponses) {
-        console.log('🆕 [PRODUCTION] New interview - showing start message');
-        setShowStartMessage(true);
-        setShowResumeMessage(false);
+        console.log('🆕 [PRODUCTION] New interview - adding intro system message to transcript');
+
+        // Add intro message to transcript as first entry
+        const introEntry = {
+          id: `sys-intro-${Date.now()}`,
+          type: 'system_intro',
+          kind: 'system_intro',
+          role: 'system',
+          text: 'Welcome to your ClearQuest Interview. This interview is part of your application process.',
+          timestamp: new Date().toISOString()
+        };
+
+        const newTranscript = [introEntry];
+        setTranscript(newTranscript);
+        setPendingSystemAction('intro');
+
+        // Persist intro to database
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: newTranscript
+        });
       } else {
-        console.log('🔄 [PRODUCTION] Resume interview - showing resume message and current item');
+        console.log('🔄 [PRODUCTION] Resume interview - adding resume message to transcript');
         console.log('   - Current item after restore:', loadedSession.current_item_snapshot);
         console.log('   - Queue after restore:', loadedSession.queue_snapshot);
         console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
-        setShowStartMessage(false);
-        setShowResumeMessage(true);
+
+        // Add resume message to transcript
+        const resumeEntry = {
+          id: `sys-resume-${Date.now()}`,
+          type: 'system_resume',
+          kind: 'system_resume',
+          role: 'system',
+          text: 'Welcome back. Your interview has been restored.',
+          currentSectionName: currentQuestion?.section_id ? Object.values(engineData?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined,
+          currentQuestionNumber: currentQuestion?.question_number,
+          progressPercent: totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0,
+          timestamp: new Date().toISOString()
+        };
+
+        const existingTranscript = loadedSession.transcript_snapshot || [];
+        const newTranscript = [...existingTranscript, resumeEntry];
+        setTranscript(newTranscript);
+        setPendingSystemAction('resume');
+
+        // Persist resume message to database
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: newTranscript
+        });
       }
       
       setIsLoading(false);
