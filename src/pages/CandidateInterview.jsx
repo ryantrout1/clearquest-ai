@@ -187,15 +187,6 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null); // Typing timeout (4 min)
   const aiResponseTimeoutRef = useRef(null); // AI response timeout (45s)
   
-  // Helper to append transcript events (plain function, not a hook)
-  const appendTranscriptEvent = (event) => {
-    setTranscript(prev => [...prev, {
-      ...event,
-      id: event.id || `sys-${Date.now()}`,
-      timestamp: event.timestamp || new Date().toISOString()
-    }]);
-  };
-  
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
   
@@ -1558,18 +1549,6 @@ export default function CandidateInterview() {
                 hadIncidents
               });
               
-              // Log section completion to transcript
-              const nextSectionEntity = engine.Sections.find(s => s.id === nextSectionId);
-              const nextSectionName = nextSectionEntity?.section_name || '';
-              appendTranscriptEvent({
-                role: "system",
-                type: "section_completion",
-                kind: "section_completion",
-                text: `Section complete: ${sectionName}${nextSectionName ? ` → Next: ${nextSectionName}` : ''}`,
-                sectionId: currentSectionId,
-                sectionName: sectionName
-              });
-              
               setSectionCompletionMessage({
                 sectionId: currentSectionId,
                 sectionName,
@@ -2783,12 +2762,6 @@ export default function CandidateInterview() {
                   currentQuestionNumber={currentQuestion?.question_number}
                   progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
                   onStart={() => {
-                    appendTranscriptEvent({
-                      role: "system",
-                      type: "resume_message",
-                      kind: "resume_message",
-                      text: "Welcome back — your interview has been restored."
-                    });
                     setShowResumeMessage(false);
                     setTimeout(() => autoScrollToBottom(), 0);
                   }}
