@@ -2657,6 +2657,7 @@ export default function CandidateInterview() {
                   currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
                   currentQuestionNumber={currentQuestion?.question_number}
                   progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
+                  onStart={() => setShowResumeMessage(false)}
                 />
               )}
               
