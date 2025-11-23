@@ -1542,7 +1542,7 @@ export default function CandidateInterview() {
         const detectAndSetSectionTransition = (currentQuestionId, answerValue) => {
           // Compute what the next question will be
           let nextQuestionId = null;
-          
+
           if (answerValue === 'Yes') {
             // Check if follow-up will be triggered
             const followUpResult = checkFollowUpTrigger(engine, currentQuestionId, answerValue);
@@ -1551,48 +1551,57 @@ export default function CandidateInterview() {
               return;
             }
           }
-          
+
           // Get next base question
           nextQuestionId = computeNextQuestionId(engine, currentQuestionId, answerValue);
-          
+
           if (nextQuestionId && engine.QById[nextQuestionId]) {
             const nextQuestion = engine.QById[nextQuestionId];
             const currentSectionId = question.section_id;
             const nextSectionId = nextQuestion.section_id;
-            
+
             const isSectionTransition = currentSectionId && nextSectionId && currentSectionId !== nextSectionId;
-            
+
             if (isSectionTransition) {
               const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
               const isLong = sectionQuestions.length >= 10;
-              
+
               const sectionResponses = newTranscript.filter(t => 
                 t.type === 'question' && 
                 t.sectionId === currentSectionId
               );
               const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
-              
+
               const isHeavy = HEAVY_SECTIONS.includes(sectionName);
-              
-              console.log('[SECTION-MESSAGE] Emitting completion message', {
+
+              console.log('[SECTION-MESSAGE] Adding completion message to transcript', {
                 sectionId: currentSectionId,
                 sectionName,
                 isHeavy,
                 isLong,
                 hadIncidents
               });
-              
-              setSectionCompletionMessage({
+
+              // Add section completion message to transcript
+              const sectionCompletionEntry = {
+                id: `sys-section-${Date.now()}`,
+                type: 'system_section_complete',
+                kind: 'system_section_complete',
+                role: 'system',
+                text: `Section complete: ${sectionName}`,
                 sectionId: currentSectionId,
                 sectionName,
                 isHeavy,
                 isLong,
-                hadIncidents
-              });
+                hadIncidents,
+                timestamp: new Date().toISOString()
+              };
+
+              newTranscript.push(sectionCompletionEntry);
             }
           }
         };
-        
+
         detectAndSetSectionTransition(currentItem.id, value);
         
         // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
