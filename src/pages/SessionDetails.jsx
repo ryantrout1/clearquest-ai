@@ -169,8 +169,33 @@ export default function SessionDetails() {
       setSections(sectionsData);
       setFollowUpQuestionEntities(followUpQuestionsData);
       
-      // Build unified transcript events
-      const events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
+      // Build unified transcript events from session's transcript_snapshot (canonical source)
+      const transcriptSnapshot = sessionData.transcript_snapshot || [];
+      
+      // If no transcript snapshot, rebuild from Response entities (fallback for old sessions)
+      let events = [];
+      if (transcriptSnapshot.length > 0) {
+        // Map transcript entries to event format for rendering
+        events = transcriptSnapshot.map((entry, idx) => ({
+          id: entry.id || `evt-${idx}`,
+          sessionId,
+          baseQuestionId: entry.questionId,
+          baseQuestionCode: entry.questionId,
+          followupPackId: entry.packId || entry.followupPackId || null,
+          instanceNumber: entry.instanceNumber || null,
+          role: entry.role || (entry.type === 'question' || entry.type === 'followup_question' ? 'investigator' : 'candidate'),
+          kind: entry.kind || entry.type || 'unknown',
+          text: entry.text || entry.content || entry.questionText || entry.answer || '',
+          fieldKey: entry.fieldKey || null,
+          createdAt: new Date(entry.timestamp).getTime(),
+          sortKey: idx
+        }));
+        console.log(`📋 Loaded ${events.length} transcript events from session snapshot`);
+      } else {
+        // Fallback: Rebuild from Response entities (for old sessions)
+        events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
+      }
+      
       setTranscriptEvents(events);
 
       // Load AI summaries from dedicated entities
