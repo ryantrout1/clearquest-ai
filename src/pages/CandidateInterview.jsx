@@ -944,7 +944,7 @@ export default function CandidateInterview() {
     if (baseQuestionId) {
       advanceToNextBaseQuestion(baseQuestionId);
     }
-  }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion, transcript]);
+  }, [currentFollowUpPack, agentMessages, endAiProbingSession, advanceToNextBaseQuestion]);
 
   // NEW: Start per-pack AI mini-session
   const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
