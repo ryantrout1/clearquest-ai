@@ -25,8 +25,7 @@ import {
 import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
-import StartInterviewMessage from "../components/interview/StartInterviewMessage";
-import ResumeInterviewMessage from "../components/interview/ResumeInterviewMessage";
+import StartResumeMessage from "../components/interview/StartResumeMessage";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -172,12 +171,13 @@ export default function CandidateInterview() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
-  const [showResumeBanner, setShowResumeBanner] = useState(false);
-  const [wasPaused, setWasPaused] = useState(false);
   
-  // NEW: Start/Resume interview state
-  const [hasStarted, setHasStarted] = useState(false);
+  // Start/Resume interview state
+  const [showStartMessage, setShowStartMessage] = useState(false);
   const [showResumeMessage, setShowResumeMessage] = useState(false);
+  
+  // Section completion message state
+  const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
 
   // Refs
   const historyRef = useRef(null);
@@ -385,19 +385,17 @@ export default function CandidateInterview() {
         setCurrentItem({ id: firstQuestionId, type: 'question' });
       }
       
-      // NEW: Detect new vs resume interview
-      const isNewInterview = !hasValidSnapshots && (!loadedSession.transcript_snapshot || loadedSession.transcript_snapshot.length === 0);
-      const isResumeInterview = hasValidSnapshots && loadedSession.transcript_snapshot.length > 0;
+      // Detect new vs resume interview
+      const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
       
-      if (isNewInterview) {
+      if (!hasAnyResponses) {
         console.log('🆕 [PRODUCTION] New interview - showing start message');
-        setHasStarted(false);
-      } else if (isResumeInterview) {
-        console.log('🔄 [PRODUCTION] Resume interview - showing resume message');
-        setShowResumeMessage(true);
-        setHasStarted(true); // Already started previously
+        setShowStartMessage(true);
+        setShowResumeMessage(false);
       } else {
-        setHasStarted(true); // Default to started
+        console.log('🔄 [PRODUCTION] Resume interview - showing resume message');
+        setShowStartMessage(false);
+        setShowResumeMessage(true);
       }
       
       setIsLoading(false);
@@ -2642,17 +2640,38 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* NEW: Start interview message (for new interviews) */}
-              {!hasStarted && (
-                <StartInterviewMessage onStart={() => setHasStarted(true)} />
+              {/* Start interview message (for new interviews) */}
+              {showStartMessage && (
+                <StartResumeMessage
+                  mode="start"
+                  onStart={() => {
+                    setShowStartMessage(false);
+                  }}
+                />
               )}
               
-              {/* NEW: Resume interview message */}
-              {showResumeMessage && hasStarted && (
-                <ResumeInterviewMessage onContinue={() => setShowResumeMessage(false)} />
+              {/* Resume interview message */}
+              {showResumeMessage && !showStartMessage && (
+                <StartResumeMessage
+                  mode="resume"
+                  currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
+                  currentQuestionNumber={currentQuestion?.question_number}
+                  progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
+                />
               )}
               
-              {answeredCount > 0 && hasStarted && (
+              {/* Section completion message */}
+              {sectionCompletionMessage && !showStartMessage && (
+                <SectionCompletionMessage
+                  sectionName={sectionCompletionMessage.sectionName}
+                  isHeavy={sectionCompletionMessage.isHeavy}
+                  isLong={sectionCompletionMessage.isLong}
+                  hadIncidents={sectionCompletionMessage.hadIncidents}
+                  onDismiss={() => setSectionCompletionMessage(null)}
+                />
+              )}
+              
+              {answeredCount > 0 && !showStartMessage && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
@@ -2700,8 +2719,8 @@ export default function CandidateInterview() {
             </div>
           </div>
 
-          {/* Active Question (Deterministic) or Agent Probing - only show if interview has started */}
-          {hasStarted && !showResumeMessage && lastAgentQuestion && isWaitingForAgent ? (
+          {/* Active Question (Deterministic) or Agent Probing */}
+          {!showStartMessage && !showResumeMessage && lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -2730,7 +2749,7 @@ export default function CandidateInterview() {
                 </div>
               </div>
             </div>
-          ) : hasStarted && !showResumeMessage && currentPrompt ? (
+          ) : !showStartMessage && !showResumeMessage && currentPrompt ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -2821,8 +2840,8 @@ export default function CandidateInterview() {
           ) : null}
         </main>
 
-        {/* Footer - only show if interview has started and not showing resume message */}
-        {hasStarted && !showResumeMessage && (
+        {/* Footer - only show if not showing start/resume messages */}
+        {!showStartMessage && !showResumeMessage && (
           <footer 
             className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
