@@ -232,14 +232,20 @@ ${JSON.stringify(sectionData.responses.map(r => ({
           })
           .join('\n');
         
-        const incidentPrompt = `You are writing an investigator summary. Write ONLY in complete sentences using the actual facts provided. Do NOT use brackets, placeholders, variable names, or field labels in your output.
+        const incidentPrompt = `You are writing an investigator summary. Write ONLY using the actual data provided by the candidate.
+
+CRITICAL RULES:
+- NEVER mention "Pack", "PACK_LE_APPS", "Program", or any internal system terminology
+- NEVER use brackets, placeholders, or field names like [date], [agency], incident_date, etc.
+- ONLY summarize what actually happened using the real dates, names, and facts provided
+- Write as if you're telling another investigator what the candidate disclosed
 
 ${summaryInstructions ? `INSTRUCTIONS: ${summaryInstructions}\n` : ''}
 
-INCIDENT INFORMATION:
+CANDIDATE'S DISCLOSURE:
 ${detailsText}
 
-Write a 1-2 sentence summary stating the facts naturally (e.g., "In May 2010, the individual applied to Scottsdale Police Department..." NOT "In [insert date], individual applied to [agency]...").`;
+Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individual applied to Scottsdale Police Department and was not hired." NOT "In the first quarter of 2023, regarding the Pack LE Apps Program...").`;
 
 
         let instanceSummaryText = null;
