@@ -2713,7 +2713,7 @@ export default function CandidateInterview() {
           </div>
 
           {/* Active Question (Deterministic) or Agent Probing */}
-          {!showStartMessage && !showResumeMessage && lastAgentQuestion && isWaitingForAgent ? (
+          {lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
