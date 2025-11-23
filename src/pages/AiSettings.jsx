@@ -52,7 +52,7 @@ export default function AiSettings() {
     try {
       setIsLoading(true);
       
-      const settings = await base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' });
+      const settings = await base44.entities.GlobalSettings.filter({ settings_id: 'global' });
       
       if (settings.length > 0) {
         setFormData({
