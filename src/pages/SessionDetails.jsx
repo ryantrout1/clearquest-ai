@@ -187,6 +187,7 @@ export default function SessionDetails() {
           kind: entry.kind || entry.type || 'unknown',
           text: entry.text || entry.content || entry.questionText || entry.answer || '',
           fieldKey: entry.fieldKey || null,
+          sectionName: entry.category || entry.sectionName || null,
           createdAt: new Date(entry.timestamp).getTime(),
           sortKey: idx
         }));
@@ -1481,7 +1482,7 @@ function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, que
   });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {transcriptEvents.map((event) => {
         const questionNum = questionNumberMap[event.baseQuestionId] || 0;
         
@@ -1491,6 +1492,7 @@ function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, que
             event={event}
             followUpQuestionEntities={followUpQuestionEntities}
             questionNumber={questionNum}
+            sectionName={event.sectionName}
           />
         );
       })}

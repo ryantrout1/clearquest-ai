@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Layers, AlertCircle } from "lucide-react";
+import { Shield, Layers, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveFollowupQuestionText } from "../utils/transcriptBuilder";
 
@@ -265,7 +265,7 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
       <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
         <div className="flex items-start gap-3">
           <div className="w-7 h-7 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-3.5 h-3.5 text-green-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1.5">
