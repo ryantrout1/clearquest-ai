@@ -2192,9 +2192,9 @@ export default function CandidateInterview() {
           lastExchange.candidate_response = value;
         }
         
-        // Add answer to transcript
+        // Add answer to transcript using functional update
         const aiAnswerEntry = {
-          id: `ai-a-${Date.now()}`,
+          id: `ai-a-${Date.now()}-${updatedExchanges.length}`,
           type: 'ai_answer',
           content: value,
           questionId: currentFollowUpPack.questionId,
@@ -2207,10 +2207,12 @@ export default function CandidateInterview() {
           instanceNumber: currentFollowUpPack.instanceNumber
         };
         
-        const newTranscript = [...transcript, aiAnswerEntry];
-        setTranscript(newTranscript);
-        
-        await persistStateToDatabase(newTranscript, [], null);
+        // Use functional update to ensure we have latest transcript
+        setTranscript(prev => {
+          const newTranscript = [...prev, aiAnswerEntry];
+          persistStateToDatabase(newTranscript, [], null);
+          return newTranscript;
+        });
         
         // Check if we should ask another AI question or continue
         const countKey = `${currentFollowUpPack.packId}:${currentFollowUpPack.instanceNumber}`;
@@ -2244,29 +2246,36 @@ export default function CandidateInterview() {
               [countKey]: currentCount + 1
             }));
             
-            // Add AI question to transcript
-            const nextAiQuestion = {
-              id: `ai-q-${Date.now()}`,
-              type: 'ai_question',
-              content: aiResult.followupQuestion,
-              questionId: currentFollowUpPack.questionId,
-              packId: currentFollowUpPack.packId,
-              timestamp: new Date().toISOString()
-            };
-            
-            const updatedTranscript = [...newTranscript, nextAiQuestion];
-            setTranscript(updatedTranscript);
-            
-            // Add new exchange to array
+            // Add new exchange to array BEFORE adding to transcript
+            const newExchangeIndex = updatedExchanges.length + 1;
             updatedExchanges.push({
-              sequence_number: updatedExchanges.length + 1,
+              sequence_number: newExchangeIndex,
               probing_question: aiResult.followupQuestion,
               candidate_response: null,
               timestamp: new Date().toISOString()
             });
             setInvokeLLMProbingExchanges(updatedExchanges);
             
-            await persistStateToDatabase(updatedTranscript, [], null);
+            // Add AI question to transcript using functional update
+            const nextAiQuestion = {
+              id: `ai-q-${Date.now()}-${newExchangeIndex}`,
+              type: 'ai_question',
+              content: aiResult.followupQuestion,
+              questionId: currentFollowUpPack.questionId,
+              packId: currentFollowUpPack.packId,
+              timestamp: new Date().toISOString(),
+              kind: 'ai_probe_question',
+              role: 'investigator',
+              text: aiResult.followupQuestion,
+              followupPackId: currentFollowUpPack.packId,
+              instanceNumber: currentFollowUpPack.instanceNumber
+            };
+            
+            setTranscript(prev => {
+              const updatedTranscript = [...prev, nextAiQuestion];
+              persistStateToDatabase(updatedTranscript, [], null);
+              return updatedTranscript;
+            });
             
             setIsCommitting(false);
             return;
