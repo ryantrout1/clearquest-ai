@@ -2,61 +2,25 @@ import React, { useEffect } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 export default function SectionCompletionMessage({ 
-  sectionName, 
+  sectionName,
+  nextSectionName,
   isHeavy, 
   isLong, 
   hadIncidents,
   onDismiss 
 }) {
-  // Don't auto-dismiss - let it stay visible until user answers next question
-
-  // Choose message text based on section characteristics
-  const getMessage = () => {
-    if (isHeavy && hadIncidents) {
-      return (
-        <>
-          <strong>Section complete:</strong> You've finished the questions about <strong>{sectionName}</strong>. 
-          Thank you for your honesty — clear, complete answers help investigators understand the full picture.
-        </>
-      );
-    }
-    
-    if (isHeavy && !hadIncidents) {
-      return (
-        <>
-          <strong>Section complete:</strong> You've finished the questions about <strong>{sectionName}</strong>. 
-          We'll move on to the next area of your background.
-        </>
-      );
-    }
-    
-    if (isLong) {
-      return (
-        <>
-          <strong>Nice work — that was a longer section.</strong> You've finished the questions about <strong>{sectionName}</strong>. 
-          Take a breath if you need to, then continue when you're ready.
-        </>
-      );
-    }
-    
-    // Default
-    return (
-      <>
-        <strong>Section complete:</strong> You've finished the questions about <strong>{sectionName}</strong>. 
-        We'll now move into a new topic. Please continue answering as accurately as you can.
-      </>
-    );
-  };
-
   return (
-    <div className="flex justify-center my-3">
-      <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-xl px-5 py-3 max-w-2xl">
-        <div className="flex items-start gap-3">
-          <div className="w-6 h-6 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+    <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
+      <div className="flex items-start gap-3">
+        <div className="w-7 h-7 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-semibold text-green-400">Section Complete</span>
           </div>
-          <p className="text-emerald-100 text-sm leading-relaxed">
-            {getMessage()}
+          <p className="text-white leading-relaxed">
+            You've completed <strong>{sectionName}</strong> and are now moving to <strong>{nextSectionName}</strong>.
           </p>
         </div>
       </div>

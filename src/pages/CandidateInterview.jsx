@@ -1645,26 +1645,31 @@ export default function CandidateInterview() {
             if (isSectionTransition) {
               const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
               const isLong = sectionQuestions.length >= 10;
-              
+
               const sectionResponses = newTranscript.filter(t => 
                 t.type === 'question' && 
                 t.sectionId === currentSectionId
               );
               const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
-              
+
               const isHeavy = HEAVY_SECTIONS.includes(sectionName);
-              
+
+              const nextSectionEntity = engine.Sections.find(s => s.id === nextSectionId);
+              const nextSectionName = nextSectionEntity?.section_name || 'the next section';
+
               console.log('[SECTION-MESSAGE] Emitting completion message', {
                 sectionId: currentSectionId,
                 sectionName,
+                nextSectionName,
                 isHeavy,
                 isLong,
                 hadIncidents
               });
-              
+
               setSectionCompletionMessage({
                 sectionId: currentSectionId,
                 sectionName,
+                nextSectionName,
                 isHeavy,
                 isLong,
                 hadIncidents
@@ -2886,6 +2891,7 @@ export default function CandidateInterview() {
               {sectionCompletionMessage && !showStartMessage && (
                 <SectionCompletionMessage
                   sectionName={sectionCompletionMessage.sectionName}
+                  nextSectionName={sectionCompletionMessage.nextSectionName}
                   isHeavy={sectionCompletionMessage.isHeavy}
                   isLong={sectionCompletionMessage.isLong}
                   hadIncidents={sectionCompletionMessage.hadIncidents}
