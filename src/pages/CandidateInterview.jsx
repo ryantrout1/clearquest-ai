@@ -661,21 +661,122 @@ export default function CandidateInterview() {
   // ============================================================================
 
   const advanceToNextBaseQuestion = useCallback(async (baseQuestionId) => {
-    console.log(`🎯 Advancing to next base question after ${baseQuestionId}...`);
+    console.log(`🎯 [ADVANCE] Starting advancement from base question ${baseQuestionId}...`);
     
+    const currentQuestion = engine.QById[baseQuestionId];
+    if (!currentQuestion) {
+      console.error(`❌ [ADVANCE] Question ${baseQuestionId} not found in engine`);
+      setShowCompletionModal(true);
+      return;
+    }
+    
+    const currentSectionId = currentQuestion.section_id;
+    const currentSectionIndex = engine.Sections.findIndex(s => s.id === currentSectionId);
+    
+    console.log(`📍 [ADVANCE] Current position:`, {
+      questionId: baseQuestionId,
+      questionCode: currentQuestion.question_id,
+      sectionId: currentSectionId,
+      sectionIndex: currentSectionIndex,
+      sectionName: engine.Sections[currentSectionIndex]?.section_name
+    });
+    
+    // Compute next question in linear flow
     const nextQuestionId = computeNextQuestionId(engine, baseQuestionId, 'Yes');
     
+    console.log(`🔍 [ADVANCE] Computed next question:`, {
+      nextQuestionId,
+      exists: !!engine.QById[nextQuestionId]
+    });
+    
     if (nextQuestionId && engine.QById[nextQuestionId]) {
-      console.log(`✅ Next question: ${nextQuestionId}`);
-      setQueue([]);
-      setCurrentItem({ id: nextQuestionId, type: 'question' });
-      await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      const nextQuestion = engine.QById[nextQuestionId];
+      const nextSectionId = nextQuestion.section_id;
+      const nextSectionIndex = engine.Sections.findIndex(s => s.id === nextSectionId);
+      
+      const isSectionTransition = currentSectionId !== nextSectionId;
+      
+      console.log(`➡️ [ADVANCE] Moving to next question:`, {
+        nextQuestionId,
+        nextQuestionCode: nextQuestion.question_id,
+        nextSectionId,
+        nextSectionIndex,
+        nextSectionName: engine.Sections[nextSectionIndex]?.section_name,
+        isSectionTransition
+      });
+      
+      if (isSectionTransition) {
+        console.log(`🏁 [SECTION TRANSITION]`, {
+          from: engine.Sections[currentSectionIndex]?.section_name,
+          to: engine.Sections[nextSectionIndex]?.section_name
+        });
+        
+        // Add section completion message to transcript
+        const completionMessage = {
+          id: `section-complete-${Date.now()}`,
+          type: 'system_message',
+          content: `You've completed the ${engine.Sections[currentSectionIndex]?.section_name} section. Moving to ${engine.Sections[nextSectionIndex]?.section_name}...`,
+          timestamp: new Date().toISOString(),
+          kind: 'section_completion',
+          role: 'system'
+        };
+        
+        const newTranscript = [...transcript, completionMessage];
+        setTranscript(newTranscript);
+        
+        setQueue([]);
+        setCurrentItem({ id: nextQuestionId, type: 'question' });
+        await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+      } else {
+        console.log(`➡️ [SAME SECTION] Moving to next question in same section`);
+        setQueue([]);
+        setCurrentItem({ id: nextQuestionId, type: 'question' });
+        await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      }
     } else {
-      console.log('✅ No next question - marking interview complete');
-      setCurrentItem(null);
-      setQueue([]);
-      await persistStateToDatabase(transcript, [], null);
-      setShowCompletionModal(true);
+      // CRITICAL: Only mark complete if we're truly at the end
+      const lastSectionIndex = engine.Sections.length - 1;
+      const lastSection = engine.Sections[lastSectionIndex];
+      const questionsInLastSection = Object.values(engine.QById).filter(
+        q => q.section_id === lastSection.id && q.active !== false
+      );
+      const lastQuestionInLastSection = questionsInLastSection[questionsInLastSection.length - 1];
+      
+      console.log(`🔍 [ADVANCE] Checking if interview is truly complete:`, {
+        currentSectionIndex,
+        lastSectionIndex,
+        isLastSection: currentSectionIndex === lastSectionIndex,
+        currentQuestionId: baseQuestionId,
+        lastQuestionId: lastQuestionInLastSection?.id,
+        isLastQuestion: baseQuestionId === lastQuestionInLastSection?.id
+      });
+      
+      if (currentSectionIndex === lastSectionIndex && baseQuestionId === lastQuestionInLastSection?.id) {
+        console.log('✅ [COMPLETE] Interview truly complete - last question in last section answered');
+        
+        // Add completion message to transcript
+        const completionMessage = {
+          id: `interview-complete-${Date.now()}`,
+          type: 'system_message',
+          content: 'Interview complete! Thank you for your thorough and honest responses.',
+          timestamp: new Date().toISOString(),
+          kind: 'interview_complete',
+          role: 'system'
+        };
+        
+        const newTranscript = [...transcript, completionMessage];
+        setTranscript(newTranscript);
+        
+        setCurrentItem(null);
+        setQueue([]);
+        await persistStateToDatabase(newTranscript, [], null);
+        setShowCompletionModal(true);
+      } else {
+        console.error(`❌ [ADVANCE] No next question but not at last question - this shouldn't happen!`);
+        console.error(`   Current: section ${currentSectionIndex}/${lastSectionIndex}, question ${baseQuestionId}`);
+        console.error(`   Last: section ${lastSectionIndex}, question ${lastQuestionInLastSection?.id}`);
+        setShowCompletionModal(true);
+      }
     }
   }, [engine, transcript]);
 
