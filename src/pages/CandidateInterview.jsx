@@ -1898,11 +1898,16 @@ export default function CandidateInterview() {
               t.type === 'followup' && t.packId === packId
             );
             
-            const triggeringQuestion = [...newTranscript].reverse().find(t => 
-              t.type === 'question' && 
-              engine.QById[t.questionId]?.followup_pack === packId &&
+            // Find the most recent "Yes" answer that corresponds to the triggering base question
+            const triggeringAnswer = [...newTranscript].reverse().find(t => 
+              t.type === 'answer' && 
               t.answer === 'Yes'
             );
+            
+            // Convert it to the same structure the old code expected
+            const triggeringQuestion = triggeringAnswer
+              ? { questionId: triggeringAnswer.questionId }
+              : null;
             
             if (triggeringQuestion) {
               // Reset follow-up answers tracker
