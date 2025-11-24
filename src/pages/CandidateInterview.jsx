@@ -2185,6 +2185,13 @@ export default function CandidateInterview() {
     // NEW: Check if we're in invokeLLM mode (no agent calls needed)
     if (isInvokeLLMMode) {
       try {
+        // Update the last exchange with candidate's response FIRST
+        const updatedExchanges = [...invokeLLMProbingExchanges];
+        const lastExchange = updatedExchanges[updatedExchanges.length - 1];
+        if (lastExchange && !lastExchange.candidate_response) {
+          lastExchange.candidate_response = value;
+        }
+        
         // Add answer to transcript
         const aiAnswerEntry = {
           id: `ai-a-${Date.now()}`,
@@ -2202,13 +2209,6 @@ export default function CandidateInterview() {
         
         const newTranscript = [...transcript, aiAnswerEntry];
         setTranscript(newTranscript);
-        
-        // Update the last exchange with candidate's response
-        const updatedExchanges = [...invokeLLMProbingExchanges];
-        const lastExchange = updatedExchanges[updatedExchanges.length - 1];
-        if (lastExchange && !lastExchange.candidate_response) {
-          lastExchange.candidate_response = value;
-        }
         
         await persistStateToDatabase(newTranscript, [], null);
         
