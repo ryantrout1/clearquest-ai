@@ -50,8 +50,9 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
     return null;
   }
 
-  // AI probing Q&A together
-  if (kind === "ai_probe_question" && nextEvent?.kind === "ai_probe_answer") {
+  // AI probing Q&A together (handles both ai_probe_question and ai_question)
+  if ((kind === "ai_probe_question" || kind === "ai_question") && 
+      (nextEvent?.kind === "ai_probe_answer" || nextEvent?.kind === "ai_answer")) {
     return (
       <div className="mb-2">
         {isFirstAiProbing && (
@@ -74,7 +75,7 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
   }
 
   // Skip standalone AI answer (already rendered with question)
-  if (kind === "ai_probe_answer") {
+  if (kind === "ai_probe_answer" || kind === "ai_answer") {
     return null;
   }
 
@@ -145,15 +146,15 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // AI probe question
-  if (kind === "ai_probe_question") {
+  // AI probe question (handles both ai_probe_question and ai_question kinds)
+  if (kind === "ai_probe_question" || kind === "ai_question") {
     return (
       <div className="ml-4 md:ml-8">
         <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3 mb-2">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
             <div>
-              <span className="text-xs text-purple-400 font-medium">Investigator:</span>
+              <span className="text-xs text-purple-400 font-medium">AI Investigator – Story Clarification:</span>
               <p className="text-white text-sm mt-0.5 leading-relaxed">{text}</p>
             </div>
           </div>
@@ -162,8 +163,8 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // AI probe answer
-  if (kind === "ai_probe_answer") {
+  // AI probe answer (handles both ai_probe_answer and ai_answer kinds)
+  if (kind === "ai_probe_answer" || kind === "ai_answer") {
     return (
       <div className="ml-4 md:ml-8 flex justify-end mb-2">
         <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
