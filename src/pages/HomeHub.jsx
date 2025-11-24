@@ -70,7 +70,7 @@ export default function HomeHub() {
           <div className="flex justify-center mb-2 md:mb-3">
             <div className="relative">
               <div className="absolute inset-0 bg-blue-500 blur-2xl md:blur-3xl opacity-40 md:opacity-50" />
-              <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/e538960d6_IMG_2762.PNG" alt="ClearQuest" className="relative w-10 h-10 md:w-14 md:h-14 object-contain" />
+              <Shield className="relative w-10 h-10 md:w-14 md:h-14 text-blue-400" strokeWidth={1.5} />
             </div>
           </div>
 

@@ -2810,7 +2810,7 @@ export default function CandidateInterview() {
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/e538960d6_IMG_2762.PNG" alt="ClearQuest" className="w-6 h-6 object-contain" />
+                <Shield className="w-5 h-5 text-blue-400" />
                 <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
                 {department && (
                   <>
