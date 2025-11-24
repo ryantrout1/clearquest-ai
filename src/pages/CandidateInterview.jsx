@@ -2089,7 +2089,7 @@ export default function CandidateInterview() {
           existingInstancesCount: instanceNumber - 1
         });
         
-        // Add to transcript using functional update
+        // Add to transcript using functional update (single call to avoid duplicates)
         const transcriptEntry = {
           id: `mi-${Date.now()}`,
           type: 'multi_instance_answer',
@@ -2100,9 +2100,7 @@ export default function CandidateInterview() {
           timestamp: new Date().toISOString()
         };
 
-        setTranscript(prev => [...prev, transcriptEntry]);
-        
-        // Use functional update result for persistence
+        // Use functional update for persistence
         setTranscript(prev => {
           const newTranscript = [...prev, transcriptEntry];
 
