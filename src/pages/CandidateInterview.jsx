@@ -2091,7 +2091,7 @@ export default function CandidateInterview() {
         
         // Add to transcript using functional update (single call to avoid duplicates)
         const transcriptEntry = {
-          id: `mi-${Date.now()}`,
+          id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
           type: 'multi_instance_answer',
           content: answer,
           questionId: questionId,
