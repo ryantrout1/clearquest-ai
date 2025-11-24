@@ -269,7 +269,11 @@ export default function StartInterview() {
               <div className="flex justify-center mb-4">
                 <div className="relative">
                   <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-30" />
-                  <Shield className="relative w-16 h-16 text-blue-400" />
+                  <img 
+                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
+                    alt="ClearQuest" 
+                    className="relative w-16 h-16 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.4)]"
+                  />
                 </div>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
