@@ -2815,7 +2815,7 @@ export default function CandidateInterview() {
                 {department && (
                   <>
                     <span className="text-slate-600 hidden sm:inline">•</span>
-                    <span className="text-xs text-slate-400 hidden sm:inline">{department.department_name}</span>
+                    <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
                   </>
                 )}
               </div>
@@ -2848,7 +2848,7 @@ export default function CandidateInterview() {
                 />
               </div>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[10px] text-slate-500">Overall</span>
+                <span className="text-[10px] text-slate-300">Overall</span>
                 <div className="flex items-center gap-2">
                   <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
                   <span className="text-xs font-medium text-green-400">{progress}%</span>
@@ -2899,7 +2899,7 @@ export default function CandidateInterview() {
                           />
                         </div>
                         <div className="flex justify-between items-center mt-1">
-                          <span className="text-[10px] text-slate-500">{currentSection.section_name}</span>
+                          <span className="text-[10px] text-slate-300">{currentSection.section_name}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-blue-400">{sectionProgress}%</span>
                             <span className="text-xs text-blue-400">•</span>
