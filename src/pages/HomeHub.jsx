@@ -73,7 +73,7 @@ export default function HomeHub() {
               <img 
                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
                 alt="ClearQuest" 
-                className="relative w-12 h-12 md:w-16 md:h-16 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.5)]"
+                className="relative w-[60px] h-[60px] md:w-20 md:h-20 object-contain drop-shadow-[0_0_12px_rgba(59,130,246,0.5)]"
               />
             </div>
           </div>
