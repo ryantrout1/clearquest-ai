@@ -286,7 +286,7 @@ export default function AiSettings() {
                       "w-full h-[calc(100vh-340px)] min-h-[400px] resize-none font-mono text-sm leading-relaxed",
                       isEditing 
                         ? "bg-slate-900 border-blue-500/50 text-white focus:border-blue-400" 
-                        : "bg-slate-900/50 border-slate-700 text-slate-300"
+                        : "bg-slate-900/30 border-slate-700 text-slate-100"
                     )}
                     placeholder={`Enter ${activeTabConfig.label.toLowerCase()} instructions...`}
                   />
