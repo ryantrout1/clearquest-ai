@@ -176,21 +176,33 @@ export default function SessionDetails() {
       let events = [];
       if (transcriptSnapshot.length > 0) {
         // Map transcript entries to event format for rendering
-        events = transcriptSnapshot.map((entry, idx) => ({
-          id: entry.id || `evt-${idx}`,
-          sessionId,
-          baseQuestionId: entry.questionId,
-          baseQuestionCode: entry.questionId,
-          followupPackId: entry.packId || entry.followupPackId || null,
-          instanceNumber: entry.instanceNumber || null,
-          role: entry.role || (entry.type === 'question' || entry.type === 'followup_question' ? 'investigator' : 'candidate'),
-          kind: entry.kind || entry.type || 'unknown',
-          text: entry.text || entry.content || entry.questionText || entry.answer || '',
-          fieldKey: entry.fieldKey || null,
-          sectionName: entry.category || entry.sectionName || null,
-          createdAt: new Date(entry.timestamp).getTime(),
-          sortKey: idx
-        }));
+        events = transcriptSnapshot.map((entry, idx) => {
+          // Extract the actual text based on entry type
+          let displayText = '';
+          if (entry.type === 'question' || entry.kind === 'base_question') {
+            displayText = entry.questionText || entry.text || entry.content || '';
+          } else if (entry.type === 'answer' || entry.kind === 'base_answer') {
+            displayText = entry.answer || entry.text || entry.content || '';
+          } else {
+            displayText = entry.text || entry.content || entry.questionText || entry.answer || '';
+          }
+          
+          return {
+            id: entry.id || `evt-${idx}`,
+            sessionId,
+            baseQuestionId: entry.questionId,
+            baseQuestionCode: entry.questionId,
+            followupPackId: entry.packId || entry.followupPackId || null,
+            instanceNumber: entry.instanceNumber || null,
+            role: entry.role || (entry.type === 'question' || entry.type === 'followup_question' ? 'investigator' : 'candidate'),
+            kind: entry.kind || entry.type || 'unknown',
+            text: displayText,
+            fieldKey: entry.fieldKey || null,
+            sectionName: entry.category || entry.sectionName || null,
+            createdAt: new Date(entry.timestamp).getTime(),
+            sortKey: idx
+          };
+        });
         console.log(`📋 Loaded ${events.length} transcript events from session snapshot`);
       } else {
         // Fallback: Rebuild from Response entities (for old sessions)
