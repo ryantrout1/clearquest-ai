@@ -176,34 +176,74 @@ export default function SessionDetails() {
       let events = [];
       if (transcriptSnapshot.length > 0) {
         // Map transcript entries to event format for rendering
-        events = transcriptSnapshot.map((entry, idx) => {
-          // Extract the actual text based on entry type
-          let displayText = '';
-          if (entry.type === 'question' || entry.kind === 'base_question') {
-            displayText = entry.questionText || entry.text || entry.content || '';
-          } else if (entry.type === 'answer' || entry.kind === 'base_answer') {
-            displayText = entry.answer || entry.text || entry.content || '';
-          } else {
-            displayText = entry.text || entry.content || entry.questionText || entry.answer || '';
-          }
+        // Each entry may contain both question and answer (combined entry from CandidateInterview)
+        events = [];
+        transcriptSnapshot.forEach((entry, idx) => {
+          // Check if this is a combined question+answer entry (from CandidateInterview)
+          const isQuestionType = entry.type === 'question' || entry.kind === 'base_question';
+          const hasAnswer = entry.answer && entry.answer !== '';
           
-          return {
-            id: entry.id || `evt-${idx}`,
-            sessionId,
-            baseQuestionId: entry.questionId,
-            baseQuestionCode: entry.questionId,
-            followupPackId: entry.packId || entry.followupPackId || null,
-            instanceNumber: entry.instanceNumber || null,
-            role: entry.role || (entry.type === 'question' || entry.type === 'followup_question' ? 'investigator' : 'candidate'),
-            kind: entry.kind || entry.type || 'unknown',
-            text: displayText,
-            fieldKey: entry.fieldKey || null,
-            sectionName: entry.category || entry.sectionName || null,
-            createdAt: new Date(entry.timestamp).getTime(),
-            sortKey: idx
-          };
+          if (isQuestionType) {
+            // Add question event
+            events.push({
+              id: entry.id || `evt-${idx}-q`,
+              sessionId,
+              baseQuestionId: entry.questionId,
+              baseQuestionCode: entry.questionId,
+              followupPackId: entry.packId || entry.followupPackId || null,
+              instanceNumber: entry.instanceNumber || null,
+              role: 'investigator',
+              kind: 'base_question',
+              text: entry.questionText || entry.text || entry.content || '',
+              fieldKey: entry.fieldKey || null,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+            
+            // Add answer event if present
+            if (hasAnswer) {
+              events.push({
+                id: entry.id ? `${entry.id}-a` : `evt-${idx}-a`,
+                sessionId,
+                baseQuestionId: entry.questionId,
+                baseQuestionCode: entry.questionId,
+                followupPackId: entry.packId || entry.followupPackId || null,
+                instanceNumber: entry.instanceNumber || null,
+                role: 'candidate',
+                kind: 'base_answer',
+                text: entry.answer,
+                fieldKey: entry.fieldKey || null,
+                sectionName: entry.category || entry.sectionName || null,
+                createdAt: new Date(entry.timestamp).getTime() + 1,
+                sortKey: idx * 10 + 1
+              });
+            }
+          } else {
+            // Other event types (followups, AI probing, system messages, etc.)
+            const displayText = entry.text || entry.content || entry.questionText || entry.answer || '';
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId,
+              baseQuestionCode: entry.questionId,
+              followupPackId: entry.packId || entry.followupPackId || null,
+              instanceNumber: entry.instanceNumber || null,
+              role: entry.role || 'candidate',
+              kind: entry.kind || entry.type || 'unknown',
+              text: displayText,
+              fieldKey: entry.fieldKey || null,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10 + 5
+            });
+          }
         });
-        console.log(`📋 Loaded ${events.length} transcript events from session snapshot`);
+        
+        // Sort by sortKey to ensure chronological order
+        events.sort((a, b) => a.sortKey - b.sortKey);
+        
+        console.log(`📋 Loaded ${events.length} transcript events from ${transcriptSnapshot.length} snapshot entries`);
       } else {
         // Fallback: Rebuild from Response entities (for old sessions)
         events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
