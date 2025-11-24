@@ -2813,7 +2813,7 @@ export default function CandidateInterview() {
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
                   alt="ClearQuest" 
-                  className="w-6 h-6 object-contain"
+                  className="w-[30px] h-[30px] object-contain"
                 />
                 <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
                 {department && (
