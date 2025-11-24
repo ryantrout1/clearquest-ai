@@ -3174,18 +3174,20 @@ export default function CandidateInterview() {
                   <div className="flex justify-center mb-3">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const sectionName = currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : 'where you left off';
-                      setTranscript(prev => [
-                        ...prev,
-                        {
-                          role: "system",
-                          type: "resume",
-                          text: `Welcome back! Resuming from ${sectionName}, Question ${currentQuestion?.question_number || ''}. You're ${progress}% complete.`,
-                          timestamp: new Date().toISOString()
-                        }
-                      ]);
+                      const resumeMessage = {
+                        id: `resume-${Date.now()}`,
+                        role: "system",
+                        type: "system_message",
+                        kind: "resume",
+                        content: `Welcome back! Resuming from ${sectionName}, Question ${currentQuestion?.question_number || ''}. You're ${progress}% complete.`,
+                        timestamp: new Date().toISOString()
+                      };
+                      const newTranscript = [...transcript, resumeMessage];
+                      setTranscript(newTranscript);
                       setShowResumeMessage(false);
+                      await persistStateToDatabase(newTranscript, queue, currentItem);
                       setTimeout(() => autoScrollToBottom(), 0);
                     }}
                     disabled={isCommitting || showPauseModal}
