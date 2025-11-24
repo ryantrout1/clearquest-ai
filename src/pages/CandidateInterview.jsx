@@ -403,6 +403,11 @@ export default function CandidateInterview() {
         console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
         setShowStartMessage(false);
         setShowResumeMessage(true);
+
+        // Auto-dismiss resume message after 5 seconds
+        setTimeout(() => {
+          setShowResumeMessage(false);
+        }, 5000);
       }
       
       setIsLoading(false);
