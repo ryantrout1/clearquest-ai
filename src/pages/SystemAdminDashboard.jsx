@@ -346,12 +346,6 @@ export default function SystemAdminDashboard() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Link to={createPageUrl("AiSettings")}>
-                <Button size="sm" variant="outline" className="bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 text-xs">
-                  <Settings className="w-4 h-4 mr-1" />
-                  <span className="hidden md:inline">AI Settings</span>
-                </Button>
-              </Link>
               <Link to={createPageUrl("CreateDepartment")}>
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-xs">
                   <Plus className="w-4 h-4 mr-1" />
@@ -394,6 +388,16 @@ export default function SystemAdminDashboard() {
                 {infoRequests.filter(r => !r.followed_up).length}
               </Badge>
             )}
+          </button>
+          <button
+            onClick={() => navigate(createPageUrl("AiSettings"))}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
+              "text-slate-400 border-transparent hover:text-slate-300"
+            )}
+          >
+            <Settings className="w-4 h-4" />
+            AI Settings
           </button>
         </div>
 
