@@ -2806,43 +2806,31 @@ export default function CandidateInterview() {
     <>
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-2">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 text-blue-400" />
-                <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-400" />
+                <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
+                {department && (
+                  <>
+                    <span className="text-slate-600 hidden sm:inline">•</span>
+                    <span className="text-xs text-slate-400 hidden sm:inline">{department.department_name}</span>
+                  </>
+                )}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePauseClick}
-                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-2"
+                className="bg-slate-700/50 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 flex items-center gap-1.5 h-8 text-xs"
               >
-                <Pause className="w-4 h-4" />
+                <Pause className="w-3.5 h-3.5" />
                 <span>Pause</span>
               </Button>
             </div>
             
-            {department && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 border-t border-slate-700/50 pt-2 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-slate-300">{department.department_name}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">•</span>
-                  <span className="text-slate-500">Dept Code:</span>
-                  <span className="font-mono text-slate-300">{session?.department_code}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">•</span>
-                  <span className="text-slate-500">File:</span>
-                  <span className="font-mono text-slate-300">{session?.file_number}</span>
-                </div>
-              </div>
-            )}
-            
-            <div className="mt-2">
+            <div>
               <div 
                 className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
                 role="progressbar"
@@ -2859,16 +2847,19 @@ export default function CandidateInterview() {
                   }}
                 />
               </div>
-              <div className="flex justify-end items-center gap-2 mt-1.5">
-                <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
-                <span className="text-xs font-medium text-green-400">{progress}% Complete</span>
-                <span className="text-xs text-green-400">•</span>
-                <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[10px] text-slate-500">Overall</span>
+                <div className="flex items-center gap-2">
+                  <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
+                  <span className="text-xs font-medium text-green-400">{progress}%</span>
+                  <span className="text-xs text-green-400">•</span>
+                  <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
+                </div>
               </div>
               
               {/* Current Section Progress */}
               {engine && engine.Sections && currentPrompt && (
-                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <div className="mt-2">
                   {(() => {
                     // Get current section from current question
                     let currentSectionName = currentPrompt.category;
@@ -2892,7 +2883,7 @@ export default function CandidateInterview() {
                     return (
                       <div>
                         <div 
-                          className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden mb-1.5"
+                          className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden"
                           role="progressbar"
                           aria-valuemin={0}
                           aria-valuemax={100}
@@ -2907,9 +2898,13 @@ export default function CandidateInterview() {
                             }}
                           />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-slate-400">{currentSection.section_name}</span>
-                          <span className="text-xs font-medium text-blue-400">{answeredInSection} / {totalInSection}</span>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-[10px] text-slate-500">{currentSection.section_name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-blue-400">{sectionProgress}%</span>
+                            <span className="text-xs text-blue-400">•</span>
+                            <span className="text-xs font-medium text-blue-400">{answeredInSection} / {totalInSection}</span>
+                          </div>
                         </div>
                       </div>
                     );
