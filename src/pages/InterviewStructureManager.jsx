@@ -1109,11 +1109,16 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
     const isReadOnly = !isEditMode && !isNewQuestion;
     
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">
-            {isNewQuestion ? `Add Question to ${selectedItem.sectionName}` : 'Question Details'}
-          </h3>
+          <div>
+            <h3 className="text-lg font-semibold text-white">
+              {isNewQuestion ? selectedItem.sectionName : formData.question_text || 'Question Details'}
+            </h3>
+            {!isNewQuestion && (
+              <p className="text-sm text-slate-400 font-mono mt-1">{formData.question_id}</p>
+            )}
+          </div>
           <div className="flex gap-2">
             {!isNewQuestion && !isEditMode && (
               <Button
@@ -1151,229 +1156,328 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           </div>
         </div>
         
-        {!isNewQuestion && (
-          <div>
-            <Label className="text-sm text-slate-400">Question ID</Label>
-            <Input
-              value={formData.question_id || ''}
-              disabled
-              className="bg-slate-800 border-slate-600 text-slate-400 mt-1"
-            />
-          </div>
-        )}
-
-        <div>
-          <Label className="text-sm text-slate-400">Display Order</Label>
-          <Input
-            type="number"
-            value={formData.display_order || 1}
-            onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value)})}
-            disabled={isReadOnly}
-            className="bg-slate-800 border-slate-600 text-white mt-1"
-          />
-        </div>
-
-        <div>
-          <Label className="text-sm text-slate-400">Question Text</Label>
-          <Textarea
-            value={formData.question_text || ''}
-            onChange={(e) => setFormData({...formData, question_text: e.target.value})}
-            disabled={isReadOnly}
-            className="bg-slate-800 border-slate-600 text-white mt-1 min-h-24"
-          />
-        </div>
-
-        <div>
-          <Label className="text-sm text-slate-400">Response Type</Label>
-          <Select
-            value={formData.response_type || 'yes_no'}
-            onValueChange={(v) => setFormData({...formData, response_type: v})}
-            disabled={isReadOnly}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Section selection is available for both existing and new questions when creating via the detail panel directly */}
-        <div>
-          <Label className="text-sm text-slate-400">Section</Label>
-          <Select
-            value={formData.section_id || ''}
-            onValueChange={(v) => setFormData({...formData, section_id: v})}
-            disabled={isReadOnly}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sortedSectionsAlpha.map(s => (
-                <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-sm text-slate-400 flex items-center gap-2">
-            Follow-Up Pack
-            {formData.response_type === 'yes_no' && !formData.followup_pack && (
-              <span className="text-xs text-yellow-400 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Recommended
-              </span>
-            )}
-          </Label>
-          <Select 
-            value={formData.followup_pack || ""} 
-            onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}
-            disabled={isReadOnly}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-              <SelectValue placeholder="None">
-                {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}` : "None"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-h-96 bg-slate-900">
-              <SelectItem value={null}>None</SelectItem>
-              {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
-                const isDefaultGroup = defaultPackGroup === groupName;
-                return (
-                  <React.Fragment key={groupName}>
-                    <div className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 ${
-                      isDefaultGroup ? 'text-green-400' : 'text-blue-400'
-                    }`}>
-                      {groupName}
-                      {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
-                    </div>
-                    {packs.map(pack => (
-                      <SelectItem key={pack} value={pack} className="pl-8 py-2.5">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium text-white">
-                            {FOLLOWUP_PACK_NAMES[pack] || pack}
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono">{pack}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </React.Fragment>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-sm text-slate-400">Substance Name (for drug questions)</Label>
-          <Input
-            value={formData.substance_name || ''}
-            onChange={(e) => setFormData({...formData, substance_name: e.target.value})}
-            placeholder="e.g., Marijuana, Cocaine"
-            disabled={isReadOnly}
-            className="bg-slate-800 border-slate-600 text-white mt-1"
-          />
-        </div>
-
-        {formData.followup_pack ? (
-          <>
-            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <div className="flex-1 pr-3">
-                <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  Ask "Do you have another instance?" after completing this pack
-                </p>
+        {/* Basic Information Section */}
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
+          <Label className="text-lg font-semibold text-white mb-3 block">Basic Information</Label>
+          
+          {isNewQuestion ? (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm text-slate-400">Question Text</Label>
+                <Textarea
+                  value={formData.question_text || ''}
+                  onChange={(e) => setFormData({...formData, question_text: e.target.value})}
+                  className="bg-slate-800 border-slate-600 text-white mt-1 min-h-24"
+                  placeholder="Enter the question text..."
+                />
               </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm text-slate-400">Response Type</Label>
+                  <Select
+                    value={formData.response_type || 'yes_no'}
+                    onValueChange={(v) => setFormData({...formData, response_type: v})}
+                  >
+                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label className="text-sm text-slate-400">Display Order</Label>
+                  <Input
+                    type="number"
+                    value={formData.display_order || 1}
+                    onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value)})}
+                    className="bg-slate-800 border-slate-600 text-white mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : isEditMode ? (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm text-slate-400">Question Text</Label>
+                <Textarea
+                  value={formData.question_text || ''}
+                  onChange={(e) => setFormData({...formData, question_text: e.target.value})}
+                  className="bg-slate-800 border-slate-600 text-white mt-1 min-h-24"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm text-slate-400">Response Type</Label>
+                  <Select
+                    value={formData.response_type || 'yes_no'}
+                    onValueChange={(v) => setFormData({...formData, response_type: v})}
+                  >
+                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label className="text-sm text-slate-400">Display Order</Label>
+                  <Input
+                    type="number"
+                    value={formData.display_order || 1}
+                    onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value)})}
+                    className="bg-slate-800 border-slate-600 text-white mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm text-slate-400 mb-2 block">Question Text</Label>
+                <p className="text-sm text-slate-300 leading-relaxed">{formData.question_text}</p>
+              </div>
+              
+              <div className="flex gap-2">
+                <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
+                  {getResponseTypeDisplay(formData.response_type)}
+                </Badge>
+                <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
+                  Order: {formData.display_order}
+                </Badge>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section & Classification */}
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
+          <Label className="text-lg font-semibold text-white mb-3 block">Section & Classification</Label>
+          
+          {isEditMode || isNewQuestion ? (
+            <div>
+              <Label className="text-sm text-slate-400">Section</Label>
+              <Select
+                value={formData.section_id || ''}
+                onValueChange={(v) => setFormData({...formData, section_id: v})}
+              >
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedSectionsAlpha.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.section_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div>
+              <Label className="text-sm text-slate-400 mb-2 block">Section</Label>
+              <Badge className="bg-amber-500/20 border-amber-500/50 text-amber-300 text-xs font-medium">
+                {sections.find(s => s.id === formData.section_id)?.section_name || 'Unknown'}
+              </Badge>
+            </div>
+          )}
+        </div>
+
+        {/* Follow-Up Configuration */}
+        <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+          <Label className="text-lg font-semibold text-purple-400 mb-3 block">Follow-Up Configuration</Label>
+          
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm text-slate-400 flex items-center gap-2 mb-1">
+                Follow-Up Pack
+                {formData.response_type === 'yes_no' && !formData.followup_pack && (
+                  <span className="text-xs text-yellow-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Recommended
+                  </span>
+                )}
+              </Label>
+              
+              {isEditMode || isNewQuestion ? (
+                <Select 
+                  value={formData.followup_pack || ""} 
+                  onValueChange={(v) => setFormData({...formData, followup_pack: v === "" ? null : v})}
+                >
+                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                    <SelectValue placeholder="None">
+                      {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}` : "None"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-96 bg-slate-900">
+                    <SelectItem value={null}>None</SelectItem>
+                    {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
+                      const isDefaultGroup = defaultPackGroup === groupName;
+                      return (
+                        <React.Fragment key={groupName}>
+                          <div className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 ${
+                            isDefaultGroup ? 'text-green-400' : 'text-blue-400'
+                          }`}>
+                            {groupName}
+                            {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
+                          </div>
+                          {packs.map(pack => (
+                            <SelectItem key={pack} value={pack} className="pl-8 py-2.5">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-white">
+                                  {FOLLOWUP_PACK_NAMES[pack] || pack}
+                                </span>
+                                <span className="text-xs text-slate-500 font-mono">{pack}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div>
+                  {formData.followup_pack ? (
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs font-medium">
+                      {FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}
+                    </Badge>
+                  ) : (
+                    <p className="text-sm text-slate-500">No follow-up pack assigned</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {(isEditMode || isNewQuestion) && (
+              <div>
+                <Label className="text-sm text-slate-400">Substance Name (for drug questions)</Label>
+                <Input
+                  value={formData.substance_name || ''}
+                  onChange={(e) => setFormData({...formData, substance_name: e.target.value})}
+                  placeholder="e.g., Marijuana, Cocaine"
+                  className="bg-slate-800 border-slate-600 text-white mt-1"
+                />
+              </div>
+            )}
+            
+            {!isNewQuestion && !isEditMode && formData.substance_name && (
+              <div>
+                <Label className="text-sm text-slate-400 mb-2 block">Substance Name</Label>
+                <p className="text-sm text-slate-300">{formData.substance_name}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Advanced Configuration */}
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
+          <Label className="text-lg font-semibold text-white mb-3 block">Advanced Configuration</Label>
+          
+          <div className="space-y-3">
+            {formData.followup_pack ? (
+              <>
+                <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                  <div className="flex-1 pr-3">
+                    <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                      Ask "Do you have another instance?" after completing this pack
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.followup_multi_instance || false}
+                    onCheckedChange={(checked) => {
+                      setFormData({
+                        ...formData, 
+                        followup_multi_instance: checked,
+                        max_instances_per_question: checked ? (formData.max_instances_per_question || 5) : undefined
+                      });
+                    }}
+                    disabled={isReadOnly}
+                    className="data-[state=checked]:bg-emerald-600"
+                  />
+                </div>
+                
+                {formData.followup_multi_instance && (isEditMode || isNewQuestion) && (
+                  <div>
+                    <Label className="text-sm text-slate-400">Maximum Instances</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={formData.max_instances_per_question || 5}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val >= 1 && val <= 20) {
+                          setFormData({...formData, max_instances_per_question: val});
+                        }
+                      }}
+                      className="bg-slate-800 border-slate-600 text-white mt-1"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Allowed range: 1-20 instances (default: 5)
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Requires a Follow-Up Pack. Please select a pack above to enable this feature.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <Label className="text-sm text-slate-400">Active</Label>
               <Switch
-                checked={formData.followup_multi_instance || false}
-                onCheckedChange={(checked) => {
-                  setFormData({
-                    ...formData, 
-                    followup_multi_instance: checked,
-                    max_instances_per_question: checked ? (formData.max_instances_per_question || 5) : undefined
-                  });
-                }}
+                checked={formData.active !== false}
+                onCheckedChange={(checked) => setFormData({...formData, active: checked})}
                 disabled={isReadOnly}
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
-            
-            {formData.followup_multi_instance && (
-              <div>
-                <Label className="text-sm text-slate-400">Maximum Instances</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={formData.max_instances_per_question || 5}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (val >= 1 && val <= 20) {
-                      setFormData({...formData, max_instances_per_question: val});
-                    }
-                  }}
-                  disabled={isReadOnly}
-                  className="bg-slate-800 border-slate-600 text-white mt-1"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Allowed range: 1-20 instances (default: 5)
+
+            <div className="flex items-start justify-between bg-orange-950/30 border border-orange-900/50 rounded-lg p-3">
+              <div className="flex-1 pr-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldAlert className="w-4 h-4 text-orange-400" />
+                  <Label className="text-sm text-slate-400 font-semibold">
+                    Control Question (Gate)
+                  </Label>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  If enabled, a "No" response to this question will skip all remaining questions in this section
                 </p>
               </div>
+              <Switch
+                checked={formData.is_control_question ?? false}
+                onCheckedChange={(checked) => setFormData({...formData, is_control_question: checked})}
+                disabled={isReadOnly || formData.response_type !== 'yes_no'}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+            {formData.response_type !== 'yes_no' && (
+              <p className="text-xs text-yellow-400">
+                Control questions must be Yes/No type
+              </p>
             )}
-          </>
-        ) : (
-          <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <Label className="text-sm text-slate-400 font-semibold">Multi-Instance Follow-Up</Label>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Requires a Follow-Up Pack. Please select a pack above to enable this feature.
-                </p>
-              </div>
-            </div>
           </div>
-        )}
-
-        <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-          <Label className="text-sm text-slate-400">Active</Label>
-          <Switch
-            checked={formData.active !== false}
-            onCheckedChange={(checked) => setFormData({...formData, active: checked})}
-            disabled={isReadOnly}
-            className="data-[state=checked]:bg-emerald-600"
-          />
         </div>
-
-        <div className="flex items-start justify-between bg-orange-950/30 border border-orange-900/50 rounded-lg p-3">
-          <div className="flex-1 pr-3">
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldAlert className="w-4 h-4 text-orange-400" />
-              <Label className="text-sm text-slate-400 font-semibold">
-                Control Question (Gate)
-              </Label>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              If enabled, a "No" response to this question will skip all remaining questions in this section
-            </p>
-          </div>
-          <Switch
-            checked={formData.is_control_question ?? false}
-            onCheckedChange={(checked) => setFormData({...formData, is_control_question: checked})}
-            disabled={isReadOnly || formData.response_type !== 'yes_no'}
-            className="data-[state=checked]:bg-emerald-600"
-          />
-        </div>
-        {formData.response_type !== 'yes_no' && (
-          <p className="text-xs text-yellow-400">
-            Control questions must be Yes/No type
-          </p>
-        )}
 
         {(isEditMode || isNewQuestion) && (
           <div className="flex gap-2 pt-4">
