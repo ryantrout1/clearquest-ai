@@ -1643,37 +1643,27 @@ export default function CandidateInterview() {
             const isSectionTransition = currentSectionId && nextSectionId && currentSectionId !== nextSectionId;
             
             if (isSectionTransition) {
-              const sectionQuestions = Object.values(engine.QById || {}).filter(q => q.section_id === currentSectionId && q.active !== false);
-              const isLong = sectionQuestions.length >= 10;
-
-              const sectionResponses = newTranscript.filter(t => 
-                t.type === 'question' && 
-                t.sectionId === currentSectionId
-              );
-              const hadIncidents = sectionResponses.some(r => r.answer === 'Yes');
-
-              const isHeavy = HEAVY_SECTIONS.includes(sectionName);
-
               const nextSectionEntity = engine.Sections.find(s => s.id === nextSectionId);
               const nextSectionName = nextSectionEntity?.section_name || 'the next section';
 
-              console.log('[SECTION-MESSAGE] Emitting completion message', {
-                sectionId: currentSectionId,
-                sectionName,
-                nextSectionName,
-                isHeavy,
-                isLong,
-                hadIncidents
+              console.log('[SECTION-TRANSITION] Adding transition message to transcript', {
+                from: sectionName,
+                to: nextSectionName
               });
 
-              setSectionCompletionMessage({
-                sectionId: currentSectionId,
-                sectionName,
-                nextSectionName,
-                isHeavy,
-                isLong,
-                hadIncidents
-              });
+              // Add section transition message to transcript
+              const transitionMessage = {
+                id: `section-transition-${Date.now()}`,
+                type: 'system_message',
+                content: `You've completed ${sectionName} and are now moving to ${nextSectionName}.`,
+                timestamp: new Date().toISOString(),
+                kind: 'section_transition',
+                role: 'system',
+                sectionName: sectionName,
+                nextSectionName: nextSectionName
+              };
+
+              newTranscript.push(transitionMessage);
             }
           }
         };
@@ -2887,18 +2877,6 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* Section completion message */}
-              {sectionCompletionMessage && !showStartMessage && (
-                <SectionCompletionMessage
-                  sectionName={sectionCompletionMessage.sectionName}
-                  nextSectionName={sectionCompletionMessage.nextSectionName}
-                  isHeavy={sectionCompletionMessage.isHeavy}
-                  isLong={sectionCompletionMessage.isLong}
-                  hadIncidents={sectionCompletionMessage.hadIncidents}
-                  onDismiss={() => setSectionCompletionMessage(null)}
-                />
-              )}
-              
               {answeredCount > 0 && !showStartMessage && (
                 <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
                   <AlertCircle className="h-4 w-4" />
@@ -3364,6 +3342,26 @@ export default function CandidateInterview() {
 function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
   // System messages (timeouts, reminders)
   if (entry.type === 'system_message') {
+    // Section transition messages get special styling
+    if (entry.kind === 'section_transition') {
+      return (
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-green-400">Section Complete</span>
+              </div>
+              <p className="text-white leading-relaxed">{entry.content}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Regular system messages
     return (
       <div className="flex justify-center my-2">
         <div className="bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2 max-w-lg text-center">
