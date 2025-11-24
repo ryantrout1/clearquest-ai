@@ -826,8 +826,8 @@ export default function CandidateInterview() {
           multiInstanceQuestionId: `multi-instance-${baseQuestionId}-${packId}`,
           prompt: multiInstancePrompt
         });
-        
-        // Add multi-instance question to transcript
+
+        // Add multi-instance question to transcript using functional update
         const multiInstanceQuestionEntry = {
           id: `mi-q-${Date.now()}`,
           type: 'multi_instance_question',
@@ -838,26 +838,30 @@ export default function CandidateInterview() {
           maxInstances: maxInstances,
           timestamp: new Date().toISOString()
         };
-        
-        const newTranscript = [...transcript, multiInstanceQuestionEntry];
-        setTranscript(newTranscript);
-        
-        // Queue multi-instance question
-        setCurrentItem({
-          id: `multi-instance-${baseQuestionId}-${packId}`,
-          type: 'multi_instance',
-          questionId: baseQuestionId,
-          packId: packId,
-          instanceNumber: currentInstanceCount + 1,
-          maxInstances: maxInstances,
-          prompt: multiInstancePrompt
-        });
-        
-        await persistStateToDatabase(newTranscript, [], {
-          id: `multi-instance-${baseQuestionId}-${packId}`,
-          type: 'multi_instance',
-          questionId: baseQuestionId,
-          packId: packId
+
+        // Use functional update to preserve any recent AI answers
+        setTranscript(prev => {
+          const newTranscript = [...prev, multiInstanceQuestionEntry];
+
+          // Queue multi-instance question
+          setCurrentItem({
+            id: `multi-instance-${baseQuestionId}-${packId}`,
+            type: 'multi_instance',
+            questionId: baseQuestionId,
+            packId: packId,
+            instanceNumber: currentInstanceCount + 1,
+            maxInstances: maxInstances,
+            prompt: multiInstancePrompt
+          });
+
+          persistStateToDatabase(newTranscript, [], {
+            id: `multi-instance-${baseQuestionId}-${packId}`,
+            type: 'multi_instance',
+            questionId: baseQuestionId,
+            packId: packId
+          });
+
+          return newTranscript;
         });
         return;
       }
@@ -2085,7 +2089,7 @@ export default function CandidateInterview() {
           existingInstancesCount: instanceNumber - 1
         });
         
-        // Add to transcript
+        // Add to transcript using functional update
         const transcriptEntry = {
           id: `mi-${Date.now()}`,
           type: 'multi_instance_answer',
@@ -2095,74 +2099,80 @@ export default function CandidateInterview() {
           instanceNumber: instanceNumber,
           timestamp: new Date().toISOString()
         };
+
+        setTranscript(prev => [...prev, transcriptEntry]);
         
-        const newTranscript = [...transcript, transcriptEntry];
-        setTranscript(newTranscript);
-        
-        if (answer === 'Yes') {
-          console.log("[MI DECISION]", {
-            action: "create_new_instance",
-            baseQuestionId: questionId,
-            baseQuestionCode: question?.question_id,
-            followupPackId: packId,
-            newInstanceNumber: instanceNumber + 1
-          });
-          
-          // Re-trigger the same follow-up pack for new instance
-          const substanceName = question?.substance_name || null;
-          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-          
-          if (packSteps && packSteps.length > 0) {
-            console.log("[MI INSTANCE NEW CREATED]", {
+        // Use functional update result for persistence
+        setTranscript(prev => {
+          const newTranscript = [...prev, transcriptEntry];
+
+          if (answer === 'Yes') {
+            console.log("[MI DECISION]", {
+              action: "create_new_instance",
               baseQuestionId: questionId,
               baseQuestionCode: question?.question_id,
               followupPackId: packId,
-              instanceNumber: instanceNumber + 1,
-              totalSteps: packSteps.length,
-              substanceName,
-              details: {}
+              newInstanceNumber: instanceNumber + 1
             });
-            
-            setCurrentFollowUpAnswers({});
-            
-            const followupQueue = [];
-            for (let i = 0; i < packSteps.length; i++) {
-              followupQueue.push({
-                id: `${packId}:${i}:instance${instanceNumber + 1}`,
-                type: 'followup',
-                packId: packId,
-                stepIndex: i,
-                substanceName: substanceName,
-                totalSteps: packSteps.length,
+
+            // Re-trigger the same follow-up pack for new instance
+            const substanceName = question?.substance_name || null;
+            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+
+            if (packSteps && packSteps.length > 0) {
+              console.log("[MI INSTANCE NEW CREATED]", {
+                baseQuestionId: questionId,
+                baseQuestionCode: question?.question_id,
+                followupPackId: packId,
                 instanceNumber: instanceNumber + 1,
-                baseQuestionId: questionId // Store for AI handoff
+                totalSteps: packSteps.length,
+                substanceName,
+                details: {}
               });
+
+              setCurrentFollowUpAnswers({});
+
+              const followupQueue = [];
+              for (let i = 0; i < packSteps.length; i++) {
+                followupQueue.push({
+                  id: `${packId}:${i}:instance${instanceNumber + 1}`,
+                  type: 'followup',
+                  packId: packId,
+                  stepIndex: i,
+                  substanceName: substanceName,
+                  totalSteps: packSteps.length,
+                  instanceNumber: instanceNumber + 1,
+                  baseQuestionId: questionId // Store for AI handoff
+                });
+              }
+
+              const firstItem = followupQueue[0];
+              const remainingQueue = followupQueue.slice(1);
+
+              setQueue(remainingQueue);
+              setCurrentItem(firstItem);
+
+              persistStateToDatabase(newTranscript, remainingQueue, firstItem);
             }
-            
-            const firstItem = followupQueue[0];
-            const remainingQueue = followupQueue.slice(1);
-            
-            setQueue(remainingQueue);
-            setCurrentItem(firstItem);
-            
-            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+          } else {
+            console.log("[MI DECISION]", {
+              action: "stop_multi_instance_and_advance",
+              baseQuestionId: questionId,
+              baseQuestionCode: question?.question_id,
+              followupPackId: packId,
+              recordedInstancesCount: instanceNumber
+            });
+
+            // No more instances - advance to next base question
+            setCurrentItem(null);
+            setQueue([]);
+            persistStateToDatabase(newTranscript, [], null);
+
+            advanceToNextBaseQuestion(questionId);
           }
-        } else {
-          console.log("[MI DECISION]", {
-            action: "stop_multi_instance_and_advance",
-            baseQuestionId: questionId,
-            baseQuestionCode: question?.question_id,
-            followupPackId: packId,
-            recordedInstancesCount: instanceNumber
-          });
-          
-          // No more instances - advance to next base question
-          setCurrentItem(null);
-          setQueue([]);
-          await persistStateToDatabase(newTranscript, [], null);
-          
-          advanceToNextBaseQuestion(questionId);
-        }
+
+          return newTranscript;
+        });
       }
 
       setIsCommitting(false);
