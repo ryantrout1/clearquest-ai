@@ -84,21 +84,31 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
 
 /**
  * Renders transcript view: all events in chronological order
+ * MATCHES THE INTERVIEW CHAT HISTORY EXACTLY
  */
-export function TranscriptEventRenderer({ event, followUpQuestionEntities, questionNumber }) {
+export function TranscriptEventRenderer({ event, followUpQuestionEntities, questionNumber, sectionName }) {
   const { kind, role, text, instanceNumber, followupPackId, fieldKey } = event;
 
-  // Base question
+  // Base question with answer combined (matches CandidateInterview HistoryEntry)
   if (kind === "base_question") {
     return (
-      <div className="space-y-2">
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
-              Q{String(questionNumber).padStart(3, '0')}
-            </Badge>
+      <div className="space-y-3">
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-3.5 h-3.5 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-bold text-blue-400">
+                  Question {questionNumber}
+                </span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-sm font-medium text-slate-300">{sectionName || ''}</span>
+              </div>
+              <p className="text-white leading-relaxed">{text}</p>
+            </div>
           </div>
-          <p className="text-white text-sm">{text}</p>
         </div>
       </div>
     );
@@ -107,55 +117,32 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
   // Base answer
   if (kind === "base_answer") {
     return (
-      <div className="flex justify-end mb-3">
-        <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm font-medium">{text}</p>
+      <div className="flex justify-end">
+        <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{text}</p>
         </div>
       </div>
     );
   }
 
-  // Deterministic follow-up question
+  // Deterministic follow-up question (matches CandidateInterview format)
   if (kind === "deterministic_followup_question") {
     const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
     
     return (
-      <div className="ml-4 md:ml-8">
-        <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3 mb-2">
-          <p className="text-white text-sm">{resolvedText}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Deterministic follow-up answer
-  if (kind === "deterministic_followup_answer") {
-    const requiresReview = needsReview(text);
-    
-    return (
-      <div className="ml-4 md:ml-8 flex justify-end mb-2">
-        <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm break-words">{text}</p>
-          {requiresReview && (
-            <Badge className="mt-1 text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
-              Needs Review
-            </Badge>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // AI probe question (handles both ai_probe_question and ai_question kinds)
-  if (kind === "ai_probe_question" || kind === "ai_question") {
-    return (
-      <div className="ml-4 md:ml-8">
-        <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3 mb-2">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <span className="text-xs text-purple-400 font-medium">AI Investigator – Story Clarification:</span>
-              <p className="text-white text-sm mt-0.5 leading-relaxed">{text}</p>
+      <div className="space-y-3">
+        <div className="bg-orange-950/30 border border-orange-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
+              <Layers className="w-3.5 h-3.5 text-orange-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-orange-400">Follow-up</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-sm text-orange-300">Follow-up Questions</span>
+              </div>
+              <p className="text-white leading-relaxed">{resolvedText}</p>
             </div>
           </div>
         </div>
@@ -163,12 +150,46 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // AI probe answer (handles both ai_probe_answer and ai_answer kinds)
+  // Deterministic follow-up answer
+  if (kind === "deterministic_followup_answer") {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-orange-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{text}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // AI probe question (matches CandidateInterview format)
+  if (kind === "ai_probe_question" || kind === "ai_question") {
+    return (
+      <div className="space-y-3">
+        <div className="bg-purple-950/30 border border-purple-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-purple-400">AI Investigator</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-sm text-purple-300">Story Clarification</span>
+              </div>
+              <p className="text-white leading-relaxed">{text}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // AI probe answer
   if (kind === "ai_probe_answer" || kind === "ai_answer") {
     return (
-      <div className="ml-4 md:ml-8 flex justify-end mb-2">
-        <div className="bg-purple-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm break-words">{text}</p>
+      <div className="flex justify-end">
+        <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{text}</p>
         </div>
       </div>
     );
@@ -177,9 +198,19 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
   // Multi-instance prompt
   if (kind === "multi_instance_prompt") {
     return (
-      <div className="ml-4 md:ml-8">
-        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-lg p-3 mb-2">
-          <p className="text-white text-sm">{text}</p>
+      <div className="space-y-3">
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-cyan-600/20 flex items-center justify-center flex-shrink-0">
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-cyan-400">Additional Instance Check</span>
+              </div>
+              <p className="text-white leading-relaxed">{text}</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -188,9 +219,19 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
   // Multi-instance question
   if (kind === "multi_instance_question") {
     return (
-      <div className="ml-4 md:ml-8">
-        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-lg p-3 mb-2">
-          <p className="text-white text-sm">{text}</p>
+      <div className="space-y-3">
+        <div className="bg-cyan-950/30 border border-cyan-800/50 rounded-xl p-5 opacity-85">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-full bg-cyan-600/20 flex items-center justify-center flex-shrink-0">
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-semibold text-cyan-400">Additional Instance Check</span>
+              </div>
+              <p className="text-white leading-relaxed">{text}</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -199,9 +240,9 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
   // Multi-instance answer
   if (kind === "multi_instance_answer") {
     return (
-      <div className="ml-4 md:ml-8 flex justify-end mb-3">
-        <div className="bg-cyan-600 rounded-lg px-4 py-2 max-w-md">
-          <p className="text-white text-sm font-medium">{text}</p>
+      <div className="flex justify-end">
+        <div className="bg-cyan-600 rounded-xl px-5 py-3 max-w-2xl">
+          <p className="text-white font-medium">{text}</p>
         </div>
       </div>
     );
@@ -218,12 +259,20 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
     );
   }
 
-  // Section completion message
-  if (kind === "section_completion") {
+  // Section completion message (matches CandidateInterview format)
+  if (kind === "section_completion" || kind === "section_transition") {
     return (
-      <div className="flex justify-center my-3">
-        <div className="bg-emerald-950/40 border border-emerald-700/60 rounded-lg px-4 py-3 max-w-lg">
-          <p className="text-emerald-100 text-sm leading-relaxed">{text}</p>
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-3.5 h-3.5 text-green-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-green-400">Section Complete</span>
+            </div>
+            <p className="text-white leading-relaxed">{text}</p>
+          </div>
         </div>
       </div>
     );
