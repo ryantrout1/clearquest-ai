@@ -1293,12 +1293,24 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
         {/* Follow-Up Configuration */}
         <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-          <Label className="text-lg font-semibold text-purple-400 mb-3 block">Follow-Up Configuration</Label>
+          <div className="flex items-center justify-between mb-3">
+            <Label className="text-lg font-semibold text-purple-400">Follow-Up Pack</Label>
+            {!isNewQuestion && formData?.followup_pack && selectedFollowUpPack && (
+              <Button
+                size="sm"
+                onClick={() => navigate(createPageUrl(`FollowUpPackManagerV2?packId=${selectedFollowUpPack.followup_pack_id}`))}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Manage Pack
+              </Button>
+            )}
+          </div>
           
           <div className="space-y-3">
             <div>
               <Label className="text-sm text-slate-400 flex items-center gap-2 mb-1">
-                Follow-Up Pack
+                {isEditMode || isNewQuestion ? 'Select Pack' : 'Assigned Pack'}
                 {formData.response_type === 'yes_no' && !formData.followup_pack && (
                   <span className="text-xs text-yellow-400 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -1345,15 +1357,24 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                   </SelectContent>
                 </Select>
               ) : (
-                <div>
-                  {formData.followup_pack ? (
-                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs font-medium">
-                      {FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}
-                    </Badge>
+                <>
+                  {formData.followup_pack && selectedFollowUpPack ? (
+                    <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-5 h-5 text-purple-400" />
+                        <div className="flex-1">
+                          <p className="text-base font-medium text-white">{selectedFollowUpPack.pack_name}</p>
+                          <p className="text-sm text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
+                        </div>
+                        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs font-medium">
+                          {packQuestions.length} questions
+                        </Badge>
+                      </div>
+                    </div>
                   ) : (
                     <p className="text-sm text-slate-500">No follow-up pack assigned</p>
                   )}
-                </div>
+                </>
               )}
             </div>
 
@@ -1484,38 +1505,6 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
               {isNewQuestion ? 'Create Question' : 'Save Changes'}
             </Button>
-          </div>
-        )}
-
-        {/* Follow-Up Pack Management - Only for existing questions */}
-        {!isNewQuestion && formData?.followup_pack && selectedFollowUpPack && (
-          <div className="mt-6 pt-6 border-t border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-white">Follow-Up Pack</h4>
-                <p className="text-sm text-slate-400 mt-1">Manage deterministic questions in FollowupPackManager</p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => navigate(createPageUrl(`FollowUpPackManagerV2?packId=${selectedFollowUpPack.followup_pack_id}`))}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Manage Pack
-              </Button>
-            </div>
-            <div className="mt-3 bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-purple-400" />
-                <div>
-                  <p className="text-base font-medium text-white">{selectedFollowUpPack.pack_name}</p>
-                  <p className="text-sm text-slate-400 font-mono">{selectedFollowUpPack.followup_pack_id}</p>
-                </div>
-                <Badge className="ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs font-medium">
-                  {packQuestions.length} questions
-                </Badge>
-              </div>
-            </div>
           </div>
         )}
       </div>
