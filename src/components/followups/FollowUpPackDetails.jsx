@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronDown, AlertTriangle } from "lucide-react";
+import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronDown, AlertTriangle, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 
@@ -43,6 +43,8 @@ export default function FollowUpPackDetails({
     response_type: 'text',
     active: true
   });
+  const [isTriggeringExpanded, setIsTriggeringExpanded] = useState(false);
+  const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
 
   useEffect(() => {
     if (!pack) return;
@@ -205,6 +207,12 @@ export default function FollowUpPackDetails({
 
   const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  
+  // Auto-collapse when over 5 items
+  useEffect(() => {
+    setIsTriggeringExpanded(sortedTriggeringQuestions.length <= 5);
+    setIsFollowupQuestionsExpanded(sortedQuestions.length <= 5);
+  }, [pack?.id, sortedTriggeringQuestions.length, sortedQuestions.length]);
 
   if (!pack) {
     return (
@@ -481,17 +489,27 @@ export default function FollowUpPackDetails({
 
       {/* Triggering Questions */}
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
-        <h4 className="text-lg font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-          <FileText className="w-4 h-4" />
-          Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
-        </h4>
+        <button
+          onClick={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
+          className="w-full flex items-center justify-between mb-3 group"
+        >
+          <h4 className="text-lg font-semibold text-emerald-400 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
+          </h4>
+          {isTriggeringExpanded ? (
+            <ChevronUp className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+          )}
+        </button>
         {sortedTriggeringQuestions.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
             <p className="text-sm text-slate-400">
               No interview questions currently trigger this pack.
             </p>
           </div>
-        ) : (
+        ) : isTriggeringExpanded && (
           <div className="space-y-2">
             {sortedTriggeringQuestions.map((q) => (
               <button
@@ -517,7 +535,17 @@ export default function FollowUpPackDetails({
       {/* Deterministic Questions */}
       <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-lg font-semibold text-purple-400">Follow-Up Questions ({sortedQuestions.length})</h4>
+          <button
+            onClick={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
+            className="flex items-center gap-2 group flex-1"
+          >
+            <h4 className="text-lg font-semibold text-purple-400">Follow-Up Questions ({sortedQuestions.length})</h4>
+            {isFollowupQuestionsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            )}
+          </button>
           <Button
             onClick={() => setShowAddQuestion(true)}
             size="sm"
@@ -566,7 +594,7 @@ export default function FollowUpPackDetails({
           <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700">
             <p className="text-sm">No deterministic questions yet.</p>
           </div>
-        ) : (
+        ) : isFollowupQuestionsExpanded && (
           <div className="space-y-2">
             {sortedQuestions.map((q, idx) => (
               <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-2">
