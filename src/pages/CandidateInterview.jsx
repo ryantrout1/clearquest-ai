@@ -2865,6 +2865,55 @@ export default function CandidateInterview() {
                 <span className="text-xs text-green-400">•</span>
                 <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
               </div>
+              
+              {/* Section Progress Chips */}
+              {engine && engine.Sections && (
+                <div className="mt-3 pt-3 border-t border-slate-700/50 overflow-x-auto">
+                  <div className="flex gap-2 pb-1">
+                    {engine.Sections
+                      .filter(section => section.active !== false)
+                      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+                      .map(section => {
+                        const sectionQuestions = Object.values(engine.QById).filter(
+                          q => q.section_id === section.id && q.active !== false
+                        );
+                        const answeredInSection = transcript.filter(
+                          t => t.type === 'question' && t.category === section.section_name
+                        ).length;
+                        const totalInSection = sectionQuestions.length;
+                        const sectionPercent = totalInSection > 0 
+                          ? Math.round((answeredInSection / totalInSection) * 100) 
+                          : 0;
+                        
+                        return (
+                          <div
+                            key={section.id}
+                            className="flex-shrink-0 px-3 py-1.5 rounded-full border text-xs font-medium whitespace-nowrap"
+                            style={{
+                              backgroundColor: sectionPercent === 100 
+                                ? 'rgba(34, 197, 94, 0.15)' 
+                                : sectionPercent > 0 
+                                  ? 'rgba(59, 130, 246, 0.15)' 
+                                  : 'rgba(71, 85, 105, 0.15)',
+                              borderColor: sectionPercent === 100 
+                                ? 'rgba(34, 197, 94, 0.3)' 
+                                : sectionPercent > 0 
+                                  ? 'rgba(59, 130, 246, 0.3)' 
+                                  : 'rgba(71, 85, 105, 0.3)',
+                              color: sectionPercent === 100 
+                                ? '#86efac' 
+                                : sectionPercent > 0 
+                                  ? '#93c5fd' 
+                                  : '#94a3b8'
+                            }}
+                          >
+                            {section.section_name}: {answeredInSection}/{totalInSection}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
