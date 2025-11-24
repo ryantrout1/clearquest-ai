@@ -1482,10 +1482,39 @@ function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, que
   });
 
   return (
-    <div className="space-y-4">
-      {transcriptEvents.map((event) => {
+    <div className="space-y-3">
+      {transcriptEvents.map((event, idx) => {
         const questionNum = questionNumberMap[event.baseQuestionId] || 0;
+        const nextEvent = transcriptEvents[idx + 1];
         
+        // For base questions, render as two-column layout with answer on right
+        if (event.kind === "base_question" && nextEvent?.kind === "base_answer") {
+          return (
+            <div key={event.id} className="grid grid-cols-[1fr_auto] gap-4 items-start">
+              <TranscriptEventRenderer 
+                event={event}
+                followUpQuestionEntities={followUpQuestionEntities}
+                questionNumber={questionNum}
+                sectionName={event.sectionName}
+              />
+              <div className="pt-4">
+                <TranscriptEventRenderer 
+                  event={nextEvent}
+                  followUpQuestionEntities={followUpQuestionEntities}
+                  questionNumber={questionNum}
+                  sectionName={event.sectionName}
+                />
+              </div>
+            </div>
+          );
+        }
+        
+        // Skip standalone answers (already rendered with question)
+        if (event.kind === "base_answer") {
+          return null;
+        }
+        
+        // All other events render normally
         return (
           <TranscriptEventRenderer 
             key={event.id}
