@@ -403,11 +403,6 @@ export default function CandidateInterview() {
         console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
         setShowStartMessage(false);
         setShowResumeMessage(true);
-
-        // Auto-dismiss resume message after 5 seconds
-        setTimeout(() => {
-          setShowResumeMessage(false);
-        }, 5000);
       }
       
       setIsLoading(false);
@@ -2773,6 +2768,8 @@ export default function CandidateInterview() {
 
   // Intro phase flag
   const isIntroPhase = showStartMessage && answeredCount === 0 && currentItem?.type === 'question';
+  // Resume phase flag
+  const isResumePhase = showResumeMessage && currentItem?.type === 'question';
 
   // CRITICAL FIX: Only show Y/N buttons if:
   // 1. Current item exists
@@ -2885,20 +2882,6 @@ export default function CandidateInterview() {
             className="flex-1 overflow-y-auto px-4 py-6"
           >
             <div className="max-w-5xl mx-auto space-y-4">
-              {/* Resume interview message */}
-              {showResumeMessage && !showStartMessage && (
-                <StartResumeMessage
-                  mode="resume"
-                  currentSectionName={currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : undefined}
-                  currentQuestionNumber={currentQuestion?.question_number}
-                  progressPercent={totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0}
-                  onStart={() => {
-                    setShowResumeMessage(false);
-                    setTimeout(() => autoScrollToBottom(), 0);
-                  }}
-                />
-              )}
-              
               {/* Section completion message */}
               {sectionCompletionMessage && !showStartMessage && (
                 <SectionCompletionMessage
@@ -3013,7 +2996,7 @@ export default function CandidateInterview() {
                       <p className="text-slate-300 text-sm leading-relaxed mb-4">
                         This interview is part of your application process. Here's what to expect:
                       </p>
-                      
+
                       <div className="space-y-2">
                         <div className="flex items-start gap-2">
                           <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
@@ -3028,6 +3011,37 @@ export default function CandidateInterview() {
                           <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : isResumePhase ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-emerald-950/40 border-2 border-emerald-700/60 rounded-xl p-6 shadow-xl"
+                  data-active-question="true"
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-emerald-600/20 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <h3 className="text-lg font-bold text-white">
+                        Welcome back
+                      </h3>
+                      <p className="text-emerald-100 text-sm leading-relaxed">
+                        You're resuming your interview from <strong>{currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : 'where you left off'}</strong>
+                        {currentQuestion?.question_number && `, around Question ${currentQuestion.question_number}`}.
+                      </p>
+                      {totalQuestions > 0 && (
+                        <p className="text-emerald-100 text-sm leading-relaxed">
+                          You're about <strong>{progress}%</strong> complete. Take a breath and continue when you're ready.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3125,15 +3139,14 @@ export default function CandidateInterview() {
         </main>
 
         {/* Footer - show for intro (with Next button) and normal questions */}
-        {!showResumeMessage && (
-          <footer 
-            className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
-            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
-            role="form"
-            aria-label="Response area"
-          >
-            <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-              {isIntroPhase ? (
+        <footer 
+          className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
+          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          role="form"
+          aria-label="Response area"
+        >
+          <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
+            {isIntroPhase ? (
                 <div className="flex justify-center mb-3">
                   <button
                     type="button"
@@ -3156,8 +3169,33 @@ export default function CandidateInterview() {
                   >
                     Next
                   </button>
-                </div>
-              ) : isYesNoQuestion ? (
+                  </div>
+                  ) : isResumePhase ? (
+                  <div className="flex justify-center mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sectionName = currentQuestion?.section_id ? Object.values(engine?.SectionById || {}).find(s => s.id === currentQuestion.section_id)?.section_name : 'where you left off';
+                      setTranscript(prev => [
+                        ...prev,
+                        {
+                          role: "system",
+                          type: "resume",
+                          text: `Welcome back! Resuming from ${sectionName}, Question ${currentQuestion?.question_number || ''}. You're ${progress}% complete.`,
+                          timestamp: new Date().toISOString()
+                        }
+                      ]);
+                      setShowResumeMessage(false);
+                      setTimeout(() => autoScrollToBottom(), 0);
+                    }}
+                    disabled={isCommitting || showPauseModal}
+                    className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                    aria-label="Continue interview"
+                  >
+                    Next
+                  </button>
+                  </div>
+                  ) : isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
                   ref={yesButtonRef}
@@ -3207,14 +3245,15 @@ export default function CandidateInterview() {
               <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
                 {isIntroPhase
                   ? "Click Next to begin your interview"
-                  : isWaitingForAgent 
-                    ? "Responding to investigator's probing questions..." 
-                    : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+                  : isResumePhase
+                    ? "Click Next to continue where you left off"
+                    : isWaitingForAgent 
+                      ? "Responding to investigator's probing questions..." 
+                      : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
               </p>
-            </div>
-          </footer>
-        )}
-      </div>
+              </div>
+              </footer>
+              </div>
 
       {/* Pause Modal */}
       <Dialog open={showPauseModal} onOpenChange={setShowPauseModal}>
