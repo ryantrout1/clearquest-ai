@@ -1684,7 +1684,7 @@ export default function CandidateInterview() {
               // Reset follow-up answers tracker for new pack
               setCurrentFollowUpAnswers({});
               
-              // Queue all follow-up steps
+              // Queue all follow-up steps (include baseQuestionId for AI handoff later)
               const followupQueue = [];
               for (let i = 0; i < packSteps.length; i++) {
                 followupQueue.push({
@@ -1693,7 +1693,8 @@ export default function CandidateInterview() {
                   packId: packId,
                   stepIndex: i,
                   substanceName: substanceName,
-                  totalSteps: packSteps.length
+                  totalSteps: packSteps.length,
+                  baseQuestionId: currentItem.id // Store for AI handoff
                 });
               }
               
@@ -1978,18 +1979,12 @@ export default function CandidateInterview() {
               t.type === 'followup' && t.packId === packId
             );
             
-            // Find the most recent "Yes" answer that corresponds to the triggering base question
-            const triggeringAnswer = [...newTranscript].reverse().find(t => 
-              t.type === 'answer' && 
-              t.answer === 'Yes'
-            );
+            // Use stored baseQuestionId from currentItem (set when pack was triggered)
+            const baseQuestionId = currentItem.baseQuestionId;
             
-            // Convert it to the same structure the old code expected
-            const triggeringQuestion = triggeringAnswer
-              ? { questionId: triggeringAnswer.questionId }
-              : null;
-            
-            if (triggeringQuestion) {
+            if (baseQuestionId && engine.QById[baseQuestionId]) {
+              console.log(`✅ Using stored baseQuestionId for AI handoff: ${baseQuestionId}`);
+              
               // Reset follow-up answers tracker
               setCurrentFollowUpAnswers({});
               
@@ -2000,7 +1995,7 @@ export default function CandidateInterview() {
               
               // Call the new per-pack AI probing starter
               const aiHandoffSuccessful = await startAiProbingForPackInstance(
-                triggeringQuestion.questionId,
+                baseQuestionId,
                 packId,
                 substanceName,
                 packAnswers,
@@ -2009,16 +2004,53 @@ export default function CandidateInterview() {
               
               // FAIL-SAFE: If AI handoff failed, advance to next base question immediately
               if (!aiHandoffSuccessful) {
-                console.log('⚠️ AI handoff failed - advancing to next base question');
-                advanceToNextBaseQuestion(triggeringQuestion.questionId);
+                console.log('⚠️ AI handoff failed - skipping AI probing and advancing to next base question');
+                advanceToNextBaseQuestion(baseQuestionId);
               }
             } else {
-              // If triggering question not found (error case), fallback to showing completion modal.
-              console.error(`❌ Could not find triggering question for pack ${packId} when trying to hand off to AI. Marking interview complete.`);
-              setCurrentItem(null);
-              setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
-              setShowCompletionModal(true);
+              // FIXED: Don't end interview - skip AI probing and continue
+              console.error(`❌ Could not find triggering question for pack ${packId} (baseQuestionId: ${baseQuestionId}) - skipping AI probing and continuing interview`);
+              
+              // Reset follow-up answers tracker
+              setCurrentFollowUpAnswers({});
+              
+              // Try to find baseQuestionId from transcript as fallback
+              const triggeringAnswer = [...newTranscript].reverse().find(t => 
+                t.type === 'question' && t.answer === 'Yes'
+              );
+              
+              const fallbackQuestionId = triggeringAnswer?.questionId;
+              
+              if (fallbackQuestionId && engine.QById[fallbackQuestionId]) {
+                console.log(`⚠️ Using fallback baseQuestionId from transcript: ${fallbackQuestionId}`);
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                advanceToNextBaseQuestion(fallbackQuestionId);
+              } else {
+                console.error(`❌ Could not find any valid base question - advancing to next question in sequence`);
+                // Last resort: use computeNextQuestionId with first active question
+                const firstActiveQuestion = engine.ActiveOrdered[0];
+                if (firstActiveQuestion) {
+                  const nextId = computeNextQuestionId(engine, firstActiveQuestion, 'Yes');
+                  if (nextId && engine.QById[nextId]) {
+                    setCurrentItem({ id: nextId, type: 'question' });
+                    setQueue([]);
+                    await persistStateToDatabase(newTranscript, [], { id: nextId, type: 'question' });
+                  } else {
+                    // Truly can't continue - mark complete
+                    setCurrentItem(null);
+                    setQueue([]);
+                    await persistStateToDatabase(newTranscript, [], null);
+                    setShowCompletionModal(true);
+                  }
+                } else {
+                  setCurrentItem(null);
+                  setQueue([]);
+                  await persistStateToDatabase(newTranscript, [], null);
+                  setShowCompletionModal(true);
+                }
+              }
             }
           }
         } else {
@@ -2101,7 +2133,8 @@ export default function CandidateInterview() {
                 stepIndex: i,
                 substanceName: substanceName,
                 totalSteps: packSteps.length,
-                instanceNumber: instanceNumber + 1
+                instanceNumber: instanceNumber + 1,
+                baseQuestionId: questionId // Store for AI handoff
               });
             }
             
