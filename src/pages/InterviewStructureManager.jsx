@@ -229,6 +229,25 @@ export default function InterviewStructureManager() {
     }
   }, [sortedSections]);
 
+  // Auto-select first question when section is selected
+  useEffect(() => {
+    if (selectedSection && questions.length > 0) {
+      const sectionQuestions = questions
+        .filter(q => q.section_id === selectedSection.id)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      
+      if (sectionQuestions.length > 0) {
+        // Only auto-select if no item is selected or if selected item is not from this section
+        const currentIsQuestionFromSection = selectedItem?.type === 'question' && 
+          selectedItem?.data?.section_id === selectedSection.id;
+        
+        if (!selectedItem || !currentIsQuestionFromSection) {
+          setSelectedItem({ type: 'question', data: sectionQuestions[0] });
+        }
+      }
+    }
+  }, [selectedSection?.id, questions]);
+
   const toggleSectionActive = async (e, section) => {
     e.stopPropagation();
     try {
