@@ -1069,9 +1069,9 @@ export default function CandidateInterview() {
           [countKey]: currentCount + 1
         }));
         
-        // Add AI question to transcript
+        // Add AI question to transcript with stable unique ID
         const aiQuestionEntry = {
-          id: `ai-q-${Date.now()}`,
+          id: `ai-q-${questionId}-${packId}-${instanceNumber}-1-${Date.now()}`,
           type: 'ai_question',
           content: aiResult.followupQuestion,
           questionId: questionId,
@@ -1081,9 +1081,10 @@ export default function CandidateInterview() {
           role: 'investigator',
           text: aiResult.followupQuestion,
           followupPackId: packId,
-          instanceNumber: instanceNumber
+          instanceNumber: instanceNumber,
+          probingSequence: 1
         };
-        
+
         const newTranscript = [...transcript, aiQuestionEntry];
         setTranscript(newTranscript);
         
@@ -2192,9 +2193,10 @@ export default function CandidateInterview() {
           lastExchange.candidate_response = value;
         }
         
-        // Add answer to transcript using functional update
+        // Add answer to transcript using functional update with stable unique ID
+        const probingSequence = updatedExchanges.length;
         const aiAnswerEntry = {
-          id: `ai-a-${Date.now()}-${updatedExchanges.length}`,
+          id: `ai-a-${currentFollowUpPack.questionId}-${currentFollowUpPack.packId}-${currentFollowUpPack.instanceNumber}-${probingSequence}-${Date.now()}`,
           type: 'ai_answer',
           content: value,
           questionId: currentFollowUpPack.questionId,
@@ -2204,7 +2206,8 @@ export default function CandidateInterview() {
           role: 'candidate',
           text: value,
           followupPackId: currentFollowUpPack.packId,
-          instanceNumber: currentFollowUpPack.instanceNumber
+          instanceNumber: currentFollowUpPack.instanceNumber,
+          probingSequence: probingSequence
         };
         
         // Use functional update to ensure we have latest transcript
@@ -2256,9 +2259,9 @@ export default function CandidateInterview() {
             });
             setInvokeLLMProbingExchanges(updatedExchanges);
             
-            // Add AI question to transcript using functional update
+            // Add AI question to transcript using functional update with stable unique ID
             const nextAiQuestion = {
-              id: `ai-q-${Date.now()}-${newExchangeIndex}`,
+              id: `ai-q-${currentFollowUpPack.questionId}-${currentFollowUpPack.packId}-${currentFollowUpPack.instanceNumber}-${newExchangeIndex}-${Date.now()}`,
               type: 'ai_question',
               content: aiResult.followupQuestion,
               questionId: currentFollowUpPack.questionId,
@@ -2268,7 +2271,8 @@ export default function CandidateInterview() {
               role: 'investigator',
               text: aiResult.followupQuestion,
               followupPackId: currentFollowUpPack.packId,
-              instanceNumber: currentFollowUpPack.instanceNumber
+              instanceNumber: currentFollowUpPack.instanceNumber,
+              probingSequence: newExchangeIndex
             };
             
             setTranscript(prev => {
@@ -2903,14 +2907,27 @@ export default function CandidateInterview() {
               )}
               
               {/* Show deterministic transcript + AI probing */}
-              {transcript.map((entry) => (
-                <HistoryEntry 
-                  key={entry.id} 
-                  entry={entry}
-                  getQuestionDisplayNumber={getQuestionDisplayNumber}
-                  getFollowUpPackName={getFollowUpPackName}
-                />
-              ))}
+              {transcript.map((entry, index) => {
+                // Build stable composite key to prevent React key warnings
+                const keyParts = [
+                  sessionId || 'session',
+                  entry.questionId || 'no-question',
+                  entry.packId || entry.followupPackId || 'no-pack',
+                  entry.instanceNumber ?? 0,
+                  entry.type || 'unknown',
+                  entry.id || `index-${index}`
+                ];
+                const stableKey = keyParts.join(':');
+                
+                return (
+                  <HistoryEntry 
+                    key={stableKey}
+                    entry={entry}
+                    getQuestionDisplayNumber={getQuestionDisplayNumber}
+                    getFollowUpPackName={getFollowUpPackName}
+                  />
+                );
+              })}
               
               {/* Show ALL agent messages as continuous thread (NO REFRESH) */}
               {displayableAgentMessages.length > 0 && (
