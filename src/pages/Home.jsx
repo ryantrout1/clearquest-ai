@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle } from "lucide-react";
+import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,14 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import InfoRequestModal from "../components/InfoRequestModal";
 
 export default function Home() {
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
   const [followupsDialogOpen, setFollowupsDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [infoRequestOpen, setInfoRequestOpen] = useState(false);
   
   const [totalQuestions, setTotalQuestions] = useState(162);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
@@ -79,16 +81,20 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Trial Signup CTA */}
+            {/* More Info CTA */}
             <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-slate-700/50 px-4">
               <p className="text-sm sm:text-base text-slate-300 mb-3 sm:mb-4">
-                New department? Start your free trial today
+                Interested in ClearQuest for your department?
               </p>
-              <Link to={createPageUrl("TrialSignup")}>
-                <Button size="lg" variant="outline" className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base">
-                  Start 30-Day Free Trial
-                </Button>
-              </Link>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={() => setInfoRequestOpen(true)}
+                className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base"
+              >
+                <Mail className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Get More Information
+              </Button>
             </div>
           </div>
         </div>
@@ -207,6 +213,9 @@ export default function Home() {
       
       {/* Report Dialog */}
       <ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} totalQuestions={totalQuestions} />
+      
+      {/* Info Request Modal */}
+      <InfoRequestModal open={infoRequestOpen} onOpenChange={setInfoRequestOpen} />
     </div>
   );
 }
