@@ -1527,16 +1527,21 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 }
 
 function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, questions }) {
-  // Get question numbers mapping
-  const questionNumberMap = {};
-  questions.forEach((q, idx) => {
-    questionNumberMap[q.id] = q.question_number || (idx + 1);
+  // Calculate sequential question numbers based on order in transcript (not global question_number)
+  let sequentialQuestionNumber = 0;
+  const sequentialNumberMap = {};
+  
+  transcriptEvents.forEach((event) => {
+    if (event.kind === 'base_question' && !sequentialNumberMap[event.baseQuestionId]) {
+      sequentialQuestionNumber++;
+      sequentialNumberMap[event.baseQuestionId] = sequentialQuestionNumber;
+    }
   });
 
   return (
     <div className="space-y-4">
       {transcriptEvents.map((event) => {
-        const questionNum = questionNumberMap[event.baseQuestionId] || 0;
+        const questionNum = sequentialNumberMap[event.baseQuestionId] || 0;
         
         return (
           <TranscriptEventRenderer 
