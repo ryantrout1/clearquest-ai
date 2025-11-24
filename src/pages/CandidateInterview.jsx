@@ -176,6 +176,7 @@ export default function CandidateInterview() {
   
   // Section completion message state
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
+  const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
 
   // Refs
   const historyRef = useRef(null);
@@ -1646,24 +1647,21 @@ export default function CandidateInterview() {
               const nextSectionEntity = engine.Sections.find(s => s.id === nextSectionId);
               const nextSectionName = nextSectionEntity?.section_name || 'the next section';
 
-              console.log('[SECTION-TRANSITION] Adding transition message to transcript', {
+              console.log('[SECTION-TRANSITION] Setting transition info for acknowledgment', {
                 from: sectionName,
-                to: nextSectionName
+                to: nextSectionName,
+                nextQuestionId
               });
 
-              // Add section transition message to transcript
-              const transitionMessage = {
-                id: `section-transition-${Date.now()}`,
-                type: 'system_message',
-                content: `You've completed ${sectionName} and are now moving to ${nextSectionName}.`,
-                timestamp: new Date().toISOString(),
-                kind: 'section_transition',
-                role: 'system',
-                sectionName: sectionName,
-                nextSectionName: nextSectionName
-              };
+              // Store transition info to show as acknowledgment screen
+              setSectionTransitionInfo({
+                fromSection: sectionName,
+                toSection: nextSectionName,
+                nextQuestionId: nextQuestionId
+              });
 
-              newTranscript.push(transitionMessage);
+              // Don't advance yet - wait for user to click Next
+              return;
             }
           }
         };
@@ -2701,6 +2699,9 @@ export default function CandidateInterview() {
   const currentQuestion = currentItem?.type === 'question' && engine?.QById?.[currentItem.id]
     ? engine.QById[currentItem.id]
     : null;
+
+  // Check if we're showing section transition acknowledgment
+  const isSectionTransitionMode = sectionTransitionInfo !== null;
   
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
@@ -3031,6 +3032,34 @@ export default function CandidateInterview() {
                 </div>
               </div>
             </div>
+          ) : isSectionTransitionMode ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-green-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(34, 197, 94, 0.2) inset'
+                  }}
+                  data-active-question="true"
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-green-600/30 flex items-center justify-center flex-shrink-0 border border-green-500/50">
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-green-400">Section Complete</span>
+                      </div>
+                      <p className="text-white text-lg leading-relaxed">
+                        You've completed <strong>{sectionTransitionInfo.fromSection}</strong> and are now moving to <strong>{sectionTransitionInfo.toSection}</strong>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : currentPrompt ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
@@ -3155,20 +3184,58 @@ export default function CandidateInterview() {
                   </button>
                   </div>
                   ) : isResumePhase ? (
-                  <div className="flex justify-center mb-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowResumeMessage(false);
-                      setTimeout(() => autoScrollToBottom(), 0);
-                    }}
-                    disabled={isCommitting || showPauseModal}
-                    className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
-                    aria-label="Continue interview"
-                  >
-                    Next
-                  </button>
-                  </div>
+                    <div className="flex justify-center mb-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowResumeMessage(false);
+                          setTimeout(() => autoScrollToBottom(), 0);
+                        }}
+                        disabled={isCommitting || showPauseModal}
+                        className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                        aria-label="Continue interview"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  ) : isSectionTransitionMode ? (
+                    <div className="flex justify-center mb-3">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Add transition message to transcript
+                          const transitionMessage = {
+                            id: `section-transition-${Date.now()}`,
+                            type: 'system_message',
+                            content: `You've completed ${sectionTransitionInfo.fromSection} and are now moving to ${sectionTransitionInfo.toSection}.`,
+                            timestamp: new Date().toISOString(),
+                            kind: 'section_transition',
+                            role: 'system',
+                            sectionName: sectionTransitionInfo.fromSection,
+                            nextSectionName: sectionTransitionInfo.toSection
+                          };
+                          const newTranscript = [...transcript, transitionMessage];
+                          setTranscript(newTranscript);
+
+                          // Advance to next question
+                          const nextQuestionId = sectionTransitionInfo.nextQuestionId;
+                          setCurrentItem({ id: nextQuestionId, type: 'question' });
+                          setQueue([]);
+
+                          // Clear transition state
+                          setSectionTransitionInfo(null);
+
+                          // Persist
+                          await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+                          setTimeout(() => autoScrollToBottom(), 0);
+                        }}
+                        disabled={isCommitting || showPauseModal}
+                        className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                        aria-label="Continue to next section"
+                      >
+                        Next
+                      </button>
+                    </div>
                   ) : isYesNoQuestion ? (
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3">
                 <button
@@ -3221,9 +3288,11 @@ export default function CandidateInterview() {
                   ? "Click Next to begin your interview"
                   : isResumePhase
                     ? "Click Next to continue where you left off"
-                    : isWaitingForAgent 
-                      ? "Responding to investigator's probing questions..." 
-                      : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+                    : isSectionTransitionMode
+                      ? "Click Next to continue to the next section"
+                      : isWaitingForAgent 
+                        ? "Responding to investigator's probing questions..." 
+                        : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
               </p>
               </div>
               </footer>
