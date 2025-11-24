@@ -397,8 +397,10 @@ export default function SystemAdminDashboard() {
           </button>
         </div>
 
-        {activeTab === "departments" && systemMetrics && (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+        {activeTab === "departments" && (
+          <>
+            {systemMetrics && (
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
             <MetricCard
               title="Departments"
               value={systemMetrics.totalDepartments}
@@ -437,9 +439,9 @@ export default function SystemAdminDashboard() {
               color="purple"
             />
           </div>
-        )}
+            )}
 
-        {upgradeRequests.length > 0 && (
+            {upgradeRequests.length > 0 && (
           <div className="mb-4 rounded-xl bg-red-950/20 border border-red-800/50 overflow-hidden">
             <div className="p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -485,10 +487,10 @@ export default function SystemAdminDashboard() {
               </div>
             </div>
           </div>
-        )}
+            )}
 
-        {/* Search Card */}
-        <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 mb-4">
+            {/* Search Card */}
+            <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/90 via-slate-950/70 to-slate-900/70 px-5 py-4 mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
             <Input
@@ -498,9 +500,9 @@ export default function SystemAdminDashboard() {
               className="pl-10 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500 text-sm h-9"
             />
           </div>
-        </div>
+            </div>
 
-        <div className="space-y-3">
+            <div className="space-y-3">
           {departmentsLoading ? (
             <Card className="bg-[#0f1629] border-slate-800/50">
               <CardContent className="p-12 text-center">
@@ -626,7 +628,8 @@ export default function SystemAdminDashboard() {
               );
             })
           )}
-        </div>
+            </div>
+          </>
         )}
 
         {activeTab === "info-requests" && (
