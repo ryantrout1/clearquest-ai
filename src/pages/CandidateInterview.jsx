@@ -1502,7 +1502,14 @@ export default function CandidateInterview() {
           text: value
         };
 
-        const newTranscript = [...transcript, questionEntry, answerEntry];
+        // Combine question and answer into single entry for render
+        const combinedEntry = {
+          ...questionEntry,
+          answer: answerEntry.answer,
+          text: answerEntry.text
+        };
+
+        const newTranscript = [...transcript, combinedEntry];
         setTranscript(newTranscript);
         
         // Detect section transition BEFORE advancing to next question
