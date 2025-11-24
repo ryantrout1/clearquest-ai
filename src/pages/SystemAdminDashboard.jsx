@@ -751,7 +751,11 @@ function InfoRequestsTable({ infoRequests, isLoading, queryClient }) {
                         </>
                       )}
                       <span>•</span>
-                      <span>{format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                      <span>
+                        {request.created_at 
+                          ? format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")
+                          : 'No date'}
+                      </span>
                     </div>
                   </div>
 
