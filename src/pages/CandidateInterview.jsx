@@ -2885,31 +2885,31 @@ export default function CandidateInterview() {
                       t => t.type === 'question' && t.category === currentSection.section_name
                     ).length;
                     const totalInSection = sectionQuestions.length;
-                    const sectionPercent = totalInSection > 0 
+                    const sectionProgress = totalInSection > 0 
                       ? Math.round((answeredInSection / totalInSection) * 100) 
                       : 0;
                     
                     return (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">Current Section:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-slate-300">{currentSection.section_name}</span>
-                          <div
-                            className="px-3 py-1 rounded-full border text-xs font-medium"
-                            style={{
-                              backgroundColor: sectionPercent === 100 
-                                ? 'rgba(34, 197, 94, 0.15)' 
-                                : 'rgba(59, 130, 246, 0.15)',
-                              borderColor: sectionPercent === 100 
-                                ? 'rgba(34, 197, 94, 0.3)' 
-                                : 'rgba(59, 130, 246, 0.3)',
-                              color: sectionPercent === 100 
-                                ? '#86efac' 
-                                : '#93c5fd'
+                      <div>
+                        <div 
+                          className="w-full h-1.5 bg-slate-700/30 rounded-full overflow-hidden mb-1.5"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={sectionProgress}
+                          aria-label={`${currentSection.section_name} progress: ${sectionProgress}% complete`}
+                        >
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out"
+                            style={{ 
+                              width: `${sectionProgress}%`,
+                              boxShadow: sectionProgress > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
                             }}
-                          >
-                            {answeredInSection}/{totalInSection}
-                          </div>
+                          />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-slate-400">{currentSection.section_name}</span>
+                          <span className="text-xs font-medium text-blue-400">{answeredInSection} / {totalInSection}</span>
                         </div>
                       </div>
                     );
