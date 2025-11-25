@@ -108,6 +108,58 @@ const HEAVY_SECTIONS = [
 // FEATURE FLAG: Enable live AI follow-ups (via invokeLLM server function)
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 
+// ============================================================================
+// PROBE ENGINE V2 - FEATURE FLAG & HELPER
+// ============================================================================
+
+/**
+ * Feature flag: Determines which packs use ProbeEngineV2
+ * Currently ONLY PACK_LE_APPS is enabled for V2 (DEBUG mode)
+ */
+const useProbeEngineV2 = (packId) => {
+  // For now, ONLY Law Enforcement Applications uses ProbeEngineV2
+  return packId === "PACK_LE_APPS";
+};
+
+/**
+ * Call the probeEngineV2 backend function (DEBUG mode - no LLM calls)
+ * Returns the debug payload for inspection
+ */
+const callProbeEngineV2 = async (base44Client, params) => {
+  const {
+    packId,
+    incidentAnswers,
+    previousProbes,
+    overrideMaxProbes,
+    globalProbeInstructions
+  } = params;
+
+  try {
+    console.log('[PROBE_ENGINE_V2] Calling backend function with:', {
+      pack_id: packId,
+      incident_answers_keys: Object.keys(incidentAnswers),
+      previous_probes_count: previousProbes?.length || 0
+    });
+
+    const response = await base44Client.functions.invoke('probeEngineV2', {
+      pack_id: packId,
+      incident_answers: incidentAnswers,
+      previous_probes: previousProbes || [],
+      override_max_probes: overrideMaxProbes,
+      global_probe_instructions: globalProbeInstructions
+    });
+
+    console.log('[PROBE_ENGINE_V2] Response:', response.data);
+    return response.data;
+  } catch (err) {
+    console.error('[PROBE_ENGINE_V2] Error calling backend:', err);
+    return {
+      mode: 'ERROR',
+      message: err.message || 'Failed to call probeEngineV2'
+    };
+  }
+};
+
 /**
  * CandidateInterview - CANONICAL INTERVIEW PAGE (v2.5)
  * Deterministic base questions + follow-up packs (UI-driven) with conditional logic
