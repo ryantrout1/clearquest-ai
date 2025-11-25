@@ -219,6 +219,9 @@ export default function CandidateInterview() {
   const [validationHint, setValidationHint] = useState(null);
   const [isCommitting, setIsCommitting] = useState(false);
   
+  // IDEMPOTENCY: Track triggered packs to prevent duplicate triggers (React StrictMode safe)
+  const triggeredPacksRef = useRef(new Set()); // Set of "baseQuestionId:packId" keys
+  
   // Modal state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
