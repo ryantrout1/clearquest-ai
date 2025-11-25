@@ -11,19 +11,20 @@ const PACK_CONFIG = {
     priorityOrder: ["monthYear", "outcome", "reason", "issues", "agency", "position"],
     // Map from raw fieldKeys (from FollowUpQuestion entities) to semantic field names
     fieldKeyMap: {
-      "PACK_LE_APPS_AGENCY": "agency",
-      "PACK_LE_APPS_POSITION": "position",
-      "PACK_LE_APPS_MONTH_YEAR": "monthYear",
-      "PACK_LE_APPS_OUTCOME": "outcome",
-      "PACK_LE_APPS_REASON": "reason",
-      "PACK_LE_APPS_ISSUES": "issues",
-      // Legacy keys (timestamp-based) for backward compatibility
+      // Legacy keys (timestamp-based) - these are the actual keys in the database
       "PACK_LE_APPS_Q1": "agency",
       "PACK_LE_APPS_Q1764025170356": "position",
       "PACK_LE_APPS_Q1764025187292": "monthYear",
       "PACK_LE_APPS_Q1764025199138": "outcome",
       "PACK_LE_APPS_Q1764025212764": "reason",
       "PACK_LE_APPS_Q1764025246583": "issues",
+      // Semantic keys (if ever used in the future)
+      "PACK_LE_APPS_AGENCY": "agency",
+      "PACK_LE_APPS_POSITION": "position",
+      "PACK_LE_APPS_MONTH_YEAR": "monthYear",
+      "PACK_LE_APPS_OUTCOME": "outcome",
+      "PACK_LE_APPS_REASON": "reason",
+      "PACK_LE_APPS_ISSUES": "issues",
     },
   },
   // other packs will be added later
@@ -37,16 +38,68 @@ function safe(value) {
 }
 
 /**
+ * Check if a value should be treated as unknown/missing
+ * Returns true for empty, null, undefined, or vague responses like "I don't remember"
+ */
+function isUnknown(value) {
+  if (value === null || value === undefined) return true;
+  if (typeof value !== "string") return false;
+  
+  const v = value.trim().toLowerCase();
+  if (!v) return true;
+  
+  // Treat these as unknown responses
+  const UNKNOWN_PATTERNS = [
+    "i don't remember",
+    "i dont remember",
+    "don't remember",
+    "dont remember",
+    "i don't recall",
+    "i dont recall",
+    "don't recall",
+    "dont recall",
+    "not sure",
+    "unsure",
+    "unknown",
+    "n/a",
+    "na",
+    "idk",
+    "i don't know",
+    "i dont know",
+    "don't know",
+    "dont know",
+    "can't remember",
+    "cant remember",
+    "can't recall",
+    "cant recall",
+    "cannot remember",
+    "cannot recall",
+  ];
+  
+  return UNKNOWN_PATTERNS.includes(v);
+}
+
+/**
  * Normalize raw incident answers to semantic field names using pack's fieldKeyMap
+ * Returns an object with all required fields initialized to null, then populated from raw answers
  */
 function normalizeIncidentAnswers(packConfig, rawAnswers) {
-  const normalized = {};
+  // Initialize with all required fields as null
+  const normalized = {
+    agency: null,
+    position: null,
+    monthYear: null,
+    outcome: null,
+    reason: null,
+    issues: null,
+  };
+  
   const fieldKeyMap = packConfig.fieldKeyMap || {};
   
-  for (const [rawKey, rawValue] of Object.entries(rawAnswers)) {
+  for (const [rawKey, rawValue] of Object.entries(rawAnswers || {})) {
     const semanticField = fieldKeyMap[rawKey];
     if (semanticField) {
-      normalized[semanticField] = rawValue;
+      normalized[semanticField] = typeof rawValue === "string" ? rawValue.trim() : rawValue;
     }
   }
   
@@ -54,33 +107,64 @@ function normalizeIncidentAnswers(packConfig, rawAnswers) {
 }
 
 /**
- * Check if a value represents "don't remember" or similar vague response
- */
-function isDontRemember(value) {
-  const v = safe(value).toLowerCase();
-  return /^(i?\s*don'?t\s*remember|dont\s*remember|not\s*sure|idk|n\/a|na|unknown|can'?t\s*recall|cannot\s*recall)$/i.test(v);
-}
-
-/**
  * Compute gaps based on pack config and normalized incident answers
- * Returns array of { field, reason } ordered by priority
+ * Returns array of field names that are missing or unknown, ordered by priority
  */
 function computeGaps(packConfig, normalizedAnswers) {
   const gaps = [];
 
   for (const field of packConfig.priorityOrder) {
-    const value = safe(normalizedAnswers[field]);
+    const value = normalizedAnswers[field];
     
-    if (!value) {
-      gaps.push({ field, reason: "missing" });
-    } else if (field === "monthYear" && isDontRemember(value)) {
-      // monthYear specifically should flag "don't remember" as vague
-      gaps.push({ field, reason: "vague" });
+    if (isUnknown(value)) {
+      gaps.push(field);
     }
-    // Note: "No" in issues is NOT considered missing - it's a valid answer
   }
 
   return gaps;
+}
+
+/**
+ * Generate a targeted probe question based on the gaps
+ */
+function generateProbeQuestion(gaps, normalizedIncident) {
+  if (gaps.length === 0) return "DONE";
+  
+  // Single gap - generate specific question
+  if (gaps.length === 1) {
+    const gap = gaps[0];
+    switch (gap) {
+      case "monthYear":
+        return "You mentioned you don't remember the month and year you applied for this law enforcement position. Do you recall an approximate month and year for that application, even if it's not exact?";
+      case "agency":
+        return "Which law enforcement agency did you apply to? Please provide the name of the department.";
+      case "position":
+        return "What position did you apply for at this agency?";
+      case "outcome":
+        return "What was the outcome of your application? Were you hired, not selected, or did the process end for another reason?";
+      case "reason":
+        return "Did the agency tell you why you were not selected or why the process ended?";
+      case "issues":
+        return "Were there any issues or concerns raised during the hiring process that you're aware of?";
+      default:
+        return `Can you provide more details about the ${gap} for this application?`;
+    }
+  }
+  
+  // Multiple gaps - general follow-up
+  const gapDescriptions = gaps.map(g => {
+    switch (g) {
+      case "monthYear": return "approximate dates";
+      case "outcome": return "the outcome";
+      case "reason": return "the reason given";
+      case "issues": return "any issues raised";
+      case "agency": return "the agency name";
+      case "position": return "the position";
+      default: return g;
+    }
+  });
+  
+  return `Before we move on, is there anything else you can recall that would help clarify the details of this application? Specifically, we're missing information about: ${gapDescriptions.join(", ")}.`;
 }
 
 /**
