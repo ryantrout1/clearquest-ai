@@ -65,7 +65,7 @@ export default function FollowUpPackDetails({
       behavior_type: pack.behavior_type || 'standard',
       requires_completion: pack.requires_completion !== false,
       max_probe_loops: pack.max_probe_loops || '',
-      max_ai_followups: pack.max_ai_followups ?? 2,
+      max_ai_followups: pack.max_ai_followups ?? 3,
       ai_probe_instructions: pack.ai_probe_instructions || '',
       ai_summary_instructions: pack.ai_summary_instructions || '',
       active: pack.active !== false,
@@ -257,6 +257,7 @@ export default function FollowUpPackDetails({
               <Button
                 onClick={() => {
                   const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
+                  const categoryIdCancel = pack.category_id || mapPackToCategory(pack.followup_pack_id);
                   setFormData({
                     pack_name: pack.pack_name || '',
                     description: pack.description || '',
@@ -267,7 +268,7 @@ export default function FollowUpPackDetails({
                     ai_probe_instructions: pack.ai_probe_instructions || '',
                     ai_summary_instructions: pack.ai_summary_instructions || '',
                     active: pack.active !== false,
-                    categoryId: categoryId
+                    categoryId: categoryIdCancel
                   });
                   setIsEditing(false);
                 }}
