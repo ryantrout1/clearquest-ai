@@ -1733,6 +1733,31 @@ export default function CandidateInterview() {
           
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
+            
+            // IDEMPOTENCY: Check if this pack was already triggered for this base question
+            const triggerKey = `${currentItem.id}:${packId}`;
+            if (triggeredPacksRef.current.has(triggerKey)) {
+              console.log(`⏭️ Skipping duplicate pack trigger for ${packId} on base question ${currentItem.id}`);
+              // Still advance to next question since the pack is already being handled
+              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+              if (nextQuestionId && engine.QById[nextQuestionId]) {
+                setQueue([]);
+                setCurrentItem({ id: nextQuestionId, type: 'question' });
+                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+              } else {
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                setShowCompletionModal(true);
+              }
+              setIsCommitting(false);
+              setInput("");
+              saveAnswerToDatabase(currentItem.id, value, question);
+              return;
+            }
+            
+            // Mark this pack as triggered
+            triggeredPacksRef.current.add(triggerKey);
             console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
             
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
