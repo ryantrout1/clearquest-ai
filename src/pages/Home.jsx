@@ -203,7 +203,7 @@ export default function Home() {
           Built to Support Investigator Judgment — Not Replace It
         </h2>
         <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-3xl mx-auto">
-          ClearQuest structures the interview, but the investigator remains in full control. AI never makes hiring decisions — it simply helps ensure clarity, consistency, and completeness during the applicant's disclosure process.
+          ClearQuest structures the interview, but the investigator remains in full control. The system never makes hiring decisions — it simply helps ensure clarity, consistency, and completeness during the applicant's disclosure process.
         </p>
       </div>
 
