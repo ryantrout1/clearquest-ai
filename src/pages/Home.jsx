@@ -100,7 +100,7 @@ export default function Home() {
                 size="lg" 
                 variant="outline" 
                 onClick={() => setInfoRequestOpen(true)}
-                className="bg-transparent border-blue-500 text-blue-400 hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base"
+                className="bg-transparent border-blue-500 text-blue-400 hover:text-white hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base"
               >
                 <Mail className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Get More Information
