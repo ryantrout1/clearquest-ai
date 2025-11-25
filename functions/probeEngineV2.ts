@@ -265,7 +265,7 @@ export default async function probeEngineV2(input, context) {
   console.log('[PROBE_ENGINE_V2] Normalized answers:', JSON.stringify(normalized));
   
   // Compute gaps using normalized answers
-  const gaps = computeGaps(packConfig, normalized);
+  const gaps = computeGaps(packConfig, normalized, pack_id);
 
   // Decide mode based on gaps and previousProbeCount
   let mode;
