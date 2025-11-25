@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // Helper to build unified AI instructions with layered prompts
-async function buildAiInstructions(base44, mode, sectionId, packId) {
+async function buildAiInstructions(base44, mode, sectionId, packId, maxFollowups = 3) {
   try {
     const coreRules = `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
 
@@ -42,6 +42,13 @@ CORE SYSTEM RULES (ALWAYS APPLY):
           instructions += packs[0].ai_probe_instructions + '\n\n';
         }
       }
+      
+      // Layer 4: Probing limit instructions (dynamic based on pack config)
+      instructions += '=== PROBING LIMITS ===\n';
+      instructions += `- Ask follow-up questions ONE at a time.\n`;
+      instructions += `- Your goal is to fully understand and clarify the story in about 3 follow-up questions.\n`;
+      instructions += `- You may ask up to ${maxFollowups} follow-up questions if needed, but stop sooner if the story is clear.\n`;
+      instructions += `- Do NOT exceed ${maxFollowups} probing questions under any circumstances.\n\n`;
       
       return instructions;
     }
@@ -91,17 +98,35 @@ Deno.serve(async (req) => {
       console.warn('Could not load question for section context:', err);
     }
 
+    // Get pack config for max_ai_followups limit
+    let maxFollowups = 3; // Default if pack not found or field not set
+    try {
+      if (followupPackId) {
+        const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: followupPackId });
+        if (packs.length > 0) {
+          const rawLimit = packs[0].max_ai_followups;
+          if (typeof rawLimit === 'number' && rawLimit > 0) {
+            maxFollowups = rawLimit;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load pack for max_ai_followups:', err);
+    }
+
     // Build unified instructions using the layered instruction builder
-    const systemPrompt = await buildAiInstructions(base44, 'probe', sectionId, followupPackId);
+    const systemPrompt = await buildAiInstructions(base44, 'probe', sectionId, followupPackId, maxFollowups);
     
     // Add investigator-specific overlay (subordinate to unified instructions)
     const investigatorOverlay = `
 
 === INVESTIGATOR PROBING TASK ===
-You are generating a small number of follow-up questions as an AI investigator to clarify this specific story for the human background investigator.
+You are generating follow-up questions as an AI investigator to clarify this specific story for the human background investigator.
 
 CRITICAL TASK RULES:
 - Ask ONE concise, specific follow-up question based on the candidate's answer
+- Your goal is to fully understand the story in about 3 follow-up questions
+- You may ask up to ${maxFollowups} follow-up questions if truly needed, but stop sooner if the story is clear
 - Focus on gathering factual details (circumstances, outcomes, context)
 - Be professional and non-judgmental
 - Keep questions brief (under 30 words)
