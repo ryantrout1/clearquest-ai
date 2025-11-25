@@ -217,86 +217,76 @@ export default function AiSettings() {
             </Card>
           </div>
 
-          {/* Right Column - Editor */}
+          {/* Right Column - Content Display */}
           <div className="flex flex-col">
-            <Card className="bg-slate-800/50 border-slate-700 flex-1 flex flex-col">
-              {/* Editor Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+            {/* Header Card */}
+            <div className="flex items-center justify-between px-5 py-4 bg-slate-800/50 border border-slate-700 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                {activeTabConfig && <activeTabConfig.icon className="w-5 h-5 text-blue-400" />}
                 <div>
-                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                    {activeTabConfig && <activeTabConfig.icon className="w-5 h-5 text-blue-400" />}
+                  <h2 className="text-lg font-semibold text-white">
                     {activeTabConfig?.label}
                   </h2>
                   <p className="text-sm text-slate-400 mt-0.5">
                     {activeTabConfig?.description}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isEditing ? (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancel}
-                        className="text-slate-400 hover:text-white"
-                      >
-                        <X className="w-4 h-4 mr-1" />
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleSave}
-                        disabled={isSaving || !hasChanges}
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        {isSaving ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-4 h-4 mr-1" />
-                            Save Changes
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      onClick={() => setIsEditing(true)}
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-                    >
-                      Edit Instructions
-                    </Button>
-                  )}
-                </div>
               </div>
-
-              {/* Editor Content */}
-              <div className="flex-1 p-5">
-                {activeTabConfig && (
-                  <Textarea
-                    value={formData[activeTabConfig.field]}
-                    onChange={(e) => setFormData({...formData, [activeTabConfig.field]: e.target.value})}
-                    disabled={!isEditing}
-                    className={cn(
-                      "w-full h-[calc(100vh-340px)] min-h-[400px] resize-none font-mono text-sm leading-relaxed",
-                      isEditing 
-                        ? "bg-slate-900 border-blue-500/50 text-white focus:border-blue-400" 
-                        : "bg-slate-900/30 border-slate-700 text-slate-100"
-                    )}
-                    placeholder={`Enter ${activeTabConfig.label.toLowerCase()} instructions...`}
-                  />
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancel}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={isSaving || !hasChanges}
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={() => setIsEditing(true)}
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  >
+                    Edit Instructions
+                  </Button>
                 )}
               </div>
+            </div>
 
-              {/* Editor Footer */}
-              {isEditing && (
-                <div className="px-5 py-3 border-t border-slate-700 bg-slate-800/30">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
+            {/* Content Card */}
+            <div className="bg-slate-900/60 border border-t-0 border-slate-700 rounded-b-xl overflow-hidden">
+              {isEditing ? (
+                <div className="p-4">
+                  <Textarea
+                    value={formData[activeTabConfig?.field] || ""}
+                    onChange={(e) => setFormData({...formData, [activeTabConfig.field]: e.target.value})}
+                    className="w-full h-[calc(100vh-340px)] min-h-[400px] resize-none font-mono text-sm leading-relaxed bg-slate-950 border-blue-500/50 text-white focus:border-blue-400"
+                    placeholder={`Enter ${activeTabConfig?.label?.toLowerCase()} instructions...`}
+                  />
+                  <div className="flex items-center justify-between text-xs text-slate-500 mt-3 pt-3 border-t border-slate-700">
                     <span>
                       {hasChanges ? (
                         <span className="text-amber-400">● Unsaved changes</span>
@@ -309,8 +299,29 @@ export default function AiSettings() {
                     </span>
                   </div>
                 </div>
+              ) : (
+                <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+                  {formData[activeTabConfig?.field] ? (
+                    <div className="p-5">
+                      <pre className="whitespace-pre-wrap font-mono text-sm text-slate-300 leading-relaxed">
+                        {formData[activeTabConfig?.field]}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center">
+                      <p className="text-slate-500 text-sm">No instructions configured yet.</p>
+                      <Button
+                        onClick={() => setIsEditing(true)}
+                        variant="link"
+                        className="text-blue-400 hover:text-blue-300 mt-2"
+                      >
+                        Add instructions
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
-            </Card>
+            </div>
           </div>
         </div>
       </div>
