@@ -259,7 +259,7 @@ export default function Home() {
             Now Onboarding Arizona Agencies
           </h3>
           <p className="text-slate-400 text-sm sm:text-base mb-6 max-w-2xl mx-auto">
-            ClearQuest AI is live and in use. We're opening a limited number of early-access spots for agencies ready to modernize their applicant screening.
+            ClearQuest is live and in use. We're opening a limited number of early-access spots for agencies ready to modernize their applicant screening.
           </p>
           <Button 
             onClick={() => setInfoRequestOpen(true)}
