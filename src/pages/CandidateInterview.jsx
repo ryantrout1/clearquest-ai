@@ -984,19 +984,11 @@ export default function CandidateInterview() {
       console.log('[PROBE_ENGINE_V2] Pack uses V2 probing:', packId);
       
       // Build incident_answers from followUpAnswers array
+      // Pass raw fieldKeys - backend will normalize them
       const incidentAnswers = {};
       followUpAnswers.forEach(answer => {
-        // Map fieldKey to expected keys for PACK_LE_APPS
-        const keyMap = {
-          'PACK_LE_APPS_Q1': 'agency',
-          'PACK_LE_APPS_Q1764025170356': 'position',
-          'PACK_LE_APPS_Q1764025187292': 'monthYear',
-          'PACK_LE_APPS_Q1764025199138': 'outcome',
-          'PACK_LE_APPS_Q1764025212764': 'reason',
-          'PACK_LE_APPS_Q1764025246583': 'issues'
-        };
-        const mappedKey = keyMap[answer.fieldKey] || answer.fieldKey;
-        incidentAnswers[mappedKey] = answer.answer;
+        // Use the fieldKey directly - backend handles mapping to semantic fields
+        incidentAnswers[answer.fieldKey] = answer.answer;
       });
 
       // Call probeEngineV2 backend function (DEBUG mode)

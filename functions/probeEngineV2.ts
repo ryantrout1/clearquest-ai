@@ -9,6 +9,22 @@ const PACK_CONFIG = {
     maxAiFollowups: 2,
     requiredFields: ["agency", "position", "monthYear", "outcome", "reason", "issues"],
     priorityOrder: ["monthYear", "outcome", "reason", "issues", "agency", "position"],
+    // Map from raw fieldKeys (from FollowUpQuestion entities) to semantic field names
+    fieldKeyMap: {
+      "PACK_LE_APPS_AGENCY": "agency",
+      "PACK_LE_APPS_POSITION": "position",
+      "PACK_LE_APPS_MONTH_YEAR": "monthYear",
+      "PACK_LE_APPS_OUTCOME": "outcome",
+      "PACK_LE_APPS_REASON": "reason",
+      "PACK_LE_APPS_ISSUES": "issues",
+      // Legacy keys (timestamp-based) for backward compatibility
+      "PACK_LE_APPS_Q1": "agency",
+      "PACK_LE_APPS_Q1764025170356": "position",
+      "PACK_LE_APPS_Q1764025187292": "monthYear",
+      "PACK_LE_APPS_Q1764025199138": "outcome",
+      "PACK_LE_APPS_Q1764025212764": "reason",
+      "PACK_LE_APPS_Q1764025246583": "issues",
+    },
   },
   // other packs will be added later
 };
@@ -21,21 +37,47 @@ function safe(value) {
 }
 
 /**
- * Compute gaps based on pack config and incident answers
+ * Normalize raw incident answers to semantic field names using pack's fieldKeyMap
+ */
+function normalizeIncidentAnswers(packConfig, rawAnswers) {
+  const normalized = {};
+  const fieldKeyMap = packConfig.fieldKeyMap || {};
+  
+  for (const [rawKey, rawValue] of Object.entries(rawAnswers)) {
+    const semanticField = fieldKeyMap[rawKey];
+    if (semanticField) {
+      normalized[semanticField] = rawValue;
+    }
+  }
+  
+  return normalized;
+}
+
+/**
+ * Check if a value represents "don't remember" or similar vague response
+ */
+function isDontRemember(value) {
+  const v = safe(value).toLowerCase();
+  return /^(i?\s*don'?t\s*remember|dont\s*remember|not\s*sure|idk|n\/a|na|unknown|can'?t\s*recall|cannot\s*recall)$/i.test(v);
+}
+
+/**
+ * Compute gaps based on pack config and normalized incident answers
  * Returns array of { field, reason } ordered by priority
  */
-function computeGaps(packConfig, incidentAnswers) {
+function computeGaps(packConfig, normalizedAnswers) {
   const gaps = [];
-  const vaguePatterns = /^(not sure|don'?t remember|dont remember|idk|n\/a|na|unknown)$/i;
 
   for (const field of packConfig.priorityOrder) {
-    const value = safe(incidentAnswers[field]);
+    const value = safe(normalizedAnswers[field]);
     
     if (!value) {
       gaps.push({ field, reason: "missing" });
-    } else if (vaguePatterns.test(value)) {
+    } else if (field === "monthYear" && isDontRemember(value)) {
+      // monthYear specifically should flag "don't remember" as vague
       gaps.push({ field, reason: "vague" });
     }
+    // Note: "No" in issues is NOT considered missing - it's a valid answer
   }
 
   return gaps;
@@ -71,8 +113,15 @@ export default async function probeEngineV2(input, context) {
   // Count previous probes
   const previousProbeCount = Array.isArray(previous_probes) ? previous_probes.length : 0;
   
-  // Compute gaps
-  const gaps = computeGaps(packConfig, incident_answers);
+  // Normalize raw incident answers to semantic field names
+  const rawAnswers = incident_answers || {};
+  const normalized = normalizeIncidentAnswers(packConfig, rawAnswers);
+  
+  console.log('[PROBE_ENGINE_V2] Raw answers:', JSON.stringify(rawAnswers));
+  console.log('[PROBE_ENGINE_V2] Normalized answers:', JSON.stringify(normalized));
+  
+  // Compute gaps using normalized answers
+  const gaps = computeGaps(packConfig, normalized);
 
   // Early exit: max probes reached or no gaps
   if (previousProbeCount >= maxProbes || gaps.length === 0) {
@@ -150,6 +199,8 @@ When you reach the final allowed probe, you MUST ask:
     previousProbeCount,
     maxProbes,
     gaps,
+    rawAnswers,
+    normalized,
     systemPrompt,
     userMessage,
   };
