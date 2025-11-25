@@ -168,45 +168,41 @@ function computeGaps(packConfig, normalizedAnswers, packId) {
 
 /**
  * Generate a targeted probe question based on the gaps
+ * Returns null if no useful probe can be generated (caller should use mode="DONE")
  */
-function generateProbeQuestion(gaps, normalizedIncident) {
-  if (gaps.length === 0) return "DONE";
+function generateProbeQuestion(packId, gaps, normalizedIncident) {
+  if (gaps.length === 0) return null;
   
-  // Single gap - generate specific question
-  if (gaps.length === 1) {
-    const gap = gaps[0];
-    switch (gap) {
-      case "monthYear":
-        return "You mentioned you don't remember the month and year you applied for this law enforcement position. Do you recall an approximate month and year for that application, even if it's not exact?";
-      case "agency":
-        return "Which law enforcement agency did you apply to? Please provide the name of the department.";
-      case "position":
-        return "What position did you apply for at this agency?";
-      case "outcome":
-        return "What was the outcome of your application? Were you hired, not selected, or did the process end for another reason?";
-      case "reason":
-        return "Did the agency tell you why you were not selected or why the process ended?";
-      case "issues":
-        return "Were there any issues or concerns raised during the hiring process that you're aware of?";
-      default:
-        return `Can you provide more details about the ${gap} for this application?`;
+  // PACK_LE_APPS: Only probe for monthYear or issues, never agency/position/outcome/reason
+  if (packId === "PACK_LE_APPS") {
+    const primaryGap = gaps[0];
+    
+    if (primaryGap === "monthYear") {
+      return "You mentioned you don't remember the month and year you applied for this law enforcement position. Do you recall an approximate month and year for that application, even if it's not exact?";
     }
+    
+    if (primaryGap === "issues") {
+      return "You indicated there may have been issues or concerns during this hiring process. Please describe what those issues or concerns were.";
+    }
+    
+    // Safety: if somehow a different gap slips through, don't ask a redundant question
+    return null;
   }
   
-  // Multiple gaps - general follow-up
-  const gapDescriptions = gaps.map(g => {
-    switch (g) {
-      case "monthYear": return "approximate dates";
-      case "outcome": return "the outcome";
-      case "reason": return "the reason given";
-      case "issues": return "any issues raised";
-      case "agency": return "the agency name";
-      case "position": return "the position";
-      default: return g;
-    }
-  });
-  
-  return `Before we move on, is there anything else you can recall that would help clarify the details of this application? Specifically, we're missing information about: ${gapDescriptions.join(", ")}.`;
+  // Fallback for other packs
+  const gap = gaps[0];
+  switch (gap) {
+    case "monthYear":
+      return "Do you recall the approximate month and year for this incident?";
+    case "outcome":
+      return "What was the outcome of this situation?";
+    case "reason":
+      return "What was the reason given for this outcome?";
+    case "issues":
+      return "Were there any issues or concerns raised?";
+    default:
+      return `Can you provide more details about the ${gap}?`;
+  }
 }
 
 /**
