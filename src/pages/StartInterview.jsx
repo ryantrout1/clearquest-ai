@@ -268,7 +268,7 @@ export default function StartInterview() {
                 </div>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
-                Start Background Interview
+                Start Interview
               </h1>
               <p className="text-slate-300 leading-relaxed">
                 This is a confidential, CJIS-compliant interview process. {questionCount} total questions across multiple investigative sections.
