@@ -1072,22 +1072,21 @@ export default function CandidateInterview() {
       const countKey = `${packId}:${instanceNumber}`;
       const currentCount = aiFollowupCounts[countKey] || 0;
       
-      // Get max_ai_followups from pack (default to 3)
-      const followUpPacks = await base44.entities.FollowUpPack.filter({
-        followup_pack_id: packId
-      });
-      const packEntity = followUpPacks[0];
-      const rawLimit = packEntity?.max_ai_followups;
-      const maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
+      // PERF: Use cached pack config if available, otherwise fetch and cache
+      let maxAiFollowups = 3;
+      if (cachedPackConfig && cachedPackConfig.packId === packId) {
+        maxAiFollowups = cachedPackConfig.maxAiFollowups;
+      } else {
+        const followUpPacks = await base44.entities.FollowUpPack.filter({
+          followup_pack_id: packId
+        });
+        const packEntity = followUpPacks[0];
+        const rawLimit = packEntity?.max_ai_followups;
+        maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
+        setCachedPackConfig({ packId, maxAiFollowups });
+      }
       
       if (currentCount >= maxAiFollowups) {
-        console.log('LIVE_AI_FOLLOWUP limit_reached', { 
-          interviewId: sessionId, 
-          questionId, 
-          followupPackId: packId,
-          currentCount,
-          maxAiFollowups
-        });
         return false;
       }
       
@@ -1111,7 +1110,6 @@ export default function CandidateInterview() {
       });
       
       if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
-        console.log('LIVE_AI_FOLLOWUP success', { interviewId: sessionId, questionId, followupPackId: packId });
         
         // Increment counter for this pack instance
         setAiFollowupCounts(prev => ({
@@ -1154,10 +1152,9 @@ export default function CandidateInterview() {
         setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
         return true;
       } else {
-        console.log('LIVE_AI_FOLLOWUP skipped_or_failed', { interviewId: sessionId, questionId, followupPackId: packId });
         // Fall through to agent-based probing or skip
       }
-    }
+      }
     
     // Create a fresh AI conversation JUST for this pack instance
     try {
