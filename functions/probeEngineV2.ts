@@ -245,18 +245,21 @@ export default async function probeEngineV2(input, context) {
   // Compute gaps using normalized answers
   const gaps = computeGaps(packConfig, normalized, pack_id);
 
-  // Decide mode based on gaps and previousProbeCount
-  let mode;
-  let question;
+  // Generate probe question (may return null if no useful probe available)
+  const question = generateProbeQuestion(pack_id, gaps, normalized);
   
-  if (gaps.length === 0 || previousProbeCount >= maxProbes) {
-    // No gaps to fill OR we've hit max probes - done with probing
+  // Decide mode based on gaps, question availability, and previousProbeCount
+  let mode;
+  
+  if (!gaps.length || !question) {
+    // No gaps OR no useful probe question - done with probing
     mode = "DONE";
-    question = "DONE";
+  } else if (previousProbeCount >= maxProbes) {
+    // Respect maxProbes limit
+    mode = "DONE";
   } else {
-    // We have gaps and haven't hit max probes - generate a targeted question
+    // We have gaps, a valid question, and haven't hit max probes
     mode = "QUESTION";
-    question = generateProbeQuestion(gaps, normalized);
   }
   
   // Debug log for gap analysis
