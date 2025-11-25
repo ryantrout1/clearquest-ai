@@ -38,45 +38,63 @@ function safe(value) {
 }
 
 /**
+ * Normalize a string for unknown detection - handles curly quotes/apostrophes
+ */
+function normalizeUnknownString(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .trim()
+    .toLowerCase()
+    // normalize curly apostrophes → straight
+    .replace(/['']/g, "'")
+    // normalize curly quotes → straight
+    .replace(/[""]/g, '"')
+    // collapse multiple spaces
+    .replace(/\s+/g, " ");
+}
+
+/**
  * Check if a value should be treated as unknown/missing
  * Returns true for empty, null, undefined, or vague responses like "I don't remember"
+ * Handles curly apostrophes (e.g., "I don't remember" with U+2019)
  */
 function isUnknown(value) {
-  if (value === null || value === undefined) return true;
-  if (typeof value !== "string") return false;
+  if (value == null) return true;
   
-  const v = value.trim().toLowerCase();
+  const v = normalizeUnknownString(value);
   if (!v) return true;
   
-  // Treat these as unknown responses
-  const UNKNOWN_PATTERNS = [
+  // Phrases that mean "I don't know / remember" - use includes() for partial matching
+  const UNKNOWN_SUBSTRINGS = [
     "i don't remember",
-    "i dont remember",
-    "don't remember",
     "dont remember",
+    "do not remember",
     "i don't recall",
-    "i dont recall",
-    "don't recall",
     "dont recall",
+    "do not recall",
+    "don't remember",
+    "don't recall",
     "not sure",
     "unsure",
     "unknown",
+    "i don't know",
+    "dont know",
+    "do not know",
+    "no idea",
     "n/a",
+    "n.a.",
     "na",
     "idk",
-    "i don't know",
-    "i dont know",
-    "don't know",
-    "dont know",
     "can't remember",
     "cant remember",
+    "cannot remember",
     "can't recall",
     "cant recall",
-    "cannot remember",
     "cannot recall",
   ];
   
-  return UNKNOWN_PATTERNS.includes(v);
+  // Check if the normalized string contains any of these phrases
+  return UNKNOWN_SUBSTRINGS.some((pattern) => v.includes(pattern));
 }
 
 /**
