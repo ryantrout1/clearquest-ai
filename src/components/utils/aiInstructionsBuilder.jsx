@@ -7,9 +7,10 @@ import { base44 } from "@/api/base44Client";
  * @param {string} options.mode - One of: "probe", "section-summary", "report"
  * @param {string} [options.sectionId] - Optional section ID for section-specific instructions
  * @param {string} [options.packId] - Optional pack ID for pack-specific instructions
+ * @param {number} [options.max_ai_followups] - Optional max AI follow-ups for probing mode
  * @returns {Promise<string>} Combined AI instructions
  */
-export async function buildAiInstructions({ mode, sectionId, packId }) {
+export async function buildAiInstructions({ mode, sectionId, packId, max_ai_followups }) {
   try {
     // Core system rules (CJIS-aligned, safety, etc.)
     const coreRules = `You are an AI assistant for law enforcement background investigations.
@@ -53,6 +54,14 @@ Focus on factual, objective analysis without bias.`;
           console.error('Error loading pack for probing:', err);
         }
       }
+
+      // Layer: Probing limits (dynamic based on pack config or default)
+      const maxFollowups = (typeof max_ai_followups === 'number' && max_ai_followups > 0) ? max_ai_followups : 3;
+      instructions += "\n\n## Probing Limits:\n";
+      instructions += "- Ask follow-up questions ONE at a time.\n";
+      instructions += "- Your goal is to fully understand and clarify the story in about 3 follow-up questions.\n";
+      instructions += `- You may ask up to ${maxFollowups} follow-up questions if needed, but stop sooner if the story is clear.\n`;
+      instructions += `- Do NOT exceed ${maxFollowups} probing questions under any circumstances.`;
 
     } else if (mode === "section-summary") {
       // Mode: Section Summary
