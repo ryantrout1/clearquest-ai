@@ -90,7 +90,7 @@ export default function Home() {
                 Powered by the C.L.E.A.R. Workflow — Connect · Learn · Evaluate · Assist · Ready
               </p>
               <p className="text-sm sm:text-base text-blue-300/80 max-w-2xl mx-auto px-4 mt-3">
-                A modern standard for consistent, defensible, and professional applicant screening.
+                A modern, consistent, and defensible way to conduct applicant interviews.
               </p>
             </div>
 
@@ -106,7 +106,7 @@ export default function Home() {
                 className="bg-transparent border-blue-500 text-blue-400 hover:text-white hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base"
               >
                 <Mail className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                Get More Information
+                Talk to Our Team
               </Button>
             </div>
           </div>
@@ -119,43 +119,43 @@ export default function Home() {
           <FeatureCard
             icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="CJIS-Compliant Security"
-            description="256-bit AES encryption, optional 7-day auto-retention, and anonymous-by-design workflow."
-            detailedDescription="256-bit AES encryption, optional 7-day auto-retention, and an anonymous-by-design workflow ensure total data protection without storing PII."
+            description="AES-256 encryption, optional 7-day retention, and anonymous-by-design workflow."
+            detailedDescription="AES-256 encryption, optional 7-day retention, and an anonymous-by-design workflow that keeps PII out of the system."
             color="blue"
           />
           <FeatureCard
             icon={<MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Built for Investigators"
-            description="Structured interview process investigators control — freeing time for credibility and judgment."
-            detailedDescription="ClearQuest provides a structured interview process investigators control — freeing time for evaluating credibility and judgment."
+            description="Structured interview process investigators control — reducing busywork."
+            detailedDescription="ClearQuest provides a structured interview process investigators control — reducing busywork and supporting professional judgment."
             color="purple"
           />
           <FeatureCard
             icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title={`${totalQuestions}-Question Master Bank`}
-            description="Covers criminal, financial, employment, and personal history with consistent structure."
-            detailedDescription="Covers criminal, financial, employment, and personal history with consistent, repeatable structure across every applicant."
+            description="Comprehensive coverage of employment, criminal history, finances, and disclosures."
+            detailedDescription="Comprehensive coverage of employment, criminal history, finances, and personal disclosures — consistently captured every time."
             color="green"
           />
           <FeatureCard
             icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Time-Saving Workflow"
-            description="Streamlined intake reduces repetitive questions while preserving investigator judgment."
-            detailedDescription="Streamlined intake dramatically reduces repetitive questions and manual note-taking while preserving investigator judgment."
+            description="Cuts repetitive questioning so investigators can focus on credibility."
+            detailedDescription="Cuts repetitive questioning and manual note-taking so investigators can focus on assessing credibility and character."
             color="orange"
           />
           <FeatureCard
             icon={<CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Automated Follow-Ups"
-            description='Every "Yes" triggers standardized follow-up packs for consistent documentation.'
-            detailedDescription='Every "Yes" triggers standardized follow-up packs, ensuring no detail is missed and every incident is documented consistently.'
+            description='Every "Yes" triggers structured follow-ups for complete disclosures.'
+            detailedDescription='Every "Yes" answer triggers structured follow-ups to ensure complete and consistent applicant disclosures.'
             color="indigo"
           />
           <FeatureCard
             icon={<Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
             title="Ready-to-Submit Reports"
-            description="Professional summaries with transcripts, AI notes, follow-ups, and verification sections."
-            detailedDescription="Instantly generate professional summaries with transcripts, AI notes, follow-ups, and verification sections."
+            description="Clean summaries with transcripts and follow-up details — ready for review."
+            detailedDescription="Instantly generate clean summaries with transcripts and follow-up details — ready for review or filing."
             color="red"
           />
         </div>
@@ -168,7 +168,7 @@ export default function Home() {
             Why Agencies Choose ClearQuest AI
           </h2>
           <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto">
-            Built for the people who actually use it — investigators, command staff, and city HR.
+            Built for the people who use it every day — investigators, supervisors, and support staff.
           </p>
         </div>
         
@@ -176,22 +176,22 @@ export default function Home() {
           <PersonaCard
             icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7" />}
             title="For Background Investigators"
-            subheadline="Reduce interview time by 50–70%."
-            body="ClearQuest standardizes early-stage interviews so investigators spend less time on repetitive questioning and more time assessing credibility. Automated follow-ups ensure every detail is captured consistently."
+            subheadline="Reduce interview time and capture more complete details."
+            body="ClearQuest standardizes your interviews so you spend less time repeating questions and more time evaluating an applicant's truthfulness and credibility."
             color="blue"
           />
           <PersonaCard
             icon={<Star className="w-6 h-6 sm:w-7 sm:h-7" />}
-            title="For Chiefs & Command Staff"
-            subheadline="Consistent, defensible screening."
-            body="Every applicant begins with the same structured interview, reducing liability and bias. ClearQuest creates a clean audit trail that supports transparent, defensible hiring decisions."
+            title="For Command Staff"
+            subheadline="Consistent and defensible screening."
+            body="Every applicant goes through the same structured process, reducing risk and increasing fairness across all interviews."
             color="purple"
           />
           <PersonaCard
             icon={<Building2 className="w-6 h-6 sm:w-7 sm:h-7" />}
-            title="For HR & City Personnel"
-            subheadline="CJIS-aware, anonymous-by-design workflow."
-            body="ClearQuest keeps all PII out of the system while delivering detailed interview records, short retention options, and compliant documentation for HR and legal teams."
+            title="For Support Staff"
+            subheadline="Clean documentation and easy reviews."
+            body="ClearQuest keeps PII out of the system while providing organized, easy-to-follow interview summaries for internal use."
             color="green"
           />
         </div>
@@ -200,78 +200,42 @@ export default function Home() {
       {/* Built to Support Investigator Judgment */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
         <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-          Built to Support Investigator Judgment — Never Replace It
+          Built to Support Investigator Judgment — Not Replace It
         </h2>
         <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-3xl mx-auto">
-          ClearQuest structures the interview for clarity and consistency, but investigators remain in full control. AI assists with completeness, not hiring decisions. Professional judgment stays at the center of every investigation.
+          ClearQuest structures the interview, but the investigator remains in full control. AI never makes hiring decisions — it simply helps ensure clarity, consistency, and completeness during the applicant's disclosure process.
         </p>
       </div>
 
-      {/* For Your Entire Agency Team */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+      {/* For Your Agency Team */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
         <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-8">
-          For Your Entire Agency Team
+          For Your Agency Team
         </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm sm:text-base">
+        <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm sm:text-base">
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Background Investigators:</strong> Structured interviews and complete follow-ups</span>
+            <span className="text-slate-300"><strong className="text-white">Investigators:</strong> Faster, consistent interviews</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Command Staff:</strong> Consistent, defensible screening</span>
+            <span className="text-slate-300"><strong className="text-white">Supervisors:</strong> Clearer, more reliable documentation</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">HR Directors:</strong> Clear compliance-ready documentation</span>
+            <span className="text-slate-300"><strong className="text-white">HR / Admin:</strong> Easier review and file organization</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">City Legal:</strong> Reduced liability through standardization</span>
+            <span className="text-slate-300"><strong className="text-white">Training Staff:</strong> Clean transcripts for onboarding</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">IT / Security:</strong> No PII stored; AES-256 encryption</span>
+            <span className="text-slate-300"><strong className="text-white">Polygraphers:</strong> More consistent pre-polygraph statements</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Recruiters:</strong> Faster applicant cycle times</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Budget Managers:</strong> Predictable, low-cost SaaS</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Procurement:</strong> Simple contracting and onboarding</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Training Sgt:</strong> Clean audit trails for onboarding</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Polygraphers:</strong> Clear pre-polygraph disclosures</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">City Manager:</strong> Transparency across the hiring pipeline</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Public Information:</strong> Improved accountability and documentation</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Personnel Analysts:</strong> Faster workflows and fewer errors</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Agency Admin Staff:</strong> Simplified coordination</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Applicants:</strong> Clear expectations and consistent questioning</span>
+            <span className="text-slate-300"><strong className="text-white">Applicants:</strong> Clearer expectations & easier disclosures</span>
           </div>
         </div>
       </div>
@@ -280,10 +244,10 @@ export default function Home() {
       <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14 md:py-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 md:gap-8 text-center">
-            <StatCard number={totalQuestions} label="Questions in Master Bank" />
-            <StatCard number="10" label="Structured Follow-Up Packs" />
+            <StatCard number={totalQuestions} label="Structured Interview Questions" />
+            <StatCard number="10" label="Follow-Up Packs" />
             <StatCard number="256-bit" label="AES Encryption" />
-            <StatCard number="CJIS" label="Aware & Secure Framework" />
+            <StatCard number="CJIS" label="Aware Framework" />
           </div>
         </div>
       </div>
@@ -292,10 +256,10 @@ export default function Home() {
       <div className="bg-slate-900/80 border-y border-blue-500/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
           <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">
-            Now Onboarding Our First Arizona Agencies
+            Now Onboarding Arizona Agencies
           </h3>
           <p className="text-slate-400 text-sm sm:text-base mb-6 max-w-2xl mx-auto">
-            ClearQuest AI is live and in active use. We're opening limited early-access slots for departments ready to modernize their applicant screening with a structured, defensible, CJIS-aware workflow.
+            ClearQuest AI is live and in use. We're opening a limited number of early-access spots for agencies ready to modernize their applicant screening.
           </p>
           <Button 
             onClick={() => setInfoRequestOpen(true)}
@@ -348,13 +312,13 @@ export default function Home() {
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm sm:text-base text-slate-300">
             <span>AES-256 encryption</span>
             <span className="text-slate-600">•</span>
-            <span>Anonymous-by-design interviews</span>
+            <span>Anonymous-by-design workflow</span>
             <span className="text-slate-600">•</span>
-            <span>Optional 7-day retention</span>
+            <span>Optional 7-day data retention</span>
             <span className="text-slate-600">•</span>
-            <span>No PII stored</span>
+            <span>No PII stored in the system</span>
             <span className="text-slate-600">•</span>
-            <span>Investigator-controlled workflows</span>
+            <span>Investigator-controlled processes</span>
             <span className="text-slate-600">•</span>
             <span>CJIS-aware architecture</span>
           </div>
