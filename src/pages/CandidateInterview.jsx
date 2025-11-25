@@ -788,7 +788,7 @@ export default function CandidateInterview() {
   // NEW: Helper to call server-side AI function for live follow-ups
   const requestLiveAiFollowup = async (params) => {
     const { interviewId, questionId, followupPackId, transcriptWindow, candidateAnswer } = params;
-    
+
     try {
       const response = await base44.functions.invoke("interviewAiFollowup", {
         interviewId,
@@ -798,10 +798,9 @@ export default function CandidateInterview() {
         candidateAnswer,
         mode: "FOLLOWUP_PROBE"
       });
-      
+
       return response.data;
     } catch (err) {
-      console.error('LIVE_AI_FOLLOWUP_ERROR', { interviewId, questionId, followupPackId, error: err.message });
       return { status: 'error' };
     }
   };
@@ -829,7 +828,6 @@ export default function CandidateInterview() {
   const startTypingTimeout = useCallback(() => {
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      console.log('⏰ Typing timeout reached (4 min) - showing gentle reminder');
       // Add system message reminder (non-blocking)
       const reminderEntry = {
         id: `sys-reminder-${Date.now()}`,
@@ -854,7 +852,6 @@ export default function CandidateInterview() {
   const startAiResponseTimeout = useCallback(() => {
     clearTimeout(aiResponseTimeoutRef.current);
     aiResponseTimeoutRef.current = setTimeout(() => {
-      console.warn(`⚠️ AI response timeout (${AI_RESPONSE_TIMEOUT_MS / 1000}s) — forcing handoff to deterministic engine`);
       handleAiResponseTimeout();
     }, AI_RESPONSE_TIMEOUT_MS);
   }, []);
@@ -868,7 +865,6 @@ export default function CandidateInterview() {
 
   // NEW: End AI mini-session cleanly
   const endAiProbingSession = useCallback(() => {
-    console.log('🔚 [AI MINI-SESSION] Ending session');
     setAiSessionId(null);
     setAiProbingPackInstanceKey(null);
     clearTypingTimeout();
@@ -881,8 +877,6 @@ export default function CandidateInterview() {
 
   // NEW: Graceful fallback handler
   const handleAiResponseTimeout = useCallback(() => {
-    console.log('🚨 [AI TIMEOUT] Graceful fallback initiated');
-
     // 1) Add system message to chat
     const systemEntry = {
       id: `sys-timeout-${Date.now()}`,
@@ -923,11 +917,8 @@ export default function CandidateInterview() {
 
   // NEW: Start per-pack AI mini-session
   const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
-    console.log(`🤖 Starting AI probing mini-session for ${packId} (instance ${instanceNumber})...`);
-
     // Check if AI is disabled for this session
     if (aiProbingDisabledForSession) {
-      console.log('⚠️ AI probing disabled for session - skipping');
       return false;
     }
     
