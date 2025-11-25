@@ -38,63 +38,59 @@ function safe(value) {
 }
 
 /**
- * Normalize a string for unknown detection - handles curly quotes/apostrophes
- */
-function normalizeUnknownString(value) {
-  if (typeof value !== "string") return "";
-  return value
-    .trim()
-    .toLowerCase()
-    // normalize curly apostrophes → straight
-    .replace(/['']/g, "'")
-    // normalize curly quotes → straight
-    .replace(/[""]/g, '"')
-    // collapse multiple spaces
-    .replace(/\s+/g, " ");
-}
-
-/**
  * Check if a value should be treated as unknown/missing
  * Returns true for empty, null, undefined, or vague responses like "I don't remember"
  * Handles curly apostrophes (e.g., "I don't remember" with U+2019)
  */
-function isUnknown(value) {
-  if (value == null) return true;
-  
-  const v = normalizeUnknownString(value);
-  if (!v) return true;
-  
-  // Phrases that mean "I don't know / remember" - use includes() for partial matching
-  const UNKNOWN_SUBSTRINGS = [
+function isUnknown(raw) {
+  if (raw == null) return true;
+
+  // Normalize to string and clean up whitespace
+  let value = String(raw).trim();
+  if (!value) return true;
+
+  // Normalize curly apostrophes to straight apostrophes
+  // U+2019 (') and U+2018 (') → straight apostrophe (')
+  value = value
+    .replace(/\u2019/g, "'")
+    .replace(/\u2018/g, "'")
+    .replace(/\u201C/g, '"')
+    .replace(/\u201D/g, '"')
+    .toLowerCase();
+
+  // Common "I don't know / I don't remember / unsure" patterns
+  const unknownPhrases = [
     "i don't remember",
     "dont remember",
-    "do not remember",
-    "i don't recall",
-    "dont recall",
-    "do not recall",
+    "i do not remember",
     "don't remember",
     "don't recall",
+    "dont recall",
+    "i do not recall",
+    "i don't recall",
     "not sure",
-    "unsure",
+    "i'm not sure",
+    "im not sure",
     "unknown",
-    "i don't know",
-    "dont know",
-    "do not know",
-    "no idea",
     "n/a",
-    "n.a.",
     "na",
-    "idk",
+    "n.a.",
     "can't remember",
     "cant remember",
     "cannot remember",
     "can't recall",
     "cant recall",
     "cannot recall",
+    "unsure",
+    "no idea",
+    "i don't know",
+    "dont know",
+    "do not know",
+    "idk",
   ];
-  
-  // Check if the normalized string contains any of these phrases
-  return UNKNOWN_SUBSTRINGS.some((pattern) => v.includes(pattern));
+
+  // Treat it as unknown if it CONTAINS any of these phrases
+  return unknownPhrases.some((phrase) => value.includes(phrase));
 }
 
 /**
