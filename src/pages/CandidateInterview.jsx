@@ -384,15 +384,9 @@ export default function CandidateInterview() {
   // ============================================================================
 
   const restoreFromSnapshots = (engineData, loadedSession) => {
-    console.log('📸 Restoring from snapshots...');
-    
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-    
-    console.log(`✅ Restored ${restoredTranscript.length} transcript entries`);
-    console.log(`✅ Restored queue with ${restoredQueue.length} pending items`);
-    console.log(`✅ Current item:`, restoredCurrentItem);
     
     // VALIDATION: Check if restored state is valid
     const hasTranscript = restoredTranscript.length > 0;
@@ -402,44 +396,38 @@ export default function CandidateInterview() {
                                  !Array.isArray(restoredCurrentItem) &&
                                  restoredCurrentItem.type;
     const hasQueue = restoredQueue.length > 0;
-    
+
     // If not completed but has transcript and invalid state, flag for rebuild
     if (!isCompleted && hasTranscript && !hasValidCurrentItem && !hasQueue) {
-      console.warn('⚠️ [RESUME] Snapshot invalid (no current item or empty queue for non-complete interview). Will rebuild.');
       return false; // Signal that restore failed
     }
-    
+
     // Apply restored state
     setTranscript(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
-    
+
     if (!restoredCurrentItem && restoredQueue.length > 0) {
-      console.warn('⚠️ No current item but queue exists - self-healing...');
       const nextItem = restoredQueue[0];
       setCurrentItem(nextItem);
       setQueue(restoredQueue.slice(1));
     }
-    
+
     // FIXED: Only show completion if status is actually 'completed'
     if (!restoredCurrentItem && restoredQueue.length === 0 && restoredTranscript.length > 0) {
       if (loadedSession.status === 'completed') {
-        console.log('✅ Interview marked as completed - showing completion modal.');
         setShowCompletionModal(true);
       } else {
-        console.warn('⚠️ No current item or queue, but status is not completed. Should rebuild.');
         return false; // Signal that restore failed
       }
     }
-    
+
     setTimeout(() => autoScrollToBottom(), 100);
     return true; // Restore successful
-  };
+    };
 
   // ENHANCED: Rebuild session queue from Response entities
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
-    console.log('🔧 Rebuilding session queue from Response entities...');
-    
     try {
       const responses = await base44.entities.Response.filter({ 
         session_id: sessionId 
@@ -474,9 +462,7 @@ export default function CandidateInterview() {
       
       setTranscript(restoredTranscript);
       displayOrderRef.current = restoredTranscript.length;
-      
-      console.log(`✅ Rebuilt transcript with ${restoredTranscript.length} answered questions`);
-      
+
       // Find next unanswered question
       let nextQuestionId = null;
       
@@ -495,11 +481,9 @@ export default function CandidateInterview() {
       
       // CRITICAL FIX: If nextQuestionId is null OR question doesn't exist, mark complete
       if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
-        console.log('✅ No next question found (end of interview) - marking as completed');
-        
         setCurrentItem(null);
         setQueue([]);
-        
+
         await base44.entities.InterviewSession.update(sessionId, {
           transcript_snapshot: restoredTranscript,
           queue_snapshot: [],
@@ -509,15 +493,13 @@ export default function CandidateInterview() {
           status: 'completed',
           completed_date: new Date().toISOString()
         });
-        
+
         setShowCompletionModal(true);
       } else {
-        console.log(`✅ Next unanswered question: ${nextQuestionId}`);
-        
         const nextItem = { id: nextQuestionId, type: 'question' };
         setCurrentItem(nextItem);
         setQueue([]);
-        
+
         // Persist rebuilt state to database
         await base44.entities.InterviewSession.update(sessionId, {
           transcript_snapshot: restoredTranscript,
@@ -527,20 +509,16 @@ export default function CandidateInterview() {
           completion_percentage: Math.round((restoredTranscript.filter(t => t.type === 'question').length / engineData.TotalQuestions) * 100),
           status: 'in_progress' // Ensure status is in_progress
         });
-        
-        console.log('✅ Session rebuilt and persisted successfully');
       }
       
     } catch (err) {
-      console.error('❌ Error rebuilding session:', err);
       throw err;
     }
-  };
+    };
 
-  // DEPRECATED: Old restoreFromResponses - replaced by rebuildSessionFromResponses
-  // Keeping for reference but not used anymore
-  const restoreFromResponses = async (engineData, responses) => {
-    console.log('🔄 Rebuilding state from Response entities (legacy fallback)...');
+    // DEPRECATED: Old restoreFromResponses - replaced by rebuildSessionFromResponses
+    // Keeping for reference but not used anymore
+    const restoreFromResponses = async (engineData, responses) => {
     
     const sortedResponses = responses.sort((a, b) => 
       new Date(a.response_timestamp) - new Date(b.response_timestamp)
