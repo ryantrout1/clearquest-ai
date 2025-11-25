@@ -305,28 +305,28 @@ export default function Home() {
 
       {/* Security & Compliance Strip */}
       <div className="bg-slate-800/30 border-t border-slate-700/50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
-          <h3 className="text-xl sm:text-2xl font-semibold text-white mb-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 text-center">
+          <h3 className="text-base sm:text-xl md:text-2xl font-semibold text-white mb-3 sm:mb-6">
             Security & Compliance You Can Trust
           </h3>
-          <div className="flex flex-wrap justify-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm md:text-base text-slate-300">
+          <div className="flex flex-wrap justify-center gap-x-3 sm:gap-x-6 gap-y-1.5 sm:gap-y-2 text-[11px] sm:text-sm md:text-base text-slate-300">
             <span>AES-256 encryption</span>
-            <span className="hidden sm:inline text-slate-600">•</span>
+            <span className="text-slate-600">•</span>
             <span>Anonymous-by-design</span>
-            <span className="hidden sm:inline text-slate-600">•</span>
+            <span className="text-slate-600">•</span>
             <span>7-day retention</span>
-            <span className="hidden sm:inline text-slate-600">•</span>
+            <span className="text-slate-600">•</span>
             <span>No PII stored</span>
-            <span className="hidden sm:inline text-slate-600">•</span>
+            <span className="text-slate-600">•</span>
             <span>CJIS-aware</span>
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t border-slate-700/50 py-6 sm:py-8">
+      <div className="border-t border-slate-700/50 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-slate-400 text-xs sm:text-sm">
+          <p className="text-center text-slate-500 text-[11px] sm:text-sm">
             © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
           </p>
         </div>
