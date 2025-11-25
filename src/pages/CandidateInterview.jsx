@@ -201,17 +201,16 @@ export default function CandidateInterview() {
   
   // NEW: Helper to disable AI probing for this session
   const disableAiForSession = useCallback((reason, error) => {
-    if (!aiProbingEnabled) return;
-    
-    console.warn('[AI DISABLED FOR SESSION]', { reason, error });
-    setAiProbingEnabled(false);
-    setAiFailureReason(reason);
-    
-    // Show user-friendly message
-    if (reason.includes('500')) {
-      toast.info('AI assistance temporarily unavailable - continuing with standard interview');
-    }
-  }, [aiProbingEnabled]);
+      if (!aiProbingEnabled) return;
+
+      setAiProbingEnabled(false);
+      setAiFailureReason(reason);
+
+      // Show user-friendly message
+      if (reason.includes('500')) {
+        toast.info('AI assistance temporarily unavailable - continuing with standard interview');
+      }
+    }, [aiProbingEnabled]);
 
   // ============================================================================
   // INITIALIZATION
@@ -298,39 +297,16 @@ export default function CandidateInterview() {
 
   const initializeInterview = async () => {
     try {
-      console.log('🚀 [PRODUCTION] Initializing HYBRID interview flow (v2.5)...');
-      console.log('   - Session ID from URL:', sessionId);
-      const startTime = performance.now();
-
       // Step 1: Load session with validation
-      console.log('📡 [PRODUCTION] Fetching session from database...');
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
-      
-      console.log('📥 [PRODUCTION] Session fetch response:', loadedSession);
-      console.log('   - Type:', typeof loadedSession);
-      console.log('   - Is null:', loadedSession === null);
-      console.log('   - Is undefined:', loadedSession === undefined);
-      console.log('   - Has id:', !!loadedSession?.id);
-      
+
       // PRODUCTION FIX: Handle null/undefined session
       if (!loadedSession) {
-        console.error('❌ [PRODUCTION] Session not found in database');
         throw new Error(`Session not found: ${sessionId}. It may have been deleted or never created.`);
       }
-      
+
       if (!loadedSession.id) {
-        console.error('❌ [PRODUCTION] Session object missing ID field:', loadedSession);
         throw new Error('Invalid session object returned from database');
-      }
-      
-      console.log('✅ [PRODUCTION] Session loaded successfully');
-      console.log('   - Session ID:', loadedSession.id);
-      console.log('   - Session Code:', loadedSession.session_code);
-      console.log('   - Status:', loadedSession.status);
-      
-      // FIXED: Only block if status is 'completed' - check will happen later after rebuild
-      if (loadedSession.status === 'completed') {
-        console.log('ℹ️ Session marked completed - will verify after loading data...');
       }
       
       // Check if session was paused
@@ -343,7 +319,7 @@ export default function CandidateInterview() {
       }
 
       setSession(loadedSession);
-      
+
       // Step 1.5: Load department info
       try {
         const departments = await base44.entities.Department.filter({ 
@@ -353,77 +329,55 @@ export default function CandidateInterview() {
           setDepartment(departments[0]);
         }
       } catch (err) {
-        console.warn('⚠️ Could not load department info:', err);
+        // Silently continue without department info
       }
-      
+
       // Step 2: Bootstrap engine
-      console.log('⚙️ [PRODUCTION] Bootstrapping engine...');
       const engineData = await bootstrapEngine(base44);
-      console.log('✅ [PRODUCTION] Engine bootstrapped');
       setEngine(engineData);
-      
-      // Step 3: AI conversation NOT initialized globally - we create per-pack mini-sessions
-      // Global conversation logic removed - now using per-pack mini-sessions instead
-      console.log('🤖 [PRODUCTION] Skipping global AI conversation (using per-pack mini-sessions)');
       
       // Step 5: Restore state from snapshots or rebuild from responses
       const hasValidSnapshots = loadedSession.transcript_snapshot && 
                                  loadedSession.transcript_snapshot.length > 0;
-      
+
       // FIXED: Check if snapshots are missing/inconsistent for in_progress sessions
       const needsRebuild = loadedSession.status === 'in_progress' && 
                            (!loadedSession.current_item_snapshot || !hasValidSnapshots);
-      
+
       if (needsRebuild) {
-        console.log('🔧 [PRODUCTION] Session needs rebuild - rebuilding from Response entities...');
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
-        console.log('🔄 [PRODUCTION] Restoring from session snapshots...');
         const restoreSuccessful = restoreFromSnapshots(engineData, loadedSession);
-        
+
         // SAFETY: If restore detected invalid state, rebuild instead
         if (!restoreSuccessful) {
-          console.log('🔧 [PRODUCTION] Snapshot validation failed - rebuilding from Response entities...');
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
-        console.log('🎯 [PRODUCTION] Starting fresh interview');
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
       }
-      
+
       // Detect new vs resume interview
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
-      
+
       if (!hasAnyResponses) {
-        console.log('🆕 [PRODUCTION] New interview - showing start message');
         setShowStartMessage(true);
         setShowResumeMessage(false);
       } else {
-        console.log('🔄 [PRODUCTION] Resume interview - showing resume message and current item');
-        console.log('   - Current item after restore:', loadedSession.current_item_snapshot);
-        console.log('   - Queue after restore:', loadedSession.queue_snapshot);
-        console.log('   - Transcript entries:', loadedSession.transcript_snapshot?.length);
         setShowStartMessage(false);
         setShowResumeMessage(true);
       }
-      
+
       setIsLoading(false);
-      const elapsed = performance.now() - startTime;
-      console.log(`✅ [PRODUCTION] Hybrid interview ready in ${elapsed.toFixed(2)}ms`);
 
     } catch (err) {
-      console.error('❌ [PRODUCTION] Initialization failed:', err);
-      console.error('   - Error type:', err?.constructor?.name || 'Unknown');
-      console.error('   - Error message:', err?.message || 'No message');
-      console.error('   - Stack:', err?.stack);
-      
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
     }
-  };
+    };
 
   // ============================================================================
   // RESTORE FUNCTIONS
