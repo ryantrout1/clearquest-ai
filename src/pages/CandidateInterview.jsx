@@ -121,6 +121,8 @@ const useProbeEngineV2 = (packId) => {
   return packId === "PACK_LE_APPS";
 };
 
+const getProbeKey = (packId, instanceNumber) => `${packId}_${instanceNumber || 1}`;
+
 /**
  * Call the probeEngineV2 backend function (DEBUG mode - no LLM calls)
  * Returns the debug payload for inspection
