@@ -1028,12 +1028,13 @@ export default function CandidateInterview() {
       const countKey = `${packId}:${instanceNumber}`;
       const currentCount = aiFollowupCounts[countKey] || 0;
       
-      // Get max_ai_followups from pack (default to 2)
+      // Get max_ai_followups from pack (default to 3)
       const followUpPacks = await base44.entities.FollowUpPack.filter({
         followup_pack_id: packId
       });
       const packEntity = followUpPacks[0];
-      const maxAiFollowups = packEntity?.max_ai_followups ?? 2;
+      const rawLimit = packEntity?.max_ai_followups;
+      const maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
       
       if (currentCount >= maxAiFollowups) {
         console.log('LIVE_AI_FOLLOWUP limit_reached', { 
@@ -1165,11 +1166,28 @@ export default function CandidateInterview() {
       }
     });
 
+    // Get pack config for maxFollowups
+    let maxFollowupsForAgent = 3; // Default
+    try {
+      const followUpPacks = await base44.entities.FollowUpPack.filter({
+        followup_pack_id: packId
+      });
+      if (followUpPacks.length > 0) {
+        const rawLimit = followUpPacks[0].max_ai_followups;
+        if (typeof rawLimit === 'number' && rawLimit > 0) {
+          maxFollowupsForAgent = rawLimit;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load pack for max_ai_followups in agent handoff:', err);
+    }
+
     summaryLines.push(``);
     summaryLines.push(`INSTRUCTIONS FOR AI INVESTIGATOR:`);
-    summaryLines.push(`1. Ask up to 3 probing questions to clarify the story if needed.`);
-    summaryLines.push(`2. Always conclude by asking: "Before we move on, is there anything else investigators should know about this situation?"`);
-    summaryLines.push(`3. After the candidate answers that closing question, respond with a brief acknowledgment and include the literal marker [[HANDOFF_TO_ENGINE]] in your message.`);
+    summaryLines.push(`1. Your goal is to fully understand and clarify the story in about 3 probing questions.`);
+    summaryLines.push(`2. You may ask up to ${maxFollowupsForAgent} probing questions if truly needed, but stop sooner if the story is clear.`);
+    summaryLines.push(`3. Always conclude by asking: "Before we move on, is there anything else investigators should know about this situation?"`);
+    summaryLines.push(`4. After the candidate answers that closing question, respond with a brief acknowledgment and include the literal marker [[HANDOFF_TO_ENGINE]] in your message.`);
     summaryLines.push(``);
     summaryLines.push(`CRITICAL: Do NOT send the next base question yourself. The system will automatically present the next question after you send [[HANDOFF_TO_ENGINE]].`);
 
@@ -2226,7 +2244,8 @@ export default function CandidateInterview() {
           followup_pack_id: currentFollowUpPack.packId
         });
         const packEntity = followUpPacks[0];
-        const maxAiFollowups = packEntity?.max_ai_followups ?? 2;
+        const rawLimit = packEntity?.max_ai_followups;
+        const maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
         
         if (currentCount < maxAiFollowups) {
           // Ask another AI question
