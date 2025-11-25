@@ -977,6 +977,47 @@ export default function CandidateInterview() {
     const packInstanceKey = `${packId}#${instanceNumber}`;
     setAiProbingPackInstanceKey(packInstanceKey);
 
+    // ============================================================================
+    // PROBE ENGINE V2 - DEBUG MODE (PACK_LE_APPS only)
+    // ============================================================================
+    if (useProbeEngineV2(packId)) {
+      console.log('[PROBE_ENGINE_V2] Pack uses V2 probing:', packId);
+      
+      // Build incident_answers from followUpAnswers array
+      const incidentAnswers = {};
+      followUpAnswers.forEach(answer => {
+        // Map fieldKey to expected keys for PACK_LE_APPS
+        const keyMap = {
+          'agency_name': 'agency',
+          'application_position': 'position',
+          'application_date': 'monthYear',
+          'application_outcome': 'outcome',
+          'reason_given': 'reason',
+          'issues_raised': 'issues'
+        };
+        const mappedKey = keyMap[answer.fieldKey] || answer.fieldKey;
+        incidentAnswers[mappedKey] = answer.answer;
+      });
+
+      // Call probeEngineV2 backend function (DEBUG mode)
+      const v2Result = await callProbeEngineV2(base44, {
+        packId: packId,
+        incidentAnswers: incidentAnswers,
+        previousProbes: [], // No probes yet on first call
+        overrideMaxProbes: null,
+        globalProbeInstructions: null // Will use default
+      });
+
+      // DEBUG: Log the payload for inspection
+      console.log('[PROBE_ENGINE_V2] DEBUG PAYLOAD:', JSON.stringify(v2Result, null, 2));
+
+      // For now, V2 is DEBUG-ONLY - fall through to V1 logic
+      // In Phase 2, we would check v2Result.mode and either:
+      // - If 'DONE': skip probing and advance
+      // - If 'DEBUG_PAYLOAD': (future) call LLM with systemPrompt/userMessage
+      console.log('[PROBE_ENGINE_V2] DEBUG mode - falling through to V1 probing logic');
+    }
+
     // NEW: Check feature flag and attempt invokeLLM-based AI (lightweight alternative)
     if (ENABLE_LIVE_AI_FOLLOWUPS) {
       // Check if we've reached the AI follow-up limit for this pack instance
