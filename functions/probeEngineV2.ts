@@ -7,8 +7,9 @@ const PACK_CONFIG = {
   PACK_LE_APPS: {
     id: "PACK_LE_APPS",
     maxAiFollowups: 2,
-    requiredFields: ["agency", "position", "monthYear", "outcome", "reason", "issues"],
-    priorityOrder: ["monthYear", "outcome", "reason", "issues", "agency", "position"],
+    requiredFields: ["agency", "position", "monthYear", "outcome", "reason", "issues", "stageReached"],
+    // Priority order for gap progression (top-down)
+    priorityOrder: ["monthYear", "position", "agency", "outcome", "reason", "issues", "stageReached"],
     // Map from raw fieldKeys (from FollowUpQuestion entities) to semantic field names
     fieldKeyMap: {
       // Legacy keys (timestamp-based) - these are the actual keys in the database
@@ -25,10 +26,16 @@ const PACK_CONFIG = {
       "PACK_LE_APPS_OUTCOME": "outcome",
       "PACK_LE_APPS_REASON": "reason",
       "PACK_LE_APPS_ISSUES": "issues",
+      "PACK_LE_APPS_STAGE_REACHED": "stageReached",
     },
   },
   // other packs will be added later
 };
+
+/**
+ * Final question text - mandatory for last probe
+ */
+const FINAL_QUESTION_TEXT = "Is there anything else about this prior law-enforcement application that you feel is important for us to know?";
 
 /**
  * Safe string helper
@@ -106,6 +113,7 @@ function normalizeIncidentAnswers(packConfig, rawAnswers) {
     outcome: null,
     reason: null,
     issues: null,
+    stageReached: null,
   };
   
   const fieldKeyMap = packConfig.fieldKeyMap || {};
@@ -121,34 +129,62 @@ function normalizeIncidentAnswers(packConfig, rawAnswers) {
 }
 
 /**
- * Compute gaps based on pack config and normalized incident answers
+ * Compute gaps based on pack config, normalized incident answers, and already-probed fields
  * Returns array of field names that are missing or unknown, ordered by priority
+ * Excludes fields that have already been probed
  */
-function computeGaps(packConfig, normalizedAnswers, packId) {
+function computeGaps(packConfig, normalizedAnswers, packId, alreadyProbed = []) {
   const gaps = [];
+  const alreadyProbedSet = new Set(alreadyProbed);
 
   // Explicit handling for PACK_LE_APPS
-  // Only monthYear and issues are eligible gaps - never agency, position, outcome, or reason
   if (packId === "PACK_LE_APPS") {
     const incident = normalizedAnswers;
+    const priorityOrder = packConfig.priorityOrder;
 
-    // Month/year: any "I don't remember" style answer is a gap
-    if (isUnknown(incident.monthYear)) {
-      gaps.push("monthYear");
-    }
-
-    // Issues:
-    // - If "No" / "none" / clearly negative → NOT a gap
-    // - If "Yes" or vague/unknown → gap (needs clarification)
-    if (isUnknown(incident.issues)) {
-      gaps.push("issues");
-    } else {
-      const issuesVal = String(incident.issues).trim().toLowerCase();
-      // Only treat as gap if they said "yes" or something affirmative
-      if (issuesVal.startsWith("yes") || issuesVal === "maybe" || issuesVal === "possibly") {
-        gaps.push("issues");
+    // Check each field in priority order
+    for (const field of priorityOrder) {
+      // Skip if already probed
+      if (alreadyProbedSet.has(field)) {
+        continue;
       }
-      // "no", "none", "no issues" etc. are NOT gaps
+
+      // Check if field is a gap
+      if (field === "monthYear") {
+        if (isUnknown(incident.monthYear)) {
+          gaps.push("monthYear");
+        }
+      } else if (field === "issues") {
+        if (isUnknown(incident.issues)) {
+          gaps.push("issues");
+        } else {
+          const issuesVal = String(incident.issues).trim().toLowerCase();
+          // Only treat as gap if they said "yes" or something affirmative
+          if (issuesVal.startsWith("yes") || issuesVal === "maybe" || issuesVal === "possibly") {
+            gaps.push("issues");
+          }
+        }
+      } else if (field === "position") {
+        if (isUnknown(incident.position)) {
+          gaps.push("position");
+        }
+      } else if (field === "agency") {
+        if (isUnknown(incident.agency)) {
+          gaps.push("agency");
+        }
+      } else if (field === "outcome") {
+        if (isUnknown(incident.outcome)) {
+          gaps.push("outcome");
+        }
+      } else if (field === "reason") {
+        if (isUnknown(incident.reason)) {
+          gaps.push("reason");
+        }
+      } else if (field === "stageReached") {
+        if (isUnknown(incident.stageReached)) {
+          gaps.push("stageReached");
+        }
+      }
     }
 
     return gaps;
@@ -156,6 +192,11 @@ function computeGaps(packConfig, normalizedAnswers, packId) {
 
   // Fallback for other packs: iterate through priorityOrder
   for (const field of packConfig.priorityOrder) {
+    // Skip if already probed
+    if (alreadyProbedSet.has(field)) {
+      continue;
+    }
+    
     const value = normalizedAnswers[field];
     
     if (isUnknown(value)) {
@@ -167,31 +208,44 @@ function computeGaps(packConfig, normalizedAnswers, packId) {
 }
 
 /**
- * Generate a targeted probe question based on the gaps
- * Returns null if no useful probe can be generated (caller should use mode="DONE")
+ * Generate a targeted probe question based on the target gap field
+ * Returns null if no useful probe can be generated
  */
-function generateProbeQuestion(packId, gaps, normalizedIncident) {
-  if (gaps.length === 0) return null;
+function generateProbeQuestion(packId, targetGap, normalizedIncident) {
+  if (!targetGap) return null;
   
-  // PACK_LE_APPS: Only probe for monthYear or issues, never agency/position/outcome/reason
+  // PACK_LE_APPS: Domain-specific questions for each field
   if (packId === "PACK_LE_APPS") {
-    const primaryGap = gaps[0];
-    
-    if (primaryGap === "monthYear") {
-      return "You mentioned you don't remember the month and year you applied for this law enforcement position. Do you recall an approximate month and year for that application, even if it's not exact?";
+    switch (targetGap) {
+      case "monthYear":
+        return "You mentioned you don't remember the month and year you applied for this law enforcement position. Do you recall an approximate month and year for that application, even if it's not exact?";
+      
+      case "position":
+        return "What specific position or role did you apply for with this law enforcement agency?";
+      
+      case "agency":
+        return "Which law enforcement agency did you apply to? Please provide the full name if you recall it.";
+      
+      case "outcome":
+        return "What was the final outcome of your application with this agency? Were you hired, not selected, or did you withdraw?";
+      
+      case "reason":
+        return "Were you given a reason for why you were not selected or why the process ended? If so, what was it?";
+      
+      case "issues":
+        return "You indicated there may have been issues or concerns during this hiring process. Please describe what those issues or concerns were.";
+      
+      case "stageReached":
+        return "How far did you get in the hiring process? For example, did you complete the written test, background check, interview, polygraph, or another stage?";
+      
+      default:
+        // Safety: if an unknown gap slips through, don't ask
+        return null;
     }
-    
-    if (primaryGap === "issues") {
-      return "You indicated there may have been issues or concerns during this hiring process. Please describe what those issues or concerns were.";
-    }
-    
-    // Safety: if somehow a different gap slips through, don't ask a redundant question
-    return null;
   }
   
   // Fallback for other packs
-  const gap = gaps[0];
-  switch (gap) {
+  switch (targetGap) {
     case "monthYear":
       return "Do you recall the approximate month and year for this incident?";
     case "outcome":
@@ -201,14 +255,34 @@ function generateProbeQuestion(packId, gaps, normalizedIncident) {
     case "issues":
       return "Were there any issues or concerns raised?";
     default:
-      return `Can you provide more details about the ${gap}?`;
+      return `Can you provide more details about the ${targetGap}?`;
   }
+}
+
+/**
+ * Extract already-probed field names from previous_probes array
+ * Each probe in previous_probes should have a "targetField" property
+ */
+function extractAlreadyProbed(previousProbes) {
+  if (!Array.isArray(previousProbes)) return [];
+  
+  const probed = [];
+  for (const probe of previousProbes) {
+    if (probe && probe.targetField) {
+      probed.push(probe.targetField);
+    }
+  }
+  return probed;
 }
 
 /**
  * ProbeEngineV2 - Standalone AI probing pipeline for Follow-Up Packs
  * 
- * Phase 1: DEBUG_PAYLOAD mode - builds prompts but does NOT call LLM
+ * Features:
+ * - No re-asking of already-probed fields
+ * - Ordered gap progression (top-down by priority)
+ * - Mandatory final question on last probe
+ * - Expanded debug payload
  */
 export default async function probeEngineV2(input, context) {
   const {
@@ -232,8 +306,9 @@ export default async function probeEngineV2(input, context) {
   // Determine max probes
   const maxProbes = override_max_probes || packConfig.maxAiFollowups || 2;
   
-  // Count previous probes
+  // Count previous probes and extract already-probed fields
   const previousProbeCount = Array.isArray(previous_probes) ? previous_probes.length : 0;
+  const alreadyProbed = extractAlreadyProbed(previous_probes);
   
   // Normalize raw incident answers to semantic field names
   const rawAnswers = incident_answers || {};
@@ -241,17 +316,34 @@ export default async function probeEngineV2(input, context) {
   
   console.log('[PROBE_ENGINE_V2] Raw answers:', JSON.stringify(rawAnswers));
   console.log('[PROBE_ENGINE_V2] Normalized answers:', JSON.stringify(normalized));
+  console.log('[PROBE_ENGINE_V2] Already probed fields:', alreadyProbed);
   
-  // Compute gaps using normalized answers
-  const gaps = computeGaps(packConfig, normalized, pack_id);
-
-  // Generate probe question (may return null if no useful probe available)
-  const question = generateProbeQuestion(pack_id, gaps, normalized);
+  // Compute gaps using normalized answers, excluding already-probed fields
+  const allGaps = computeGaps(packConfig, normalized, pack_id, alreadyProbed);
+  
+  // The next target gap is the first one in priority order
+  const nextTargetGap = allGaps.length > 0 ? allGaps[0] : null;
+  
+  // Check if this will be the final probe
+  const willBeFinalProbe = (previousProbeCount + 1) >= maxProbes;
+  
+  // Generate probe question
+  let question = null;
+  let isFinalQuestion = false;
+  
+  if (willBeFinalProbe && allGaps.length > 0) {
+    // Use mandatory final question
+    question = FINAL_QUESTION_TEXT;
+    isFinalQuestion = true;
+  } else if (nextTargetGap) {
+    // Generate domain-specific question for the target gap
+    question = generateProbeQuestion(pack_id, nextTargetGap, normalized);
+  }
   
   // Decide mode based on gaps, question availability, and previousProbeCount
   let mode;
   
-  if (!gaps.length || !question) {
+  if (!allGaps.length || !question) {
     // No gaps OR no useful probe question - done with probing
     mode = "DONE";
   } else if (previousProbeCount >= maxProbes) {
@@ -266,9 +358,13 @@ export default async function probeEngineV2(input, context) {
   console.log("[PROBE_ENGINE_V2] GAP ANALYSIS RESULT", {
     pack_id,
     normalizedIncident: normalized,
-    gaps,
+    allGaps,
+    nextTargetGap,
+    alreadyProbed,
     previousProbeCount,
     maxProbes,
+    willBeFinalProbe,
+    isFinalQuestion,
     mode,
   });
 
@@ -278,7 +374,11 @@ export default async function probeEngineV2(input, context) {
     pack_id,
     previousProbeCount,
     maxProbes,
-    gaps,
+    // Expanded debug payload
+    allGaps,
+    nextTargetGap,
+    alreadyProbed,
+    finalQuestion: isFinalQuestion,
     normalizedIncident: normalized,
   };
 }
