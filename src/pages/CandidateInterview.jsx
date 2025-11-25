@@ -2281,12 +2281,11 @@ export default function CandidateInterview() {
         const countKey = `${currentFollowUpPack.packId}:${currentFollowUpPack.instanceNumber}`;
         const currentCount = aiFollowupCounts[countKey] || 0;
         
-        const followUpPacks = await base44.entities.FollowUpPack.filter({
-          followup_pack_id: currentFollowUpPack.packId
-        });
-        const packEntity = followUpPacks[0];
-        const rawLimit = packEntity?.max_ai_followups;
-        const maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
+        // PERF: Use cached pack config instead of re-fetching
+        let maxAiFollowups = 3;
+        if (cachedPackConfig && cachedPackConfig.packId === currentFollowUpPack.packId) {
+          maxAiFollowups = cachedPackConfig.maxAiFollowups;
+        }
         
         if (currentCount < maxAiFollowups) {
           // Ask another AI question
