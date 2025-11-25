@@ -369,7 +369,7 @@ export default function StartInterview() {
         </Card>
 
         <p className="text-center text-slate-500 text-xs md:text-sm mt-6">
-          © 2025 ClearQuest AI™ • CJIS Compliant • All Rights Reserved
+          © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
         </p>
       </div>
     </div>
