@@ -1011,11 +1011,64 @@ export default function CandidateInterview() {
       // DEBUG: Log the payload for inspection
       console.log('[PROBE_ENGINE_V2] DEBUG PAYLOAD:', JSON.stringify(v2Result, null, 2));
 
-      // For now, V2 is DEBUG-ONLY - fall through to V1 logic
-      // In Phase 2, we would check v2Result.mode and either:
-      // - If 'DONE': skip probing and advance
-      // - If 'DEBUG_PAYLOAD': (future) call LLM with systemPrompt/userMessage
-      console.log('[PROBE_ENGINE_V2] DEBUG mode - falling through to V1 probing logic');
+      // ============================================================================
+      // V2 BRANCHING LOGIC - Controls probing flow for V2-enabled packs
+      // ============================================================================
+
+      if (v2Result.mode === 'QUESTION') {
+        // V2 determined we need to ask a follow-up question
+        console.log('[PROBE_ENGINE_V2] QUESTION mode - rendering AI probe question');
+        
+        // Add AI question to transcript
+        const aiQuestionEntry = {
+          id: `ai-q-v2-${questionId}-${packId}-${instanceNumber}-1-${Date.now()}`,
+          type: 'ai_question',
+          content: v2Result.question,
+          questionId: questionId,
+          packId: packId,
+          timestamp: new Date().toISOString(),
+          kind: 'ai_probe_question',
+          role: 'investigator',
+          text: v2Result.question,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          probingSequence: v2Result.previousProbeCount + 1,
+          probeEngineVersion: 'v2'
+        };
+
+        const newTranscript = [...transcript, aiQuestionEntry];
+        setTranscript(newTranscript);
+        
+        // Initialize probing exchanges array for this instance
+        setInvokeLLMProbingExchanges([{
+          sequence_number: 1,
+          probing_question: v2Result.question,
+          candidate_response: null,
+          timestamp: new Date().toISOString()
+        }]);
+        
+        await persistStateToDatabase(newTranscript, [], null);
+        
+        // Set invokeLLM mode and waiting state
+        setIsInvokeLLMMode(true);
+        setIsWaitingForAgent(true);
+        setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
+        
+        return true; // V2 handled probing - DO NOT fall through to V1
+      }
+
+      if (v2Result.mode === 'DONE') {
+        // V2 determined no probing is needed - all gaps filled
+        console.log('[PROBE_ENGINE_V2] No probing required — skipping V1 fallback');
+        
+        // Advance directly to next base question or multi-instance check
+        onFollowupPackComplete(questionId, packId);
+        return true; // V2 handled flow - DO NOT fall through to V1
+      }
+
+      // Unexpected mode (ERROR, DEBUG_PAYLOAD, or unknown) - fall back to V1
+      console.log('[PROBE_ENGINE_V2] Unexpected mode:', v2Result.mode, '— using V1 fallback');
+      // Fall through to ENABLE_LIVE_AI_FOLLOWUPS (V1) logic below
     }
 
     // NEW: Check feature flag and attempt invokeLLM-based AI (lightweight alternative)
