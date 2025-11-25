@@ -205,6 +205,9 @@ export default function CandidateInterview() {
   const [aiFollowupCounts, setAiFollowupCounts] = useState({});
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false); // Track if using invokeLLM vs agent
   const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]); // Accumulate Q&A for current pack
+  
+  // State for V2 probing logic
+  const [aiProbingState, setAiProbingState] = useState({});
 
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
