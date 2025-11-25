@@ -83,7 +83,7 @@ export default function FollowUpPackDetails({
         behavior_type: formData.behavior_type,
         requires_completion: formData.requires_completion,
         max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
-        max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 2,
+        max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 3,
         ai_probe_instructions: formData.ai_probe_instructions || '',
         ai_summary_instructions: formData.ai_summary_instructions || '',
         active: formData.active,
@@ -110,7 +110,7 @@ export default function FollowUpPackDetails({
         behavior_type: updatedPack.behavior_type || formData.behavior_type,
         requires_completion: updatedPack.requires_completion !== false,
         max_probe_loops: updatedPack.max_probe_loops || '',
-        max_ai_followups: updatedPack.max_ai_followups ?? 2,
+        max_ai_followups: updatedPack.max_ai_followups ?? 3,
         ai_probe_instructions: updatedPack.ai_probe_instructions || '',
         ai_summary_instructions: updatedPack.ai_summary_instructions || '',
         active: updatedPack.active !== false,
@@ -263,7 +263,7 @@ export default function FollowUpPackDetails({
                     behavior_type: pack.behavior_type || 'standard',
                     requires_completion: pack.requires_completion !== false,
                     max_probe_loops: pack.max_probe_loops || '',
-                    max_ai_followups: pack.max_ai_followups ?? 2,
+                    max_ai_followups: pack.max_ai_followups ?? 3,
                     ai_probe_instructions: pack.ai_probe_instructions || '',
                     ai_summary_instructions: pack.ai_summary_instructions || '',
                     active: pack.active !== false,
@@ -396,7 +396,7 @@ export default function FollowUpPackDetails({
                 value={formData.max_ai_followups}
                 onChange={(e) => setFormData({...formData, max_ai_followups: e.target.value})}
                 className="bg-slate-800 border-slate-600 text-white"
-                placeholder="Default: 2"
+                placeholder="Default: 3"
               />
               <p className="text-xs text-slate-500 mt-1">
                 Maximum AI probing questions per pack instance (0-10)
