@@ -148,16 +148,19 @@ export default function CandidateInterview() {
   const [currentFollowUpPack, setCurrentFollowUpPack] = useState(null); // Track active pack for handoff
   const [probingTurnCount, setProbingTurnCount] = useState(0); // Safety counter
   const [aiProbingDisabledForSession, setAiProbingDisabledForSession] = useState(false); // Global disable flag
-  
+
   // NEW: Track AI follow-up counts per pack instance
   const [aiFollowupCounts, setAiFollowupCounts] = useState({});
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false); // Track if using invokeLLM vs agent
   const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]); // Accumulate Q&A for current pack
-  
+
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
   const [aiFailureReason, setAiFailureReason] = useState(null);
   const [handoffProcessed, setHandoffProcessed] = useState(false);
+
+  // PERF: Cache pack config to avoid re-fetching on every probing exchange
+  const [cachedPackConfig, setCachedPackConfig] = useState(null); // { packId, maxAiFollowups }
   
   // Input state
   const [input, setInput] = useState("");
@@ -635,13 +638,25 @@ export default function CandidateInterview() {
   };
 
   // ============================================================================
-  // PERSIST STATE TO DATABASE
+  // PERSIST STATE TO DATABASE (THROTTLED)
   // ============================================================================
 
-  const persistStateToDatabase = async (newTranscript, newQueue, newCurrentItem) => {
+  // PERF: Throttle/batch persistence - max once per 3 seconds OR 3 answers
+  const pendingPersistRef = useRef(null);
+  const lastPersistTimeRef = useRef(0);
+  const persistCountSinceLastWriteRef = useRef(0);
+  const PERSIST_THROTTLE_MS = 3000;
+  const PERSIST_BATCH_COUNT = 3;
+
+  const flushPersist = useCallback(async () => {
+    if (!pendingPersistRef.current) return;
+
+    const { newTranscript, newQueue, newCurrentItem } = pendingPersistRef.current;
+    pendingPersistRef.current = null;
+    persistCountSinceLastWriteRef.current = 0;
+    lastPersistTimeRef.current = Date.now();
+
     try {
-      console.log('💾 Persisting state to database...');
-      
       await base44.entities.InterviewSession.update(sessionId, {
         transcript_snapshot: newTranscript,
         queue_snapshot: newQueue,
@@ -650,12 +665,41 @@ export default function CandidateInterview() {
         completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100),
         data_version: 'v2.5-hybrid'
       });
-      
-      console.log('✅ State persisted successfully');
     } catch (err) {
-      console.error('❌ Failed to persist state:', err);
+      // Silently fail - will retry on next persist
     }
-  };
+  }, [sessionId, engine]);
+
+  const persistStateToDatabase = useCallback(async (newTranscript, newQueue, newCurrentItem) => {
+    // Always update the pending state
+    pendingPersistRef.current = { newTranscript, newQueue, newCurrentItem };
+    persistCountSinceLastWriteRef.current++;
+
+    const now = Date.now();
+    const timeSinceLastPersist = now - lastPersistTimeRef.current;
+
+    // Flush immediately if: 3+ answers since last write OR 3+ seconds since last write
+    if (persistCountSinceLastWriteRef.current >= PERSIST_BATCH_COUNT || 
+        timeSinceLastPersist >= PERSIST_THROTTLE_MS) {
+      await flushPersist();
+    } else {
+      // Schedule a delayed flush
+      setTimeout(() => {
+        if (pendingPersistRef.current) {
+          flushPersist();
+        }
+      }, PERSIST_THROTTLE_MS - timeSinceLastPersist);
+    }
+  }, [flushPersist]);
+
+  // Flush on unmount or completion
+  useEffect(() => {
+    return () => {
+      if (pendingPersistRef.current) {
+        flushPersist();
+      }
+    };
+  }, [flushPersist]);
 
   // ============================================================================
   // NEW: AI AGENT HANDOFF AFTER FOLLOW-UP PACK COMPLETION
