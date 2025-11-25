@@ -988,12 +988,12 @@ export default function CandidateInterview() {
       followUpAnswers.forEach(answer => {
         // Map fieldKey to expected keys for PACK_LE_APPS
         const keyMap = {
-          'agency_name': 'agency',
-          'application_position': 'position',
-          'application_date': 'monthYear',
-          'application_outcome': 'outcome',
-          'reason_given': 'reason',
-          'issues_raised': 'issues'
+          'PACK_LE_APPS_Q1': 'agency',
+          'PACK_LE_APPS_Q1764025170356': 'position',
+          'PACK_LE_APPS_Q1764025187292': 'monthYear',
+          'PACK_LE_APPS_Q1764025199138': 'outcome',
+          'PACK_LE_APPS_Q1764025212764': 'reason',
+          'PACK_LE_APPS_Q1764025246583': 'issues'
         };
         const mappedKey = keyMap[answer.fieldKey] || answer.fieldKey;
         incidentAnswers[mappedKey] = answer.answer;
