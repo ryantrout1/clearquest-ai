@@ -158,6 +158,42 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Why Agencies Choose ClearQuest AI */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="text-center mb-8 sm:mb-12">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
+            Why Agencies Choose ClearQuest AI
+          </h2>
+          <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto">
+            Built for the people who actually use it — investigators, command staff, and city HR.
+          </p>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
+          <PersonaCard
+            icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7" />}
+            title="For Background Investigators"
+            subheadline="Reduce interview time by 50–70%."
+            body="ClearQuest standardizes your early-stage interviews so you spend less time on repetitive questions and more time on judgment. Automated follow-ups ensure no detail is missed and every incident is documented the same way."
+            color="blue"
+          />
+          <PersonaCard
+            icon={<Star className="w-6 h-6 sm:w-7 sm:h-7" />}
+            title="For Chiefs & Command Staff"
+            subheadline="Consistent, defensible screening."
+            body="Every applicant starts with the same structured interview, reducing liability and bias. ClearQuest delivers a clear audit trail so you can stand behind each hiring decision with confidence."
+            color="purple"
+          />
+          <PersonaCard
+            icon={<Building2 className="w-6 h-6 sm:w-7 sm:h-7" />}
+            title="For HR & City Personnel"
+            subheadline="CJIS-aware, anonymous-by-design workflow."
+            body="ClearQuest keeps personally identifiable information out of the system while still providing detailed interview records. Short data-retention options, 256-bit encryption, and standardized documentation support clean audits and compliant hiring."
+            color="green"
+          />
+        </div>
+      </div>
+
       {/* Stats Section */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14 md:py-16">
@@ -167,6 +203,24 @@ export default function Home() {
             <StatCard number="256-bit" label="AES Encryption" />
             <StatCard number="CJIS" label="Compliant" />
           </div>
+        </div>
+      </div>
+
+      {/* Early Access Strip */}
+      <div className="bg-slate-900/80 border-y border-blue-500/20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">
+            Now onboarding our first Arizona department
+          </h3>
+          <p className="text-slate-400 text-sm sm:text-base mb-6 max-w-2xl mx-auto">
+            ClearQuest AI is live and in use. We're opening limited early-access slots for agencies that want to modernize their applicant screening with a structured, CJIS-aware workflow.
+          </p>
+          <Button 
+            onClick={() => setInfoRequestOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-2.5 sm:py-3"
+          >
+            Request Early Access
+          </Button>
         </div>
       </div>
 
@@ -305,6 +359,25 @@ function StatCard({ number, label }) {
     <div className="space-y-1 sm:space-y-2">
       <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
       <div className="text-slate-400 text-xs sm:text-sm uppercase tracking-wider">{label}</div>
+    </div>
+  );
+}
+
+function PersonaCard({ icon, title, subheadline, body, color }) {
+  const colorClasses = {
+    blue: "from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400",
+    purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400",
+    green: "from-green-500/20 to-green-600/10 border-green-500/30 text-green-400"
+  };
+
+  return (
+    <div className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-5 sm:p-6 h-full`}>
+      <div className="space-y-3 sm:space-y-4">
+        <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
+        <h3 className="text-lg sm:text-xl font-semibold text-white">{title}</h3>
+        <p className={`text-sm font-medium ${colorClasses[color].split(' ')[3]}`}>{subheadline}</p>
+        <p className="text-slate-300 text-sm leading-relaxed">{body}</p>
+      </div>
     </div>
   );
 }
