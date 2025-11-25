@@ -12,11 +12,22 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 - Focus on factual, objective information gathering
 - Respect the sensitivity of personal disclosures`;
 
-    // Load global settings
-    const globalSettings = await base44.entities.GlobalSettings.filter({ settings_id: 'global' });
-    const settings = globalSettings.length > 0 ? globalSettings[0] : null;
-
     if (mode === 'probe') {
+      // PERF: Batch fetch all needed entities in parallel
+      const [globalSettingsResult, sectionsResult, packsResult] = await Promise.all([
+        base44.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => []),
+        sectionId 
+          ? base44.entities.Section.filter({ id: sectionId }).catch(() => [])
+          : Promise.resolve([]),
+        packId 
+          ? base44.entities.FollowUpPack.filter({ followup_pack_id: packId }).catch(() => [])
+          : Promise.resolve([])
+      ]);
+      
+      const settings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
+      const section = sectionsResult.length > 0 ? sectionsResult[0] : null;
+      const pack = packsResult.length > 0 ? packsResult[0] : null;
+      
       let instructions = coreRules + '\n\n';
       
       // Layer 1: Global probing instructions
@@ -26,21 +37,15 @@ CORE SYSTEM RULES (ALWAYS APPLY):
       }
       
       // Layer 2: Section-specific context (optional)
-      if (sectionId) {
-        const sections = await base44.entities.Section.filter({ id: sectionId });
-        if (sections.length > 0 && sections[0].ai_section_summary_instructions) {
-          instructions += '=== SECTION CONTEXT ===\n';
-          instructions += sections[0].ai_section_summary_instructions + '\n\n';
-        }
+      if (section?.ai_section_summary_instructions) {
+        instructions += '=== SECTION CONTEXT ===\n';
+        instructions += section.ai_section_summary_instructions + '\n\n';
       }
       
       // Layer 3: Pack-specific probing instructions
-      if (packId) {
-        const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
-        if (packs.length > 0 && packs[0].ai_probe_instructions) {
-          instructions += '=== PACK-SPECIFIC PROBING INSTRUCTIONS ===\n';
-          instructions += packs[0].ai_probe_instructions + '\n\n';
-        }
+      if (pack?.ai_probe_instructions) {
+        instructions += '=== PACK-SPECIFIC PROBING INSTRUCTIONS ===\n';
+        instructions += pack.ai_probe_instructions + '\n\n';
       }
       
       // Layer 4: Probing limit instructions (dynamic based on pack config)
