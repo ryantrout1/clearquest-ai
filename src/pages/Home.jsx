@@ -50,15 +50,15 @@ export default function Home() {
         
         {/* Top Header with Pill Buttons */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
-          <div className="flex justify-end">
-            <div className="flex gap-3">
+          <div className="flex justify-center sm:justify-end">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               <Link to={createPageUrl("StartInterview")}>
-                <button className="px-3.5 py-2 text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all">
+                <button className="px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap">
                   Start New Interview
                 </button>
               </Link>
               <Link to={createPageUrl("AdminLogin")}>
-                <button className="px-3.5 py-2 text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all">
+                <button className="px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap">
                   Admin Portal
                 </button>
               </Link>
@@ -242,9 +242,9 @@ export default function Home() {
 
       {/* Stats Section */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-14 md:py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 md:gap-8 text-center">
-            <StatCard number={totalQuestions} label="Structured Interview Questions" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-16">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 md:gap-8 text-center">
+            <StatCard number={totalQuestions} label="Interview Questions" />
             <StatCard number="10" label="Follow-Up Packs" />
             <StatCard number="256-bit" label="AES Encryption" />
             <StatCard number="CJIS" label="Aware Framework" />
@@ -309,18 +309,16 @@ export default function Home() {
           <h3 className="text-xl sm:text-2xl font-semibold text-white mb-6">
             Security & Compliance You Can Trust
           </h3>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm sm:text-base text-slate-300">
+          <div className="flex flex-wrap justify-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm md:text-base text-slate-300">
             <span>AES-256 encryption</span>
-            <span className="text-slate-600">•</span>
-            <span>Anonymous-by-design workflow</span>
-            <span className="text-slate-600">•</span>
-            <span>Optional 7-day data retention</span>
-            <span className="text-slate-600">•</span>
-            <span>No PII stored in the system</span>
-            <span className="text-slate-600">•</span>
-            <span>Investigator-controlled processes</span>
-            <span className="text-slate-600">•</span>
-            <span>CJIS-aware architecture</span>
+            <span className="hidden sm:inline text-slate-600">•</span>
+            <span>Anonymous-by-design</span>
+            <span className="hidden sm:inline text-slate-600">•</span>
+            <span>7-day retention</span>
+            <span className="hidden sm:inline text-slate-600">•</span>
+            <span>No PII stored</span>
+            <span className="hidden sm:inline text-slate-600">•</span>
+            <span>CJIS-aware</span>
           </div>
         </div>
       </div>
@@ -425,8 +423,8 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 function StatCard({ number, label }) {
   return (
     <div className="space-y-1 sm:space-y-2">
-      <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
-      <div className="text-slate-400 text-xs sm:text-sm uppercase tracking-wider">{label}</div>
+      <div className="text-2xl sm:text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
+      <div className="text-slate-400 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider leading-tight">{label}</div>
     </div>
   );
 }
