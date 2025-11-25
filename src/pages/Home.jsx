@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle, Mail } from "lucide-react";
+import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle, Mail, Users, Star, Building2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +48,25 @@ export default function Home() {
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
+        {/* Top Header with Pill Buttons */}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
+          <div className="flex justify-end">
+            <div className="flex gap-3">
+              <Link to={createPageUrl("StartInterview")}>
+                <button className="px-3.5 py-2 text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all">
+                  Start New Interview
+                </button>
+              </Link>
+              <Link to={createPageUrl("AdminLogin")}>
+                <button className="px-3.5 py-2 text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all">
+                  Admin Portal
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16">
           <div className="text-center space-y-6 sm:space-y-8">
             <div className="flex justify-center mb-4 sm:mb-6">
               <div className="relative">
@@ -68,21 +86,6 @@ export default function Home() {
               <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed px-4">
                 CJIS-Compliant Background Interview System for Law Enforcement Applicant Screening
               </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-6 sm:pt-8 px-4">
-              <Link to={createPageUrl("StartInterview")} className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
-                  <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Start New Interview
-                </Button>
-              </Link>
-              <Link to={createPageUrl("AdminLogin")} className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-slate-800/80 border-slate-500 text-slate-100 hover:bg-slate-700 hover:text-white hover:border-slate-400 px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg">
-                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Admin Portal
-                </Button>
-              </Link>
             </div>
 
             {/* More Info CTA */}
