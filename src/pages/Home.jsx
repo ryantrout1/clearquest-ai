@@ -86,6 +86,9 @@ export default function Home() {
               <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed px-4">
                 CJIS-Compliant Background Interview System for Law Enforcement Applicant Screening
               </p>
+              <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto px-4 mt-2">
+                Powered by the C.L.E.A.R. Workflow — Connect · Learn · Evaluate · Assist · Ready
+              </p>
             </div>
 
             {/* More Info CTA */}
