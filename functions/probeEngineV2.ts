@@ -282,7 +282,7 @@ export default async function probeEngineV2(input, context) {
   }
   
   // Debug log for gap analysis
-  console.log("[PROBE_ENGINE_V2] GAP ANALYSIS", {
+  console.log("[PROBE_ENGINE_V2] GAP ANALYSIS RESULT", {
     pack_id,
     normalizedIncident: normalized,
     gaps,
