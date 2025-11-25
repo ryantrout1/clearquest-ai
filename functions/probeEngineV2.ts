@@ -274,7 +274,7 @@ export default async function probeEngineV2(input, context) {
 
   return {
     mode,
-    question,
+    question: mode === "QUESTION" ? question : "DONE",
     pack_id,
     previousProbeCount,
     maxProbes,
