@@ -83,35 +83,33 @@ Deno.serve(async (req) => {
 
     // Validate inputs
     if (!interviewId || !questionId || !candidateAnswer) {
-      console.error('LIVE_AI_FOLLOWUP_ERROR [validation]', { interviewId, questionId });
       return Response.json({ status: 'error', message: 'Missing required fields' });
     }
 
-    // Get question to find section
+    // Batch fetch: Question, FollowUpPack, and GlobalSettings in parallel
     let sectionId = null;
-    try {
-      const question = await base44.entities.Question.get(questionId);
-      if (question) {
-        sectionId = question.section_id;
-      }
-    } catch (err) {
-      console.warn('Could not load question for section context:', err);
-    }
-
-    // Get pack config for max_ai_followups limit
     let maxFollowups = 3; // Default if pack not found or field not set
+    
     try {
-      if (followupPackId) {
-        const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: followupPackId });
-        if (packs.length > 0) {
-          const rawLimit = packs[0].max_ai_followups;
-          if (typeof rawLimit === 'number' && rawLimit > 0) {
-            maxFollowups = rawLimit;
-          }
+      const [questionResult, packResult] = await Promise.all([
+        base44.entities.Question.get(questionId).catch(() => null),
+        followupPackId 
+          ? base44.entities.FollowUpPack.filter({ followup_pack_id: followupPackId }).catch(() => [])
+          : Promise.resolve([])
+      ]);
+      
+      if (questionResult) {
+        sectionId = questionResult.section_id;
+      }
+      
+      if (packResult && packResult.length > 0) {
+        const rawLimit = packResult[0].max_ai_followups;
+        if (typeof rawLimit === 'number' && rawLimit > 0) {
+          maxFollowups = rawLimit;
         }
       }
     } catch (err) {
-      console.warn('Could not load pack for max_ai_followups:', err);
+      // Silently continue with defaults
     }
 
     // Build unified instructions using the layered instruction builder
@@ -153,7 +151,6 @@ Your response must be a single follow-up question.`;
     const followupQuestion = result?.trim();
 
     if (!followupQuestion || followupQuestion.length < 5) {
-      console.error('LIVE_AI_FOLLOWUP_ERROR [empty_response]', { interviewId, questionId, followupPackId });
       return Response.json({ status: 'error', message: 'Empty AI response' });
     }
 
@@ -164,8 +161,6 @@ Your response must be a single follow-up question.`;
     });
 
   } catch (error) {
-    const { interviewId, questionId, followupPackId } = await req.json().catch(() => ({}));
-    console.error('LIVE_AI_FOLLOWUP_ERROR', { interviewId, questionId, followupPackId, error: error.message });
     return Response.json({ status: 'error', message: error.message }, { status: 500 });
   }
 });
