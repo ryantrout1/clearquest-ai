@@ -128,45 +128,27 @@ function computeGaps(packConfig, normalizedAnswers, packId) {
   const gaps = [];
 
   // Explicit handling for PACK_LE_APPS
+  // Only monthYear and issues are eligible gaps - never agency, position, outcome, or reason
   if (packId === "PACK_LE_APPS") {
     const incident = normalizedAnswers;
 
-    // Agency should not be empty or "unknown"
-    if (isUnknown(incident.agency)) {
-      gaps.push("agency");
-    }
-
-    // Position should not be empty or "unknown"
-    if (isUnknown(incident.position)) {
-      gaps.push("position");
-    }
-
-    // Month/year: any "I don't remember" style answer should be a gap
+    // Month/year: any "I don't remember" style answer is a gap
     if (isUnknown(incident.monthYear)) {
       gaps.push("monthYear");
     }
 
-    // Outcome: treat "I don't remember / unknown" as gaps
-    if (isUnknown(incident.outcome)) {
-      gaps.push("outcome");
-    }
-
-    // Reason: treat "I don't remember / unknown" as gaps
-    if (isUnknown(incident.reason)) {
-      gaps.push("reason");
-    }
-
     // Issues:
-    // - If the candidate says "yes" or similar → gap (needs clarification)
-    // - If they say "no", that is NOT a gap
-    // - If completely unknown, it's a gap
+    // - If "No" / "none" / clearly negative → NOT a gap
+    // - If "Yes" or vague/unknown → gap (needs clarification)
     if (isUnknown(incident.issues)) {
       gaps.push("issues");
     } else {
       const issuesVal = String(incident.issues).trim().toLowerCase();
-      if (issuesVal.startsWith("yes")) {
+      // Only treat as gap if they said "yes" or something affirmative
+      if (issuesVal.startsWith("yes") || issuesVal === "maybe" || issuesVal === "possibly") {
         gaps.push("issues");
       }
+      // "no", "none", "no issues" etc. are NOT gaps
     }
 
     return gaps;
