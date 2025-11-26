@@ -2041,8 +2041,8 @@ export default function CandidateInterview() {
                 currentItem: currentItem // Preserve for continuation
               });
               
-              // Save to database
-              await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber);
+              // Save to database - mark as user source since it was accepted on first try
+              await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
               await persistStateToDatabase(newTranscript, queue, currentItem);
               
               // Stay on current item - waiting for probe answer
