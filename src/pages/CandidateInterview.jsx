@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
 import StartResumeMessage from "../components/interview/StartResumeMessage";
+import { updateFactForField } from "../components/followups/factsManager";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
