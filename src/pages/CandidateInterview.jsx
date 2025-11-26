@@ -2878,20 +2878,44 @@ export default function CandidateInterview() {
       
       // Build fact entry for PACK_LE_APPS
       let factsUpdate = null;
+      let unresolvedUpdate = null;
       if (packId === "PACK_LE_APPS") {
-        const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+        const { FOLLOWUP_PACK_CONFIGS, DEFAULT_UNKNOWN_TOKENS } = await import("../components/followups/followupPackConfig");
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
         if (fieldConfig?.semanticKey) {
           const trimmed = (answer || "").trim().toLowerCase();
-          const isUnknown = ["i don't recall", "idk", "unknown", "not sure", "i don't know", ""].includes(trimmed);
-          factsUpdate = {
-            [fieldConfig.semanticKey]: {
-              value: answer,
-              status: isUnknown ? "unknown" : "confirmed",
-              source: factSource
-            }
-          };
+          const unknownTokens = fieldConfig.unknownTokens || DEFAULT_UNKNOWN_TOKENS;
+          const isUnknown = trimmed === "" || unknownTokens.includes(trimmed);
+          
+          // Check if this is an unresolved field (max probes reached + still unknown)
+          const maxProbes = packConfig.maxAiProbes ?? 3;
+          const probeCount = factSource === "ai_probed" ? maxProbes : 0; // Simplified - AI probed fields count toward limit
+          const isUnresolved = probeCount >= maxProbes && isUnknown;
+          
+          if (isUnresolved) {
+            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: displayValue,
+                status: "unknown",
+                source: factSource
+              }
+            };
+            unresolvedUpdate = {
+              semanticKey: fieldConfig.semanticKey,
+              fieldKey: fieldKey,
+              probeCount: probeCount
+            };
+          } else {
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: answer,
+                status: isUnknown ? "unknown" : "confirmed",
+                source: factSource
+              }
+            };
+          }
         }
       }
       
