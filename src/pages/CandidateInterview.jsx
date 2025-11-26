@@ -1985,7 +1985,9 @@ export default function CandidateInterview() {
               // Clear the text input immediately when entering probe mode
               setInput("");
               
-              // INVARIANT: Add the deterministic follow-up Q+A to transcript FIRST
+              // INVARIANT: Add the deterministic follow-up Q+A to transcript
+              // NOTE: Don't add AI probe question here - it's shown via currentFieldProbe state
+              // The AI probe Q+A pair will be added together when the candidate answers
               const followupEntry = createChatEvent('followup', {
                 questionId: currentItem.id,
                 questionText: step.Prompt,
@@ -2004,24 +2006,11 @@ export default function CandidateInterview() {
               followupEntry.type = 'followup';
               followupEntry.role = 'candidate';
               
-              // INVARIANT: Then add the AI probe question to transcript
-              const aiProbeQuestionEvent = createChatEvent('ai_question', {
-                questionId: currentItem.baseQuestionId,
-                packId: packId,
-                content: v2Result.question,
-                text: v2Result.question,
-                kind: 'ai_field_probe',
-                followupPackId: packId,
-                instanceNumber: instanceNumber,
-                fieldKey: v2Result.field_key || fieldKey,
-                probeEngineVersion: 'v2-per-field'
-              });
-              
-              // Add BOTH entries to transcript - followup answer AND ai probe question
-              const newTranscript = [...transcript, followupEntry, aiProbeQuestionEvent];
+              // Add only the followup entry to transcript (AI probe question shown via currentFieldProbe)
+              const newTranscript = [...transcript, followupEntry];
               setTranscript(newTranscript);
               
-              console.log('[V2-PER-FIELD] Added to transcript:', { followupEntry, aiProbeQuestionEvent });
+              console.log('[V2-PER-FIELD] Added followup to transcript:', followupEntry);
               
               // Both the follow-up answer and AI probe question are now in the transcript
               // The purple "Investigator Question" card will also be rendered from currentFieldProbe state
