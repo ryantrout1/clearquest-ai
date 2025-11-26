@@ -457,9 +457,11 @@ export default function FollowUpPackDetails({
             placeholder="Instructions for AI probing behavior for this pack..."
           />
         ) : (
-          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {formData.ai_probe_instructions || 'No instructions provided'}
-          </p>
+          <div className="h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {formData.ai_probe_instructions || 'No instructions provided'}
+            </p>
+          </div>
         )}
       </div>
 
@@ -482,9 +484,11 @@ export default function FollowUpPackDetails({
             </p>
           </>
         ) : (
-          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
-          </p>
+          <div className="h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
+            </p>
+          </div>
         )}
       </div>
 
