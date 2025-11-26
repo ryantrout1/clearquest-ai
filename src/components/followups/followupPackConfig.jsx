@@ -119,7 +119,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "agency_name",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025170356",
@@ -137,7 +145,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "job_title",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025187292",
@@ -156,7 +172,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "month_year",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 3,
+          mustContainLetters: false
+        }
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025199138",
@@ -173,7 +197,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "outcome",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: ["nothing"],
+          minLength: 2,
+          mustContainLetters: true
+        }
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025212764",
@@ -197,7 +229,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "reason_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: ["nothing"],
+          minLength: 2,
+          mustContainLetters: true
+        }
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025246583",
@@ -214,7 +254,13 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true,
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after full probing"
+        unknownDisplayLabel: "Not recalled after full probing",
+        validation: {
+          type: "yes_no",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 1
+        }
       }
     ]
   }
