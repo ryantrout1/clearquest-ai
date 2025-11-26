@@ -294,19 +294,55 @@ export function extractFactsFromConfig(packId, values, aiExchanges = []) {
   
   const facts = [];
   
+  // Log what we're working with
+  console.log("[extractFactsFromConfig]", {
+    packId,
+    valueKeys: Object.keys(values),
+    factsFieldsCount: factsFields.length,
+    aiClarifications
+  });
+  
   factsFields.forEach(field => {
-    // First check AI clarification
+    // First check AI clarification by semanticKey
     let value = aiClarifications[field.semanticKey];
     
-    // Then check stored value by fieldKey
+    // Then check stored value by fieldKey (e.g., "PACK_LE_APPS_Q1")
     if (!value) {
       value = values[field.fieldKey];
     }
     
-    // Then check by semanticKey
+    // Then check by semanticKey (e.g., "agency")
     if (!value) {
       value = values[field.semanticKey];
     }
+    
+    // Also check common alternate key patterns
+    if (!value && packId === 'PACK_LE_APPS') {
+      // Try alternate naming patterns that might be in the data
+      const alternateKeys = {
+        'agency': ['agency_name', 'agency'],
+        'position': ['position_applied', 'position'],
+        'application_month_year': ['application_date', 'application_month_year', 'date'],
+        'outcome': ['application_outcome', 'outcome'],
+        'reason_not_selected': ['why_not_selected', 'reason_not_selected', 'reason'],
+        'issues_or_concerns': ['hiring_issues', 'issues_or_concerns', 'anything_else', 'issues']
+      };
+      
+      const alts = alternateKeys[field.semanticKey] || [];
+      for (const altKey of alts) {
+        if (values[altKey]) {
+          value = values[altKey];
+          break;
+        }
+      }
+    }
+    
+    console.log("[extractFactsFromConfig] field lookup", {
+      fieldKey: field.fieldKey,
+      semanticKey: field.semanticKey,
+      foundValue: value,
+      aiOverride: aiClarifications[field.semanticKey]
+    });
     
     if (value) {
       facts.push({
