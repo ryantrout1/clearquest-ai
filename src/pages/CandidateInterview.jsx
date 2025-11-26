@@ -2014,6 +2014,13 @@ export default function CandidateInterview() {
                 incidentContext
               });
               
+              console.log('[V2-PER-FIELD][RAW-RESPONSE]', {
+                packId,
+                fieldKey,
+                previousProbesCount: probeCount,
+                raw: v2Result
+              });
+              
               console.log(`[V2-PER-FIELD] Backend result for ${fieldKey}:`, v2Result);
               
               if (v2Result.mode === 'QUESTION') {
@@ -2652,6 +2659,13 @@ export default function CandidateInterview() {
           fieldValue: value,
           previousProbesCount: probeCount,
           incidentContext: updatedAnswers
+        });
+        
+        console.log('[V2-PER-FIELD][RAW-RESPONSE]', {
+          packId,
+          fieldKey,
+          previousProbesCount: probeCount,
+          raw: v2Result
         });
         
         if (v2Result.mode === 'QUESTION') {
