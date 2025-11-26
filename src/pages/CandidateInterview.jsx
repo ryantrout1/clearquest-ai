@@ -2404,36 +2404,34 @@ export default function CandidateInterview() {
         // (The question wasn't added earlier to avoid double-bubble, we add it here with the answer)
         const currentProbeQuestion = currentFieldProbe.question;
         
-        const aiQuestionEntry = {
-          id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${currentProbeState.probeCount}-${Date.now()}`,
-          type: 'ai_question',
-          content: currentProbeQuestion,
+        // Create AI probe question event
+        const aiQuestionEntry = createChatEvent('ai_probe_question', {
           questionId: baseQuestionId,
           packId: packId,
-          timestamp: new Date().toISOString(),
-          kind: 'ai_field_probe',
-          role: 'investigator',
+          content: currentProbeQuestion,
           text: currentProbeQuestion,
+          kind: 'ai_field_probe',
           followupPackId: packId,
           instanceNumber: instanceNumber,
           fieldKey: fieldKey,
           probeEngineVersion: 'v2-per-field'
-        };
+        });
+        // Override type for render compatibility
+        aiQuestionEntry.type = 'ai_question';
         
-        const aiAnswerEntry = {
-          id: `ai-a-v2-field-${packId}-${instanceNumber}-${fieldKey}-${Date.now()}`,
-          type: 'ai_answer',
-          content: value,
+        // Create AI probe answer event
+        const aiAnswerEntry = createChatEvent('ai_probe_answer', {
           questionId: baseQuestionId,
           packId: packId,
-          timestamp: new Date().toISOString(),
-          kind: 'ai_field_probe_answer',
-          role: 'candidate',
+          content: value,
           text: value,
+          kind: 'ai_field_probe_answer',
           followupPackId: packId,
           instanceNumber: instanceNumber,
           fieldKey: fieldKey
-        };
+        });
+        // Override type for render compatibility
+        aiAnswerEntry.type = 'ai_answer';
         
         setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
         
