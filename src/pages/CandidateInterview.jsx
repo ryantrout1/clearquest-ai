@@ -1933,6 +1933,31 @@ export default function CandidateInterview() {
           // Build incident context from all answers so far
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
           
+          console.log(`📝 Processing answer for followup:`, normalizedAnswer);
+          
+          // INVARIANT: Log the user's deterministic follow-up answer to chat history BEFORE validation
+          const followupAnswerChatEvent = createChatEvent('followup_answer', {
+            role: 'user',
+            text: normalizedAnswer,
+            content: normalizedAnswer,
+            packId: packId,
+            fieldKey: fieldKey,
+            instanceNumber: instanceNumber,
+            baseQuestionId: currentItem.baseQuestionId,
+            kind: 'deterministic_followup_answer'
+          });
+          // Also log the question that was asked
+          const followupQuestionChatEvent = createChatEvent('followup_question', {
+            role: 'system',
+            text: step.Prompt,
+            content: step.Prompt,
+            packId: packId,
+            fieldKey: fieldKey,
+            instanceNumber: instanceNumber,
+            baseQuestionId: currentItem.baseQuestionId,
+            kind: 'deterministic_followup_question'
+          });
+          
           console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
           
           // Mark as in progress
