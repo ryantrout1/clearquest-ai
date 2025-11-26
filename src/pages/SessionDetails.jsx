@@ -1399,6 +1399,12 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const packConfig = packId ? getPackConfig(packId) : null;
   const isPackLeApps = packId === 'PACK_LE_APPS';
 
+  // Check for unresolved fields in any instance (PACK_LE_APPS only)
+  const hasAnyUnresolved = isPackLeApps && instanceNumbers.some(instNum => {
+    const instance = instancesMap[instNum];
+    return hasUnresolvedFields(packId, instance);
+  });
+
   const [expandedInstances, setExpandedInstances] = React.useState(() => new Set());
 
   const toggleInstance = (instanceNumber) => {
