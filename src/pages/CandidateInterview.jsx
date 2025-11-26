@@ -1957,22 +1957,23 @@ export default function CandidateInterview() {
               setInput("");
               
               // Add the deterministic answer to transcript first (as the follow-up Q+A)
-              const followupEntry = {
-                id: `fu-${Date.now()}`,
+              const followupEntry = createChatEvent('followup', {
                 questionId: currentItem.id,
                 questionText: step.Prompt,
                 packId: packId,
                 substanceName: substanceName,
-                type: 'followup',
-                timestamp: new Date().toISOString(),
                 kind: 'deterministic_followup',
-                role: 'candidate',
                 answer: normalizedAnswer,
                 text: normalizedAnswer,
+                content: normalizedAnswer,
                 fieldKey: fieldKey,
                 followupPackId: packId,
-                instanceNumber: instanceNumber
-              };
+                instanceNumber: instanceNumber,
+                baseQuestionId: currentItem.baseQuestionId
+              });
+              // Override type to 'followup' for render compatibility
+              followupEntry.type = 'followup';
+              followupEntry.role = 'candidate';
               
               const newTranscript = [...transcript, followupEntry];
               
