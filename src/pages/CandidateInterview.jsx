@@ -1601,42 +1601,39 @@ export default function CandidateInterview() {
           throw new Error(`Question ${currentItem.id} not found`);
         }
 
-        // Add to transcript
         // FIX: Get section name from Section entity, not legacy category field
         const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
         const sectionName = sectionEntity?.section_name || question.category || '';
         
-        const questionEntry = {
-          id: `q-${Date.now()}-q`,
+        // Create question event using centralized helper
+        const questionEvent = createChatEvent('question', {
           questionId: currentItem.id,
+          questionCode: question.question_id,
           questionText: question.question_text,
           category: sectionName,
-          type: 'question',
-          timestamp: new Date().toISOString(),
           sectionId: question.section_id,
           kind: 'base_question',
-          role: 'investigator',
-          text: question.question_text
-        };
+          text: question.question_text,
+          content: question.question_text
+        });
 
-        const answerEntry = {
-          id: `q-${Date.now()}-a`,
+        // Create answer event using centralized helper
+        const answerEvent = createChatEvent('answer', {
           questionId: currentItem.id,
+          questionCode: question.question_id,
           answer: value,
           category: sectionName,
-          type: 'answer',
-          timestamp: new Date().toISOString(),
           sectionId: question.section_id,
           kind: 'base_answer',
-          role: 'candidate',
-          text: value
-        };
+          text: value,
+          content: value
+        });
 
-        // Combine question and answer into single entry for render
+        // Combine question and answer into single entry for render (legacy compatibility)
         const combinedEntry = {
-          ...questionEntry,
-          answer: answerEntry.answer,
-          text: answerEntry.text
+          ...questionEvent,
+          answer: value,
+          text: value
         };
 
         const newTranscript = [...transcript, combinedEntry];
