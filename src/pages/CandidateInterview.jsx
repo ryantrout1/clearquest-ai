@@ -3151,6 +3151,18 @@ export default function CandidateInterview() {
                     <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
                   </>
                 )}
+                {session && (
+                  <>
+                    <span className="text-slate-600 hidden md:inline">•</span>
+                    <span className="text-xs text-slate-400 hidden md:inline">
+                      <span className="text-slate-500">Code:</span> {session.department_code}
+                    </span>
+                    <span className="text-slate-600 hidden md:inline">•</span>
+                    <span className="text-xs text-slate-400 hidden md:inline">
+                      <span className="text-slate-500">File:</span> {session.file_number}
+                    </span>
+                  </>
+                )}
               </div>
               <Button
                 variant="outline"
