@@ -2026,7 +2026,6 @@ export default function CandidateInterview() {
               // For per-field V2 probing, we only add ONE transcript entry (the probe question)
               // The purple "Investigator Question" card will be rendered from currentFieldProbe state
               // We do NOT add a separate ai_question transcript entry here to avoid duplicate bubbles
-              setTranscript(newTranscript);
               
               // Update probe state for this field
               setFieldProbingState(prev => ({
@@ -2041,7 +2040,7 @@ export default function CandidateInterview() {
               // Update follow-up answers tracker
               setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
               
-              // Set current field probe for UI
+              // Set current field probe for UI - this drives the purple "Investigator Question" card
               setCurrentFieldProbe({
                 packId,
                 instanceNumber,
@@ -2055,7 +2054,7 @@ export default function CandidateInterview() {
               
               // Save to database
               await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber);
-              await persistStateToDatabase(transcriptWithProbe, queue, currentItem);
+              await persistStateToDatabase(newTranscript, queue, currentItem);
               
               // Stay on current item - waiting for probe answer
               setIsWaitingForAgent(true);
