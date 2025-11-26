@@ -185,3 +185,19 @@ export function getInstanceFacts(packId, instance) {
   
   return buildFactsFromDetails(packId, details, aiExchanges);
 }
+
+/**
+ * Get unresolved fields for an instance
+ */
+export function getUnresolvedFields(packId, instance) {
+  if (packId !== "PACK_LE_APPS") return [];
+  return instance.unresolvedFields || [];
+}
+
+/**
+ * Check if an instance has any unresolved fields
+ */
+export function hasUnresolvedFields(packId, instance) {
+  if (packId !== "PACK_LE_APPS") return false;
+  return Array.isArray(instance.unresolvedFields) && instance.unresolvedFields.length > 0;
+}
