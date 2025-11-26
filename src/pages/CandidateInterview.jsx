@@ -2563,22 +2563,20 @@ export default function CandidateInterview() {
           lastExchange.candidate_response = value;
         }
         
-        // Add answer to transcript using functional update with stable unique ID
+        // Add answer to transcript using centralized event helper
         const probingSequence = updatedExchanges.length;
-        const aiAnswerEntry = {
-          id: `ai-a-${currentFollowUpPack.questionId}-${currentFollowUpPack.packId}-${currentFollowUpPack.instanceNumber}-${probingSequence}-${Date.now()}`,
-          type: 'ai_answer',
-          content: value,
+        const aiAnswerEntry = createChatEvent('ai_probe_answer', {
           questionId: currentFollowUpPack.questionId,
           packId: currentFollowUpPack.packId,
-          timestamp: new Date().toISOString(),
-          kind: 'ai_probe_answer',
-          role: 'candidate',
+          content: value,
           text: value,
+          kind: 'ai_probe_answer',
           followupPackId: currentFollowUpPack.packId,
           instanceNumber: currentFollowUpPack.instanceNumber,
           probingSequence: probingSequence
-        };
+        });
+        // Override type for render compatibility
+        aiAnswerEntry.type = 'ai_answer';
         
         // Use functional update to ensure we have latest transcript
         setTranscript(prev => {
