@@ -22,7 +22,7 @@ import { Clock } from "lucide-react";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
-import { getInstanceFacts } from "../components/followups/factsManager";
+import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
 
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
