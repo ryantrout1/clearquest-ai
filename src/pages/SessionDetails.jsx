@@ -1534,7 +1534,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 // PACK_LE_APPS: Facts-only display
                 if (isPackLeApps) {
+                  const facts = extractLeAppsFacts(instance.details);
                   const summaryLine = buildLeAppsSummary(instance.details);
+                  const hasAnyFacts = facts.length > 0;
                   
                   return (
                     <div
@@ -1555,7 +1557,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           <span className="font-semibold text-slate-100">Instance {instanceIdx + 1}</span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-slate-400 text-[11px]">{summaryLine}</span>
+                          {summaryLine && (
+                            <span className="text-slate-400 text-[11px]">{summaryLine}</span>
+                          )}
                           <span className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">
                             {isInstanceExpanded ? "Hide" : "Show"}
                           </span>
@@ -1568,7 +1572,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           {/* Title */}
                           <div className="flex items-center justify-between mb-3">
                             <div className="text-sm font-medium text-slate-100">
-                              Instance {instanceIdx + 1} — {summaryLine}
+                              Instance {instanceIdx + 1}{summaryLine ? ` — ${summaryLine}` : ''}
                             </div>
                             <button
                               type="button"
@@ -1584,20 +1588,19 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             Facts
                           </div>
 
-                          {/* Facts grid - two columns, no question text */}
-                          <div className="space-y-1.5">
-                            {Object.entries(instance.details).map(([key, value]) => {
-                              const label = PACK_LE_APPS_FIELD_LABELS[key] || key.replace(/_/g, ' ');
-                              if (!value) return null;
-                              
-                              return (
-                                <div key={key} className="grid grid-cols-[140px_1fr] gap-x-3 text-xs">
-                                  <div className="text-slate-400 italic">{label}:</div>
-                                  <div className="text-slate-100 font-medium">{value}</div>
+                          {/* Facts grid - two columns with clean labels */}
+                          {hasAnyFacts ? (
+                            <div className="space-y-1.5">
+                              {facts.map((fact, factIdx) => (
+                                <div key={factIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
+                                  <div className="text-slate-400 text-right">{fact.label}:</div>
+                                  <div className="text-slate-100 font-medium">{fact.value}</div>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-500 italic">No details recorded</div>
+                          )}
                         </div>
                       )}
                     </div>
