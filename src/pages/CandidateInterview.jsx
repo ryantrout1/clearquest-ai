@@ -2524,7 +2524,6 @@ export default function CandidateInterview() {
           return newTranscript;
         });
       }
-
     } catch (err) {
       console.error('❌ Error processing answer:', err);
       setError(`Error: ${err.message}`);
