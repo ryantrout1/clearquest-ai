@@ -1941,7 +1941,7 @@ export default function CandidateInterview() {
           return;
         }
 
-        // Validate answer
+        // Validate answer using standard validation
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
         
         if (!validation.valid) {
@@ -1957,6 +1957,158 @@ export default function CandidateInterview() {
           return;
         }
 
+        const normalizedAnswer = validation.normalized || value;
+        const instanceNumber = currentItem.instanceNumber || 1;
+        const fieldKey = step.Field_Key;
+
+        // ============================================================================
+        // V2 PER-FIELD PROBING FOR PACK_LE_APPS
+        // ============================================================================
+        if (useProbeEngineV2(packId)) {
+          const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
+          
+          // Check if we're already probing this field (StrictMode guard)
+          if (v2ProbingInProgressRef.current.has(probeKey)) {
+            console.log(`[V2-PER-FIELD] Already probing ${probeKey}, skipping duplicate`);
+            setIsCommitting(false);
+            return;
+          }
+          
+          // Get current probe state for this field
+          const currentProbeState = fieldProbingState[probeKey] || { probeCount: 0, lastQuestion: null, isProbing: false };
+          
+          // Build incident context from all answers so far
+          const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
+          
+          console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
+          
+          // Mark as in progress
+          v2ProbingInProgressRef.current.add(probeKey);
+          
+          try {
+            const v2Result = await callProbeEngineV2PerField(base44, {
+              packId,
+              fieldKey,
+              fieldValue: normalizedAnswer,
+              previousProbesCount: currentProbeState.probeCount,
+              incidentContext
+            });
+            
+            console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
+            
+            if (v2Result.mode === 'QUESTION') {
+              // Field is incomplete - need to probe
+              console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
+              
+              // Add the deterministic answer to transcript first
+              const followupEntry = {
+                id: `fu-${Date.now()}`,
+                questionId: currentItem.id,
+                questionText: step.Prompt,
+                packId: packId,
+                substanceName: substanceName,
+                type: 'followup',
+                timestamp: new Date().toISOString(),
+                kind: 'deterministic_followup',
+                role: 'candidate',
+                answer: normalizedAnswer,
+                text: normalizedAnswer,
+                fieldKey: fieldKey,
+                followupPackId: packId,
+                instanceNumber: instanceNumber
+              };
+              
+              const newTranscript = [...transcript, followupEntry];
+              
+              // Add AI probe question to transcript
+              const aiProbeEntry = {
+                id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${Date.now()}`,
+                type: 'ai_question',
+                content: v2Result.question,
+                questionId: currentItem.baseQuestionId,
+                packId: packId,
+                timestamp: new Date().toISOString(),
+                kind: 'ai_field_probe',
+                role: 'investigator',
+                text: v2Result.question,
+                followupPackId: packId,
+                instanceNumber: instanceNumber,
+                fieldKey: fieldKey,
+                probeEngineVersion: 'v2-per-field'
+              };
+              
+              const transcriptWithProbe = [...newTranscript, aiProbeEntry];
+              setTranscript(transcriptWithProbe);
+              
+              // Update probe state for this field
+              setFieldProbingState(prev => ({
+                ...prev,
+                [probeKey]: {
+                  probeCount: currentProbeState.probeCount + 1,
+                  lastQuestion: v2Result.question,
+                  isProbing: true
+                }
+              }));
+              
+              // Update follow-up answers tracker
+              setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
+              
+              // Set current field probe for UI
+              setCurrentFieldProbe({
+                packId,
+                instanceNumber,
+                fieldKey,
+                semanticField: v2Result.semanticField,
+                question: v2Result.question,
+                baseQuestionId: currentItem.baseQuestionId,
+                substanceName,
+                currentItem: currentItem // Preserve for continuation
+              });
+              
+              // Save to database
+              await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber);
+              await persistStateToDatabase(transcriptWithProbe, queue, currentItem);
+              
+              // Stay on current item - waiting for probe answer
+              setIsWaitingForAgent(true);
+              setIsInvokeLLMMode(true);
+              setIsCommitting(false);
+              v2ProbingInProgressRef.current.delete(probeKey);
+              return;
+            }
+            
+            // Field is complete or max probes reached - continue to next step
+            console.log(`[V2-PER-FIELD] Field ${fieldKey} complete → advancing`);
+            
+            // Mark field as completed
+            setCompletedFields(prev => ({
+              ...prev,
+              [`${packId}_${instanceNumber}`]: {
+                ...(prev[`${packId}_${instanceNumber}`] || {}),
+                [fieldKey]: true
+              }
+            }));
+            
+            // Clear probing state for this field
+            setFieldProbingState(prev => {
+              const updated = { ...prev };
+              delete updated[probeKey];
+              return updated;
+            });
+            
+            v2ProbingInProgressRef.current.delete(probeKey);
+            
+            // Fall through to normal flow below
+          } catch (err) {
+            console.error(`[V2-PER-FIELD] Error during field validation:`, err);
+            v2ProbingInProgressRef.current.delete(probeKey);
+            // Fall through to normal flow on error
+          }
+        }
+        // ============================================================================
+        // END V2 PER-FIELD PROBING
+        // ============================================================================
+
         // Add to transcript - store answer exactly as entered (no date normalization)
         const followupEntry = {
           id: `fu-${Date.now()}`,
@@ -1968,11 +2120,11 @@ export default function CandidateInterview() {
           timestamp: new Date().toISOString(),
           kind: 'deterministic_followup',
           role: 'candidate',
-          answer: validation.normalized || value,
-          text: validation.normalized || value,
+          answer: normalizedAnswer,
+          text: normalizedAnswer,
           fieldKey: step.Field_Key,
           followupPackId: packId,
-          instanceNumber: currentItem.instanceNumber || 1
+          instanceNumber: instanceNumber
         };
 
         const newTranscript = [...transcript, followupEntry];
@@ -1981,19 +2133,19 @@ export default function CandidateInterview() {
         // Update follow-up answers tracker
         const updatedFollowUpAnswers = {
           ...currentFollowUpAnswers,
-          [step.Field_Key]: validation.normalized || value
+          [step.Field_Key]: normalizedAnswer
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
         // Save to database - dates stored as plain text
         console.log("[MI INSTANCES SNAPSHOT]", {
           packId,
-          currentInstanceNumber: currentItem.instanceNumber || 1,
+          currentInstanceNumber: instanceNumber,
           fieldKey: step.Field_Key,
-          answer: validation.normalized || value
+          answer: normalizedAnswer
         });
         
-        await saveFollowUpAnswer(packId, step.Field_Key, validation.normalized || value, substanceName, currentItem.instanceNumber || 1);
+        await saveFollowUpAnswer(packId, step.Field_Key, normalizedAnswer, substanceName, instanceNumber);
         
         // Check if there are more steps in the queue
         let updatedQueue = [...queue];
