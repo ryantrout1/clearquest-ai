@@ -1413,32 +1413,83 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   ];
 
   // Extract PACK_LE_APPS facts in proper order with labels
-  const extractLeAppsFacts = (details) => {
+  // If AI probing provided a better answer for a field, use that instead
+  const extractLeAppsFacts = (details, aiExchanges = []) => {
     const facts = [];
     const usedKeys = new Set();
     
-    PACK_LE_APPS_FIELDS.forEach(field => {
-      // Find first matching key with a value
-      for (const key of field.keys) {
-        if (details[key] && !usedKeys.has(key)) {
-          facts.push({ label: field.label, value: details[key] });
-          usedKeys.add(key);
-          break;
+    // Build a map of AI-clarified values by detecting which field was being probed
+    const aiClarifications = {};
+    aiExchanges.forEach(ex => {
+      const question = (ex.probing_question || '').toLowerCase();
+      const answer = ex.candidate_response;
+      
+      // Skip vague answers that aren't improvements
+      if (!answer || answer.toLowerCase() === "i don't recall" || answer.toLowerCase() === "i don't know") {
+        return;
+      }
+      
+      // Match AI probe question to the field it was clarifying
+      if (question.includes('timeframe') || question.includes('when') || question.includes('date') || question.includes('month') || question.includes('year')) {
+        aiClarifications['application_date'] = answer;
+      } else if (question.includes('agency') || question.includes('department')) {
+        aiClarifications['agency'] = answer;
+      } else if (question.includes('position') || question.includes('role') || question.includes('job')) {
+        aiClarifications['position'] = answer;
+      } else if (question.includes('outcome') || question.includes('result') || question.includes('hired')) {
+        aiClarifications['outcome'] = answer;
+      } else if (question.includes('reason') || question.includes('why')) {
+        aiClarifications['reason'] = answer;
+      } else if (question.includes('issue') || question.includes('concern') || question.includes('problem')) {
+        aiClarifications['issues'] = answer;
+      }
+    });
+    
+    PACK_LE_APPS_FIELDS.forEach((field, fieldIdx) => {
+      let value = null;
+      
+      // First, check if AI probing clarified this field
+      if (field.label.includes('date') && aiClarifications['application_date']) {
+        value = aiClarifications['application_date'];
+      } else if (field.label === 'Agency' && aiClarifications['agency']) {
+        value = aiClarifications['agency'];
+      } else if (field.label.includes('Position') && aiClarifications['position']) {
+        value = aiClarifications['position'];
+      } else if (field.label === 'Outcome' && aiClarifications['outcome']) {
+        value = aiClarifications['outcome'];
+      } else if (field.label.includes('Reason') && aiClarifications['reason']) {
+        value = aiClarifications['reason'];
+      } else if (field.label.includes('Issues') && aiClarifications['issues']) {
+        value = aiClarifications['issues'];
+      }
+      
+      // If no AI clarification, use the original deterministic value
+      if (!value) {
+        for (const key of field.keys) {
+          if (details[key] && !usedKeys.has(key)) {
+            value = details[key];
+            usedKeys.add(key);
+            break;
+          }
         }
       }
       
-      // Also check for keys that match the pattern (e.g., any key containing the field name)
-      if (facts.length < PACK_LE_APPS_FIELDS.indexOf(field) + 1) {
-        Object.entries(details).forEach(([key, value]) => {
-          if (!usedKeys.has(key) && value) {
+      // Also check for keys that match the pattern
+      if (!value) {
+        Object.entries(details).forEach(([key, val]) => {
+          if (!usedKeys.has(key) && val) {
             const keyLower = key.toLowerCase().replace(/_/g, '');
             const fieldLower = field.keys[0].toLowerCase().replace(/_/g, '');
             if (keyLower.includes(fieldLower) || fieldLower.includes(keyLower)) {
-              facts.push({ label: field.label, value });
+              value = val;
               usedKeys.add(key);
             }
           }
         });
+      }
+      
+      if (value) {
+        facts.push({ label: field.label, value });
       }
     });
     
@@ -1453,7 +1504,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
     remainingKeys.forEach((key, idx) => {
       if (facts.length < PACK_LE_APPS_FIELDS.length) {
         const fieldDef = PACK_LE_APPS_FIELDS[facts.length];
-        if (fieldDef) {
+        if (fieldDef && !facts.find(f => f.label === fieldDef.label)) {
           facts.push({ label: fieldDef.label, value: details[key] });
         }
       }
