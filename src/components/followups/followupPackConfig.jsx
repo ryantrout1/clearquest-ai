@@ -65,7 +65,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true
       },
       {
-        fieldKey: "PACK_LE_APPS_Q2",
+        fieldKey: "PACK_LE_APPS_Q1764025170356",
         semanticKey: "position",
         label: "Position applied for",
         inputType: "text",
@@ -80,7 +80,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true
       },
       {
-        fieldKey: "PACK_LE_APPS_Q3",
+        fieldKey: "PACK_LE_APPS_Q1764025187292",
         semanticKey: "application_month_year",
         label: "Application date (month/year)",
         inputType: "month_year",
@@ -96,7 +96,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true
       },
       {
-        fieldKey: "PACK_LE_APPS_Q4",
+        fieldKey: "PACK_LE_APPS_Q1764025199138",
         semanticKey: "outcome",
         label: "Outcome",
         inputType: "select_single",
@@ -110,7 +110,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true
       },
       {
-        fieldKey: "PACK_LE_APPS_Q5",
+        fieldKey: "PACK_LE_APPS_Q1764025212764",
         semanticKey: "reason_not_selected",
         label: "Reason provided by agency",
         inputType: "text",
@@ -131,7 +131,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInNarrative: true
       },
       {
-        fieldKey: "PACK_LE_APPS_Q6",
+        fieldKey: "PACK_LE_APPS_Q1764025246583",
         semanticKey: "issues_or_concerns",
         label: "Issues or concerns during hiring",
         inputType: "text",
