@@ -1443,15 +1443,22 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
             className="flex-1 bg-amber-950/30 border border-amber-800/50 rounded px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-amber-950/40 transition-colors group"
             onClick={onToggleExpand}
           >
-            {summary ? (
-              <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">
-                {summary}
-              </p>
-            ) : (
-              <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
-                No summary available. Use 'Generate AI' to create one.
-              </p>
-            )}
+            <div className="flex items-center gap-2 flex-1">
+              {hasAnyUnresolved && (
+                <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
+                  ⚠ Unresolved details
+                </Badge>
+              )}
+              {summary ? (
+                <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">
+                  {summary}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
+                  No summary available. Use 'Generate AI' to create one.
+                </p>
+              )}
+            </div>
             {isExpanded ? (
               <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
             ) : (
