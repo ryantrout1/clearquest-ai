@@ -1955,7 +1955,7 @@ export default function CandidateInterview() {
           // Get pack config for max probes
           const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
           const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-          const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
+          const maxAIFollowups = packConfig?.maxAiFollowups ?? 3;
           const probeCount = currentProbeState.probeCount;
           
           // Handle semantic validation results
@@ -2556,7 +2556,7 @@ export default function CandidateInterview() {
       // Get pack config for max probes
       const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
+      const maxAIFollowups = packConfig?.maxAiFollowups ?? 3;
       const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
       
       // INVARIANT: Log the user's AI probe answer to chat history BEFORE calling backend
@@ -2614,7 +2614,7 @@ export default function CandidateInterview() {
         const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: value });
         const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-        const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
+        const maxAIFollowups = packConfig?.maxAiFollowups ?? 3;
         
         // Check if semantic validation passes now
         if (semanticResult.status === "valid") {
