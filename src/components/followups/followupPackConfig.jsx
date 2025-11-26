@@ -88,7 +88,7 @@ export const DEFAULT_REJECT_TOKENS = [
  * @property {string[]} supportedBaseQuestions - Base questions that trigger this pack
  * @property {string} [instancesLabel] - Label for instances, e.g. "Applications"
  * @property {FollowUpFieldConfig[]} fields - Field configurations
- * @property {number} [maxAiProbes] - Default max AI probes for the pack
+ * @property {number} [maxAiFollowups] - Maximum number of AI follow-up questions for the pack
  * @property {boolean} [requiresCompletion] - Whether pack requires completion
  * @property {"none"|"note"|"warning"|"red_flag"} [flagOnUnresolved] - How to flag unresolved fields
  */
@@ -99,7 +99,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_LE_APPS",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Applications",
-    maxAiProbes: 3,
+    maxAiFollowups: 3,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     fields: [
