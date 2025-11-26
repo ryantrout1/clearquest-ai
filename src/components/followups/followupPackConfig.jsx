@@ -71,6 +71,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_LE_APPS",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Applications",
+    maxAiProbes: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
     fields: [
       {
         fieldKey: "PACK_LE_APPS_Q1",
@@ -85,7 +88,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025170356",
@@ -100,7 +106,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         factsOrder: 2,
         includeInInstanceHeader: true,
         headerOrder: 2,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025187292",
@@ -116,7 +125,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         factsOrder: 3,
         includeInInstanceHeader: true,
         headerOrder: 3,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025199138",
@@ -130,7 +142,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInFacts: true,
         factsOrder: 4,
         includeInInstanceHeader: false,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025212764",
@@ -151,7 +166,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       },
       {
         fieldKey: "PACK_LE_APPS_Q1764025246583",
@@ -165,7 +183,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInFacts: true,
         factsOrder: 6,
         includeInInstanceHeader: false,
-        includeInNarrative: true
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after full probing"
       }
     ]
   }
