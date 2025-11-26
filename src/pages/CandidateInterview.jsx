@@ -2989,25 +2989,29 @@ export default function CandidateInterview() {
         instance_number: instanceNumber
       });
       
-      // Build fact entry for PACK_LE_APPS
+      // Build fact entry for PACK_LE_APPS using semantic validation
       let factsUpdate = null;
       let unresolvedUpdate = null;
       if (packId === "PACK_LE_APPS") {
-        const { FOLLOWUP_PACK_CONFIGS, DEFAULT_UNKNOWN_TOKENS } = await import("../components/followups/followupPackConfig");
+        const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+        const { validateFollowupValue: validateForFact } = await import("../components/followups/semanticValidator");
+        
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+        
         if (fieldConfig?.semanticKey) {
-          const trimmed = (answer || "").trim().toLowerCase();
-          const unknownTokens = fieldConfig.unknownTokens || DEFAULT_UNKNOWN_TOKENS;
-          const isUnknown = trimmed === "" || unknownTokens.includes(trimmed);
+          // Use semantic validation to determine fact status
+          const semanticResult = validateForFact({ packId, fieldKey, rawValue: answer });
           
-          // Check if this is an unresolved field (max probes reached + still unknown)
+          // Get probe count context
           const maxProbes = packConfig.maxAiProbes ?? 3;
-          const probeCount = factSource === "ai_probed" ? maxProbes : 0; // Simplified - AI probed fields count toward limit
-          const isUnresolved = probeCount >= maxProbes && isUnknown;
+          const wasProbed = factSource === "ai_probed";
+          
+          // Determine if unresolved (probed to max but still invalid/unknown)
+          const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
           
           if (isUnresolved) {
-            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
+            const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
             factsUpdate = {
               [fieldConfig.semanticKey]: {
                 value: displayValue,
@@ -3018,17 +3022,29 @@ export default function CandidateInterview() {
             unresolvedUpdate = {
               semanticKey: fieldConfig.semanticKey,
               fieldKey: fieldKey,
-              probeCount: probeCount
+              probeCount: maxProbes
             };
-          } else {
+          } else if (semanticResult.status === "valid") {
+            // Valid value - store as confirmed fact
             factsUpdate = {
               [fieldConfig.semanticKey]: {
-                value: answer,
-                status: isUnknown ? "unknown" : "confirmed",
+                value: semanticResult.normalizedValue,
+                status: "confirmed",
+                source: factSource
+              }
+            };
+          } else if (semanticResult.status === "unknown") {
+            // Unknown but allowed - store with unknown status (user's first answer)
+            factsUpdate = {
+              [fieldConfig.semanticKey]: {
+                value: semanticResult.normalizedValue,
+                status: "unknown",
                 source: factSource
               }
             };
           }
+          // Note: "invalid" status without being probed to max won't reach here
+          // because semantic validation triggers probing for invalid values
         }
       }
       
