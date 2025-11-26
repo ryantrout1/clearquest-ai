@@ -79,6 +79,7 @@ export const DEFAULT_REJECT_TOKENS = [
  * @property {boolean} [allowUnknown] - If true, unknown is allowed as a final state
  * @property {string[]} [unknownTokens] - Phrases treated as "unknown"
  * @property {string} [unknownDisplayLabel] - What to display in FACTS when unresolved
+ * @property {FieldValidationConfig} [validation] - Semantic validation rules for the field
  */
 
 /**
