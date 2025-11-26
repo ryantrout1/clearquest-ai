@@ -3,22 +3,42 @@
  * 
  * Stores final validated values as facts for each field,
  * separate from raw follow-up answers.
+ * 
+ * Handles unresolved fields when max probes are reached without a usable answer.
  */
 
-import { FOLLOWUP_PACK_CONFIGS } from "./followupPackConfig";
+import { FOLLOWUP_PACK_CONFIGS, DEFAULT_UNKNOWN_TOKENS } from "./followupPackConfig";
 
-const UNKNOWN_TOKENS = ["i don't recall", "idk", "unknown", "not sure", "i don't know", ""];
+/**
+ * Check if a value is considered "unknown" based on field config
+ */
+export function isUnknownValue(value, fieldConfig) {
+  const trimmed = (value || "").trim();
+  if (trimmed === "") return true;
+  
+  const tokens = fieldConfig?.unknownTokens || DEFAULT_UNKNOWN_TOKENS;
+  return tokens.includes(trimmed.toLowerCase());
+}
 
 /**
  * Update a fact for a specific field when it becomes complete
  * ONLY for PACK_LE_APPS
+ * 
+ * @param {Object} params
+ * @param {string} params.packId - Pack identifier
+ * @param {Object} params.instance - Instance object with facts and unresolvedFields
+ * @param {string} params.fieldKey - Field key being updated
+ * @param {string} params.finalValue - The final value for the field
+ * @param {"user"|"ai_probed"} params.source - Source of the value
+ * @param {number} params.probeCount - Number of AI probes used for this field
  */
 export function updateFactForField({
   packId,
   instance,
   fieldKey,
   finalValue,
-  source = "user"
+  source = "user",
+  probeCount = 0
 }) {
   // Only PACK_LE_APPS uses facts pipeline
   if (packId !== "PACK_LE_APPS") return;
@@ -32,16 +52,54 @@ export function updateFactForField({
   const semanticKey = fieldConfig.semanticKey;
   if (!semanticKey) return;
 
+  // Initialize facts and unresolvedFields if needed
   if (!instance.facts) instance.facts = {};
+  if (!instance.unresolvedFields) instance.unresolvedFields = [];
 
-  const trimmed = (finalValue || "").trim();
-  const isUnknown = trimmed === "" || UNKNOWN_TOKENS.includes(trimmed.toLowerCase());
+  const isUnknown = isUnknownValue(finalValue, fieldConfig);
+  
+  // Get pack-level max probes setting
+  const maxProbes = packConfig.maxAiProbes ?? 3;
+  const reachedProbeLimit = maxProbes > 0 && probeCount >= maxProbes;
+  
+  // "unresolved" means: we hit probe limit AND still have only an unknown token
+  const isUnresolved = reachedProbeLimit && isUnknown;
 
-  instance.facts[semanticKey] = {
-    value: finalValue,
-    status: isUnknown ? "unknown" : "confirmed",
-    source
-  };
+  if (isUnresolved) {
+    // Use the unknownDisplayLabel from field config or generate default
+    const displayValue = fieldConfig.unknownDisplayLabel || 
+      `Not recalled after ${probeCount} attempts`;
+    
+    instance.facts[semanticKey] = {
+      value: displayValue,
+      status: "unknown",
+      source
+    };
+    
+    // Add to unresolvedFields if not already there
+    const existingUnresolved = instance.unresolvedFields.find(
+      uf => uf.semanticKey === semanticKey
+    );
+    if (!existingUnresolved) {
+      instance.unresolvedFields.push({
+        semanticKey,
+        fieldKey,
+        probeCount
+      });
+    }
+  } else {
+    // Normal case: store the confirmed or unknown fact
+    instance.facts[semanticKey] = {
+      value: finalValue,
+      status: isUnknown ? "unknown" : "confirmed",
+      source
+    };
+    
+    // Remove from unresolvedFields if it was there (e.g., candidate provided answer later)
+    instance.unresolvedFields = instance.unresolvedFields.filter(
+      uf => uf.semanticKey !== semanticKey
+    );
+  }
   
   return instance.facts;
 }
