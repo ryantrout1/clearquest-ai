@@ -2000,7 +2000,10 @@ export default function CandidateInterview() {
               // Field is incomplete - need to probe
               console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
               
-              // Add the deterministic answer to transcript first
+              // Clear the text input immediately when entering probe mode
+              setInput("");
+              
+              // Add the deterministic answer to transcript first (as the follow-up Q+A)
               const followupEntry = {
                 id: `fu-${Date.now()}`,
                 questionId: currentItem.id,
@@ -2020,25 +2023,10 @@ export default function CandidateInterview() {
               
               const newTranscript = [...transcript, followupEntry];
               
-              // Add AI probe question to transcript
-              const aiProbeEntry = {
-                id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${Date.now()}`,
-                type: 'ai_question',
-                content: v2Result.question,
-                questionId: currentItem.baseQuestionId,
-                packId: packId,
-                timestamp: new Date().toISOString(),
-                kind: 'ai_field_probe',
-                role: 'investigator',
-                text: v2Result.question,
-                followupPackId: packId,
-                instanceNumber: instanceNumber,
-                fieldKey: fieldKey,
-                probeEngineVersion: 'v2-per-field'
-              };
-              
-              const transcriptWithProbe = [...newTranscript, aiProbeEntry];
-              setTranscript(transcriptWithProbe);
+              // For per-field V2 probing, we only add ONE transcript entry (the probe question)
+              // The purple "Investigator Question" card will be rendered from currentFieldProbe state
+              // We do NOT add a separate ai_question transcript entry here to avoid duplicate bubbles
+              setTranscript(newTranscript);
               
               // Update probe state for this field
               setFieldProbingState(prev => ({
