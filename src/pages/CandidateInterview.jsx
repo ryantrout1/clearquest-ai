@@ -1982,23 +1982,10 @@ export default function CandidateInterview() {
               // Field is incomplete - need to probe
               console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
               
-              // INVARIANT: Log the AI probe question to chat history
-              console.log('[V2-PER-FIELD] Response:', v2Result);
-              const aiProbeQuestionEvent = createChatEvent('ai_probe_question', {
-                role: 'system',
-                text: v2Result.question,
-                content: v2Result.question,
-                packId: packId,
-                fieldKey: v2Result.field_key || fieldKey,
-                instanceNumber: instanceNumber,
-                baseQuestionId: currentItem.baseQuestionId,
-                kind: 'ai_field_probe_question'
-              });
-              
               // Clear the text input immediately when entering probe mode
               setInput("");
               
-              // Add the deterministic answer to transcript first (as the follow-up Q+A)
+              // INVARIANT: Add the deterministic follow-up Q+A to transcript FIRST
               const followupEntry = createChatEvent('followup', {
                 questionId: currentItem.id,
                 questionText: step.Prompt,
@@ -2017,7 +2004,21 @@ export default function CandidateInterview() {
               followupEntry.type = 'followup';
               followupEntry.role = 'candidate';
               
-              const newTranscript = [...transcript, followupEntry];
+              // INVARIANT: Then add the AI probe question to transcript
+              const aiProbeQuestionEvent = createChatEvent('ai_question', {
+                questionId: currentItem.baseQuestionId,
+                packId: packId,
+                content: v2Result.question,
+                text: v2Result.question,
+                kind: 'ai_field_probe',
+                followupPackId: packId,
+                instanceNumber: instanceNumber,
+                fieldKey: v2Result.field_key || fieldKey,
+                probeEngineVersion: 'v2-per-field'
+              });
+              
+              // Add BOTH entries to transcript - followup answer AND ai probe question
+              const newTranscript = [...transcript, followupEntry, aiProbeQuestionEvent];
               
               // For per-field V2 probing, we only add ONE transcript entry (the probe question)
               // The purple "Investigator Question" card will be rendered from currentFieldProbe state
