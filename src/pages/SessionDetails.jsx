@@ -1401,31 +1401,76 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
     });
   };
 
-  // PACK_LE_APPS field mapping for facts-only display
-  const PACK_LE_APPS_FIELD_LABELS = {
-    'agency': 'Agency',
-    'agency_name': 'Agency',
-    'position': 'Position applied for',
-    'position_applied': 'Position applied for',
-    'application_month_year': 'Application date (month/year)',
-    'application_date': 'Application date (month/year)',
-    'outcome': 'Outcome',
-    'application_outcome': 'Outcome',
-    'reason_not_selected': 'Reason provided by agency',
-    'why_not_selected': 'Reason provided by agency',
-    'issues_or_concerns': 'Issues or concerns during hiring',
-    'hiring_issues': 'Issues or concerns during hiring',
-    'anything_else': 'Additional information'
+  // PACK_LE_APPS ordered field definitions with display labels
+  // Order matters: this defines the display sequence
+  const PACK_LE_APPS_FIELDS = [
+    { keys: ['agency', 'agency_name', 'PACK_LE_APPS_Q1'], label: 'Agency' },
+    { keys: ['position', 'position_applied', 'PACK_LE_APPS_Q2'], label: 'Position applied for' },
+    { keys: ['application_month_year', 'application_date', 'PACK_LE_APPS_Q3'], label: 'Application date (month/year)' },
+    { keys: ['outcome', 'application_outcome', 'PACK_LE_APPS_Q4'], label: 'Outcome' },
+    { keys: ['reason_not_selected', 'why_not_selected', 'PACK_LE_APPS_Q5'], label: 'Reason provided by agency' },
+    { keys: ['issues_or_concerns', 'hiring_issues', 'anything_else', 'PACK_LE_APPS_Q6'], label: 'Issues or concerns during hiring' }
+  ];
+
+  // Extract PACK_LE_APPS facts in proper order with labels
+  const extractLeAppsFacts = (details) => {
+    const facts = [];
+    const usedKeys = new Set();
+    
+    PACK_LE_APPS_FIELDS.forEach(field => {
+      // Find first matching key with a value
+      for (const key of field.keys) {
+        if (details[key] && !usedKeys.has(key)) {
+          facts.push({ label: field.label, value: details[key] });
+          usedKeys.add(key);
+          break;
+        }
+      }
+      
+      // Also check for keys that match the pattern (e.g., any key containing the field name)
+      if (facts.length < PACK_LE_APPS_FIELDS.indexOf(field) + 1) {
+        Object.entries(details).forEach(([key, value]) => {
+          if (!usedKeys.has(key) && value) {
+            const keyLower = key.toLowerCase().replace(/_/g, '');
+            const fieldLower = field.keys[0].toLowerCase().replace(/_/g, '');
+            if (keyLower.includes(fieldLower) || fieldLower.includes(keyLower)) {
+              facts.push({ label: field.label, value });
+              usedKeys.add(key);
+            }
+          }
+        });
+      }
+    });
+    
+    // Handle any remaining fields by display order (fallback for PACK_LE_APPS_Q* pattern)
+    const remainingKeys = Object.keys(details).filter(k => !usedKeys.has(k) && details[k]);
+    remainingKeys.sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, '')) || 999;
+      const numB = parseInt(b.replace(/\D/g, '')) || 999;
+      return numA - numB;
+    });
+    
+    remainingKeys.forEach((key, idx) => {
+      if (facts.length < PACK_LE_APPS_FIELDS.length) {
+        const fieldDef = PACK_LE_APPS_FIELDS[facts.length];
+        if (fieldDef) {
+          facts.push({ label: fieldDef.label, value: details[key] });
+        }
+      }
+    });
+    
+    return facts;
   };
 
   // Build summary line for PACK_LE_APPS instance
   const buildLeAppsSummary = (details) => {
-    const agency = details.agency || details.agency_name || '';
-    const position = details.position || details.position_applied || '';
-    const date = details.application_month_year || details.application_date || '';
+    const facts = extractLeAppsFacts(details);
+    const agency = facts.find(f => f.label === 'Agency')?.value || '';
+    const position = facts.find(f => f.label === 'Position applied for')?.value || '';
+    const date = facts.find(f => f.label === 'Application date (month/year)')?.value || '';
     
     const parts = [agency, position, date].filter(Boolean);
-    return parts.length > 0 ? parts.join(' • ') : 'No details recorded';
+    return parts.length > 0 ? parts.join(' • ') : null;
   };
 
   return (
