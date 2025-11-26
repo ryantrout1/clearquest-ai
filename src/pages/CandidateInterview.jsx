@@ -28,7 +28,6 @@ import SectionCompletionMessage from "../components/interview/SectionCompletionM
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue } from "../components/followups/semanticValidator";
-import { validateFollowupValue } from "../components/followups/semanticValidator";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
