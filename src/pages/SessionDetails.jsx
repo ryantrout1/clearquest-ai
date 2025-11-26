@@ -1351,14 +1351,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const questionNumber = displayNumber.toString().padStart(3, '0');
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
-
-  console.log('[SESSIONDETAILS] Question summary check', {
-    questionId: response.question_id,
-    hasFollowups,
-    hasSummary: !!summary,
-    summaryText: summary?.substring(0, 80),
-    summarySource: response.investigator_summary === summary ? 'Response entity' : 'QuestionSummary entity'
-  });
   
   // Build instances from raw FollowUpResponse data
   const instancesMap = {};
@@ -1384,40 +1376,17 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
     // Extract AI probing exchanges
     if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
-      console.log('[SESSIONDETAILS] Found AI probing for response', {
-        responseId: f.id,
-        questionId: response.question_id,
-        packId: f.followup_pack,
-        instanceNumber: instNum,
-        probingCount: details.investigator_probing.length,
-        exchanges: details.investigator_probing.map(ex => ({
-          seq: ex.sequence_number,
-          question: ex.probing_question?.substring(0, 50)
-        }))
-      });
       instancesMap[instNum].aiExchanges.push(...details.investigator_probing);
     }
-  });
-
-  console.log('[SESSIONDETAILS] Built instancesMap for question', {
-    questionId: response.question_id,
-    instanceCount: Object.keys(instancesMap).length,
-    instances: Object.entries(instancesMap).map(([num, inst]) => ({
-      instanceNumber: num,
-      packId: inst.followupPackId,
-      deterministicCount: Object.keys(inst.details).length,
-      aiExchangeCount: inst.aiExchanges.length
-    }))
   });
   
   const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
 
-  const [expandedInstances, setExpandedInstances] = React.useState(() => {
-    // For single-instance, we ignore this set and always show the body.
-    // For multiple instances, start with ALL collapsed.
-    return new Set(); // nothing expanded initially
-  });
+  // Check if this is PACK_LE_APPS (Q001)
+  const isPackLeApps = followups.some(f => f.followup_pack === 'PACK_LE_APPS');
+
+  const [expandedInstances, setExpandedInstances] = React.useState(() => new Set());
 
   const toggleInstance = (instanceNumber) => {
     setExpandedInstances((prev) => {
@@ -1430,6 +1399,33 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
       }
       return next;
     });
+  };
+
+  // PACK_LE_APPS field mapping for facts-only display
+  const PACK_LE_APPS_FIELD_LABELS = {
+    'agency': 'Agency',
+    'agency_name': 'Agency',
+    'position': 'Position applied for',
+    'position_applied': 'Position applied for',
+    'application_month_year': 'Application date (month/year)',
+    'application_date': 'Application date (month/year)',
+    'outcome': 'Outcome',
+    'application_outcome': 'Outcome',
+    'reason_not_selected': 'Reason provided by agency',
+    'why_not_selected': 'Reason provided by agency',
+    'issues_or_concerns': 'Issues or concerns during hiring',
+    'hiring_issues': 'Issues or concerns during hiring',
+    'anything_else': 'Additional information'
+  };
+
+  // Build summary line for PACK_LE_APPS instance
+  const buildLeAppsSummary = (details) => {
+    const agency = details.agency || details.agency_name || '';
+    const position = details.position || details.position_applied || '';
+    const date = details.application_month_year || details.application_date || '';
+    
+    const parts = [agency, position, date].filter(Boolean);
+    return parts.length > 0 ? parts.join(' • ') : 'No details recorded';
   };
 
   return (
@@ -1479,7 +1475,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
           <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
           <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-2">
             <div className="space-y-1">
-              {hasMultipleInstances && (
+              {instanceNumbers.length > 1 && (
                 <div className="text-xs font-semibold text-cyan-400 mb-1">
                   🔁 {instanceNumbers.length} Instances Recorded
                 </div>
@@ -1489,19 +1485,90 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 const instance = instancesMap[instanceNum];
                 if (!instance) return null;
                 
-                // Get pack questions sorted by display_order
+                const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+                
+                // PACK_LE_APPS: Facts-only display
+                if (isPackLeApps) {
+                  const summaryLine = buildLeAppsSummary(instance.details);
+                  
+                  return (
+                    <div
+                      key={instanceNum}
+                      className="mt-2 rounded-lg border border-slate-700/60 bg-slate-900/30"
+                    >
+                      {/* Collapsed row */}
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-200 hover:bg-slate-800/50 transition-colors"
+                        onClick={() => toggleInstance(instanceNum)}
+                      >
+                        <div className="flex items-center gap-2 text-left">
+                          <ChevronRight className={cn(
+                            "w-3.5 h-3.5 text-slate-400 transition-transform",
+                            isInstanceExpanded && "rotate-90"
+                          )} />
+                          <span className="font-semibold text-slate-100">Instance {instanceIdx + 1}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400 text-[11px]">{summaryLine}</span>
+                          <span className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">
+                            {isInstanceExpanded ? "Hide" : "Show"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Expanded facts-only view */}
+                      {isInstanceExpanded && (
+                        <div className="px-4 pb-4 pt-2 border-t border-slate-700/40">
+                          {/* Title */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-medium text-slate-100">
+                              Instance {instanceIdx + 1} — {summaryLine}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleInstance(instanceNum)}
+                              className="text-[10px] text-slate-400 hover:text-slate-300"
+                            >
+                              Hide
+                            </button>
+                          </div>
+
+                          {/* FACTS header */}
+                          <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">
+                            Facts
+                          </div>
+
+                          {/* Facts grid - two columns, no question text */}
+                          <div className="space-y-1.5">
+                            {Object.entries(instance.details).map(([key, value]) => {
+                              const label = PACK_LE_APPS_FIELD_LABELS[key] || key.replace(/_/g, ' ');
+                              if (!value) return null;
+                              
+                              return (
+                                <div key={key} className="grid grid-cols-[140px_1fr] gap-x-3 text-xs">
+                                  <div className="text-slate-400 italic">{label}:</div>
+                                  <div className="text-slate-100 font-medium">{value}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                
+                // Non-PACK_LE_APPS: Original detailed view with Q&A and AI probing
                 const packQuestions = followUpQuestionEntities
                   .filter(q => q.followup_pack_id === instance.followupPackId)
                   .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
-                // Build deterministic entries and match by ID, not index
                 const detailEntries = Object.entries(instance.details || {});
                 const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
-                  // First try snapshot lookup
                   let questionText = instance.questionTextSnapshot?.[detailKey];
                   let matchedQuestion = null;
 
-                  // Try to find matching question by followup_question_id (matches the detailKey)
                   if (!questionText) {
                     matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
                     if (matchedQuestion) {
@@ -1509,7 +1576,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     }
                   }
 
-                  // Last resort: use the key itself
                   if (!questionText) {
                     questionText = detailKey.replace(/_/g, ' ');
                   }
@@ -1524,7 +1590,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
                 deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
                 
-                // Sort and deduplicate AI exchanges by sequence_number
                 const uniqueExchanges = Array.from(
                   new Map(
                     (instance.aiExchanges || []).map(ex => [
@@ -1541,7 +1606,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
                 
-                // Build a simple summary from the first few responses
                 const summaryValues = deterministicEntries
                   .map((e) => e.detailValue)
                   .filter(Boolean);
@@ -1556,7 +1620,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     key={instanceNum}
                     className="mt-2 rounded-lg border border-slate-700/60 bg-transparent"
                   >
-                    {/* Header row – always visible */}
                     <button
                       type="button"
                       className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40"
@@ -1582,10 +1645,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       )}
                     </button>
 
-                    {/* Body – only shown when expanded */}
                     {isExpanded && (
                       <div className="px-3 pb-3 pt-1 space-y-2">
-                        {/* Deterministic follow-ups as two-column fact sheet */}
                         {deterministicEntries.length > 0 && (
                           <div>
                             <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
@@ -1598,13 +1659,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                                   key={entry.detailKey}
                                   className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5"
                                 >
-                                  {/* Question */}
                                   <div className="text-slate-200">
                                     <span className="mr-1 font-medium">{idx + 1}.</span>
                                     <span className="italic">{entry.questionText}</span>
                                   </div>
-
-                                  {/* Answer (no bubble) */}
                                   <div className="text-right text-slate-50 font-semibold">
                                     {entry.detailValue}
                                   </div>
@@ -1614,7 +1672,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           </div>
                         )}
 
-                        {/* AI Investigator Follow-Ups */}
                         {sortedAiExchanges.length > 0 && (
                           <div className="pt-2">
                             <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">
