@@ -2676,19 +2676,6 @@ export default function CandidateInterview() {
         // Field is now complete (either valid or max probes reached)
         console.log(`[V2-PER-FIELD] Field ${fieldKey} now complete → advancing to next step`);
         
-        // PACK_LE_APPS FACTS PIPELINE: Store final validated value as fact
-        if (packId === "PACK_LE_APPS") {
-          // The final value is the probe answer that completed the field
-          const finalValue = value;
-          const wasProbed = currentProbeState.probeCount > 0;
-          
-          // We'll store this fact when saving to database
-          console.log(`[V2-PER-FIELD] Storing fact for ${fieldKey}:`, {
-            finalValue,
-            source: wasProbed ? "ai_probed" : "user"
-          });
-        }
-        
         // Mark field as completed
         setCompletedFields(prev => ({
           ...prev,
