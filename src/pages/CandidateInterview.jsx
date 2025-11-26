@@ -28,6 +28,7 @@ import SectionCompletionMessage from "../components/interview/SectionCompletionM
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue } from "../components/followups/semanticValidator";
+import { validateFollowupValue } from "../components/followups/semanticValidator";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -2078,19 +2079,22 @@ export default function CandidateInterview() {
               
               // Mark as in progress
               v2ProbingInProgressRef.current.add(probeKey);
-              
-              try {
-                const v2Result = await callProbeEngineV2PerField(base44, {
-                  packId,
-                  fieldKey,
-                  fieldValue: normalizedAnswer,
-                  previousProbesCount: currentProbeState.probeCount,
-                  incidentContext
-                });
-                
-                console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
-            
-            if (v2Result.mode === 'QUESTION') {
+
+                        if(semanticResult.status === 'invalid' || semanticResult.status === 'unknown') {
+                          if (probeCount < maxProbes) {
+                            console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
+                            v2ProbingInProgressRef.current.add(probeKey);
+                            try {
+                              const v2Result = await callProbeEngineV2PerField(base44, {
+                                packId,
+                                fieldKey,
+                                fieldValue: normalizedAnswer,
+                                previousProbesCount: currentProbeState.probeCount,
+                                incidentContext
+                              });
+                              console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
+                              if (v2Result.mode === 'QUESTION') {
+
               // Field is incomplete - need to probe
               console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
               
@@ -2184,13 +2188,14 @@ export default function CandidateInterview() {
             });
             
             v2ProbingInProgressRef.current.delete(probeKey);
-            
+
             // Fall through to normal flow below
               } catch (err) {
                 console.error(`[V2-PER-FIELD] Error during field validation:`, err);
                 v2ProbingInProgressRef.current.delete(probeKey);
                 // Fall through to normal flow on error
               }
+            }
             }
           }
         }
