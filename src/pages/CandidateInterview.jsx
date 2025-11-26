@@ -177,6 +177,10 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     });
 
     console.log('[V2-PER-FIELD] Response:', response.data);
+    
+    // NOTE: AI probe question logging is handled in the calling code after this returns
+    // when response.data.mode === 'QUESTION'
+    
     return response.data;
   } catch (err) {
     console.error('[V2-PER-FIELD] Error calling backend:', err);
