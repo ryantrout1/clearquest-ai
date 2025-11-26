@@ -7,7 +7,7 @@
  * Handles unresolved fields when max probes are reached without a usable answer.
  */
 
-import { FOLLOWUP_PACK_CONFIGS, DEFAULT_UNKNOWN_TOKENS } from "./followupPackConfig";
+import { FOLLOWUP_PACK_CONFIGS, DEFAULT_UNKNOWN_TOKENS, getPackMaxAiFollowups } from "./followupPackConfig";
 
 /**
  * Check if a value is considered "unknown" based on field config
@@ -58,8 +58,8 @@ export function updateFactForField({
 
   const isUnknown = isUnknownValue(finalValue, fieldConfig);
   
-  // Get pack-level max AI followups setting
-  const maxAiFollowups = packConfig.maxAiFollowups ?? 3;
+  // Get pack-level max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+  const maxAiFollowups = getPackMaxAiFollowups(packId);
   const reachedProbeLimit = maxAiFollowups > 0 && probeCount >= maxAiFollowups;
   
   // "unresolved" means: we hit probe limit AND still have only an unknown token
