@@ -122,7 +122,7 @@ export function buildFactsFromDetails(packId, additionalDetails, aiExchanges = [
     
     if (!answer) return;
     const answerLower = answer.toLowerCase().trim();
-    if (UNKNOWN_TOKENS.includes(answerLower)) return;
+    if (DEFAULT_UNKNOWN_TOKENS.includes(answerLower)) return;
     
     // Match probe question to semantic field
     if (question.includes('timeframe') || question.includes('when') || question.includes('date') || question.includes('month') || question.includes('year') || question.includes('approximate')) {
@@ -147,7 +147,7 @@ export function buildFactsFromDetails(packId, additionalDetails, aiExchanges = [
     let source = "user";
     
     // Check if stored value is vague
-    const storedIsVague = value && UNKNOWN_TOKENS.includes(value.toLowerCase().trim());
+    const storedIsVague = value && isUnknownValue(value, field);
     
     // If stored value is vague but AI clarification exists, use clarification
     if (storedIsVague && aiClarifications[field.semanticKey]) {
@@ -156,7 +156,7 @@ export function buildFactsFromDetails(packId, additionalDetails, aiExchanges = [
     }
     
     if (value && value.trim() !== "") {
-      const isUnknown = UNKNOWN_TOKENS.includes(value.toLowerCase().trim());
+      const isUnknown = isUnknownValue(value, field);
       facts[field.semanticKey] = {
         value: value,
         status: isUnknown ? "unknown" : "confirmed",
