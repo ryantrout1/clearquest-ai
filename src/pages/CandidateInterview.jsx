@@ -3815,6 +3815,44 @@ export default function CandidateInterview() {
 
 // Deterministic transcript entries + AI probing
 function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) {
+  // Welcome message
+  if (entry.type === 'system_welcome') {
+    return (
+      <div className="bg-blue-950/30 border border-blue-800/50 rounded-xl p-5 opacity-90">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-blue-400">Welcome</span>
+            </div>
+            <p className="text-white leading-relaxed">{entry.text || entry.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Intro type (legacy compatibility)
+  if (entry.type === 'intro') {
+    return (
+      <div className="bg-blue-950/30 border border-blue-800/50 rounded-xl p-5 opacity-90">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-sm font-semibold text-blue-400">Welcome</span>
+            </div>
+            <p className="text-white leading-relaxed">{entry.text || entry.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // System messages (timeouts, reminders)
   if (entry.type === 'system_message') {
     // Section transition messages get special styling
