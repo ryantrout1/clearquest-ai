@@ -2988,6 +2988,15 @@ export default function CandidateInterview() {
           };
         }
         
+        // Merge unresolved fields for PACK_LE_APPS
+        if (unresolvedUpdate) {
+          const existingUnresolved = updatedDetails.unresolvedFields || [];
+          // Remove existing entry for this field if present, then add new one
+          const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
+          filtered.push(unresolvedUpdate);
+          updatedDetails.unresolvedFields = filtered;
+        }
+        
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
           additional_details: updatedDetails
