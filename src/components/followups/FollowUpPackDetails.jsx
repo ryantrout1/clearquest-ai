@@ -452,7 +452,20 @@ export default function FollowUpPackDetails({
 
       {/* AI Probe Instructions */}
       <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
-        <Label className="text-lg font-semibold text-blue-400 mb-3 block">AI Probe Instructions</Label>
+        <button
+          onClick={() => !isEditing && setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
+          className="w-full flex items-center justify-between mb-3 group"
+          disabled={isEditing}
+        >
+          <Label className="text-lg font-semibold text-blue-400 cursor-pointer">AI Probe Instructions</Label>
+          {!isEditing && (
+            isProbeInstructionsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-colors" />
+            )
+          )}
+        </button>
         {isEditing ? (
           <Textarea
             value={formData.ai_probe_instructions}
@@ -460,8 +473,8 @@ export default function FollowUpPackDetails({
             className="bg-slate-800 border-slate-600 text-white min-h-64"
             placeholder="Instructions for AI probing behavior for this pack..."
           />
-        ) : (
-          <div className="h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+        ) : isProbeInstructionsExpanded && (
+          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
             <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
               {formData.ai_probe_instructions || 'No instructions provided'}
             </p>
