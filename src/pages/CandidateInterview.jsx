@@ -3703,6 +3703,8 @@ export default function CandidateInterview() {
                           };
                           const newTranscript = [...transcript, transitionMessage];
                           setTranscript(newTranscript);
+              
+              console.log('[V2-PER-FIELD] Added to transcript:', { followupEntry, aiProbeQuestionEvent });
 
                           // Advance to next question
                           const nextQuestionId = sectionTransitionInfo.nextQuestionId;
