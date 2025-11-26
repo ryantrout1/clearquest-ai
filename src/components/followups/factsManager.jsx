@@ -58,9 +58,9 @@ export function updateFactForField({
 
   const isUnknown = isUnknownValue(finalValue, fieldConfig);
   
-  // Get pack-level max probes setting
-  const maxProbes = packConfig.maxAiProbes ?? 3;
-  const reachedProbeLimit = maxProbes > 0 && probeCount >= maxProbes;
+  // Get pack-level max AI followups setting
+  const maxAiFollowups = packConfig.maxAiFollowups ?? 3;
+  const reachedProbeLimit = maxAiFollowups > 0 && probeCount >= maxAiFollowups;
   
   // "unresolved" means: we hit probe limit AND still have only an unknown token
   const isUnresolved = reachedProbeLimit && isUnknown;
