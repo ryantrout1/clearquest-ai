@@ -2525,12 +2525,12 @@ export default function CandidateInterview() {
         });
       }
 
-      setIsCommitting(false);
-      setInput("");
     } catch (err) {
       console.error('❌ Error processing answer:', err);
-      setIsCommitting(false);
       setError(`Error: ${err.message}`);
+    } finally {
+      setIsCommitting(false);
+      setInput("");
     }
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, sectionCompletionMessage]);
 
