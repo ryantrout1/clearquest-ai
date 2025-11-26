@@ -3580,22 +3580,20 @@ export default function CandidateInterview() {
         >
           <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
             {isIntroPhase ? (
-                <div className="flex justify-center mb-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTranscript(prev => [
-                        ...prev,
-                        {
-                          role: "system",
-                          type: "intro",
-                          text: "Welcome to your ClearQuest Interview.",
-                          timestamp: new Date().toISOString()
-                        }
-                      ]);
-                      setShowStartMessage(false);
-                      setTimeout(() => autoScrollToBottom(), 0);
-                    }}
+              <div className="flex justify-center mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Log welcome message to transcript
+                    const welcomeEvent = createChatEvent('system_welcome', {
+                      content: "Welcome to your ClearQuest Interview. This interview is part of your application process. You'll answer one question at a time, at your own pace. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.",
+                      text: "Welcome to your ClearQuest Interview.",
+                      kind: 'system_welcome'
+                    });
+                    setTranscript(prev => [...prev, welcomeEvent]);
+                    setShowStartMessage(false);
+                    setTimeout(() => autoScrollToBottom(), 0);
+                  }}
                     disabled={isCommitting || showPauseModal}
                     className="min-h-[48px] sm:min-h-[48px] md:min-h-[52px] px-12 rounded-[10px] font-bold text-white border border-transparent transition-all duration-75 ease-out flex items-center justify-center gap-2 text-base sm:text-base md:text-lg bg-blue-600 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:pointer-events-none"
                     aria-label="Continue to first question"
