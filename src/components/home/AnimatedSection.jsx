@@ -13,14 +13,12 @@ export default function AnimatedSection({
   const bgStyles = {
     default: 'bg-transparent',
     none: 'bg-transparent',
-    subtle1: 'bg-[radial-gradient(ellipse_at_top,_rgba(30,96,212,0.08)_0%,_transparent_50%)]',
-    subtle2: 'bg-[radial-gradient(ellipse_at_bottom,_rgba(109,93,210,0.06)_0%,_transparent_50%)]',
-    dark: 'bg-[#0C234A]/60 backdrop-blur-sm',
-    darkBlend: 'bg-gradient-to-b from-[#102B57]/40 via-[#0C234A]/50 to-[#102B57]/40',
-    accent: 'bg-[#0B1F3F]/80',
-    accentBlend: 'bg-gradient-to-b from-transparent via-[#102B57]/50 to-transparent',
-    glowTop: 'bg-[radial-gradient(ellipse_at_top_center,_rgba(30,96,212,0.12)_0%,_transparent_60%)]',
-    glowBottom: 'bg-[radial-gradient(ellipse_at_bottom_center,_rgba(109,93,210,0.1)_0%,_transparent_60%)]'
+    subtle1: 'bg-transparent',
+    subtle2: 'bg-transparent',
+    dark: 'bg-slate-800/50 backdrop-blur-sm',
+    darkBlend: 'bg-gradient-to-b from-slate-800/30 via-slate-800/40 to-slate-800/30',
+    accent: 'bg-slate-900/80',
+    accentBlend: 'bg-gradient-to-b from-transparent via-slate-900/60 to-transparent'
   };
 
   return (
