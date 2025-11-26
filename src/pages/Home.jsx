@@ -550,50 +550,99 @@ function SessionDialog({ open, onOpenChange }) {
 }
 
 function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
-  const [sections, setSections] = useState([]);
-  const [sampleQuestions, setSampleQuestions] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const loadSampleQuestions = async () => {
-      try {
-        setIsLoading(true);
-        const [sectionsData, questionsData] = await Promise.all([
-          base44.entities.Section.filter({ active: true }),
-          base44.entities.Question.filter({ active: true })
-        ]);
-        
-        const sortedSections = sectionsData.sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
-        setSections(sortedSections);
-        
-        // For each section, take only the first 3 questions as samples
-        const samples = [];
-        sortedSections.forEach(section => {
-          const sectionQuestions = questionsData
-            .filter(q => q.section_id === section.id)
-            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-            .slice(0, 3); // Only first 3 questions per section
-          
-          samples.push({
-            section: section,
-            questions: sectionQuestions
-          });
-        });
-        
-        setSampleQuestions(samples);
-      } catch (err) {
-        console.error("Error loading sample questions:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (open) {
-      loadSampleQuestions();
+  // Static sample questions from all sections - curated representative samples
+  const staticSampleQuestions = [
+    {
+      sectionName: "Applications with Other Law Enforcement Agencies",
+      description: "Questions about prior law enforcement applications and outcomes",
+      questions: [
+        "Have you ever applied with any other law enforcement agency?",
+        "Have you purposely withheld any information about prior applications with other law enforcement agencies?",
+        "Have you ever been disqualified by another law enforcement agency during their selection process?"
+      ]
+    },
+    {
+      sectionName: "Driving Record",
+      description: "Questions about driving history and incidents",
+      questions: [
+        "As a driver, have you ever been involved in a traffic collision?",
+        "Have you ever been involved in a collision involving alcohol?",
+        "Have you ever been involved in any unreported collisions?"
+      ]
+    },
+    {
+      sectionName: "Criminal Involvement / Police Contacts",
+      description: "Questions about criminal history and law enforcement interactions",
+      questions: [
+        "Have you ever been arrested for any reason?",
+        "Have you ever been charged with a crime, even if the charges were later dismissed?",
+        "Have you ever been the subject of a protective or restraining order?"
+      ]
+    },
+    {
+      sectionName: "Illegal Drug / Narcotic History",
+      description: "Questions about substance use history",
+      questions: [
+        "Have you ever used marijuana or cannabis products?",
+        "Have you ever used any illegal drugs other than marijuana?",
+        "Have you ever sold, manufactured, or distributed any illegal drugs?"
+      ]
+    },
+    {
+      sectionName: "Alcohol Use",
+      description: "Questions about alcohol consumption and related incidents",
+      questions: [
+        "Have you ever consumed alcohol to the point of intoxication?",
+        "Have you ever been told by anyone that you have a drinking problem?",
+        "Have you ever attended any alcohol treatment or counseling programs?"
+      ]
+    },
+    {
+      sectionName: "Financial History",
+      description: "Questions about financial responsibility and issues",
+      questions: [
+        "Have you ever filed for bankruptcy?",
+        "Have you ever had a vehicle repossessed?",
+        "Have you ever been more than 90 days late on any debt payment?"
+      ]
+    },
+    {
+      sectionName: "Employment History",
+      description: "Questions about work history and conduct",
+      questions: [
+        "Have you ever been fired or terminated from any job?",
+        "Have you ever resigned from a job to avoid being fired?",
+        "Have you ever been disciplined at work for misconduct?"
+      ]
+    },
+    {
+      sectionName: "Military Service",
+      description: "Questions about military background and service record",
+      questions: [
+        "Have you ever served in any branch of the military?",
+        "Did you receive any disciplinary action during your military service?",
+        "What type of discharge did you receive from military service?"
+      ]
+    },
+    {
+      sectionName: "Personal Conduct",
+      description: "Questions about personal behavior and integrity",
+      questions: [
+        "Have you ever been involved in a physical fight as an adult?",
+        "Have you ever engaged in any conduct that could be considered domestic violence?",
+        "Is there anything in your background that could cause embarrassment to you or the department?"
+      ]
+    },
+    {
+      sectionName: "Prior Law Enforcement Experience",
+      description: "Questions about previous law enforcement employment",
+      questions: [
+        "Have you ever worked for a law enforcement agency in any capacity?",
+        "Have you ever been the subject of an internal affairs investigation?",
+        "Have you ever been accused of using excessive force?"
+      ]
     }
-  }, [open]);
-
-
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -610,47 +659,34 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
         
         <ScrollArea className="max-h-[calc(90vh-200px)] px-4 sm:px-6">
           <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
-            {isLoading ? (
-              <div className="text-center py-12 text-slate-400 text-sm sm:text-base">
-                Loading sample questions...
-              </div>
-            ) : (
-              sampleQuestions.map((sectionData, idx) => {
-                const section = sectionData.section;
-                const questions = sectionData.questions;
-
-                return (
-                  <div 
-                    key={section.id}
-                    className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-blue-500/50 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white text-sm sm:text-base mb-1 break-words">
-                        {section.section_name}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-400 mb-3 break-words">
-                        {section.description || "Sample questions from this investigative area"}
-                      </p>
-                      
-                      {questions.length > 0 && (
-                        <div className="space-y-2 mb-3">
-                          {questions.map((question) => (
-                            <div key={question.id} className="flex items-start gap-2 text-xs sm:text-sm">
-                              <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
-                              <span className="text-slate-300 break-words">{question.question_text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      <p className="text-xs text-slate-500 italic mt-2">
-                        Additional questions are asked during the actual interview. These are sample questions only.
-                      </p>
-                    </div>
+            {staticSampleQuestions.map((sectionData, idx) => (
+              <div 
+                key={idx}
+                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-blue-500/50 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-white text-sm sm:text-base mb-1 break-words">
+                    {sectionData.sectionName}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-400 mb-3 break-words">
+                    {sectionData.description}
+                  </p>
+                  
+                  <div className="space-y-2 mb-3">
+                    {sectionData.questions.map((question, qIdx) => (
+                      <div key={qIdx} className="flex items-start gap-2 text-xs sm:text-sm">
+                        <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                        <span className="text-slate-300 break-words">{question}</span>
+                      </div>
+                    ))}
                   </div>
-                );
-              })
-            )}
+                  
+                  <p className="text-xs text-slate-500 italic mt-2">
+                    Additional questions are asked during the actual interview. These are sample questions only.
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </ScrollArea>
 
