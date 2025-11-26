@@ -2483,9 +2483,14 @@ export default function CandidateInterview() {
         
         setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
         
-        // Update follow-up answers with the new probe answer
+        // Update follow-up answers with the new probe answer (this is the final validated value)
         const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
         setCurrentFollowUpAnswers(updatedAnswers);
+        
+        // Save the probe answer to database with ai_probed source for PACK_LE_APPS facts
+        if (packId === "PACK_LE_APPS") {
+          await saveFollowUpAnswer(packId, fieldKey, value, currentFieldProbe.substanceName, instanceNumber, "ai_probed");
+        }
         
         // Call V2 again to validate the new answer
         const v2Result = await callProbeEngineV2PerField(base44, {
