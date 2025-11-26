@@ -109,6 +109,35 @@ const HEAVY_SECTIONS = [
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 
 // ============================================================================
+// CENTRALIZED CHAT EVENT HELPER
+// ============================================================================
+
+/**
+ * Creates a standardized chat event object for the transcript
+ * Supports: system_welcome, question, answer, followup_question, followup_answer,
+ *           ai_probe_question, ai_probe_answer, progress_message, section_transition
+ */
+const createChatEvent = (type, data = {}) => {
+  const baseEvent = {
+    id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    timestamp: new Date().toISOString(),
+    ...data
+  };
+  
+  // Normalize role based on type
+  if (['system_welcome', 'progress_message', 'section_transition', 'system_message'].includes(type)) {
+    baseEvent.role = 'system';
+  } else if (['question', 'followup_question', 'ai_probe_question', 'ai_question', 'multi_instance_question'].includes(type)) {
+    baseEvent.role = 'investigator';
+  } else if (['answer', 'followup_answer', 'ai_probe_answer', 'ai_answer', 'multi_instance_answer'].includes(type)) {
+    baseEvent.role = 'candidate';
+  }
+  
+  return baseEvent;
+};
+
+// ============================================================================
 // PROBE ENGINE V2 - FEATURE FLAG & HELPER
 // ============================================================================
 
