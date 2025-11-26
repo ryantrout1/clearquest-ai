@@ -2441,6 +2441,19 @@ export default function CandidateInterview() {
       
       console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
       
+      // INVARIANT: Log the user's AI probe answer to chat history BEFORE calling backend
+      const aiProbeAnswerEvent = createChatEvent('ai_probe_answer', {
+        role: 'user',
+        text: value,
+        content: value,
+        packId: packId,
+        fieldKey: fieldKey,
+        instanceNumber: instanceNumber,
+        baseQuestionId: baseQuestionId,
+        kind: 'ai_field_probe_answer'
+      });
+      console.log('[V2-PER-FIELD] Logging AI probe answer:', aiProbeAnswerEvent);
+      
       try {
         // For per-field probing, add BOTH the probe question and answer to transcript now
         // (The question wasn't added earlier to avoid double-bubble, we add it here with the answer)
