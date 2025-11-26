@@ -2049,22 +2049,42 @@ export default function CandidateInterview() {
         // END V2 PER-FIELD PROBING
         // ============================================================================
 
-        // Add to transcript - store answer exactly as entered (no date normalization)
-        const followupEntry = {
-          id: `fu-${Date.now()}`,
+        // Create followup question event (for the transcript history)
+        const followupQuestionEvent = createChatEvent('followup_question', {
           questionId: currentItem.id,
           questionText: step.Prompt,
           packId: packId,
           substanceName: substanceName,
-          type: 'followup',
-          timestamp: new Date().toISOString(),
-          kind: 'deterministic_followup',
-          role: 'candidate',
-          answer: normalizedAnswer,
-          text: normalizedAnswer,
+          kind: 'deterministic_followup_question',
+          text: step.Prompt,
+          content: step.Prompt,
           fieldKey: step.Field_Key,
           followupPackId: packId,
-          instanceNumber: instanceNumber
+          instanceNumber: instanceNumber,
+          baseQuestionId: currentItem.baseQuestionId
+        });
+
+        // Create followup answer event
+        const followupAnswerEvent = createChatEvent('followup_answer', {
+          questionId: currentItem.id,
+          packId: packId,
+          substanceName: substanceName,
+          kind: 'deterministic_followup_answer',
+          answer: normalizedAnswer,
+          text: normalizedAnswer,
+          content: normalizedAnswer,
+          fieldKey: step.Field_Key,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          baseQuestionId: currentItem.baseQuestionId
+        });
+
+        // For render, combine into single entry (legacy format for HistoryEntry)
+        const followupEntry = {
+          ...followupQuestionEvent,
+          type: 'followup',
+          answer: normalizedAnswer,
+          text: normalizedAnswer
         };
 
         const newTranscript = [...transcript, followupEntry];
