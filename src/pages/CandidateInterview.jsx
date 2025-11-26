@@ -2617,51 +2617,63 @@ export default function CandidateInterview() {
         const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
         setCurrentFollowUpAnswers(updatedAnswers);
         
-        // Save the probe answer to database with ai_probed source for PACK_LE_APPS facts
-        if (packId === "PACK_LE_APPS") {
-          await saveFollowUpAnswer(packId, fieldKey, value, currentFieldProbe.substanceName, instanceNumber, "ai_probed");
-        }
-        
-        // Call V2 again to validate the new answer
-        const v2Result = await callProbeEngineV2PerField(base44, {
-          packId,
-          fieldKey,
-          fieldValue: value,
-          previousProbesCount: currentProbeState.probeCount,
-          incidentContext: updatedAnswers
-        });
-        
-        console.log(`[V2-PER-FIELD] Re-validation result for ${fieldKey}:`, v2Result.validationResult);
-        
-        if (v2Result.mode === 'QUESTION') {
-          // Still incomplete - ask another probe
-          console.log(`[V2-PER-FIELD] Field ${fieldKey} still incomplete → probing again`);
+        // Check if semantic validation passes now
+        if (semanticResult.status === "valid") {
+          // Valid answer - save and continue
+          console.log(`[V2-SEMANTIC] Probe answer is valid - saving fact and continuing`);
+          await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, currentFieldProbe.substanceName, instanceNumber, "ai_probed");
           
-          // Clear input for next probe answer
-          setInput("");
+          // Field is now complete - move to next deterministic question
+          console.log(`[V2-PER-FIELD] Field ${fieldKey} now complete → advancing to next step`);
+        } else if (semanticResult.status === "invalid" || semanticResult.status === "unknown") {
+          // Still invalid/unknown - need to check probe count
+          const newProbeCount = currentProbeState.probeCount + 1;
           
-          // Don't add transcript entry yet - it will be added when candidate answers
-          // Just update the currentFieldProbe state to show the new question in the UI
-          
-          setFieldProbingState(prev => ({
-            ...prev,
-            [probeKey]: {
-              probeCount: currentProbeState.probeCount + 1,
-              lastQuestion: v2Result.question,
-              isProbing: true
+          if (newProbeCount < maxProbes) {
+            // Can probe again - call backend for next question
+            console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${newProbeCount}/${maxProbes})`);
+            
+            // Clear input for next probe answer
+            setInput("");
+            
+            // Call V2 to get next probe question
+            const v2Result = await callProbeEngineV2PerField(base44, {
+              packId,
+              fieldKey,
+              fieldValue: value,
+              previousProbesCount: newProbeCount,
+              incidentContext: updatedAnswers
+            });
+            
+            if (v2Result.mode === 'QUESTION') {
+              // Update probe state
+              setFieldProbingState(prev => ({
+                ...prev,
+                [probeKey]: {
+                  probeCount: newProbeCount,
+                  lastQuestion: v2Result.question,
+                  isProbing: true
+                }
+              }));
+              
+              setCurrentFieldProbe(prev => ({
+                ...prev,
+                question: v2Result.question
+              }));
+              
+              setIsCommitting(false);
+              return;
             }
-          }));
+            // If backend says complete, fall through to completion logic
+          }
           
-          setCurrentFieldProbe(prev => ({
-            ...prev,
-            question: v2Result.question
-          }));
-          
-          setIsCommitting(false);
-          return;
+          // Max probes reached or backend says done - mark as unresolved
+          console.log(`[V2-SEMANTIC] Max probes reached with ${semanticResult.status} - marking unresolved`);
+          const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after full probing`;
+          await saveFollowUpAnswer(packId, fieldKey, displayValue, currentFieldProbe.substanceName, instanceNumber, "ai_probed");
         }
         
-        // Field is now complete - move to next deterministic question
+        // Field is now complete (either valid or max probes reached)
         console.log(`[V2-PER-FIELD] Field ${fieldKey} now complete → advancing to next step`);
         
         // PACK_LE_APPS FACTS PIPELINE: Store final validated value as fact
