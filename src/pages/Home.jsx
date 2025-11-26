@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, X, FileText, AlertTriangle, Mail, Users, Star, Building2 } from "lucide-react";
+import { Shield, MessageSquare, FileCheck, Lock, Clock, CheckCircle, ChevronRight, FileText, AlertTriangle, Mail, Star, Building2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import InfoRequestModal from "../components/InfoRequestModal";
+import AnimatedSection from "../components/home/AnimatedSection";
+import AnimatedHeading from "../components/home/AnimatedHeading";
+import AnimatedCard from "../components/home/AnimatedCard";
+import AnimatedStatCard from "../components/home/AnimatedStatCard";
 
 export default function Home() {
   const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
@@ -24,7 +27,6 @@ export default function Home() {
   const [infoRequestOpen, setInfoRequestOpen] = useState(false);
   
   const [totalQuestions, setTotalQuestions] = useState(162);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
   useEffect(() => {
     loadQuestionCount();
@@ -32,13 +34,10 @@ export default function Home() {
 
   const loadQuestionCount = async () => {
     try {
-      setIsLoadingQuestions(true);
       const questions = await base44.entities.Question.filter({ active: true });
       setTotalQuestions(questions.length);
     } catch (err) {
       console.error("Error loading question count:", err);
-    } finally {
-      setIsLoadingQuestions(false);
     }
   };
 
@@ -53,12 +52,12 @@ export default function Home() {
           <div className="flex justify-center sm:justify-end">
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               <Link to={createPageUrl("StartInterview")}>
-                <button className="px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap">
+                <button className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap min-h-[44px] flex items-center">
                   Start New Interview
                 </button>
               </Link>
               <Link to={createPageUrl("AdminLogin")}>
-                <button className="px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap">
+                <button className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white/85 border border-white/25 rounded-full bg-white/[0.06] hover:text-white hover:border-white/40 hover:bg-white/[0.12] transition-all whitespace-nowrap min-h-[44px] flex items-center">
                   Admin Portal
                 </button>
               </Link>
@@ -66,44 +65,44 @@ export default function Home() {
           </div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-24">
           <div className="text-center space-y-6 sm:space-y-8">
-            <div className="flex justify-center mb-4 sm:mb-6">
+            <div className="flex justify-center mb-6 sm:mb-8">
               <div className="relative">
                 <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-50 animate-pulse" />
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
                   alt="ClearQuest" 
-                  className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                  className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]"
                 />
               </div>
             </div>
             
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-4 sm:space-y-5">
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight px-4">
                 ClearQuest
               </h1>
               <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed px-4">
                 CJIS-Aware Background Interview System for Law Enforcement Applicant Screening
               </p>
-              <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto px-4 mt-2">
+              <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto px-4">
                 Powered by the C.L.E.A.R. Workflow — Connect · Learn · Evaluate · Assist · Ready
               </p>
-              <p className="text-sm sm:text-base text-blue-300/80 max-w-2xl mx-auto px-4 mt-3">
+              <p className="text-sm sm:text-base text-blue-300/80 max-w-2xl mx-auto px-4">
                 A modern, consistent, and defensible way to conduct applicant interviews.
               </p>
             </div>
 
             {/* More Info CTA */}
-            <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-slate-700/50 px-4">
-              <p className="text-sm sm:text-base text-slate-300 mb-3 sm:mb-4">
+            <div className="mt-10 sm:mt-14 pt-8 sm:pt-10 border-t border-slate-700/50 px-4">
+              <p className="text-sm sm:text-base text-slate-300 mb-4 sm:mb-5">
                 Interested in ClearQuest for your department?
               </p>
               <Button 
                 size="lg" 
                 variant="outline" 
                 onClick={() => setInfoRequestOpen(true)}
-                className="bg-transparent border-blue-500 text-blue-400 hover:text-white hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base"
+                className="bg-transparent border-blue-500 text-blue-400 hover:text-white hover:bg-blue-950/30 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base min-h-[48px] w-full sm:w-auto"
               >
                 <Mail className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Talk to Our Team
@@ -114,237 +113,287 @@ export default function Home() {
       </div>
 
       {/* Features Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 md:gap-8">
-          <FeatureCard
-            icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title="CJIS-Compliant Security"
-            description="AES-256 encryption, optional 7-day retention, and anonymous-by-design workflow."
-            detailedDescription="AES-256 encryption, optional 7-day retention, and an anonymous-by-design workflow that keeps PII out of the system."
-            color="blue"
-          />
-          <FeatureCard
-            icon={<MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title="Built for Investigators"
-            description="Structured interview process investigators control — reducing busywork."
-            detailedDescription="ClearQuest provides a structured interview process investigators control — reducing busywork and supporting professional judgment."
-            color="purple"
-          />
-          <FeatureCard
-            icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title={`${totalQuestions}-Question Master Bank`}
-            description="Comprehensive coverage of employment, criminal history, finances, and disclosures."
-            detailedDescription="Comprehensive coverage of employment, criminal history, finances, and personal disclosures — consistently captured every time."
-            color="green"
-          />
-          <FeatureCard
-            icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title="Time-Saving Workflow"
-            description="Cuts repetitive questioning so investigators can focus on credibility."
-            detailedDescription="Cuts repetitive questioning and manual note-taking so investigators can focus on assessing credibility and character."
-            color="orange"
-          />
-          <FeatureCard
-            icon={<CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title="Automated Follow-Ups"
-            description='Every "Yes" triggers structured follow-ups for complete disclosures.'
-            detailedDescription='Every "Yes" answer triggers structured follow-ups to ensure complete and consistent applicant disclosures.'
-            color="indigo"
-          />
-          <FeatureCard
-            icon={<Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
-            title="Ready-to-Submit Reports"
-            description="Clean summaries with transcripts and follow-up details — ready for review."
-            detailedDescription="Instantly generate clean summaries with transcripts and follow-up details — ready for review or filing."
-            color="red"
-          />
+      <AnimatedSection 
+        className="py-16 sm:py-20 md:py-24"
+        bgStyle="subtle1"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+            <AnimatedCard delay={0}>
+              <FeatureCard
+                icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title="CJIS-Compliant Security"
+                description="AES-256 encryption, optional 7-day retention, and anonymous-by-design workflow."
+                detailedDescription="AES-256 encryption, optional 7-day retention, and an anonymous-by-design workflow that keeps PII out of the system."
+                color="blue"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={50}>
+              <FeatureCard
+                icon={<MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title="Built for Investigators"
+                description="Structured interview process investigators control — reducing busywork."
+                detailedDescription="ClearQuest provides a structured interview process investigators control — reducing busywork and supporting professional judgment."
+                color="purple"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={100}>
+              <FeatureCard
+                icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title={`${totalQuestions}-Question Master Bank`}
+                description="Comprehensive coverage of employment, criminal history, finances, and disclosures."
+                detailedDescription="Comprehensive coverage of employment, criminal history, finances, and personal disclosures — consistently captured every time."
+                color="green"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={150}>
+              <FeatureCard
+                icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title="Time-Saving Workflow"
+                description="Cuts repetitive questioning so investigators can focus on credibility."
+                detailedDescription="Cuts repetitive questioning and manual note-taking so investigators can focus on assessing credibility and character."
+                color="orange"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={200}>
+              <FeatureCard
+                icon={<CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title="Automated Follow-Ups"
+                description='Every "Yes" triggers structured follow-ups for complete disclosures.'
+                detailedDescription='Every "Yes" answer triggers structured follow-ups to ensure complete and consistent applicant disclosures.'
+                color="indigo"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={250}>
+              <FeatureCard
+                icon={<Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
+                title="Ready-to-Submit Reports"
+                description="Clean summaries with transcripts and follow-up details — ready for review."
+                detailedDescription="Instantly generate clean summaries with transcripts and follow-up details — ready for review or filing."
+                color="red"
+              />
+            </AnimatedCard>
+          </div>
         </div>
-      </div>
+      </AnimatedSection>
 
-      {/* Why Agencies Choose ClearQuest AI */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <div className="text-center mb-8 sm:mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">
-            Why Agencies Choose ClearQuest
-          </h2>
-          <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto">
-            Built for the people who use it every day — investigators, supervisors, and support staff.
-          </p>
+      {/* Why Agencies Choose ClearQuest */}
+      <AnimatedSection 
+        className="py-16 sm:py-20 md:py-24"
+        bgStyle="subtle2"
+        transitionLine="Designed to support investigators, supervisors, and support staff across your agency."
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10 sm:mb-14">
+            <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
+              Why Agencies Choose ClearQuest
+            </AnimatedHeading>
+            <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto">
+              Built for the people who use it every day — investigators, supervisors, and support staff.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+            <AnimatedCard delay={0}>
+              <PersonaCard
+                icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7" />}
+                title="For Background Investigators"
+                subheadline="Reduce interview time and capture more complete details."
+                body="ClearQuest standardizes your interviews so you spend less time repeating questions and more time evaluating an applicant's truthfulness and credibility."
+                color="blue"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={100}>
+              <PersonaCard
+                icon={<Star className="w-6 h-6 sm:w-7 sm:h-7" />}
+                title="For Command Staff"
+                subheadline="Consistent and defensible screening."
+                body="Every applicant goes through the same structured process, reducing risk and increasing fairness across all interviews."
+                color="purple"
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={200}>
+              <PersonaCard
+                icon={<Building2 className="w-6 h-6 sm:w-7 sm:h-7" />}
+                title="For Support Staff"
+                subheadline="Clean documentation and easy reviews."
+                body="ClearQuest keeps PII out of the system while providing organized, easy-to-follow interview summaries for internal use."
+                color="green"
+              />
+            </AnimatedCard>
+          </div>
         </div>
-        
-        <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
-          <PersonaCard
-            icon={<FileCheck className="w-6 h-6 sm:w-7 sm:h-7" />}
-            title="For Background Investigators"
-            subheadline="Reduce interview time and capture more complete details."
-            body="ClearQuest standardizes your interviews so you spend less time repeating questions and more time evaluating an applicant's truthfulness and credibility."
-            color="blue"
-          />
-          <PersonaCard
-            icon={<Star className="w-6 h-6 sm:w-7 sm:h-7" />}
-            title="For Command Staff"
-            subheadline="Consistent and defensible screening."
-            body="Every applicant goes through the same structured process, reducing risk and increasing fairness across all interviews."
-            color="purple"
-          />
-          <PersonaCard
-            icon={<Building2 className="w-6 h-6 sm:w-7 sm:h-7" />}
-            title="For Support Staff"
-            subheadline="Clean documentation and easy reviews."
-            body="ClearQuest keeps PII out of the system while providing organized, easy-to-follow interview summaries for internal use."
-            color="green"
-          />
-        </div>
-      </div>
+      </AnimatedSection>
 
       {/* Built to Support Investigator Judgment */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-          Built to Support Investigator Judgment — Not Replace It
-        </h2>
-        <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-3xl mx-auto">
-          ClearQuest structures the interview, but the investigator remains in full control. The system never makes hiring decisions — it simply helps ensure clarity, consistency, and completeness during the applicant's disclosure process.
-        </p>
-      </div>
+      <AnimatedSection 
+        className="py-14 sm:py-18 md:py-20"
+        bgStyle="subtle1"
+        transitionLine="ClearQuest organizes the interview, while investigators keep full control over every decision."
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-5 sm:mb-6">
+            Built to Support Investigator Judgment — Not Replace It
+          </AnimatedHeading>
+          <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-3xl mx-auto">
+            ClearQuest structures the interview, but the investigator remains in full control. The system never makes hiring decisions — it simply helps ensure clarity, consistency, and completeness during the applicant's disclosure process.
+          </p>
+        </div>
+      </AnimatedSection>
 
       {/* For Your Agency Team */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-8">
-          For Your Agency Team
-        </h2>
-        <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm sm:text-base">
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Investigators:</strong> Faster, consistent interviews</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Supervisors:</strong> Clearer, more reliable documentation</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">HR / Admin:</strong> Easier review and file organization</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Training Staff:</strong> Clean transcripts for onboarding</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Polygraphers:</strong> More consistent pre-polygraph statements</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400 flex-shrink-0">•</span>
-            <span className="text-slate-300"><strong className="text-white">Applicants:</strong> Clearer expectations & easier disclosures</span>
+      <AnimatedSection 
+        className="py-14 sm:py-18 md:py-20"
+        bgStyle="subtle2"
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-8 sm:mb-10">
+            For Your Agency Team
+          </AnimatedHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm sm:text-base">
+            {[
+              { role: "Investigators", benefit: "Faster, consistent interviews" },
+              { role: "Supervisors", benefit: "Clearer, more reliable documentation" },
+              { role: "HR / Admin", benefit: "Easier review and file organization" },
+              { role: "Training Staff", benefit: "Clean transcripts for onboarding" },
+              { role: "Polygraphers", benefit: "More consistent pre-polygraph statements" },
+              { role: "Applicants", benefit: "Clearer expectations & easier disclosures" }
+            ].map((item, idx) => (
+              <AnimatedCard key={idx} delay={idx * 50} hoverLift={false}>
+                <div className="flex items-start gap-3 py-2">
+                  <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                  <span className="text-slate-300">
+                    <strong className="text-white">{item.role}:</strong> {item.benefit}
+                  </span>
+                </div>
+              </AnimatedCard>
+            ))}
           </div>
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* Stats Section */}
-      <div className="bg-slate-800/50 backdrop-blur-sm border-y border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 md:gap-8 text-center">
-            <StatCard number={totalQuestions} label="Interview Questions" />
-            <StatCard number="10" label="Follow-Up Packs" />
-            <StatCard number="256-bit" label="AES Encryption" />
-            <StatCard number="CJIS" label="Aware Framework" />
+      <AnimatedSection 
+        className="py-14 sm:py-18 md:py-20 border-y border-slate-700"
+        bgStyle="dark"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-10 text-center">
+            <AnimatedStatCard number={totalQuestions} label="Interview Questions" />
+            <AnimatedStatCard number={10} label="Follow-Up Packs" />
+            <AnimatedStatCard number="256-bit" label="AES Encryption" />
+            <AnimatedStatCard number="CJIS" label="Aware Framework" />
           </div>
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* Early Access Strip */}
-      <div className="bg-slate-900/80 border-y border-blue-500/20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 text-center">
-          <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">
+      <AnimatedSection 
+        className="py-14 sm:py-18 md:py-20 border-y border-blue-500/20"
+        bgStyle="accent"
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AnimatedHeading as="h3" className="text-lg sm:text-xl md:text-2xl font-semibold text-white mb-3">
             Now Onboarding Arizona Agencies
-          </h3>
-          <p className="text-slate-400 text-sm sm:text-base mb-6 max-w-2xl mx-auto">
+          </AnimatedHeading>
+          <p className="text-slate-400 text-sm sm:text-base mb-6 sm:mb-8 max-w-2xl mx-auto">
             ClearQuest is live and in use. We're opening a limited number of early-access spots for agencies ready to modernize their applicant screening.
           </p>
           <Button 
             onClick={() => setInfoRequestOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-2.5 sm:py-3"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-3 sm:py-4 min-h-[48px] w-full sm:w-auto text-sm sm:text-base"
           >
             Request Early Access
           </Button>
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* How It Works */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-20">
-        <h2 className="text-3xl sm:text-4xl font-bold text-white text-center mb-8 sm:mb-12 px-4">How It Works</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <StepCard 
-            number="1" 
-            title="Structured Screening Starts Here" 
-            description="ClearQuest standardizes the first step of your hiring process, ensuring every applicant begins with the same consistent, defensible interview."
-          />
-          <StepCard 
-            number="2" 
-            title="Answer Questions" 
-            description="Conversational AI guides the applicant one question at a time, collecting clear and consistent responses without investigator involvement."
-            link="See the Questions"
-            onClick={() => setQuestionsDialogOpen(true)}
-          />
-          <StepCard 
-            number="3" 
-            title="Follow-Ups" 
-            description="Every 'Yes' automatically triggers structured follow-up questions, ensuring no detail is missed and every incident is documented the same way."
-            link="View Follow-Up Packs"
-            onClick={() => setFollowupsDialogOpen(true)}
-          />
-          <StepCard 
-            number="4" 
-            title="Generate Report" 
-            description="ClearQuest produces a complete, investigator-ready summary with transcripts, follow-ups, risk notes, and verification sections in one standardized report."
-            link="See Report Example"
-            onClick={() => setReportDialogOpen(true)}
-          />
+      <AnimatedSection 
+        className="py-16 sm:py-20 md:py-24"
+        bgStyle="subtle1"
+        transitionLine="Here's what the applicant experience looks like from start to finish."
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-10 sm:mb-14 px-4">
+            How It Works
+          </AnimatedHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <AnimatedCard delay={0}>
+              <StepCard 
+                number="1" 
+                title="Structured Screening Starts Here" 
+                description="ClearQuest standardizes the first step of your hiring process, ensuring every applicant begins with the same consistent, defensible interview."
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={100}>
+              <StepCard 
+                number="2" 
+                title="Answer Questions" 
+                description="Conversational AI guides the applicant one question at a time, collecting clear and consistent responses without investigator involvement."
+                link="See the Questions"
+                onClick={() => setQuestionsDialogOpen(true)}
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={200}>
+              <StepCard 
+                number="3" 
+                title="Follow-Ups" 
+                description="Every 'Yes' automatically triggers structured follow-up questions, ensuring no detail is missed and every incident is documented the same way."
+                link="View Follow-Up Packs"
+                onClick={() => setFollowupsDialogOpen(true)}
+              />
+            </AnimatedCard>
+            <AnimatedCard delay={300}>
+              <StepCard 
+                number="4" 
+                title="Generate Report" 
+                description="ClearQuest produces a complete, investigator-ready summary with transcripts, follow-ups, risk notes, and verification sections in one standardized report."
+                link="See Report Example"
+                onClick={() => setReportDialogOpen(true)}
+              />
+            </AnimatedCard>
+          </div>
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* Security & Compliance Strip */}
-      <div className="bg-slate-800/30 border-t border-slate-700/50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 text-center">
-          <h3 className="text-base sm:text-xl md:text-2xl font-semibold text-white mb-3 sm:mb-6">
+      <AnimatedSection 
+        className="py-10 sm:py-14 md:py-16 border-t border-slate-700/50"
+        bgStyle="subtle2"
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AnimatedHeading as="h3" className="text-base sm:text-xl md:text-2xl font-semibold text-white mb-4 sm:mb-6">
             Security & Compliance You Can Trust
-          </h3>
-          <div className="flex flex-wrap justify-center gap-x-3 sm:gap-x-6 gap-y-1.5 sm:gap-y-2 text-[11px] sm:text-sm md:text-base text-slate-300">
+          </AnimatedHeading>
+          <div className="flex flex-wrap justify-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm md:text-base text-slate-300">
             <span>AES-256 encryption</span>
-            <span className="text-slate-600">•</span>
+            <span className="text-slate-600 hidden sm:inline">•</span>
             <span>Anonymous-by-design</span>
-            <span className="text-slate-600">•</span>
+            <span className="text-slate-600 hidden sm:inline">•</span>
             <span>7-day retention</span>
-            <span className="text-slate-600">•</span>
+            <span className="text-slate-600 hidden sm:inline">•</span>
             <span>No PII stored</span>
-            <span className="text-slate-600">•</span>
+            <span className="text-slate-600 hidden sm:inline">•</span>
             <span>CJIS-aware</span>
           </div>
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* Footer */}
-      <div className="border-t border-slate-700/50 py-4 sm:py-8">
+      <div className="border-t border-slate-700/50 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-slate-500 text-[11px] sm:text-sm">
+          <p className="text-center text-slate-500 text-xs sm:text-sm">
             © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
           </p>
         </div>
       </div>
 
-      {/* Session Dialog */}
+      {/* Dialogs */}
       <SessionDialog open={sessionDialogOpen} onOpenChange={setSessionDialogOpen} />
-      
-      {/* Questions Dialog */}
       <QuestionsDialog open={questionsDialogOpen} onOpenChange={setQuestionsDialogOpen} totalQuestions={totalQuestions} />
-      
-      {/* Follow-ups Dialog */}
       <FollowupsDialog open={followupsDialogOpen} onOpenChange={setFollowupsDialogOpen} />
-      
-      {/* Report Dialog */}
       <ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} totalQuestions={totalQuestions} />
-      
-      {/* Info Request Modal */}
       <InfoRequestModal open={infoRequestOpen} onOpenChange={setInfoRequestOpen} />
     </div>
   );
@@ -364,12 +413,12 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
   return (
     <div 
-      className="relative min-h-[180px] sm:min-h-[240px] md:h-64 cursor-pointer group"
+      className="relative min-h-[200px] sm:min-h-[240px] md:min-h-[260px] cursor-pointer group"
       style={{ perspective: "1000px" }}
       onClick={() => setIsFlipped(!isFlipped)}
     >
       <div
-        className={`relative w-full h-full transition-transform duration-500 ease-in-out`}
+        className="relative w-full h-full transition-transform duration-500 ease-in-out"
         style={{
           transformStyle: "preserve-3d",
           transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
@@ -377,17 +426,17 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
       >
         {/* Front Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-3 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden"
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-          <div className="relative space-y-2 sm:space-y-3 md:space-y-4 flex flex-col h-full">
+          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
             <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
             <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-xs sm:text-sm leading-snug sm:leading-relaxed flex-1">{description}</p>
+            <p className="text-slate-300 text-sm leading-relaxed flex-1">{description}</p>
             <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span>More</span>
               <span className="transform group-hover:translate-x-1 transition-transform">→</span>
@@ -397,18 +446,17 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
         {/* Back Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-3 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
-            minHeight: "auto"
+            transform: "rotateY(180deg)"
           }}
         >
-          <div className="relative space-y-2 sm:space-y-3 md:space-y-4 flex flex-col h-full">
-            <div className={`${colorClasses[color].split(' ')[3]} mb-0 sm:mb-1 md:mb-2`}>{icon}</div>
+          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
+            <div className={`${colorClasses[color].split(' ')[3]}`}>{icon}</div>
             <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-xs sm:text-[13px] md:text-[14px] leading-[1.35] sm:leading-[1.35] flex-1">{detailedDescription}</p>
+            <p className="text-slate-300 text-sm leading-relaxed flex-1">{detailedDescription}</p>
             <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
               <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
               <span>Back</span>
@@ -416,15 +464,6 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ number, label }) {
-  return (
-    <div className="space-y-1 sm:space-y-2">
-      <div className="text-2xl sm:text-4xl md:text-5xl font-bold text-blue-400">{number}</div>
-      <div className="text-slate-400 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider leading-tight">{label}</div>
     </div>
   );
 }
@@ -437,12 +476,12 @@ function PersonaCard({ icon, title, subheadline, body, color }) {
   };
 
   return (
-    <div className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-5 sm:p-6 h-full`}>
-      <div className="space-y-3 sm:space-y-4">
+    <div className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-5 sm:p-6 h-full min-h-[220px] flex flex-col`}>
+      <div className="space-y-3 sm:space-y-4 flex flex-col flex-1">
         <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
         <h3 className="text-lg sm:text-xl font-semibold text-white">{title}</h3>
         <p className={`text-sm font-medium ${colorClasses[color].split(' ')[3]}`}>{subheadline}</p>
-        <p className="text-slate-300 text-sm leading-relaxed">{body}</p>
+        <p className="text-slate-300 text-sm leading-relaxed flex-1">{body}</p>
       </div>
     </div>
   );
@@ -450,23 +489,21 @@ function PersonaCard({ icon, title, subheadline, body, color }) {
 
 function StepCard({ number, title, description, link, onClick }) {
   return (
-    <div className="relative">
-      <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 hover:border-blue-500/50 transition-colors h-full flex flex-col">
-        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-xl sm:text-2xl font-bold text-blue-400">{number}</span>
-        </div>
-        <h3 className="text-base sm:text-lg font-semibold text-white">{title}</h3>
-        <p className="text-slate-400 text-xs sm:text-sm flex-1">{description}</p>
-        {link && onClick && (
-          <button
-            onClick={onClick}
-            className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors group"
-          >
-            <span>{link}</span>
-            <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 transform group-hover:translate-x-1 transition-transform" />
-          </button>
-        )}
+    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-5 sm:p-6 space-y-4 hover:border-blue-500/50 transition-all h-full flex flex-col min-h-[240px]">
+      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-600/20 border-2 border-blue-500 flex items-center justify-center flex-shrink-0">
+        <span className="text-xl sm:text-2xl font-bold text-blue-400">{number}</span>
       </div>
+      <h3 className="text-base sm:text-lg font-semibold text-white">{title}</h3>
+      <p className="text-slate-400 text-sm leading-relaxed flex-1">{description}</p>
+      {link && onClick && (
+        <button
+          onClick={onClick}
+          className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors group mt-auto"
+        >
+          <span>{link}</span>
+          <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+        </button>
+      )}
     </div>
   );
 }
@@ -487,7 +524,6 @@ function SessionDialog({ open, onOpenChange }) {
         
         <ScrollArea className="max-h-[calc(90vh-180px)] px-4 sm:px-6">
           <div className="pb-4 sm:pb-6 space-y-4 sm:space-y-6">
-            {/* Simple Form Preview */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 sm:p-6 space-y-3 sm:space-y-4">
               <div className="space-y-2">
                 <Label className="text-white font-medium text-sm sm:text-base">1. Department Code</Label>
@@ -513,7 +549,6 @@ function SessionDialog({ open, onOpenChange }) {
               </div>
             </div>
 
-            {/* Key Points */}
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="flex items-start gap-2 sm:gap-3 bg-slate-800/30 rounded-lg p-3">
                 <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0 mt-0.5" />
@@ -531,9 +566,8 @@ function SessionDialog({ open, onOpenChange }) {
               </div>
             </div>
 
-            {/* CTA */}
             <Link to={createPageUrl("StartInterview")} className="block">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 h-11 sm:h-12 text-sm sm:text-base">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12 text-sm sm:text-base">
                 <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Initiate Interview Now
               </Button>
@@ -550,7 +584,6 @@ function SessionDialog({ open, onOpenChange }) {
 }
 
 function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
-  // Static sample questions from all sections - curated representative samples
   const staticSampleQuestions = [
     {
       sectionName: "Applications with Other Law Enforcement Agencies",
@@ -658,39 +691,37 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
         </DialogHeader>
         
         <ScrollArea className="max-h-[calc(90vh-200px)] px-4 sm:px-6">
-          <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
+          <div className="space-y-3 py-4 sm:py-6">
             {staticSampleQuestions.map((sectionData, idx) => (
               <div 
                 key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-blue-500/50 transition-colors"
+                className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-blue-500/50 transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-white text-sm sm:text-base mb-1 break-words">
-                    {sectionData.sectionName}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-400 mb-3 break-words">
-                    {sectionData.description}
-                  </p>
-                  
-                  <div className="space-y-2 mb-3">
-                    {sectionData.questions.map((question, qIdx) => (
-                      <div key={qIdx} className="flex items-start gap-2 text-xs sm:text-sm">
-                        <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
-                        <span className="text-slate-300 break-words">{question}</span>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <p className="text-xs text-slate-500 italic mt-2">
-                    Additional questions are asked during the actual interview. These are sample questions only.
-                  </p>
+                <h3 className="font-semibold text-white text-sm sm:text-base mb-1">
+                  {sectionData.sectionName}
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 mb-3">
+                  {sectionData.description}
+                </p>
+                
+                <div className="space-y-2 mb-3">
+                  {sectionData.questions.map((question, qIdx) => (
+                    <div key={qIdx} className="flex items-start gap-2 text-xs sm:text-sm">
+                      <span className="text-blue-400 flex-shrink-0 mt-0.5">•</span>
+                      <span className="text-slate-300">{question}</span>
+                    </div>
+                  ))}
                 </div>
+                
+                <p className="text-xs text-slate-500 italic">
+                  Additional questions are asked during the actual interview. These are sample questions only.
+                </p>
               </div>
             ))}
           </div>
         </ScrollArea>
 
-        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3 sm:mt-4">
+        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3">
           <p className="text-xs text-slate-400 text-center leading-relaxed">
             <strong>Investigator Note:</strong> The full interview includes {totalQuestions} questions across all sections. Questions are asked one at a time in a conversational flow. Every answer is recorded with timestamps and encrypted.
           </p>
@@ -702,66 +733,16 @@ function QuestionsDialog({ open, onOpenChange, totalQuestions }) {
 
 function FollowupsDialog({ open, onOpenChange }) {
   const followupPacks = [
-    {
-      name: "Drug Use / Controlled Substances",
-      whyMatters: "Helps identify substance-related reliability and judgment concerns.",
-      trigger: "Any admission involving illegal drug use or being under the influence.",
-      documents: "Substance type, use pattern, and impact on decision-making."
-    },
-    {
-      name: "Criminal Charges & Arrests",
-      whyMatters: "Ensures all criminal history is evaluated consistently and defensibly.",
-      trigger: "Responses involving charges, arrests, warrants, or detentions.",
-      documents: "Nature of the incident, outcome, penalties, and accountability."
-    },
-    {
-      name: "Driving Incidents",
-      whyMatters: "Driving risk is one of the most common sources of liability in policing.",
-      trigger: "DUIs, suspensions, reckless driving, or major traffic violations.",
-      documents: "Event details, contributing factors, license impact, and outcome."
-    },
-    {
-      name: "Employment Terminations",
-      whyMatters: "Past workplace behavior can predict future performance or risk.",
-      trigger: "Job termination, resignation in lieu of termination, or major discipline.",
-      documents: "Employer, circumstances, reason for separation, and accountability."
-    },
-    {
-      name: "Financial Issues",
-      whyMatters: "Financial instability can correlate with stress, risk-taking, or vulnerability.",
-      trigger: "Bankruptcy, foreclosure, collections, or major debt issues.",
-      documents: "Issue type, timeline, current standing, and corrective steps."
-    },
-    {
-      name: "Sexual Misconduct or Exploitation",
-      whyMatters: "Ensures serious conduct concerns are fully explored and documented.",
-      trigger: "Disclosures involving harassment, assault, exploitation, or related behavior.",
-      documents: "Incident details, consequences, treatment, and accountability."
-    },
-    {
-      name: "Weapons Violations",
-      whyMatters: "Weapon misuse is a critical predictor of future officer safety issues.",
-      trigger: "Illegal possession, unsafe discharge, threats, or misuse of firearms.",
-      documents: "Incident facts, weapon type, legal outcome, and contributing factors."
-    },
-    {
-      name: "Military Discipline",
-      whyMatters: "Provides insight into conduct history within structured environments.",
-      trigger: "NJPs, Article 15s, reprimands, or administrative separation.",
-      documents: "Offense, outcome, command response, and rehabilitation."
-    },
-    {
-      name: "Gang Affiliation",
-      whyMatters: "Ensures transparency and documentation of any high-risk associations.",
-      trigger: "Any disclosure of past or present gang involvement.",
-      documents: "Group type, duration, activity level, and disengagement."
-    },
-    {
-      name: "Law Enforcement Discipline / Integrity Issues",
-      whyMatters: "Prior integrity issues are one of the strongest predictors of future misconduct.",
-      trigger: "Dishonesty, excessive force claims, internal affairs cases, or integrity concerns.",
-      documents: "Allegations, findings, outcomes, and any corrective action."
-    }
+    { name: "Drug Use / Controlled Substances", whyMatters: "Helps identify substance-related reliability and judgment concerns.", trigger: "Any admission involving illegal drug use or being under the influence.", documents: "Substance type, use pattern, and impact on decision-making." },
+    { name: "Criminal Charges & Arrests", whyMatters: "Ensures all criminal history is evaluated consistently and defensibly.", trigger: "Responses involving charges, arrests, warrants, or detentions.", documents: "Nature of the incident, outcome, penalties, and accountability." },
+    { name: "Driving Incidents", whyMatters: "Driving risk is one of the most common sources of liability in policing.", trigger: "DUIs, suspensions, reckless driving, or major traffic violations.", documents: "Event details, contributing factors, license impact, and outcome." },
+    { name: "Employment Terminations", whyMatters: "Past workplace behavior can predict future performance or risk.", trigger: "Job termination, resignation in lieu of termination, or major discipline.", documents: "Employer, circumstances, reason for separation, and accountability." },
+    { name: "Financial Issues", whyMatters: "Financial instability can correlate with stress, risk-taking, or vulnerability.", trigger: "Bankruptcy, foreclosure, collections, or major debt issues.", documents: "Issue type, timeline, current standing, and corrective steps." },
+    { name: "Sexual Misconduct or Exploitation", whyMatters: "Ensures serious conduct concerns are fully explored and documented.", trigger: "Disclosures involving harassment, assault, exploitation, or related behavior.", documents: "Incident details, consequences, treatment, and accountability." },
+    { name: "Weapons Violations", whyMatters: "Weapon misuse is a critical predictor of future officer safety issues.", trigger: "Illegal possession, unsafe discharge, threats, or misuse of firearms.", documents: "Incident facts, weapon type, legal outcome, and contributing factors." },
+    { name: "Military Discipline", whyMatters: "Provides insight into conduct history within structured environments.", trigger: "NJPs, Article 15s, reprimands, or administrative separation.", documents: "Offense, outcome, command response, and rehabilitation." },
+    { name: "Gang Affiliation", whyMatters: "Ensures transparency and documentation of any high-risk associations.", trigger: "Any disclosure of past or present gang involvement.", documents: "Group type, duration, activity level, and disengagement." },
+    { name: "Law Enforcement Discipline / Integrity Issues", whyMatters: "Prior integrity issues are one of the strongest predictors of future misconduct.", trigger: "Dishonesty, excessive force claims, internal affairs cases, or integrity concerns.", documents: "Allegations, findings, outcomes, and any corrective action." }
   ];
 
   return (
@@ -778,27 +759,18 @@ function FollowupsDialog({ open, onOpenChange }) {
         </DialogHeader>
         
         <ScrollArea className="flex-1 overflow-y-auto px-4 sm:px-6">
-          <div className="space-y-2 sm:space-y-3 py-4 sm:py-6">
+          <div className="space-y-3 py-4 sm:py-6">
             {followupPacks.map((pack, idx) => (
-              <div 
-                key={idx}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 sm:p-4 hover:border-orange-500/50 transition-colors"
-              >
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div key={idx} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-orange-500/50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-orange-600/20 border-2 border-orange-500/50 flex items-center justify-center flex-shrink-0">
                     <span className="text-xs sm:text-sm font-bold text-orange-400">{idx + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-white text-sm sm:text-base mb-2 break-words">{pack.name}</h3>
-                    <p className="text-xs sm:text-sm text-orange-300 mb-1.5 break-words">
-                      <strong>Why it matters:</strong> {pack.whyMatters}
-                    </p>
-                    <p className="text-xs sm:text-sm text-slate-300 mb-1.5 break-words">
-                      <strong>When it triggers:</strong> {pack.trigger}
-                    </p>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed break-words">
-                      <strong>What ClearQuest documents:</strong> {pack.documents}
-                    </p>
+                    <h3 className="font-semibold text-white text-sm sm:text-base mb-2">{pack.name}</h3>
+                    <p className="text-xs sm:text-sm text-orange-300 mb-1.5"><strong>Why it matters:</strong> {pack.whyMatters}</p>
+                    <p className="text-xs sm:text-sm text-slate-300 mb-1.5"><strong>When it triggers:</strong> {pack.trigger}</p>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed"><strong>What ClearQuest documents:</strong> {pack.documents}</p>
                   </div>
                 </div>
               </div>
@@ -836,7 +808,7 @@ function ReportDialog({ open, onOpenChange, totalQuestions }) {
           </div>
         </ScrollArea>
 
-        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3 sm:mt-4">
+        <div className="p-4 sm:p-6 pt-0 border-t border-slate-700 mt-3">
           <p className="text-xs text-slate-400 text-center">
             <strong>Investigator Note:</strong> This is a simulated example. Actual reports contain complete {totalQuestions}-question transcripts and all triggered follow-up conversations.
           </p>
