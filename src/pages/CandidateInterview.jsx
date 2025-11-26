@@ -204,8 +204,15 @@ export default function CandidateInterview() {
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false); // Track if using invokeLLM vs agent
   const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]); // Accumulate Q&A for current pack
   
-  // State for V2 probing logic
-  const [aiProbingState, setAiProbingState] = useState({});
+  // State for V2 per-field probing logic
+  // Shape: { [packId_instanceNumber_fieldKey]: { probeCount: number, lastQuestion: string, isProbing: boolean } }
+  const [fieldProbingState, setFieldProbingState] = useState({});
+  // Track which fields have been fully validated for each pack instance
+  const [completedFields, setCompletedFields] = useState({});
+  // Track current field being probed (for inline AI question rendering)
+  const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
+  // Ref to prevent duplicate V2 triggers in StrictMode
+  const v2ProbingInProgressRef = useRef(new Set());
 
   // NEW: Session-level AI probing control
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
