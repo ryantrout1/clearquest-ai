@@ -256,38 +256,45 @@ export function buildInstanceHeaderSummary(packId, values) {
 
 /**
  * Extract facts from instance values using pack config
+ * Uses FINAL validated values from the database. If AI probing produced a 
+ * clearer answer than the initial "I don't recall", that clarified value
+ * should have been saved as the final value in additional_details.
+ * 
  * @param {string} packId 
- * @param {Record<string, string>} values - Values keyed by fieldKey
- * @param {Array} [aiExchanges] - AI probing exchanges for value override
+ * @param {Record<string, string>} values - Values keyed by fieldKey (final validated values)
+ * @param {Array} [aiExchanges] - AI probing exchanges (for legacy fallback only)
  * @returns {Array<{label: string, value: string}>}
  */
 export function extractFactsFromConfig(packId, values, aiExchanges = []) {
   const factsFields = getFactsFields(packId);
   if (factsFields.length === 0) return [];
   
-  // Build AI clarification map
+  // Build AI clarification map as FALLBACK for values still showing vague answers
+  // This handles legacy data where AI clarifications weren't persisted back to additional_details
   const aiClarifications = {};
-  aiExchanges.forEach(ex => {
+  (aiExchanges || []).forEach(ex => {
     const question = (ex.probing_question || '').toLowerCase();
     const answer = ex.candidate_response;
     
-    // Skip vague answers
-    if (!answer || answer.toLowerCase() === "i don't recall" || answer.toLowerCase() === "i don't know") {
+    // Skip if answer is also vague
+    if (!answer) return;
+    const answerLower = answer.toLowerCase().trim();
+    if (answerLower === "i don't recall" || answerLower === "i don't know" || answerLower === "unknown" || answerLower === "") {
       return;
     }
     
-    // Match probe question to semantic field
-    if (question.includes('timeframe') || question.includes('when') || question.includes('date') || question.includes('month') || question.includes('year')) {
+    // Match probe question to semantic field - AI clarification overrides vague stored values
+    if (question.includes('timeframe') || question.includes('when') || question.includes('date') || question.includes('month') || question.includes('year') || question.includes('approximate')) {
       aiClarifications['application_month_year'] = answer;
-    } else if (question.includes('agency') || question.includes('department')) {
+    } else if (question.includes('agency') || question.includes('department') || question.includes('which agency') || question.includes('name of the agency')) {
       aiClarifications['agency'] = answer;
-    } else if (question.includes('position') || question.includes('role') || question.includes('job')) {
+    } else if (question.includes('position') || question.includes('role') || question.includes('job') || question.includes('title')) {
       aiClarifications['position'] = answer;
-    } else if (question.includes('outcome') || question.includes('result') || question.includes('hired')) {
+    } else if (question.includes('outcome') || question.includes('result') || question.includes('hired') || question.includes('what happened')) {
       aiClarifications['outcome'] = answer;
-    } else if (question.includes('reason') || question.includes('why')) {
+    } else if (question.includes('reason') || question.includes('why') || question.includes('told you')) {
       aiClarifications['reason_not_selected'] = answer;
-    } else if (question.includes('issue') || question.includes('concern') || question.includes('problem')) {
+    } else if (question.includes('issue') || question.includes('concern') || question.includes('problem') || question.includes('anything else')) {
       aiClarifications['issues_or_concerns'] = answer;
     }
   });
@@ -295,21 +302,25 @@ export function extractFactsFromConfig(packId, values, aiExchanges = []) {
   const facts = [];
   
   factsFields.forEach(field => {
-    // Get the FINAL stored value by fieldKey - this is the validated value
+    // Get the stored value by fieldKey - this SHOULD be the final validated value
     let value = values[field.fieldKey];
     
-    // AI clarification can override if the stored value is vague
+    // Check if stored value is vague and needs AI clarification fallback
     const storedIsVague = value && (
-      value.toLowerCase() === "i don't recall" || 
-      value.toLowerCase() === "i don't know" ||
-      value.toLowerCase() === "unknown"
+      value.toLowerCase().trim() === "i don't recall" || 
+      value.toLowerCase().trim() === "i don't know" ||
+      value.toLowerCase().trim() === "unknown" ||
+      value.toLowerCase().trim() === ""
     );
     
+    // FALLBACK: If stored value is vague but AI clarification exists, use the clarification
+    // This handles legacy data where probing didn't update the stored value
     if (storedIsVague && aiClarifications[field.semanticKey]) {
       value = aiClarifications[field.semanticKey];
     }
     
-    if (value) {
+    // Only add non-empty values to facts
+    if (value && value.trim() !== "") {
       facts.push({
         label: field.label,
         value: value
