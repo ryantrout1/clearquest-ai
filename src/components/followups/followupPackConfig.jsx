@@ -14,6 +14,23 @@
  */
 
 /**
+ * Default unknown tokens used to detect vague/unresolved answers
+ */
+export const DEFAULT_UNKNOWN_TOKENS = [
+  "i don't recall",
+  "i dont recall",
+  "i don't know",
+  "i dont know",
+  "i can't recall",
+  "i cant recall",
+  "i don't remember",
+  "i dont remember",
+  "idk",
+  "unknown",
+  "not sure"
+];
+
+/**
  * @typedef {Object} FollowUpFieldConfig
  * @property {string} fieldKey - Raw key from backend, e.g. "PACK_LE_APPS_Q1"
  * @property {string} semanticKey - Human-readable key like "agency", "position"
@@ -32,6 +49,9 @@
  * @property {boolean} [includeInInstanceHeader] - Show in instance header/summary line
  * @property {number} [headerOrder] - Order in instance header
  * @property {boolean} [includeInNarrative] - Include in narrative summary
+ * @property {boolean} [allowUnknown] - If true, unknown is allowed as a final state
+ * @property {string[]} [unknownTokens] - Phrases treated as "unknown"
+ * @property {string} [unknownDisplayLabel] - What to display in FACTS when unresolved
  */
 
 /**
@@ -40,6 +60,9 @@
  * @property {string[]} supportedBaseQuestions - Base questions that trigger this pack
  * @property {string} [instancesLabel] - Label for instances, e.g. "Applications"
  * @property {FollowUpFieldConfig[]} fields - Field configurations
+ * @property {number} [maxAiProbes] - Default max AI probes for the pack
+ * @property {boolean} [requiresCompletion] - Whether pack requires completion
+ * @property {"none"|"note"|"warning"|"red_flag"} [flagOnUnresolved] - How to flag unresolved fields
  */
 
 /** @type {Record<string, FollowUpPackConfig>} */
