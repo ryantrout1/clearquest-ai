@@ -25,10 +25,37 @@ export const DEFAULT_UNKNOWN_TOKENS = [
   "i cant recall",
   "i don't remember",
   "i dont remember",
+  "can't recall",
+  "cant recall",
   "idk",
   "unknown",
   "not sure"
 ];
+
+/**
+ * Default reject tokens - values that should never become facts
+ */
+export const DEFAULT_REJECT_TOKENS = [
+  "nothing",
+  "none",
+  "n/a",
+  "na"
+];
+
+/**
+ * @typedef {"agency_name"|"job_title"|"month_year"|"outcome"|"reason_text"|"yes_no"|"free_text"} SemanticValidationType
+ */
+
+/**
+ * @typedef {Object} FieldValidationConfig
+ * @property {SemanticValidationType} type - Type of semantic validation
+ * @property {boolean} [allowUnknown] - If true, unknown answers become facts with status="unknown"
+ * @property {string[]} [unknownTokens] - Phrases treated as "unknown / no recall"
+ * @property {string[]} [rejectTokens] - Phrases that should be explicitly rejected as invalid facts
+ * @property {number} [minLength] - Minimum length for a valid fact (after trimming)
+ * @property {boolean} [mustContainLetters] - If true, value must contain at least one letter A-Z
+ * @property {string} [pattern] - Optional regex pattern to match valid format
+ */
 
 /**
  * @typedef {Object} FollowUpFieldConfig
