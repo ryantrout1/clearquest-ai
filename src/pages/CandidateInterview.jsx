@@ -110,6 +110,18 @@ const HEAVY_SECTIONS = [
 // FEATURE FLAG: Enable live AI follow-ups (via invokeLLM server function)
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 
+// DEBUG FLAG: Enable detailed AI probe logging
+const DEBUG_AI_PROBES = true;
+
+function logAiProbeDebug(label, payload) {
+  if (!DEBUG_AI_PROBES) return;
+  try {
+    console.log('[AI-PROBE-DEBUG]', label, payload);
+  } catch (e) {
+    // ignore logging errors
+  }
+}
+
 // ============================================================================
 // CENTRALIZED CHAT EVENT HELPER
 // ============================================================================
@@ -1960,6 +1972,16 @@ export default function CandidateInterview() {
           
           console.log(`[V2-SEMANTIC] Probe count for ${fieldKey}: ${probeCount}/${maxAiFollowups}`);
           
+          logAiProbeDebug('semanticResult', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            status: semanticResult.status,
+            normalizedAnswer,
+            probeCount,
+            maxAiFollowups
+          });
+          
           // If semantic validation passed as "valid", save fact immediately and continue
           if (semanticResult.status === "valid") {
             console.log(`[V2-SEMANTIC] Valid answer - saving fact and continuing`);
@@ -1993,6 +2015,15 @@ export default function CandidateInterview() {
             // Invalid or unknown value - check if we can probe more
             if (probeCount < maxAiFollowups) {
               console.log(`[V2-SEMANTIC] ${semanticResult.status} answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxAiFollowups})`);
+              
+              logAiProbeDebug('triggerProbe', {
+                packId,
+                fieldKey,
+                instanceNumber,
+                probeCount,
+                maxAiFollowups,
+                status: semanticResult.status
+              });
               
               // Mark as in progress
               v2ProbingInProgressRef.current.add(probeKey);
@@ -2110,6 +2141,15 @@ export default function CandidateInterview() {
             } else {
               // Max probes reached - mark as unresolved
               console.log(`[V2-SEMANTIC] Max probes (${maxAiFollowups}) reached for ${fieldKey} - marking as unresolved`);
+              
+              logAiProbeDebug('markUnresolved', {
+                packId,
+                fieldKey,
+                instanceNumber,
+                probeCount,
+                maxAiFollowups,
+                status: semanticResult.status
+              });
               const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
               const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
               
