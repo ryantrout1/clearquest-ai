@@ -175,68 +175,194 @@ export default function SessionDetails() {
       // If no transcript snapshot, rebuild from Response entities (fallback for old sessions)
       let events = [];
       if (transcriptSnapshot.length > 0) {
-        // Map transcript entries to event format for rendering
-        // Each entry may contain both question and answer (combined entry from CandidateInterview)
+        // INVARIANT: Map transcript entries EXACTLY as they appear in chat history
+        // This must match 1:1 with what CandidateInterview renders
         events = [];
         transcriptSnapshot.forEach((entry, idx) => {
-          // Check if this is a combined question+answer entry (from CandidateInterview)
-          const isQuestionType = entry.type === 'question' || entry.kind === 'base_question';
-          const hasAnswer = entry.answer && entry.answer !== '';
+          const entryType = entry.type;
+          const entryKind = entry.kind;
           
-          if (isQuestionType) {
-            // Add question event
+          // Map each entry type to a transcript event that matches the chat UI
+          if (entryType === 'system_welcome' || entryKind === 'system_welcome') {
+            // Welcome message
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              role: 'system',
+              kind: 'system_welcome',
+              text: entry.text || entry.content || 'Welcome to your ClearQuest Interview.',
+              sectionName: null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'question' || entryKind === 'base_question') {
+            // Base question + answer combined entry
             events.push({
               id: entry.id || `evt-${idx}-q`,
               sessionId,
               baseQuestionId: entry.questionId,
-              baseQuestionCode: entry.questionId,
-              followupPackId: entry.packId || entry.followupPackId || null,
-              instanceNumber: entry.instanceNumber || null,
+              baseQuestionCode: entry.questionCode || entry.questionId,
               role: 'investigator',
               kind: 'base_question',
               text: entry.questionText || entry.text || entry.content || '',
-              fieldKey: entry.fieldKey || null,
               sectionName: entry.category || entry.sectionName || null,
               createdAt: new Date(entry.timestamp).getTime(),
               sortKey: idx * 10
             });
             
-            // Add answer event if present
-            if (hasAnswer) {
+            // Add answer if present
+            if (entry.answer) {
               events.push({
                 id: entry.id ? `${entry.id}-a` : `evt-${idx}-a`,
                 sessionId,
                 baseQuestionId: entry.questionId,
-                baseQuestionCode: entry.questionId,
-                followupPackId: entry.packId || entry.followupPackId || null,
-                instanceNumber: entry.instanceNumber || null,
                 role: 'candidate',
                 kind: 'base_answer',
                 text: entry.answer,
-                fieldKey: entry.fieldKey || null,
                 sectionName: entry.category || entry.sectionName || null,
                 createdAt: new Date(entry.timestamp).getTime() + 1,
                 sortKey: idx * 10 + 1
               });
             }
-          } else {
-            // Other event types (followups, AI probing, system messages, etc.)
-            const displayText = entry.text || entry.content || entry.questionText || entry.answer || '';
+          } else if (entryType === 'followup' || entryKind === 'deterministic_followup') {
+            // Deterministic follow-up Q+A combined entry
+            events.push({
+              id: entry.id || `evt-${idx}-fq`,
+              sessionId,
+              baseQuestionId: entry.questionId || entry.baseQuestionId,
+              followupPackId: entry.packId || entry.followupPackId,
+              instanceNumber: entry.instanceNumber || 1,
+              role: 'investigator',
+              kind: 'deterministic_followup_question',
+              text: entry.questionText || entry.text || '',
+              fieldKey: entry.fieldKey,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+            
+            // Add answer if present
+            if (entry.answer) {
+              events.push({
+                id: entry.id ? `${entry.id}-fa` : `evt-${idx}-fa`,
+                sessionId,
+                baseQuestionId: entry.questionId || entry.baseQuestionId,
+                followupPackId: entry.packId || entry.followupPackId,
+                instanceNumber: entry.instanceNumber || 1,
+                role: 'candidate',
+                kind: 'deterministic_followup_answer',
+                text: entry.answer,
+                fieldKey: entry.fieldKey,
+                sectionName: entry.category || entry.sectionName || null,
+                createdAt: new Date(entry.timestamp).getTime() + 1,
+                sortKey: idx * 10 + 1
+              });
+            }
+          } else if (entryType === 'ai_question' || entryKind === 'ai_field_probe' || entryKind === 'ai_probe_question') {
+            // AI probing question
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId || entry.baseQuestionId,
+              followupPackId: entry.packId || entry.followupPackId,
+              instanceNumber: entry.instanceNumber || 1,
+              role: 'investigator',
+              kind: 'ai_probe_question',
+              text: entry.text || entry.content || '',
+              fieldKey: entry.fieldKey,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'ai_answer' || entryKind === 'ai_field_probe_answer' || entryKind === 'ai_probe_answer') {
+            // AI probing answer
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId || entry.baseQuestionId,
+              followupPackId: entry.packId || entry.followupPackId,
+              instanceNumber: entry.instanceNumber || 1,
+              role: 'candidate',
+              kind: 'ai_probe_answer',
+              text: entry.text || entry.content || '',
+              fieldKey: entry.fieldKey,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'multi_instance_question' || entryKind === 'multi_instance_question') {
+            // Multi-instance question
             events.push({
               id: entry.id || `evt-${idx}`,
               sessionId,
               baseQuestionId: entry.questionId,
-              baseQuestionCode: entry.questionId,
-              followupPackId: entry.packId || entry.followupPackId || null,
-              instanceNumber: entry.instanceNumber || null,
-              role: entry.role || 'candidate',
-              kind: entry.kind || entry.type || 'unknown',
-              text: displayText,
-              fieldKey: entry.fieldKey || null,
-              sectionName: entry.category || entry.sectionName || null,
+              followupPackId: entry.packId,
+              instanceNumber: entry.instanceNumber,
+              role: 'investigator',
+              kind: 'multi_instance_question',
+              text: entry.text || entry.content || 'Do you have another instance we should discuss for this question?',
+              sectionName: null,
               createdAt: new Date(entry.timestamp).getTime(),
-              sortKey: idx * 10 + 5
+              sortKey: idx * 10
             });
+          } else if (entryType === 'multi_instance_answer' || entryKind === 'multi_instance_answer') {
+            // Multi-instance answer
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId,
+              followupPackId: entry.packId,
+              instanceNumber: entry.instanceNumber,
+              role: 'candidate',
+              kind: 'multi_instance_answer',
+              text: entry.text || entry.content || '',
+              sectionName: null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'system_message' || entryKind === 'system_message' || entryKind === 'section_transition' || entryKind === 'section_completion') {
+            // System messages (section transitions, reminders, etc.)
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              role: 'system',
+              kind: entry.kind || 'system_message',
+              text: entry.text || entry.content || '',
+              sectionName: entry.sectionName || entry.nextSectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'intro') {
+            // Legacy intro type
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              role: 'system',
+              kind: 'system_welcome',
+              text: entry.text || entry.content || '',
+              sectionName: null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else {
+            // Fallback for unknown types - preserve as-is
+            const displayText = entry.text || entry.content || entry.questionText || entry.answer || '';
+            if (displayText) {
+              events.push({
+                id: entry.id || `evt-${idx}`,
+                sessionId,
+                baseQuestionId: entry.questionId,
+                followupPackId: entry.packId || entry.followupPackId || null,
+                instanceNumber: entry.instanceNumber || null,
+                role: entry.role || 'candidate',
+                kind: entry.kind || entry.type || 'unknown',
+                text: displayText,
+                fieldKey: entry.fieldKey || null,
+                sectionName: entry.category || entry.sectionName || null,
+                createdAt: new Date(entry.timestamp).getTime(),
+                sortKey: idx * 10 + 5
+              });
+            }
           }
         });
         
