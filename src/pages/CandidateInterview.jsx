@@ -2426,7 +2426,26 @@ export default function CandidateInterview() {
       console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
       
       try {
-        // Add candidate's answer to transcript
+        // For per-field probing, add BOTH the probe question and answer to transcript now
+        // (The question wasn't added earlier to avoid double-bubble, we add it here with the answer)
+        const currentProbeQuestion = currentFieldProbe.question;
+        
+        const aiQuestionEntry = {
+          id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${currentProbeState.probeCount}-${Date.now()}`,
+          type: 'ai_question',
+          content: currentProbeQuestion,
+          questionId: baseQuestionId,
+          packId: packId,
+          timestamp: new Date().toISOString(),
+          kind: 'ai_field_probe',
+          role: 'investigator',
+          text: currentProbeQuestion,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          fieldKey: fieldKey,
+          probeEngineVersion: 'v2-per-field'
+        };
+        
         const aiAnswerEntry = {
           id: `ai-a-v2-field-${packId}-${instanceNumber}-${fieldKey}-${Date.now()}`,
           type: 'ai_answer',
@@ -2442,7 +2461,7 @@ export default function CandidateInterview() {
           fieldKey: fieldKey
         };
         
-        setTranscript(prev => [...prev, aiAnswerEntry]);
+        setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
         
         // Update follow-up answers with the new probe answer
         const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
