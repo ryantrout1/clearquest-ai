@@ -120,7 +120,7 @@ export default function Home() {
       {/* Features Grid */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="none"
+        bgStyle="glowTop"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
@@ -185,7 +185,7 @@ export default function Home() {
       {/* Why Agencies Choose ClearQuest */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="none"
+        bgStyle="glowBottom"
         transitionLine="Designed to support investigators, supervisors, and support staff across your agency."
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -233,7 +233,7 @@ export default function Home() {
       {/* Built to Support Investigator Judgment */}
       <AnimatedSection 
         className="py-14 sm:py-18 md:py-20"
-        bgStyle="none"
+        bgStyle="subtle1"
         transitionLine="ClearQuest organizes the interview, while investigators keep full control over every decision."
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -249,7 +249,7 @@ export default function Home() {
       {/* For Your Agency Team */}
       <AnimatedSection 
         className="py-14 sm:py-18 md:py-20"
-        bgStyle="none"
+        bgStyle="subtle2"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-8 sm:mb-10">
@@ -316,7 +316,7 @@ export default function Home() {
       {/* How It Works */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="none"
+        bgStyle="glowTop"
         transitionLine="Here's what the applicant experience looks like from start to finish."
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -365,7 +365,7 @@ export default function Home() {
       {/* Security & Compliance Strip */}
       <AnimatedSection 
         className="py-10 sm:py-14 md:py-16"
-        bgStyle="none"
+        bgStyle="subtle1"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedHeading as="h3" className="text-base sm:text-xl md:text-2xl font-semibold text-white mb-4 sm:mb-6">
