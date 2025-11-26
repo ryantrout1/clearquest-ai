@@ -1982,6 +1982,19 @@ export default function CandidateInterview() {
               // Field is incomplete - need to probe
               console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
               
+              // INVARIANT: Log the AI probe question to chat history
+              console.log('[V2-PER-FIELD] Response:', v2Result);
+              const aiProbeQuestionEvent = createChatEvent('ai_probe_question', {
+                role: 'system',
+                text: v2Result.question,
+                content: v2Result.question,
+                packId: packId,
+                fieldKey: v2Result.field_key || fieldKey,
+                instanceNumber: instanceNumber,
+                baseQuestionId: currentItem.baseQuestionId,
+                kind: 'ai_field_probe_question'
+              });
+              
               // Clear the text input immediately when entering probe mode
               setInput("");
               
