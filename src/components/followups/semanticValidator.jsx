@@ -130,30 +130,3 @@ export function validateFollowupValue({ packId, fieldKey, rawValue }) {
       return { status: "valid", normalizedValue: value };
   }
 }
-
-/**
- * Get field validation config for a specific field
- * 
- * @param {string} packId 
- * @param {string} fieldKey 
- * @returns {Object|null} The validation config or null
- */
-export function getFieldValidation(packId, fieldKey) {
-  const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-  if (!packConfig) return null;
-  
-  const fieldConfig = packConfig.fields.find(f => f.fieldKey === fieldKey);
-  return fieldConfig?.validation || null;
-}
-
-/**
- * Check if a field has semantic validation enabled
- * 
- * @param {string} packId 
- * @param {string} fieldKey 
- * @returns {boolean}
- */
-export function hasSemanticValidation(packId, fieldKey) {
-  const validation = getFieldValidation(packId, fieldKey);
-  return validation !== null;
-}

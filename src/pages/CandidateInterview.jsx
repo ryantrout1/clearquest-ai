@@ -28,7 +28,6 @@ import SectionCompletionMessage from "../components/interview/SectionCompletionM
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue } from "../components/followups/semanticValidator";
-import { validateFollowupValue } from "../components/followups/semanticValidator";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -1936,6 +1935,30 @@ export default function CandidateInterview() {
           
           // Get current probe state for this field
           const currentProbeState = fieldProbingState[probeKey] || { probeCount: 0, lastQuestion: null, isProbing: false };
+
+          const semanticResult = validateFollowupValue({
+            packId,
+            fieldKey,
+            rawValue: normalizedAnswer
+          });
+
+          const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+          const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+          const maxProbes = packConfig?.maxAiProbes ?? 3;
+
+          if (semanticResult.status === 'valid') {
+            await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
+            setCompletedFields(prev => ({...prev, [`${packId}_${instanceNumber}`]: {...(prev[`${packId}_${instanceNumber}`] || {}), [fieldKey]: true}}));
+          } else if (currentProbeState.probeCount < maxProbes) {
+            // Fallthrough to probe
+          } else {
+            const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+            const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${currentProbeState.probeCount} attempts`;
+            await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
+            setCompletedFields(prev => ({...prev, [`${packId}_${instanceNumber}`]: {...(prev[`${packId}_${instanceNumber}`] || {}), [fieldKey]: true}}));
+          }
+
+          if(semanticResult.status !== 'valid' && currentProbeState.probeCount < maxProbes) {
           
           // Build incident context from all answers so far
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
@@ -2194,8 +2217,10 @@ export default function CandidateInterview() {
                 console.error(`[V2-PER-FIELD] Error during field validation:`, err);
                 v2ProbingInProgressRef.current.delete(probeKey);
                 // Fall through to normal flow on error
-              }
-            }
+                }
+                } else {
+                // This block is for valid or max-probed fields, which will just fall through to the normal queue advancement
+                }
             }
           }
         }
@@ -2618,9 +2643,13 @@ export default function CandidateInterview() {
         
         setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
         
-        // Update follow-up answers with the new probe answer (this is the final validated value)
         const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
         setCurrentFollowUpAnswers(updatedAnswers);
+
+        const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: value });
+        const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const maxProbes = packConfig?.maxAiProbes ?? 3;
         
         // Check if semantic validation passes now
         if (semanticResult.status === "valid") {
@@ -3028,7 +3057,7 @@ export default function CandidateInterview() {
           const maxProbes = packConfig.maxAiProbes ?? 3;
           const wasProbed = factSource === "ai_probed";
           
-          // Determine if unresolved (probed to max but still invalid/unknown)
+          const probeCount = wasProbed ? maxProbes : 0;
           const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
           
           if (isUnresolved) {
