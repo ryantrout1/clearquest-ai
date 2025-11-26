@@ -1932,9 +1932,6 @@ export default function CandidateInterview() {
             setIsCommitting(false);
             return;
           }
-          
-          // Get current probe state for this field
-          const currentProbeState = fieldProbingState[probeKey] || { probeCount: 0, lastQuestion: null, isProbing: false };
 
           // Build incident context from all answers so far
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
@@ -1952,103 +1949,18 @@ export default function CandidateInterview() {
           
           console.log(`[V2-SEMANTIC] Validation result for ${fieldKey}:`, semanticResult);
           
-          // Get pack config for max probes
+          // Get pack config for max AI followups
           const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
           const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-          const maxAIFollowups = packConfig?.maxAiFollowups ?? 3;
-          const probeCount = currentProbeState.probeCount;
+          const maxAiFollowups = packConfig?.maxAiFollowups ?? 3;
           
-          // Handle semantic validation results
-          if (semanticResult.status === "invalid") {
-            // Invalid value (e.g., "nothing", "n/a") - must probe if under limit
-            if (probeCount < maxAIFollowups) {
-              console.log(`[V2-SEMANTIC] Invalid answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxAIFollowups})`);
-              // Fall through to backend call which will generate probe question
-            } else {
-              // Max probes reached with invalid value - mark as unresolved
-              console.log(`[V2-SEMANTIC] Max probes reached with invalid value - marking as unresolved`);
-              const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-              const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
-              
-              // Save unresolved fact
-              await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
-              
-              // Mark field as completed (unresolved)
-              setCompletedFields(prev => ({
-                ...prev,
-                [`${packId}_${instanceNumber}`]: {
-                  ...(prev[`${packId}_${instanceNumber}`] || {}),
-                  [fieldKey]: true
-                }
-              }));
-              
-              // Clear probing state for this field
-              setFieldProbingState(prev => {
-                const updated = { ...prev };
-                delete updated[probeKey];
-                return updated;
-              });
-              
-              // Continue to next step - fall through to normal flow below
-              // (We'll skip the backend call and V2 probing logic)
-            }
-          } else if (semanticResult.status === "unknown") {
-            // Unknown value (e.g., "I don't recall") - probe if under limit
-            if (probeCount < maxAIFollowups) {
-              console.log(`[V2-SEMANTIC] Unknown answer - triggering probe (${probeCount}/${maxAIFollowups})`);
-              // Fall through to backend call
-            } else {
-              // Max probes reached with unknown - save as unknown fact
-              console.log(`[V2-SEMANTIC] Max probes reached with unknown - saving as unknown fact`);
-              const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-              const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
-              
-              await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
-              
-              // Mark complete and continue
-              setCompletedFields(prev => ({
-                ...prev,
-                [`${packId}_${instanceNumber}`]: {
-                  ...(prev[`${packId}_${instanceNumber}`] || {}),
-                  [fieldKey]: true
-                }
-              }));
-              
-              setFieldProbingState(prev => {
-                const updated = { ...prev };
-                delete updated[probeKey];
-                return updated;
-              });
-              
-              // Fall through to continue with next step
-            }
-          }
-          // For "valid" status, we save the fact and continue normally
+          // Get probe count from aiFollowupCounts using per-field key
+          const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
+          const probeCount = aiFollowupCounts[fieldCountKey] || 0;
           
-          // INVARIANT: Log the user's deterministic follow-up answer to chat history BEFORE validation
-          const followupAnswerChatEvent = createChatEvent('followup_answer', {
-            role: 'user',
-            text: normalizedAnswer,
-            content: normalizedAnswer,
-            packId: packId,
-            fieldKey: fieldKey,
-            instanceNumber: instanceNumber,
-            baseQuestionId: currentItem.baseQuestionId,
-            kind: 'deterministic_followup_answer'
-          });
-          // Also log the question that was asked
-          const followupQuestionChatEvent = createChatEvent('followup_question', {
-            role: 'system',
-            text: step.Prompt,
-            content: step.Prompt,
-            packId: packId,
-            fieldKey: fieldKey,
-            instanceNumber: instanceNumber,
-            baseQuestionId: currentItem.baseQuestionId,
-            kind: 'deterministic_followup_question'
-          });
+          console.log(`[V2-SEMANTIC] Probe count for ${fieldKey}: ${probeCount}/${maxAiFollowups}`);
           
-          // If semantic validation passed as "valid", save fact immediately
+          // If semantic validation passed as "valid", save fact immediately and continue
           if (semanticResult.status === "valid") {
             console.log(`[V2-SEMANTIC] Valid answer - saving fact and continuing`);
             await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
@@ -2069,126 +1981,164 @@ export default function CandidateInterview() {
               return updated;
             });
             
-            // Skip backend call - continue to next deterministic step
-            // (Fall through to end of V2 block to advance to next step)
-          } else if (semanticResult.status === "invalid" || semanticResult.status === "unknown") {
-            // Need to probe - only if under limit (already checked above)
-            if (probeCount < maxAIFollowups) {
-              console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
-              
-              // Mark as in progress
-              v2ProbingInProgressRef.current.add(probeKey);
-
-              try {
-                const v2Result = await callProbeEngineV2PerField(base44, {
-                  packId,
-                  fieldKey,
-                  fieldValue: normalizedAnswer,
-                  previousProbesCount: currentProbeState.probeCount,
-                  incidentContext
-                });
-                console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
-                
-                if (v2Result.mode === 'QUESTION') {
-                  // Field is incomplete - need to probe
-              console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
-              
-              // Clear the text input immediately when entering probe mode
-              setInput("");
-              
-              // INVARIANT: Add the deterministic follow-up Q+A to transcript
-              // NOTE: Don't add AI probe question here - it's shown via currentFieldProbe state
-              // The AI probe Q+A pair will be added together when the candidate answers
-              const followupEntry = createChatEvent('followup', {
-                questionId: currentItem.id,
-                questionText: step.Prompt,
-                packId: packId,
-                substanceName: substanceName,
-                kind: 'deterministic_followup',
-                answer: normalizedAnswer,
-                text: normalizedAnswer,
-                content: normalizedAnswer,
-                fieldKey: fieldKey,
-                followupPackId: packId,
-                instanceNumber: instanceNumber,
-                baseQuestionId: currentItem.baseQuestionId
-              });
-              // Override type to 'followup' for render compatibility
-              followupEntry.type = 'followup';
-              followupEntry.role = 'candidate';
-              
-              // Add only the followup entry to transcript (AI probe question shown via currentFieldProbe)
-              const newTranscript = [...transcript, followupEntry];
-              setTranscript(newTranscript);
-              
-              console.log('[V2-PER-FIELD] Added followup to transcript:', followupEntry);
-              
-              // Both the follow-up answer and AI probe question are now in the transcript
-              // The purple "Investigator Question" card will also be rendered from currentFieldProbe state
-              
-              // Update probe state for this field
-              setFieldProbingState(prev => ({
-                ...prev,
-                [probeKey]: {
-                  probeCount: currentProbeState.probeCount + 1,
-                  lastQuestion: v2Result.question,
-                  isProbing: true
-                }
-              }));
-              
-              // Update follow-up answers tracker
-              setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
-              
-              // Set current field probe for UI - this drives the purple "Investigator Question" card
-              setCurrentFieldProbe({
-                packId,
-                instanceNumber,
-                fieldKey,
-                semanticField: v2Result.semanticField,
-                question: v2Result.question,
-                baseQuestionId: currentItem.baseQuestionId,
-                substanceName,
-                currentItem: currentItem // Preserve for continuation
-              });
-              
-              // Save to database - mark as user source since it was accepted on first try
-              await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
-              await persistStateToDatabase(newTranscript, queue, currentItem);
-              
-              // Stay on current item - waiting for probe answer
-              setIsWaitingForAgent(true);
-              setIsInvokeLLMMode(true);
-              setIsCommitting(false);
-              v2ProbingInProgressRef.current.delete(probeKey);
-              return;
-            }
-            
-            // Field is complete or max probes reached - continue to next step
-            console.log(`[V2-PER-FIELD] Field ${fieldKey} complete → advancing`);
-            
-            // Mark field as completed
-            setCompletedFields(prev => ({
-              ...prev,
-              [`${packId}_${instanceNumber}`]: {
-                ...(prev[`${packId}_${instanceNumber}`] || {}),
-                [fieldKey]: true
-              }
-            }));
-            
-            // Clear probing state for this field
-            setFieldProbingState(prev => {
+            // Reset probe count for this field
+            setAiFollowupCounts(prev => {
               const updated = { ...prev };
-              delete updated[probeKey];
+              delete updated[fieldCountKey];
               return updated;
             });
             
-            v2ProbingInProgressRef.current.delete(probeKey);
-            // Fall through to normal flow below
-              } catch (err) {
-                console.error(`[V2-PER-FIELD] Error during field validation:`, err);
+            // Fall through to advance to next step
+          } else if (semanticResult.status === "invalid" || semanticResult.status === "unknown") {
+            // Invalid or unknown value - check if we can probe more
+            if (probeCount < maxAiFollowups) {
+              console.log(`[V2-SEMANTIC] ${semanticResult.status} answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxAiFollowups})`);
+              
+              // Mark as in progress
+              v2ProbingInProgressRef.current.add(probeKey);
+              
+              // Call backend to get AI probe question
+              const v2Result = await callProbeEngineV2PerField(base44, {
+                packId,
+                fieldKey,
+                fieldValue: normalizedAnswer,
+                previousProbesCount: probeCount,
+                incidentContext
+              });
+              
+              console.log(`[V2-PER-FIELD] Backend result for ${fieldKey}:`, v2Result);
+              
+              if (v2Result.mode === 'QUESTION') {
+                // AI probe question generated - increment counter and show question
+                console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question`);
+                
+                // Increment probe count for this field
+                setAiFollowupCounts(prev => ({
+                  ...prev,
+                  [fieldCountKey]: probeCount + 1
+                }));
+                
+                // Clear the text input immediately when entering probe mode
+                setInput("");
+                
+                // Add the deterministic follow-up Q+A to transcript
+                const followupEntry = createChatEvent('followup', {
+                  questionId: currentItem.id,
+                  questionText: step.Prompt,
+                  packId: packId,
+                  substanceName: substanceName,
+                  kind: 'deterministic_followup',
+                  answer: normalizedAnswer,
+                  text: normalizedAnswer,
+                  content: normalizedAnswer,
+                  fieldKey: fieldKey,
+                  followupPackId: packId,
+                  instanceNumber: instanceNumber,
+                  baseQuestionId: currentItem.baseQuestionId
+                });
+                followupEntry.type = 'followup';
+                followupEntry.role = 'candidate';
+                
+                const newTranscript = [...transcript, followupEntry];
+                setTranscript(newTranscript);
+                
+                // Update probe state for this field
+                setFieldProbingState(prev => ({
+                  ...prev,
+                  [probeKey]: {
+                    probeCount: probeCount + 1,
+                    lastQuestion: v2Result.question,
+                    isProbing: true
+                  }
+                }));
+                
+                // Update follow-up answers tracker
+                setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
+                
+                // Set current field probe for UI
+                setCurrentFieldProbe({
+                  packId,
+                  instanceNumber,
+                  fieldKey,
+                  semanticField: v2Result.semanticField,
+                  question: v2Result.question,
+                  baseQuestionId: currentItem.baseQuestionId,
+                  substanceName,
+                  currentItem: currentItem
+                });
+                
+                // Save current answer to database
+                await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
+                await persistStateToDatabase(newTranscript, queue, currentItem);
+                
+                // Stay on current item - waiting for probe answer
+                setIsWaitingForAgent(true);
+                setIsInvokeLLMMode(true);
+                setIsCommitting(false);
                 v2ProbingInProgressRef.current.delete(probeKey);
-                // Fall through to normal flow on error
+                return;
               }
+              
+              // Backend returned non-QUESTION mode - field is complete
+              v2ProbingInProgressRef.current.delete(probeKey);
+              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete`);
+              
+              // Save the answer and mark complete
+              await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
+              
+              setCompletedFields(prev => ({
+                ...prev,
+                [`${packId}_${instanceNumber}`]: {
+                  ...(prev[`${packId}_${instanceNumber}`] || {}),
+                  [fieldKey]: true
+                }
+              }));
+              
+              setFieldProbingState(prev => {
+                const updated = { ...prev };
+                delete updated[probeKey];
+                return updated;
+              });
+              
+              setAiFollowupCounts(prev => {
+                const updated = { ...prev };
+                delete updated[fieldCountKey];
+                return updated;
+              });
+              
+              // Fall through to advance to next step
+            } else {
+              // Max probes reached - mark as unresolved
+              console.log(`[V2-SEMANTIC] Max probes (${maxAiFollowups}) reached for ${fieldKey} - marking as unresolved`);
+              const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+              const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
+              
+              // Save unresolved fact
+              await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
+              
+              // Mark field as completed (unresolved)
+              setCompletedFields(prev => ({
+                ...prev,
+                [`${packId}_${instanceNumber}`]: {
+                  ...(prev[`${packId}_${instanceNumber}`] || {}),
+                  [fieldKey]: true
+                }
+              }));
+              
+              // Clear probing state
+              setFieldProbingState(prev => {
+                const updated = { ...prev };
+                delete updated[probeKey];
+                return updated;
+              });
+              
+              setAiFollowupCounts(prev => {
+                const updated = { ...prev };
+                delete updated[fieldCountKey];
+                return updated;
+              });
+              
+              // Fall through to advance to next step
             }
           }
         }
