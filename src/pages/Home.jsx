@@ -42,10 +42,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+    <div className="min-h-screen bg-[#071633]" style={{ background: 'linear-gradient(180deg, #071633 0%, #050F26 100%)' }}>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
+        {/* Hero to content fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-[#071633]" />
         
         {/* Top Header with Pill Buttons */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
@@ -112,10 +114,13 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Subtle global accent glow */}
+      <div className="absolute top-[60vh] left-1/2 -translate-x-1/2 w-[120vw] h-[80vh] bg-[radial-gradient(ellipse_at_center,_rgba(30,64,120,0.05)_0%,_transparent_70%)] pointer-events-none" />
+
       {/* Features Grid */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="subtle1"
+        bgStyle="none"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
@@ -180,7 +185,7 @@ export default function Home() {
       {/* Why Agencies Choose ClearQuest */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="subtle2"
+        bgStyle="none"
         transitionLine="Designed to support investigators, supervisors, and support staff across your agency."
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -228,7 +233,7 @@ export default function Home() {
       {/* Built to Support Investigator Judgment */}
       <AnimatedSection 
         className="py-14 sm:py-18 md:py-20"
-        bgStyle="subtle1"
+        bgStyle="none"
         transitionLine="ClearQuest organizes the interview, while investigators keep full control over every decision."
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -244,7 +249,7 @@ export default function Home() {
       {/* For Your Agency Team */}
       <AnimatedSection 
         className="py-14 sm:py-18 md:py-20"
-        bgStyle="subtle2"
+        bgStyle="none"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-8 sm:mb-10">
@@ -274,8 +279,8 @@ export default function Home() {
 
       {/* Stats Section */}
       <AnimatedSection 
-        className="py-14 sm:py-18 md:py-20 border-y border-slate-700"
-        bgStyle="dark"
+        className="py-14 sm:py-18 md:py-20 border-y border-slate-700/50"
+        bgStyle="darkBlend"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-10 text-center">
@@ -289,8 +294,8 @@ export default function Home() {
 
       {/* Early Access Strip */}
       <AnimatedSection 
-        className="py-14 sm:py-18 md:py-20 border-y border-blue-500/20"
-        bgStyle="accent"
+        className="py-14 sm:py-18 md:py-20"
+        bgStyle="accentBlend"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedHeading as="h3" className="text-lg sm:text-xl md:text-2xl font-semibold text-white mb-3">
@@ -311,7 +316,7 @@ export default function Home() {
       {/* How It Works */}
       <AnimatedSection 
         className="py-16 sm:py-20 md:py-24"
-        bgStyle="subtle1"
+        bgStyle="none"
         transitionLine="Here's what the applicant experience looks like from start to finish."
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -359,8 +364,8 @@ export default function Home() {
 
       {/* Security & Compliance Strip */}
       <AnimatedSection 
-        className="py-10 sm:py-14 md:py-16 border-t border-slate-700/50"
-        bgStyle="subtle2"
+        className="py-10 sm:py-14 md:py-16"
+        bgStyle="none"
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedHeading as="h3" className="text-base sm:text-xl md:text-2xl font-semibold text-white mb-4 sm:mb-6">

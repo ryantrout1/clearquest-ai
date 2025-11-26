@@ -12,10 +12,13 @@ export default function AnimatedSection({
 
   const bgStyles = {
     default: 'bg-transparent',
-    subtle1: 'bg-gradient-to-b from-[#0A1A3D]/0 via-[#0E244F]/30 to-[#0A1A3D]/0',
-    subtle2: 'bg-gradient-to-b from-[#0E244F]/0 via-[#0A1A3D]/40 to-[#0E244F]/0',
+    none: 'bg-transparent',
+    subtle1: 'bg-transparent',
+    subtle2: 'bg-transparent',
     dark: 'bg-slate-800/50 backdrop-blur-sm',
-    accent: 'bg-slate-900/80'
+    darkBlend: 'bg-gradient-to-b from-slate-800/30 via-slate-800/40 to-slate-800/30',
+    accent: 'bg-slate-900/80',
+    accentBlend: 'bg-gradient-to-b from-transparent via-slate-900/60 to-transparent'
   };
 
   return (
@@ -24,8 +27,7 @@ export default function AnimatedSection({
       id={id}
       className={`relative ${bgStyles[bgStyle] || bgStyles.default} ${className}`}
     >
-      {/* Soft top separator */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-700/30 to-transparent" />
+
       
       <div className={`
         transition-all duration-500 ease-out
