@@ -1466,8 +1466,36 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 // Config-driven pack display (PACK_LE_APPS and future packs)
                 if (packConfig) {
-                  const facts = extractFactsFromConfig(packId, instance.details, instance.aiExchanges);
-                  const summaryLine = buildInstanceHeaderSummary(packId, instance.details);
+                  // Use facts pipeline for PACK_LE_APPS - reads final validated values
+                  const instanceFacts = getInstanceFacts(packId, instance);
+
+                  // Build facts array from the facts object using config
+                  const factsFieldsConfig = (packConfig.fields || [])
+                    .filter(f => f.includeInFacts)
+                    .sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
+
+                  const facts = factsFieldsConfig
+                    .map(fieldConfig => {
+                      const factEntry = instanceFacts[fieldConfig.semanticKey];
+                      const value = factEntry?.value;
+                      if (!value || value.trim() === "") return null;
+                      return {
+                        label: fieldConfig.label,
+                        value: value
+                      };
+                    })
+                    .filter(Boolean);
+
+                  // Build header summary from facts
+                  const headerFieldsConfig = (packConfig.fields || [])
+                    .filter(f => f.includeInInstanceHeader)
+                    .sort((a, b) => (a.headerOrder ?? 0) - (b.headerOrder ?? 0));
+
+                  const summaryLine = headerFieldsConfig
+                    .map(f => instanceFacts[f.semanticKey]?.value)
+                    .filter(Boolean)
+                    .join(' • ') || null;
+
                   const hasAnyFacts = facts.length > 0;
                   
                   return (
