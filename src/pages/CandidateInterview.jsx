@@ -1936,30 +1936,6 @@ export default function CandidateInterview() {
           // Get current probe state for this field
           const currentProbeState = fieldProbingState[probeKey] || { probeCount: 0, lastQuestion: null, isProbing: false };
 
-          const semanticResult = validateFollowupValue({
-            packId,
-            fieldKey,
-            rawValue: normalizedAnswer
-          });
-
-          const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
-          const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-          const maxProbes = packConfig?.maxAiProbes ?? 3;
-
-          if (semanticResult.status === 'valid') {
-            await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
-            setCompletedFields(prev => ({...prev, [`${packId}_${instanceNumber}`]: {...(prev[`${packId}_${instanceNumber}`] || {}), [fieldKey]: true}}));
-          } else if (currentProbeState.probeCount < maxProbes) {
-            // Fallthrough to probe
-          } else {
-            const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-            const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${currentProbeState.probeCount} attempts`;
-            await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
-            setCompletedFields(prev => ({...prev, [`${packId}_${instanceNumber}`]: {...(prev[`${packId}_${instanceNumber}`] || {}), [fieldKey]: true}}));
-          }
-
-          
-          
           // Build incident context from all answers so far
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
           
@@ -2551,12 +2527,6 @@ export default function CandidateInterview() {
 
       setIsCommitting(false);
       setInput("");
-
-    } catch (err) {
-      console.error('❌ Error processing answer:', err);
-      setIsCommitting(false);
-      setError(`Error: ${err.message}`);
-    }
 
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, sectionCompletionMessage]);
 
