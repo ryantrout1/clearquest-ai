@@ -484,7 +484,20 @@ export default function FollowUpPackDetails({
 
       {/* AI Investigator Summary Instructions */}
       <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-        <Label className="text-lg font-semibold text-purple-400 mb-3 block">AI Investigator Summary Instructions</Label>
+        <button
+          onClick={() => !isEditing && setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
+          className="w-full flex items-center justify-between mb-1 group"
+          disabled={isEditing}
+        >
+          <Label className="text-lg font-semibold text-purple-400 cursor-pointer">AI Investigator Summary Instructions</Label>
+          {!isEditing && (
+            isSummaryInstructionsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            )
+          )}
+        </button>
         <p className="text-xs text-slate-400 mb-3">
           Used to guide AI when generating narrative summaries for investigators about this incident type.
         </p>
@@ -500,8 +513,8 @@ export default function FollowUpPackDetails({
               Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk.
             </p>
           </>
-        ) : (
-          <div className="h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+        ) : isSummaryInstructionsExpanded && (
+          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
             <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
               {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
             </p>
