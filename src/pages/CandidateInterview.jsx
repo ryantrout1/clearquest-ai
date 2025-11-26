@@ -2186,10 +2186,12 @@ export default function CandidateInterview() {
             v2ProbingInProgressRef.current.delete(probeKey);
             
             // Fall through to normal flow below
-          } catch (err) {
-            console.error(`[V2-PER-FIELD] Error during field validation:`, err);
-            v2ProbingInProgressRef.current.delete(probeKey);
-            // Fall through to normal flow on error
+              } catch (err) {
+                console.error(`[V2-PER-FIELD] Error during field validation:`, err);
+                v2ProbingInProgressRef.current.delete(probeKey);
+                // Fall through to normal flow on error
+              }
+            }
           }
         }
         // ============================================================================
