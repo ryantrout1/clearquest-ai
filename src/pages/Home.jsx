@@ -42,7 +42,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#071633]" style={{ background: 'linear-gradient(180deg, #071633 0%, #050F26 100%)' }}>
+    <div className="min-h-screen bg-[#071633] overflow-x-hidden" style={{ background: 'linear-gradient(180deg, #071633 0%, #050F26 100%)' }}>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
@@ -115,7 +115,7 @@ export default function Home() {
       </div>
 
       {/* Subtle global accent glow */}
-      <div className="absolute top-[60vh] left-1/2 -translate-x-1/2 w-[120vw] h-[80vh] bg-[radial-gradient(ellipse_at_center,_rgba(30,64,120,0.05)_0%,_transparent_70%)] pointer-events-none" />
+      <div className="absolute top-[60vh] left-1/2 -translate-x-1/2 w-full max-w-[100vw] h-[80vh] bg-[radial-gradient(ellipse_at_center,_rgba(30,64,120,0.05)_0%,_transparent_70%)] pointer-events-none" />
 
       {/* Features Grid */}
       <AnimatedSection 
