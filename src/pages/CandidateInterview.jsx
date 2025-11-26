@@ -2019,6 +2019,9 @@ export default function CandidateInterview() {
               
               // Add BOTH entries to transcript - followup answer AND ai probe question
               const newTranscript = [...transcript, followupEntry, aiProbeQuestionEvent];
+              setTranscript(newTranscript);
+              
+              console.log('[V2-PER-FIELD] Added to transcript:', { followupEntry, aiProbeQuestionEvent });
               
               // Both the follow-up answer and AI probe question are now in the transcript
               // The purple "Investigator Question" card will also be rendered from currentFieldProbe state
