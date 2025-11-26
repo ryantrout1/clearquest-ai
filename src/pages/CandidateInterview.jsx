@@ -2482,23 +2482,11 @@ export default function CandidateInterview() {
           // Still incomplete - ask another probe
           console.log(`[V2-PER-FIELD] Field ${fieldKey} still incomplete → probing again`);
           
-          const nextProbeEntry = {
-            id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${currentProbeState.probeCount + 1}-${Date.now()}`,
-            type: 'ai_question',
-            content: v2Result.question,
-            questionId: baseQuestionId,
-            packId: packId,
-            timestamp: new Date().toISOString(),
-            kind: 'ai_field_probe',
-            role: 'investigator',
-            text: v2Result.question,
-            followupPackId: packId,
-            instanceNumber: instanceNumber,
-            fieldKey: fieldKey,
-            probeEngineVersion: 'v2-per-field'
-          };
+          // Clear input for next probe answer
+          setInput("");
           
-          setTranscript(prev => [...prev, nextProbeEntry]);
+          // Don't add transcript entry yet - it will be added when candidate answers
+          // Just update the currentFieldProbe state to show the new question in the UI
           
           setFieldProbingState(prev => ({
             ...prev,
