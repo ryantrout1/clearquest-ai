@@ -9,10 +9,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * - Returns NEXT_FIELD when field is complete
  */
 
+// Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
+const DEFAULT_MAX_PROBES_FALLBACK = 3;
+
 const PACK_CONFIG = {
   PACK_LE_APPS: {
     id: "PACK_LE_APPS",
-    maxProbesPerField: 2,
+    // NOTE: maxProbesPerField is now fetched from FollowUpPack entity (max_ai_followups)
+    // This local config is only used for field mapping
     requiredFields: ["agency", "position", "monthYear", "outcome", "reason", "issues", "stageReached"],
     priorityOrder: ["agency", "position", "monthYear", "outcome", "reason", "issues", "stageReached"],
     fieldKeyMap: {
@@ -283,7 +287,7 @@ function mapFieldKey(packConfig, rawFieldKey) {
 /**
  * Main probe engine function - Per-Field Mode
  */
-async function probeEngineV2(input) {
+async function probeEngineV2(input, base44Client) {
   const {
     pack_id,
     field_key,                    // The specific field being validated
@@ -307,7 +311,26 @@ async function probeEngineV2(input) {
   const semanticField = mapFieldKey(packConfig, field_key);
   console.log(`[V2-PER-FIELD] Mapped ${field_key} → ${semanticField}`);
 
-  const maxProbesPerField = packConfig.maxProbesPerField || 2;
+  // Fetch max_ai_followups from FollowUpPack entity - SINGLE SOURCE OF TRUTH
+  let maxProbesPerField = DEFAULT_MAX_PROBES_FALLBACK;
+  try {
+    const followUpPacks = await base44Client.entities.FollowUpPack.filter({
+      followup_pack_id: pack_id
+    });
+    if (followUpPacks.length > 0) {
+      const packEntity = followUpPacks[0];
+      if (typeof packEntity.max_ai_followups === 'number' && packEntity.max_ai_followups > 0) {
+        maxProbesPerField = packEntity.max_ai_followups;
+        console.log(`[V2-PER-FIELD] Using max_ai_followups from FollowUpPack entity: ${maxProbesPerField}`);
+      } else {
+        console.log(`[V2-PER-FIELD] FollowUpPack entity has no valid max_ai_followups, using fallback: ${maxProbesPerField}`);
+      }
+    } else {
+      console.log(`[V2-PER-FIELD] No FollowUpPack entity found for ${pack_id}, using fallback: ${maxProbesPerField}`);
+    }
+  } catch (err) {
+    console.warn(`[V2-PER-FIELD] Error fetching FollowUpPack entity, using fallback: ${maxProbesPerField}`, err.message);
+  }
 
   // Validate the current field value
   const validationResult = validateField(semanticField, field_value, incident_context);
@@ -323,11 +346,13 @@ async function probeEngineV2(input) {
       semanticField,
       validationResult: "complete",
       previousProbeCount: previous_probes_count,
+      maxProbesPerField,
       message: `Field ${semanticField} validated successfully`
     };
   }
 
   // Check if we've reached max probes for this field
+  // Stop condition: previous_probes_count >= maxProbesPerField (pack's max_ai_followups)
   if (previous_probes_count >= maxProbesPerField) {
     console.log(`[V2-PER-FIELD] Max probes (${maxProbesPerField}) reached for ${semanticField} → accepting and advancing`);
     return {
@@ -337,6 +362,7 @@ async function probeEngineV2(input) {
       semanticField,
       validationResult: "max_probes_reached",
       previousProbeCount: previous_probes_count,
+      maxProbesPerField,
       message: `Max probes reached for ${semanticField}, accepting current value`
     };
   }
@@ -372,7 +398,7 @@ Deno.serve(async (req) => {
     const input = await req.json();
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
-    const result = await probeEngineV2(input);
+    const result = await probeEngineV2(input, base44);
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
     return Response.json(result);
