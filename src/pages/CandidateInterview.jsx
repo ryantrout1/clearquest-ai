@@ -2079,22 +2079,18 @@ export default function CandidateInterview() {
               // Mark as in progress
               v2ProbingInProgressRef.current.add(probeKey);
 
-                        if(semanticResult.status === 'invalid' || semanticResult.status === 'unknown') {
-                          if (probeCount < maxProbes) {
-                            console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
-                            v2ProbingInProgressRef.current.add(probeKey);
-                            try {
-                              const v2Result = await callProbeEngineV2PerField(base44, {
-                                packId,
-                                fieldKey,
-                                fieldValue: normalizedAnswer,
-                                previousProbesCount: currentProbeState.probeCount,
-                                incidentContext
-                              });
-                              console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
-                              if (v2Result.mode === 'QUESTION') {
-
-              // Field is incomplete - need to probe
+              try {
+                const v2Result = await callProbeEngineV2PerField(base44, {
+                  packId,
+                  fieldKey,
+                  fieldValue: normalizedAnswer,
+                  previousProbesCount: currentProbeState.probeCount,
+                  incidentContext
+                });
+                console.log(`[V2-PER-FIELD] Validation result for ${fieldKey}:`, v2Result.validationResult);
+                
+                if (v2Result.mode === 'QUESTION') {
+                  // Field is incomplete - need to probe
               console.log(`[V2-PER-FIELD] Field ${fieldKey} incomplete → probing`);
               
               // Clear the text input immediately when entering probe mode
