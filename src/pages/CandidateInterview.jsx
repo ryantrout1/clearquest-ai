@@ -2428,6 +2428,165 @@ export default function CandidateInterview() {
     setIsCommitting(true);
     setInput("");
     
+    // ============================================================================
+    // V2 PER-FIELD PROBING ANSWER HANDLER
+    // ============================================================================
+    if (currentFieldProbe) {
+      const { packId, instanceNumber, fieldKey, semanticField, baseQuestionId, substanceName, currentItem: savedCurrentItem } = currentFieldProbe;
+      const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
+      const currentProbeState = fieldProbingState[probeKey] || { probeCount: 0 };
+      
+      console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
+      
+      try {
+        // Add candidate's answer to transcript
+        const aiAnswerEntry = {
+          id: `ai-a-v2-field-${packId}-${instanceNumber}-${fieldKey}-${Date.now()}`,
+          type: 'ai_answer',
+          content: value,
+          questionId: baseQuestionId,
+          packId: packId,
+          timestamp: new Date().toISOString(),
+          kind: 'ai_field_probe_answer',
+          role: 'candidate',
+          text: value,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          fieldKey: fieldKey
+        };
+        
+        setTranscript(prev => [...prev, aiAnswerEntry]);
+        
+        // Update follow-up answers with the new probe answer
+        const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
+        setCurrentFollowUpAnswers(updatedAnswers);
+        
+        // Call V2 again to validate the new answer
+        const v2Result = await callProbeEngineV2PerField(base44, {
+          packId,
+          fieldKey,
+          fieldValue: value,
+          previousProbesCount: currentProbeState.probeCount,
+          incidentContext: updatedAnswers
+        });
+        
+        console.log(`[V2-PER-FIELD] Re-validation result for ${fieldKey}:`, v2Result.validationResult);
+        
+        if (v2Result.mode === 'QUESTION') {
+          // Still incomplete - ask another probe
+          console.log(`[V2-PER-FIELD] Field ${fieldKey} still incomplete → probing again`);
+          
+          const nextProbeEntry = {
+            id: `ai-q-v2-field-${packId}-${instanceNumber}-${fieldKey}-${currentProbeState.probeCount + 1}-${Date.now()}`,
+            type: 'ai_question',
+            content: v2Result.question,
+            questionId: baseQuestionId,
+            packId: packId,
+            timestamp: new Date().toISOString(),
+            kind: 'ai_field_probe',
+            role: 'investigator',
+            text: v2Result.question,
+            followupPackId: packId,
+            instanceNumber: instanceNumber,
+            fieldKey: fieldKey,
+            probeEngineVersion: 'v2-per-field'
+          };
+          
+          setTranscript(prev => [...prev, nextProbeEntry]);
+          
+          setFieldProbingState(prev => ({
+            ...prev,
+            [probeKey]: {
+              probeCount: currentProbeState.probeCount + 1,
+              lastQuestion: v2Result.question,
+              isProbing: true
+            }
+          }));
+          
+          setCurrentFieldProbe(prev => ({
+            ...prev,
+            question: v2Result.question
+          }));
+          
+          setIsCommitting(false);
+          return;
+        }
+        
+        // Field is now complete - move to next deterministic question
+        console.log(`[V2-PER-FIELD] Field ${fieldKey} now complete → advancing to next step`);
+        
+        // Mark field as completed
+        setCompletedFields(prev => ({
+          ...prev,
+          [`${packId}_${instanceNumber}`]: {
+            ...(prev[`${packId}_${instanceNumber}`] || {}),
+            [fieldKey]: true
+          }
+        }));
+        
+        // Clear probing state
+        setFieldProbingState(prev => {
+          const updated = { ...prev };
+          delete updated[probeKey];
+          return updated;
+        });
+        setCurrentFieldProbe(null);
+        setIsWaitingForAgent(false);
+        setIsInvokeLLMMode(false);
+        
+        // Move to next step in queue
+        let updatedQueue = [...queue];
+        let nextItem = updatedQueue.shift() || null;
+        
+        // Skip conditional follow-ups
+        while (nextItem && nextItem.type === 'followup') {
+          const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+          const nextStep = nextPackSteps?.[nextItem.stepIndex];
+          
+          if (nextStep && shouldSkipFollowUpStep(nextStep, updatedAnswers)) {
+            console.log(`[V2-PER-FIELD] Skipping conditional step: ${nextStep.Field_Key}`);
+            nextItem = updatedQueue.shift() || null;
+          } else {
+            break;
+          }
+        }
+        
+        // Check if this was the last follow-up
+        const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
+        
+        if (isLastFollowUp) {
+          console.log(`[V2-PER-FIELD] Pack ${packId} completed after field probing`);
+          setQueue([]);
+          setCurrentItem(null);
+          
+          if (shouldSkipProbingForHired(packId, updatedAnswers)) {
+            advanceToNextBaseQuestion(baseQuestionId);
+          } else {
+            onFollowupPackComplete(baseQuestionId, packId);
+          }
+        } else {
+          setQueue(updatedQueue);
+          setCurrentItem(nextItem);
+          await persistStateToDatabase(transcript, updatedQueue, nextItem);
+        }
+        
+        setIsCommitting(false);
+        return;
+        
+      } catch (err) {
+        console.error('[V2-PER-FIELD] Error processing probe answer:', err);
+        // Clear probing state and continue normally
+        setCurrentFieldProbe(null);
+        setIsWaitingForAgent(false);
+        setIsInvokeLLMMode(false);
+        setIsCommitting(false);
+        return;
+      }
+    }
+    // ============================================================================
+    // END V2 PER-FIELD ANSWER HANDLER
+    // ============================================================================
+    
     // NEW: Check if we're in invokeLLM mode (no agent calls needed)
     if (isInvokeLLMMode) {
       try {
