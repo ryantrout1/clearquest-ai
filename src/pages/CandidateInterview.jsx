@@ -1958,7 +1958,7 @@ export default function CandidateInterview() {
             setCompletedFields(prev => ({...prev, [`${packId}_${instanceNumber}`]: {...(prev[`${packId}_${instanceNumber}`] || {}), [fieldKey]: true}}));
           }
 
-          if(semanticResult.status !== 'valid' && currentProbeState.probeCount < maxProbes) {
+          
           
           // Build incident context from all answers so far
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
