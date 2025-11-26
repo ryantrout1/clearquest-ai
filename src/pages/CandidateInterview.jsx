@@ -1962,7 +1962,7 @@ export default function CandidateInterview() {
           if (semanticResult.status === "invalid") {
             // Invalid value (e.g., "nothing", "n/a") - must probe if under limit
             if (probeCount < maxAIFollowups) {
-              console.log(`[V2-SEMANTIC] Invalid answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxProbes})`);
+              console.log(`[V2-SEMANTIC] Invalid answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxAIFollowups})`);
               // Fall through to backend call which will generate probe question
             } else {
               // Max probes reached with invalid value - mark as unresolved
@@ -1995,7 +1995,7 @@ export default function CandidateInterview() {
           } else if (semanticResult.status === "unknown") {
             // Unknown value (e.g., "I don't recall") - probe if under limit
             if (probeCount < maxAIFollowups) {
-              console.log(`[V2-SEMANTIC] Unknown answer - triggering probe (${probeCount}/${maxProbes})`);
+              console.log(`[V2-SEMANTIC] Unknown answer - triggering probe (${probeCount}/${maxAIFollowups})`);
               // Fall through to backend call
             } else {
               // Max probes reached with unknown - save as unknown fact
@@ -2073,7 +2073,7 @@ export default function CandidateInterview() {
             // (Fall through to end of V2 block to advance to next step)
           } else if (semanticResult.status === "invalid" || semanticResult.status === "unknown") {
             // Need to probe - only if under limit (already checked above)
-            if (probeCount < maxProbes) {
+            if (probeCount < maxAIFollowups) {
               console.log(`[V2-PER-FIELD] Starting field validation for ${fieldKey}`);
               
               // Mark as in progress
@@ -2630,7 +2630,7 @@ export default function CandidateInterview() {
           
           if (newProbeCount < maxAIFollowups) {
             // Can probe again - call backend for next question
-            console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${newProbeCount}/${maxProbes})`);
+            console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${newProbeCount}/${maxAIFollowups})`);
             
             // Clear input for next probe answer
             setInput("");
