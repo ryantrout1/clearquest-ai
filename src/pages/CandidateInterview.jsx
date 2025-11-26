@@ -2849,7 +2849,7 @@ export default function CandidateInterview() {
     }
   };
 
-  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1) => {
+  const saveFollowUpAnswer = async (packId, fieldKey, answer, substanceName, instanceNumber = 1, factSource = "user") => {
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -2871,6 +2871,25 @@ export default function CandidateInterview() {
         instance_number: instanceNumber
       });
       
+      // Build fact entry for PACK_LE_APPS
+      let factsUpdate = null;
+      if (packId === "PACK_LE_APPS") {
+        const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+        if (fieldConfig?.semanticKey) {
+          const trimmed = (answer || "").trim().toLowerCase();
+          const isUnknown = ["i don't recall", "idk", "unknown", "not sure", "i don't know", ""].includes(trimmed);
+          factsUpdate = {
+            [fieldConfig.semanticKey]: {
+              value: answer,
+              status: isUnknown ? "unknown" : "confirmed",
+              source: factSource
+            }
+          };
+        }
+      }
+      
       if (existingFollowups.length === 0) {
         console.log("[MI SAVE-DET BEFORE]", {
           action: "create",
@@ -2879,10 +2898,11 @@ export default function CandidateInterview() {
           instanceNumber,
           savingKey: fieldKey,
           savingValue: answer,
-          existingDetails: null
+          existingDetails: null,
+          factsUpdate
         });
         
-        const createdRecord = await base44.entities.FollowUpResponse.create({
+        const createData = {
           session_id: sessionId,
           response_id: triggeringResponse.id,
           question_id: triggeringResponse.question_id,
@@ -2892,13 +2912,20 @@ export default function CandidateInterview() {
           incident_description: answer,
           completed: false,
           additional_details: { [fieldKey]: answer }
-        });
+        };
+        
+        // Add facts for PACK_LE_APPS
+        if (factsUpdate) {
+          createData.additional_details.facts = factsUpdate;
+        }
+        
+        const createdRecord = await base44.entities.FollowUpResponse.create(createData);
         
         console.log("[MI SAVE-DET AFTER]", {
           action: "create",
           instanceNumber,
           createdRecordId: createdRecord.id,
-          updatedDetails: { [fieldKey]: answer }
+          updatedDetails: createData.additional_details
         });
       } else {
         const existing = existingFollowups[0];
@@ -2910,13 +2937,22 @@ export default function CandidateInterview() {
           instanceNumber,
           savingKey: fieldKey,
           savingValue: answer,
-          existingDetails: existing.additional_details || {}
+          existingDetails: existing.additional_details || {},
+          factsUpdate
         });
         
         const updatedDetails = {
           ...(existing.additional_details || {}),
           [fieldKey]: answer
         };
+        
+        // Merge facts for PACK_LE_APPS
+        if (factsUpdate) {
+          updatedDetails.facts = {
+            ...(updatedDetails.facts || {}),
+            ...factsUpdate
+          };
+        }
         
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
