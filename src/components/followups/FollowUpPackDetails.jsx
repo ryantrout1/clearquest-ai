@@ -18,6 +18,7 @@ import {
 import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronDown, AlertTriangle, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
+import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
 
 const RESPONSE_TYPE_NAMES = {
   'text': 'Text',
@@ -521,6 +522,20 @@ export default function FollowUpPackDetails({
           </div>
         )}
       </div>
+
+      {/* Follow-Up Fields (Structured Data) */}
+      <FollowUpFieldDesigner
+        pack={pack}
+        onSaveFields={async (updatedFields) => {
+          try {
+            await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
+            onUpdate({ ...pack, field_config: updatedFields });
+          } catch (err) {
+            console.error('Failed to save fields:', err);
+            toast.error('Failed to save fields');
+          }
+        }}
+      />
 
       {/* Triggering Questions */}
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
