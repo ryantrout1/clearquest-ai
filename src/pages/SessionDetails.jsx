@@ -1514,8 +1514,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   };
 
   // Build summary line for PACK_LE_APPS instance
-  const buildLeAppsSummary = (details) => {
-    const facts = extractLeAppsFacts(details);
+  const buildLeAppsSummary = (details, aiExchanges = []) => {
+    const facts = extractLeAppsFacts(details, aiExchanges);
     const agency = facts.find(f => f.label === 'Agency')?.value || '';
     const position = facts.find(f => f.label === 'Position applied for')?.value || '';
     const date = facts.find(f => f.label === 'Application date (month/year)')?.value || '';
