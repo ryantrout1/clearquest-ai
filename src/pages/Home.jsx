@@ -118,7 +118,7 @@ export default function Home() {
         bgStyle="subtle1"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
             <AnimatedCard delay={0}>
               <FeatureCard
                 icon={<Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />}
@@ -403,22 +403,22 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   const colorClasses = {
-    blue: "from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400",
-    purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400",
-    green: "from-green-500/20 to-green-600/10 border-green-500/30 text-green-400",
-    orange: "from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-400",
-    indigo: "from-indigo-500/20 to-indigo-600/10 border-indigo-500/30 text-indigo-400",
-    red: "from-red-500/20 to-red-600/10 border-red-500/30 text-red-400"
+    blue: "from-blue-500/25 to-blue-600/15 border-blue-400/20 text-blue-400",
+    purple: "from-purple-500/25 to-purple-600/15 border-purple-400/20 text-purple-400",
+    green: "from-green-500/25 to-green-600/15 border-green-400/20 text-green-400",
+    orange: "from-orange-500/25 to-orange-600/15 border-orange-400/20 text-orange-400",
+    indigo: "from-indigo-500/25 to-indigo-600/15 border-indigo-400/20 text-indigo-400",
+    red: "from-red-500/25 to-red-600/15 border-red-400/20 text-red-400"
   };
 
   return (
     <div 
-      className="relative min-h-[200px] sm:min-h-[240px] md:min-h-[260px] cursor-pointer group"
+      className="relative h-[220px] sm:h-[250px] md:h-[270px] cursor-pointer group"
       style={{ perspective: "1000px" }}
       onClick={() => setIsFlipped(!isFlipped)}
     >
       <div
-        className="relative w-full h-full transition-transform duration-500 ease-in-out"
+        className="relative w-full h-full transition-all duration-200 ease-in-out md:group-hover:-translate-y-1"
         style={{
           transformStyle: "preserve-3d",
           transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
@@ -426,18 +426,20 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
       >
         {/* Front Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6 shadow-lg shadow-black/20 md:group-hover:shadow-xl md:group-hover:shadow-black/30 transition-shadow duration-200`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden"
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
-            <div className={colorClasses[color].split(' ')[3]}>{icon}</div>
-            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-sm leading-relaxed flex-1">{description}</p>
-            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl" />
+          <div className="relative flex flex-col h-full">
+            <div className={`${colorClasses[color].split(' ')[3]} opacity-90 md:group-hover:opacity-100 md:group-hover:brightness-110 transition-all duration-200 mb-3`}>{icon}</div>
+            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight mb-2 md:group-hover:brightness-110 transition-all duration-200">{title}</h3>
+            <div className="flex-1 min-h-[60px] sm:min-h-[70px]">
+              <p className="text-slate-300 text-sm leading-relaxed">{description}</p>
+            </div>
+            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors mt-auto pt-2">
               <span>More</span>
               <span className="transform group-hover:translate-x-1 transition-transform">→</span>
             </div>
@@ -446,18 +448,20 @@ function FeatureCard({ icon, title, description, detailedDescription, color }) {
 
         {/* Back Side */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6`}
+          className={`absolute inset-0 bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4 sm:p-5 md:p-6 shadow-lg shadow-black/20`}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)"
           }}
         >
-          <div className="relative space-y-3 sm:space-y-4 flex flex-col h-full">
-            <div className={`${colorClasses[color].split(' ')[3]}`}>{icon}</div>
-            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight">{title}</h3>
-            <p className="text-slate-300 text-sm leading-relaxed flex-1">{detailedDescription}</p>
-            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+          <div className="relative flex flex-col h-full">
+            <div className={`${colorClasses[color].split(' ')[3]} opacity-90 mb-3`}>{icon}</div>
+            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white leading-tight mb-2">{title}</h3>
+            <div className="flex-1 min-h-[60px] sm:min-h-[70px]">
+              <p className="text-slate-300 text-sm leading-relaxed">{detailedDescription}</p>
+            </div>
+            <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors mt-auto pt-2">
               <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
               <span>Back</span>
             </div>
