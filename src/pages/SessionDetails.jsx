@@ -1585,8 +1585,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 // PACK_LE_APPS: Facts-only display
                 if (isPackLeApps) {
-                  const facts = extractLeAppsFacts(instance.details);
-                  const summaryLine = buildLeAppsSummary(instance.details);
+                  const facts = extractLeAppsFacts(instance.details, instance.aiExchanges);
+                  const summaryLine = buildLeAppsSummary(instance.details, instance.aiExchanges);
                   const hasAnyFacts = facts.length > 0;
                   
                   return (
