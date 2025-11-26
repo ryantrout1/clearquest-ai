@@ -1,0 +1,107 @@
+/* ClearQuest Persona-Aligned Color System */
+:root {
+  /* Brand Colors */
+  --cq-primary-navy: #0B1F3F;
+  --cq-blue: #1E60D4;
+  --cq-purple: #6D5DD2;
+  --cq-success: #3CCB8F;
+  --cq-warning: #F2A65A;
+  --cq-error: #D9534F;
+
+  /* UI Neutrals - Light Mode (Default) */
+  --cq-bg: #F7F9FC;
+  --cq-bg-light: #F7F9FC;
+  --cq-bg-dark: #0C234A;
+  --cq-card: #FFFFFF;
+  --cq-card-light: #FFFFFF;
+  --cq-card-dark: #102B57;
+  --cq-divider: #C9D4E3;
+  --cq-text-dark: #0A1A2F;
+  --cq-text-body: #354A67;
+  --cq-text-muted: #64748B;
+
+  /* Semantic aliases for components */
+  --cq-header-bg: var(--cq-primary-navy);
+  --cq-footer-bg: var(--cq-primary-navy);
+  --cq-cta-primary: var(--cq-blue);
+  --cq-cta-primary-hover: #1850B0;
+  --cq-cta-secondary: var(--cq-purple);
+  --cq-cta-secondary-hover: #5A4DC0;
+
+  /* Persona-tuned states */
+  --cq-investigator-contrast: #0A1A2F;
+  --cq-investigator-followup: var(--cq-purple);
+  --cq-hr-admin-card: #FFFFFF;
+  --cq-hr-admin-bg: #F7F9FC;
+  --cq-command-navy: var(--cq-primary-navy);
+  --cq-applicant-blue: #3B7DD8;
+  --cq-applicant-soft: #E8F0FE;
+}
+
+/* Dark Mode */
+.dark, [data-theme="dark"] {
+  --cq-bg: var(--cq-bg-dark);
+  --cq-card: var(--cq-card-dark);
+  --cq-divider: #1E3A5F;
+  --cq-text-dark: #F7F9FC;
+  --cq-text-body: #C9D4E3;
+  --cq-text-muted: #8A9BB5;
+  
+  --cq-header-bg: #050F26;
+  --cq-footer-bg: #050F26;
+}
+
+/* Tailwind utility classes for ClearQuest colors */
+.bg-cq-primary-navy { background-color: var(--cq-primary-navy); }
+.bg-cq-blue { background-color: var(--cq-blue); }
+.bg-cq-purple { background-color: var(--cq-purple); }
+.bg-cq-success { background-color: var(--cq-success); }
+.bg-cq-warning { background-color: var(--cq-warning); }
+.bg-cq-error { background-color: var(--cq-error); }
+.bg-cq-bg { background-color: var(--cq-bg); }
+.bg-cq-card { background-color: var(--cq-card); }
+
+.text-cq-primary-navy { color: var(--cq-primary-navy); }
+.text-cq-blue { color: var(--cq-blue); }
+.text-cq-purple { color: var(--cq-purple); }
+.text-cq-success { color: var(--cq-success); }
+.text-cq-warning { color: var(--cq-warning); }
+.text-cq-error { color: var(--cq-error); }
+.text-cq-dark { color: var(--cq-text-dark); }
+.text-cq-body { color: var(--cq-text-body); }
+.text-cq-muted { color: var(--cq-text-muted); }
+
+.border-cq-divider { border-color: var(--cq-divider); }
+.border-cq-blue { border-color: var(--cq-blue); }
+.border-cq-purple { border-color: var(--cq-purple); }
+
+/* CTA Button Variants */
+.btn-cq-primary {
+  background-color: var(--cq-cta-primary);
+  color: white;
+  transition: background-color 0.2s ease;
+}
+.btn-cq-primary:hover {
+  background-color: var(--cq-cta-primary-hover);
+}
+
+.btn-cq-secondary {
+  background-color: var(--cq-cta-secondary);
+  color: white;
+  transition: background-color 0.2s ease;
+}
+.btn-cq-secondary:hover {
+  background-color: var(--cq-cta-secondary-hover);
+}
+
+/* Persona-specific utilities */
+.investigator-high-contrast {
+  color: var(--cq-investigator-contrast);
+}
+.investigator-followup {
+  color: var(--cq-investigator-followup);
+}
+.applicant-friendly {
+  background-color: var(--cq-applicant-soft);
+  color: var(--cq-applicant-blue);
+}
