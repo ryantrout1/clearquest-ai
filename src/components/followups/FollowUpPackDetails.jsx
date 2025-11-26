@@ -45,6 +45,8 @@ export default function FollowUpPackDetails({
   });
   const [isTriggeringExpanded, setIsTriggeringExpanded] = useState(false);
   const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
+  const [isProbeInstructionsExpanded, setIsProbeInstructionsExpanded] = useState(false);
+  const [isSummaryInstructionsExpanded, setIsSummaryInstructionsExpanded] = useState(false);
 
   useEffect(() => {
     if (!pack) return;
