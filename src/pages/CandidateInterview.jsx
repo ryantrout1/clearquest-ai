@@ -2948,6 +2948,11 @@ export default function CandidateInterview() {
           createData.additional_details.facts = factsUpdate;
         }
         
+        // Add unresolved fields for PACK_LE_APPS
+        if (unresolvedUpdate) {
+          createData.additional_details.unresolvedFields = [unresolvedUpdate];
+        }
+        
         const createdRecord = await base44.entities.FollowUpResponse.create(createData);
         
         console.log("[MI SAVE-DET AFTER]", {
