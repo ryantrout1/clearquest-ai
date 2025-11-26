@@ -3108,6 +3108,11 @@ export default function CandidateInterview() {
   
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
+    // V2 per-field probe question
+    if (currentFieldProbe?.question) {
+      return currentFieldProbe.question;
+    }
+    
     if (!isWaitingForAgent || agentMessages.length === 0) return null;
     
     const lastAssistantMessage = [...agentMessages].reverse().find(m => m.role === 'assistant');
@@ -3124,7 +3129,7 @@ export default function CandidateInterview() {
     }
     
     return lastAssistantMessage.content;
-  }, [agentMessages, isWaitingForAgent]);
+  }, [agentMessages, isWaitingForAgent, currentFieldProbe]);
 
   // ============================================================================
   // RENDER
