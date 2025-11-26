@@ -42,12 +42,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#071633] overflow-x-hidden" style={{ background: 'linear-gradient(180deg, #071633 0%, #050F26 100%)' }}>
+    <div className="min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(180deg, #0B1F3F 0%, #102B57 50%, #0C234A 100%)' }}>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/06ef5407d_image.png')] bg-cover bg-center opacity-10" />
         {/* Hero to content fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-[#071633]" />
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-[#0B1F3F]" />
         
         {/* Top Header with Pill Buttons */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
@@ -115,7 +115,7 @@ export default function Home() {
       </div>
 
       {/* Subtle global accent glow */}
-      <div className="absolute top-[60vh] left-1/2 -translate-x-1/2 w-full max-w-[100vw] h-[80vh] bg-[radial-gradient(ellipse_at_center,_rgba(30,64,120,0.05)_0%,_transparent_70%)] pointer-events-none" />
+      <div className="absolute top-[60vh] left-1/2 -translate-x-1/2 w-full max-w-[100vw] h-[80vh] bg-[radial-gradient(ellipse_at_center,_rgba(30,96,212,0.08)_0%,_transparent_70%)] pointer-events-none" />
 
       {/* Features Grid */}
       <AnimatedSection 
