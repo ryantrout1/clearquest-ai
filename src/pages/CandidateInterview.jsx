@@ -122,39 +122,35 @@ const useProbeEngineV2 = (packId) => {
 };
 
 const getProbeKey = (packId, instanceNumber) => `${packId}_${instanceNumber || 1}`;
+const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
 /**
- * Call the probeEngineV2 backend function (DEBUG mode - no LLM calls)
- * Returns the debug payload for inspection
+ * Call probeEngineV2 for per-field validation (PACK_LE_APPS only)
  */
-const callProbeEngineV2 = async (base44Client, params) => {
-  const {
-    packId,
-    incidentAnswers,
-    previousProbes,
-    overrideMaxProbes,
-    globalProbeInstructions
-  } = params;
+const callProbeEngineV2PerField = async (base44Client, params) => {
+  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext } = params;
 
   try {
-    console.log('[PROBE_ENGINE_V2] Calling backend function with:', {
+    console.log('[V2-PER-FIELD] Calling backend for field validation:', {
       pack_id: packId,
-      incident_answers_keys: Object.keys(incidentAnswers),
-      previous_probes_count: previousProbes?.length || 0
+      field_key: fieldKey,
+      field_value: fieldValue,
+      previous_probes_count: previousProbesCount
     });
 
     const response = await base44Client.functions.invoke('probeEngineV2', {
       pack_id: packId,
-      incident_answers: incidentAnswers,
-      previous_probes: previousProbes || [],
-      override_max_probes: overrideMaxProbes,
-      global_probe_instructions: globalProbeInstructions
+      field_key: fieldKey,
+      field_value: fieldValue,
+      previous_probes_count: previousProbesCount || 0,
+      incident_context: incidentContext || {},
+      mode: 'VALIDATE_FIELD'
     });
 
-    console.log('[PROBE_ENGINE_V2] Response:', response.data);
+    console.log('[V2-PER-FIELD] Response:', response.data);
     return response.data;
   } catch (err) {
-    console.error('[PROBE_ENGINE_V2] Error calling backend:', err);
+    console.error('[V2-PER-FIELD] Error calling backend:', err);
     return {
       mode: 'ERROR',
       message: err.message || 'Failed to call probeEngineV2'
