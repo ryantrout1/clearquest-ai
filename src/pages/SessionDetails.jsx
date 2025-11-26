@@ -1364,17 +1364,26 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
         followupPackId: f.followup_pack,
         details: {},
         aiExchanges: [],
-        questionTextSnapshot: f.additional_details?.question_text_snapshot || {}
+        questionTextSnapshot: f.additional_details?.question_text_snapshot || {},
+        facts: f.additional_details?.facts || {} // PACK_LE_APPS facts pipeline
       };
     }
 
     // Extract deterministic follow-up answers
     const details = f.additional_details || {};
     Object.entries(details).forEach(([key, value]) => {
-      if (key !== 'investigator_probing' && key !== 'question_text_snapshot') {
+      if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts') {
         instancesMap[instNum].details[key] = value;
       }
     });
+
+    // Merge facts from additional_details
+    if (details.facts) {
+      instancesMap[instNum].facts = {
+        ...instancesMap[instNum].facts,
+        ...details.facts
+      };
+    }
 
     // Extract AI probing exchanges
     if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
