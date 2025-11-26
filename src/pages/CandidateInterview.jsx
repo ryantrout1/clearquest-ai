@@ -2547,6 +2547,23 @@ export default function CandidateInterview() {
       
       console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
       
+      // ============================================================================
+      // SEMANTIC VALIDATION for probe answer
+      // ============================================================================
+      const semanticResult = validateFollowupValue({
+        packId,
+        fieldKey,
+        rawValue: value
+      });
+      
+      console.log(`[V2-SEMANTIC] Probe answer validation for ${fieldKey}:`, semanticResult);
+      
+      // Get pack config for max probes
+      const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const maxProbes = packConfig?.maxAiProbes ?? 3;
+      const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
+      
       // INVARIANT: Log the user's AI probe answer to chat history BEFORE calling backend
       const aiProbeAnswerEvent = createChatEvent('ai_probe_answer', {
         role: 'user',
