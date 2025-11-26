@@ -1463,10 +1463,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 const isInstanceExpanded = expandedInstances.has(String(instanceNum));
                 
-                // PACK_LE_APPS: Facts-only display
-                if (isPackLeApps) {
-                  const facts = extractLeAppsFacts(instance.details, instance.aiExchanges);
-                  const summaryLine = buildLeAppsSummary(instance.details, instance.aiExchanges);
+                // Config-driven pack display (PACK_LE_APPS and future packs)
+                if (packConfig) {
+                  const facts = extractFactsFromConfig(packId, instance.details, instance.aiExchanges);
+                  const summaryLine = buildInstanceHeaderSummary(packId, instance.details);
                   const hasAnyFacts = facts.length > 0;
                   
                   return (
