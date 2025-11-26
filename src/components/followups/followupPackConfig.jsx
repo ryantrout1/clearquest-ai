@@ -271,6 +271,21 @@ export function getPackConfig(packId) {
 }
 
 /**
+ * Get the maximum number of AI follow-up questions for a pack.
+ * This is the SINGLE SOURCE OF TRUTH for AI probing limits.
+ * @param {string} packId 
+ * @returns {number}
+ */
+export function getPackMaxAiFollowups(packId) {
+  const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+  if (packConfig && typeof packConfig.maxAiFollowups === 'number') {
+    return packConfig.maxAiFollowups;
+  }
+  // Safety fallback - but in practice every pack should set this explicitly
+  return 3;
+}
+
+/**
  * Get field config by fieldKey within a pack
  * @param {string} packId 
  * @param {string} fieldKey 

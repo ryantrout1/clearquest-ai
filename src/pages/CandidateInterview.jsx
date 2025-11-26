@@ -28,6 +28,7 @@ import SectionCompletionMessage from "../components/interview/SectionCompletionM
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue } from "../components/followups/semanticValidator";
+import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups } from "../components/followups/followupPackConfig";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -266,8 +267,7 @@ export default function CandidateInterview() {
   const [aiFailureReason, setAiFailureReason] = useState(null);
   const [handoffProcessed, setHandoffProcessed] = useState(false);
 
-  // PERF: Cache pack config to avoid re-fetching on every probing exchange
-  const [cachedPackConfig, setCachedPackConfig] = useState(null); // { packId, maxAiFollowups }
+  // NOTE: Pack config is now fetched from centralized FOLLOWUP_PACK_CONFIGS via getPackMaxAiFollowups()
   
   // Input state
   const [input, setInput] = useState("");
@@ -1054,21 +1054,13 @@ export default function CandidateInterview() {
       const countKey = `${packId}:${instanceNumber}`;
       const currentCount = aiFollowupCounts[countKey] || 0;
       
-      // PERF: Use cached pack config if available, otherwise fetch and cache
-      let maxAiFollowups = 3;
-      if (cachedPackConfig && cachedPackConfig.packId === packId) {
-        maxAiFollowups = cachedPackConfig.maxAiFollowups;
-      } else {
-        const followUpPacks = await base44.entities.FollowUpPack.filter({
-          followup_pack_id: packId
-        });
-        const packEntity = followUpPacks[0];
-        const rawLimit = packEntity?.max_ai_followups;
-        maxAiFollowups = (typeof rawLimit === 'number' && rawLimit > 0) ? rawLimit : 3;
-        setCachedPackConfig({ packId, maxAiFollowups });
-      }
+      // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+      const maxAiFollowups = getPackMaxAiFollowups(packId);
+      
+      console.log('[LIVE_AI_FOLLOWUP] Count', currentCount, '/', maxAiFollowups, 'for pack', packId);
       
       if (currentCount >= maxAiFollowups) {
+        console.log('[LIVE_AI_FOLLOWUP] Max AI follow-ups reached for pack', packId, '– not asking another probe');
         return false;
       }
       
@@ -1189,21 +1181,8 @@ export default function CandidateInterview() {
       }
     });
 
-    // Get pack config for maxFollowups
-    let maxFollowupsForAgent = 3; // Default
-    try {
-      const followUpPacks = await base44.entities.FollowUpPack.filter({
-        followup_pack_id: packId
-      });
-      if (followUpPacks.length > 0) {
-        const rawLimit = followUpPacks[0].max_ai_followups;
-        if (typeof rawLimit === 'number' && rawLimit > 0) {
-          maxFollowupsForAgent = rawLimit;
-        }
-      }
-    } catch (err) {
-      console.warn('Could not load pack for max_ai_followups in agent handoff:', err);
-    }
+    // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+    const maxFollowupsForAgent = getPackMaxAiFollowups(packId);
 
     summaryLines.push(``);
     summaryLines.push(`INSTRUCTIONS FOR AI INVESTIGATOR:`);
@@ -1961,10 +1940,8 @@ export default function CandidateInterview() {
           
           console.log(`[V2-SEMANTIC] Validation result for ${fieldKey}:`, semanticResult);
           
-          // Get pack config for max AI followups
-          const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
-          const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-          const maxAiFollowups = packConfig?.maxAiFollowups ?? 3;
+          // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+          const maxAiFollowups = getPackMaxAiFollowups(packId);
           
           // Get probe count from aiFollowupCounts using per-field key
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
@@ -2150,6 +2127,7 @@ export default function CandidateInterview() {
                 maxAiFollowups,
                 status: semanticResult.status
               });
+              const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
               const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
               const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
               
@@ -2531,10 +2509,9 @@ export default function CandidateInterview() {
       
       console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
       
-      // Get pack config for max AI followups
-      const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
+      // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+      const maxAiFollowups = getPackMaxAiFollowups(packId);
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const maxAiFollowups = packConfig?.maxAiFollowups ?? 3;
       const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
       
       // Get probe count from aiFollowupCounts using per-field key
@@ -2700,7 +2677,7 @@ export default function CandidateInterview() {
       
       // Max probes reached or backend says done - mark as unresolved
       console.log(`[V2-SEMANTIC] Max probes (${maxAiFollowups}) reached for ${fieldKey} - marking unresolved`);
-      const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount + 1} attempts`;
+      const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
       await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
       
       // Clean up and advance
@@ -2801,11 +2778,9 @@ export default function CandidateInterview() {
         const countKey = `${currentFollowUpPack.packId}:${currentFollowUpPack.instanceNumber}`;
         const currentCount = aiFollowupCounts[countKey] || 0;
         
-        // PERF: Use cached pack config instead of re-fetching
-        let maxAiFollowups = 3;
-        if (cachedPackConfig && cachedPackConfig.packId === currentFollowUpPack.packId) {
-          maxAiFollowups = cachedPackConfig.maxAiFollowups;
-        }
+        // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+        const maxAiFollowups = getPackMaxAiFollowups(currentFollowUpPack.packId);
+        console.log('[LIVE_AI_FOLLOWUP] Count', currentCount, '/', maxAiFollowups, 'for pack', currentFollowUpPack.packId);
         
         if (currentCount < maxAiFollowups) {
           // Ask another AI question
@@ -3026,7 +3001,6 @@ export default function CandidateInterview() {
       let factsUpdate = null;
       let unresolvedUpdate = null;
       if (packId === "PACK_LE_APPS") {
-        const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
         const { validateFollowupValue: validateForFact } = await import("../components/followups/semanticValidator");
         
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
@@ -3036,11 +3010,11 @@ export default function CandidateInterview() {
           // Use semantic validation to determine fact status
           const semanticResult = validateForFact({ packId, fieldKey, rawValue: answer });
           
-          // Get probe count context
-          const maxProbes = packConfig.maxAiProbes ?? 3;
+          // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+          const maxAiFollowups = getPackMaxAiFollowups(packId);
           const wasProbed = factSource === "ai_probed";
           
-          const probeCount = wasProbed ? maxProbes : 0;
+          const probeCount = wasProbed ? maxAiFollowups : 0;
           const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
           
           if (isUnresolved) {
@@ -3055,7 +3029,7 @@ export default function CandidateInterview() {
             unresolvedUpdate = {
               semanticKey: fieldConfig.semanticKey,
               fieldKey: fieldKey,
-              probeCount: maxProbes
+              probeCount: maxAiFollowups
             };
           } else if (semanticResult.status === "valid") {
             // Valid value - store as confirmed fact
