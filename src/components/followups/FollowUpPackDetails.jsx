@@ -230,33 +230,33 @@ export default function FollowUpPackDetails({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
           {isEditing ? (
             <Input
               value={formData.pack_name}
               onChange={(e) => setFormData({...formData, pack_name: e.target.value})}
-              className="text-lg font-semibold bg-slate-800 border-slate-600 text-white mb-2"
+              className="text-lg font-semibold bg-slate-800 border-slate-600 text-white"
             />
           ) : (
-            <h3 className="text-lg font-semibold text-white">{formData.pack_name}</h3>
+            <h3 className="text-xl font-semibold text-white">{formData.pack_name}</h3>
           )}
-          <p className="text-sm text-slate-400 font-mono mt-1">{pack.followup_pack_id}</p>
+          <p className="text-xs text-slate-500 font-mono mt-1">{pack.followup_pack_id}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           {!isEditing ? (
             <Button
               onClick={() => setIsEditing(true)}
+              size="sm"
               className="bg-purple-600 hover:bg-purple-700"
             >
-              <Edit className="w-4 h-4 mr-2" />
+              <Edit className="w-4 h-4 mr-1.5" />
               Edit
             </Button>
           ) : (
             <>
               <Button
                 onClick={() => {
-                  const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
                   const categoryIdCancel = pack.category_id || mapPackToCategory(pack.followup_pack_id);
                   setFormData({
                     pack_name: pack.pack_name || '',
@@ -272,13 +272,15 @@ export default function FollowUpPackDetails({
                   });
                   setIsEditing(false);
                 }}
+                size="sm"
                 variant="outline"
-                className="border-slate-600"
+                className="border-slate-600 text-slate-300"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
+                size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
                 Save
