@@ -2652,20 +2652,28 @@ export default function CandidateInterview() {
         // Can probe again - call backend for next question
         console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${probeCount + 1}/${maxAiFollowups})`);
         
-        // Increment probe count
+        // Increment probe count BEFORE calling backend
+        const newProbeCount = probeCount + 1;
         setAiFollowupCounts(prev => ({
           ...prev,
-          [fieldCountKey]: probeCount + 1
+          [fieldCountKey]: newProbeCount
         }));
         
         setInput("");
         
-        // Call V2 to get next probe question
+        // Call V2 to get next probe question - pass CURRENT probe count (before increment)
+        console.log('[V2-PER-FIELD] Calling backend for next probe question:', {
+          pack_id: packId,
+          field_key: fieldKey,
+          field_value: value,
+          previous_probes_count: probeCount
+        });
+        
         const v2Result = await callProbeEngineV2PerField(base44, {
           packId,
           fieldKey,
           fieldValue: value,
-          previousProbesCount: probeCount + 1,
+          previousProbesCount: probeCount,
           incidentContext: updatedAnswers
         });
         
