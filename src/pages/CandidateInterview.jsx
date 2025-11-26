@@ -1955,13 +1955,13 @@ export default function CandidateInterview() {
           // Get pack config for max probes
           const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
           const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-          const maxProbes = packConfig?.maxAiProbes ?? 3;
+          const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
           const probeCount = currentProbeState.probeCount;
           
           // Handle semantic validation results
           if (semanticResult.status === "invalid") {
             // Invalid value (e.g., "nothing", "n/a") - must probe if under limit
-            if (probeCount < maxProbes) {
+            if (probeCount < maxAIFollowups) {
               console.log(`[V2-SEMANTIC] Invalid answer "${normalizedAnswer}" - triggering probe (${probeCount}/${maxProbes})`);
               // Fall through to backend call which will generate probe question
             } else {
@@ -1994,7 +1994,7 @@ export default function CandidateInterview() {
             }
           } else if (semanticResult.status === "unknown") {
             // Unknown value (e.g., "I don't recall") - probe if under limit
-            if (probeCount < maxProbes) {
+            if (probeCount < maxAIFollowups) {
               console.log(`[V2-SEMANTIC] Unknown answer - triggering probe (${probeCount}/${maxProbes})`);
               // Fall through to backend call
             } else {
@@ -2556,7 +2556,7 @@ export default function CandidateInterview() {
       // Get pack config for max probes
       const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-      const maxProbes = packConfig?.maxAiProbes ?? 3;
+      const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
       const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
       
       // INVARIANT: Log the user's AI probe answer to chat history BEFORE calling backend
@@ -2614,7 +2614,7 @@ export default function CandidateInterview() {
         const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: value });
         const { FOLLOWUP_PACK_CONFIGS } = await import("../components/followups/followupPackConfig");
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-        const maxProbes = packConfig?.maxAiProbes ?? 3;
+        const maxAIFollowups = packConfig?.maxAiProbes ?? 3;
         
         // Check if semantic validation passes now
         if (semanticResult.status === "valid") {
@@ -2628,7 +2628,7 @@ export default function CandidateInterview() {
           // Still invalid/unknown - need to check probe count
           const newProbeCount = currentProbeState.probeCount + 1;
           
-          if (newProbeCount < maxProbes) {
+          if (newProbeCount < maxAIFollowups) {
             // Can probe again - call backend for next question
             console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${newProbeCount}/${maxProbes})`);
             
