@@ -1465,15 +1465,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 
                 // Config-driven pack display (PACK_LE_APPS and future packs)
                 if (packConfig) {
-                  // DIAGNOSTIC: Log the actual keys in instance.details
-                  console.log("[PACK_LE_APPS INSTANCE DETAILS]", {
-                    instanceNum,
-                    packId,
-                    detailKeys: Object.keys(instance.details),
-                    detailValues: instance.details,
-                    aiExchangesCount: instance.aiExchanges?.length || 0
-                  });
-                  
                   const facts = extractFactsFromConfig(packId, instance.details, instance.aiExchanges);
                   const summaryLine = buildInstanceHeaderSummary(packId, instance.details);
                   const hasAnyFacts = facts.length > 0;
