@@ -21,6 +21,7 @@ import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
 import { Clock } from "lucide-react";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
+import { getPackConfig, getFactsFields, getHeaderFields, extractFactsFromConfig, buildInstanceHeaderSummary } from "../components/followups/followupPackConfig";
 
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
