@@ -2020,9 +2020,8 @@ export default function CandidateInterview() {
               // Add BOTH entries to transcript - followup answer AND ai probe question
               const newTranscript = [...transcript, followupEntry, aiProbeQuestionEvent];
               
-              // For per-field V2 probing, we only add ONE transcript entry (the probe question)
-              // The purple "Investigator Question" card will be rendered from currentFieldProbe state
-              // We do NOT add a separate ai_question transcript entry here to avoid duplicate bubbles
+              // Both the follow-up answer and AI probe question are now in the transcript
+              // The purple "Investigator Question" card will also be rendered from currentFieldProbe state
               
               // Update probe state for this field
               setFieldProbingState(prev => ({
