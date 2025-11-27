@@ -1120,7 +1120,22 @@ export default function SessionDetails() {
           </Card>
         )}
 
-        {viewMode === "structured" ? (
+        {responses.length === 0 ? (
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardContent className="p-8 text-center">
+              <div className="text-slate-400 mb-2">No questions answered yet</div>
+              <p className="text-sm text-slate-500">
+                This interview session has not started or has no recorded responses.
+              </p>
+              <Button
+                onClick={handleContinueInterview}
+                className="mt-4 bg-blue-600 hover:bg-blue-700"
+              >
+                Continue Interview
+              </Button>
+            </CardContent>
+          </Card>
+        ) : viewMode === "structured" ? (
           <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
             followups={followups}
