@@ -2134,9 +2134,15 @@ export default function CandidateInterview() {
                 return;
               }
               
-              // Backend returned non-QUESTION mode - field is complete
+              // Backend returned non-QUESTION mode (e.g., NEXT_FIELD, ERROR) - field is complete or error
               v2ProbingInProgressRef.current.delete(probeKey);
-              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete`);
+              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete (mode=${v2Result.mode})`);
+              
+              // Check for error mode
+              if (v2Result.mode === 'ERROR') {
+                console.error(`[V2-PER-FIELD] Backend error: ${v2Result.message}`);
+                // Treat as complete to avoid blocking the interview
+              }
               
               // Save the answer and mark complete
               await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
