@@ -1367,11 +1367,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
         details: {},
         aiExchanges: [],
         questionTextSnapshot: f.additional_details?.question_text_snapshot || {},
-        facts: f.additional_details?.facts || {} // PACK_LE_APPS facts pipeline
+        facts: f.additional_details?.facts || {}
       };
     }
 
-    // Extract deterministic follow-up answers
     const details = f.additional_details || {};
     Object.entries(details).forEach(([key, value]) => {
       if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts') {
@@ -1379,7 +1378,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
       }
     });
 
-    // Merge facts from additional_details
     if (details.facts) {
       instancesMap[instNum].facts = {
         ...instancesMap[instNum].facts,
@@ -1387,7 +1385,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
       };
     }
 
-    // Extract AI probing exchanges
     if (details.investigator_probing && Array.isArray(details.investigator_probing)) {
       instancesMap[instNum].aiExchanges.push(...details.investigator_probing);
     }
@@ -1396,7 +1393,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
 
-  // Check if this pack has a centralized config
   const packId = followups[0]?.followup_pack;
   const packConfig = packId ? getPackConfig(packId) : null;
   const isPackLeApps = packId === 'PACK_LE_APPS';
@@ -1404,7 +1400,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const structuredFacts = isPackLeApps ? session?.structured_followup_facts?.[response.question_id] : null;
   const showStructuredFacts = structuredFacts && structuredFacts.length > 0;
 
-  // Check for unresolved fields in any instance (PACK_LE_APPS only)
   const hasAnyUnresolved = isPackLeApps && instanceNumbers.some(instNum => {
     const instance = instancesMap[instNum];
     return hasUnresolvedFields(packId, instance);
@@ -1425,62 +1420,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
     });
   };
 
-              {isExpanded ? (
-              <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
-            )}
-          </div>
-        </div>
-      )}
-
-      {isExpanded && hasFollowups && response.answer === "Yes" && (
-        <>
-         {showStructuredFacts && (
-            <div className="flex items-start gap-3">
-              <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
-              <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
-              <div className="flex-1 mt-2 mb-1 p-3 bg-slate-900/50 border border-slate-700 rounded-lg">
-                <h4 className="text-xs font-semibold text-sky-400 mb-2 uppercase tracking-wider">
-                    Application Facts (AI-Structured)
-                </h4>
-                <div className="space-y-3">
-                    {structuredFacts.map((factInstance, idx) => {
-                        const fields = packConfig?.fields
-                            ?.map(fieldConfig => {
-                                if (!fieldConfig.semanticKey) return null;
-                                const factValueObject = factInstance.fields[fieldConfig.semanticKey];
-                                const factValue = factValueObject?.value;
-                                return factValue ? { label: fieldConfig.label, value: factValue } : null;
-                            })
-                            .filter(Boolean);
-
-                        if (!fields || fields.length === 0) return null;
-
-                        return (
-                            <div key={factInstance.followup_response_id || idx}>
-                                <div className="text-xs font-semibold text-slate-300 mb-1.5">Instance {factInstance.instance_number || (idx + 1)}</div>
-                                <div className="space-y-1">
-                                    {fields.map((field, fieldIdx) => (
-                                        <div key={fieldIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
-                                            <div className="text-slate-400 text-right">{field.label}:</div>
-                                            <div className="text-slate-100 font-medium">{field.value}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
+  return (
+    <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
       <div className="flex items-start gap-3 text-sm mb-2">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(
@@ -1509,13 +1450,9 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                 </Badge>
               )}
               {summary ? (
-                <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">
-                  {summary}
-                </p>
+                <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">{summary}</p>
               ) : (
-                <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
-                  No summary available. Use 'Generate AI' to create one.
-                </p>
+                <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">No summary available. Use 'Generate AI' to create one.</p>
               )}
             </div>
             {isExpanded ? (
@@ -1528,8 +1465,177 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
       )}
 
       {isExpanded && hasFollowups && response.answer === "Yes" && (
+        <>
+          {showStructuredFacts && (
+            <div className="flex items-start gap-3">
+              <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
+              <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
+              <div className="flex-1 mt-2 mb-1 p-3 bg-slate-900/50 border border-slate-700 rounded-lg">
+                <h4 className="text-xs font-semibold text-sky-400 mb-2 uppercase tracking-wider">
+                  Application Facts (AI-Structured)
+                </h4>
+                <div className="space-y-3">
+                  {structuredFacts.map((factInstance, idx) => {
+                    const fields = packConfig?.fields
+                      ?.map(fieldConfig => {
+                        if (!fieldConfig.semanticKey) return null;
+                        const factValueObject = factInstance.fields[fieldConfig.semanticKey];
+                        const factValue = factValueObject?.value;
+                        return factValue ? { label: fieldConfig.label, value: factValue } : null;
+                      })
+                      .filter(Boolean);
+
+                    if (!fields || fields.length === 0) return null;
+
+                    return (
+                      <div key={factInstance.followup_response_id || idx}>
+                        <div className="text-xs font-semibold text-slate-300 mb-1.5">Instance {factInstance.instance_number || (idx + 1)}</div>
+                        <div className="space-y-1">
+                          {fields.map((field, fieldIdx) => (
+                            <div key={fieldIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
+                              <div className="text-slate-400 text-right">{field.label}:</div>
+                              <div className="text-slate-100 font-medium">{field.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-start gap-3">
+            <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
+            <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
+            <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-2">
+              <div className="space-y-1">
+                {instanceNumbers.length > 1 && (
+                  <div className="text-xs font-semibold text-cyan-400 mb-1">
+                    🔁 {instanceNumbers.length} Instances Recorded
+                  </div>
+                )}
+                {instanceNumbers.map((instanceNum, instanceIdx) => {
+                  const instance = instancesMap[instanceNum];
+                  if (!instance) return null;
+                  const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+
+                  if (packConfig) {
+                    const instanceFacts = getInstanceFacts(packId, instance);
+                    const factsFieldsConfig = (packConfig.fields || []).filter(f => f.includeInFacts).sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
+                    const facts = factsFieldsConfig.map(fieldConfig => {
+                      const factEntry = instanceFacts[fieldConfig.semanticKey];
+                      const value = factEntry?.value;
+                      if (!value || value.trim() === "") return null;
+                      return { label: fieldConfig.label, value: value };
+                    }).filter(Boolean);
+                    const headerFieldsConfig = (packConfig.fields || []).filter(f => f.includeInInstanceHeader).sort((a, b) => (a.headerOrder ?? 0) - (b.headerOrder ?? 0));
+                    const summaryLine = headerFieldsConfig.map(f => instanceFacts[f.semanticKey]?.value).filter(Boolean).join(' • ') || null;
+                    const hasAnyFacts = facts.length > 0;
+
+                    return (
+                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-slate-900/30">
+                        <button type="button" className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-200 hover:bg-slate-800/50 transition-colors" onClick={() => toggleInstance(instanceNum)}>
+                          <div className="flex items-center gap-2 text-left">
+                            <ChevronRight className={cn("w-3.5 h-3.5 text-slate-400 transition-transform", isInstanceExpanded && "rotate-90")} />
+                            <span className="font-semibold text-slate-100">Instance {instanceIdx + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {summaryLine && (<span className="text-slate-400 text-[11px]">{summaryLine}</span>)}
+                            <span className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">{isInstanceExpanded ? "Hide" : "Show"}</span>
+                          </div>
+                        </button>
+                        {isInstanceExpanded && (
+                          <div className="px-4 pb-4 pt-2 border-t border-slate-700/40">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="text-sm font-medium text-slate-100">Instance {instanceIdx + 1}{summaryLine ? ` — ${summaryLine}` : ''}</div>
+                              <button type="button" onClick={() => toggleInstance(instanceNum)} className="text-[10px] text-slate-400 hover:text-slate-300">Hide</button>
+                            </div>
+                            <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">Facts</div>
+                            {hasAnyFacts ? (
+                              <div className="space-y-1.5">
+                                {facts.map((fact, factIdx) => (
+                                  <div key={factIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
+                                    <div className="text-slate-400 text-right">{fact.label}:</div>
+                                    <div className="text-slate-100 font-medium">{fact.value}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (<div className="text-xs text-slate-500 italic">No details recorded</div>)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                  const detailEntries = Object.entries(instance.details || {});
+                  const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
+                    let questionText = instance.questionTextSnapshot?.[detailKey];
+                    let matchedQuestion = null;
+                    if (!questionText) {
+                      matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
+                      if (matchedQuestion) { questionText = matchedQuestion.question_text; }
+                    }
+                    if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
+                    return { detailKey, detailValue, displayOrder: matchedQuestion?.display_order ?? 999, questionText };
+                  });
+                  deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
+                  const uniqueExchanges = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
+                  const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
+                  const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
+                  const summaryValues = deterministicEntries.map((e) => e.detailValue).filter(Boolean);
+                  const summaryText = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(" • ") : null;
+
+                  return (
+                    <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
+                      <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => hasMultipleInstances && toggleInstance(instanceNum)} disabled={!hasMultipleInstances}>
+                        <div className="flex flex-col gap-0.5 text-left">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                          </div>
+                          {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
+                        </div>
+                        {hasMultipleInstances && (<span className="text-[10px] text-slate-400">{isExpanded ? "Hide" : "Show"}</span>)}
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-1 space-y-2">
+                          {deterministicEntries.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
+                              <div className="divide-y divide-slate-700/60 text-xs">
+                                {deterministicEntries.map((entry, idx) => (
+                                  <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
+                                    <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
+                                    <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {sortedAiExchanges.length > 0 && (
+                            <div className="pt-2">
+                              <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
+                              <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
+                                {sortedAiExchanges.map((ex, idx) => (
+                                  <div key={idx} className="space-y-1">
+                                    <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
+                                    <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </>
-      )
       )}
     </div>
   );
