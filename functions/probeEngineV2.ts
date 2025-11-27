@@ -12,6 +12,24 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
+/**
+ * Build a deterministic fallback probe for specific fields when AI/validation fails.
+ * This ensures probing is rock-solid even when the backend has issues.
+ */
+function buildFallbackProbeForField({ packId, fieldKey }) {
+  // Only define fallbacks for specific fields we care about right now
+  if (packId === "PACK_LE_APPS" && fieldKey === "PACK_LE_APPS_Q1") {
+    return {
+      mode: "QUESTION",
+      question: "Since you're not sure of the exact name, please describe the law enforcement agency you applied to. Include anything you remember, such as the city, state, approximate date, and any identifying details.",
+      isFallback: true,
+    };
+  }
+
+  // No fallback configured for this field
+  return null;
+}
+
 const PACK_CONFIG = {
   PACK_LE_APPS: {
     id: "PACK_LE_APPS",
