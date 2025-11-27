@@ -2147,15 +2147,101 @@ export default function CandidateInterview() {
                 return;
               }
               
-              // Backend returned non-QUESTION mode (e.g., NEXT_FIELD, ERROR) - field is complete or error
-              v2ProbingInProgressRef.current.delete(probeKey);
-              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete (mode=${v2Result.mode})`);
-              
-              // Check for error mode
-              if (v2Result.mode === 'ERROR') {
-                console.error(`[V2-PER-FIELD] Backend error: ${v2Result.message}`);
-                // Treat as complete to avoid blocking the interview
+              // Handle backend errors with one retry
+              if (mode === 'ERROR') {
+                console.log(`[V2-PER-FIELD] Backend returned ERROR for ${fieldKey}. Retrying once...`);
+
+                const retry = await callProbeEngineV2PerField(base44, {
+                  packId,
+                  fieldKey,
+                  fieldValue: normalizedAnswer,
+                  previousProbesCount: probeCount,
+                  incidentContext
+                });
+
+                const retryMode = retry?.mode;
+                const retryQuestion = typeof retry?.question === "string" ? retry.question.trim() : "";
+
+                console.log("[V2-PER-FIELD][RETRY-RESULT]", fieldKey, { retryMode, retryQuestion });
+
+                // If retry yields a valid probe, show it
+                if (retryMode === 'QUESTION' || retryQuestion.length > 0) {
+                  console.log(`[V2-PER-FIELD] Retry succeeded → showing AI question for ${fieldKey}`);
+                  
+                  // Increment probe count for this field
+                  setAiFollowupCounts(prev => ({
+                    ...prev,
+                    [fieldCountKey]: probeCount + 1
+                  }));
+                  
+                  // Clear the text input immediately when entering probe mode
+                  setInput("");
+                  
+                  // Add the deterministic follow-up Q+A to transcript
+                  const followupEntry = createChatEvent('followup', {
+                    questionId: currentItem.id,
+                    questionText: step.Prompt,
+                    packId: packId,
+                    substanceName: substanceName,
+                    kind: 'deterministic_followup',
+                    answer: normalizedAnswer,
+                    text: normalizedAnswer,
+                    content: normalizedAnswer,
+                    fieldKey: fieldKey,
+                    followupPackId: packId,
+                    instanceNumber: instanceNumber,
+                    baseQuestionId: currentItem.baseQuestionId
+                  });
+                  followupEntry.type = 'followup';
+                  followupEntry.role = 'candidate';
+                  
+                  const newTranscript = [...transcript, followupEntry];
+                  setTranscript(newTranscript);
+                  
+                  // Update probe state for this field
+                  setFieldProbingState(prev => ({
+                    ...prev,
+                    [probeKey]: {
+                      probeCount: probeCount + 1,
+                      lastQuestion: retryQuestion,
+                      isProbing: true
+                    }
+                  }));
+                  
+                  // Update follow-up answers tracker
+                  setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
+                  
+                  // Set current field probe for UI
+                  setCurrentFieldProbe({
+                    packId,
+                    instanceNumber,
+                    fieldKey,
+                    semanticField: retry.semanticField,
+                    question: retryQuestion,
+                    baseQuestionId: currentItem.baseQuestionId,
+                    substanceName,
+                    currentItem: currentItem
+                  });
+                  
+                  // Save current answer to database
+                  await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
+                  await persistStateToDatabase(newTranscript, queue, currentItem);
+                  
+                  // Stay on current item - waiting for probe answer
+                  setIsWaitingForAgent(true);
+                  setIsInvokeLLMMode(true);
+                  setIsCommitting(false);
+                  v2ProbingInProgressRef.current.delete(probeKey);
+                  return;
+                }
+
+                console.log(`[V2-PER-FIELD] Retry failed → treating ${fieldKey} as complete for safety`);
+                // fall through to "complete" logic
               }
+
+              // No probe to show — field is complete
+              v2ProbingInProgressRef.current.delete(probeKey);
+              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete (mode=${mode})`)
               
               // Save the answer and mark complete
               await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
