@@ -335,25 +335,9 @@ async function probeEngineV2(input, base44Client) {
 
   // Validate the current field value
   const validationResult = validateField(semanticField, field_value, incident_context);
-  console.log(`[V2-PER-FIELD] Validation result for ${semanticField}: ${validationResult}`);
+  console.log(`[V2-PER-FIELD] Validation result for ${semanticField}: ${validationResult}, value="${field_value}"`);
 
-  // If field is complete, move to next field
-  if (validationResult === "complete") {
-    console.log(`[V2-PER-FIELD] Field ${semanticField} is complete → advancing`);
-    return {
-      mode: "NEXT_FIELD",
-      pack_id,
-      field_key,
-      semanticField,
-      validationResult: "complete",
-      previousProbeCount: previous_probes_count,
-      maxProbesPerField,
-      message: `Field ${semanticField} validated successfully`
-    };
-  }
-
-  // Check if we've reached max probes for this field
-  // Stop condition: previous_probes_count >= maxProbesPerField (pack's max_ai_followups)
+  // Check max probes FIRST - if we've already probed enough, stop probing
   if (previous_probes_count >= maxProbesPerField) {
     console.log(`[V2-PER-FIELD] Max probes (${maxProbesPerField}) reached for ${semanticField} → accepting and advancing`);
     return {
@@ -368,9 +352,24 @@ async function probeEngineV2(input, base44Client) {
     };
   }
 
+  // If field is complete (valid answer), move to next field
+  if (validationResult === "complete") {
+    console.log(`[V2-PER-FIELD] Field ${semanticField} is complete → advancing`);
+    return {
+      mode: "NEXT_FIELD",
+      pack_id,
+      field_key,
+      semanticField,
+      validationResult: "complete",
+      previousProbeCount: previous_probes_count,
+      maxProbesPerField,
+      message: `Field ${semanticField} validated successfully`
+    };
+  }
+
   // Field is incomplete - generate probe question
   const question = generateFieldProbeQuestion(semanticField, field_value, previous_probes_count, incident_context);
-  console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → probing with: "${question}"`);
+  console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode with: "${question}"`);
 
   return {
     mode: "QUESTION",
