@@ -297,10 +297,11 @@ async function probeEngineV2(input, base44Client) {
     mode: requestMode = "VALIDATE_FIELD"  // VALIDATE_FIELD or LEGACY
   } = input;
 
-  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, mode=${requestMode}`);
+  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}`);
 
   const packConfig = PACK_CONFIG[pack_id];
   if (!packConfig) {
+    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id}`);
     return { 
       mode: "UNSUPPORTED_PACK", 
       message: `ProbeEngineV2 has no config for pack_id=${pack_id}` 
