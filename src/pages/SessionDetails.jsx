@@ -1404,11 +1404,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const structuredFacts = isPackLeApps ? session?.structured_followup_facts?.[response.question_id] : null;
   const showStructuredFacts = structuredFacts && structuredFacts.length > 0;
 
-  // Check if this pack has a centralized config
-  const packId = followups[0]?.followup_pack;
-  const packConfig = packId ? getPackConfig(packId) : null;
-  const isPackLeApps = packId === 'PACK_LE_APPS';
-
   // Check for unresolved fields in any instance (PACK_LE_APPS only)
   const hasAnyUnresolved = isPackLeApps && instanceNumbers.some(instNum => {
     const instance = instancesMap[instNum];
@@ -1430,8 +1425,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
     });
   };
 
-  //... keep existing code...
-<ChevronDown className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
+              {isExpanded ? (
+              <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
             )}
           </div>
         </div>
@@ -1478,8 +1475,11 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
               </div>
             </div>
           )}
-        <div className="flex items-start gap-3">
-//... keep existing code...
+        </>
+      )}
+    </div>
+  );
+}
 
       <div className="flex items-start gap-3 text-sm mb-2">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
