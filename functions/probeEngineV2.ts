@@ -91,16 +91,20 @@ function isDontKnow(value) {
 function validateField(fieldName, value, incidentContext = {}) {
   const normalized = normalizeText(value).toLowerCase();
   
-  console.log(`[V2-PER-FIELD] Validation for ${fieldName}: "${normalized}"`);
+  console.log(`[V2-PER-FIELD] validateField START: field=${fieldName}, raw="${value}", normalized="${normalized}"`);
+  
+  // CRITICAL: Check isDontKnow FIRST before any field-specific logic
+  const isUnknownAnswer = isDontKnow(value);
+  console.log(`[V2-PER-FIELD] isDontKnow result: ${isUnknownAnswer}`);
   
   switch (fieldName) {
     case "agency":
       // Cannot be empty or "don't remember"
-      if (!normalized || isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (agency is empty or unknown)`);
+      if (!normalized || isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (agency is empty or unknown)`);
         return "incomplete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: complete`);
+      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (agency has valid value)`);
       return "complete";
     
     case "position":
