@@ -216,16 +216,16 @@ function validateField(fieldName, value, incidentContext = {}) {
     case "stageReached":
       // Optional field - only probe if relevant to outcome
       // Accept any answer that's not "don't know"
-      if (isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (stageReached unknown)`);
+      if (isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (stageReached unknown)`);
         return "incomplete";
       }
       if (normalized.length > 0) {
-        console.log(`[V2-PER-FIELD] Validation result: complete`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (stageReached has value)`);
         return "complete";
       }
       // Empty is acceptable for optional field
-      console.log(`[V2-PER-FIELD] Validation result: complete (optional field)`);
+      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (optional field)`);
       return "complete";
     
     default:
