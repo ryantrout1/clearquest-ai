@@ -2076,7 +2076,7 @@ export default function CandidateInterview() {
               // 2) Backend mistakenly says NEXT_FIELD but still provides a question → also probe
               if (mode === 'QUESTION' || hasProbeQuestion) {
                 // AI probe question generated - increment counter and show question
-                console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question`);
+                console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question (mode=${mode})`);
                 
                 // Increment probe count for this field
                 setAiFollowupCounts(prev => ({
