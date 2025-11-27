@@ -2129,7 +2129,7 @@ export default function CandidateInterview() {
                   instanceNumber,
                   fieldKey,
                   semanticField: v2Result.semanticField,
-                  question: v2Result.question,
+                  question: probeText,
                   baseQuestionId: currentItem.baseQuestionId,
                   substanceName,
                   currentItem: currentItem
