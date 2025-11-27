@@ -2108,12 +2108,14 @@ export default function CandidateInterview() {
                 const newTranscript = [...transcript, followupEntry];
                 setTranscript(newTranscript);
                 
+                const probeText = rawQuestion; // guaranteed clean string
+
                 // Update probe state for this field
                 setFieldProbingState(prev => ({
                   ...prev,
                   [probeKey]: {
                     probeCount: probeCount + 1,
-                    lastQuestion: v2Result.question,
+                    lastQuestion: probeText,
                     isProbing: true
                   }
                 }));
