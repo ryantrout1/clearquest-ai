@@ -70,6 +70,7 @@ export default function SessionDetails() {
   const [questionSummariesByQuestionId, setQuestionSummariesByQuestionId] = useState({});
   const [sectionSummariesBySectionId, setSectionSummariesBySectionId] = useState({});
   const [instanceSummariesByKey, setInstanceSummariesByKey] = useState({});
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const categoryRefs = useRef({});
 
@@ -80,6 +81,14 @@ export default function SessionDetails() {
     }
     loadSessionData();
   }, [sessionId]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const loadSessionData = async () => {
     setIsLoading(true);
@@ -1174,7 +1183,7 @@ export default function SessionDetails() {
         )}
 
         {responses.length > 0 && (
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex justify-center">
             <Button
               onClick={handleDeleteLastQuestion}
               disabled={isDeletingLast}
@@ -1192,14 +1201,19 @@ export default function SessionDetails() {
                 </>
               )}
             </Button>
-            <Button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              variant="outline"
-              className="bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-            >
-              Back to Top
-            </Button>
           </div>
+        )}
+
+        {/* Floating Scroll to Top Button */}
+        {showScrollTop && (
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-slate-800/80 backdrop-blur-sm border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all duration-200 flex flex-col items-center justify-center gap-0.5 shadow-lg hover:shadow-xl group"
+            aria-label="Scroll to top"
+          >
+            <ChevronDown className="w-5 h-5 rotate-180 group-hover:translate-y-[-2px] transition-transform" />
+            <span className="text-[9px] font-medium uppercase tracking-wide">Top</span>
+          </button>
         )}
 
         <Dialog open={showStatusConfirm} onOpenChange={setShowStatusConfirm}>
