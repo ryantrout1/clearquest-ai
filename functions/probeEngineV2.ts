@@ -156,19 +156,19 @@ function validateField(fieldName, value, incidentContext = {}) {
       
       const hasValidOutcome = validOutcomes.some(outcome => normalized.includes(outcome));
       if (hasValidOutcome) {
-        console.log(`[V2-PER-FIELD] Validation result: complete (valid outcome found)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (valid outcome found)`);
         return "complete";
       }
-      if (isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (outcome unknown)`);
+      if (isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (outcome unknown)`);
         return "incomplete";
       }
       // If they gave something specific, accept it
-      if (normalized.length > 5 && !isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: complete (has specific content)`);
+      if (normalized.length > 5 && !isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has specific content)`);
         return "complete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: incomplete (no valid outcome)`);
+      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (no valid outcome)`);
       return "incomplete";
     
     case "reason":
