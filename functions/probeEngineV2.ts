@@ -109,11 +109,11 @@ function validateField(fieldName, value, incidentContext = {}) {
     
     case "position":
       // Cannot be empty or "don't remember"
-      if (!normalized || isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (position is empty or unknown)`);
+      if (!normalized || isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (position is empty or unknown)`);
         return "incomplete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: complete`);
+      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (position has valid value)`);
       return "complete";
     
     case "monthYear":
