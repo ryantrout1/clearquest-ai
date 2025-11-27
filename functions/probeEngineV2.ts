@@ -133,15 +133,15 @@ function validateField(fieldName, value, incidentContext = {}) {
       const hasMonth = /(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)/i.test(normalized);
       
       if (hasYear || hasMonth || hasApproximate) {
-        console.log(`[V2-PER-FIELD] Validation result: complete (has date indicator)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has date indicator)`);
         return "complete";
       }
       // If they gave something but no date indicators, still accept if not "don't know"
       if (normalized.length > 3) {
-        console.log(`[V2-PER-FIELD] Validation result: complete (has content)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has content)`);
         return "complete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: incomplete (no date found)`);
+      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (no date found)`);
       return "incomplete";
     
     case "outcome":
