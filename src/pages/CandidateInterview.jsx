@@ -2043,6 +2043,13 @@ export default function CandidateInterview() {
               v2ProbingInProgressRef.current.add(probeKey);
               
               // Call backend to get AI probe question
+              console.log(`[V2-PER-FIELD] Calling probeEngineV2 with:`, {
+                packId,
+                fieldKey,
+                fieldValue: normalizedAnswer,
+                previousProbesCount: probeCount
+              });
+              
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
                 fieldKey,
