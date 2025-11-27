@@ -422,6 +422,10 @@ async function probeEngineV2(input, base44Client) {
  * Deno serve handler
  */
 Deno.serve(async (req) => {
+  // Extract packId and fieldKey early so they're available in catch blocks
+  let packId = null;
+  let fieldKey = null;
+  
   try {
     const base44 = createClientFromRequest(req);
     
@@ -431,24 +435,69 @@ Deno.serve(async (req) => {
       user = await base44.auth.me();
     } catch (authError) {
       console.error('[PROBE_ENGINE_V2] Auth error:', authError.message);
+      
+      // Try to parse input for fallback even if auth fails
+      try {
+        const bodyText = await req.text();
+        const parsed = JSON.parse(bodyText);
+        packId = parsed.pack_id;
+        fieldKey = parsed.field_key;
+      } catch (e) {
+        // Ignore parse errors here
+      }
+      
+      const fallback = buildFallbackProbeForField({ packId, fieldKey });
+      if (fallback) {
+        console.log('[PROBE_ENGINE_V2] Auth error → using deterministic fallback probe for field', { packId, fieldKey });
+        return Response.json({
+          mode: fallback.mode,
+          question: fallback.question,
+          packId,
+          fieldKey,
+          isFallback: true,
+          error: {
+            type: "AUTH_ERROR",
+            message: authError.message,
+          },
+        }, { status: 200 });
+      }
+      
       return Response.json({ 
         mode: "ERROR",
         error: 'Authentication failed',
         message: authError.message 
-      }, { status: 200 }); // Return 200 so frontend handles gracefully
+      }, { status: 200 });
     }
     
     if (!user) {
+      const fallback = buildFallbackProbeForField({ packId, fieldKey });
+      if (fallback) {
+        console.log('[PROBE_ENGINE_V2] No user → using deterministic fallback probe for field', { packId, fieldKey });
+        return Response.json({
+          mode: fallback.mode,
+          question: fallback.question,
+          packId,
+          fieldKey,
+          isFallback: true,
+          error: {
+            type: "AUTH_ERROR",
+            message: "User not authenticated",
+          },
+        }, { status: 200 });
+      }
+      
       return Response.json({ 
         mode: "ERROR",
         error: 'Unauthorized',
         message: 'User not authenticated' 
-      }, { status: 200 }); // Return 200 so frontend handles gracefully
+      }, { status: 200 });
     }
     
     let input;
     try {
       input = await req.json();
+      packId = input.pack_id;
+      fieldKey = input.field_key;
     } catch (parseError) {
       console.error('[PROBE_ENGINE_V2] JSON parse error:', parseError.message);
       return Response.json({ 
@@ -468,11 +517,29 @@ Deno.serve(async (req) => {
     // CRITICAL: Return 200 with error status, NOT 500
     // This allows frontend to handle the failure gracefully
     console.error('[PROBE_ENGINE_V2] Unhandled error:', error.message, error.stack);
+    
+    // Try fallback probe for this field
+    const fallback = buildFallbackProbeForField({ packId, fieldKey });
+    if (fallback) {
+      console.log('[PROBE_ENGINE_V2] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey });
+      return Response.json({
+        mode: fallback.mode,
+        question: fallback.question,
+        packId,
+        fieldKey,
+        isFallback: true,
+        error: {
+          type: "AI_BACKEND_ERROR",
+          message: error.message,
+        },
+      }, { status: 200 });
+    }
+    
     return Response.json({ 
       mode: "ERROR",
       error: 'probeEngineV2 failed',
       message: error.message,
       stack: error.stack
-    }, { status: 200 }); // Return 200 so frontend handles gracefully
+    }, { status: 200 });
   }
 });
