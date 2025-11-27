@@ -1174,7 +1174,7 @@ export default function SessionDetails() {
         )}
 
         {responses.length > 0 && (
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-3">
             <Button
               onClick={handleDeleteLastQuestion}
               disabled={isDeletingLast}
@@ -1191,6 +1191,13 @@ export default function SessionDetails() {
                   Delete Last Question
                 </>
               )}
+            </Button>
+            <Button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              variant="outline"
+              className="bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              Back to Top
             </Button>
           </div>
         )}
