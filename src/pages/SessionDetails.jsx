@@ -1315,6 +1315,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                       <CompactQuestionRow
                         key={response.id}
                         response={response}
+                        session={session}
                         followups={followups.filter(f => f.response_id === response.id)}
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
@@ -1328,6 +1329,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                       <CompactQuestionRow
                         key={response.id}
                         response={response}
+                        session={session}
                         followups={followups.filter(f => f.response_id === response.id)}
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
@@ -1346,7 +1348,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   );
 }
 
-function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents }) {
+function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents, session }) {
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
@@ -1399,6 +1401,14 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const packConfig = packId ? getPackConfig(packId) : null;
   const isPackLeApps = packId === 'PACK_LE_APPS';
 
+  const structuredFacts = isPackLeApps ? session?.structured_followup_facts?.[response.question_id] : null;
+  const showStructuredFacts = structuredFacts && structuredFacts.length > 0;
+
+  // Check if this pack has a centralized config
+  const packId = followups[0]?.followup_pack;
+  const packConfig = packId ? getPackConfig(packId) : null;
+  const isPackLeApps = packId === 'PACK_LE_APPS';
+
   // Check for unresolved fields in any instance (PACK_LE_APPS only)
   const hasAnyUnresolved = isPackLeApps && instanceNumbers.some(instNum => {
     const instance = instancesMap[instNum];
@@ -1420,8 +1430,57 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
     });
   };
 
-  return (
-    <div className="py-2 px-3 hover:bg-slate-800/30 transition-colors">
+  //... keep existing code...
+<ChevronDown className="w-4 h-4 text-amber-400 group-hover:text-amber-300 flex-shrink-0 ml-3 transition-colors" />
+            )}
+          </div>
+        </div>
+      )}
+
+      {isExpanded && hasFollowups && response.answer === "Yes" && (
+        <>
+         {showStructuredFacts && (
+            <div className="flex items-start gap-3">
+              <span className="font-mono flex-shrink-0 opacity-0 pointer-events-none">Q{questionNumber}</span>
+              <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
+              <div className="flex-1 mt-2 mb-1 p-3 bg-slate-900/50 border border-slate-700 rounded-lg">
+                <h4 className="text-xs font-semibold text-sky-400 mb-2 uppercase tracking-wider">
+                    Application Facts (AI-Structured)
+                </h4>
+                <div className="space-y-3">
+                    {structuredFacts.map((factInstance, idx) => {
+                        const fields = packConfig?.fields
+                            ?.map(fieldConfig => {
+                                if (!fieldConfig.semanticKey) return null;
+                                const factValueObject = factInstance.fields[fieldConfig.semanticKey];
+                                const factValue = factValueObject?.value;
+                                return factValue ? { label: fieldConfig.label, value: factValue } : null;
+                            })
+                            .filter(Boolean);
+
+                        if (!fields || fields.length === 0) return null;
+
+                        return (
+                            <div key={factInstance.followup_response_id || idx}>
+                                <div className="text-xs font-semibold text-slate-300 mb-1.5">Instance {factInstance.instance_number || (idx + 1)}</div>
+                                <div className="space-y-1">
+                                    {fields.map((field, fieldIdx) => (
+                                        <div key={fieldIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
+                                            <div className="text-slate-400 text-right">{field.label}:</div>
+                                            <div className="text-slate-100 font-medium">{field.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+        <div className="flex items-start gap-3">
+//... keep existing code...
+
       <div className="flex items-start gap-3 text-sm mb-2">
         <span className="font-mono text-blue-400 font-medium flex-shrink-0">Q{questionNumber}</span>
         <span className={cn(

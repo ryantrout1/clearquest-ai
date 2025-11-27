@@ -114,6 +114,46 @@ const ENABLE_LIVE_AI_FOLLOWUPS = true;
 // DEBUG FLAG: Enable detailed AI probe logging
 const DEBUG_AI_PROBES = true;
 
+const syncFactsToInterviewSession = async (sessionId, questionId, packId, followUpResponse) => {
+    if (packId !== 'PACK_LE_APPS' || !followUpResponse || !followUpResponse.additional_details?.facts) {
+        return;
+    }
+
+    try {
+        const session = await base44.entities.InterviewSession.get(sessionId);
+        const allFacts = session.structured_followup_facts || {};
+        const questionFacts = allFacts[questionId] || [];
+
+        const newFactEntry = {
+            followup_response_id: followUpResponse.id,
+            pack_id: packId,
+            instance_number: followUpResponse.instance_number,
+            fields: followUpResponse.additional_details.facts,
+            updated_at: new Date().toISOString()
+        };
+
+        const existingIndex = questionFacts.findIndex(f => f.followup_response_id === followUpResponse.id);
+
+        if (existingIndex > -1) {
+            questionFacts[existingIndex] = newFactEntry;
+        } else {
+            questionFacts.push(newFactEntry);
+        }
+
+        allFacts[questionId] = questionFacts;
+
+        await base44.entities.InterviewSession.update(sessionId, {
+            structured_followup_facts: allFacts
+        });
+        
+        console.log(`[SYNC_FACTS] Synced facts for Q:${questionId} on session ${sessionId}`, newFactEntry);
+
+    } catch (err) {
+        console.error('[SYNC_FACTS] Error syncing facts to InterviewSession:', err);
+    }
+};
+
+
 function logAiProbeDebug(label, payload) {
   if (!DEBUG_AI_PROBES) return;
   try {
@@ -3105,6 +3145,10 @@ export default function CandidateInterview() {
         
         const createdRecord = await base44.entities.FollowUpResponse.create(createData);
         
+        if (packId === 'PACK_LE_APPS') {
+            await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
+        }
+        
         console.log("[MI SAVE-DET AFTER]", {
           action: "create",
           instanceNumber,
@@ -3151,6 +3195,11 @@ export default function CandidateInterview() {
           substance_name: substanceName || existing.substance_name,
           additional_details: updatedDetails
         });
+
+        const updatedRecord = { ...existing, additional_details: updatedDetails };
+        if (packId === 'PACK_LE_APPS') {
+            await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
+        }
         
         console.log("[MI SAVE-DET AFTER]", {
           action: "update",
