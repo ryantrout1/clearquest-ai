@@ -179,14 +179,14 @@ function validateField(fieldName, value, incidentContext = {}) {
       
       if (isStillInProcess) {
         // Reason is optional for ongoing processes
-        console.log(`[V2-PER-FIELD] Validation result: complete (still in process, reason optional)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (still in process, reason optional)`);
         return "complete";
       }
-      if (!normalized || isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (reason is empty or unknown)`);
+      if (!normalized || isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (reason is empty or unknown)`);
         return "incomplete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: complete`);
+      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (reason has value)`);
       return "complete";
     
     case "issues":
