@@ -2058,19 +2058,23 @@ export default function CandidateInterview() {
                 incidentContext
               });
               
+              // Extract mode and question text safely
+              const mode = v2Result?.mode;
+              const rawQuestion = typeof v2Result?.question === "string" ? v2Result.question.trim() : "";
+              const hasProbeQuestion = rawQuestion.length > 0;
+
               console.log('[V2-PER-FIELD][RAW-RESPONSE]', {
                 packId,
                 fieldKey,
                 previousProbesCount: probeCount,
-                raw: v2Result,
-                mode: v2Result.mode,
-                question: v2Result.question
+                raw: v2Result
               });
 
-              console.log(`[V2-PER-FIELD] Backend result for ${fieldKey}: mode=${v2Result.mode}`);
+              console.log(`[V2-PER-FIELD][RESULT]`, fieldKey, { mode, question: rawQuestion });
 
-              // CRITICAL FIX: Check for QUESTION mode (probe needed) vs NEXT_FIELD (field complete)
-              if (v2Result.mode === 'QUESTION' && v2Result.question) {
+              // 1) Backend explicitly says QUESTION → always probe
+              // 2) Backend mistakenly says NEXT_FIELD but still provides a question → also probe
+              if (mode === 'QUESTION' || hasProbeQuestion) {
                 // AI probe question generated - increment counter and show question
                 console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question`);
                 
