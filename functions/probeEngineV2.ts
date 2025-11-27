@@ -63,7 +63,12 @@ function normalizeText(raw) {
  */
 function isDontKnow(value) {
   const normalized = normalizeText(value).toLowerCase();
-  if (!normalized) return true;
+  console.log(`[V2-PER-FIELD] isDontKnow check: raw="${value}", normalized="${normalized}"`);
+  
+  if (!normalized) {
+    console.log(`[V2-PER-FIELD] isDontKnow: empty/null → true`);
+    return true;
+  }
   
   const dontKnowPhrases = [
     "i don't remember", "dont remember", "i do not remember", "don't remember",
@@ -74,7 +79,9 @@ function isDontKnow(value) {
     "unsure", "no idea", "i don't know", "dont know", "do not know", "idk"
   ];
   
-  return dontKnowPhrases.some(phrase => normalized.includes(phrase));
+  const result = dontKnowPhrases.some(phrase => normalized.includes(phrase));
+  console.log(`[V2-PER-FIELD] isDontKnow: result=${result} for "${normalized}"`);
+  return result;
 }
 
 /**
