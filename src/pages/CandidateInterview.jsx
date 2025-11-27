@@ -865,9 +865,6 @@ export default function CandidateInterview() {
         }, [engine, transcript]);
 
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
-    // Clear cached pack config when pack completes
-    setCachedPackConfig(null);
-
     const question = engine.QById[baseQuestionId];
     if (!question) {
       advanceToNextBaseQuestion(baseQuestionId);
