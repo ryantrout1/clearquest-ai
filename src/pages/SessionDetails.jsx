@@ -174,6 +174,13 @@ export default function SessionDetails() {
       // Build unified transcript events from session's transcript_snapshot (canonical source)
       const transcriptSnapshot = sessionData.transcript_snapshot || [];
       
+      console.log('[SESSIONDETAILS] Transcript snapshot check', {
+        hasSnapshot: transcriptSnapshot.length > 0,
+        snapshotLength: transcriptSnapshot.length,
+        responsesCount: responsesData.length,
+        followupsCount: followupsData.length
+      });
+      
       // If no transcript snapshot, rebuild from Response entities (fallback for old sessions)
       let events = [];
       if (transcriptSnapshot.length > 0) {
@@ -374,8 +381,16 @@ export default function SessionDetails() {
         console.log(`📋 Loaded ${events.length} transcript events from ${transcriptSnapshot.length} snapshot entries`);
       } else {
         // Fallback: Rebuild from Response entities (for old sessions)
+        console.log('[SESSIONDETAILS] No transcript_snapshot - rebuilding from Response entities');
         events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
+        console.log(`📋 Rebuilt ${events.length} transcript events from Response entities`);
       }
+      
+      console.log('[SESSIONDETAILS] Final transcript events', {
+        totalEvents: events.length,
+        eventKinds: [...new Set(events.map(e => e.kind))],
+        sampleEvents: events.slice(0, 3)
+      });
       
       setTranscriptEvents(events);
 
@@ -1120,7 +1135,22 @@ export default function SessionDetails() {
           </Card>
         )}
 
-        {viewMode === "structured" ? (
+{responses.length === 0 ? (
+          <div className="rounded-xl bg-slate-900/50 border border-slate-700 p-12">
+            <div className="text-center space-y-3">
+              <p className="text-slate-300 text-sm">No interview data recorded yet for this session.</p>
+              <p className="text-slate-400 text-xs">This session was created but no questions have been answered.</p>
+              {session.status !== 'completed' && (
+                <Button
+                  onClick={handleContinueInterview}
+                  className="bg-blue-600 hover:bg-blue-700 mt-4"
+                >
+                  Start Interview
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : viewMode === "structured" ? (
           <TwoColumnStreamView
             responsesByCategory={responsesByCategory}
             followups={followups}
