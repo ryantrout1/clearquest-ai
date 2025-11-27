@@ -390,12 +390,40 @@ async function probeEngineV2(input, base44Client) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    // Auth check with graceful failure
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('[PROBE_ENGINE_V2] Auth error:', authError.message);
+      return Response.json({ 
+        mode: "ERROR",
+        error: 'Authentication failed',
+        message: authError.message 
+      }, { status: 200 }); // Return 200 so frontend handles gracefully
     }
     
-    const input = await req.json();
+    if (!user) {
+      return Response.json({ 
+        mode: "ERROR",
+        error: 'Unauthorized',
+        message: 'User not authenticated' 
+      }, { status: 200 }); // Return 200 so frontend handles gracefully
+    }
+    
+    let input;
+    try {
+      input = await req.json();
+    } catch (parseError) {
+      console.error('[PROBE_ENGINE_V2] JSON parse error:', parseError.message);
+      return Response.json({ 
+        mode: "ERROR",
+        error: 'Invalid request body',
+        message: parseError.message 
+      }, { status: 200 });
+    }
+    
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
     const result = await probeEngineV2(input, base44);
@@ -403,7 +431,14 @@ Deno.serve(async (req) => {
     
     return Response.json(result);
   } catch (error) {
-    console.error('[PROBE_ENGINE_V2] Error:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    // CRITICAL: Return 200 with error status, NOT 500
+    // This allows frontend to handle the failure gracefully
+    console.error('[PROBE_ENGINE_V2] Unhandled error:', error.message, error.stack);
+    return Response.json({ 
+      mode: "ERROR",
+      error: 'probeEngineV2 failed',
+      message: error.message,
+      stack: error.stack
+    }, { status: 200 }); // Return 200 so frontend handles gracefully
   }
 });
