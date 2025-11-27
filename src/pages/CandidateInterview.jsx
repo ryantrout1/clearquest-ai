@@ -2055,12 +2055,15 @@ export default function CandidateInterview() {
                 packId,
                 fieldKey,
                 previousProbesCount: probeCount,
-                raw: v2Result
+                raw: v2Result,
+                mode: v2Result.mode,
+                question: v2Result.question
               });
-              
-              console.log(`[V2-PER-FIELD] Backend result for ${fieldKey}:`, v2Result);
-              
-              if (v2Result.mode === 'QUESTION') {
+
+              console.log(`[V2-PER-FIELD] Backend result for ${fieldKey}: mode=${v2Result.mode}`);
+
+              // CRITICAL FIX: Check for QUESTION mode (probe needed) vs NEXT_FIELD (field complete)
+              if (v2Result.mode === 'QUESTION' && v2Result.question) {
                 // AI probe question generated - increment counter and show question
                 console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question`);
                 
