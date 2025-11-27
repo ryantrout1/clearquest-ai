@@ -120,11 +120,11 @@ function validateField(fieldName, value, incidentContext = {}) {
       // Allow approximate dates like "early 2021", "summer 2020", "around 2019"
       // Disallow "I don't remember", "don't know"
       if (!normalized) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (monthYear is empty)`);
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (monthYear is empty)`);
         return "incomplete";
       }
-      if (isDontKnow(value)) {
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (monthYear is unknown)`);
+      if (isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (monthYear is unknown)`);
         return "incomplete";
       }
       // Check for any year pattern (4 digits) or approximate terms
