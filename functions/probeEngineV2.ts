@@ -192,20 +192,25 @@ function validateField(fieldName, value, incidentContext = {}) {
     case "issues":
       // If "no" → complete; if "yes" → need to probe for issue type
       if (normalized === "no" || normalized.includes("no issues") || normalized.includes("none") || normalized === "n") {
-        console.log(`[V2-PER-FIELD] Validation result: complete (no issues)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (no issues)`);
         return "complete";
       }
       if (normalized === "yes" || normalized === "y") {
         // They said yes but didn't describe the issues
-        console.log(`[V2-PER-FIELD] Validation result: incomplete (yes but no description)`);
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (yes but no description)`);
+        return "incomplete";
+      }
+      // Check for unknown answer
+      if (isUnknownAnswer) {
+        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (issues unknown)`);
         return "incomplete";
       }
       // If they gave a description, it's complete
       if (normalized.length > 10) {
-        console.log(`[V2-PER-FIELD] Validation result: complete (has description)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has description)`);
         return "complete";
       }
-      console.log(`[V2-PER-FIELD] Validation result: incomplete`);
+      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (no valid issues response)`);
       return "incomplete";
     
     case "stageReached":
