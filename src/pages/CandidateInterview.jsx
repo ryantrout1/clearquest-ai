@@ -3071,19 +3071,32 @@ export default function CandidateInterview() {
         }
         
         // Add answer to transcript using centralized event helper
+        // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
         const probingSequence = updatedExchanges.length;
         const aiAnswerEntry = createChatEvent('ai_probe_answer', {
           questionId: currentFollowUpPack.questionId,
+          baseQuestionId: currentFollowUpPack.questionId,
           packId: currentFollowUpPack.packId,
           content: value,
           text: value,
           kind: 'ai_probe_answer',
           followupPackId: currentFollowUpPack.packId,
           instanceNumber: currentFollowUpPack.instanceNumber,
-          probingSequence: probingSequence
+          probeIndex: probingSequence - 1, // 0-indexed
+          isProbe: true
         });
         // Override type for render compatibility
         aiAnswerEntry.type = 'ai_answer';
+        aiAnswerEntry.label = 'Candidate';
+        
+        console.debug('[AI-PROBE-TRANSCRIPT] Added answer event (invokeLLM)', {
+          type: aiAnswerEntry.type,
+          baseQuestionId: currentFollowUpPack.questionId,
+          followupPackId: currentFollowUpPack.packId,
+          instanceNumber: currentFollowUpPack.instanceNumber,
+          probeIndex: probingSequence - 1,
+          text: value.substring(0, 50) + '...'
+        });
         
         // Use functional update to ensure we have latest transcript
         setTranscript(prev => {
