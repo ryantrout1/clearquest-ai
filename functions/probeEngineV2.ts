@@ -8,6 +8,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * - Probes until valid answer or max probes reached
  * - Returns NEXT_FIELD when field is complete
  * - NOW USES: GlobalSettings.ai_default_probing_instructions
+ * - NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
  * - NOW USES: FollowUpPack.ai_probe_instructions via InvokeLLM
  * - Falls back to static probes if LLM fails
  */
@@ -16,8 +17,22 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
 /**
+ * Get AI runtime configuration from GlobalSettings with safe defaults
+ * Single source of truth for all LLM parameters
+ */
+function getAiRuntimeConfig(globalSettings) {
+  return {
+    model: globalSettings?.ai_model || "gpt-4o-mini",
+    temperature: globalSettings?.ai_temperature ?? 0.2,
+    max_tokens: globalSettings?.ai_max_tokens ?? 512,
+    top_p: globalSettings?.ai_top_p ?? 1,
+  };
+}
+
+/**
  * Build unified AI instructions for per-field probing (same pattern as interviewAiFollowup.js)
  * Layers: Core rules → GlobalSettings → FollowUpPack → Field-specific context
+ * Returns: { instructions: string, aiConfig: object }
  */
 async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes) {
   const coreRules = `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
@@ -30,6 +45,7 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 - Respect the sensitivity of personal disclosures`;
 
   let instructions = coreRules + '\n\n';
+  let aiConfig = getAiRuntimeConfig(null); // Defaults
 
   try {
     // Fetch GlobalSettings and FollowUpPack in parallel
@@ -42,6 +58,10 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 
     const settings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
     const pack = packResult.length > 0 ? packResult[0] : null;
+
+    // Get AI runtime config from GlobalSettings
+    aiConfig = getAiRuntimeConfig(settings);
+    console.log(`[V2-PER-FIELD] AI Config: model=${aiConfig.model}, temp=${aiConfig.temperature}, max_tokens=${aiConfig.max_tokens}, top_p=${aiConfig.top_p}`);
 
     // Layer 1: Global probing instructions from AI Settings page
     if (settings?.ai_default_probing_instructions) {
@@ -82,7 +102,7 @@ CORE SYSTEM RULES (ALWAYS APPLY):
     console.error('[V2-PER-FIELD] Error building instructions:', err.message);
   }
 
-  return instructions;
+  return { instructions, aiConfig };
 }
 
 /**
@@ -436,6 +456,7 @@ const FIELD_LABELS = {
 /**
  * Generate a probe question for a specific incomplete field using LLM
  * Falls back to static question if LLM fails
+ * NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
  */
 async function generateFieldProbeQuestion(base44Client, {
   fieldName,
@@ -451,7 +472,7 @@ async function generateFieldProbeQuestion(base44Client, {
   
   try {
     // Build unified instructions from GlobalSettings + FollowUpPack
-    const instructions = await buildFieldProbeInstructions(
+    const { instructions, aiConfig } = await buildFieldProbeInstructions(
       base44Client,
       packId,
       fieldName,
@@ -473,19 +494,23 @@ ${Object.entries(incidentContext)
 
 Generate ONE specific follow-up question to get a clearer answer for the "${fieldLabel}" field.`;
 
-    console.log(`[V2-PER-FIELD] Calling InvokeLLM for field probe: ${fieldName}`);
+    console.log(`[V2-PER-FIELD] Calling InvokeLLM for field probe: ${fieldName} with model=${aiConfig.model}, temp=${aiConfig.temperature}`);
     
-    // Call InvokeLLM with unified instructions
+    // Call InvokeLLM with unified instructions AND AI runtime config
     const result = await base44Client.integrations.Core.InvokeLLM({
       prompt: `${instructions}\n\n${userPrompt}`,
-      add_context_from_internet: false
+      add_context_from_internet: false,
+      model: aiConfig.model,
+      temperature: aiConfig.temperature,
+      max_tokens: aiConfig.max_tokens,
+      top_p: aiConfig.top_p
     });
     
     const question = result?.trim();
     
     if (question && question.length >= 10 && question.length <= 500) {
       console.log(`[V2-PER-FIELD] LLM generated probe for ${fieldName}: "${question.substring(0, 60)}..."`);
-      return { question, isFallback: false, source: 'llm' };
+      return { question, isFallback: false, source: 'llm', model: aiConfig.model };
     } else {
       console.warn(`[V2-PER-FIELD] LLM returned invalid response for ${fieldName}, using fallback`);
       const fallback = getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext);
