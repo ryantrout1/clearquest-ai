@@ -210,8 +210,8 @@ function getFallbackProbeForField(fieldKey, probeCount = 0) {
   return FALLBACK_PROBES[fieldKey] || null;
 }
 
-// Continue with other fallback probes
-const FALLBACK_PROBES_CONTINUED = {
+// Merge additional fallback probes into main object
+Object.assign(FALLBACK_PROBES, {
   // === PACK_DRIVING_VIOLATIONS_STANDARD ===
   "PACK_DRIVING_VIOLATIONS_Q01": "When did this violation occur? Please provide at least the month and year.",
   "PACK_DRIVING_VIOLATIONS_Q02": "What type of violation was this? For example, speeding, running a red light, etc.",
@@ -225,7 +225,7 @@ const FALLBACK_PROBES_CONTINUED = {
   "PACK_DRIVING_STANDARD_Q02": "What type of driving incident was this?",
   "PACK_DRIVING_STANDARD_Q03": "Please describe what happened in this incident.",
   "PACK_DRIVING_STANDARD_Q04": "What was the outcome of this incident?"
-};
+});
 
 /**
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
