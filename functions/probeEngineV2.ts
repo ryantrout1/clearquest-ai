@@ -147,27 +147,41 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 }
 
 /**
- * Deterministic fallback probes for all PACK_LE_APPS fields.
+ * Deterministic fallback probes for all supported fields.
  * Used when AI/validation fails to ensure probing is rock-solid.
  */
 const FALLBACK_PROBES = {
-  // Agency field
+  // === PACK_LE_APPS ===
   "PACK_LE_APPS_Q1": "Since you're not sure of the exact name, please describe the law enforcement agency you applied to. Include anything you remember, such as the city, state, or any identifying details.",
-  
-  // Position field
   "PACK_LE_APPS_Q1764025170356": "What position were you applying for at that agency? For example, was it a police officer, deputy sheriff, corrections officer, or another role?",
-  
-  // Application date field
   "PACK_LE_APPS_Q1764025187292": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
-  
-  // Outcome field
   "PACK_LE_APPS_Q1764025199138": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
-  
-  // Reason for non-selection field
   "PACK_LE_APPS_Q1764025212764": "Were you given any reason for why you were not selected? This could include failing a test, background issues, or the agency's decision.",
+  "PACK_LE_APPS_Q1764025246583": "You indicated there were issues during this hiring process. Please describe what those issues or concerns were.",
   
-  // Issues/concerns field
-  "PACK_LE_APPS_Q1764025246583": "You indicated there were issues during this hiring process. Please describe what those issues or concerns were."
+  // === PACK_DRIVING_COLLISION_STANDARD ===
+  "PACK_DRIVING_COLLISION_Q01": "When did this collision occur? Please provide at least the month and year, or an approximate timeframe.",
+  "PACK_DRIVING_COLLISION_Q02": "Where did this collision take place? Please describe the location.",
+  "PACK_DRIVING_COLLISION_Q03": "Please describe what happened in this collision. How did the accident occur?",
+  "PACK_DRIVING_COLLISION_Q04": "Were you determined to be at fault for this collision?",
+  "PACK_DRIVING_COLLISION_Q05": "Were there any injuries as a result of this collision?",
+  "PACK_DRIVING_COLLISION_Q06": "Was there property damage as a result of this collision?",
+  "PACK_DRIVING_COLLISION_Q07": "Were any citations or tickets issued as a result of this collision?",
+  "PACK_DRIVING_COLLISION_Q08": "Was alcohol or any other substance involved in this collision?",
+  
+  // === PACK_DRIVING_VIOLATIONS_STANDARD ===
+  "PACK_DRIVING_VIOLATIONS_Q01": "When did this violation occur? Please provide at least the month and year.",
+  "PACK_DRIVING_VIOLATIONS_Q02": "What type of violation was this? For example, speeding, running a red light, etc.",
+  "PACK_DRIVING_VIOLATIONS_Q03": "Where did this violation occur?",
+  "PACK_DRIVING_VIOLATIONS_Q04": "What was the outcome of this violation? Was it paid, dismissed, reduced, or contested?",
+  "PACK_DRIVING_VIOLATIONS_Q05": "Were there any fines associated with this violation?",
+  "PACK_DRIVING_VIOLATIONS_Q06": "Were any points added to your driving record?",
+  
+  // === PACK_DRIVING_STANDARD ===
+  "PACK_DRIVING_STANDARD_Q01": "When did this incident occur? Please provide at least the month and year.",
+  "PACK_DRIVING_STANDARD_Q02": "What type of driving incident was this?",
+  "PACK_DRIVING_STANDARD_Q03": "Please describe what happened in this incident.",
+  "PACK_DRIVING_STANDARD_Q04": "What was the outcome of this incident?"
 };
 
 /**
