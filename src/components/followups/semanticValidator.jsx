@@ -94,55 +94,87 @@ export function answerLooksLikeNoRecall(rawAnswer) {
  */
 export function validateFollowupValue({ packId, fieldKey, rawValue }) {
   const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+  const value = normalizeText(rawValue);
+  const lower = value.toLowerCase();
   
-  // If no pack config, treat as valid (non-configured packs pass through)
+  // Compute semantic flags FIRST (global, pack-agnostic)
+  const isEmpty = !value;
+  const isNoRecall = answerLooksLikeNoRecall(rawValue);
+  
+  console.log(`[V2-SEMANTIC] validateFollowupValue`, {
+    packId,
+    fieldKey,
+    rawValue,
+    isEmpty,
+    isNoRecall
+  });
+  
+  // If no pack config, still apply global semantic rules
   if (!packConfig) {
-    return { status: "valid", normalizedValue: rawValue ?? "" };
+    // Apply global "no recall" rule
+    if (isEmpty) {
+      return { status: "unknown", normalizedValue: "", isEmpty: true, isNoRecall: false };
+    }
+    if (isNoRecall) {
+      return { status: "unknown", normalizedValue: value, isEmpty: false, isNoRecall: true };
+    }
+    return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
   }
 
-  const fieldConfig = packConfig.fields.find(f => f.fieldKey === fieldKey);
+  const fieldConfig = packConfig.fields?.find(f => f.fieldKey === fieldKey);
   
-  // If no field config or no validation rules, treat as valid
+  // If no field config or no validation rules, apply global semantic rules
   if (!fieldConfig || !fieldConfig.validation) {
-    return { status: "valid", normalizedValue: rawValue ?? "" };
+    if (isEmpty) {
+      return { status: "unknown", normalizedValue: "", isEmpty: true, isNoRecall: false };
+    }
+    if (isNoRecall) {
+      return { status: "unknown", normalizedValue: value, isEmpty: false, isNoRecall: true };
+    }
+    return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
   }
 
   const v = fieldConfig.validation;
-  const value = (rawValue || "").trim();
-  const lower = value.toLowerCase();
 
   // Handle empty values
-  if (!value) {
+  if (isEmpty) {
     if (v.allowUnknown) {
-      return { status: "unknown", normalizedValue: value };
+      return { status: "unknown", normalizedValue: value, isEmpty: true, isNoRecall: false };
     }
-    return { status: "invalid", reason: "empty" };
+    return { status: "invalid", reason: "empty", isEmpty: true, isNoRecall: false };
+  }
+
+  // GLOBAL: Check for "no recall" patterns BEFORE field-specific rules
+  // This ensures "I don't recall" triggers probing for ALL packs
+  if (isNoRecall) {
+    console.log(`[V2-SEMANTIC] Global "no recall" detected → status="unknown"`);
+    return { status: "unknown", normalizedValue: value, isEmpty: false, isNoRecall: true };
   }
 
   // Check for unknown tokens (e.g., "I don't recall", "idk")
   const unknownTokens = v.unknownTokens || [];
   if (unknownTokens.includes(lower)) {
     if (v.allowUnknown) {
-      return { status: "unknown", normalizedValue: value };
+      return { status: "unknown", normalizedValue: value, isEmpty: false, isNoRecall: false };
     }
-    return { status: "invalid", reason: "unknown_token_not_allowed" };
+    return { status: "invalid", reason: "unknown_token_not_allowed", isEmpty: false, isNoRecall: false };
   }
 
   // Check for reject tokens (e.g., "nothing", "n/a")
   const rejectTokens = v.rejectTokens || [];
   if (rejectTokens.includes(lower)) {
-    return { status: "invalid", reason: "rejected_token" };
+    return { status: "invalid", reason: "rejected_token", isEmpty: false, isNoRecall: false };
   }
 
   // Minimum length check
   if (typeof v.minLength === "number" && value.length < v.minLength) {
-    return { status: "invalid", reason: "too_short" };
+    return { status: "invalid", reason: "too_short", isEmpty: false, isNoRecall: false };
   }
 
   // Must contain letters check
   if (v.mustContainLetters) {
     if (!/[a-zA-Z]/.test(value)) {
-      return { status: "invalid", reason: "no_letters" };
+      return { status: "invalid", reason: "no_letters", isEmpty: false, isNoRecall: false };
     }
   }
 
@@ -151,7 +183,7 @@ export function validateFollowupValue({ packId, fieldKey, rawValue }) {
     try {
       const re = new RegExp(v.pattern);
       if (!re.test(value)) {
-        return { status: "invalid", reason: "pattern_mismatch" };
+        return { status: "invalid", reason: "pattern_mismatch", isEmpty: false, isNoRecall: false };
       }
     } catch (err) {
       // Invalid regex - skip pattern check
@@ -165,32 +197,32 @@ export function validateFollowupValue({ packId, fieldKey, rawValue }) {
     case "job_title":
     case "reason_text":
       // Already covered by length + letters checks
-      return { status: "valid", normalizedValue: value };
+      return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
 
     case "month_year":
       // Require at least some digits for dates
       if (!/[0-9]/.test(value)) {
-        return { status: "invalid", reason: "no_digits_for_date" };
+        return { status: "invalid", reason: "no_digits_for_date", isEmpty: false, isNoRecall: false };
       }
-      return { status: "valid", normalizedValue: value };
+      return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
 
     case "outcome":
       // Accept common outcome values
-      return { status: "valid", normalizedValue: value };
+      return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
 
     case "yes_no":
       // Normalize yes/no inputs
       if (["yes", "y"].includes(lower)) {
-        return { status: "valid", normalizedValue: "yes" };
+        return { status: "valid", normalizedValue: "yes", isEmpty: false, isNoRecall: false };
       }
       if (["no", "n", "none", "n/a", "na"].includes(lower)) {
-        return { status: "valid", normalizedValue: "no" };
+        return { status: "valid", normalizedValue: "no", isEmpty: false, isNoRecall: false };
       }
       // For this field type, other values are still valid
-      return { status: "valid", normalizedValue: value };
+      return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
 
     case "free_text":
     default:
-      return { status: "valid", normalizedValue: value };
+      return { status: "valid", normalizedValue: value, isEmpty: false, isNoRecall: false };
   }
 }
