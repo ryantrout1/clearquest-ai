@@ -416,6 +416,11 @@ export default function FollowUpPackManagerV2() {
               questions={questionsMap[selectedPack?.followup_pack_id] || []}
               triggeringQuestions={packUsageMap[selectedPack?.followup_pack_id] || []}
               onUpdate={handleUpdate}
+              onDelete={(deletedPackId) => {
+                queryClient.invalidateQueries({ queryKey: ['followUpPacks'] });
+                queryClient.invalidateQueries({ queryKey: ['followUpQuestions'] });
+                setSelectedPack(null);
+              }}
             />
           </div>
         </div>
