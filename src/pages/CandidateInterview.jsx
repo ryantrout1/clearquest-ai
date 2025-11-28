@@ -2295,13 +2295,26 @@ export default function CandidateInterview() {
                 // Clear the text input immediately when entering probe mode
                 setInput("");
                 
-                // Add the deterministic follow-up Q+A to transcript
-                const followupEntry = createChatEvent('followup', {
+                // Add the deterministic follow-up Q+A to transcript FIRST (retry path)
+                const followupQuestionEntry = createChatEvent('followup_question', {
                   questionId: currentItem.id,
                   questionText: step.Prompt,
                   packId: packId,
                   substanceName: substanceName,
-                  kind: 'deterministic_followup',
+                  kind: 'deterministic_followup_question',
+                  text: step.Prompt,
+                  content: step.Prompt,
+                  fieldKey: fieldKey,
+                  followupPackId: packId,
+                  instanceNumber: instanceNumber,
+                  baseQuestionId: currentItem.baseQuestionId
+                });
+                
+                const followupAnswerEntry = createChatEvent('followup_answer', {
+                  questionId: currentItem.id,
+                  packId: packId,
+                  substanceName: substanceName,
+                  kind: 'deterministic_followup_answer',
                   answer: normalizedAnswer,
                   text: normalizedAnswer,
                   content: normalizedAnswer,
@@ -2310,10 +2323,17 @@ export default function CandidateInterview() {
                   instanceNumber: instanceNumber,
                   baseQuestionId: currentItem.baseQuestionId
                 });
-                followupEntry.type = 'followup';
-                followupEntry.role = 'candidate';
                 
-                // NEW: Store probe as PENDING - do NOT add to transcript yet (retry path)
+                // Combined entry for render (legacy format)
+                const followupEntry = {
+                  ...followupQuestionEntry,
+                  type: 'followup',
+                  answer: normalizedAnswer,
+                  text: normalizedAnswer
+                };
+                
+                // CRITICAL: Store probe as PENDING - do NOT add to transcript yet (retry path)
+                // The AI probe question will be added ONLY when candidate answers
                 const pendingProbeData = {
                   packId,
                   fieldKey,
@@ -2324,10 +2344,10 @@ export default function CandidateInterview() {
                   probeEngineVersion: 'v2-per-field-retry'
                 };
                 
-                console.log('[AI-PROBE-V2] Pending probe set (retry)', pendingProbeData);
+                console.log('[AI-PROBE-V2] Pending probe set (retry - question will appear after candidate answers)', pendingProbeData);
                 setPendingProbe(pendingProbeData);
                 
-                // Only add the deterministic followup answer to transcript (not the AI question)
+                // Only add the deterministic followup Q+A to transcript (NOT the AI probe question)
                 const newTranscript = [...transcript, followupEntry];
                 setTranscript(newTranscript);
                 
