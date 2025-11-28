@@ -532,58 +532,42 @@ export default function FollowUpPackDetails({
       </div>
 
       {/* AI Investigator Summary Instructions */}
-      <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-        <button
-          onClick={() => !isEditing && setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
-          className="w-full flex items-center gap-3 group"
-          disabled={isEditing}
-        >
-          {!isEditing && (
-            <ChevronRight className={`w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-transform ${isSummaryInstructionsExpanded ? 'rotate-90' : ''}`} />
-          )}
-          <div className="flex-1 text-left">
-            <Label className="text-lg font-semibold text-purple-400 cursor-pointer block">AI Investigator Summary Instructions</Label>
-            <p className="text-xs text-slate-400 mt-0.5">Defines structure, tone, and required details for AI-generated incident summaries shown to investigators</p>
-          </div>
-        </button>
-        {isEditing ? (
-          <>
-            <Textarea
-              value={formData.ai_summary_instructions}
-              onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
-              className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
-              placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
-            />
-            <p className="text-xs text-slate-500 mt-2">
-              Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk.
-            </p>
-          </>
-        ) : isSummaryInstructionsExpanded && (
-          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-              {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
-            </p>
-          </div>
-        )}
-      </div>
+              <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
+                <button
+                  onClick={() => !isEditing && setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
+                  className="w-full flex items-center gap-3 group"
+                  disabled={isEditing}
+                >
+                  {!isEditing && (
+                    <ChevronRight className={`w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-transform ${isSummaryInstructionsExpanded ? 'rotate-90' : ''}`} />
+                  )}
+                  <div className="flex-1 text-left">
+                    <Label className="text-lg font-semibold text-purple-400 cursor-pointer block">AI Investigator Summary Instructions</Label>
+                    <p className="text-xs text-slate-400 mt-0.5">Defines structure, tone, and required details for AI-generated incident summaries shown to investigators</p>
+                  </div>
+                </button>
+                {isEditing ? (
+                  <>
+                    <Textarea
+                      value={formData.ai_summary_instructions}
+                      onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
+                      className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
+                      placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk.
+                    </p>
+                  </>
+                ) : isSummaryInstructionsExpanded && (
+                  <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
+                    <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-      {/* Follow-Up Fields (Structured Data) */}
-      <FollowUpFieldDesigner
-        pack={pack}
-        isExpanded={isFieldsExpanded}
-        onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
-        onSaveFields={async (updatedFields) => {
-          try {
-            await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
-            onUpdate({ ...pack, field_config: updatedFields });
-          } catch (err) {
-            console.error('Failed to save fields:', err);
-            toast.error('Failed to save fields');
-          }
-        }}
-      />
-
-      {/* Triggering Questions */}
+              {/* Triggering Questions */}
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
         <button
           onClick={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
