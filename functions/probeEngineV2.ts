@@ -353,17 +353,9 @@ function validateField(fieldName, value, incidentContext = {}) {
 }
 
 /**
- * Generate a probe question for a specific incomplete field
- * FIX #5: Now accepts aiProbeInstructions from pack entity (future: can use for tone/context)
+ * Get static fallback probe question for a field (used when LLM fails)
  */
-function generateFieldProbeQuestion(fieldName, currentValue, probeCount, incidentContext = {}, aiProbeInstructions = null) {
-  console.log(`[V2-PER-FIELD] Generating probe for ${fieldName} (probe #${probeCount + 1})`);
-  
-  // FIX #5: Log if AI instructions are available (not using them yet in static questions, but wired for future LLM integration)
-  if (aiProbeInstructions) {
-    console.log(`[V2-PER-FIELD] AI probe instructions available for context (${aiProbeInstructions.length} chars) - currently using static probes`);
-  }
-  
+function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext = {}) {
   const isFirstProbe = probeCount === 0;
   
   switch (fieldName) {
@@ -411,6 +403,85 @@ function generateFieldProbeQuestion(fieldName, currentValue, probeCount, inciden
     
     default:
       return `Can you provide more details about ${fieldName}?`;
+  }
+}
+
+/**
+ * Field labels for human-readable prompts
+ */
+const FIELD_LABELS = {
+  "agency": "Agency / Department",
+  "position": "Position Applied For",
+  "monthYear": "Application Date (month/year)",
+  "outcome": "Outcome",
+  "reason": "Reason for Non-Selection",
+  "issues": "Issues or Concerns",
+  "stageReached": "Stage Reached in Hiring Process"
+};
+
+/**
+ * Generate a probe question for a specific incomplete field using LLM
+ * Falls back to static question if LLM fails
+ */
+async function generateFieldProbeQuestion(base44Client, {
+  fieldName,
+  currentValue,
+  probeCount,
+  incidentContext = {},
+  packId,
+  maxProbesPerField
+}) {
+  console.log(`[V2-PER-FIELD] Generating probe for ${fieldName} (probe #${probeCount + 1})`);
+  
+  const fieldLabel = FIELD_LABELS[fieldName] || fieldName;
+  
+  try {
+    // Build unified instructions from GlobalSettings + FollowUpPack
+    const instructions = await buildFieldProbeInstructions(
+      base44Client,
+      packId,
+      fieldName,
+      fieldLabel,
+      maxProbesPerField
+    );
+    
+    // Build user prompt with context
+    const userPrompt = `The candidate was asked about: "${fieldLabel}"
+Their answer was: "${currentValue || '(no answer provided)'}"
+
+This is probe attempt #${probeCount + 1} of ${maxProbesPerField} allowed for this field.
+
+Context from other fields in this incident:
+${Object.entries(incidentContext)
+  .filter(([k, v]) => v && k !== fieldName)
+  .map(([k, v]) => `- ${FIELD_LABELS[k] || k}: ${v}`)
+  .join('\n') || '(no other fields answered yet)'}
+
+Generate ONE specific follow-up question to get a clearer answer for the "${fieldLabel}" field.`;
+
+    console.log(`[V2-PER-FIELD] Calling InvokeLLM for field probe: ${fieldName}`);
+    
+    // Call InvokeLLM with unified instructions
+    const result = await base44Client.integrations.Core.InvokeLLM({
+      prompt: `${instructions}\n\n${userPrompt}`,
+      add_context_from_internet: false
+    });
+    
+    const question = result?.trim();
+    
+    if (question && question.length >= 10 && question.length <= 500) {
+      console.log(`[V2-PER-FIELD] LLM generated probe for ${fieldName}: "${question.substring(0, 60)}..."`);
+      return { question, isFallback: false, source: 'llm' };
+    } else {
+      console.warn(`[V2-PER-FIELD] LLM returned invalid response for ${fieldName}, using fallback`);
+      const fallback = getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext);
+      return { question: fallback, isFallback: true, source: 'fallback_invalid_llm' };
+    }
+    
+  } catch (err) {
+    console.error(`[V2-PER-FIELD] LLM probe generation failed for ${fieldName}:`, err.message);
+    const fallback = getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext);
+    return { question: fallback, isFallback: true, source: 'fallback_error', error: err.message };
   }
 }
 
