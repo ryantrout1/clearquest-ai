@@ -1079,6 +1079,7 @@ Deno.serve(async (req) => {
     
     // Auth check with graceful failure
     let user;
+    let probeCount = 0;
     try {
       user = await base44.auth.me();
     } catch (authError) {
@@ -1090,15 +1091,16 @@ Deno.serve(async (req) => {
         const parsed = JSON.parse(bodyText);
         packId = parsed.pack_id;
         fieldKey = parsed.field_key;
+        probeCount = parsed.previous_probes_count || 0;
       } catch (e) {
         // Ignore parse errors here
       }
       
       const packConfig = PACK_CONFIG[packId];
       const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
+      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
-        console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey });
+        console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
         return Response.json({
           mode: fallback.mode,
           question: fallback.question,
@@ -1120,9 +1122,9 @@ Deno.serve(async (req) => {
       
       const packConfig = PACK_CONFIG[packId];
       const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
+      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
-        console.log('[V2-PER-FIELD] No user → using deterministic fallback probe for field', { packId, fieldKey });
+        console.log('[V2-PER-FIELD] No user → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
         return Response.json({
           mode: fallback.mode,
           question: fallback.question,
