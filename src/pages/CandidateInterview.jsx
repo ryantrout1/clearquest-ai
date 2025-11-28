@@ -3146,20 +3146,33 @@ export default function CandidateInterview() {
             setInvokeLLMProbingExchanges(updatedExchanges);
             
             // Add AI question to transcript using functional update with stable unique ID
+            // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
             const nextAiQuestion = {
               id: `ai-q-${currentFollowUpPack.questionId}-${currentFollowUpPack.packId}-${currentFollowUpPack.instanceNumber}-${newExchangeIndex}-${Date.now()}`,
               type: 'ai_question',
               content: aiResult.followupQuestion,
               questionId: currentFollowUpPack.questionId,
+              baseQuestionId: currentFollowUpPack.questionId,
               packId: currentFollowUpPack.packId,
               timestamp: new Date().toISOString(),
               kind: 'ai_probe_question',
               role: 'investigator',
+              label: 'AI Investigator',
               text: aiResult.followupQuestion,
               followupPackId: currentFollowUpPack.packId,
               instanceNumber: currentFollowUpPack.instanceNumber,
-              probingSequence: newExchangeIndex
+              probeIndex: newExchangeIndex - 1, // 0-indexed
+              isProbe: true
             };
+            
+            console.debug('[AI-PROBE-TRANSCRIPT] Added question event (invokeLLM)', {
+              type: nextAiQuestion.type,
+              baseQuestionId: currentFollowUpPack.questionId,
+              followupPackId: currentFollowUpPack.packId,
+              instanceNumber: currentFollowUpPack.instanceNumber,
+              probeIndex: newExchangeIndex - 1,
+              text: aiResult.followupQuestion.substring(0, 50) + '...'
+            });
             
             setTranscript(prev => {
               const updatedTranscript = [...prev, nextAiQuestion];
