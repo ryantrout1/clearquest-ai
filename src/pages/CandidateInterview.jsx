@@ -172,7 +172,8 @@ function logAiProbeDebug(label, payload) {
  * Supports: system_welcome, question, answer, followup_question, followup_answer,
  *           ai_probe_question, ai_probe_answer, progress_message, section_transition
  * 
- * For AI probes, includes metadata: baseQuestionId, followupPackId, fieldKey, instanceNumber
+ * For AI probes, includes metadata: baseQuestionId, followupPackId, fieldKey, instanceNumber, probeIndex
+ * These fields match the existing LE_APPS AI probing pattern for UnifiedTranscriptRenderer compatibility.
  */
 const createChatEvent = (type, data = {}) => {
   const baseEvent = {
@@ -187,15 +188,17 @@ const createChatEvent = (type, data = {}) => {
     baseEvent.role = 'system';
   } else if (['question', 'followup_question', 'ai_probe_question', 'ai_question', 'multi_instance_question'].includes(type)) {
     baseEvent.role = 'investigator';
-    // Add label for AI probes
+    // Add label for AI probes - matches LE_APPS pattern
     if (type === 'ai_probe_question' || type === 'ai_question') {
       baseEvent.label = 'AI Investigator';
+      baseEvent.kind = 'ai_probe_question'; // Ensure kind is set for UnifiedTranscriptRenderer
     }
   } else if (['answer', 'followup_answer', 'ai_probe_answer', 'ai_answer', 'multi_instance_answer'].includes(type)) {
     baseEvent.role = 'candidate';
-    // Add label for AI probe answers
+    // Add label for AI probe answers - matches LE_APPS pattern
     if (type === 'ai_probe_answer' || type === 'ai_answer') {
       baseEvent.label = 'Candidate';
+      baseEvent.kind = 'ai_probe_answer'; // Ensure kind is set for UnifiedTranscriptRenderer
     }
   }
   
@@ -204,7 +207,12 @@ const createChatEvent = (type, data = {}) => {
 
 /**
  * Helper to check if we should skip adding an AI probe message (duplicate guard)
- * Returns true if the last transcript event is the same AI probe message
+ * Returns true ONLY if the last transcript event is the EXACT same AI probe question.
+ * 
+ * This guard is NARROW: it does NOT block:
+ * - Probe answer events (different type)
+ * - Subsequent probes for the same field when probeIndex increments
+ * - Probes for different fields
  */
 const shouldSkipDuplicateAiProbe = (transcript, newEvent) => {
   if (!transcript || transcript.length === 0) return false;
@@ -213,16 +221,25 @@ const shouldSkipDuplicateAiProbe = (transcript, newEvent) => {
   const lastEvent = transcript[transcript.length - 1];
   if (!lastEvent || !['ai_question', 'ai_probe_question'].includes(lastEvent.type)) return false;
   
-  // Check if same probe by matching key fields
-  const sameBaseQuestion = lastEvent.baseQuestionId === newEvent.baseQuestionId || 
-                           lastEvent.questionId === newEvent.questionId;
-  const samePackId = lastEvent.followupPackId === newEvent.followupPackId || 
-                     lastEvent.packId === newEvent.packId;
+  // Check if same probe by matching ALL key fields including probeIndex
+  const sameBaseQuestion = lastEvent.baseQuestionId === newEvent.baseQuestionId;
+  const samePackId = lastEvent.followupPackId === newEvent.followupPackId;
   const sameFieldKey = lastEvent.fieldKey === newEvent.fieldKey;
   const sameInstance = lastEvent.instanceNumber === newEvent.instanceNumber;
-  const sameText = lastEvent.text === newEvent.text || lastEvent.content === newEvent.content;
+  const sameProbeIndex = lastEvent.probeIndex === newEvent.probeIndex;
+  const sameText = lastEvent.text === newEvent.text;
   
-  return sameBaseQuestion && samePackId && sameFieldKey && sameInstance && sameText;
+  const isDuplicate = sameBaseQuestion && samePackId && sameFieldKey && sameInstance && sameProbeIndex && sameText;
+  
+  if (isDuplicate) {
+    console.debug('[AI-PROBE-TRANSCRIPT] Duplicate guard triggered - skipping duplicate probe question', {
+      baseQuestionId: newEvent.baseQuestionId,
+      fieldKey: newEvent.fieldKey,
+      probeIndex: newEvent.probeIndex
+    });
+  }
+  
+  return isDuplicate;
 };
 
 // ============================================================================
