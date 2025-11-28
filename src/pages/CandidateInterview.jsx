@@ -347,6 +347,9 @@ export default function CandidateInterview() {
   const [completedFields, setCompletedFields] = useState({});
   // Track current field being probed (for inline AI question rendering)
   const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
+  // NEW: Pending probe state - holds probe metadata until candidate answers
+  // Question is NOT added to transcript until the answer is submitted
+  const [pendingProbe, setPendingProbe] = useState(null);
   // Ref to prevent duplicate V2 triggers in StrictMode
   const v2ProbingInProgressRef = useRef(new Set());
 
