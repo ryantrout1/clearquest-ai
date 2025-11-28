@@ -723,9 +723,12 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
     
     case "injuries":
       if (isFirstProbe) {
-        return "Were there any injuries as a result of this collision? If so, please describe them.";
+        return "You mentioned you're not sure about injuries. Think back to the collision: did anyone complain of pain, soreness, or stiffness afterward — including you, your passengers, or people in the other vehicle?";
       }
-      return "Were you or anyone else injured in this collision?";
+      if (isSecondProbe) {
+        return "To the best of your memory, did anyone see a doctor, go to the hospital, or miss work or school because of this collision? If so, who was it — you, a passenger, or someone in the other vehicle?";
+      }
+      return "Even if you can't remember exact details, give your best estimate of how serious any injuries were — for example, 'minor soreness only', 'possible whiplash', or 'someone went to the ER'.";
     
     case "propertyDamage":
       if (isFirstProbe) {
