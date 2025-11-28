@@ -2801,21 +2801,33 @@ export default function CandidateInterview() {
       const currentProbeQuestion = currentFieldProbe.question;
       
       // Create AI probe answer event ONLY (question already in transcript)
+      // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
       const aiAnswerEntry = createChatEvent('ai_probe_answer', {
         questionId: baseQuestionId,
+        baseQuestionId: baseQuestionId,
         packId: packId,
         content: value,
         text: value,
-        kind: 'ai_field_probe_answer',
+        kind: 'ai_probe_answer',
         followupPackId: packId,
         instanceNumber: instanceNumber,
         fieldKey: fieldKey,
-        baseQuestionId: baseQuestionId,
-        role: 'candidate',
-        label: 'Candidate'
+        probeIndex: probeCount - 1, // Match the question's probeIndex (0-indexed)
+        isProbe: true
       });
       aiAnswerEntry.type = 'ai_answer';
       aiAnswerEntry.role = 'candidate';
+      aiAnswerEntry.label = 'Candidate';
+      
+      console.debug('[AI-PROBE-TRANSCRIPT] Added answer event', {
+        type: aiAnswerEntry.type,
+        baseQuestionId: baseQuestionId,
+        followupPackId: packId,
+        fieldKey: fieldKey,
+        instanceNumber: instanceNumber,
+        probeIndex: probeCount - 1,
+        text: value.substring(0, 50) + '...'
+      });
       
       setTranscript(prev => [...prev, aiAnswerEntry]);
       
