@@ -494,6 +494,7 @@ function mapFieldKey(packConfig, rawFieldKey) {
 
 /**
  * Main probe engine function - Per-Field Mode
+ * NOW USES: GlobalSettings + FollowUpPack.ai_probe_instructions via InvokeLLM
  */
 async function probeEngineV2(input, base44Client) {
   const {
@@ -520,9 +521,8 @@ async function probeEngineV2(input, base44Client) {
   const semanticField = mapFieldKey(packConfig, field_key);
   console.log(`[V2-PER-FIELD] Mapped ${field_key} → ${semanticField}`);
 
-  // FIX #5: Fetch max_ai_followups AND ai_probe_instructions from FollowUpPack entity
+  // Fetch max_ai_followups from FollowUpPack entity
   let maxProbesPerField = DEFAULT_MAX_PROBES_FALLBACK;
-  let aiProbeInstructions = null;
   
   try {
     const followUpPacks = await base44Client.entities.FollowUpPack.filter({
@@ -537,12 +537,6 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[V2-PER-FIELD] Using max_ai_followups from FollowUpPack entity: ${maxProbesPerField}`);
       } else {
         console.log(`[V2-PER-FIELD] FollowUpPack entity has no valid max_ai_followups, using fallback: ${maxProbesPerField}`);
-      }
-      
-      // FIX #5: Load AI probe instructions from pack entity
-      if (packEntity.ai_probe_instructions) {
-        aiProbeInstructions = packEntity.ai_probe_instructions;
-        console.log(`[V2-PER-FIELD] Loaded ai_probe_instructions from FollowUpPack entity (${aiProbeInstructions.length} chars)`);
       }
     } else {
       console.log(`[V2-PER-FIELD] No active FollowUpPack entity found for ${pack_id}, using fallback: ${maxProbesPerField}`);
@@ -585,20 +579,30 @@ async function probeEngineV2(input, base44Client) {
     };
   }
 
-  // Field is incomplete - generate probe question
-  // FIX #5: Pass AI probe instructions to question generator
-  const question = generateFieldProbeQuestion(semanticField, field_value, previous_probes_count, incident_context, aiProbeInstructions);
-  console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode with: "${question}"`);
+  // Field is incomplete - generate probe question using LLM (with static fallback)
+  const probeResult = await generateFieldProbeQuestion(base44Client, {
+    fieldName: semanticField,
+    currentValue: field_value,
+    probeCount: previous_probes_count,
+    incidentContext: incident_context,
+    packId: pack_id,
+    maxProbesPerField
+  });
+  
+  console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
+  console.log(`[V2-PER-FIELD] Question: "${probeResult.question.substring(0, 80)}..."`);
 
   return {
     mode: "QUESTION",
     pack_id,
     field_key,
     semanticField,
-    question,
+    question: probeResult.question,
     validationResult: "incomplete",
     previousProbeCount: previous_probes_count,
     maxProbesPerField,
+    isFallback: probeResult.isFallback,
+    probeSource: probeResult.source,
     message: `Probing for more information about ${semanticField}`
   };
 }
