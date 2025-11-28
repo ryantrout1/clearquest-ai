@@ -24,6 +24,109 @@ import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
 
+/**
+ * Build structured facts from additional_details for Driving packs
+ * Maps field keys to human-readable labels and extracts values
+ * @param {string} packId - Pack identifier
+ * @param {Object} details - additional_details object from FollowUpResponse
+ * @returns {Array<{label: string, value: string}>} - Array of label-value pairs
+ */
+function buildDrivingPackFacts(packId, details) {
+  if (!details || typeof details !== 'object') return [];
+  
+  // Field label mappings for driving packs
+  const DRIVING_FIELD_LABELS = {
+    // PACK_DRIVING_COLLISION_STANDARD
+    'PACK_DRIVING_COLLISION_Q01': 'Collision Date',
+    'PACK_DRIVING_COLLISION_Q02': 'Location',
+    'PACK_DRIVING_COLLISION_Q03': 'Description',
+    'PACK_DRIVING_COLLISION_Q04': 'At Fault',
+    'PACK_DRIVING_COLLISION_Q05': 'Injuries',
+    'PACK_DRIVING_COLLISION_Q06': 'Property Damage',
+    'PACK_DRIVING_COLLISION_Q07': 'Citations Issued',
+    'PACK_DRIVING_COLLISION_Q08': 'Alcohol/Substances Involved',
+    
+    // PACK_DRIVING_VIOLATIONS_STANDARD
+    'PACK_DRIVING_VIOLATIONS_Q01': 'Violation Date',
+    'PACK_DRIVING_VIOLATIONS_Q02': 'Violation Type',
+    'PACK_DRIVING_VIOLATIONS_Q03': 'Location',
+    'PACK_DRIVING_VIOLATIONS_Q04': 'Outcome',
+    'PACK_DRIVING_VIOLATIONS_Q05': 'Fines',
+    'PACK_DRIVING_VIOLATIONS_Q06': 'Points on License',
+    
+    // PACK_DRIVING_STANDARD
+    'PACK_DRIVING_STANDARD_Q01': 'Incident Date',
+    'PACK_DRIVING_STANDARD_Q02': 'Incident Type',
+    'PACK_DRIVING_STANDARD_Q03': 'Description',
+    'PACK_DRIVING_STANDARD_Q04': 'Outcome',
+    
+    // PACK_DRIVING_DUIDWI_STANDARD
+    'PACK_DRIVING_DUIDWI_Q01': 'Incident Date',
+    'PACK_DRIVING_DUIDWI_Q02': 'Location',
+    'PACK_DRIVING_DUIDWI_Q03': 'Substance Type',
+    'PACK_DRIVING_DUIDWI_Q04': 'Stop Reason',
+    'PACK_DRIVING_DUIDWI_Q05': 'Test Type',
+    'PACK_DRIVING_DUIDWI_Q06': 'Test Result',
+    'PACK_DRIVING_DUIDWI_Q07': 'Arrest Status',
+    'PACK_DRIVING_DUIDWI_Q08': 'Court Outcome',
+    'PACK_DRIVING_DUIDWI_Q09': 'License Impact'
+  };
+  
+  // Define display order for each pack
+  const FIELD_ORDER = {
+    'PACK_DRIVING_COLLISION_STANDARD': [
+      'PACK_DRIVING_COLLISION_Q01',
+      'PACK_DRIVING_COLLISION_Q02',
+      'PACK_DRIVING_COLLISION_Q03',
+      'PACK_DRIVING_COLLISION_Q04',
+      'PACK_DRIVING_COLLISION_Q05',
+      'PACK_DRIVING_COLLISION_Q06',
+      'PACK_DRIVING_COLLISION_Q07',
+      'PACK_DRIVING_COLLISION_Q08'
+    ],
+    'PACK_DRIVING_VIOLATIONS_STANDARD': [
+      'PACK_DRIVING_VIOLATIONS_Q01',
+      'PACK_DRIVING_VIOLATIONS_Q02',
+      'PACK_DRIVING_VIOLATIONS_Q03',
+      'PACK_DRIVING_VIOLATIONS_Q04',
+      'PACK_DRIVING_VIOLATIONS_Q05',
+      'PACK_DRIVING_VIOLATIONS_Q06'
+    ],
+    'PACK_DRIVING_STANDARD': [
+      'PACK_DRIVING_STANDARD_Q01',
+      'PACK_DRIVING_STANDARD_Q02',
+      'PACK_DRIVING_STANDARD_Q03',
+      'PACK_DRIVING_STANDARD_Q04'
+    ],
+    'PACK_DRIVING_DUIDWI_STANDARD': [
+      'PACK_DRIVING_DUIDWI_Q01',
+      'PACK_DRIVING_DUIDWI_Q02',
+      'PACK_DRIVING_DUIDWI_Q03',
+      'PACK_DRIVING_DUIDWI_Q04',
+      'PACK_DRIVING_DUIDWI_Q05',
+      'PACK_DRIVING_DUIDWI_Q06',
+      'PACK_DRIVING_DUIDWI_Q07',
+      'PACK_DRIVING_DUIDWI_Q08',
+      'PACK_DRIVING_DUIDWI_Q09'
+    ]
+  };
+  
+  const orderedFields = FIELD_ORDER[packId] || Object.keys(details);
+  const facts = [];
+  
+  orderedFields.forEach(fieldKey => {
+    const value = details[fieldKey];
+    const label = DRIVING_FIELD_LABELS[fieldKey];
+    
+    // Only include fields that have labels and non-empty values
+    if (label && value && String(value).trim() !== '') {
+      facts.push({ label, value: String(value) });
+    }
+  });
+  
+  return facts;
+}
+
 const REVIEW_KEYWORDS = [
   'arrest', 'fired', 'failed', 'polygraph', 'investigated',
   'suspended', 'terminated', 'dui', 'drugs', 'felony', 'charge',
