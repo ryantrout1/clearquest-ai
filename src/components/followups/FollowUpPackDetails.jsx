@@ -838,6 +838,32 @@ export default function FollowUpPackDetails({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Question Confirmation Dialog */}
+      <AlertDialog open={showQuestionDeleteConfirm} onOpenChange={setShowQuestionDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete this question?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              This will permanently delete the question. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => setQuestionToDelete(null)}
+              className="border-slate-600 text-slate-300"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => questionToDelete && handleDeleteQuestion(questionToDelete.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
