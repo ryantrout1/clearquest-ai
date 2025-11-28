@@ -190,11 +190,12 @@ export default function FollowUpPackDetails({
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!confirm('Delete this question? This cannot be undone.')) return;
-    
     try {
       await base44.entities.FollowUpQuestion.delete(questionId);
-      onUpdate();
+      // Remove from local state immediately (no refresh)
+      setLocalDeletedQuestionIds(prev => [...prev, questionId]);
+      setShowQuestionDeleteConfirm(false);
+      setQuestionToDelete(null);
       toast.success('Question deleted');
     } catch (err) {
       toast.error('Failed to delete question');
