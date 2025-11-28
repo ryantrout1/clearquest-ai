@@ -391,8 +391,11 @@ function semanticV2EvaluateAnswer(fieldName, rawValue, incidentContext = {}) {
 }
 
 /**
- * Validate a specific field value for PACK_LE_APPS
+ * Validate a specific field value
  * Returns: "complete", "incomplete", or "invalid"
+ * 
+ * Supports PACK_LE_APPS and driving packs (PACK_DRIVING_COLLISION_STANDARD, 
+ * PACK_DRIVING_VIOLATIONS_STANDARD, PACK_DRIVING_STANDARD)
  */
 function validateField(fieldName, value, incidentContext = {}) {
   const normalized = normalizeText(value).toLowerCase();
@@ -403,36 +406,24 @@ function validateField(fieldName, value, incidentContext = {}) {
   const isUnknownAnswer = isDontKnow(value);
   console.log(`[V2-PER-FIELD] isDontKnow result: ${isUnknownAnswer}`);
   
+  // GLOBAL RULE: Empty or "don't know/recall" answers are always incomplete
+  if (!normalized || isUnknownAnswer) {
+    console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (empty or unknown answer)`);
+    return "incomplete";
+  }
+  
   switch (fieldName) {
+    // === PACK_LE_APPS fields ===
     case "agency":
-      // Cannot be empty or "don't remember"
-      if (!normalized || isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (agency is empty or unknown)`);
-        return "incomplete";
-      }
-      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (agency has valid value)`);
-      return "complete";
-    
     case "position":
-      // Cannot be empty or "don't remember"
-      if (!normalized || isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (position is empty or unknown)`);
-        return "incomplete";
-      }
-      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (position has valid value)`);
+      // Already checked for empty/unknown above
+      console.log(`[V2-PER-FIELD] Validation result: COMPLETE (${fieldName} has valid value)`);
       return "complete";
     
     case "monthYear":
-      // Allow approximate dates like "early 2021", "summer 2020", "around 2019"
-      // Disallow "I don't remember", "don't know"
-      if (!normalized) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (monthYear is empty)`);
-        return "incomplete";
-      }
-      if (isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (monthYear is unknown)`);
-        return "incomplete";
-      }
+    case "collisionDate":
+    case "violationDate":
+    case "incidentDate":
       // Check for any year pattern (4 digits) or approximate terms
       const hasYear = /\b(19|20)\d{2}\b/.test(normalized);
       const hasApproximate = /(early|late|mid|around|about|spring|summer|fall|winter|beginning|end)/i.test(normalized);
@@ -442,7 +433,7 @@ function validateField(fieldName, value, incidentContext = {}) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has date indicator)`);
         return "complete";
       }
-      // If they gave something but no date indicators, still accept if not "don't know"
+      // If they gave something but no date indicators, still accept if long enough
       if (normalized.length > 3) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has content)`);
         return "complete";
@@ -457,7 +448,10 @@ function validateField(fieldName, value, incidentContext = {}) {
         "not selected", "rejected", "denied", "unsuccessful", "failed",
         "withdrew", "withdrawn", "pulled out", "decided not to",
         "disqualified", "dq", "removed",
-        "still in process", "pending", "waiting", "ongoing", "in progress"
+        "still in process", "pending", "waiting", "ongoing", "in progress",
+        // Driving-related outcomes
+        "paid", "dismissed", "reduced", "contested", "guilty", "not guilty",
+        "points", "fine", "warning", "citation"
       ];
       
       const hasValidOutcome = validOutcomes.some(outcome => normalized.includes(outcome));
@@ -465,12 +459,8 @@ function validateField(fieldName, value, incidentContext = {}) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (valid outcome found)`);
         return "complete";
       }
-      if (isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (outcome unknown)`);
-        return "incomplete";
-      }
       // If they gave something specific, accept it
-      if (normalized.length > 5 && !isUnknownAnswer) {
+      if (normalized.length > 5) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has specific content)`);
         return "complete";
       }
@@ -488,10 +478,6 @@ function validateField(fieldName, value, incidentContext = {}) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (still in process, reason optional)`);
         return "complete";
       }
-      if (!normalized || isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (reason is empty or unknown)`);
-        return "incomplete";
-      }
       console.log(`[V2-PER-FIELD] Validation result: COMPLETE (reason has value)`);
       return "complete";
     
@@ -506,11 +492,6 @@ function validateField(fieldName, value, incidentContext = {}) {
         console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (yes but no description)`);
         return "incomplete";
       }
-      // Check for unknown answer
-      if (isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (issues unknown)`);
-        return "incomplete";
-      }
       // If they gave a description, it's complete
       if (normalized.length > 10) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has description)`);
@@ -520,12 +501,7 @@ function validateField(fieldName, value, incidentContext = {}) {
       return "incomplete";
     
     case "stageReached":
-      // Optional field - only probe if relevant to outcome
-      // Accept any answer that's not "don't know"
-      if (isUnknownAnswer) {
-        console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (stageReached unknown)`);
-        return "incomplete";
-      }
+      // Optional field - accept any non-empty answer
       if (normalized.length > 0) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (stageReached has value)`);
         return "complete";
@@ -534,11 +510,60 @@ function validateField(fieldName, value, incidentContext = {}) {
       console.log(`[V2-PER-FIELD] Validation result: COMPLETE (optional field)`);
       return "complete";
     
-    default:
-      // Unknown field - accept any non-empty value
-      if (normalized.length > 0 && !isDontKnow(value)) {
+    // === DRIVING COLLISION fields ===
+    case "collisionLocation":
+    case "violationLocation":
+      // Accept any location description
+      if (normalized.length > 2) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (location has value)`);
         return "complete";
       }
+      return "incomplete";
+    
+    case "collisionDescription":
+    case "incidentDescription":
+    case "violationType":
+    case "incidentType":
+      // Require some description
+      if (normalized.length > 5) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (description has content)`);
+        return "complete";
+      }
+      return "incomplete";
+    
+    case "atFault":
+    case "injuries":
+    case "propertyDamage":
+    case "citations":
+    case "alcoholInvolved":
+      // Yes/no fields
+      if (["yes", "y", "no", "n", "none", "n/a"].includes(normalized)) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (yes/no answer)`);
+        return "complete";
+      }
+      // Accept descriptive answers too
+      if (normalized.length > 3) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has description)`);
+        return "complete";
+      }
+      return "incomplete";
+    
+    case "fines":
+    case "points":
+      // Accept amounts, "none", or descriptions
+      if (normalized.length > 0) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (fines/points has value)`);
+        return "complete";
+      }
+      return "incomplete";
+    
+    default:
+      // Unknown field - accept any non-empty value that's not "don't know"
+      if (normalized.length > 0) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (default: has content)`);
+        return "complete";
+      }
+      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (default: empty)`);
       return "incomplete";
   }
 }
