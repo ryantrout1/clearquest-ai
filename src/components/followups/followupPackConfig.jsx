@@ -475,6 +475,77 @@ export const FOLLOWUP_PACK_CONFIGS = {
         }
       }
     ]
+  },
+
+  // ============================================================
+  // DRIVING INCIDENT PACKS (Standard Cluster)
+  // ============================================================
+
+  "PACK_DRIVING_COLLISION_STANDARD": {
+    packId: "PACK_DRIVING_COLLISION_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Collisions",
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fieldKeyMap: {
+      incident_date: "incident_date",
+      location: "location",
+      collision_description: "collision_description",
+      collision_type: "collision_type",
+      at_fault_status: "at_fault_status",
+      injury_severity: "injury_severity",
+      property_damage: "property_damage",
+      police_involved: "police_involved",
+      insurance_outcome: "insurance_outcome"
+    },
+    fields: []
+  },
+
+  "PACK_DRIVING_DUIDWI_STANDARD": {
+    packId: "PACK_DRIVING_DUIDWI_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "DUI/DWI Incidents",
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fieldKeyMap: {
+      incident_date: "incident_date",
+      location: "location",
+      substance_type: "substance_type",
+      stop_reason: "stop_reason",
+      test_type: "test_type",
+      test_result: "test_result",
+      arrest_status: "arrest_status",
+      court_outcome: "court_outcome",
+      license_impact: "license_impact"
+    },
+    fields: []
+  },
+
+  "PACK_DRIVING_VIOLATIONS_STANDARD": {
+    packId: "PACK_DRIVING_VIOLATIONS_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Traffic Violations",
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fieldKeyMap: {
+      incident_date: "incident_date",
+      location: "location",
+      violation_type: "violation_type",
+      classification: "classification",
+      law_enforcement_contact: "law_enforcement_contact",
+      action_taken: "action_taken",
+      court_outcome: "court_outcome",
+      fine_or_penalty: "fine_or_penalty",
+      license_impact: "license_impact",
+      insurance_impact: "insurance_impact"
+    },
+    fields: []
   }
 };
 
