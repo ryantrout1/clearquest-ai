@@ -2775,12 +2775,41 @@ export default function CandidateInterview() {
       
       console.log(`[V2-PER-FIELD] Current probe count for ${fieldKey}: ${probeCount}/${maxAiFollowups}`);
       
-      // For per-field probing, add ONLY the probe answer to transcript
-      // The probe question was already added when probeEngineV2 returned QUESTION mode
+      // NEW: Now that candidate answered, log BOTH the probe question AND answer as a pair
+      // This is the ONLY place probe events get added to transcript
       const currentProbeQuestion = currentFieldProbe.question;
       
-      // Create AI probe answer event ONLY (question already in transcript)
-      // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
+      // Determine probeIndex from pendingProbe if available, else use probeCount - 1
+      const probeIndex = pendingProbe?.probeIndex ?? (probeCount - 1);
+      
+      console.log('[AI-PROBE-V2] Logging probe Q&A', { 
+        baseQuestionId, 
+        fieldKey, 
+        probeIndex,
+        questionText: currentProbeQuestion?.substring(0, 50) + '...',
+        answerText: value.substring(0, 50) + '...'
+      });
+      
+      // Create AI probe QUESTION event (was pending, now being logged)
+      const aiQuestionEntry = createChatEvent('ai_probe_question', {
+        questionId: baseQuestionId,
+        baseQuestionId: baseQuestionId,
+        packId: packId,
+        content: currentProbeQuestion,
+        text: currentProbeQuestion,
+        kind: 'ai_probe_question',
+        followupPackId: packId,
+        instanceNumber: instanceNumber,
+        fieldKey: fieldKey,
+        probeIndex: probeIndex,
+        probeEngineVersion: pendingProbe?.probeEngineVersion || 'v2-per-field',
+        isProbe: true
+      });
+      aiQuestionEntry.type = 'ai_question';
+      aiQuestionEntry.role = 'investigator';
+      aiQuestionEntry.label = 'AI Investigator';
+      
+      // Create AI probe ANSWER event
       const aiAnswerEntry = createChatEvent('ai_probe_answer', {
         questionId: baseQuestionId,
         baseQuestionId: baseQuestionId,
@@ -2791,24 +2820,28 @@ export default function CandidateInterview() {
         followupPackId: packId,
         instanceNumber: instanceNumber,
         fieldKey: fieldKey,
-        probeIndex: probeCount - 1, // Match the question's probeIndex (0-indexed)
+        probeIndex: probeIndex,
         isProbe: true
       });
       aiAnswerEntry.type = 'ai_answer';
       aiAnswerEntry.role = 'candidate';
       aiAnswerEntry.label = 'Candidate';
       
-      console.debug('[AI-PROBE-TRANSCRIPT] Added answer event', {
-        type: aiAnswerEntry.type,
+      console.debug('[AI-PROBE-TRANSCRIPT] Added Q&A pair', {
+        questionType: aiQuestionEntry.type,
+        answerType: aiAnswerEntry.type,
         baseQuestionId: baseQuestionId,
         followupPackId: packId,
         fieldKey: fieldKey,
         instanceNumber: instanceNumber,
-        probeIndex: probeCount - 1,
-        text: value.substring(0, 50) + '...'
+        probeIndex: probeIndex
       });
       
-      setTranscript(prev => [...prev, aiAnswerEntry]);
+      // Clear pendingProbe after logging
+      setPendingProbe(null);
+      
+      // Add BOTH question and answer to transcript as a pair
+      setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
       
       const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
       setCurrentFollowUpAnswers(updatedAnswers);
