@@ -633,9 +633,12 @@ function validateField(fieldName, value, incidentContext = {}) {
 /**
  * Get static fallback probe question for a field (used when LLM fails)
  * Supports PACK_LE_APPS and driving packs
+ * 
+ * For fields with multi-level probing (like collisionDate), uses the MULTI_LEVEL_PROBES config.
  */
 function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext = {}) {
   const isFirstProbe = probeCount === 0;
+  const isSecondProbe = probeCount === 1;
   
   switch (fieldName) {
     // === PACK_LE_APPS fields ===
@@ -682,11 +685,15 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       return "What was the last step you completed in their process?";
     
     // === DRIVING COLLISION fields ===
+    // collisionDate uses smart multi-level probing
     case "collisionDate":
       if (isFirstProbe) {
-        return "When did this collision occur? Please provide at least the month and year, or an approximate timeframe like 'summer 2020'.";
+        return "I understand you don't recall the exact date. Even if you're not sure of the month, what's the closest you can get to the year? For example, was it closer to 2010, 2015, 2020, or another timeframe?";
       }
-      return "Can you estimate when this happened? Even a rough timeframe like 'about 2 years ago' would help.";
+      if (isSecondProbe) {
+        return "Think about what was going on in your life at the time of this collision—where you were living, what job you had, or any major life events happening then. Does that help you narrow down an approximate year or season?";
+      }
+      return "If you still can't pinpoint a specific year, that's okay. Please give your best estimate as a range, like 'sometime between 2010 and 2015' or 'early 2020s'. Any approximate timeframe will help.";
     
     case "collisionLocation":
       if (isFirstProbe) {
