@@ -1,5 +1,5 @@
 import React from 'react';
-import { useScrollAnimation } from './useScrollAnimation';
+import { useScrollAnimation } from './useScrollAnimation.jsx';
 
 export default function AnimatedHeading({ 
   children, 

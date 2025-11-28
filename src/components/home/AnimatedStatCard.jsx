@@ -1,5 +1,5 @@
 import React from 'react';
-import { useScrollAnimation, useCountUp } from './useScrollAnimation';
+import { useScrollAnimation, useCountUp } from './useScrollAnimation.jsx';
 
 export default function AnimatedStatCard({ number, label }) {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.3 });
