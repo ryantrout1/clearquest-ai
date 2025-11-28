@@ -17,7 +17,71 @@ import { FOLLOWUP_PACK_CONFIGS } from "./followupPackConfig";
  * @property {ValidationStatus} status - "valid", "unknown", or "invalid"
  * @property {string} normalizedValue - The normalized/cleaned value
  * @property {string} [reason] - Reason for invalid status
+ * @property {boolean} [isEmpty] - True if value is empty
+ * @property {boolean} [isNoRecall] - True if value indicates "I don't know/recall"
  */
+
+/**
+ * Normalizes text by replacing curly quotes and trimming whitespace
+ */
+function normalizeText(raw) {
+  if (raw == null) return "";
+  return String(raw)
+    .replace(/\u2019/g, "'")
+    .replace(/\u2018/g, "'")
+    .replace(/\u201C/g, '"')
+    .replace(/\u201D/g, '"')
+    .trim();
+}
+
+/**
+ * Detects "I don't know / don't recall / not sure / unknown" style answers.
+ * This is GLOBAL and should be used for all packs.
+ */
+export function answerLooksLikeNoRecall(rawAnswer) {
+  const normalized = normalizeText(rawAnswer).toLowerCase();
+
+  if (!normalized) return false;
+
+  const patterns = [
+    "i don't know",
+    "i dont know",
+    "idk",
+    "i don't recall",
+    "i dont recall",
+    "i don't remember",
+    "i dont remember",
+    "not sure",
+    "unsure",
+    "unknown",
+    "can't remember",
+    "cant remember",
+    "no idea",
+    "i do not know",
+    "i do not recall",
+    "i do not remember",
+    "cannot remember",
+    "cannot recall",
+    "i'm not sure",
+    "im not sure",
+    "don't know",
+    "dont know",
+    "don't recall",
+    "dont recall",
+    "don't remember",
+    "dont remember"
+  ];
+
+  const result = patterns.some(p => normalized.includes(p));
+  if (result) {
+    console.log(`[V2-SEMANTIC] answerLooksLikeNoRecall(frontend):`, {
+      raw: rawAnswer,
+      normalized,
+      result
+    });
+  }
+  return result;
+}
 
 /**
  * Validates a follow-up field value against semantic rules
