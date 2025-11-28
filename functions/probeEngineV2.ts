@@ -725,15 +725,39 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
 
 /**
  * Field labels for human-readable prompts
+ * Supports PACK_LE_APPS and driving packs
  */
 const FIELD_LABELS = {
+  // PACK_LE_APPS
   "agency": "Agency / Department",
   "position": "Position Applied For",
   "monthYear": "Application Date (month/year)",
   "outcome": "Outcome",
   "reason": "Reason for Non-Selection",
   "issues": "Issues or Concerns",
-  "stageReached": "Stage Reached in Hiring Process"
+  "stageReached": "Stage Reached in Hiring Process",
+  
+  // DRIVING COLLISION
+  "collisionDate": "Collision Date (month/year)",
+  "collisionLocation": "Collision Location",
+  "collisionDescription": "Description of Collision",
+  "atFault": "At Fault",
+  "injuries": "Injuries",
+  "propertyDamage": "Property Damage",
+  "citations": "Citations Issued",
+  "alcoholInvolved": "Alcohol/Substances Involved",
+  
+  // DRIVING VIOLATIONS
+  "violationDate": "Violation Date (month/year)",
+  "violationType": "Type of Violation",
+  "violationLocation": "Violation Location",
+  "fines": "Fines",
+  "points": "Points on License",
+  
+  // GENERAL DRIVING
+  "incidentDate": "Incident Date (month/year)",
+  "incidentType": "Type of Incident",
+  "incidentDescription": "Description of Incident"
 };
 
 /**
