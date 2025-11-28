@@ -1177,20 +1177,33 @@ export default function CandidateInterview() {
         }));
         
         // Add AI question to transcript with stable unique ID
+        // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
         const aiQuestionEntry = {
           id: `ai-q-${questionId}-${packId}-${instanceNumber}-1-${Date.now()}`,
           type: 'ai_question',
           content: aiResult.followupQuestion,
           questionId: questionId,
+          baseQuestionId: questionId,
           packId: packId,
           timestamp: new Date().toISOString(),
           kind: 'ai_probe_question',
           role: 'investigator',
+          label: 'AI Investigator',
           text: aiResult.followupQuestion,
           followupPackId: packId,
           instanceNumber: instanceNumber,
-          probingSequence: 1
+          probeIndex: 0, // First probe is 0-indexed
+          isProbe: true
         };
+        
+        console.debug('[AI-PROBE-TRANSCRIPT] Added question event (startAiProbing)', {
+          type: aiQuestionEntry.type,
+          baseQuestionId: questionId,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          probeIndex: 0,
+          text: aiResult.followupQuestion.substring(0, 50) + '...'
+        });
 
         const newTranscript = [...transcript, aiQuestionEntry];
         setTranscript(newTranscript);
