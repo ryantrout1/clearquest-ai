@@ -96,6 +96,221 @@ export const DEFAULT_REJECT_TOKENS = [
 
 /** @type {Record<string, FollowUpPackConfig>} */
 export const FOLLOWUP_PACK_CONFIGS = {
+  "PACK_INTEGRITY_APPS": {
+    packId: "PACK_INTEGRITY_APPS",
+    supportedBaseQuestions: ["Q002"],
+    instancesLabel: "Integrity Issues",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    fields: [
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_AGENCY",
+        semanticKey: "agency",
+        label: "Agency",
+        inputType: "text",
+        placeholder: "Enter agency name",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after probing",
+        validation: {
+          type: "agency_name",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_STAGE",
+        semanticKey: "stage",
+        label: "Application Stage",
+        inputType: "select_single",
+        placeholder: "Select stage",
+        options: ["Background", "Written Test", "Interview", "Polygraph", "Psych", "Documents", "Other"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "outcome",
+          allowUnknown: false,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_INCIDENT_TYPE",
+        semanticKey: "incident_type",
+        label: "Integrity Issue Type",
+        inputType: "select_single",
+        placeholder: "Select type",
+        options: ["Omission", "False Statement", "Cheating", "Misrepresentation", "False Document", "Other"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 3,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "outcome",
+          allowUnknown: false,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_CONDUCT_DESC",
+        semanticKey: "conduct_description",
+        label: "What Happened (Summary)",
+        inputType: "textarea",
+        placeholder: "Describe what happened",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 4,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not described after probing",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 5,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_INTENT",
+        semanticKey: "intent",
+        label: "Was this intentional?",
+        inputType: "select_single",
+        placeholder: "Select",
+        options: ["Yes", "No", "Unsure", "Did not say"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 5,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "outcome",
+          allowUnknown: false,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_DATE",
+        semanticKey: "date",
+        label: "Approximate Date",
+        inputType: "month_year",
+        placeholder: "e.g., June 2020",
+        required: true,
+        aiProbingEnabled: true,
+        probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
+        includeInFacts: true,
+        factsOrder: 6,
+        includeInInstanceHeader: true,
+        headerOrder: 3,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after probing",
+        validation: {
+          type: "month_year",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 3,
+          mustContainLetters: false
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_DISCOVERY",
+        semanticKey: "discovery_method",
+        label: "How It Was Discovered",
+        inputType: "text",
+        placeholder: "E.g., background investigator, polygraph",
+        required: false,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 7,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Unknown",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_OUTCOME",
+        semanticKey: "outcome",
+        label: "Outcome",
+        inputType: "select_single",
+        placeholder: "Select outcome",
+        options: ["Disqualified", "Allowed to continue", "No action", "Unknown"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 8,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "outcome",
+          allowUnknown: false,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_INTEGRITY_APPS_LESSONS",
+        semanticKey: "lessons_learned",
+        label: "Reflection / Lessons Learned",
+        inputType: "textarea",
+        placeholder: "What did you learn from this?",
+        required: false,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 9,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not provided",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 3,
+          mustContainLetters: true
+        }
+      }
+    ]
+  },
   "PACK_LE_APPS": {
     packId: "PACK_LE_APPS",
     supportedBaseQuestions: ["Q001"],
