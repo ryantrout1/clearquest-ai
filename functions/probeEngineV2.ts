@@ -233,6 +233,72 @@ const PACK_CONFIG = {
       "stageReached": "stageReached",
     },
   },
+  
+  // Driving collision pack
+  PACK_DRIVING_COLLISION_STANDARD: {
+    id: "PACK_DRIVING_COLLISION_STANDARD",
+    requiredFields: ["collisionDate", "collisionLocation", "collisionDescription", "atFault", "injuries", "propertyDamage", "citations", "alcoholInvolved"],
+    priorityOrder: ["collisionDate", "collisionLocation", "collisionDescription", "atFault", "injuries", "propertyDamage", "citations", "alcoholInvolved"],
+    fieldKeyMap: {
+      "PACK_DRIVING_COLLISION_Q01": "collisionDate",
+      "PACK_DRIVING_COLLISION_Q02": "collisionLocation",
+      "PACK_DRIVING_COLLISION_Q03": "collisionDescription",
+      "PACK_DRIVING_COLLISION_Q04": "atFault",
+      "PACK_DRIVING_COLLISION_Q05": "injuries",
+      "PACK_DRIVING_COLLISION_Q06": "propertyDamage",
+      "PACK_DRIVING_COLLISION_Q07": "citations",
+      "PACK_DRIVING_COLLISION_Q08": "alcoholInvolved",
+      // Semantic field name mappings
+      "collisionDate": "collisionDate",
+      "collisionLocation": "collisionLocation",
+      "collisionDescription": "collisionDescription",
+      "atFault": "atFault",
+      "injuries": "injuries",
+      "propertyDamage": "propertyDamage",
+      "citations": "citations",
+      "alcoholInvolved": "alcoholInvolved",
+    },
+  },
+  
+  // Driving violations pack
+  PACK_DRIVING_VIOLATIONS_STANDARD: {
+    id: "PACK_DRIVING_VIOLATIONS_STANDARD",
+    requiredFields: ["violationDate", "violationType", "violationLocation", "outcome", "fines", "points"],
+    priorityOrder: ["violationDate", "violationType", "violationLocation", "outcome", "fines", "points"],
+    fieldKeyMap: {
+      "PACK_DRIVING_VIOLATIONS_Q01": "violationDate",
+      "PACK_DRIVING_VIOLATIONS_Q02": "violationType",
+      "PACK_DRIVING_VIOLATIONS_Q03": "violationLocation",
+      "PACK_DRIVING_VIOLATIONS_Q04": "outcome",
+      "PACK_DRIVING_VIOLATIONS_Q05": "fines",
+      "PACK_DRIVING_VIOLATIONS_Q06": "points",
+      // Semantic field name mappings
+      "violationDate": "violationDate",
+      "violationType": "violationType",
+      "violationLocation": "violationLocation",
+      "outcome": "outcome",
+      "fines": "fines",
+      "points": "points",
+    },
+  },
+  
+  // General driving pack
+  PACK_DRIVING_STANDARD: {
+    id: "PACK_DRIVING_STANDARD",
+    requiredFields: ["incidentDate", "incidentType", "incidentDescription", "outcome"],
+    priorityOrder: ["incidentDate", "incidentType", "incidentDescription", "outcome"],
+    fieldKeyMap: {
+      "PACK_DRIVING_STANDARD_Q01": "incidentDate",
+      "PACK_DRIVING_STANDARD_Q02": "incidentType",
+      "PACK_DRIVING_STANDARD_Q03": "incidentDescription",
+      "PACK_DRIVING_STANDARD_Q04": "outcome",
+      // Semantic field name mappings
+      "incidentDate": "incidentDate",
+      "incidentType": "incidentType",
+      "incidentDescription": "incidentDescription",
+      "outcome": "outcome",
+    },
+  },
 };
 
 /**
