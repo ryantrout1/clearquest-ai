@@ -4,12 +4,22 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "@/components/ui/card";
-import { Settings, Save, Loader2, ArrowLeft, FileText, ListChecks, MessageSquare, Check, X } from "lucide-react";
+import { Settings, Save, Loader2, ArrowLeft, FileText, ListChecks, MessageSquare, Check, X, Cpu } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const SETTINGS_TABS = [
+  {
+    id: "model",
+    label: "Model Configuration",
+    icon: Cpu,
+    field: null,
+    description: "Configure AI model, temperature, and token limits"
+  },
   {
     id: "report",
     label: "Report Generation",
@@ -33,6 +43,13 @@ const SETTINGS_TABS = [
   }
 ];
 
+const AI_MODELS = [
+  { value: "gpt-4o-mini", label: "GPT-4o Mini (Fast, Cost-effective)" },
+  { value: "gpt-4o", label: "GPT-4o (Highest quality)" },
+  { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+  { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo (Fastest)" }
+];
+
 export default function AiSettings() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -45,13 +62,21 @@ export default function AiSettings() {
   const [formData, setFormData] = useState({
     ai_report_instructions: "",
     ai_default_section_summary_instructions: "",
-    ai_default_probing_instructions: ""
+    ai_default_probing_instructions: "",
+    ai_model: "gpt-4o-mini",
+    ai_temperature: 0.2,
+    ai_max_tokens: 512,
+    ai_top_p: 1
   });
   
   const [originalData, setOriginalData] = useState({
     ai_report_instructions: "",
     ai_default_section_summary_instructions: "",
-    ai_default_probing_instructions: ""
+    ai_default_probing_instructions: "",
+    ai_model: "gpt-4o-mini",
+    ai_temperature: 0.2,
+    ai_max_tokens: 512,
+    ai_top_p: 1
   });
 
   useEffect(() => {
@@ -95,7 +120,11 @@ export default function AiSettings() {
         const data = {
           ai_report_instructions: settings[0].ai_report_instructions || "",
           ai_default_section_summary_instructions: settings[0].ai_default_section_summary_instructions || "",
-          ai_default_probing_instructions: settings[0].ai_default_probing_instructions || ""
+          ai_default_probing_instructions: settings[0].ai_default_probing_instructions || "",
+          ai_model: settings[0].ai_model || "gpt-4o-mini",
+          ai_temperature: settings[0].ai_temperature ?? 0.2,
+          ai_max_tokens: settings[0].ai_max_tokens ?? 512,
+          ai_top_p: settings[0].ai_top_p ?? 1
         };
         setFormData(data);
         setOriginalData(data);
@@ -140,6 +169,7 @@ export default function AiSettings() {
   };
 
   const activeTabConfig = SETTINGS_TABS.find(t => t.id === activeTab);
+  const isModelTab = activeTab === "model";
 
   if (!user || isLoading) {
     return (
@@ -278,7 +308,94 @@ export default function AiSettings() {
 
             {/* Content Card */}
             <div className="bg-slate-900/60 border border-t-0 border-slate-700 rounded-b-xl overflow-hidden">
-              {isEditing ? (
+              {isModelTab ? (
+                /* Model Configuration Tab */
+                <div className="p-6 space-y-6">
+                  {/* Model Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">AI Model</Label>
+                    <select
+                      value={formData.ai_model}
+                      onChange={(e) => setFormData({...formData, ai_model: e.target.value})}
+                      disabled={!isEditing}
+                      className="w-full bg-slate-950 border border-slate-600 rounded-md px-3 py-2 text-white disabled:opacity-60"
+                    >
+                      {AI_MODELS.map(model => (
+                        <option key={model.value} value={model.value}>{model.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500">Select the AI model used for all probing and summary generation</p>
+                  </div>
+
+                  {/* Temperature */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-slate-300">Temperature</Label>
+                      <span className="text-sm font-mono text-blue-400">{formData.ai_temperature.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[formData.ai_temperature]}
+                      onValueChange={([val]) => setFormData({...formData, ai_temperature: val})}
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      disabled={!isEditing}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>0.0 (Rigid/Deterministic)</span>
+                      <span>2.0 (Creative/Random)</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Lower values produce more consistent responses; higher values increase creativity</p>
+                  </div>
+
+                  {/* Max Tokens */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Max Tokens</Label>
+                    <Input
+                      type="number"
+                      value={formData.ai_max_tokens}
+                      onChange={(e) => setFormData({...formData, ai_max_tokens: parseInt(e.target.value) || 512})}
+                      min={50}
+                      max={4096}
+                      disabled={!isEditing}
+                      className="bg-slate-950 border-slate-600 text-white disabled:opacity-60"
+                    />
+                    <p className="text-xs text-slate-500">Maximum length of AI responses (50-4096). Lower values may truncate summaries.</p>
+                  </div>
+
+                  {/* Top P */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-slate-300">Top P (Nucleus Sampling)</Label>
+                      <span className="text-sm font-mono text-blue-400">{formData.ai_top_p.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[formData.ai_top_p]}
+                      onValueChange={([val]) => setFormData({...formData, ai_top_p: val})}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      disabled={!isEditing}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>0.0 (Narrow)</span>
+                      <span>1.0 (Full distribution)</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Controls diversity via nucleus sampling. Use 1.0 for default behavior.</p>
+                  </div>
+
+                  {/* Status indicator */}
+                  <div className="pt-4 border-t border-slate-700">
+                    {hasChanges ? (
+                      <span className="text-amber-400 text-sm">● Unsaved changes</span>
+                    ) : (
+                      <span className="text-slate-500 text-sm">No changes</span>
+                    )}
+                  </div>
+                </div>
+              ) : isEditing ? (
                 <div className="p-4">
                   <Textarea
                     value={formData[activeTabConfig?.field] || ""}
