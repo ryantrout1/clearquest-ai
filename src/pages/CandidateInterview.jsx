@@ -2173,22 +2173,34 @@ export default function CandidateInterview() {
               const probeText = rawQuestion; // guaranteed clean string
               
               // FIX #3: Log AI probe question IMMEDIATELY to transcript (SINGLE PLACE)
+              // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
               const aiProbeQuestionEntry = createChatEvent('ai_probe_question', {
                 questionId: currentItem.baseQuestionId,
                 baseQuestionId: currentItem.baseQuestionId,
                 packId: packId,
                 content: probeText,
                 text: probeText,
-                kind: 'ai_probe',
+                kind: 'ai_probe_question',
                 followupPackId: packId,
                 instanceNumber: instanceNumber,
                 fieldKey: fieldKey,
+                probeIndex: probeCount, // 0-indexed probe number for this field
                 probeEngineVersion: 'v2-per-field',
-                role: 'ai',
-                label: 'AI Investigator'
+                isProbe: true
               });
               aiProbeQuestionEntry.type = 'ai_question';
               aiProbeQuestionEntry.role = 'investigator';
+              aiProbeQuestionEntry.label = 'AI Investigator';
+              
+              console.debug('[AI-PROBE-TRANSCRIPT] Added question event', {
+                type: aiProbeQuestionEntry.type,
+                baseQuestionId: currentItem.baseQuestionId,
+                followupPackId: packId,
+                fieldKey: fieldKey,
+                instanceNumber: instanceNumber,
+                probeIndex: probeCount,
+                text: probeText.substring(0, 50) + '...'
+              });
               
               // Guard against duplicate AI probe messages
               const shouldSkipProbe = shouldSkipDuplicateAiProbe(transcript, aiProbeQuestionEntry);
