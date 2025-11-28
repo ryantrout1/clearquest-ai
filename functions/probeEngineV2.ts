@@ -570,11 +570,13 @@ function validateField(fieldName, value, incidentContext = {}) {
 
 /**
  * Get static fallback probe question for a field (used when LLM fails)
+ * Supports PACK_LE_APPS and driving packs
  */
 function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incidentContext = {}) {
   const isFirstProbe = probeCount === 0;
   
   switch (fieldName) {
+    // === PACK_LE_APPS fields ===
     case "agency":
       if (isFirstProbe) {
         return "It's important that we know which agency you applied to. Can you please provide the name of the law enforcement agency, even if you're not 100% certain of the exact name?";
@@ -616,6 +618,105 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
         return "How far did you get in the hiring process before it ended? Did you complete the written test, physical test, interview, background investigation, polygraph, or psychological evaluation?";
       }
       return "What was the last step you completed in their process?";
+    
+    // === DRIVING COLLISION fields ===
+    case "collisionDate":
+      if (isFirstProbe) {
+        return "When did this collision occur? Please provide at least the month and year, or an approximate timeframe like 'summer 2020'.";
+      }
+      return "Can you estimate when this happened? Even a rough timeframe like 'about 2 years ago' would help.";
+    
+    case "collisionLocation":
+      if (isFirstProbe) {
+        return "Where did this collision take place? Please describe the location, such as the city, street, or general area.";
+      }
+      return "Can you provide any details about where this collision occurred?";
+    
+    case "collisionDescription":
+      if (isFirstProbe) {
+        return "Please describe what happened in this collision. How did the accident occur?";
+      }
+      return "Can you provide more details about how this collision happened?";
+    
+    case "atFault":
+      if (isFirstProbe) {
+        return "Were you determined to be at fault for this collision, either fully or partially?";
+      }
+      return "Was any fault assigned to you in this collision?";
+    
+    case "injuries":
+      if (isFirstProbe) {
+        return "Were there any injuries as a result of this collision? If so, please describe them.";
+      }
+      return "Were you or anyone else injured in this collision?";
+    
+    case "propertyDamage":
+      if (isFirstProbe) {
+        return "Was there property damage as a result of this collision? Please describe the damage to vehicles or other property.";
+      }
+      return "What property was damaged in this collision?";
+    
+    case "citations":
+      if (isFirstProbe) {
+        return "Were any citations or tickets issued as a result of this collision?";
+      }
+      return "Did you receive any traffic citations from this incident?";
+    
+    case "alcoholInvolved":
+      if (isFirstProbe) {
+        return "Was alcohol or any other substance involved in this collision?";
+      }
+      return "Were you or any other party under the influence during this collision?";
+    
+    // === DRIVING VIOLATIONS fields ===
+    case "violationDate":
+      if (isFirstProbe) {
+        return "When did this violation occur? Please provide at least the month and year.";
+      }
+      return "Can you estimate when this violation happened?";
+    
+    case "violationType":
+      if (isFirstProbe) {
+        return "What type of violation was this? For example, speeding, running a red light, improper lane change, etc.";
+      }
+      return "Can you describe what you were cited for?";
+    
+    case "violationLocation":
+      if (isFirstProbe) {
+        return "Where did this violation occur? Please describe the location.";
+      }
+      return "Can you provide the location of this traffic stop?";
+    
+    case "fines":
+      if (isFirstProbe) {
+        return "Were there any fines associated with this violation? If so, how much?";
+      }
+      return "What was the fine amount for this violation?";
+    
+    case "points":
+      if (isFirstProbe) {
+        return "Were any points added to your driving record as a result of this violation?";
+      }
+      return "How many points, if any, were assessed?";
+    
+    // === GENERAL DRIVING fields ===
+    case "incidentDate":
+      if (isFirstProbe) {
+        return "When did this incident occur? Please provide at least the month and year.";
+      }
+      return "Can you estimate when this happened?";
+    
+    case "incidentType":
+      if (isFirstProbe) {
+        return "What type of driving incident was this?";
+      }
+      return "Can you describe what type of incident this was?";
+    
+    case "incidentDescription":
+      if (isFirstProbe) {
+        return "Please describe what happened in this incident.";
+      }
+      return "Can you provide more details about this incident?";
     
     default:
       return `Can you provide more details about ${fieldName}?`;
