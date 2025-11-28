@@ -237,6 +237,11 @@ export default function FollowUpPackDetails({
     setIsFollowupQuestionsExpanded(sortedQuestions.length <= 5);
   }, [pack?.id, sortedTriggeringQuestions.length, sortedQuestions.length]);
 
+  // Reset local deleted IDs when pack changes
+  useEffect(() => {
+    setLocalDeletedQuestionIds([]);
+  }, [pack?.id]);
+
   if (!pack) {
     return (
       <div className="text-center py-12">
