@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, AlertTriangle, ChevronUp } from "lucide-react";
+import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, ChevronDown, AlertTriangle, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
