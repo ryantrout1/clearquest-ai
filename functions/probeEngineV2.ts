@@ -171,7 +171,47 @@ const FALLBACK_PROBES = {
   "PACK_DRIVING_COLLISION_Q06": "Was there property damage as a result of this collision?",
   "PACK_DRIVING_COLLISION_Q07": "Were any citations or tickets issued as a result of this collision?",
   "PACK_DRIVING_COLLISION_Q08": "Was alcohol or any other substance involved in this collision?",
+};
+
+/**
+ * Multi-level probing for specific fields that need smarter, scaffolded questions.
+ * Returns a question based on probeCount (0, 1, 2, ...).
+ * 
+ * For collision dates, we:
+ * - Probe 1: Acknowledge "I don't recall" and ask for approximate year
+ * - Probe 2: Anchor to life events to help narrow down
+ * - Probe 3: Accept a broad range as final answer
+ */
+const MULTI_LEVEL_PROBES = {
+  "PACK_DRIVING_COLLISION_Q01": [
+    // Probe 1 (probeCount=0): Acknowledge and narrow to year
+    "I understand you don't recall the exact date. Even if you're not sure of the month, what's the closest you can get to the year? For example, was it closer to 2010, 2015, 2020, or another timeframe?",
+    // Probe 2 (probeCount=1): Anchor to life events
+    "Think about what was going on in your life at the time of this collision—where you were living, what job you had, or any major life events happening then. Does that help you narrow down an approximate year or season?",
+    // Probe 3 (probeCount=2): Accept broad range
+    "If you still can't pinpoint a specific year, that's okay. Please give your best estimate as a range, like 'sometime between 2010 and 2015' or 'early 2020s'. Any approximate timeframe will help."
+  ],
+  // Add more multi-level fields here as needed
+};
+
+/**
+ * Get the appropriate fallback probe for a field, considering probeCount for multi-level fields.
+ */
+function getFallbackProbeForField(fieldKey, probeCount = 0) {
+  // Check if this field has multi-level probes
+  if (MULTI_LEVEL_PROBES[fieldKey]) {
+    const probes = MULTI_LEVEL_PROBES[fieldKey];
+    // Use the probe at the current count, or the last one if we've exceeded
+    const index = Math.min(probeCount, probes.length - 1);
+    return probes[index];
+  }
   
+  // Fall back to single static probe
+  return FALLBACK_PROBES[fieldKey] || null;
+}
+
+// Continue with other fallback probes
+const FALLBACK_PROBES_CONTINUED = {
   // === PACK_DRIVING_VIOLATIONS_STANDARD ===
   "PACK_DRIVING_VIOLATIONS_Q01": "When did this violation occur? Please provide at least the month and year.",
   "PACK_DRIVING_VIOLATIONS_Q02": "What type of violation was this? For example, speeding, running a red light, etc.",
