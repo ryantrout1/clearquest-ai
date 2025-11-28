@@ -276,8 +276,8 @@ export default function SessionDetails() {
                 sortKey: idx * 10 + 1
               });
             }
-          } else if (entryType === 'ai_question' || entryKind === 'ai_field_probe' || entryKind === 'ai_probe_question') {
-            // AI probing question
+          } else if (entryType === 'ai_question' || entryKind === 'ai_field_probe' || entryKind === 'ai_probe_question' || entryKind === 'ai_probe') {
+            // AI probing question - handles v2 per-field probes and legacy LE_APPS probes
             events.push({
               id: entry.id || `evt-${idx}`,
               sessionId,
@@ -288,12 +288,13 @@ export default function SessionDetails() {
               kind: 'ai_probe_question',
               text: entry.text || entry.content || '',
               fieldKey: entry.fieldKey,
+              probeIndex: entry.probeIndex,
               sectionName: entry.category || entry.sectionName || null,
               createdAt: new Date(entry.timestamp).getTime(),
               sortKey: idx * 10
             });
           } else if (entryType === 'ai_answer' || entryKind === 'ai_field_probe_answer' || entryKind === 'ai_probe_answer') {
-            // AI probing answer
+            // AI probing answer - handles v2 per-field probes and legacy LE_APPS probes
             events.push({
               id: entry.id || `evt-${idx}`,
               sessionId,
@@ -304,6 +305,7 @@ export default function SessionDetails() {
               kind: 'ai_probe_answer',
               text: entry.text || entry.content || '',
               fieldKey: entry.fieldKey,
+              probeIndex: entry.probeIndex,
               sectionName: entry.category || entry.sectionName || null,
               createdAt: new Date(entry.timestamp).getTime(),
               sortKey: idx * 10
