@@ -1426,7 +1426,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
     const details = f.additional_details || {};
     Object.entries(details).forEach(([key, value]) => {
-      if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts') {
+      if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts' && key !== 'unresolvedFields') {
         instancesMap[instNum].details[key] = value;
       }
     });
@@ -1449,6 +1449,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const packId = followups[0]?.followup_pack;
   const packConfig = packId ? getPackConfig(packId) : null;
   const isPackLeApps = packId === 'PACK_LE_APPS';
+  const isDrivingPack = packId === 'PACK_DRIVING_COLLISION_STANDARD' || 
+                        packId === 'PACK_DRIVING_VIOLATIONS_STANDARD' || 
+                        packId === 'PACK_DRIVING_DUIDWI_STANDARD' || 
+                        packId === 'PACK_DRIVING_STANDARD';
 
   const structuredFacts = isPackLeApps ? session?.structured_followup_facts?.[response.question_id] : null;
   const showStructuredFacts = structuredFacts && structuredFacts.length > 0;
