@@ -649,7 +649,8 @@ Deno.serve(async (req) => {
         // Ignore parse errors here
       }
       
-      const fallback = buildFallbackProbeForField({ packId, fieldKey });
+      const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
+      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
       if (fallback) {
         console.log('[PROBE_ENGINE_V2] Auth error → using deterministic fallback probe for field', { packId, fieldKey });
         return Response.json({
@@ -673,7 +674,8 @@ Deno.serve(async (req) => {
     }
     
     if (!user) {
-      const fallback = buildFallbackProbeForField({ packId, fieldKey });
+      const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
+      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
       if (fallback) {
         console.log('[PROBE_ENGINE_V2] No user → using deterministic fallback probe for field', { packId, fieldKey });
         return Response.json({
@@ -722,7 +724,8 @@ Deno.serve(async (req) => {
     console.error('[PROBE_ENGINE_V2] Unhandled error:', error.message, error.stack);
     
     // Try fallback probe for this field
-    const fallback = buildFallbackProbeForField({ packId, fieldKey });
+    const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
+      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
     if (fallback) {
       console.log('[PROBE_ENGINE_V2] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey });
       return Response.json({
