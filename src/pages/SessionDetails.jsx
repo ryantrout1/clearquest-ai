@@ -1584,6 +1584,59 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         )}
                       </div>
                     );
+                  } else if (isDrivingPack) {
+                    // NEW: Extract facts from additional_details for driving packs
+                    const drivingFacts = buildDrivingPackFacts(packId, instance.details);
+                    const hasAnyFacts = drivingFacts.length > 0;
+                    
+                    // Build summary line from first 2-3 fields
+                    const summaryParts = drivingFacts.slice(0, 2).map(f => f.value).filter(Boolean);
+                    const summaryLine = summaryParts.length > 0 ? summaryParts.join(' • ') : null;
+                    
+                    // DEV LOG: Validate facts extraction
+                    if (instanceIdx === 0) {
+                      console.log('[SESSIONDETAILS][DRIVING_FACTS]', {
+                        packId,
+                        instanceNumber: instanceNum,
+                        rawDetails: instance.details,
+                        extractedFacts: drivingFacts,
+                        hasAnyFacts
+                      });
+                    }
+
+                    return (
+                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-slate-900/30">
+                        <button type="button" className="w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-200 hover:bg-slate-800/50 transition-colors" onClick={() => toggleInstance(instanceNum)}>
+                          <div className="flex items-center gap-2 text-left">
+                            <ChevronRight className={cn("w-3.5 h-3.5 text-slate-400 transition-transform", isInstanceExpanded && "rotate-90")} />
+                            <span className="font-semibold text-slate-100">Instance {instanceIdx + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {summaryLine && (<span className="text-slate-400 text-[11px]">{summaryLine}</span>)}
+                            <span className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">{isInstanceExpanded ? "Hide" : "Show"}</span>
+                          </div>
+                        </button>
+                        {isInstanceExpanded && (
+                          <div className="px-4 pb-4 pt-2 border-t border-slate-700/40">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="text-sm font-medium text-slate-100">Instance {instanceIdx + 1}{summaryLine ? ` — ${summaryLine}` : ''}</div>
+                              <button type="button" onClick={() => toggleInstance(instanceNum)} className="text-[10px] text-slate-400 hover:text-slate-300">Hide</button>
+                            </div>
+                            <div className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-2">Facts</div>
+                            {hasAnyFacts ? (
+                              <div className="space-y-1.5">
+                                {drivingFacts.map((fact, factIdx) => (
+                                  <div key={factIdx} className="grid grid-cols-[180px_1fr] gap-x-3 text-xs">
+                                    <div className="text-slate-400 text-right">{fact.label}:</div>
+                                    <div className="text-slate-100 font-medium">{fact.value}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (<div className="text-xs text-slate-500 italic">No details recorded</div>)}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }
 
                   const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
