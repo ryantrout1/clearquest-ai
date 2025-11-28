@@ -1,16 +1,89 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * ProbeEngineV2 - Per-Field Probing for PACK_LE_APPS (MVP v0.1)
+ * ProbeEngineV2 - Per-Field Probing for PACK_LE_APPS (MVP v0.2)
  * 
  * Features:
  * - Validates each field immediately after deterministic answer
  * - Probes until valid answer or max probes reached
  * - Returns NEXT_FIELD when field is complete
+ * - NOW USES: GlobalSettings.ai_default_probing_instructions
+ * - NOW USES: FollowUpPack.ai_probe_instructions via InvokeLLM
+ * - Falls back to static probes if LLM fails
  */
 
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
+
+/**
+ * Build unified AI instructions for per-field probing (same pattern as interviewAiFollowup.js)
+ * Layers: Core rules → GlobalSettings → FollowUpPack → Field-specific context
+ */
+async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes) {
+  const coreRules = `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
+
+CORE SYSTEM RULES (ALWAYS APPLY):
+- All information is strictly confidential and CJIS-compliant
+- Maintain professional, non-judgmental tone at all times
+- Never make hiring recommendations or conclusions
+- Focus on factual, objective information gathering
+- Respect the sensitivity of personal disclosures`;
+
+  let instructions = coreRules + '\n\n';
+
+  try {
+    // Fetch GlobalSettings and FollowUpPack in parallel
+    const [globalSettingsResult, packResult] = await Promise.all([
+      base44Client.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => []),
+      packId 
+        ? base44Client.entities.FollowUpPack.filter({ followup_pack_id: packId, active: true }).catch(() => [])
+        : Promise.resolve([])
+    ]);
+
+    const settings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
+    const pack = packResult.length > 0 ? packResult[0] : null;
+
+    // Layer 1: Global probing instructions from AI Settings page
+    if (settings?.ai_default_probing_instructions) {
+      instructions += '=== GLOBAL PROBING GUIDELINES ===\n';
+      instructions += settings.ai_default_probing_instructions + '\n\n';
+      console.log(`[V2-PER-FIELD] Loaded GlobalSettings.ai_default_probing_instructions (${settings.ai_default_probing_instructions.length} chars)`);
+    } else {
+      console.log(`[V2-PER-FIELD] No GlobalSettings.ai_default_probing_instructions found`);
+    }
+
+    // Layer 2: Pack-specific probing instructions
+    if (pack?.ai_probe_instructions) {
+      instructions += '=== PACK-SPECIFIC PROBING INSTRUCTIONS ===\n';
+      instructions += pack.ai_probe_instructions + '\n\n';
+      console.log(`[V2-PER-FIELD] Loaded FollowUpPack.ai_probe_instructions for ${packId} (${pack.ai_probe_instructions.length} chars)`);
+    } else {
+      console.log(`[V2-PER-FIELD] No FollowUpPack.ai_probe_instructions found for ${packId}`);
+    }
+
+    // Layer 3: Per-field probing task instructions
+    instructions += '=== PER-FIELD PROBING TASK ===\n';
+    instructions += `You are generating a follow-up question for a SINGLE FIELD that the candidate left incomplete or vague.\n`;
+    instructions += `Field being probed: "${fieldLabel || fieldName}"\n`;
+    instructions += `Your goal: Get a clear, specific answer for this field only.\n\n`;
+    
+    instructions += '=== PROBING LIMITS ===\n';
+    instructions += `- Ask ONE concise, specific follow-up question about this field.\n`;
+    instructions += `- You may ask up to ${maxProbes} probing questions for this field.\n`;
+    instructions += `- Keep questions brief (under 30 words).\n`;
+    instructions += `- Be professional and non-judgmental.\n`;
+    instructions += `- Focus on gathering factual details.\n`;
+    instructions += `- Follow all date rules: ask for month/year only, never exact dates.\n\n`;
+
+    instructions += '=== OUTPUT FORMAT ===\n';
+    instructions += `Respond with ONLY the question text. No preamble, no explanation, just the question.\n`;
+
+  } catch (err) {
+    console.error('[V2-PER-FIELD] Error building instructions:', err.message);
+  }
+
+  return instructions;
+}
 
 /**
  * Deterministic fallback probes for all PACK_LE_APPS fields.
