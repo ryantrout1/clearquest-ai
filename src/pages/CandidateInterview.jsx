@@ -2295,22 +2295,34 @@ export default function CandidateInterview() {
                 followupEntry.role = 'candidate';
                 
                 // FIX #3: Log AI probe question IMMEDIATELY to transcript (retry path - SINGLE PLACE)
+                // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
                 const aiProbeQuestionEntry = createChatEvent('ai_probe_question', {
                   questionId: currentItem.baseQuestionId,
                   baseQuestionId: currentItem.baseQuestionId,
                   packId: packId,
                   content: retryQuestion,
                   text: retryQuestion,
-                  kind: 'ai_probe',
+                  kind: 'ai_probe_question',
                   followupPackId: packId,
                   instanceNumber: instanceNumber,
                   fieldKey: fieldKey,
+                  probeIndex: probeCount, // 0-indexed probe number for this field
                   probeEngineVersion: 'v2-per-field-retry',
-                  role: 'ai',
-                  label: 'AI Investigator'
+                  isProbe: true
                 });
                 aiProbeQuestionEntry.type = 'ai_question';
                 aiProbeQuestionEntry.role = 'investigator';
+                aiProbeQuestionEntry.label = 'AI Investigator';
+                
+                console.debug('[AI-PROBE-TRANSCRIPT] Added question event (retry)', {
+                  type: aiProbeQuestionEntry.type,
+                  baseQuestionId: currentItem.baseQuestionId,
+                  followupPackId: packId,
+                  fieldKey: fieldKey,
+                  instanceNumber: instanceNumber,
+                  probeIndex: probeCount,
+                  text: retryQuestion.substring(0, 50) + '...'
+                });
                 
                 // Guard against duplicate AI probe messages (retry path)
                 const shouldSkipRetryProbe = shouldSkipDuplicateAiProbe(transcript, aiProbeQuestionEntry);
