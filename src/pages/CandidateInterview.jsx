@@ -2706,24 +2706,11 @@ export default function CandidateInterview() {
       
       console.log(`[V2-PER-FIELD] Current probe count for ${fieldKey}: ${probeCount}/${maxAiFollowups}`);
       
-      // For per-field probing, add BOTH the probe question and answer to transcript now
+      // For per-field probing, add ONLY the probe answer to transcript
+      // The probe question was already added when probeEngineV2 returned QUESTION mode
       const currentProbeQuestion = currentFieldProbe.question;
       
-      // Create AI probe question event
-      const aiQuestionEntry = createChatEvent('ai_probe_question', {
-        questionId: baseQuestionId,
-        packId: packId,
-        content: currentProbeQuestion,
-        text: currentProbeQuestion,
-        kind: 'ai_field_probe',
-        followupPackId: packId,
-        instanceNumber: instanceNumber,
-        fieldKey: fieldKey,
-        probeEngineVersion: 'v2-per-field'
-      });
-      aiQuestionEntry.type = 'ai_question';
-      
-      // Create AI probe answer event
+      // Create AI probe answer event ONLY (question already in transcript)
       const aiAnswerEntry = createChatEvent('ai_probe_answer', {
         questionId: baseQuestionId,
         packId: packId,
@@ -2732,11 +2719,15 @@ export default function CandidateInterview() {
         kind: 'ai_field_probe_answer',
         followupPackId: packId,
         instanceNumber: instanceNumber,
-        fieldKey: fieldKey
+        fieldKey: fieldKey,
+        baseQuestionId: baseQuestionId,
+        role: 'candidate',
+        label: 'Candidate'
       });
       aiAnswerEntry.type = 'ai_answer';
+      aiAnswerEntry.role = 'candidate';
       
-      setTranscript(prev => [...prev, aiQuestionEntry, aiAnswerEntry]);
+      setTranscript(prev => [...prev, aiAnswerEntry]);
       
       const updatedAnswers = { ...currentFollowUpAnswers, [fieldKey]: value };
       setCurrentFollowUpAnswers(updatedAnswers);
