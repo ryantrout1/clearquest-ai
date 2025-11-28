@@ -880,10 +880,39 @@ async function probeEngineV2(input, base44Client) {
 
   const packConfig = PACK_CONFIG[pack_id];
   if (!packConfig) {
-    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id}`);
+    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id} - using generic validation`);
+    
+    // For unsupported packs, still apply global semantic rules
+    const semanticInfo = semanticV2EvaluateAnswer(field_key, field_value, incident_context);
+    
+    // If the answer looks like "no recall", trigger a generic probe
+    if (semanticInfo.status === "needs_probe") {
+      const genericProbe = `You mentioned "${field_value || '(no answer)'}". Could you please provide a more specific answer?`;
+      return {
+        mode: "QUESTION",
+        pack_id,
+        field_key,
+        semanticField: field_key,
+        question: genericProbe,
+        validationResult: "incomplete",
+        previousProbeCount: previous_probes_count,
+        maxProbesPerField: 3,
+        isFallback: true,
+        probeSource: 'generic_unsupported_pack',
+        semanticInfo,
+        message: `Generic probe for unsupported pack ${pack_id}`
+      };
+    }
+    
+    // If answer seems valid, just proceed
     return { 
-      mode: "UNSUPPORTED_PACK", 
-      message: `ProbeEngineV2 has no config for pack_id=${pack_id}` 
+      mode: "NEXT_FIELD", 
+      pack_id,
+      field_key,
+      semanticField: field_key,
+      validationResult: "complete",
+      semanticInfo,
+      message: `Unsupported pack ${pack_id} - accepting answer` 
     };
   }
 
