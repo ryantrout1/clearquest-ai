@@ -62,6 +62,9 @@ export default function FollowUpPackDetails({
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState(null);
+  const [showQuestionDeleteConfirm, setShowQuestionDeleteConfirm] = useState(false);
+  const [localDeletedQuestionIds, setLocalDeletedQuestionIds] = useState([]);
 
   useEffect(() => {
     if (!pack) return;
