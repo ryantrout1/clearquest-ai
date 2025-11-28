@@ -1036,7 +1036,7 @@ Deno.serve(async (req) => {
     try {
       user = await base44.auth.me();
     } catch (authError) {
-      console.error('[PROBE_ENGINE_V2] Auth error:', authError.message);
+      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: authError.message });
       
       // Try to parse input for fallback even if auth fails
       try {
@@ -1048,52 +1048,48 @@ Deno.serve(async (req) => {
         // Ignore parse errors here
       }
       
-      const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
+      const packConfig = PACK_CONFIG[packId];
+      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
       if (fallback) {
-        console.log('[PROBE_ENGINE_V2] Auth error → using deterministic fallback probe for field', { packId, fieldKey });
+        console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey });
         return Response.json({
           mode: fallback.mode,
           question: fallback.question,
           packId,
           fieldKey,
           isFallback: true,
-          error: {
-            type: "AUTH_ERROR",
-            message: authError.message,
-          },
         }, { status: 200 });
       }
       
       return Response.json({ 
-        mode: "ERROR",
-        error: 'Authentication failed',
-        message: authError.message 
+        mode: "NONE",
+        reason: "BACKEND_ERROR",
+        details: authError.message || "Authentication failed"
       }, { status: 200 });
     }
     
     if (!user) {
-      const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
+      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: "User not authenticated" });
+      
+      const packConfig = PACK_CONFIG[packId];
+      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
       if (fallback) {
-        console.log('[PROBE_ENGINE_V2] No user → using deterministic fallback probe for field', { packId, fieldKey });
+        console.log('[V2-PER-FIELD] No user → using deterministic fallback probe for field', { packId, fieldKey });
         return Response.json({
           mode: fallback.mode,
           question: fallback.question,
           packId,
           fieldKey,
           isFallback: true,
-          error: {
-            type: "AUTH_ERROR",
-            message: "User not authenticated",
-          },
         }, { status: 200 });
       }
       
       return Response.json({ 
-        mode: "ERROR",
-        error: 'Unauthorized',
-        message: 'User not authenticated' 
+        mode: "NONE",
+        reason: "BACKEND_ERROR",
+        details: "User not authenticated"
       }, { status: 200 });
     }
     
@@ -1103,11 +1099,11 @@ Deno.serve(async (req) => {
       packId = input.pack_id;
       fieldKey = input.field_key;
     } catch (parseError) {
-      console.error('[PROBE_ENGINE_V2] JSON parse error:', parseError.message);
+      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
       return Response.json({ 
-        mode: "ERROR",
-        error: 'Invalid request body',
-        message: parseError.message 
+        mode: "NONE",
+        reason: "BACKEND_ERROR",
+        details: parseError.message || "Invalid request body"
       }, { status: 200 });
     }
     
@@ -1118,33 +1114,29 @@ Deno.serve(async (req) => {
     
     return Response.json(result);
   } catch (error) {
-    // CRITICAL: Return 200 with error status, NOT 500
-    // This allows frontend to handle the failure gracefully
-    console.error('[PROBE_ENGINE_V2] Unhandled error:', error.message, error.stack);
+    // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
+    // This allows frontend to treat it as "no probe available"
+    console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: error.message });
     
     // Try fallback probe for this field
-    const semanticField = packId === "PACK_LE_APPS" && PACK_CONFIG[packId] ? mapFieldKey(PACK_CONFIG[packId], fieldKey) : null;
-      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
+    const packConfig = PACK_CONFIG[packId];
+    const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
+    const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
     if (fallback) {
-      console.log('[PROBE_ENGINE_V2] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey });
+      console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey });
       return Response.json({
         mode: fallback.mode,
         question: fallback.question,
         packId,
         fieldKey,
         isFallback: true,
-        error: {
-          type: "AI_BACKEND_ERROR",
-          message: error.message,
-        },
       }, { status: 200 });
     }
     
     return Response.json({ 
-      mode: "ERROR",
-      error: 'probeEngineV2 failed',
-      message: error.message,
-      stack: error.stack
+      mode: "NONE",
+      reason: "BACKEND_ERROR",
+      details: error.message || "Unexpected error during probing."
     }, { status: 200 });
   }
 });
