@@ -1,8 +1,22 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
+ * Get AI runtime configuration from GlobalSettings with safe defaults
+ * Single source of truth for all LLM parameters
+ */
+function getAiRuntimeConfig(globalSettings) {
+  return {
+    model: globalSettings?.ai_model || "gpt-4o-mini",
+    temperature: globalSettings?.ai_temperature ?? 0.2,
+    max_tokens: globalSettings?.ai_max_tokens ?? 512,
+    top_p: globalSettings?.ai_top_p ?? 1,
+  };
+}
+
+/**
  * Unified AI Summary Generation
  * Generates all 4 layers: interview, sections, questions, instances
+ * NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
  */
 Deno.serve(async (req) => {
   try {
@@ -30,12 +44,20 @@ Deno.serve(async (req) => {
     let updatedQuestionCount = 0;
     let updatedInstanceCount = 0;
 
-    // Fetch all data
-    const responses = await base44.asServiceRole.entities.Response.filter({ session_id: sessionId });
-    const followUps = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId });
-    const questions = await base44.asServiceRole.entities.Question.list();
-    const sections = await base44.asServiceRole.entities.Section.list();
-    const packs = await base44.asServiceRole.entities.FollowUpPack.list();
+    // Fetch all data INCLUDING GlobalSettings for AI config
+    const [responses, followUps, questions, sections, packs, globalSettingsResult] = await Promise.all([
+      base44.asServiceRole.entities.Response.filter({ session_id: sessionId }),
+      base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId }),
+      base44.asServiceRole.entities.Question.list(),
+      base44.asServiceRole.entities.Section.list(),
+      base44.asServiceRole.entities.FollowUpPack.list(),
+      base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => [])
+    ]);
+
+    // Get AI runtime config from GlobalSettings
+    const globalSettings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
+    const aiConfig = getAiRuntimeConfig(globalSettings);
+    console.log(`[AI-GENERATE] AI Config: model=${aiConfig.model}, temp=${aiConfig.temperature}, max_tokens=${aiConfig.max_tokens}, top_p=${aiConfig.top_p}`);
 
     // Build context for LLM
     const yesCount = responses.filter(r => r.answer === 'Yes').length;
@@ -67,7 +89,11 @@ Generate a brief interview-level summary (2-3 sentences).`;
             properties: {
               summary: { type: "string" }
             }
-          }
+          },
+          model: aiConfig.model,
+          temperature: aiConfig.temperature,
+          max_tokens: aiConfig.max_tokens,
+          top_p: aiConfig.top_p
         });
 
         await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
@@ -124,7 +150,11 @@ ${JSON.stringify(sectionData.responses.map(r => ({
             response_json_schema: {
               type: "object",
               properties: { summary: { type: "string" } }
-            }
+            },
+            model: aiConfig.model,
+            temperature: aiConfig.temperature,
+            max_tokens: aiConfig.max_tokens,
+            top_p: aiConfig.top_p
           });
 
           const existing = await base44.asServiceRole.entities.SectionSummary.filter({
@@ -256,7 +286,11 @@ Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individ
             response_json_schema: {
               type: "object",
               properties: { summary: { type: "string" } }
-            }
+            },
+            model: aiConfig.model,
+            temperature: aiConfig.temperature,
+            max_tokens: aiConfig.max_tokens,
+            top_p: aiConfig.top_p
           });
 
           console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_RAW', {
