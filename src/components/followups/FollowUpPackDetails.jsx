@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronDown, AlertTriangle, ChevronUp } from "lucide-react";
+import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, AlertTriangle, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
@@ -48,6 +48,7 @@ export default function FollowUpPackDetails({
   const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
   const [isProbeInstructionsExpanded, setIsProbeInstructionsExpanded] = useState(false);
   const [isSummaryInstructionsExpanded, setIsSummaryInstructionsExpanded] = useState(false);
+  const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
 
   useEffect(() => {
     if (!pack) return;
@@ -455,27 +456,26 @@ export default function FollowUpPackDetails({
       <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
         <button
           onClick={() => !isEditing && setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
-          className="w-full flex items-center justify-between mb-3 group"
+          className="w-full flex items-center gap-3 group"
           disabled={isEditing}
         >
-          <Label className="text-lg font-semibold text-blue-400 cursor-pointer">AI Probe Instructions</Label>
           {!isEditing && (
-            isProbeInstructionsExpanded ? (
-              <ChevronUp className="w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-colors" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-colors" />
-            )
+            <ChevronRight className={`w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-transform ${isProbeInstructionsExpanded ? 'rotate-90' : ''}`} />
           )}
+          <div className="flex-1 text-left">
+            <Label className="text-lg font-semibold text-blue-400 cursor-pointer block">AI Probe Instructions</Label>
+            <p className="text-xs text-slate-400 mt-0.5">Guides AI when asking clarifying follow-up questions</p>
+          </div>
         </button>
         {isEditing ? (
           <Textarea
             value={formData.ai_probe_instructions}
             onChange={(e) => setFormData({...formData, ai_probe_instructions: e.target.value})}
-            className="bg-slate-800 border-slate-600 text-white min-h-64"
+            className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
             placeholder="Instructions for AI probing behavior for this pack..."
           />
         ) : isProbeInstructionsExpanded && (
-          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
             <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
               {formData.ai_probe_instructions || 'No instructions provided'}
             </p>
@@ -487,27 +487,23 @@ export default function FollowUpPackDetails({
       <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
         <button
           onClick={() => !isEditing && setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
-          className="w-full flex items-center justify-between mb-1 group"
+          className="w-full flex items-center gap-3 group"
           disabled={isEditing}
         >
-          <Label className="text-lg font-semibold text-purple-400 cursor-pointer">AI Investigator Summary Instructions</Label>
           {!isEditing && (
-            isSummaryInstructionsExpanded ? (
-              <ChevronUp className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
-            )
+            <ChevronRight className={`w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-transform ${isSummaryInstructionsExpanded ? 'rotate-90' : ''}`} />
           )}
+          <div className="flex-1 text-left">
+            <Label className="text-lg font-semibold text-purple-400 cursor-pointer block">AI Investigator Summary Instructions</Label>
+            <p className="text-xs text-slate-400 mt-0.5">Guides AI when generating narrative summaries for investigators</p>
+          </div>
         </button>
-        <p className="text-xs text-slate-400 mb-3">
-          Used to guide AI when generating narrative summaries for investigators about this incident type.
-        </p>
         {isEditing ? (
           <>
             <Textarea
               value={formData.ai_summary_instructions}
               onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
-              className="bg-slate-800 border-slate-600 text-white min-h-64"
+              className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
               placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
             />
             <p className="text-xs text-slate-500 mt-2">
@@ -515,7 +511,7 @@ export default function FollowUpPackDetails({
             </p>
           </>
         ) : isSummaryInstructionsExpanded && (
-          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50">
+          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
             <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
               {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
             </p>
@@ -526,6 +522,8 @@ export default function FollowUpPackDetails({
       {/* Follow-Up Fields (Structured Data) */}
       <FollowUpFieldDesigner
         pack={pack}
+        isExpanded={isFieldsExpanded}
+        onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
         onSaveFields={async (updatedFields) => {
           try {
             await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
@@ -541,26 +539,24 @@ export default function FollowUpPackDetails({
       <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
         <button
           onClick={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
-          className="w-full flex items-center justify-between mb-3 group"
+          className="w-full flex items-center gap-3 group"
         >
-          <h4 className="text-lg font-semibold text-emerald-400 flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
-          </h4>
-          {isTriggeringExpanded ? (
-            <ChevronUp className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-          )}
+          <ChevronRight className={`w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-transform ${isTriggeringExpanded ? 'rotate-90' : ''}`} />
+          <div className="flex-1 text-left">
+            <h4 className="text-lg font-semibold text-emerald-400">
+              Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">Master questions that activate this follow-up pack</p>
+          </div>
         </button>
         {sortedTriggeringQuestions.length === 0 ? (
-          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center mt-3">
             <p className="text-sm text-slate-400">
               No interview questions currently trigger this pack.
             </p>
           </div>
         ) : isTriggeringExpanded && (
-          <div className="space-y-2">
+          <div className="space-y-2 mt-3">
             {sortedTriggeringQuestions.map((q) => (
               <button
                 key={q.id}
@@ -583,30 +579,31 @@ export default function FollowUpPackDetails({
       </div>
 
       {/* Deterministic Questions */}
-      <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-pink-950/20 border border-pink-500/30 rounded-lg p-4">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
-            className="flex items-center gap-2 group flex-1"
+            className="flex items-center gap-3 group flex-1"
           >
-            <h4 className="text-lg font-semibold text-purple-400">Follow-Up Questions ({sortedQuestions.length})</h4>
-            {isFollowupQuestionsExpanded ? (
-              <ChevronUp className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
-            )}
+            <ChevronRight className={`w-5 h-5 text-pink-400 group-hover:text-pink-300 transition-transform ${isFollowupQuestionsExpanded ? 'rotate-90' : ''}`} />
+            <div className="flex-1 text-left">
+              <h4 className="text-lg font-semibold text-pink-400">Follow-Up Questions ({sortedQuestions.length})</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Deterministic questions asked for each incident</p>
+            </div>
           </button>
-          <Button
-            onClick={() => setShowAddQuestion(true)}
-            size="sm"
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add
-          </Button>
+          {isFollowupQuestionsExpanded && (
+            <Button
+              onClick={() => setShowAddQuestion(true)}
+              size="sm"
+              className="bg-pink-600 hover:bg-pink-700"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add
+            </Button>
+          )}
         </div>
 
-        {showAddQuestion && (
+        {isFollowupQuestionsExpanded && showAddQuestion && (
           <div className="bg-slate-900/50 border border-purple-500/50 rounded-lg p-3 mb-3">
             <div className="space-y-2">
               <Textarea
@@ -640,12 +637,12 @@ export default function FollowUpPackDetails({
           </div>
         )}
 
-        {sortedQuestions.length === 0 ? (
-          <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700">
+        {isFollowupQuestionsExpanded && sortedQuestions.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700 mt-3">
             <p className="text-sm">No deterministic questions yet.</p>
           </div>
-        ) : isFollowupQuestionsExpanded && (
-          <div className="space-y-2">
+        ) : isFollowupQuestionsExpanded && sortedQuestions.length > 0 && (
+          <div className="space-y-2 mt-3">
             {sortedQuestions.map((q, idx) => (
               <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-2">
                 {editingQuestion?.id === q.id ? (
