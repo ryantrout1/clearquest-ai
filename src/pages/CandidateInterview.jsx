@@ -2157,7 +2157,7 @@ export default function CandidateInterview() {
             // 2) Backend mistakenly says NEXT_FIELD but still provides a question → also probe
             if (mode === 'QUESTION' || hasProbeQuestion) {
               // AI probe question generated - increment counter and show question
-              console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → showing AI question (mode=${mode})`);
+              console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → storing pending probe (mode=${mode})`);
               
               // Increment probe count for this field
               setAiFollowupCounts(prev => ({
@@ -2188,41 +2188,23 @@ export default function CandidateInterview() {
               
               const probeText = rawQuestion; // guaranteed clean string
               
-              // FIX #3: Log AI probe question IMMEDIATELY to transcript (SINGLE PLACE)
-              // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
-              const aiProbeQuestionEntry = createChatEvent('ai_probe_question', {
-                questionId: currentItem.baseQuestionId,
-                baseQuestionId: currentItem.baseQuestionId,
-                packId: packId,
-                content: probeText,
-                text: probeText,
-                kind: 'ai_probe_question',
-                followupPackId: packId,
-                instanceNumber: instanceNumber,
-                fieldKey: fieldKey,
+              // NEW: Store probe as PENDING - do NOT add to transcript yet
+              // Question will be added to transcript when candidate answers
+              const pendingProbeData = {
+                packId,
+                fieldKey,
+                instanceNumber,
                 probeIndex: probeCount, // 0-indexed probe number for this field
-                probeEngineVersion: 'v2-per-field',
-                isProbe: true
-              });
-              aiProbeQuestionEntry.type = 'ai_question';
-              aiProbeQuestionEntry.role = 'investigator';
-              aiProbeQuestionEntry.label = 'AI Investigator';
-              
-              console.debug('[AI-PROBE-TRANSCRIPT] Added question event', {
-                type: aiProbeQuestionEntry.type,
+                questionText: probeText,
                 baseQuestionId: currentItem.baseQuestionId,
-                followupPackId: packId,
-                fieldKey: fieldKey,
-                instanceNumber: instanceNumber,
-                probeIndex: probeCount,
-                text: probeText.substring(0, 50) + '...'
-              });
+                probeEngineVersion: 'v2-per-field'
+              };
               
-              // Guard against duplicate AI probe messages
-              const shouldSkipProbe = shouldSkipDuplicateAiProbe(transcript, aiProbeQuestionEntry);
-              const newTranscript = shouldSkipProbe 
-                ? [...transcript, followupEntry]
-                : [...transcript, followupEntry, aiProbeQuestionEntry];
+              console.log('[AI-PROBE-V2] Pending probe set', pendingProbeData);
+              setPendingProbe(pendingProbeData);
+              
+              // Only add the deterministic followup answer to transcript (not the AI question)
+              const newTranscript = [...transcript, followupEntry];
               setTranscript(newTranscript);
 
               // Update probe state for this field
@@ -2238,7 +2220,7 @@ export default function CandidateInterview() {
               // Update follow-up answers tracker
               setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
               
-              // Set current field probe for UI
+              // Set current field probe for UI (drives the bottom question card)
               setCurrentFieldProbe({
                 packId,
                 instanceNumber,
