@@ -2953,37 +2953,20 @@ export default function CandidateInterview() {
         });
         
         if (v2Result.mode === 'QUESTION') {
-          // Log the next probe question to transcript
-          // Uses same event structure as LE_APPS for UnifiedTranscriptRenderer compatibility
-          const nextProbeQuestionEntry = createChatEvent('ai_probe_question', {
-            questionId: baseQuestionId,
-            baseQuestionId: baseQuestionId,
-            packId: packId,
-            content: v2Result.question,
-            text: v2Result.question,
-            kind: 'ai_probe_question',
-            followupPackId: packId,
-            instanceNumber: instanceNumber,
-            fieldKey: fieldKey,
+          // NEW: Store subsequent probe as PENDING - do NOT add to transcript yet
+          // Question will be added to transcript when candidate answers
+          const nextPendingProbe = {
+            packId,
+            fieldKey,
+            instanceNumber,
             probeIndex: probeCount, // Current probe count (0-indexed for this new probe)
-            probeEngineVersion: 'v2-per-field-subsequent',
-            isProbe: true
-          });
-          nextProbeQuestionEntry.type = 'ai_question';
-          nextProbeQuestionEntry.role = 'investigator';
-          nextProbeQuestionEntry.label = 'AI Investigator';
-          
-          console.debug('[AI-PROBE-TRANSCRIPT] Added question event (subsequent)', {
-            type: nextProbeQuestionEntry.type,
+            questionText: v2Result.question,
             baseQuestionId: baseQuestionId,
-            followupPackId: packId,
-            fieldKey: fieldKey,
-            instanceNumber: instanceNumber,
-            probeIndex: probeCount,
-            text: v2Result.question.substring(0, 50) + '...'
-          });
+            probeEngineVersion: 'v2-per-field-subsequent'
+          };
           
-          setTranscript(prev => [...prev, nextProbeQuestionEntry]);
+          console.log('[AI-PROBE-V2] Pending probe set (subsequent)', nextPendingProbe);
+          setPendingProbe(nextPendingProbe);
           
           setFieldProbingState(prev => ({
             ...prev,
