@@ -1,9 +1,22 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+/**
+ * Get AI runtime configuration from GlobalSettings with safe defaults
+ * Single source of truth for all LLM parameters
+ */
+function getAiRuntimeConfig(globalSettings) {
+  return {
+    model: globalSettings?.ai_model || "gpt-4o-mini",
+    temperature: globalSettings?.ai_temperature ?? 0.2,
+    max_tokens: globalSettings?.ai_max_tokens ?? 512,
+    top_p: globalSettings?.ai_top_p ?? 1,
+  };
+}
+
 // Helper to build unified AI instructions with layered prompts
+// Returns: { instructions: string, aiConfig: object }
 async function buildAiInstructions(base44, mode, sectionId, packId, maxFollowups = 3) {
-  try {
-    const coreRules = `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
+  const coreRules = `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
 
 CORE SYSTEM RULES (ALWAYS APPLY):
 - All information is strictly confidential and CJIS-compliant
@@ -12,6 +25,9 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 - Focus on factual, objective information gathering
 - Respect the sensitivity of personal disclosures`;
 
+  let aiConfig = getAiRuntimeConfig(null); // Defaults
+
+  try {
     if (mode === 'probe') {
       // PERF: Batch fetch all needed entities in parallel
       const [globalSettingsResult, sectionsResult, packsResult] = await Promise.all([
@@ -27,6 +43,10 @@ CORE SYSTEM RULES (ALWAYS APPLY):
       const settings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
       const section = sectionsResult.length > 0 ? sectionsResult[0] : null;
       const pack = packsResult.length > 0 ? packsResult[0] : null;
+      
+      // Get AI runtime config from GlobalSettings
+      aiConfig = getAiRuntimeConfig(settings);
+      console.log(`[AI-FOLLOWUP] AI Config: model=${aiConfig.model}, temp=${aiConfig.temperature}, max_tokens=${aiConfig.max_tokens}`);
       
       let instructions = coreRules + '\n\n';
       
@@ -55,20 +75,16 @@ CORE SYSTEM RULES (ALWAYS APPLY):
       instructions += `- You may ask up to ${maxFollowups} follow-up questions if needed, but stop sooner if the story is clear.\n`;
       instructions += `- Do NOT exceed ${maxFollowups} probing questions under any circumstances.\n\n`;
       
-      return instructions;
+      return { instructions, aiConfig };
     }
     
-    return coreRules;
+    return { instructions: coreRules, aiConfig };
   } catch (err) {
     console.error('Error building AI instructions:', err);
-    return `You are a ClearQuest Background Investigation AI Assistant conducting law enforcement background investigations.
-
-CORE SYSTEM RULES (ALWAYS APPLY):
-- All information is strictly confidential and CJIS-compliant
-- Maintain professional, non-judgmental tone at all times
-- Never make hiring recommendations or conclusions
-- Focus on factual, objective information gathering
-- Respect the sensitivity of personal disclosures`;
+    return { 
+      instructions: coreRules, 
+      aiConfig 
+    };
   }
 }
 
@@ -118,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     // Build unified instructions using the layered instruction builder
-    const systemPrompt = await buildAiInstructions(base44, 'probe', sectionId, followupPackId, maxFollowups);
+    const { instructions: systemPrompt, aiConfig } = await buildAiInstructions(base44, 'probe', sectionId, followupPackId, maxFollowups);
     
     // Add investigator-specific overlay (subordinate to unified instructions)
     const investigatorOverlay = `
@@ -147,10 +163,16 @@ Your response must be a single follow-up question.`;
     
     userPrompt += `Generate ONE specific follow-up question to gather more details about their response. Remember to follow all probing guidelines above.`;
 
-    // Call invokeLLM with unified instructions
+    console.log(`[AI-FOLLOWUP] Calling InvokeLLM with model=${aiConfig.model}, temp=${aiConfig.temperature}`);
+
+    // Call invokeLLM with unified instructions AND AI runtime config
     const result = await base44.integrations.Core.InvokeLLM({
       prompt: `${systemPrompt}${investigatorOverlay}\n\n${userPrompt}`,
-      add_context_from_internet: false
+      add_context_from_internet: false,
+      model: aiConfig.model,
+      temperature: aiConfig.temperature,
+      max_tokens: aiConfig.max_tokens,
+      top_p: aiConfig.top_p
     });
 
     const followupQuestion = result?.trim();
