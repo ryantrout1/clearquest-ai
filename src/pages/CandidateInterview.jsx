@@ -2122,19 +2122,23 @@ export default function CandidateInterview() {
               
               const probeText = rawQuestion; // guaranteed clean string
               
-              // FIX #3: Log AI probe question IMMEDIATELY to transcript
-              const aiProbeQuestionEntry = createChatEvent('ai_question', {
+              // FIX #3: Log AI probe question IMMEDIATELY to transcript (SINGLE PLACE)
+              const aiProbeQuestionEntry = createChatEvent('ai_probe_question', {
                 questionId: currentItem.baseQuestionId,
+                baseQuestionId: currentItem.baseQuestionId,
                 packId: packId,
                 content: probeText,
                 text: probeText,
-                kind: 'ai_field_probe',
+                kind: 'ai_probe',
                 followupPackId: packId,
                 instanceNumber: instanceNumber,
                 fieldKey: fieldKey,
-                probeEngineVersion: 'v2-per-field'
+                probeEngineVersion: 'v2-per-field',
+                role: 'ai',
+                label: 'AI Investigator'
               });
               aiProbeQuestionEntry.type = 'ai_question';
+              aiProbeQuestionEntry.role = 'investigator';
               
               const newTranscript = [...transcript, followupEntry, aiProbeQuestionEntry];
               setTranscript(newTranscript);
