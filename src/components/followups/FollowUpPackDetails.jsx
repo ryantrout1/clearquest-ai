@@ -763,7 +763,10 @@ export default function FollowUpPackDetails({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDeleteQuestion(q.id)}
+                        onClick={() => {
+                          setQuestionToDelete(q);
+                          setShowQuestionDeleteConfirm(true);
+                        }}
                         className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
                       >
                         <Trash2 className="w-4 h-4" />
