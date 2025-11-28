@@ -26,6 +26,7 @@ export default function FollowUpPackManagerV2() {
   const [selectedPack, setSelectedPack] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showLegacyPacks, setShowLegacyPacks] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [leftWidth, setLeftWidth] = useState(20);
   const [middleWidth, setMiddleWidth] = useState(30);
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
@@ -64,13 +65,17 @@ export default function FollowUpPackManagerV2() {
     enabled: !!user
   });
 
-  // Filter packs based on showLegacyPacks toggle
+  // Filter packs based on showLegacyPacks and showActiveOnly toggles
   const packs = useMemo(() => {
-    if (showLegacyPacks) {
-      return allPacks;
+    let filtered = allPacks;
+    if (!showLegacyPacks) {
+      filtered = filtered.filter(pack => pack.is_standard_cluster === true);
     }
-    return allPacks.filter(pack => pack.is_standard_cluster === true);
-  }, [allPacks, showLegacyPacks]);
+    if (showActiveOnly) {
+      filtered = filtered.filter(pack => pack.active !== false);
+    }
+    return filtered;
+  }, [allPacks, showLegacyPacks, showActiveOnly]);
 
   const { data: allQuestions = [] } = useQuery({
     queryKey: ['followUpQuestions'],
@@ -351,19 +356,35 @@ export default function FollowUpPackManagerV2() {
                 className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
               />
               
-              <div className="flex items-center gap-2 px-1">
-                <Checkbox
-                  id="show-legacy"
-                  checked={showLegacyPacks}
-                  onCheckedChange={setShowLegacyPacks}
-                  className="border-slate-600"
-                />
-                <label
-                  htmlFor="show-legacy"
-                  className="text-xs text-slate-400 cursor-pointer select-none"
-                >
-                  Show legacy packs
-                </label>
+              <div className="flex items-center gap-4 px-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="show-legacy"
+                    checked={showLegacyPacks}
+                    onCheckedChange={setShowLegacyPacks}
+                    className="border-slate-600"
+                  />
+                  <label
+                    htmlFor="show-legacy"
+                    className="text-xs text-slate-400 cursor-pointer select-none"
+                  >
+                    Show legacy packs
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="show-active-only"
+                    checked={showActiveOnly}
+                    onCheckedChange={setShowActiveOnly}
+                    className="border-slate-600"
+                  />
+                  <label
+                    htmlFor="show-active-only"
+                    className="text-xs text-slate-400 cursor-pointer select-none"
+                  >
+                    Show active packs only
+                  </label>
+                </div>
               </div>
             </div>
 
