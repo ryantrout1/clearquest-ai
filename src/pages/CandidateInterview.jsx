@@ -27,7 +27,7 @@ import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
-import { validateFollowupValue } from "../components/followups/semanticValidator";
+import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/followups/semanticValidator";
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
 
 // Follow-up pack display names
