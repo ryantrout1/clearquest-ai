@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { GripVertical, Plus, Edit, Trash2, Database, X } from "lucide-react";
+import { GripVertical, Plus, Edit, Trash2, Database, X, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const INPUT_TYPE_OPTIONS = [
@@ -87,7 +87,7 @@ const emptyField = {
   aiProbeHint: '',
 };
 
-export default function FollowUpFieldDesigner({ pack, onSaveFields }) {
+export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, onToggleExpand }) {
   const [fields, setFields] = useState(pack?.field_config || []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingField, setEditingField] = useState(null);
@@ -239,24 +239,22 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields }) {
   return (
     <div className="bg-amber-950/20 border border-amber-500/30 rounded-lg p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Database className="w-5 h-5 text-amber-400" />
-          <div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleExpand}
+          className="flex items-center gap-3 group flex-1"
+        >
+          <ChevronRight className={`w-5 h-5 text-amber-400 group-hover:text-amber-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+          <div className="flex-1 text-left">
             <h4 className="text-lg font-semibold text-amber-400">
-              Follow-Up Fields (Structured Data)
+              Follow-Up Fields ({fields.length})
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
-              These fields define the structured facts this pack captures for investigators. They do not change interview logic yet.
+              Structured facts captured for each incident
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {fields.length > 0 && (
-            <Badge variant="outline" className="border-amber-500/50 text-amber-300 text-xs">
-              {fields.length} {fields.length === 1 ? 'field' : 'fields'}
-            </Badge>
-          )}
+        </button>
+        {isExpanded && (
           <Button
             onClick={handleOpenAddModal}
             size="sm"
@@ -265,12 +263,12 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields }) {
             <Plus className="w-4 h-4 mr-1" />
             Add Field
           </Button>
-        </div>
+        )}
       </div>
 
       {/* Fields Table */}
-      {sortedFields.length === 0 ? (
-        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6 text-center">
+      {isExpanded && sortedFields.length === 0 && (
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6 text-center mt-3">
           <Database className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <p className="text-sm text-slate-400 mb-3">No fields configured yet.</p>
           <Button
@@ -283,8 +281,9 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields }) {
             Add your first field
           </Button>
         </div>
-      ) : (
-        <div className="space-y-2">
+      )}
+      {isExpanded && sortedFields.length > 0 && (
+        <div className="space-y-2 mt-3">
           {sortedFields.map((field, index) => (
             <div
               key={field.id}
