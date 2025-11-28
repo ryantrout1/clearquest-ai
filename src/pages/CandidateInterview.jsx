@@ -171,6 +171,8 @@ function logAiProbeDebug(label, payload) {
  * Creates a standardized chat event object for the transcript
  * Supports: system_welcome, question, answer, followup_question, followup_answer,
  *           ai_probe_question, ai_probe_answer, progress_message, section_transition
+ * 
+ * For AI probes, includes metadata: baseQuestionId, followupPackId, fieldKey, instanceNumber
  */
 const createChatEvent = (type, data = {}) => {
   const baseEvent = {
@@ -185,11 +187,42 @@ const createChatEvent = (type, data = {}) => {
     baseEvent.role = 'system';
   } else if (['question', 'followup_question', 'ai_probe_question', 'ai_question', 'multi_instance_question'].includes(type)) {
     baseEvent.role = 'investigator';
+    // Add label for AI probes
+    if (type === 'ai_probe_question' || type === 'ai_question') {
+      baseEvent.label = 'AI Investigator';
+    }
   } else if (['answer', 'followup_answer', 'ai_probe_answer', 'ai_answer', 'multi_instance_answer'].includes(type)) {
     baseEvent.role = 'candidate';
+    // Add label for AI probe answers
+    if (type === 'ai_probe_answer' || type === 'ai_answer') {
+      baseEvent.label = 'Candidate';
+    }
   }
   
   return baseEvent;
+};
+
+/**
+ * Helper to check if we should skip adding an AI probe message (duplicate guard)
+ * Returns true if the last transcript event is the same AI probe message
+ */
+const shouldSkipDuplicateAiProbe = (transcript, newEvent) => {
+  if (!transcript || transcript.length === 0) return false;
+  if (!newEvent || !['ai_question', 'ai_probe_question'].includes(newEvent.type)) return false;
+  
+  const lastEvent = transcript[transcript.length - 1];
+  if (!lastEvent || !['ai_question', 'ai_probe_question'].includes(lastEvent.type)) return false;
+  
+  // Check if same probe by matching key fields
+  const sameBaseQuestion = lastEvent.baseQuestionId === newEvent.baseQuestionId || 
+                           lastEvent.questionId === newEvent.questionId;
+  const samePackId = lastEvent.followupPackId === newEvent.followupPackId || 
+                     lastEvent.packId === newEvent.packId;
+  const sameFieldKey = lastEvent.fieldKey === newEvent.fieldKey;
+  const sameInstance = lastEvent.instanceNumber === newEvent.instanceNumber;
+  const sameText = lastEvent.text === newEvent.text || lastEvent.content === newEvent.content;
+  
+  return sameBaseQuestion && samePackId && sameFieldKey && sameInstance && sameText;
 };
 
 // ============================================================================
