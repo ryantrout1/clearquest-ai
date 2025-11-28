@@ -2283,7 +2283,11 @@ export default function CandidateInterview() {
                 aiProbeQuestionEntry.type = 'ai_question';
                 aiProbeQuestionEntry.role = 'investigator';
                 
-                const newTranscript = [...transcript, followupEntry, aiProbeQuestionEntry];
+                // Guard against duplicate AI probe messages (retry path)
+                const shouldSkipRetryProbe = shouldSkipDuplicateAiProbe(transcript, aiProbeQuestionEntry);
+                const newTranscript = shouldSkipRetryProbe
+                  ? [...transcript, followupEntry]
+                  : [...transcript, followupEntry, aiProbeQuestionEntry];
                 setTranscript(newTranscript);
                 
                 // Update probe state for this field
