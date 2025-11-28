@@ -768,7 +768,24 @@ export default function FollowUpPackDetails({
           </div>
         )}
       </div>
-      {/* Delete Confirmation Dialog - Step 1 */}
+
+        {/* Follow-Up Fields (Structured Data) */}
+        <FollowUpFieldDesigner
+          pack={pack}
+          isExpanded={isFieldsExpanded}
+          onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
+          onSaveFields={async (updatedFields) => {
+            try {
+              await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
+              onUpdate({ ...pack, field_config: updatedFields });
+            } catch (err) {
+              console.error('Failed to save fields:', err);
+              toast.error('Failed to save fields');
+            }
+          }}
+        />
+
+        {/* Delete Confirmation Dialog - Step 1 */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="bg-slate-900 border-slate-700">
           <AlertDialogHeader>
