@@ -17,6 +17,47 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
 /**
+ * Helper to detect "I don't recall / remember / know" style answers
+ * Used to force probing even if field-specific validation might accept the value
+ */
+function answerLooksLikeNoRecall(rawAnswer) {
+  if (!rawAnswer) return false;
+  const text = String(rawAnswer).trim().toLowerCase();
+
+  if (!text) return false;
+
+  // Common "no memory / unknown" phrases
+  const patterns = [
+    "i don't know",
+    "i dont know",
+    "idk",
+    "i don't recall",
+    "i dont recall",
+    "i don't remember",
+    "i dont remember",
+    "not sure",
+    "unsure",
+    "unknown",
+    "can't remember",
+    "cant remember",
+    "no idea",
+    "i do not know",
+    "i do not recall",
+    "i do not remember",
+    "cannot remember",
+    "cannot recall",
+    "i'm not sure",
+    "im not sure"
+  ];
+
+  const result = patterns.some(p => text.includes(p));
+  if (result) {
+    console.log(`[V2-SEMANTIC] answerLooksLikeNoRecall: detected "no recall" pattern in "${text.substring(0, 50)}..."`);
+  }
+  return result;
+}
+
+/**
  * Get AI runtime configuration from GlobalSettings with safe defaults
  * Single source of truth for all LLM parameters
  */
