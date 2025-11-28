@@ -593,8 +593,17 @@ async function probeEngineV2(input, base44Client) {
   }
 
   // Validate the current field value
-  const validationResult = validateField(semanticField, field_value, incident_context);
+  let validationResult = validateField(semanticField, field_value, incident_context);
   console.log(`[V2-PER-FIELD] Validation result for ${semanticField}: ${validationResult}, value="${field_value}"`);
+
+  // OVERRIDE: Force "I don't recall / I don't remember / unknown" answers to need probing
+  // This ensures vague answers always trigger AI probing regardless of field-specific validation
+  const looksLikeNoRecall = answerLooksLikeNoRecall(field_value);
+  if (looksLikeNoRecall && validationResult === "complete") {
+    console.log(`[V2-SEMANTIC] Override: answer looks like "no recall" - forcing probe`);
+    console.log(`[V2-SEMANTIC] Original validation was "complete", overriding to "incomplete"`);
+    validationResult = "incomplete";
+  }
 
   // Check max probes FIRST - if we've already probed enough, stop probing
   if (previous_probes_count >= maxProbesPerField) {
