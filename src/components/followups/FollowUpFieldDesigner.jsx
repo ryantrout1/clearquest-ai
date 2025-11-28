@@ -250,7 +250,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
               Follow-Up Fields ({fields.length})
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
-              Structured facts captured for each incident
+              Defines the structured data fields extracted from candidate answers for investigator review and risk scoring
             </p>
           </div>
         </button>

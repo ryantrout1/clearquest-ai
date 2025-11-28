@@ -15,7 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, ChevronDown, AlertTriangle, ChevronUp } from "lucide-react";
+import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, ChevronDown, AlertTriangle, ChevronUp, Trash } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
@@ -32,7 +42,8 @@ export default function FollowUpPackDetails({
   pack, 
   questions,
   triggeringQuestions,
-  onUpdate 
+  onUpdate,
+  onDelete
 }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({});
@@ -49,6 +60,8 @@ export default function FollowUpPackDetails({
   const [isProbeInstructionsExpanded, setIsProbeInstructionsExpanded] = useState(false);
   const [isSummaryInstructionsExpanded, setIsSummaryInstructionsExpanded] = useState(false);
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (!pack) return;
@@ -230,6 +243,20 @@ export default function FollowUpPackDetails({
 
   const categoryInfo = FOLLOWUP_CATEGORIES.find(c => c.id === formData.categoryId);
   const hasNoTriggers = triggeringQuestions.length === 0;
+  const canDelete = triggeringQuestions.length === 0;
+
+  const handleDeletePack = async () => {
+    if (!pack || !canDelete) return;
+    try {
+      await base44.entities.FollowUpPack.delete(pack.id);
+      toast.success('Pack deleted successfully');
+      setShowFinalDeleteConfirm(false);
+      if (onDelete) onDelete(pack.id);
+    } catch (err) {
+      console.error('Failed to delete pack:', err);
+      toast.error('Failed to delete pack');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -249,14 +276,24 @@ export default function FollowUpPackDetails({
         </div>
         <div className="flex gap-2 flex-shrink-0">
           {!isEditing ? (
-            <Button
-              onClick={() => setIsEditing(true)}
-              size="sm"
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <Edit className="w-4 h-4 mr-1.5" />
-              Edit
-            </Button>
+            <>
+              <Button
+                onClick={() => setIsEditing(true)}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Edit className="w-4 h-4 mr-1.5" />
+                Edit
+              </Button>
+              <Button
+                onClick={() => setShowDeleteConfirm(true)}
+                size="sm"
+                variant="outline"
+                className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash className="w-4 h-4" />
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -464,7 +501,7 @@ export default function FollowUpPackDetails({
           )}
           <div className="flex-1 text-left">
             <Label className="text-lg font-semibold text-blue-400 cursor-pointer block">AI Probe Instructions</Label>
-            <p className="text-xs text-slate-400 mt-0.5">Guides AI when asking clarifying follow-up questions</p>
+            <p className="text-xs text-slate-400 mt-0.5">Controls how AI probes for missing details, clarifies vague answers, and handles sensitive topics</p>
           </div>
         </button>
         {isEditing ? (
@@ -495,7 +532,7 @@ export default function FollowUpPackDetails({
           )}
           <div className="flex-1 text-left">
             <Label className="text-lg font-semibold text-purple-400 cursor-pointer block">AI Investigator Summary Instructions</Label>
-            <p className="text-xs text-slate-400 mt-0.5">Guides AI when generating narrative summaries for investigators</p>
+            <p className="text-xs text-slate-400 mt-0.5">Defines structure, tone, and required details for AI-generated incident summaries shown to investigators</p>
           </div>
         </button>
         {isEditing ? (
@@ -546,7 +583,7 @@ export default function FollowUpPackDetails({
             <h4 className="text-lg font-semibold text-emerald-400">
               Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
             </h4>
-            <p className="text-xs text-slate-400 mt-0.5">Master questions that activate this follow-up pack</p>
+            <p className="text-xs text-slate-400 mt-0.5">Interview questions where a "Yes" answer triggers this pack — manage these in Interview Structure</p>
           </div>
         </button>
         {sortedTriggeringQuestions.length === 0 ? (
@@ -588,7 +625,7 @@ export default function FollowUpPackDetails({
             <ChevronRight className={`w-5 h-5 text-pink-400 group-hover:text-pink-300 transition-transform ${isFollowupQuestionsExpanded ? 'rotate-90' : ''}`} />
             <div className="flex-1 text-left">
               <h4 className="text-lg font-semibold text-pink-400">Follow-Up Questions ({sortedQuestions.length})</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Deterministic questions asked for each incident</p>
+              <p className="text-xs text-slate-400 mt-0.5">Fixed questions asked every time this pack is triggered — candidate answers all before AI probing begins</p>
             </div>
           </button>
           {isFollowupQuestionsExpanded && (
@@ -733,6 +770,65 @@ export default function FollowUpPackDetails({
           </div>
         )}
       </div>
+      {/* Delete Confirmation Dialog - Step 1 */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete this follow-up pack?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              {canDelete ? (
+                <>
+                  You are about to delete <span className="text-white font-medium">{pack?.pack_name}</span>. 
+                  This will remove the pack configuration, all follow-up questions, and field definitions.
+                </>
+              ) : (
+                <>
+                  <span className="text-red-400 font-medium">Cannot delete this pack.</span>
+                  <br /><br />
+                  This pack is currently assigned to {triggeringQuestions.length} interview question{triggeringQuestions.length !== 1 ? 's' : ''}. 
+                  You must remove all trigger assignments in the Interview Structure Manager before deleting this pack.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-600 text-slate-300">Cancel</AlertDialogCancel>
+            {canDelete && (
+              <AlertDialogAction 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setShowFinalDeleteConfirm(true);
+                }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Continue
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog - Step 2 (Final) */}
+      <AlertDialog open={showFinalDeleteConfirm} onOpenChange={setShowFinalDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-400">Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              This action cannot be undone. This will permanently delete the pack 
+              <span className="text-white font-medium"> {pack?.pack_name}</span> and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-600 text-slate-300">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeletePack}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Yes, delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
