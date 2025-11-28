@@ -275,6 +275,56 @@ function isDontKnow(value) {
 }
 
 /**
+ * v2-Semantic evaluation for a single field answer.
+ * This is global / pack-agnostic and should work for all packs.
+ *
+ * Returns a structured object:
+ * {
+ *   status: "ok" | "needs_probe",
+ *   reason: "EMPTY" | "NO_RECALL" | "FIELD_RULES_OK",
+ *   flags: {
+ *     isEmpty: boolean,
+ *     isNoRecall: boolean
+ *   }
+ * }
+ */
+function semanticV2EvaluateAnswer(fieldName, rawValue, incidentContext = {}) {
+  const normalized = normalizeText(rawValue).toLowerCase();
+
+  const isEmpty = !normalized;
+  const isNoRecall = isDontKnow(rawValue) || answerLooksLikeNoRecall(rawValue);
+
+  let status = "ok";
+  let reason = "FIELD_RULES_OK";
+
+  if (isEmpty) {
+    status = "needs_probe";
+    reason = "EMPTY";
+  } else if (isNoRecall) {
+    status = "needs_probe";
+    reason = "NO_RECALL";
+  }
+
+  console.log(`[V2-SEMANTIC] semanticV2EvaluateAnswer`, {
+    fieldName,
+    rawValue,
+    normalized,
+    status,
+    reason,
+    flags: { isEmpty, isNoRecall }
+  });
+
+  return {
+    status,
+    reason,
+    flags: {
+      isEmpty,
+      isNoRecall,
+    },
+  };
+}
+
+/**
  * Validate a specific field value for PACK_LE_APPS
  * Returns: "complete", "incomplete", or "invalid"
  */
@@ -609,6 +659,9 @@ async function probeEngineV2(input, base44Client) {
   const semanticField = mapFieldKey(packConfig, field_key);
   console.log(`[V2-PER-FIELD] Mapped ${field_key} → ${semanticField}`);
 
+  // Global v2-semantic evaluation (pack-agnostic)
+  const semanticInfo = semanticV2EvaluateAnswer(semanticField, field_value, incident_context);
+
   // Fetch max_ai_followups from FollowUpPack entity
   let maxProbesPerField = DEFAULT_MAX_PROBES_FALLBACK;
   
@@ -633,16 +686,15 @@ async function probeEngineV2(input, base44Client) {
     console.warn(`[V2-PER-FIELD] Error fetching FollowUpPack entity, using fallback: ${maxProbesPerField}`, err.message);
   }
 
-  // Validate the current field value
+  // Validate the current field value with pack-specific rules
   let validationResult = validateField(semanticField, field_value, incident_context);
   console.log(`[V2-PER-FIELD] Validation result for ${semanticField}: ${validationResult}, value="${field_value}"`);
 
-  // OVERRIDE: Force "I don't recall / I don't remember / unknown" answers to need probing
-  // This ensures vague answers always trigger AI probing regardless of field-specific validation
-  const looksLikeNoRecall = answerLooksLikeNoRecall(field_value);
-  if (looksLikeNoRecall && validationResult === "complete") {
-    console.log(`[V2-SEMANTIC] Override: answer looks like "no recall" - forcing probe`);
-    console.log(`[V2-SEMANTIC] Original validation was "complete", overriding to "incomplete"`);
+  // v2-Semantic override:
+  // If semantic layer says "needs_probe" (e.g., NO_RECALL / EMPTY),
+  // and field-specific rules thought it was complete, we force probing.
+  if (semanticInfo.status === "needs_probe" && validationResult === "complete") {
+    console.log(`[V2-SEMANTIC] Override: semantic layer requires probing (${semanticInfo.reason}) - forcing validationResult="incomplete"`);
     validationResult = "incomplete";
   }
 
@@ -657,6 +709,7 @@ async function probeEngineV2(input, base44Client) {
       validationResult: "max_probes_reached",
       previousProbeCount: previous_probes_count,
       maxProbesPerField,
+      semanticInfo,
       message: `Max probes reached for ${semanticField}, accepting current value`
     };
   }
@@ -672,6 +725,7 @@ async function probeEngineV2(input, base44Client) {
       validationResult: "complete",
       previousProbeCount: previous_probes_count,
       maxProbesPerField,
+      semanticInfo,
       message: `Field ${semanticField} validated successfully`
     };
   }
@@ -700,6 +754,7 @@ async function probeEngineV2(input, base44Client) {
     maxProbesPerField,
     isFallback: probeResult.isFallback,
     probeSource: probeResult.source,
+    semanticInfo,
     message: `Probing for more information about ${semanticField}`
   };
 }
