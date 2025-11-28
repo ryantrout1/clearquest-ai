@@ -28,7 +28,7 @@ import SectionCompletionMessage from "../components/interview/SectionCompletionM
 import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue } from "../components/followups/semanticValidator";
-import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups } from "../components/followups/followupPackConfig";
+import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
 
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
@@ -198,12 +198,10 @@ const createChatEvent = (type, data = {}) => {
 
 /**
  * Feature flag: Determines which packs use ProbeEngineV2
- * Currently ONLY PACK_LE_APPS is enabled for V2 (DEBUG mode)
+ * NOW CONFIG-DRIVEN: Checks FOLLOWUP_PACK_CONFIGS[packId].usePerFieldProbing
+ * This allows any pack to opt into V2 per-field probing via configuration
  */
-const useProbeEngineV2 = (packId) => {
-  // For now, ONLY Law Enforcement Applications uses ProbeEngineV2
-  return packId === "PACK_LE_APPS";
-};
+const useProbeEngineV2 = usePerFieldProbing;
 
 const getProbeKey = (packId, instanceNumber) => `${packId}_${instanceNumber || 1}`;
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
@@ -1073,12 +1071,12 @@ export default function CandidateInterview() {
     setAiProbingPackInstanceKey(packInstanceKey);
 
     // ============================================================================
-    // PROBE ENGINE V2 - PACK_LE_APPS uses per-field probing only
+    // PROBE ENGINE V2 - Packs configured for per-field probing skip pack-level AI
     // ============================================================================
-    if (packId === 'PACK_LE_APPS') {
-      // PACK_LE_APPS uses per-field probing (handled after each deterministic answer)
-      // Skip pack-level probing entirely for this pack
-      console.log('[V2-PER-FIELD] Skipping pack-level probing for PACK_LE_APPS (per-field mode active)');
+    if (useProbeEngineV2(packId)) {
+      // Per-field probing packs handle AI validation after each deterministic answer
+      // Skip pack-level probing entirely for these packs
+      console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId} (per-field mode active)`);
       
       // Advance directly to next base question or multi-instance check
       onFollowupPackComplete(questionId, packId);
@@ -2105,10 +2103,24 @@ export default function CandidateInterview() {
                 followupEntry.type = 'followup';
                 followupEntry.role = 'candidate';
                 
-                const newTranscript = [...transcript, followupEntry];
-                setTranscript(newTranscript);
-                
                 const probeText = rawQuestion; // guaranteed clean string
+                
+                // FIX #3: Log AI probe question IMMEDIATELY to transcript
+                const aiProbeQuestionEntry = createChatEvent('ai_question', {
+                  questionId: currentItem.baseQuestionId,
+                  packId: packId,
+                  content: probeText,
+                  text: probeText,
+                  kind: 'ai_field_probe',
+                  followupPackId: packId,
+                  instanceNumber: instanceNumber,
+                  fieldKey: fieldKey,
+                  probeEngineVersion: 'v2-per-field'
+                });
+                aiProbeQuestionEntry.type = 'ai_question';
+                
+                const newTranscript = [...transcript, followupEntry, aiProbeQuestionEntry];
+                setTranscript(newTranscript);
 
                 // Update probe state for this field
                 setFieldProbingState(prev => ({
@@ -2195,7 +2207,21 @@ export default function CandidateInterview() {
                   followupEntry.type = 'followup';
                   followupEntry.role = 'candidate';
                   
-                  const newTranscript = [...transcript, followupEntry];
+                  // FIX #3: Log AI probe question IMMEDIATELY to transcript (retry path)
+                  const aiProbeQuestionEntry = createChatEvent('ai_question', {
+                    questionId: currentItem.baseQuestionId,
+                    packId: packId,
+                    content: retryQuestion,
+                    text: retryQuestion,
+                    kind: 'ai_field_probe',
+                    followupPackId: packId,
+                    instanceNumber: instanceNumber,
+                    fieldKey: fieldKey,
+                    probeEngineVersion: 'v2-per-field-retry'
+                  });
+                  aiProbeQuestionEntry.type = 'ai_question';
+                  
+                  const newTranscript = [...transcript, followupEntry, aiProbeQuestionEntry];
                   setTranscript(newTranscript);
                   
                   // Update probe state for this field

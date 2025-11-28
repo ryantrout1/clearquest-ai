@@ -13,15 +13,39 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
 /**
+ * Deterministic fallback probes for all PACK_LE_APPS fields.
+ * Used when AI/validation fails to ensure probing is rock-solid.
+ */
+const FALLBACK_PROBES = {
+  // Agency field
+  "PACK_LE_APPS_Q1": "Since you're not sure of the exact name, please describe the law enforcement agency you applied to. Include anything you remember, such as the city, state, or any identifying details.",
+  
+  // Position field
+  "PACK_LE_APPS_Q1764025170356": "What position were you applying for at that agency? For example, was it a police officer, deputy sheriff, corrections officer, or another role?",
+  
+  // Application date field
+  "PACK_LE_APPS_Q1764025187292": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
+  
+  // Outcome field
+  "PACK_LE_APPS_Q1764025199138": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
+  
+  // Reason for non-selection field
+  "PACK_LE_APPS_Q1764025212764": "Were you given any reason for why you were not selected? This could include failing a test, background issues, or the agency's decision.",
+  
+  // Issues/concerns field
+  "PACK_LE_APPS_Q1764025246583": "You indicated there were issues during this hiring process. Please describe what those issues or concerns were."
+};
+
+/**
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
  * This ensures probing is rock-solid even when the backend has issues.
  */
 function buildFallbackProbeForField({ packId, fieldKey }) {
-  // Only define fallbacks for specific fields we care about right now
-  if (packId === "PACK_LE_APPS" && fieldKey === "PACK_LE_APPS_Q1") {
+  // Check if we have a fallback for this specific field
+  if (packId === "PACK_LE_APPS" && FALLBACK_PROBES[fieldKey]) {
     return {
       mode: "QUESTION",
-      question: "Since you're not sure of the exact name, please describe the law enforcement agency you applied to. Include anything you remember, such as the city, state, approximate date, and any identifying details.",
+      question: FALLBACK_PROBES[fieldKey],
       isFallback: true,
     };
   }
@@ -257,9 +281,15 @@ function validateField(fieldName, value, incidentContext = {}) {
 
 /**
  * Generate a probe question for a specific incomplete field
+ * FIX #5: Now accepts aiProbeInstructions from pack entity (future: can use for tone/context)
  */
-function generateFieldProbeQuestion(fieldName, currentValue, probeCount, incidentContext = {}) {
+function generateFieldProbeQuestion(fieldName, currentValue, probeCount, incidentContext = {}, aiProbeInstructions = null) {
   console.log(`[V2-PER-FIELD] Generating probe for ${fieldName} (probe #${probeCount + 1})`);
+  
+  // FIX #5: Log if AI instructions are available (not using them yet in static questions, but wired for future LLM integration)
+  if (aiProbeInstructions) {
+    console.log(`[V2-PER-FIELD] AI probe instructions available for context (${aiProbeInstructions.length} chars) - currently using static probes`);
+  }
   
   const isFirstProbe = probeCount === 0;
   
@@ -346,22 +376,32 @@ async function probeEngineV2(input, base44Client) {
   const semanticField = mapFieldKey(packConfig, field_key);
   console.log(`[V2-PER-FIELD] Mapped ${field_key} → ${semanticField}`);
 
-  // Fetch max_ai_followups from FollowUpPack entity - SINGLE SOURCE OF TRUTH
+  // FIX #5: Fetch max_ai_followups AND ai_probe_instructions from FollowUpPack entity
   let maxProbesPerField = DEFAULT_MAX_PROBES_FALLBACK;
+  let aiProbeInstructions = null;
+  
   try {
     const followUpPacks = await base44Client.entities.FollowUpPack.filter({
-      followup_pack_id: pack_id
+      followup_pack_id: pack_id,
+      active: true
     });
     if (followUpPacks.length > 0) {
       const packEntity = followUpPacks[0];
+      
       if (typeof packEntity.max_ai_followups === 'number' && packEntity.max_ai_followups > 0) {
         maxProbesPerField = packEntity.max_ai_followups;
         console.log(`[V2-PER-FIELD] Using max_ai_followups from FollowUpPack entity: ${maxProbesPerField}`);
       } else {
         console.log(`[V2-PER-FIELD] FollowUpPack entity has no valid max_ai_followups, using fallback: ${maxProbesPerField}`);
       }
+      
+      // FIX #5: Load AI probe instructions from pack entity
+      if (packEntity.ai_probe_instructions) {
+        aiProbeInstructions = packEntity.ai_probe_instructions;
+        console.log(`[V2-PER-FIELD] Loaded ai_probe_instructions from FollowUpPack entity (${aiProbeInstructions.length} chars)`);
+      }
     } else {
-      console.log(`[V2-PER-FIELD] No FollowUpPack entity found for ${pack_id}, using fallback: ${maxProbesPerField}`);
+      console.log(`[V2-PER-FIELD] No active FollowUpPack entity found for ${pack_id}, using fallback: ${maxProbesPerField}`);
     }
   } catch (err) {
     console.warn(`[V2-PER-FIELD] Error fetching FollowUpPack entity, using fallback: ${maxProbesPerField}`, err.message);
@@ -402,7 +442,8 @@ async function probeEngineV2(input, base44Client) {
   }
 
   // Field is incomplete - generate probe question
-  const question = generateFieldProbeQuestion(semanticField, field_value, previous_probes_count, incident_context);
+  // FIX #5: Pass AI probe instructions to question generator
+  const question = generateFieldProbeQuestion(semanticField, field_value, previous_probes_count, incident_context, aiProbeInstructions);
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode with: "${question}"`);
 
   return {

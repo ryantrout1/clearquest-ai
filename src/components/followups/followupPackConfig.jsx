@@ -91,6 +91,7 @@ export const DEFAULT_REJECT_TOKENS = [
  * @property {number} [maxAiFollowups] - Maximum number of AI follow-up questions for the pack
  * @property {boolean} [requiresCompletion] - Whether pack requires completion
  * @property {"none"|"note"|"warning"|"red_flag"} [flagOnUnresolved] - How to flag unresolved fields
+ * @property {boolean} [usePerFieldProbing] - Whether to use V2 per-field probing for this pack
  */
 
 /** @type {Record<string, FollowUpPackConfig>} */
@@ -102,6 +103,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
     maxAiFollowups: 3,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
     fields: [
       {
         fieldKey: "PACK_LE_APPS_Q1",
@@ -283,6 +285,17 @@ export function getPackMaxAiFollowups(packId) {
   }
   // Safety fallback - but in practice every pack should set this explicitly
   return 3;
+}
+
+/**
+ * Check if a pack should use V2 per-field probing.
+ * This is the SINGLE SOURCE OF TRUTH for V2 probing enablement.
+ * @param {string} packId 
+ * @returns {boolean}
+ */
+export function usePerFieldProbing(packId) {
+  const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+  return packConfig?.usePerFieldProbing === true;
 }
 
 /**
