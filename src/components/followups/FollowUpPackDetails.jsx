@@ -592,8 +592,8 @@ export default function FollowUpPackDetails({
           <ChevronRight className={`w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-transform ${isTriggeringExpanded ? 'rotate-90' : ''}`} />
           <div className="flex-1 text-left">
             <h4 className="text-lg font-semibold text-emerald-400">
-              Triggered by {sortedTriggeringQuestions.length} Interview {sortedTriggeringQuestions.length === 1 ? 'Question' : 'Questions'}
-            </h4>
+                                Triggering Questions ({sortedTriggeringQuestions.length})
+                              </h4>
             <p className="text-xs text-slate-400 mt-0.5">Interview questions where a "Yes" answer triggers this pack — manage these in Interview Structure</p>
           </div>
         </button>
