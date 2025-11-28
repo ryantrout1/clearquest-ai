@@ -231,22 +231,25 @@ Object.assign(FALLBACK_PROBES, {
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
  * This ensures probing is rock-solid even when the backend has issues.
  * Supports PACK_LE_APPS and driving packs.
+ * 
+ * Now uses multi-level probing for fields that have it configured.
  */
-function buildFallbackProbeForField({ packId, fieldKey, semanticField }) {
-  // Check if we have a fallback for this specific field key
-  if (FALLBACK_PROBES[fieldKey]) {
+function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount = 0 }) {
+  // Check if we have a multi-level or static fallback for this specific field key
+  const fallbackQuestion = getFallbackProbeForField(fieldKey, probeCount);
+  if (fallbackQuestion) {
     return {
       mode: "QUESTION",
-      question: FALLBACK_PROBES[fieldKey],
+      question: fallbackQuestion,
       isFallback: true,
-      probeSource: 'fallback_static'
+      probeSource: MULTI_LEVEL_PROBES[fieldKey] ? 'fallback_multi_level' : 'fallback_static'
     };
   }
   
   // Try using semantic field name for fallback (for any supported pack)
   const supportedPacks = ["PACK_LE_APPS", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
-    const staticFallback = getStaticFallbackQuestion(semanticField, 0, null, {});
+    const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
       return {
         mode: "QUESTION",
