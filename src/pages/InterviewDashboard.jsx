@@ -12,7 +12,6 @@ import { Search, ArrowLeft, X, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -595,11 +594,11 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 </span>
                 <span>•</span>
                 <span>
-                  Started: <span className="font-medium text-slate-200">{formatInTimeZone(new Date(session.created_date), 'America/Phoenix', "MMM d, yyyy h:mm a")}</span>
+                  Started: <span className="font-medium text-slate-200">{format(new Date(session.created_date), "MMM d, yyyy h:mm a")} MST</span>
                 </span>
                 <span>•</span>
                 <span>
-                  Updated: <span className="font-medium text-slate-200">{formatInTimeZone(new Date(session.updated_date || session.last_activity_at || session.created_date), 'America/Phoenix', "MMM d, yyyy h:mm a")}</span>
+                  Updated: <span className="font-medium text-slate-200">{format(new Date(session.updated_date || session.last_activity_at || session.created_date), "MMM d, yyyy h:mm a")} MST</span>
                 </span>
               </div>
 
