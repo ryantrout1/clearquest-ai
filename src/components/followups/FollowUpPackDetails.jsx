@@ -226,7 +226,9 @@ export default function FollowUpPackDetails({
     }
   };
 
-  const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  // Filter out locally deleted questions to avoid refresh
+  const filteredQuestions = questions.filter(q => !localDeletedQuestionIds.includes(q.id));
+  const sortedQuestions = [...filteredQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   
   // Auto-collapse when over 5 items
