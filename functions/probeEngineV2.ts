@@ -149,6 +149,9 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 /**
  * Deterministic fallback probes for all supported fields.
  * Used when AI/validation fails to ensure probing is rock-solid.
+ * 
+ * For PACK_DRIVING_COLLISION_STANDARD Q01 (collision date), we use a multi-level
+ * probing strategy that acknowledges "I don't recall" and helps narrow down the timeframe.
  */
 const FALLBACK_PROBES = {
   // === PACK_LE_APPS ===
@@ -160,7 +163,7 @@ const FALLBACK_PROBES = {
   "PACK_LE_APPS_Q1764025246583": "You indicated there were issues during this hiring process. Please describe what those issues or concerns were.",
   
   // === PACK_DRIVING_COLLISION_STANDARD ===
-  "PACK_DRIVING_COLLISION_Q01": "When did this collision occur? Please provide at least the month and year, or an approximate timeframe.",
+  // NOTE: Q01 uses MULTI_LEVEL_PROBES below instead for smarter probing
   "PACK_DRIVING_COLLISION_Q02": "Where did this collision take place? Please describe the location.",
   "PACK_DRIVING_COLLISION_Q03": "Please describe what happened in this collision. How did the accident occur?",
   "PACK_DRIVING_COLLISION_Q04": "Were you determined to be at fault for this collision?",
