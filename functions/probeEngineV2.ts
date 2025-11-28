@@ -113,14 +113,28 @@ const FALLBACK_PROBES = {
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
  * This ensures probing is rock-solid even when the backend has issues.
  */
-function buildFallbackProbeForField({ packId, fieldKey }) {
-  // Check if we have a fallback for this specific field
+function buildFallbackProbeForField({ packId, fieldKey, semanticField }) {
+  // Check if we have a fallback for this specific field key
   if (packId === "PACK_LE_APPS" && FALLBACK_PROBES[fieldKey]) {
     return {
       mode: "QUESTION",
       question: FALLBACK_PROBES[fieldKey],
       isFallback: true,
+      probeSource: 'fallback_static'
     };
+  }
+  
+  // Try using semantic field name for fallback
+  if (packId === "PACK_LE_APPS" && semanticField) {
+    const staticFallback = getStaticFallbackQuestion(semanticField, 0, null, {});
+    if (staticFallback && !staticFallback.includes('provide more details about')) {
+      return {
+        mode: "QUESTION",
+        question: staticFallback,
+        isFallback: true,
+        probeSource: 'fallback_semantic'
+      };
+    }
   }
 
   // No fallback configured for this field
