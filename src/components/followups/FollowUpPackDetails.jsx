@@ -231,11 +231,11 @@ export default function FollowUpPackDetails({
   const sortedQuestions = [...filteredQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   
-  // Auto-collapse when over 5 items
+  // Always start collapsed
   useEffect(() => {
-    setIsTriggeringExpanded(sortedTriggeringQuestions.length <= 5);
-    setIsFollowupQuestionsExpanded(sortedQuestions.length <= 5);
-  }, [pack?.id, sortedTriggeringQuestions.length, sortedQuestions.length]);
+    setIsTriggeringExpanded(false);
+    setIsFollowupQuestionsExpanded(false);
+  }, [pack?.id]);
 
   // Reset local deleted IDs when pack changes
   useEffect(() => {
