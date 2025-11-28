@@ -2228,19 +2228,23 @@ export default function CandidateInterview() {
                 followupEntry.type = 'followup';
                 followupEntry.role = 'candidate';
                 
-                // FIX #3: Log AI probe question IMMEDIATELY to transcript (retry path)
-                const aiProbeQuestionEntry = createChatEvent('ai_question', {
+                // FIX #3: Log AI probe question IMMEDIATELY to transcript (retry path - SINGLE PLACE)
+                const aiProbeQuestionEntry = createChatEvent('ai_probe_question', {
                   questionId: currentItem.baseQuestionId,
+                  baseQuestionId: currentItem.baseQuestionId,
                   packId: packId,
                   content: retryQuestion,
                   text: retryQuestion,
-                  kind: 'ai_field_probe',
+                  kind: 'ai_probe',
                   followupPackId: packId,
                   instanceNumber: instanceNumber,
                   fieldKey: fieldKey,
-                  probeEngineVersion: 'v2-per-field-retry'
+                  probeEngineVersion: 'v2-per-field-retry',
+                  role: 'ai',
+                  label: 'AI Investigator'
                 });
                 aiProbeQuestionEntry.type = 'ai_question';
+                aiProbeQuestionEntry.role = 'investigator';
                 
                 const newTranscript = [...transcript, followupEntry, aiProbeQuestionEntry];
                 setTranscript(newTranscript);
