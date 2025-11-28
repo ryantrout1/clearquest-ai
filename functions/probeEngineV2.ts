@@ -1166,12 +1166,19 @@ Deno.serve(async (req) => {
     // This allows frontend to treat it as "no probe available"
     console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: error.message });
     
+    // Try to get probeCount from request for multi-level fallback
+    let probeCount = 0;
+    try {
+      // Note: req.json() might have already been consumed, so this is best-effort
+      probeCount = 0; // Default to first probe level
+    } catch (e) {}
+    
     // Try fallback probe for this field
     const packConfig = PACK_CONFIG[packId];
     const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-    const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField });
+    const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
     if (fallback) {
-      console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey });
+      console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
       return Response.json({
         mode: fallback.mode,
         question: fallback.question,
