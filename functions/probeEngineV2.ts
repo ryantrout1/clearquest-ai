@@ -191,6 +191,14 @@ const MULTI_LEVEL_PROBES = {
     // Probe 3 (probeCount=2): Accept broad range
     "If you still can't pinpoint a specific year, that's okay. Please give your best estimate as a range, like 'sometime between 2010 and 2015' or 'early 2020s'. Any approximate timeframe will help."
   ],
+  "PACK_DRIVING_COLLISION_Q05": [
+    // Probe 1 (probeCount=0): Clarify "not sure" / basic injuries
+    "You mentioned you're not sure about injuries. Think back to the collision: did anyone complain of pain, soreness, or stiffness afterward — including you, your passengers, or people in the other vehicle?",
+    // Probe 2 (probeCount=1): Who was affected
+    "To the best of your memory, did anyone see a doctor, go to the hospital, or miss work or school because of this collision? If so, who was it — you, a passenger, or someone in the other vehicle?",
+    // Probe 3 (probeCount=2): How serious
+    "Even if you can't remember exact details, give your best estimate of how serious any injuries were — for example, 'minor soreness only', 'possible whiplash', or 'someone went to the ER'."
+  ],
   // Add more multi-level fields here as needed
 };
 
