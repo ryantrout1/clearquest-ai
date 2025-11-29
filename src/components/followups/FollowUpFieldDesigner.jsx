@@ -385,8 +385,9 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
               </div>
             </div>
           ))}
-        </div>
-      )}
+          </div>
+        )}
+      </CollapsibleSection>
 
       {/* Add/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
