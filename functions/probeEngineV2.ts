@@ -283,7 +283,6 @@ Object.assign(FALLBACK_PROBES, {
   
   // === PACK_FINANCIAL_STANDARD ===
   "financial_issue_type": "What type of financial issue was this — bankruptcy, collections, repossession, unpaid taxes, or something else?",
-  "start_date": "When did this financial issue first occur? Please provide at least an approximate year.",
   "most_recent_date": "When was the most recent occurrence or action related to this issue?",
   "amount_owed": "Approximately how much was owed or affected?",
   "creditor": "Who was the creditor or agency involved?",
@@ -292,7 +291,18 @@ Object.assign(FALLBACK_PROBES, {
   "resolution_steps": "What steps have you taken to resolve this issue?",
   "resolution_status": "What is the current status — fully resolved, in repayment, still outstanding, or something else?",
   "remaining_obligations": "Are there any remaining debts or obligations from this issue?",
-  "prevention_steps": "What steps have you taken to prevent similar issues in the future?"
+  
+  // === PACK_GANG_STANDARD ===
+  "gang_name": "What was the gang or group called, or how would you describe it?",
+  "start_date": "When did your involvement with this group begin? Please provide at least an approximate year.",
+  "end_date": "When did your involvement with this group end?",
+  "involvement_level": "How would you describe your level of involvement — were you an observer, associate, active participant, or member?",
+  "origin_story": "How did you first become involved with this group?",
+  "activities": "What activities did you observe or participate in while involved?",
+  "illegal_activity": "Were you involved in or did you witness any illegal activity during this time?",
+  "law_enforcement_contact": "Were you ever contacted by law enforcement, school officials, or an employer about this involvement?",
+  "post_exit_contact": "Have you had any contact with members of this group since you separated?",
+  "prevention_steps": "What steps have you taken to avoid future association with this group?"
 });
 
 /**
@@ -315,7 +325,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -656,6 +666,34 @@ const PACK_CONFIG = {
       "PACK_FINANCIAL_STANDARD_Q06": "resolution_steps",
       "PACK_FINANCIAL_STANDARD_Q07": "resolution_status",
       "PACK_FINANCIAL_STANDARD_Q08": "prevention_steps",
+    },
+  },
+  
+  // Gang Membership / Affiliation pack (v2.4)
+  PACK_GANG_STANDARD: {
+    id: "PACK_GANG_STANDARD",
+    requiredFields: ["gang_name", "start_date", "end_date", "involvement_level", "origin_story", "activities"],
+    priorityOrder: ["gang_name", "start_date", "end_date", "involvement_level", "origin_story", "activities", "illegal_activity", "law_enforcement_contact", "post_exit_contact", "prevention_steps"],
+    fieldKeyMap: {
+      "gang_name": "gang_name",
+      "start_date": "start_date",
+      "end_date": "end_date",
+      "involvement_level": "involvement_level",
+      "origin_story": "origin_story",
+      "activities": "activities",
+      "illegal_activity": "illegal_activity",
+      "law_enforcement_contact": "law_enforcement_contact",
+      "post_exit_contact": "post_exit_contact",
+      "prevention_steps": "prevention_steps",
+      // Legacy question mappings
+      "PACK_GANG_STANDARD_Q01": "gang_name",
+      "PACK_GANG_STANDARD_Q02": "start_date",
+      "PACK_GANG_STANDARD_Q03": "end_date",
+      "PACK_GANG_STANDARD_Q04": "involvement_level",
+      "PACK_GANG_STANDARD_Q05": "origin_story",
+      "PACK_GANG_STANDARD_Q06": "activities",
+      "PACK_GANG_STANDARD_Q07": "illegal_activity",
+      "PACK_GANG_STANDARD_Q08": "law_enforcement_contact",
     },
   },
 };
@@ -1380,7 +1418,6 @@ const FIELD_LABELS = {
   
   // PACK_FINANCIAL_STANDARD
   "financial_issue_type": "Type of Financial Issue",
-  "start_date": "When Issue Began",
   "most_recent_date": "Most Recent Occurrence",
   "amount_owed": "Amount Owed / Affected",
   "creditor": "Creditor or Agency Involved",
@@ -1389,7 +1426,18 @@ const FIELD_LABELS = {
   "resolution_steps": "Steps Taken to Resolve",
   "resolution_status": "Resolution Status",
   "remaining_obligations": "Outstanding Obligations",
-  "prevention_steps": "Preventative Measures"
+  
+  // PACK_GANG_STANDARD
+  "gang_name": "Gang or Group",
+  "start_date": "Start of Involvement",
+  "end_date": "End of Involvement",
+  "involvement_level": "Level of Involvement",
+  "origin_story": "How Involvement Began",
+  "activities": "Activities or Participation",
+  "illegal_activity": "Illegal Activity Involved",
+  "law_enforcement_contact": "Law Enforcement / School / Employer Contact",
+  "post_exit_contact": "Contact After Leaving Group",
+  "prevention_steps": "Steps Taken to Avoid Future Association"
 };
 
 /**

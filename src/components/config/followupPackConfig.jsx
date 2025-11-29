@@ -326,6 +326,36 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_FINANCIAL_STANDARD_Q08: { label: "Prevention Steps" },
     },
   },
+
+  //
+  // 🔫 PACK: Gang Membership / Affiliation
+  //
+  PACK_GANG_STANDARD: {
+    displayName: "Gang Affiliation Incident",
+    pills: ["Gang Affiliation", "Risk", "Violence", "Extremism"],
+    fields: {
+      // v2.4 field_config fields
+      gang_name: { label: "Gang or Group" },
+      start_date: { label: "Start of Involvement" },
+      end_date: { label: "End of Involvement" },
+      involvement_level: { label: "Level of Involvement" },
+      origin_story: { label: "How Involvement Began" },
+      activities: { label: "Activities or Participation" },
+      illegal_activity: { label: "Illegal Activity Involved" },
+      law_enforcement_contact: { label: "Law Enforcement / School / Employer Contact" },
+      post_exit_contact: { label: "Contact After Leaving Group" },
+      prevention_steps: { label: "Steps Taken to Avoid Future Association" },
+      // Legacy question mappings
+      PACK_GANG_STANDARD_Q01: { label: "Gang or Group" },
+      PACK_GANG_STANDARD_Q02: { label: "Start Date" },
+      PACK_GANG_STANDARD_Q03: { label: "End Date" },
+      PACK_GANG_STANDARD_Q04: { label: "Level of Involvement" },
+      PACK_GANG_STANDARD_Q05: { label: "How It Started" },
+      PACK_GANG_STANDARD_Q06: { label: "Activities" },
+      PACK_GANG_STANDARD_Q07: { label: "Illegal Activity" },
+      PACK_GANG_STANDARD_Q08: { label: "Authority Contact" },
+    },
+  },
 };
 
 /**
