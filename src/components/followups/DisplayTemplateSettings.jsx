@@ -72,41 +72,61 @@ export default function DisplayTemplateSettings({
   const availableFields = (pack?.field_config || []).map(f => f.fieldKey);
 
   const previewResult = renderTemplate(
-    formData.instance_header_template || '',
+    localData.instance_header_template || '',
     {
       ...MOCK_INSTANCE_DATA,
-      pack_name: formData.pack_name || pack?.pack_name || 'Unknown Pack'
+      pack_name: pack?.pack_name || 'Unknown Pack'
     }
   );
 
-  return (
-    <div className="bg-teal-950/20 border border-teal-500/30 rounded-lg p-4">
-      {/* Header */}
-      <button
-        onClick={() => !isEditing && onToggleExpand()}
-        className="w-full flex items-center gap-3 group"
-        disabled={isEditing}
-      >
-        {!isEditing && (
-          <ChevronRight className={`w-5 h-5 text-teal-400 group-hover:text-teal-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-        )}
-        <Layout className="w-5 h-5 text-teal-400" />
-        <div className="flex-1 text-left">
-          <Label className="text-lg font-semibold text-teal-400 cursor-pointer block">Display / Template Settings</Label>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Controls how each incident instance is visually displayed in transcripts, summaries, and investigator views
-          </p>
-        </div>
-      </button>
+  const handleSave = async () => {
+    await onSave({
+      instance_header_template: localData.instance_header_template || '',
+      instance_title_format: localData.instance_title_format || '',
+      label_mapping_overrides: localData.label_mapping_overrides || null
+    });
+    setIsEditing(false);
+  };
 
-      {/* Content - shown when editing OR expanded */}
-      {(isEditing || isExpanded) && (
-        <div className="mt-4 space-y-4">
+  const handleCancel = () => {
+    setLocalData({
+      instance_header_template: pack?.instance_header_template || '',
+      instance_title_format: pack?.instance_title_format || '',
+      label_mapping_overrides: pack?.label_mapping_overrides || null
+    });
+    setIsEditing(false);
+  };
+
+  // Build pills
+  const pills = [];
+  if (localData.instance_header_template) {
+    pills.push({ label: 'Template Set', className: 'bg-teal-500/20 text-teal-300' });
+  }
+
+  return (
+    <>
+      <CollapsibleSection
+        title="Display / Template Settings"
+        subtitle="Controls how each incident instance is displayed in transcripts, summaries, and investigator views"
+        icon={Layout}
+        iconColor="text-teal-400"
+        bgColor="bg-teal-950/20"
+        borderColor="border-teal-500/30"
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+        pills={pills}
+        editable={true}
+        isEditing={isEditing}
+        onEdit={() => setIsEditing(true)}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      >
+        <div className="space-y-4">
           {/* Instance Header Template */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm text-slate-300">Instance Header Template</Label>
-              {formData.instance_header_template && (
+              {localData.instance_header_template && (
                 <Button
                   type="button"
                   size="sm"
@@ -122,8 +142,8 @@ export default function DisplayTemplateSettings({
             {isEditing ? (
               <>
                 <Textarea
-                  value={formData.instance_header_template || ''}
-                  onChange={(e) => setFormData({...formData, instance_header_template: e.target.value})}
+                  value={localData.instance_header_template || ''}
+                  onChange={(e) => setLocalData({...localData, instance_header_template: e.target.value})}
                   className="bg-slate-800 border-slate-600 text-white min-h-20 font-mono text-sm"
                   placeholder="{{field.violation_type}} • {{field.classification}} • {{field.incident_date}}"
                 />
@@ -140,9 +160,9 @@ export default function DisplayTemplateSettings({
                         className="border-slate-600 text-slate-400 text-[10px] cursor-pointer hover:border-teal-500 hover:text-teal-300"
                         onClick={() => {
                           const insertion = `{{field.${key}}}`;
-                          setFormData({
-                            ...formData, 
-                            instance_header_template: (formData.instance_header_template || '') + insertion
+                          setLocalData({
+                            ...localData, 
+                            instance_header_template: (localData.instance_header_template || '') + insertion
                           });
                         }}
                       >
@@ -154,9 +174,9 @@ export default function DisplayTemplateSettings({
               </>
             ) : (
               <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                {formData.instance_header_template ? (
+                {localData.instance_header_template ? (
                   <code className="text-sm text-teal-300 font-mono break-all">
-                    {formData.instance_header_template}
+                    {localData.instance_header_template}
                   </code>
                 ) : (
                   <p className="text-sm text-slate-500 italic">No template configured — system default will be used</p>
@@ -170,15 +190,15 @@ export default function DisplayTemplateSettings({
             <Label className="text-sm text-slate-300">Instance Title Format <span className="text-slate-500">(optional)</span></Label>
             {isEditing ? (
               <Input
-                value={formData.instance_title_format || ''}
-                onChange={(e) => setFormData({...formData, instance_title_format: e.target.value})}
+                value={localData.instance_title_format || ''}
+                onChange={(e) => setLocalData({...localData, instance_title_format: e.target.value})}
                 className="bg-slate-800 border-slate-600 text-white font-mono text-sm"
                 placeholder="e.g., Incident #{{instance_number}}"
               />
             ) : (
               <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                {formData.instance_title_format ? (
-                  <code className="text-sm text-teal-300 font-mono">{formData.instance_title_format}</code>
+                {localData.instance_title_format ? (
+                  <code className="text-sm text-teal-300 font-mono">{localData.instance_title_format}</code>
                 ) : (
                   <p className="text-sm text-slate-500 italic">Not configured</p>
                 )}
@@ -192,14 +212,13 @@ export default function DisplayTemplateSettings({
             {isEditing ? (
               <>
                 <Textarea
-                  value={formData.label_mapping_overrides ? JSON.stringify(formData.label_mapping_overrides, null, 2) : ''}
+                  value={localData.label_mapping_overrides ? JSON.stringify(localData.label_mapping_overrides, null, 2) : ''}
                   onChange={(e) => {
                     try {
                       const parsed = e.target.value ? JSON.parse(e.target.value) : null;
-                      setFormData({...formData, label_mapping_overrides: parsed});
+                      setLocalData({...localData, label_mapping_overrides: parsed});
                     } catch {
                       // Allow invalid JSON while typing
-                      setFormData({...formData, label_mapping_overrides_raw: e.target.value});
                     }
                   }}
                   className="bg-slate-800 border-slate-600 text-white min-h-16 font-mono text-sm"
@@ -211,9 +230,9 @@ export default function DisplayTemplateSettings({
               </>
             ) : (
               <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3">
-                {formData.label_mapping_overrides && Object.keys(formData.label_mapping_overrides).length > 0 ? (
+                {localData.label_mapping_overrides && Object.keys(localData.label_mapping_overrides).length > 0 ? (
                   <pre className="text-sm text-teal-300 font-mono whitespace-pre-wrap">
-                    {JSON.stringify(formData.label_mapping_overrides, null, 2)}
+                    {JSON.stringify(localData.label_mapping_overrides, null, 2)}
                   </pre>
                 ) : (
                   <p className="text-sm text-slate-500 italic">No overrides configured</p>
@@ -222,7 +241,7 @@ export default function DisplayTemplateSettings({
             )}
           </div>
         </div>
-      )}
+      </CollapsibleSection>
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
