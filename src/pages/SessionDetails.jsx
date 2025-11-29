@@ -640,11 +640,16 @@ export default function SessionDetails() {
           }
         });
 
+        // DEBUG: Log sample response question_id for matching verification
+        const sampleResponseQuestionIds = responsesData.filter(r => r.answer === 'Yes').slice(0, 3).map(r => r.question_id);
+        
         console.log('[SESSIONDETAILS] AI summaries mapped', {
           sessionId,
           questionSummaryKeys: Object.keys(qMap),
           sectionSummaryKeys: Object.keys(sMap),
-          instanceSummaryKeys: Object.keys(instMap)
+          instanceSummaryKeys: Object.keys(instMap),
+          sampleResponseQuestionIds,
+          keysMatch: sampleResponseQuestionIds.some(id => qMap[id])
         });
 
         setInstanceSummariesByKey(instMap);
