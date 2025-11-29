@@ -241,13 +241,21 @@ Deno.serve(async (req) => {
     // So we need to look up by entity.id, not entity.question_id
     const questionsById = {};
     questions.forEach(q => {
-      // q.id is the database ID, q.question_id is the code like 'Q001'
-      questionsById[q.id] = q;
+      // Handle nested data structure - API sometimes returns {data: {...}}
+      const qData = q.data || q;
+      const qId = qData.id || q.id;
+      if (qId) {
+        questionsById[qId] = qData;
+      }
     });
     
     const sectionsById = {};
     sections.forEach(s => {
-      sectionsById[s.id] = s;
+      const sData = s.data || s;
+      const sId = sData.id || s.id;
+      if (sId) {
+        sectionsById[sId] = sData;
+      }
     });
     
     // Verify the target question IDs are in the map
