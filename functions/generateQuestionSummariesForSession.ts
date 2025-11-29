@@ -289,10 +289,20 @@ Deno.serve(async (req) => {
     // Filter to Yes responses only
     const yesResponses = responses.filter(r => r.answer === 'Yes');
     
+    // Debug: show raw response structure
+    const rawResponseSample = yesResponses.slice(0, 2).map(r => ({
+      topLevelId: r.id,
+      hasData: !!r.data,
+      dataId: r.data?.id,
+      questionIdField: r.question_id || r.data?.question_id,
+      answer: r.answer || r.data?.answer
+    }));
+    
     console.log('[QUESTION_SUMMARIES] YES_RESPONSES', {
       sessionId,
       count: yesResponses.length,
-      questionIds: yesResponses.map(r => r.question_id)
+      questionIds: yesResponses.map(r => r.question_id || r.data?.question_id),
+      rawResponseSample
     });
     
     for (const response of yesResponses) {
