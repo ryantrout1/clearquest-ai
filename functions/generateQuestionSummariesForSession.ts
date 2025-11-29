@@ -250,12 +250,21 @@ Deno.serve(async (req) => {
       sectionsById[s.id] = s;
     });
     
+    // Verify the target question IDs are in the map
+    const targetQuestionIds = ['691964d43baf47fb38b66e93', '691964d43baf47fb38b66ea1'];
+    const foundTargets = targetQuestionIds.map(id => ({
+      id,
+      found: !!questionsById[id],
+      questionCode: questionsById[id]?.question_id
+    }));
+    
     console.log('[QUESTION_SUMMARIES] LOOKUP_MAPS', {
       sessionId,
       questionCount: Object.keys(questionsById).length,
       sectionCount: Object.keys(sectionsById).length,
-      sampleQuestionIds: Object.keys(questionsById).slice(0, 3),
-      sampleQuestionCodes: questions.slice(0, 3).map(q => q.question_id)
+      sampleQuestionIds: Object.keys(questionsById).slice(0, 5),
+      sampleQuestionCodes: questions.slice(0, 5).map(q => ({ id: q.id, code: q.question_id })),
+      foundTargets
     });
     
     // Build question data map with section info
