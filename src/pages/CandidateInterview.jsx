@@ -1001,6 +1001,17 @@ export default function CandidateInterview() {
   const requestLiveAiFollowup = async (params) => {
     const { interviewId, questionId, followupPackId, transcriptWindow, candidateAnswer } = params;
 
+    const envInfo = getEnvironmentInfo();
+    console.log('[AI-FOLLOWUP][INVOKE-START]', {
+      functionName: 'interviewAiFollowup',
+      interviewId,
+      questionId,
+      followupPackId,
+      mode: 'FOLLOWUP_PROBE',
+      environment: envInfo.nodeEnv,
+      runtimeEnv: envInfo.hostname
+    });
+
     try {
       const response = await base44.functions.invoke("interviewAiFollowup", {
         interviewId,
@@ -1011,9 +1022,28 @@ export default function CandidateInterview() {
         mode: "FOLLOWUP_PROBE"
       });
 
+      console.log('[AI-FOLLOWUP][INVOKE-RESPONSE]', {
+        functionName: 'interviewAiFollowup',
+        status: response?.data?.status,
+        hasData: !!response?.data,
+        dataKeys: response?.data ? Object.keys(response.data) : []
+      });
+
       return response.data;
     } catch (err) {
-      return { status: 'error' };
+      console.error('[AI-FOLLOWUP][INVOKE-ERROR]', {
+        functionName: 'interviewAiFollowup',
+        interviewId,
+        questionId,
+        followupPackId,
+        environment: envInfo.nodeEnv,
+        runtimeEnv: envInfo.hostname,
+        errorMessage: err?.message,
+        errorStatus: err?.status,
+        errorCode: err?.code,
+        errorStack: err?.stack?.substring(0, 300)
+      });
+      return { status: 'error', errorMessage: err?.message };
     }
   };
 
