@@ -356,6 +356,37 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_GANG_STANDARD_Q08: { label: "Authority Contact" },
     },
   },
+
+  //
+  // 🎖️ PACK: Military Misconduct / Discipline
+  //
+  PACK_MILITARY_STANDARD: {
+    displayName: "Military Misconduct Incident",
+    pills: ["Military Discipline", "UCMJ", "Accountability", "Risk Indicator"],
+    fields: {
+      // v2.4 field_config fields
+      branch: { label: "Branch of Service" },
+      rank_role: { label: "Rank and Role" },
+      incident_date: { label: "Date of Incident" },
+      location: { label: "Location" },
+      description: { label: "Description of Misconduct" },
+      orders_violation: { label: "Orders/Standards Involved" },
+      alcohol_drugs: { label: "Alcohol/Drug/Stress Factors" },
+      disciplinary_action: { label: "Disciplinary Action Taken" },
+      career_impact: { label: "Impact on Career or Clearance" },
+      law_enforcement_contact: { label: "Military Police / CID / OSI / NCIS Contact" },
+      remediation_steps: { label: "Steps Taken Since Incident" },
+      // Legacy question mappings
+      PACK_MILITARY_STANDARD_Q01: { label: "Branch" },
+      PACK_MILITARY_STANDARD_Q02: { label: "Rank/Role" },
+      PACK_MILITARY_STANDARD_Q03: { label: "Date" },
+      PACK_MILITARY_STANDARD_Q04: { label: "Location" },
+      PACK_MILITARY_STANDARD_Q05: { label: "Description" },
+      PACK_MILITARY_STANDARD_Q06: { label: "Orders Violated" },
+      PACK_MILITARY_STANDARD_Q07: { label: "Disciplinary Action" },
+      PACK_MILITARY_STANDARD_Q08: { label: "Career Impact" },
+    },
+  },
 };
 
 /**

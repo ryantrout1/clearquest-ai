@@ -294,15 +294,25 @@ Object.assign(FALLBACK_PROBES, {
   
   // === PACK_GANG_STANDARD ===
   "gang_name": "What was the gang or group called, or how would you describe it?",
-  "start_date": "When did your involvement with this group begin? Please provide at least an approximate year.",
   "end_date": "When did your involvement with this group end?",
   "involvement_level": "How would you describe your level of involvement — were you an observer, associate, active participant, or member?",
   "origin_story": "How did you first become involved with this group?",
   "activities": "What activities did you observe or participate in while involved?",
   "illegal_activity": "Were you involved in or did you witness any illegal activity during this time?",
-  "law_enforcement_contact": "Were you ever contacted by law enforcement, school officials, or an employer about this involvement?",
   "post_exit_contact": "Have you had any contact with members of this group since you separated?",
-  "prevention_steps": "What steps have you taken to avoid future association with this group?"
+  
+  // === PACK_MILITARY_STANDARD ===
+  "branch": "Which branch of military service were you in at the time of this incident?",
+  "rank_role": "What was your rank and duty position when this occurred?",
+  "incident_date": "When did this incident occur? Please provide at least an approximate month and year.",
+  "location": "Where did this incident take place?",
+  "description": "Can you describe what happened?",
+  "orders_violation": "What orders, regulations, or standards were involved?",
+  "alcohol_drugs": "Were alcohol, drugs, or stress factors involved in this incident?",
+  "disciplinary_action": "What disciplinary action was taken as a result?",
+  "career_impact": "How did this affect your rank, clearance, or military career?",
+  "law_enforcement_contact": "Were military police, CID, OSI, NCIS, or other investigative agencies involved?",
+  "remediation_steps": "What steps have you taken since this incident to address the issue?"
 });
 
 /**
@@ -325,7 +335,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -694,6 +704,35 @@ const PACK_CONFIG = {
       "PACK_GANG_STANDARD_Q06": "activities",
       "PACK_GANG_STANDARD_Q07": "illegal_activity",
       "PACK_GANG_STANDARD_Q08": "law_enforcement_contact",
+    },
+  },
+  
+  // Military Misconduct / Discipline pack (v2.4)
+  PACK_MILITARY_STANDARD: {
+    id: "PACK_MILITARY_STANDARD",
+    requiredFields: ["branch", "rank_role", "incident_date", "description", "disciplinary_action"],
+    priorityOrder: ["branch", "rank_role", "incident_date", "location", "description", "orders_violation", "alcohol_drugs", "disciplinary_action", "career_impact", "law_enforcement_contact", "remediation_steps"],
+    fieldKeyMap: {
+      "branch": "branch",
+      "rank_role": "rank_role",
+      "incident_date": "incident_date",
+      "location": "location",
+      "description": "description",
+      "orders_violation": "orders_violation",
+      "alcohol_drugs": "alcohol_drugs",
+      "disciplinary_action": "disciplinary_action",
+      "career_impact": "career_impact",
+      "law_enforcement_contact": "law_enforcement_contact",
+      "remediation_steps": "remediation_steps",
+      // Legacy question mappings
+      "PACK_MILITARY_STANDARD_Q01": "branch",
+      "PACK_MILITARY_STANDARD_Q02": "rank_role",
+      "PACK_MILITARY_STANDARD_Q03": "incident_date",
+      "PACK_MILITARY_STANDARD_Q04": "location",
+      "PACK_MILITARY_STANDARD_Q05": "description",
+      "PACK_MILITARY_STANDARD_Q06": "orders_violation",
+      "PACK_MILITARY_STANDARD_Q07": "disciplinary_action",
+      "PACK_MILITARY_STANDARD_Q08": "career_impact",
     },
   },
 };
@@ -1429,15 +1468,25 @@ const FIELD_LABELS = {
   
   // PACK_GANG_STANDARD
   "gang_name": "Gang or Group",
-  "start_date": "Start of Involvement",
   "end_date": "End of Involvement",
   "involvement_level": "Level of Involvement",
   "origin_story": "How Involvement Began",
   "activities": "Activities or Participation",
   "illegal_activity": "Illegal Activity Involved",
-  "law_enforcement_contact": "Law Enforcement / School / Employer Contact",
   "post_exit_contact": "Contact After Leaving Group",
-  "prevention_steps": "Steps Taken to Avoid Future Association"
+  
+  // PACK_MILITARY_STANDARD
+  "branch": "Branch of Service",
+  "rank_role": "Rank and Role",
+  "incident_date": "Date of Incident",
+  "location": "Location",
+  "description": "Description of Misconduct",
+  "orders_violation": "Orders/Standards Involved",
+  "alcohol_drugs": "Alcohol/Drug/Stress Factors",
+  "disciplinary_action": "Disciplinary Action Taken",
+  "career_impact": "Impact on Career or Clearance",
+  "law_enforcement_contact": "Military Police / CID / OSI / NCIS Contact",
+  "remediation_steps": "Steps Taken Since Incident"
 };
 
 /**
