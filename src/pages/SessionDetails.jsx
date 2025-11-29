@@ -22,6 +22,7 @@ import { Clock } from "lucide-react";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
+import { getFollowupFieldLabel } from "../components/config/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
 
 // Field label mappings for driving packs - shared across helper functions
