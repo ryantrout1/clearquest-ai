@@ -299,11 +299,12 @@ Deno.serve(async (req) => {
         hasFollowUps: relatedFollowUps.length > 0
       });
       
-      // Check if this question should be summarized
-      if (!shouldSummarizeQuestion({ questionCode, sectionName, followupPackId })) {
-        console.log('[QUESTION_SUMMARIES] SKIPPED_BY_CONFIG', { questionCode, sectionName, followupPackId });
-        continue;
-      }
+      // TEMPORARILY DISABLED: Allow all Yes responses to get summaries for debugging
+      // if (!shouldSummarizeQuestion({ questionCode, sectionName, followupPackId })) {
+      //   console.log('[QUESTION_SUMMARIES] SKIPPED_BY_CONFIG', { questionCode, sectionName, followupPackId });
+      //   continue;
+      // }
+      console.log('[QUESTION_SUMMARIES] ALLOWING_QUESTION', { questionCode, sectionName, followupPackId });
       
       // Build instances from follow-ups
       const instancesMap = {};
