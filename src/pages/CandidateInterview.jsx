@@ -2304,40 +2304,6 @@ export default function CandidateInterview() {
             semanticStatus: semanticResult?.status
           });
           
-          // =====================================================================
-          // [V2 PROBING DECISION] Diagnostic log for decision-making
-          // =====================================================================
-          console.log('[V2 PROBING DECISION]', {
-            packId,
-            fieldKey,
-            answerValue: normalizedAnswer?.substring?.(0, 50),
-            isNoRecall,
-            isEmpty,
-            semanticStatus: semanticResult?.status,
-            flags: {
-              ENABLE_LIVE_AI_FOLLOWUPS,
-              aiProbingEnabled,
-              aiProbingDisabledForSession
-            },
-            counters: {
-              probeCount,
-              maxAiFollowups,
-              willCallBackend: ENABLE_LIVE_AI_FOLLOWUPS && aiProbingEnabled && !aiProbingDisabledForSession && probeCount < maxAiFollowups
-            }
-          });
-          
-          logAiProbeDebug('semanticResult', {
-            packId,
-            fieldKey,
-            instanceNumber,
-            status: semanticResult.status,
-            isEmpty,
-            isNoRecall,
-            normalizedAnswer,
-            probeCount,
-            maxAiFollowups
-          });
-          
           // ============================================================================
           // HELPER: Complete field without probing (save & advance)
           // ============================================================================
@@ -2371,24 +2337,78 @@ export default function CandidateInterview() {
           };
           
           // ============================================================================
-          // DECISION LOGIC: ALWAYS consult backend for V2 packs (let backend decide)
-          // ROOT FIX (2025-11): Call backend for ALL answers, not just vague ones
-          // Backend returns QUESTION (probe needed) or NEXT_FIELD (accept and continue)
+          // DECISION LOGIC: Only probe when answer is vague/uncertain
+          // FIX (2025-11-29): Gate on isEmpty/isNoRecall - don't call backend for clear answers
           // ============================================================================
+          
+          // Compute whether we should probe based on semantic analysis
+          const shouldProbe = 
+            (isEmpty || isNoRecall) &&
+            ENABLE_LIVE_AI_FOLLOWUPS &&
+            aiProbingEnabled &&
+            !aiProbingDisabledForSession &&
+            probeCount < maxAiFollowups;
+          
+          // =====================================================================
+          // [V2 PROBING DECISION] Diagnostic log for decision-making
+          // =====================================================================
+          console.log('[V2 PROBING DECISION]', {
+            packId,
+            fieldKey,
+            answerValue: normalizedAnswer?.substring?.(0, 50),
+            isNoRecall,
+            isEmpty,
+            semanticStatus: semanticResult?.status,
+            flags: {
+              ENABLE_LIVE_AI_FOLLOWUPS,
+              aiProbingEnabled,
+              aiProbingDisabledForSession
+            },
+            counters: {
+              probeCount,
+              maxAiFollowups
+            },
+            willProbe: shouldProbe
+          });
+          
+          logAiProbeDebug('semanticResult', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            status: semanticResult.status,
+            isEmpty,
+            isNoRecall,
+            normalizedAnswer,
+            probeCount,
+            maxAiFollowups,
+            shouldProbe
+          });
           
           // Check if AI probing is globally disabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
-            console.log(`[V2-SEMANTIC] AI probing disabled - saving without backend check`);
+            console.log('[V2 PROBING] Skipping probe: AI globally or session disabled');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // Max probes reached - accept current value and move on
           else if (probeCount >= maxAiFollowups) {
-            console.log(`[V2-SEMANTIC] Max probes reached for ${fieldKey} → accepting value`);
+            console.log('[V2 PROBING] Skipping probe: reached maxAiFollowups for this field', {
+              probeCount,
+              maxAiFollowups,
+            });
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
-          // CORE FIX: ALWAYS consult backend (for valid, unknown, OR no-recall answers)
+          // NEW: Semantic gate - only probe if answer is vague/uncertain
+          else if (!isEmpty && !isNoRecall) {
+            console.log('[V2 PROBING] Skipping probe: answer is clear/non-vague', {
+              answerValue: normalizedAnswer?.substring?.(0, 50),
+              semanticStatus: semanticResult?.status,
+            });
+            await completeV2FieldWithoutProbe();
+            // Fall through to advance to next step (handled below)
+          }
+          // Answer is vague/uncertain - proceed with probing
           else {
             try {
               console.log(`[V2-SEMANTIC] Consulting backend for validation decision`, {
