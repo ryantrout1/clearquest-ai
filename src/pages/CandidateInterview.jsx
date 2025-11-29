@@ -2411,12 +2411,13 @@ export default function CandidateInterview() {
           // Answer is vague/uncertain - proceed with probing
           else {
             try {
-              console.log(`[V2-SEMANTIC] Consulting backend for validation decision`, {
+              console.log('[V2 PROBING] Proceeding with backend probe', {
                 fieldKey,
-                answer: normalizedAnswer,
+                answerValue: normalizedAnswer?.substring?.(0, 50),
                 isEmpty,
                 isNoRecall,
-                semanticStatus: semanticResult.status
+                probeCount,
+                maxAiFollowups,
               });
               
               logAiProbeDebug('triggerBackendCheck', {
