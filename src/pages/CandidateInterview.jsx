@@ -2670,7 +2670,6 @@ export default function CandidateInterview() {
               }
 
               console.log(`[V2-PER-FIELD] Retry failed → treating ${fieldKey} as complete for safety`);
-              // fall through to "complete" logic
             }
 
             // No probe to show — field is complete
