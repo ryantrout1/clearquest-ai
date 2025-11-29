@@ -229,26 +229,72 @@ Deno.serve(async (req) => {
       aiModel: aiConfig.model
     });
     
+    // Build lookup maps for questions and sections
+    // CRITICAL: Response.question_id is the Question entity's DATABASE ID, not the question_id field (Q001)
+    // So we need to look up by entity.id, not entity.question_id
+    const questionsById = {};
+    questions.forEach(q => {
+      // q.id is the database ID, q.question_id is the code like 'Q001'
+      questionsById[q.id] = q;
+    });
+    
+    const sectionsById = {};
+    sections.forEach(s => {
+      sectionsById[s.id] = s;
+    });
+    
+    console.log('[QUESTION_SUMMARIES] LOOKUP_MAPS', {
+      sessionId,
+      questionCount: Object.keys(questionsById).length,
+      sectionCount: Object.keys(sectionsById).length,
+      sampleQuestionIds: Object.keys(questionsById).slice(0, 3),
+      sampleQuestionCodes: questions.slice(0, 3).map(q => q.question_id)
+    });
+    
     // Build question data map with section info
     const questionDataMap = {};
     
-    for (const response of responses) {
-      // Only process Yes answers (questions that triggered follow-ups)
-      if (response.answer !== 'Yes') continue;
+    // Filter to Yes responses only
+    const yesResponses = responses.filter(r => r.answer === 'Yes');
+    
+    console.log('[QUESTION_SUMMARIES] YES_RESPONSES', {
+      sessionId,
+      count: yesResponses.length,
+      questionIds: yesResponses.map(r => r.question_id)
+    });
+    
+    for (const response of yesResponses) {
+      // Response.question_id is the Question entity's DATABASE ID
+      const questionEntity = questionsById[response.question_id];
       
-      const questionEntity = questions.find(q => q.question_id === response.question_id);
-      if (!questionEntity) continue;
+      if (!questionEntity) {
+        console.log('[QUESTION_SUMMARIES] QUESTION_NOT_FOUND', {
+          responseQuestionId: response.question_id,
+          availableIds: Object.keys(questionsById).slice(0, 5)
+        });
+        continue;
+      }
       
-      const sectionEntity = sections.find(s => s.id === questionEntity.section_id);
-      const sectionName = sectionEntity?.section_name || '';
-      const questionCode = questionEntity.question_id || '';
+      const sectionEntity = sectionsById[questionEntity.section_id];
+      const sectionName = sectionEntity?.section_name || response.category || '';
+      const questionCode = questionEntity.question_id || ''; // This is 'Q001', 'Q015', etc.
       
-      // Get related follow-ups to determine pack
+      // Get related follow-ups to determine pack - also use response.followup_pack as fallback
       const relatedFollowUps = followUps.filter(f => f.response_id === response.id);
-      const followupPackId = relatedFollowUps[0]?.followup_pack || '';
+      const followupPackId = relatedFollowUps[0]?.followup_pack || response.followup_pack || '';
+      
+      console.log('[QUESTION_SUMMARIES] CHECKING_QUESTION', {
+        responseId: response.id,
+        questionDbId: response.question_id,
+        questionCode,
+        sectionName,
+        followupPackId,
+        hasFollowUps: relatedFollowUps.length > 0
+      });
       
       // Check if this question should be summarized
       if (!shouldSummarizeQuestion({ questionCode, sectionName, followupPackId })) {
+        console.log('[QUESTION_SUMMARIES] SKIPPED_BY_CONFIG', { questionCode, sectionName, followupPackId });
         continue;
       }
       
@@ -278,10 +324,11 @@ Deno.serve(async (req) => {
         }
       }
       
+      // Use the Response's question_id (database ID) as the key - this is what SessionDetails uses
       questionDataMap[response.question_id] = {
         responseId: response.id,
-        questionId: response.question_id,
-        questionCode,
+        questionId: response.question_id, // Database ID of Question entity
+        questionCode, // Human-readable code like 'Q001'
         questionText: response.question_text || questionEntity.question_text,
         sectionId: questionEntity.section_id,
         sectionName,
@@ -289,6 +336,12 @@ Deno.serve(async (req) => {
         instances: Object.values(instancesMap),
         aiExchanges: response.investigator_probing || []
       };
+      
+      console.log('[QUESTION_SUMMARIES] ADDED_TO_ELIGIBLE', {
+        questionDbId: response.question_id,
+        questionCode,
+        instanceCount: Object.keys(instancesMap).length
+      });
     }
     
     const eligibleQuestions = Object.values(questionDataMap);
