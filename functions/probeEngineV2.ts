@@ -311,8 +311,16 @@ Object.assign(FALLBACK_PROBES, {
   "alcohol_drugs": "Were alcohol, drugs, or stress factors involved in this incident?",
   "disciplinary_action": "What disciplinary action was taken as a result?",
   "career_impact": "How did this affect your rank, clearance, or military career?",
-  "law_enforcement_contact": "Were military police, CID, OSI, NCIS, or other investigative agencies involved?",
-  "remediation_steps": "What steps have you taken since this incident to address the issue?"
+  "remediation_steps": "What steps have you taken since this incident to address the issue?",
+  
+  // === PACK_WEAPONS_STANDARD ===
+  "weapon_type": "What type of weapon was involved in this incident?",
+  "weapon_ownership": "Did you own or possess this weapon, or did it belong to someone else?",
+  "weapon_use": "How was the weapon used, carried, or displayed during this incident?",
+  "threats": "Were there any threats made or danger posed to others during this incident?",
+  "discharge": "Was the weapon discharged, either intentionally or accidentally?",
+  "impairment": "Were alcohol, drugs, or any impairing factors involved in this incident?",
+  "actions_taken": "What actions were taken afterward — such as arrest, charges, or discipline?"
 });
 
 /**
@@ -335,7 +343,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -733,6 +741,34 @@ const PACK_CONFIG = {
       "PACK_MILITARY_STANDARD_Q06": "orders_violation",
       "PACK_MILITARY_STANDARD_Q07": "disciplinary_action",
       "PACK_MILITARY_STANDARD_Q08": "career_impact",
+    },
+  },
+  
+  // Weapons Misconduct pack (v2.4)
+  PACK_WEAPONS_STANDARD: {
+    id: "PACK_WEAPONS_STANDARD",
+    requiredFields: ["weapon_type", "incident_date", "description", "weapon_use", "actions_taken"],
+    priorityOrder: ["weapon_type", "weapon_ownership", "incident_date", "location", "description", "weapon_use", "threats", "discharge", "impairment", "actions_taken"],
+    fieldKeyMap: {
+      "weapon_type": "weapon_type",
+      "weapon_ownership": "weapon_ownership",
+      "incident_date": "incident_date",
+      "location": "location",
+      "description": "description",
+      "weapon_use": "weapon_use",
+      "threats": "threats",
+      "discharge": "discharge",
+      "impairment": "impairment",
+      "actions_taken": "actions_taken",
+      // Legacy question mappings
+      "PACK_WEAPONS_STANDARD_Q01": "weapon_type",
+      "PACK_WEAPONS_STANDARD_Q02": "weapon_ownership",
+      "PACK_WEAPONS_STANDARD_Q03": "incident_date",
+      "PACK_WEAPONS_STANDARD_Q04": "location",
+      "PACK_WEAPONS_STANDARD_Q05": "description",
+      "PACK_WEAPONS_STANDARD_Q06": "weapon_use",
+      "PACK_WEAPONS_STANDARD_Q07": "threats",
+      "PACK_WEAPONS_STANDARD_Q08": "actions_taken",
     },
   },
 };
@@ -1478,15 +1514,23 @@ const FIELD_LABELS = {
   // PACK_MILITARY_STANDARD
   "branch": "Branch of Service",
   "rank_role": "Rank and Role",
-  "incident_date": "Date of Incident",
-  "location": "Location",
-  "description": "Description of Misconduct",
   "orders_violation": "Orders/Standards Involved",
   "alcohol_drugs": "Alcohol/Drug/Stress Factors",
   "disciplinary_action": "Disciplinary Action Taken",
   "career_impact": "Impact on Career or Clearance",
-  "law_enforcement_contact": "Military Police / CID / OSI / NCIS Contact",
-  "remediation_steps": "Steps Taken Since Incident"
+  "remediation_steps": "Steps Taken Since Incident",
+  
+  // PACK_WEAPONS_STANDARD
+  "weapon_type": "Type of Weapon",
+  "weapon_ownership": "Ownership / Possession",
+  "incident_date": "Date of Incident",
+  "location": "Incident Location",
+  "description": "Description of Incident",
+  "weapon_use": "Carrying / Displaying / Using Weapon",
+  "threats": "Threats or Danger to Others",
+  "discharge": "Weapon Discharge",
+  "impairment": "Alcohol / Drug / Impairing Factors",
+  "actions_taken": "Actions Taken Afterward"
 };
 
 /**

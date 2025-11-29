@@ -387,6 +387,36 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_MILITARY_STANDARD_Q08: { label: "Career Impact" },
     },
   },
+
+  //
+  // 🔫 PACK: Weapons Misconduct
+  //
+  PACK_WEAPONS_STANDARD: {
+    displayName: "Weapons Misconduct Incident",
+    pills: ["Weapons", "Risk", "Violence", "Public Safety"],
+    fields: {
+      // v2.4 field_config fields
+      weapon_type: { label: "Type of Weapon" },
+      weapon_ownership: { label: "Ownership / Possession" },
+      incident_date: { label: "Date of Incident" },
+      location: { label: "Incident Location" },
+      description: { label: "Description of Incident" },
+      weapon_use: { label: "Carrying / Displaying / Using Weapon" },
+      threats: { label: "Threats or Danger to Others" },
+      discharge: { label: "Weapon Discharge" },
+      impairment: { label: "Alcohol / Drug / Impairing Factors" },
+      actions_taken: { label: "Actions Taken Afterward" },
+      // Legacy question mappings
+      PACK_WEAPONS_STANDARD_Q01: { label: "Weapon Type" },
+      PACK_WEAPONS_STANDARD_Q02: { label: "Ownership" },
+      PACK_WEAPONS_STANDARD_Q03: { label: "Date" },
+      PACK_WEAPONS_STANDARD_Q04: { label: "Location" },
+      PACK_WEAPONS_STANDARD_Q05: { label: "Description" },
+      PACK_WEAPONS_STANDARD_Q06: { label: "Weapon Use" },
+      PACK_WEAPONS_STANDARD_Q07: { label: "Threats" },
+      PACK_WEAPONS_STANDARD_Q08: { label: "Actions Taken" },
+    },
+  },
 };
 
 /**
