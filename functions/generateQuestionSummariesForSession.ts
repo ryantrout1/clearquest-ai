@@ -558,22 +558,23 @@ ${contextText}`;
     }
     
     // POST-WRITE SELF-CHECK: Verify summaries were actually saved
-    let postCheckSummaries = [];
+    // Using same filter pattern that SessionDetails will use
+    let postCheckRaw = [];
     try {
-      postCheckSummaries = await base44.asServiceRole.entities.QuestionSummary.filter({ session_id: sessionId });
-      postCheckSummaries = Array.isArray(postCheckSummaries) ? postCheckSummaries : [];
-      postCheckSummaries = postCheckSummaries.map(s => s.data || s);
+      postCheckRaw = await base44.asServiceRole.entities.QuestionSummary.filter({ session_id: sessionId });
     } catch (postCheckErr) {
-      console.error('[QUESTION_SUMMARIES] POSTCHECK_ERROR', { sessionId, error: postCheckErr.message });
+      console.error('[QUESTION_SUMMARIES][POSTCHECK_ERROR]', { sessionId, error: postCheckErr.message });
     }
     
-    console.log('[QUESTION_SUMMARIES] POSTCHECK', {
+    const postCheck = Array.isArray(postCheckRaw) ? postCheckRaw : [];
+    
+    console.log('[QUESTION_SUMMARIES][POSTCHECK]', {
       sessionId,
-      postCheckCount: postCheckSummaries.length,
-      postCheckQuestionIds: postCheckSummaries.map(s => s.question_id),
-      postCheckSummaryPreviews: postCheckSummaries.map(s => ({
-        questionId: s.question_id,
-        textPreview: s.question_summary_text?.substring(0, 60)
+      postCheckCount: postCheck.length,
+      postCheckQuestionIds: postCheck.map(r => r.data?.question_id ?? r.question_id),
+      postCheckSummaryPreviews: postCheck.map(r => ({
+        questionId: r.data?.question_id ?? r.question_id,
+        textPreview: (r.data?.question_summary_text ?? r.question_summary_text)?.substring(0, 60)
       }))
     });
     
