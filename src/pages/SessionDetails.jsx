@@ -1752,8 +1752,14 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       </div>
                     );
                   } else if (isDrivingPack) {
-                    // NEW: Extract facts from additional_details for driving packs
-                    const drivingFacts = buildDrivingPackFacts(packId, instance.details);
+                    // NEW: Extract facts from transcript events (primary source)
+                    const instanceKey = `${response.question_id}::${instanceNum}`;
+                    const transcriptFacts = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey]?.fields || [];
+                    
+                    // Fallback to additional_details if transcript facts are empty
+                    const drivingFacts = transcriptFacts.length > 0 
+                      ? transcriptFacts 
+                      : buildDrivingPackFacts(packId, instance.details);
                     const hasAnyFacts = drivingFacts.length > 0;
                     
                     // Build summary line from first 2-3 fields
@@ -1765,9 +1771,12 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       console.log('[SESSIONDETAILS][DRIVING_FACTS]', {
                         packId,
                         instanceNumber: instanceNum,
-                        rawDetails: instance.details,
+                        instanceKey,
+                        transcriptFactsCount: transcriptFacts.length,
+                        fallbackDetailsCount: Object.keys(instance.details || {}).length,
                         extractedFacts: drivingFacts,
-                        hasAnyFacts
+                        hasAnyFacts,
+                        source: transcriptFacts.length > 0 ? 'transcript' : 'additional_details'
                       });
                     }
 
