@@ -451,6 +451,13 @@ ${contextText}`;
               generated_at: new Date().toISOString()
             });
           } else {
+            console.log('[QUESTION_SUMMARIES] CREATING_NEW', {
+              session_id: sessionId,
+              section_id: sectionId,
+              question_id: questionId,
+              summaryPreview: summaryText?.substring(0, 80)
+            });
+            
             await base44.asServiceRole.entities.QuestionSummary.create({
               session_id: sessionId,
               section_id: sectionId,
@@ -467,7 +474,7 @@ ${contextText}`;
             status: 'generated'
           });
           
-          console.log('[QUESTION_SUMMARIES] SAVED', { questionId, questionCode });
+          console.log('[QUESTION_SUMMARIES] UPSERTED', { questionId, questionCode, sessionId });
           
         } catch (saveErr) {
           console.error('[QUESTION_SUMMARIES] SAVE_ERROR', {
