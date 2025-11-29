@@ -730,24 +730,16 @@ export default function SessionDetails() {
     const responseQuestionId = r.question_id;
     const questionEntityId = questionEntity?.id; // The database ID of the Question entity
     
-    // Try both response.question_id (like '690e30424e1f8d8d41b750e7') and question entity ID
-    // QuestionSummary stores question_id as the Question entity's database ID
-    let questionSummary = questionSummariesByQuestionId[responseQuestionId];
-    if (!questionSummary && questionEntityId) {
-      questionSummary = questionSummariesByQuestionId[questionEntityId];
-    }
+    // QuestionSummary.question_id is stored as the Question entity's database ID
+    // Response.question_id is ALSO the Question entity's database ID
+    // So we can do a direct lookup without needing questionEntityId
+    const questionSummary = questionSummariesByQuestionId[responseQuestionId] || null;
 
     // Get instance summaries for this question
     const relatedInstances = followups.filter(f => f.response_id === r.id);
     const instanceSummaries = relatedInstances.map(f => {
-      // Try both response question_id and entity id
-      let key = `${responseQuestionId}|${f.instance_number || 1}`;
-      let summary = instanceSummariesByKey[key];
-      if (!summary && questionEntityId) {
-        key = `${questionEntityId}|${f.instance_number || 1}`;
-        summary = instanceSummariesByKey[key];
-      }
-      return summary;
+      const key = `${responseQuestionId}|${f.instance_number || 1}`;
+      return instanceSummariesByKey[key];
     }).filter(Boolean);
 
     // Prefer question summary, fallback to combined instance summaries
@@ -763,7 +755,6 @@ export default function SessionDetails() {
     if (r.answer === 'Yes' && relatedInstances.length > 0) {
       console.log('[SESSIONDETAILS] Question summary check', {
         responseQuestionId,
-        questionEntityId,
         hasFollowups: relatedInstances.length > 0,
         hasSummary,
         summarySource,
