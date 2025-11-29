@@ -25,65 +25,9 @@ import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSumm
 import { getFollowupFieldLabel } from "../components/config/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
 
-// Field label mappings for driving packs - shared across helper functions
-const DRIVING_FIELD_LABELS = {
-  // PACK_DRIVING_COLLISION_STANDARD
-  'PACK_DRIVING_COLLISION_Q01': 'Date (month/year)',
-  'PACK_DRIVING_COLLISION_Q02': 'Location',
-  'PACK_DRIVING_COLLISION_Q03': 'Description',
-  'PACK_DRIVING_COLLISION_Q04': 'At Fault',
-  'PACK_DRIVING_COLLISION_Q05': 'Injuries',
-  'PACK_DRIVING_COLLISION_Q06': 'Property Damage',
-  'PACK_DRIVING_COLLISION_Q07': 'Police/Citation',
-  'PACK_DRIVING_COLLISION_Q08': 'Insurance Outcome',
-  
-  // PACK_DRIVING_VIOLATIONS_STANDARD
-  'PACK_DRIVING_VIOLATIONS_Q01': 'Violation Date',
-  'PACK_DRIVING_VIOLATIONS_Q02': 'Violation Type',
-  'PACK_DRIVING_VIOLATIONS_Q03': 'Location',
-  'PACK_DRIVING_VIOLATIONS_Q04': 'Outcome',
-  'PACK_DRIVING_VIOLATIONS_Q05': 'Fines',
-  'PACK_DRIVING_VIOLATIONS_Q06': 'Points on License',
-  
-  // PACK_DRIVING_STANDARD
-  'PACK_DRIVING_STANDARD_Q01': 'Incident Date',
-  'PACK_DRIVING_STANDARD_Q02': 'Incident Type',
-  'PACK_DRIVING_STANDARD_Q03': 'Description',
-  'PACK_DRIVING_STANDARD_Q04': 'Outcome',
-  
-  // PACK_DRIVING_DUIDWI_STANDARD
-  'PACK_DRIVING_DUIDWI_Q01': 'Incident Date',
-  'PACK_DRIVING_DUIDWI_Q02': 'Location',
-  'PACK_DRIVING_DUIDWI_Q03': 'Substance Type',
-  'PACK_DRIVING_DUIDWI_Q04': 'Stop Reason',
-  'PACK_DRIVING_DUIDWI_Q05': 'Test Type',
-  'PACK_DRIVING_DUIDWI_Q06': 'Test Result',
-  'PACK_DRIVING_DUIDWI_Q07': 'Arrest Status',
-  'PACK_DRIVING_DUIDWI_Q08': 'Court Outcome',
-  'PACK_DRIVING_DUIDWI_Q09': 'License Impact',
-  
-  // Semantic key fallbacks for clean labels
-  'incident_date': 'Incident Date',
-  'collision_date': 'Date (month/year)',
-  'violation_date': 'Violation Date',
-  'when_occurred': 'When Occurred',
-  'location': 'Location',
-  'circumstances': 'Circumstances',
-  'description': 'Description',
-  'your_role': 'Your Role',
-  'property_damage': 'Property Damage',
-  'law_enforcement_involved': 'Law Enforcement Involved',
-  'reported': 'Reported',
-  'injuries': 'Injuries',
-  'legal_outcome': 'Legal Outcome',
-  'accountability': 'Accountability',
-  'at_fault': 'At Fault',
-  'police_citation': 'Police/Citation',
-  'insurance_outcome': 'Insurance Outcome',
-  'violation_type': 'Violation Type',
-  'outcome': 'Outcome',
-  'fine_amount': 'Fines',
-  'points': 'Points on License'
+// Helper to get field label from centralized config
+const getFieldLabelForPack = (packCode, fieldCode, fallback) => {
+  return getFollowupFieldLabel({ packCode, fieldCode, fallbackLabel: fallback || fieldCode });
 };
 
 const DRIVING_PACKS = new Set([
