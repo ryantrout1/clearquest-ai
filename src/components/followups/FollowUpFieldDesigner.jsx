@@ -67,7 +67,8 @@ function labelToFieldKey(label) {
 }
 
 function isValidFieldKey(key) {
-  return /^[a-z0-9_]+$/.test(key) && key.length > 0;
+  // Allow uppercase since we normalize to lowercase before saving
+  return /^[a-zA-Z0-9_]+$/.test(key) && key.length > 0;
 }
 
 const emptyField = {
