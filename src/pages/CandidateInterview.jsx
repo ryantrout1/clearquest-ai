@@ -1159,9 +1159,46 @@ export default function CandidateInterview() {
       // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
       const maxAiFollowups = getPackMaxAiFollowups(packId);
       
+      const envInfo = getEnvironmentInfo();
+      
+      // =====================================================================
+      // [AI-FOLLOWUP][ELIGIBILITY] Diagnostic logging for Prod vs Preview
+      // =====================================================================
+      console.log('[AI-FOLLOWUP][ELIGIBILITY] Checking AI probing eligibility', {
+        packId,
+        questionCode: questionId,
+        environment: envInfo.nodeEnv,
+        runtimeEnv: envInfo.hostname,
+        sessionId,
+        aiConfig: {
+          enabledGlobally: ENABLE_LIVE_AI_FOLLOWUPS,
+          perPackEnabled: !useProbeEngineV2(packId), // Packs with V2 per-field skip this
+          maxFollowupsForPack: maxAiFollowups,
+        },
+        flags: {
+          isPreviewEnv: envInfo.isPreview,
+          isProductionEnv: envInfo.isProduction,
+          aiProbingDisabledForSession: aiProbingDisabledForSession,
+          aiProbingEnabled: aiProbingEnabled,
+        },
+        counters: {
+          usedForInstance: currentCount,
+          maxForInstance: maxAiFollowups,
+        }
+      });
+      
       console.log('[LIVE_AI_FOLLOWUP] Count', currentCount, '/', maxAiFollowups, 'for pack', packId);
       
       if (currentCount >= maxAiFollowups) {
+        console.log('[AI-FOLLOWUP][DECISION]', {
+          shouldTriggerAiFollowups: false,
+          reason: 'quota-hit',
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          currentCount,
+          maxAiFollowups
+        });
         console.log('[LIVE_AI_FOLLOWUP] Max AI follow-ups reached for pack', packId, '– not asking another probe');
         return false;
       }
