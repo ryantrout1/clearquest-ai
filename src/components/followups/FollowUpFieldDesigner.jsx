@@ -300,49 +300,28 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
                 <GripVertical className="w-4 h-4" />
               </div>
 
-              {/* Label & Field Key */}
+              {/* Label */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{field.label}</p>
-                <p className="text-xs text-slate-500 font-mono truncate">{field.fieldKey}</p>
+                <p className="text-sm font-medium text-white">{field.label}</p>
               </div>
 
-              {/* Semantic Type */}
-              <div className="w-28 flex-shrink-0">
-                {field.semanticType ? (
-                  <Badge variant="outline" className="border-slate-600 text-slate-300 text-xs truncate max-w-full">
-                    {field.semanticType}
-                  </Badge>
-                ) : (
-                  <span className="text-xs text-slate-500">—</span>
-                )}
-              </div>
-
-              {/* Input Type */}
-              <div className="w-24 flex-shrink-0">
-                <span className="text-xs text-slate-300">
+              {/* Badges */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <Badge variant="outline" className="border-slate-600 text-slate-400 text-[11px] font-normal">
+                  {field.fieldKey}
+                </Badge>
+                <Badge variant="outline" className="border-slate-600 text-slate-300 text-[11px] font-normal">
                   {INPUT_TYPE_LABELS[field.inputType] || field.inputType}
-                </span>
-              </div>
-
-              {/* Required */}
-              <div className="w-20 flex-shrink-0">
-                {field.required ? (
-                  <Badge className="bg-orange-500/20 border-orange-500/50 text-orange-400 text-xs">
+                </Badge>
+                {field.required && (
+                  <Badge className="bg-orange-500/20 border-orange-500/50 text-orange-400 text-[11px]">
                     Required
                   </Badge>
-                ) : (
-                  <span className="text-xs text-slate-500">Optional</span>
                 )}
-              </div>
-
-              {/* Allow Unknown */}
-              <div className="w-36 flex-shrink-0">
-                {field.allowUnknown ? (
-                  <span className="text-xs text-slate-400">
-                    Unknown: "{field.unknownLabel || 'Unknown / Not sure'}"
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-500">—</span>
+                {field.allowUnknown && (
+                  <Badge className="bg-slate-700/50 border-slate-600 text-slate-300 text-[11px]">
+                    Unknown: "{field.unknownLabel || 'Not recalled'}"
+                  </Badge>
                 )}
               </div>
 
@@ -352,17 +331,17 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
                   size="sm"
                   variant="ghost"
                   onClick={() => handleOpenEditModal(field)}
-                  className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                  className="h-7 w-7 p-0 text-slate-400 hover:text-white"
                 >
-                  <Edit className="w-4 h-4" />
+                  <Edit className="w-3.5 h-3.5" />
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setDeleteConfirmField(field)}
-                  className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                  className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
