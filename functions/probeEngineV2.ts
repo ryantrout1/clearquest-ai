@@ -927,6 +927,24 @@ function mapFieldKey(packConfig, rawFieldKey) {
 }
 
 /**
+ * Semantic types that are considered "date" fields for no-recall forcing
+ */
+const DATE_SEMANTIC_TYPES = new Set([
+  'monthYear', 'collisionDate', 'violationDate', 'incidentDate',
+  'date', 'incident_date', 'applicationDate'
+]);
+
+/**
+ * Check if a semantic field is a required date field for the pack
+ */
+function isRequiredDateField(packConfig, semanticField) {
+  if (!packConfig) return false;
+  const isDateType = DATE_SEMANTIC_TYPES.has(semanticField);
+  const isRequired = packConfig.requiredFields?.includes(semanticField);
+  return isDateType && isRequired;
+}
+
+/**
  * Main probe engine function - Per-Field Mode
  * NOW USES: GlobalSettings + FollowUpPack.ai_probe_instructions via InvokeLLM
  */
@@ -937,10 +955,11 @@ async function probeEngineV2(input, base44Client) {
     field_value,                  // The value provided for this field
     previous_probes_count = 0,    // How many times we've probed this field
     incident_context = {},        // Other field values for context
-    mode: requestMode = "VALIDATE_FIELD"  // VALIDATE_FIELD or LEGACY
+    mode: requestMode = "VALIDATE_FIELD",  // VALIDATE_FIELD or LEGACY
+    answerLooksLikeNoRecall: frontendNoRecallFlag = false  // Frontend hint
   } = input;
 
-  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}`);
+  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
 
   const packConfig = PACK_CONFIG[pack_id];
   if (!packConfig) {
