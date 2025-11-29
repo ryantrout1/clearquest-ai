@@ -24,8 +24,107 @@ import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
 
+// Field label mappings for driving packs - shared across helper functions
+const DRIVING_FIELD_LABELS = {
+  // PACK_DRIVING_COLLISION_STANDARD
+  'PACK_DRIVING_COLLISION_Q01': 'Date (month/year)',
+  'PACK_DRIVING_COLLISION_Q02': 'Location',
+  'PACK_DRIVING_COLLISION_Q03': 'Description',
+  'PACK_DRIVING_COLLISION_Q04': 'At Fault',
+  'PACK_DRIVING_COLLISION_Q05': 'Injuries',
+  'PACK_DRIVING_COLLISION_Q06': 'Property Damage',
+  'PACK_DRIVING_COLLISION_Q07': 'Police/Citation',
+  'PACK_DRIVING_COLLISION_Q08': 'Insurance Outcome',
+  
+  // PACK_DRIVING_VIOLATIONS_STANDARD
+  'PACK_DRIVING_VIOLATIONS_Q01': 'Violation Date',
+  'PACK_DRIVING_VIOLATIONS_Q02': 'Violation Type',
+  'PACK_DRIVING_VIOLATIONS_Q03': 'Location',
+  'PACK_DRIVING_VIOLATIONS_Q04': 'Outcome',
+  'PACK_DRIVING_VIOLATIONS_Q05': 'Fines',
+  'PACK_DRIVING_VIOLATIONS_Q06': 'Points on License',
+  
+  // PACK_DRIVING_STANDARD
+  'PACK_DRIVING_STANDARD_Q01': 'Incident Date',
+  'PACK_DRIVING_STANDARD_Q02': 'Incident Type',
+  'PACK_DRIVING_STANDARD_Q03': 'Description',
+  'PACK_DRIVING_STANDARD_Q04': 'Outcome',
+  
+  // PACK_DRIVING_DUIDWI_STANDARD
+  'PACK_DRIVING_DUIDWI_Q01': 'Incident Date',
+  'PACK_DRIVING_DUIDWI_Q02': 'Location',
+  'PACK_DRIVING_DUIDWI_Q03': 'Substance Type',
+  'PACK_DRIVING_DUIDWI_Q04': 'Stop Reason',
+  'PACK_DRIVING_DUIDWI_Q05': 'Test Type',
+  'PACK_DRIVING_DUIDWI_Q06': 'Test Result',
+  'PACK_DRIVING_DUIDWI_Q07': 'Arrest Status',
+  'PACK_DRIVING_DUIDWI_Q08': 'Court Outcome',
+  'PACK_DRIVING_DUIDWI_Q09': 'License Impact'
+};
+
+const DRIVING_PACKS = new Set([
+  'PACK_DRIVING_COLLISION_STANDARD',
+  'PACK_DRIVING_STANDARD',
+  'PACK_DRIVING_VIOLATIONS_STANDARD',
+  'PACK_DRIVING_DUIDWI_STANDARD'
+]);
+
 /**
- * Build structured facts from additional_details for Driving packs
+ * Build driving incident facts from transcript events
+ * This is the NEW primary source for Structured view
+ * Shape: { [baseQuestionId]: { instances: { [instanceKey]: { fields: [{fieldKey, label, value}] } } } }
+ */
+function buildDrivingFactsFromTranscript(transcriptEvents) {
+  const factsByBaseQuestion = {};
+
+  for (const ev of transcriptEvents || []) {
+    // Only process follow-up answers (deterministic or AI probe)
+    if (ev.kind !== 'deterministic_followup_answer' && ev.kind !== 'ai_probe_answer') continue;
+
+    const packId = ev.followupPackId;
+    if (!packId || !DRIVING_PACKS.has(packId)) continue;
+
+    const baseQuestionId = ev.baseQuestionId;
+    if (!baseQuestionId) continue;
+
+    const instanceNumber = ev.instanceNumber || 1;
+    const instanceKey = `${baseQuestionId}::${instanceNumber}`;
+
+    const fieldKey = ev.fieldKey;
+    const value = ev.text;
+
+    if (!value || String(value).trim() === '') continue;
+
+    // Get label from field key, or use the question text from a prior Q event if needed
+    let label = DRIVING_FIELD_LABELS[fieldKey] || fieldKey || 'Unknown Field';
+
+    // Initialize containers
+    if (!factsByBaseQuestion[baseQuestionId]) {
+      factsByBaseQuestion[baseQuestionId] = { instances: {} };
+    }
+    if (!factsByBaseQuestion[baseQuestionId].instances[instanceKey]) {
+      factsByBaseQuestion[baseQuestionId].instances[instanceKey] = {
+        instanceNumber,
+        fields: []
+      };
+    }
+
+    // Push field/value pair
+    factsByBaseQuestion[baseQuestionId].instances[instanceKey].fields.push({
+      fieldKey,
+      label,
+      value: String(value)
+    });
+  }
+
+  // Log once for debugging
+  console.log('[SESSIONDETAILS][DRIVING_FACTS_FROM_TRANSCRIPT]', factsByBaseQuestion);
+
+  return factsByBaseQuestion;
+}
+
+/**
+ * Build structured facts from additional_details for Driving packs (FALLBACK)
  * Maps field keys to human-readable labels and extracts values
  * @param {string} packId - Pack identifier
  * @param {Object} details - additional_details object from FollowUpResponse
@@ -33,44 +132,6 @@ import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/f
  */
 function buildDrivingPackFacts(packId, details) {
   if (!details || typeof details !== 'object') return [];
-  
-  // Field label mappings for driving packs
-  const DRIVING_FIELD_LABELS = {
-    // PACK_DRIVING_COLLISION_STANDARD
-    'PACK_DRIVING_COLLISION_Q01': 'Collision Date',
-    'PACK_DRIVING_COLLISION_Q02': 'Location',
-    'PACK_DRIVING_COLLISION_Q03': 'Description',
-    'PACK_DRIVING_COLLISION_Q04': 'At Fault',
-    'PACK_DRIVING_COLLISION_Q05': 'Injuries',
-    'PACK_DRIVING_COLLISION_Q06': 'Property Damage',
-    'PACK_DRIVING_COLLISION_Q07': 'Citations Issued',
-    'PACK_DRIVING_COLLISION_Q08': 'Alcohol/Substances Involved',
-    
-    // PACK_DRIVING_VIOLATIONS_STANDARD
-    'PACK_DRIVING_VIOLATIONS_Q01': 'Violation Date',
-    'PACK_DRIVING_VIOLATIONS_Q02': 'Violation Type',
-    'PACK_DRIVING_VIOLATIONS_Q03': 'Location',
-    'PACK_DRIVING_VIOLATIONS_Q04': 'Outcome',
-    'PACK_DRIVING_VIOLATIONS_Q05': 'Fines',
-    'PACK_DRIVING_VIOLATIONS_Q06': 'Points on License',
-    
-    // PACK_DRIVING_STANDARD
-    'PACK_DRIVING_STANDARD_Q01': 'Incident Date',
-    'PACK_DRIVING_STANDARD_Q02': 'Incident Type',
-    'PACK_DRIVING_STANDARD_Q03': 'Description',
-    'PACK_DRIVING_STANDARD_Q04': 'Outcome',
-    
-    // PACK_DRIVING_DUIDWI_STANDARD
-    'PACK_DRIVING_DUIDWI_Q01': 'Incident Date',
-    'PACK_DRIVING_DUIDWI_Q02': 'Location',
-    'PACK_DRIVING_DUIDWI_Q03': 'Substance Type',
-    'PACK_DRIVING_DUIDWI_Q04': 'Stop Reason',
-    'PACK_DRIVING_DUIDWI_Q05': 'Test Type',
-    'PACK_DRIVING_DUIDWI_Q06': 'Test Result',
-    'PACK_DRIVING_DUIDWI_Q07': 'Arrest Status',
-    'PACK_DRIVING_DUIDWI_Q08': 'Court Outcome',
-    'PACK_DRIVING_DUIDWI_Q09': 'License Impact'
-  };
   
   // Define display order for each pack
   const FIELD_ORDER = {
