@@ -1,10 +1,5 @@
-// Canonical Follow-Up Categories
+// Canonical Follow-Up Categories (alphabetical order)
 export const FOLLOWUP_CATEGORIES = [
-  {
-    id: "DRUG_USE_CONTROLLED_SUBSTANCES",
-    label: "Drug Use / Controlled Substances",
-    description: "Any 'Yes' related to drug use, possession, or influence. Captures substance name, frequency, timeline, source, context, impact, and accountability."
-  },
   {
     id: "CRIMINAL_CHARGES_ARRESTS",
     label: "Criminal Charges & Arrests",
@@ -14,6 +9,11 @@ export const FOLLOWUP_CATEGORIES = [
     id: "DRIVING_INCIDENTS",
     label: "Driving Incidents",
     description: "DUI, suspensions, reckless driving, major violations. Captures dates, BAC, outcomes, license/insurance impact, circumstances."
+  },
+  {
+    id: "DRUG_USE_CONTROLLED_SUBSTANCES",
+    label: "Drug Use / Controlled Substances",
+    description: "Any 'Yes' related to drug use, possession, or influence. Captures substance name, frequency, timeline, source, context, impact, and accountability."
   },
   {
     id: "EMPLOYMENT_TERMINATIONS",
@@ -26,6 +26,21 @@ export const FOLLOWUP_CATEGORIES = [
     description: "Bankruptcy, foreclosure, collections, major debt. Captures type, amount, timeline, resolution, current status."
   },
   {
+    id: "GANG_AFFILIATION",
+    label: "Gang Affiliation",
+    description: "Gang membership or association. Documents gang name, dates, participation level, criminal activity, exit, current contact."
+  },
+  {
+    id: "LAW_ENFORCEMENT_DISCIPLINE",
+    label: "Law Enforcement Discipline",
+    description: "LE complaints, suspensions, integrity issues. Documents department, dates, complaint nature, investigation, discipline."
+  },
+  {
+    id: "MILITARY_DISCIPLINE",
+    label: "Military Discipline",
+    description: "Courts-martial, Article 15s, discharges. Captures type, dates, circumstances, outcomes, discharge impact."
+  },
+  {
     id: "SEXUAL_MISCONDUCT_EXPLOITATION",
     label: "Sexual Misconduct or Exploitation",
     description: "Prostitution, harassment, assault, exploitation. Documents nature, consequences, treatment, accountability."
@@ -34,21 +49,6 @@ export const FOLLOWUP_CATEGORIES = [
     id: "WEAPONS_VIOLATIONS",
     label: "Weapons Violations",
     description: "Illegal possession, improper use, unsafe discharge, threats. Captures weapon type, circumstances, impact, outcomes."
-  },
-  {
-    id: "GANG_AFFILIATION",
-    label: "Gang Affiliation",
-    description: "Gang membership or association. Documents gang name, dates, participation level, criminal activity, exit, current contact."
-  },
-  {
-    id: "MILITARY_DISCIPLINE",
-    label: "Military Discipline",
-    description: "Courts-martial, Article 15s, discharges. Captures type, dates, circumstances, outcomes, discharge impact."
-  },
-  {
-    id: "LAW_ENFORCEMENT_DISCIPLINE",
-    label: "Law Enforcement Discipline",
-    description: "LE complaints, suspensions, integrity issues. Documents department, dates, complaint nature, investigation, discipline."
   }
 ];
 
