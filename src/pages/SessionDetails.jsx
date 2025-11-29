@@ -710,14 +710,28 @@ export default function SessionDetails() {
     const sectionEntity = sections.find(s => s.id === questionEntity?.section_id);
     const sectionName = sectionEntity?.section_name || r.category || '';
     
-    // Augment with summary from QuestionSummary entity or InstanceSummary entities
-    const questionSummary = questionSummariesByQuestionId[r.question_id];
+    // DEBUG: Log what we're looking up for this response
+    const responseQuestionId = r.question_id;
+    const questionEntityId = questionEntity?.id; // The database ID of the Question entity
+    
+    // Try both response.question_id (like '690e30424e1f8d8d41b750e7') and question entity ID
+    // QuestionSummary stores question_id as the Question entity's database ID
+    let questionSummary = questionSummariesByQuestionId[responseQuestionId];
+    if (!questionSummary && questionEntityId) {
+      questionSummary = questionSummariesByQuestionId[questionEntityId];
+    }
 
     // Get instance summaries for this question
     const relatedInstances = followups.filter(f => f.response_id === r.id);
     const instanceSummaries = relatedInstances.map(f => {
-      const key = `${r.question_id}|${f.instance_number || 1}`;
-      return instanceSummariesByKey[key];
+      // Try both response question_id and entity id
+      let key = `${responseQuestionId}|${f.instance_number || 1}`;
+      let summary = instanceSummariesByKey[key];
+      if (!summary && questionEntityId) {
+        key = `${questionEntityId}|${f.instance_number || 1}`;
+        summary = instanceSummariesByKey[key];
+      }
+      return summary;
     }).filter(Boolean);
 
     // Prefer question summary, fallback to combined instance summaries
@@ -729,13 +743,18 @@ export default function SessionDetails() {
     const hasSummary = !!investigator_summary;
     const summarySource = questionSummary ? 'question' : instanceSummaries.length ? 'instances' : 'none';
 
-    console.log('[SESSIONDETAILS] Question summary check', {
-      questionId: r.question_id,
-      hasFollowups: relatedInstances.length > 0,
-      hasSummary,
-      summarySource,
-      summaryPreview: investigator_summary ? investigator_summary.slice(0, 120) : null
-    });
+    // Only log for Yes answers with follow-ups (where we expect summaries)
+    if (r.answer === 'Yes' && relatedInstances.length > 0) {
+      console.log('[SESSIONDETAILS] Question summary check', {
+        responseQuestionId,
+        questionEntityId,
+        hasFollowups: relatedInstances.length > 0,
+        hasSummary,
+        summarySource,
+        availableKeys: Object.keys(questionSummariesByQuestionId).slice(0, 5),
+        summaryPreview: investigator_summary ? investigator_summary.slice(0, 120) : null
+      });
+    }
     
     return {
       ...r,
