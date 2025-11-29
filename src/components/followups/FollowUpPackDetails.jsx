@@ -417,6 +417,16 @@ export default function FollowUpPackDetails({
         )}
       </div>
 
+      {/* Display / Template Settings - NEW CARD */}
+      <DisplayTemplateSettings
+        pack={pack}
+        isExpanded={isDisplaySettingsExpanded}
+        onToggleExpand={() => setIsDisplaySettingsExpanded(!isDisplaySettingsExpanded)}
+        isEditing={isEditing}
+        formData={formData}
+        setFormData={setFormData}
+      />
+
       {/* Pack Configuration */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
         <Label className="text-lg font-semibold text-white mb-3 block">Pack Configuration</Label>
