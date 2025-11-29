@@ -93,7 +93,8 @@ export default function DisplayTemplateSettings({
     setLocalData({
       instance_header_template: pack?.instance_header_template || '',
       instance_title_format: pack?.instance_title_format || '',
-      label_mapping_overrides: pack?.label_mapping_overrides || null
+      label_mapping_overrides: pack?.label_mapping_overrides || null,
+      label_mapping_overrides_text: pack?.label_mapping_overrides ? JSON.stringify(pack.label_mapping_overrides, null, 2) : ''
     });
     setIsEditing(false);
   };
