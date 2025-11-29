@@ -1832,14 +1832,23 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                     const detailEntries = Object.entries(instance.details || {});
                     const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
-                      let questionText = instance.questionTextSnapshot?.[detailKey];
+                      // Try to find a matching field config to get the short factsLabel
+                      const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === detailKey || f.semanticKey === detailKey);
+                      
+                      let questionText = fieldConfig?.factsLabel || fieldConfig?.label;
                       let matchedQuestion = null;
+                      
+                      if (!questionText) {
+                        questionText = instance.questionTextSnapshot?.[detailKey];
+                      }
                       if (!questionText) {
                         matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
                         if (matchedQuestion) { questionText = matchedQuestion.question_text; }
                       }
                       if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
-                      return { detailKey, detailValue, displayOrder: matchedQuestion?.display_order ?? 999, questionText };
+                      
+                      const displayOrder = fieldConfig?.factsOrder ?? matchedQuestion?.display_order ?? 999;
+                      return { detailKey, detailValue, displayOrder, questionText };
                     });
                     deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
                     const uniqueExchanges = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
