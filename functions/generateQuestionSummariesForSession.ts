@@ -266,12 +266,20 @@ Deno.serve(async (req) => {
       questionCode: questionsById[id]?.question_id
     }));
     
+    // Debug: also show raw question structure
+    const rawQuestionSample = questions.slice(0, 2).map(q => ({
+      topLevelId: q.id,
+      hasData: !!q.data,
+      dataId: q.data?.id,
+      questionIdField: q.question_id || q.data?.question_id
+    }));
+    
     console.log('[QUESTION_SUMMARIES] LOOKUP_MAPS', {
       sessionId,
       questionCount: Object.keys(questionsById).length,
       sectionCount: Object.keys(sectionsById).length,
       sampleQuestionIds: Object.keys(questionsById).slice(0, 5),
-      sampleQuestionCodes: questions.slice(0, 5).map(q => ({ id: q.id, code: q.question_id })),
+      rawQuestionSample,
       foundTargets
     });
     
