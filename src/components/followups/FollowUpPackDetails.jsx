@@ -69,159 +69,58 @@ export default function FollowUpPackDetails({
     });
   }, [pack?.followup_pack_id]);
 
-  const handleSave = async () => {
+  // Save basic info (name, description, category)
+  const handleSaveBasicInfo = async () => {
     if (!pack) return;
     
     try {
       const payload = {
         pack_name: formData.pack_name,
         description: formData.description,
-        behavior_type: formData.behavior_type,
-        requires_completion: formData.requires_completion,
-        max_probe_loops: formData.max_probe_loops ? parseInt(formData.max_probe_loops) : null,
-        max_ai_followups: formData.max_ai_followups ? parseInt(formData.max_ai_followups) : 3,
-        ai_probe_instructions: formData.ai_probe_instructions || '',
-        ai_summary_instructions: formData.ai_summary_instructions || '',
-        active: formData.active,
-        category_id: formData.categoryId || null,
-        instance_header_template: formData.instance_header_template || '',
-        instance_title_format: formData.instance_title_format || '',
-        label_mapping_overrides: formData.label_mapping_overrides || null
+        category_id: formData.categoryId || null
       };
       
-      console.log('[PACK-SAVE] Starting save', {
-        packId: pack.followup_pack_id,
-        categoryId: formData.categoryId,
-        hasSummaryInstructions: !!formData.ai_summary_instructions,
-        summaryLength: formData.ai_summary_instructions?.length || 0,
-      });
-      console.log('[PACK-SAVE] Update data full', JSON.stringify(payload, null, 2));
-      
-      // Save to database
       const updatedPack = await base44.entities.FollowUpPack.update(pack.id, payload);
       
-      console.log('[PACK-SAVE] Database response full', JSON.stringify(updatedPack, null, 2));
-      
-      // Update local form data immediately with saved values
       setFormData({
         pack_name: updatedPack.pack_name || formData.pack_name,
         description: updatedPack.description || formData.description,
-        behavior_type: updatedPack.behavior_type || formData.behavior_type,
-        requires_completion: updatedPack.requires_completion !== false,
-        max_probe_loops: updatedPack.max_probe_loops || '',
-        max_ai_followups: updatedPack.max_ai_followups ?? 3,
-        ai_probe_instructions: updatedPack.ai_probe_instructions || '',
-        ai_summary_instructions: updatedPack.ai_summary_instructions || '',
-        active: updatedPack.active !== false,
-        categoryId: updatedPack.category_id || formData.categoryId,
-        instance_header_template: updatedPack.instance_header_template || '',
-        instance_title_format: updatedPack.instance_title_format || '',
-        label_mapping_overrides: updatedPack.label_mapping_overrides || null
+        categoryId: updatedPack.category_id || formData.categoryId
       });
       
-      // Exit edit mode immediately
       setIsEditing(false);
-      
-      toast.success('Pack updated successfully');
-      
-      // Notify parent to refetch (without navigating away)
+      toast.success('Pack updated');
       onUpdate(updatedPack);
-      
     } catch (err) {
       console.error('[PACK-SAVE] Error:', err);
-      toast.error('Failed to save pack: ' + (err.message || 'Unknown error'));
+      toast.error('Failed to save pack');
     }
   };
 
-  const handleNavigateToQuestion = (questionId) => {
-    navigate(createPageUrl(`InterviewStructureManager?questionId=${questionId}`));
-  };
-
-  const handleAddQuestion = async () => {
-    if (!newQuestion.question_text.trim() || !pack) return;
+  // Generic section save handler
+  const handleSectionSave = async (updates) => {
+    if (!pack) return;
     
     try {
-      const maxOrder = Math.max(0, ...questions.map(q => q.display_order || 0));
-      await base44.entities.FollowUpQuestion.create({
-        followup_question_id: `${pack.followup_pack_id}_Q${Date.now()}`,
-        followup_pack_id: pack.followup_pack_id,
-        question_text: newQuestion.question_text,
-        response_type: newQuestion.response_type,
-        display_order: maxOrder + 1,
-        active: true
-      });
-      
-      setNewQuestion({ question_text: '', response_type: 'text', active: true });
-      setShowAddQuestion(false);
-      onUpdate();
-      toast.success('Question added');
+      const updatedPack = await base44.entities.FollowUpPack.update(pack.id, updates);
+      toast.success('Saved');
+      onUpdate(updatedPack);
     } catch (err) {
-      toast.error('Failed to add question');
+      console.error('[SECTION-SAVE] Error:', err);
+      toast.error('Failed to save');
+      throw err;
     }
   };
-
-  const handleUpdateQuestion = async (questionId, updates) => {
-    try {
-      await base44.entities.FollowUpQuestion.update(questionId, updates);
-      setEditingQuestion(null);
-      onUpdate();
-      toast.success('Question updated');
-    } catch (err) {
-      toast.error('Failed to update question');
-    }
-  };
-
-  const handleDeleteQuestion = async (questionId) => {
-    try {
-      await base44.entities.FollowUpQuestion.delete(questionId);
-      // Remove from local state immediately (no refresh)
-      setLocalDeletedQuestionIds(prev => [...prev, questionId]);
-      setShowQuestionDeleteConfirm(false);
-      setQuestionToDelete(null);
-      toast.success('Question deleted');
-    } catch (err) {
-      toast.error('Failed to delete question');
-    }
-  };
-
-  const handleReorderQuestion = async (questionId, direction) => {
-    const sortedQuestions = [...questions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    const currentIndex = sortedQuestions.findIndex(q => q.id === questionId);
-    if (currentIndex === -1) return;
-    
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= sortedQuestions.length) return;
-    
-    try {
-      const items = [...sortedQuestions];
-      const [moved] = items.splice(currentIndex, 1);
-      items.splice(newIndex, 0, moved);
-      
-      await Promise.all(items.map((q, idx) => 
-        base44.entities.FollowUpQuestion.update(q.id, { display_order: idx + 1 })
-      ));
-      
-      onUpdate();
-      toast.success('Question order updated');
-    } catch (err) {
-      toast.error('Failed to reorder question');
-    }
-  };
-
-  // Filter out locally deleted questions to avoid refresh
-  const filteredQuestions = questions.filter(q => !localDeletedQuestionIds.includes(q.id));
-  const sortedQuestions = [...filteredQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-  const sortedTriggeringQuestions = [...triggeringQuestions].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   
-  // Always start collapsed
+  // Reset expansion states when pack changes
   useEffect(() => {
+    setIsDisplaySettingsExpanded(false);
+    setIsConfigExpanded(false);
+    setIsProbeInstructionsExpanded(false);
+    setIsSummaryInstructionsExpanded(false);
     setIsTriggeringExpanded(false);
     setIsFollowupQuestionsExpanded(false);
-  }, [pack?.id]);
-
-  // Reset local deleted IDs when pack changes
-  useEffect(() => {
-    setLocalDeletedQuestionIds([]);
+    setIsFieldsExpanded(false);
   }, [pack?.id]);
 
   if (!pack) {
