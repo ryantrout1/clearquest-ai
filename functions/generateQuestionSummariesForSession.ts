@@ -583,14 +583,14 @@ ${contextText}`;
       generatedCount,
       skippedCount,
       totalEligible: eligibleQuestions.length,
-      postCheckCount: postCheckSummaries.length
+      postCheckCount: postCheck.length
     });
     
     return Response.json({
       ok: true,
       generatedCount,
       skippedCount,
-      postCheckCount: postCheckSummaries.length,
+      postCheckCount: postCheck.length,
       summaries
     });
     
