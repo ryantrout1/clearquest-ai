@@ -871,30 +871,46 @@ export default function SessionDetails() {
     }
   };
 
-  // Unified AI generation handler
+  // Unified AI generation handler - now uses new question-level summaries function
   const handleGenerateAllAISummaries = async () => {
     if (!sessionId || isGeneratingAI) return;
     setIsGeneratingAI(true);
 
     try {
-      console.log('[AI-GENERATE] FRONT_START', { sessionId });
+      console.log('[AI-GENERATE] QUESTION_SUMMARIES_START', { sessionId });
 
-      const result = await base44.functions.invoke('generateSessionSummaries', {
-        session_id: sessionId,
-        generateGlobal: true,
-        generateSections: true,
-        generateQuestions: true
+      // Call new question-level summaries function
+      const questionResult = await base44.functions.invoke('generateQuestionSummariesForSession', {
+        sessionId: sessionId,
+        force: false
       });
 
-      console.log('[AI-GENERATE] FRONT_DONE', { sessionId, result: result.data });
+      console.log('[AI-GENERATE] QUESTION_SUMMARIES_RESULT', { 
+        sessionId, 
+        data: questionResult.data 
+      });
 
-      if (result.data.success) {
-        toast.success('AI summaries generated');
-      } else {
-        toast.error('Failed to generate summaries');
+      // Also generate global/section summaries using the old function (for backwards compatibility)
+      try {
+        await base44.functions.invoke('generateSessionSummaries', {
+          session_id: sessionId,
+          generateGlobal: true,
+          generateSections: true,
+          generateQuestions: false // Skip question summaries in old function
+        });
+      } catch (legacyErr) {
+        console.warn('[AI-GENERATE] Legacy function error (non-fatal)', { error: legacyErr.message });
       }
 
-      // Reload all data
+      if (questionResult.data?.ok) {
+        const { generatedCount, skippedCount } = questionResult.data;
+        toast.success(`AI summaries generated: ${generatedCount} new, ${skippedCount} existing`);
+        console.log('[AI-GENERATE] QUESTION_SUMMARIES_DONE', { generatedCount, skippedCount });
+      } else {
+        toast.error('Failed to generate question summaries');
+      }
+
+      // Reload all data to show new summaries
       await loadSessionData();
     } catch (err) {
       console.error('[AI-GENERATE] FRONT_ERROR', { sessionId, error: err });
