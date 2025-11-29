@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
+import DisplayTemplateSettings from "./DisplayTemplateSettings";
 
 const RESPONSE_TYPE_NAMES = {
   'text': 'Text',
