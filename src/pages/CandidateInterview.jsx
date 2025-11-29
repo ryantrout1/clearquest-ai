@@ -1193,8 +1193,38 @@ export default function CandidateInterview() {
 
   // NEW: Start per-pack AI mini-session
   const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
+    const envInfo = getEnvironmentInfo();
+    
+    // =====================================================================
+    // [AI-FOLLOWUP][ENTRY] Entry point for AI probing - comprehensive logging
+    // =====================================================================
+    console.log('[AI-FOLLOWUP][ENTRY] startAiProbingForPackInstance called', {
+      questionId,
+      packId,
+      instanceNumber,
+      sessionId,
+      environment: envInfo.nodeEnv,
+      runtimeEnv: envInfo.hostname,
+      isPreview: envInfo.isPreview,
+      isProduction: envInfo.isProduction,
+      flags: {
+        ENABLE_LIVE_AI_FOLLOWUPS,
+        aiProbingDisabledForSession,
+        aiProbingEnabled,
+        useProbeEngineV2ForPack: useProbeEngineV2(packId)
+      },
+      followUpAnswersCount: followUpAnswers?.length || 0
+    });
+    
     // Check if AI is disabled for this session
     if (aiProbingDisabledForSession) {
+      console.log('[AI-FOLLOWUP][DECISION]', {
+        shouldTriggerAiFollowups: false,
+        reason: 'disabled-for-session',
+        packId,
+        questionCode: questionId,
+        instanceNumber
+      });
       return false;
     }
     
