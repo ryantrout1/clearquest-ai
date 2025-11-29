@@ -476,6 +476,46 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_NON_CONSENT_STANDARD_Q08: { label: "Official Actions" },
     },
   },
+
+  //
+  // 💊 PACK: Drug Sale / Manufacture / Trafficking
+  //
+  PACK_DRUG_SALE_STANDARD: {
+    displayName: "Drug Sale / Manufacture / Trafficking",
+    pills: ["Drug Sale", "Trafficking", "Criminal", "Risk"],
+    fields: {
+      // v2.4 field_config fields
+      substance_type: { label: "Substance Type" },
+      role: { label: "Role / Involvement" },
+      approx_date: { label: "Approximate Date" },
+      frequency: { label: "Frequency" },
+      location: { label: "Location" },
+      associates: { label: "Other Parties" },
+      compensation: { label: "Profit / Compensation" },
+      weapons_violence: { label: "Weapons or Violence" },
+      law_enforcement_involved: { label: "LE Involvement" },
+      arrested_charged: { label: "Arrest / Charges" },
+      disclosed_prior: { label: "Previously Disclosed" },
+      recurrence: { label: "Occurred Again" },
+      coercion: { label: "Voluntary or Coerced" },
+      prevention_steps: { label: "Steps Taken Since" },
+      // Legacy question mappings
+      PACK_DRUG_SALE_STANDARD_Q01: { label: "Substance" },
+      PACK_DRUG_SALE_STANDARD_Q02: { label: "Role" },
+      PACK_DRUG_SALE_STANDARD_Q03: { label: "Date" },
+      PACK_DRUG_SALE_STANDARD_Q04: { label: "Frequency" },
+      PACK_DRUG_SALE_STANDARD_Q05: { label: "Location" },
+      PACK_DRUG_SALE_STANDARD_Q06: { label: "Associates" },
+      PACK_DRUG_SALE_STANDARD_Q07: { label: "Compensation" },
+      PACK_DRUG_SALE_STANDARD_Q08: { label: "Weapons/Violence" },
+      PACK_DRUG_SALE_STANDARD_Q09: { label: "LE Involved" },
+      PACK_DRUG_SALE_STANDARD_Q10: { label: "Arrested/Charged" },
+      PACK_DRUG_SALE_STANDARD_Q11: { label: "Disclosed Prior" },
+      PACK_DRUG_SALE_STANDARD_Q12: { label: "Recurrence" },
+      PACK_DRUG_SALE_STANDARD_Q13: { label: "Coercion" },
+      PACK_DRUG_SALE_STANDARD_Q14: { label: "Prevention" },
+    },
+  },
 };
 
 /**

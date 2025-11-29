@@ -339,7 +339,21 @@ Object.assign(FALLBACK_PROBES, {
   "coercion": "Was there any force, intimidation, or coercion involved?",
   "consent_signals": "Were there any signals indicating lack of consent?",
   "injuries": "Were any injuries reported as a result of this incident?",
-  "legal_action": "Was there any police, employer, or school involvement or action taken?"
+  "legal_action": "Was there any police, employer, or school involvement or action taken?",
+  
+  // === PACK_DRUG_SALE_STANDARD ===
+  "substance_type": "What type of substance was involved?",
+  "role": "What was your role or involvement in this activity?",
+  "approx_date": "When did this occur? Please provide at least the month and year, or your approximate age.",
+  "frequency": "How often did this occur, or how many times?",
+  "associates": "Were other people involved? If so, what were their roles?",
+  "compensation": "Was there any profit, compensation, or financial gain?",
+  "weapons_violence": "Were any weapons or violence involved?",
+  "law_enforcement_involved": "Was law enforcement ever involved or aware of this activity?",
+  "arrested_charged": "Were you ever arrested or charged in connection with this activity?",
+  "disclosed_prior": "Have you previously disclosed this on any application or background investigation?",
+  "recurrence": "Has this type of activity occurred again since?",
+  "prevention_steps": "What steps have you taken to ensure this does not happen again?"
 });
 
 /**
@@ -362,7 +376,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -843,6 +857,44 @@ const PACK_CONFIG = {
       "PACK_NON_CONSENT_STANDARD_Q06": "coercion",
       "PACK_NON_CONSENT_STANDARD_Q07": "consent_signals",
       "PACK_NON_CONSENT_STANDARD_Q08": "legal_action",
+    },
+  },
+  
+  // Drug Sale / Manufacture / Trafficking pack (v2.4)
+  PACK_DRUG_SALE_STANDARD: {
+    id: "PACK_DRUG_SALE_STANDARD",
+    requiredFields: ["substance_type", "role", "approx_date", "arrested_charged"],
+    priorityOrder: ["substance_type", "role", "approx_date", "frequency", "location", "associates", "compensation", "weapons_violence", "law_enforcement_involved", "arrested_charged", "disclosed_prior", "recurrence", "coercion", "prevention_steps"],
+    fieldKeyMap: {
+      "substance_type": "substance_type",
+      "role": "role",
+      "approx_date": "approx_date",
+      "frequency": "frequency",
+      "location": "location",
+      "associates": "associates",
+      "compensation": "compensation",
+      "weapons_violence": "weapons_violence",
+      "law_enforcement_involved": "law_enforcement_involved",
+      "arrested_charged": "arrested_charged",
+      "disclosed_prior": "disclosed_prior",
+      "recurrence": "recurrence",
+      "coercion": "coercion",
+      "prevention_steps": "prevention_steps",
+      // Legacy question mappings
+      "PACK_DRUG_SALE_STANDARD_Q01": "substance_type",
+      "PACK_DRUG_SALE_STANDARD_Q02": "role",
+      "PACK_DRUG_SALE_STANDARD_Q03": "approx_date",
+      "PACK_DRUG_SALE_STANDARD_Q04": "frequency",
+      "PACK_DRUG_SALE_STANDARD_Q05": "location",
+      "PACK_DRUG_SALE_STANDARD_Q06": "associates",
+      "PACK_DRUG_SALE_STANDARD_Q07": "compensation",
+      "PACK_DRUG_SALE_STANDARD_Q08": "weapons_violence",
+      "PACK_DRUG_SALE_STANDARD_Q09": "law_enforcement_involved",
+      "PACK_DRUG_SALE_STANDARD_Q10": "arrested_charged",
+      "PACK_DRUG_SALE_STANDARD_Q11": "disclosed_prior",
+      "PACK_DRUG_SALE_STANDARD_Q12": "recurrence",
+      "PACK_DRUG_SALE_STANDARD_Q13": "coercion",
+      "PACK_DRUG_SALE_STANDARD_Q14": "prevention_steps",
     },
   },
 };
@@ -1614,14 +1666,27 @@ const FIELD_LABELS = {
   // PACK_NON_CONSENT_STANDARD
   "incident_type": "Type of Incident",
   "date": "Date of Incident",
-  "location": "Location",
   "other_party": "Other Party (Relationship Only)",
   "narrative": "What Happened",
   "coercion": "Coercion or Force",
   "consent_signals": "Consent Signals",
-  "impairment": "Alcohol/Drugs",
   "injuries": "Injuries Reported",
-  "legal_action": "Official Actions"
+  "legal_action": "Official Actions",
+  
+  // PACK_DRUG_SALE_STANDARD
+  "substance_type": "Substance Type",
+  "role": "Role / Involvement",
+  "approx_date": "Approximate Date",
+  "frequency": "Frequency",
+  "location": "Location",
+  "associates": "Other Parties",
+  "compensation": "Profit / Compensation",
+  "weapons_violence": "Weapons or Violence",
+  "law_enforcement_involved": "LE Involvement",
+  "arrested_charged": "Arrest / Charges",
+  "disclosed_prior": "Previously Disclosed",
+  "recurrence": "Occurred Again",
+  "prevention_steps": "Steps Taken Since"
 };
 
 /**
