@@ -473,19 +473,23 @@ ${contextText}`;
               generated_at: new Date().toISOString()
             });
           } else {
-            console.log('[QUESTION_SUMMARIES] CREATING_NEW', {
+            const createPayload = {
               session_id: sessionId,
-              section_id: sectionId,
-              question_id: questionId,
-              summaryPreview: summaryText?.substring(0, 80)
-            });
-            
-            await base44.asServiceRole.entities.QuestionSummary.create({
-              session_id: sessionId,
-              section_id: sectionId,
+              section_id: sectionId || '',
               question_id: questionId,
               question_summary_text: summaryText,
               generated_at: new Date().toISOString()
+            };
+            
+            console.log('[QUESTION_SUMMARIES] CREATING_NEW', createPayload);
+            
+            const createResult = await base44.asServiceRole.entities.QuestionSummary.create(createPayload);
+            
+            console.log('[QUESTION_SUMMARIES] CREATE_RESULT', {
+              questionId,
+              questionCode,
+              result: createResult,
+              resultId: createResult?.id || createResult?.data?.id
             });
           }
           
