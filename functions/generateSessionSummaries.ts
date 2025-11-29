@@ -506,7 +506,7 @@ Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individ
       });
     }
 
-    console.log('[AI-GENERATE] DONE', {
+    console.log('[GENERATE_SUMMARIES] DONE', {
       sessionId,
       updatedGlobal,
       updatedSectionCount,
