@@ -357,12 +357,25 @@ Deno.serve(async (req) => {
       sessionId,
       count: eligibleQuestions.length,
       questions: eligibleQuestions.map(q => ({ 
+        questionId: q.questionId,
         questionCode: q.questionCode, 
         sectionName: q.sectionName,
         packId: q.followupPackId,
         instanceCount: q.instances.length
       }))
     });
+    
+    // Early return if no eligible questions
+    if (eligibleQuestions.length === 0) {
+      console.log('[QUESTION_SUMMARIES] NO_ELIGIBLE_QUESTIONS', { sessionId, yesResponseCount: yesResponses.length });
+      return Response.json({
+        ok: true,
+        generatedCount: 0,
+        skippedCount: 0,
+        summaries: [],
+        message: 'No eligible questions found'
+      });
+    }
     
     let generatedCount = 0;
     let skippedCount = 0;
