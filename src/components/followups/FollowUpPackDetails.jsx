@@ -61,30 +61,11 @@ export default function FollowUpPackDetails({
   useEffect(() => {
     if (!pack) return;
     
-    const currentCategory = pack?.category_id ?? undefined;
-    
-    console.log('[PACK-LOAD] Loading pack data', {
-      packId: pack.followup_pack_id,
-      currentCategory: currentCategory,
-      hasProbeInstructions: !!pack.ai_probe_instructions,
-      hasSummaryInstructions: !!pack.ai_summary_instructions,
-    });
-    
     const categoryId = pack.category_id || mapPackToCategory(pack.followup_pack_id);
     setFormData({
       pack_name: pack.pack_name || '',
       description: pack.description || '',
-      behavior_type: pack.behavior_type || 'standard',
-      requires_completion: pack.requires_completion !== false,
-      max_probe_loops: pack.max_probe_loops || '',
-      max_ai_followups: pack.max_ai_followups ?? 3,
-      ai_probe_instructions: pack.ai_probe_instructions || '',
-      ai_summary_instructions: pack.ai_summary_instructions || '',
-      active: pack.active !== false,
-      categoryId: categoryId,
-      instance_header_template: pack.instance_header_template || '',
-      instance_title_format: pack.instance_title_format || '',
-      label_mapping_overrides: pack.label_mapping_overrides || null
+      categoryId: categoryId
     });
   }, [pack?.followup_pack_id]);
 
