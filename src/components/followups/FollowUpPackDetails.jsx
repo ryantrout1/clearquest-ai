@@ -61,6 +61,7 @@ export default function FollowUpPackDetails({
   const [isProbeInstructionsExpanded, setIsProbeInstructionsExpanded] = useState(false);
   const [isSummaryInstructionsExpanded, setIsSummaryInstructionsExpanded] = useState(false);
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
+  const [isDisplaySettingsExpanded, setIsDisplaySettingsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState(null);
