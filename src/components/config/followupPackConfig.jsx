@@ -556,6 +556,48 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_DRUG_USE_STANDARD_Q14: { label: "Mitigation" },
     },
   },
+
+  //
+  // 💊 PACK: Prescription Medication Misuse
+  //
+  PACK_PRESCRIPTION_MISUSE_STANDARD: {
+    displayName: "Prescription Medication Misuse",
+    pills: ["Prescription", "Misuse", "Medication", "Risk"],
+    fields: {
+      // v2.4 field_config fields
+      medication_type: { label: "Medication" },
+      access_source: { label: "Access Method" },
+      obtain_method: { label: "How Obtained" },
+      first_occurrence_date: { label: "First Occurrence" },
+      most_recent_date: { label: "Most Recent" },
+      total_occurrences: { label: "Times Misused" },
+      misuse_method: { label: "How Misused" },
+      misuse_location: { label: "Location" },
+      impairment_settings: { label: "Impairment Settings" },
+      consequences: { label: "Consequences" },
+      confrontation_discipline: { label: "Confrontation/Discipline" },
+      authority_awareness: { label: "Authority Awareness" },
+      help_sought: { label: "Help Sought" },
+      recurrence: { label: "Recurrence" },
+      prevention_steps: { label: "Prevention Steps" },
+      // Legacy question mappings
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q01: { label: "Medication" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q02: { label: "Access Source" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q03: { label: "How Obtained" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q04: { label: "First Occurrence" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q05: { label: "Most Recent" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q06: { label: "Total Occurrences" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q07: { label: "Misuse Method" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q08: { label: "Location" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q09: { label: "Impairment" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q10: { label: "Consequences" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q11: { label: "Confrontation" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q12: { label: "Authority Aware" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q13: { label: "Help Sought" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q14: { label: "Recurrence" },
+      PACK_PRESCRIPTION_MISUSE_STANDARD_Q15: { label: "Prevention" },
+    },
+  },
 };
 
 /**

@@ -367,7 +367,22 @@ Object.assign(FALLBACK_PROBES, {
   "prior_disclosure": "Have you disclosed this to any prior employer or agency?",
   "other_substances_used": "Were there other related substances you also used?",
   "behavior_stopped": "Has this behavior stopped? If so, when?",
-  "mitigation_steps": "What steps have you taken to avoid future use?"
+  "mitigation_steps": "What steps have you taken to avoid future use?",
+  
+  // === PACK_PRESCRIPTION_MISUSE_STANDARD ===
+  "medication_type": "What prescription medication was involved?",
+  "access_source": "Was this medication prescribed to you, someone else, or obtained without a prescription?",
+  "first_occurrence_date": "When did this misuse first occur? Please provide at least the month and year.",
+  "most_recent_date": "When was the most recent occurrence?",
+  "total_occurrences": "How many times have you misused this medication?",
+  "misuse_method": "What was the method of misuse?",
+  "misuse_location": "Where did this misuse typically occur?",
+  "impairment_settings": "Were you ever under the influence of this medication at work, school, while driving, or in public?",
+  "confrontation_discipline": "Were you ever confronted, warned, or disciplined by anyone regarding this misuse?",
+  "authority_awareness": "Did law enforcement, a doctor, or an employer ever become aware of this?",
+  "help_sought": "Have you attempted to stop, seek help, or change your behavior?",
+  "recurrence": "Has this misuse occurred again since the highest-risk incident you described?",
+  "prevention_steps": "What steps have you taken to ensure this will not happen again?"
 });
 
 /**
@@ -390,7 +405,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD", "PACK_PRESCRIPTION_MISUSE_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -947,6 +962,46 @@ const PACK_CONFIG = {
       "PACK_DRUG_USE_STANDARD_Q12": "other_substances_used",
       "PACK_DRUG_USE_STANDARD_Q13": "behavior_stopped",
       "PACK_DRUG_USE_STANDARD_Q14": "mitigation_steps",
+    },
+  },
+  
+  // Prescription Medication Misuse pack (v2.4)
+  PACK_PRESCRIPTION_MISUSE_STANDARD: {
+    id: "PACK_PRESCRIPTION_MISUSE_STANDARD",
+    requiredFields: ["medication_type", "access_source", "obtain_method", "first_occurrence_date", "most_recent_date", "total_occurrences", "misuse_method", "impairment_settings"],
+    priorityOrder: ["medication_type", "access_source", "obtain_method", "first_occurrence_date", "most_recent_date", "total_occurrences", "misuse_method", "misuse_location", "impairment_settings", "consequences", "confrontation_discipline", "authority_awareness", "help_sought", "recurrence", "prevention_steps"],
+    fieldKeyMap: {
+      "medication_type": "medication_type",
+      "access_source": "access_source",
+      "obtain_method": "obtain_method",
+      "first_occurrence_date": "first_occurrence_date",
+      "most_recent_date": "most_recent_date",
+      "total_occurrences": "total_occurrences",
+      "misuse_method": "misuse_method",
+      "misuse_location": "misuse_location",
+      "impairment_settings": "impairment_settings",
+      "consequences": "consequences",
+      "confrontation_discipline": "confrontation_discipline",
+      "authority_awareness": "authority_awareness",
+      "help_sought": "help_sought",
+      "recurrence": "recurrence",
+      "prevention_steps": "prevention_steps",
+      // Legacy question mappings
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q01": "medication_type",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q02": "access_source",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q03": "obtain_method",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q04": "first_occurrence_date",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q05": "most_recent_date",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q06": "total_occurrences",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q07": "misuse_method",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q08": "misuse_location",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q09": "impairment_settings",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q10": "consequences",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q11": "confrontation_discipline",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q12": "authority_awareness",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q13": "help_sought",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q14": "recurrence",
+      "PACK_PRESCRIPTION_MISUSE_STANDARD_Q15": "prevention_steps",
     },
   },
 };
@@ -1752,7 +1807,22 @@ const FIELD_LABELS = {
   "prior_disclosure": "Previously Disclosed",
   "other_substances_used": "Other Substances",
   "behavior_stopped": "Behavior Stopped",
-  "mitigation_steps": "Mitigation Steps"
+  "mitigation_steps": "Mitigation Steps",
+  
+  // PACK_PRESCRIPTION_MISUSE_STANDARD
+  "medication_type": "Medication",
+  "access_source": "Access Method",
+  "first_occurrence_date": "First Occurrence",
+  "most_recent_date": "Most Recent",
+  "total_occurrences": "Times Misused",
+  "misuse_method": "How Misused",
+  "misuse_location": "Location",
+  "impairment_settings": "Impairment Settings",
+  "confrontation_discipline": "Confrontation/Discipline",
+  "authority_awareness": "Authority Awareness",
+  "help_sought": "Help Sought",
+  "recurrence": "Recurrence",
+  "prevention_steps": "Prevention Steps"
 };
 
 /**
