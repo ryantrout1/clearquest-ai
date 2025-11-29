@@ -2321,15 +2321,16 @@ export default function CandidateInterview() {
           });
           
           // ============================================================================
-          // DECISION LOGIC: Use semantic flags to determine if probing is needed
+          // DECISION LOGIC: ALWAYS consult backend for V2 packs (let backend decide)
+          // ROOT FIX (2025-11): Don't gate on isNoRecall/isEmpty - call backend for ALL answers
+          // Backend will return QUESTION (probe needed) or NEXT_FIELD (accept and continue)
           // ============================================================================
           
-          // If we've already used up all probes, accept and move on
-          if (probeCount >= maxAiFollowups) {
-            console.log(`[V2-SEMANTIC] Max probes reached for ${fieldKey} → accepting value`);
+          // Check if AI probing is globally disabled
+          if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
+            console.log(`[V2-SEMANTIC] AI probing disabled - saving without backend check`);
             await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
             
-            // Mark field as completed
             setCompletedFields(prev => ({
               ...prev,
               [`${packId}_${instanceNumber}`]: {
@@ -2338,14 +2339,12 @@ export default function CandidateInterview() {
               }
             }));
             
-            // Clear probing state for this field
             setFieldProbingState(prev => {
               const updated = { ...prev };
               delete updated[probeKey];
               return updated;
             });
             
-            // Reset probe count for this field
             setAiFollowupCounts(prev => {
               const updated = { ...prev };
               delete updated[fieldCountKey];
@@ -2353,18 +2352,45 @@ export default function CandidateInterview() {
             });
             
             // Fall through to advance to next step (handled below)
-          } 
-          // GLOBAL rule: "no recall" / empty → needs probing for ALL packs
-          else if (isNoRecall || isEmpty) {
-            console.log(`[V2-SEMANTIC] unknown/empty answer - triggering probe`, {
+          }
+          // Max probes reached - accept current value and move on
+          else if (probeCount >= maxAiFollowups) {
+            console.log(`[V2-SEMANTIC] Max probes reached for ${fieldKey} → accepting value`);
+            await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
+            
+            setCompletedFields(prev => ({
+              ...prev,
+              [`${packId}_${instanceNumber}`]: {
+                ...(prev[`${packId}_${instanceNumber}`] || {}),
+                [fieldKey]: true
+              }
+            }));
+            
+            setFieldProbingState(prev => {
+              const updated = { ...prev };
+              delete updated[probeKey];
+              return updated;
+            });
+            
+            setAiFollowupCounts(prev => {
+              const updated = { ...prev };
+              delete updated[fieldCountKey];
+              return updated;
+            });
+            
+            // Fall through to advance to next step (handled below)
+          }
+          // CORE FIX: ALWAYS consult backend (for valid, unknown, OR no-recall answers)
+          else {
+            console.log(`[V2-SEMANTIC] Consulting backend for validation decision`, {
               fieldKey,
               answer: normalizedAnswer,
               isEmpty,
               isNoRecall,
-              semanticResult
+              semanticStatus: semanticResult.status
             });
             
-            logAiProbeDebug('triggerProbe', {
+            logAiProbeDebug('triggerBackendCheck', {
               packId,
               fieldKey,
               instanceNumber,
@@ -2378,7 +2404,7 @@ export default function CandidateInterview() {
             // Mark as in progress
             v2ProbingInProgressRef.current.add(probeKey);
             
-            // Call backend to get AI probe question
+            // Call backend to get AI probe decision
             console.log(`[V2-PER-FIELD] Calling probeEngineV2 with:`, {
               packId,
               fieldKey,
