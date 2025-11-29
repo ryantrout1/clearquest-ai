@@ -202,12 +202,19 @@ Deno.serve(async (req) => {
       }, { status: 500 });
     }
     
-    // Defensive: ensure arrays
+    // Defensive: ensure arrays and unwrap nested data
     responses = Array.isArray(responses) ? responses : [];
     followUps = Array.isArray(followUps) ? followUps : [];
     questions = Array.isArray(questions) ? questions : [];
     sections = Array.isArray(sections) ? sections : [];
     existingSummaries = Array.isArray(existingSummaries) ? existingSummaries : [];
+    
+    // Unwrap nested data if needed (API sometimes returns { data: {...} })
+    responses = responses.map(r => r.data || r);
+    followUps = followUps.map(f => f.data || f);
+    questions = questions.map(q => q.data || q);
+    sections = sections.map(s => s.data || s);
+    existingSummaries = existingSummaries.map(s => s.data || s);
     
     // Build existing summaries map for quick lookup
     const existingSummariesMap = {};
