@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, Layout, Eye } from "lucide-react";
+import { Layout, Eye, Edit, Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import CollapsibleSection from "./CollapsibleSection";
 
 // Mock data for preview
 const MOCK_INSTANCE_DATA = {
@@ -49,11 +50,23 @@ export default function DisplayTemplateSettings({
   pack, 
   isExpanded, 
   onToggleExpand, 
-  isEditing,
-  formData,
-  setFormData
+  onSave
 }) {
   const [showPreview, setShowPreview] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [localData, setLocalData] = useState({
+    instance_header_template: '',
+    instance_title_format: '',
+    label_mapping_overrides: null
+  });
+
+  useEffect(() => {
+    setLocalData({
+      instance_header_template: pack?.instance_header_template || '',
+      instance_title_format: pack?.instance_title_format || '',
+      label_mapping_overrides: pack?.label_mapping_overrides || null
+    });
+  }, [pack?.id]);
 
   // Get available field keys from pack's field_config
   const availableFields = (pack?.field_config || []).map(f => f.fieldKey);
