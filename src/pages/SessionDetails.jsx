@@ -1476,7 +1476,7 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
   );
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId, drivingFactsFromTranscript }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
