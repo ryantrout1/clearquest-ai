@@ -253,7 +253,7 @@ export default function DisplayTemplateSettings({
             <div>
               <Label className="text-sm text-slate-400 mb-2 block">Template</Label>
               <code className="text-xs text-teal-300 font-mono bg-slate-800 p-2 rounded block">
-                {formData.instance_header_template || '(empty)'}
+                {localData.instance_header_template || '(empty)'}
               </code>
             </div>
             <div>
@@ -273,6 +273,6 @@ export default function DisplayTemplateSettings({
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
