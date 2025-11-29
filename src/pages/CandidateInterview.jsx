@@ -114,6 +114,20 @@ const ENABLE_LIVE_AI_FOLLOWUPS = true;
 // DEBUG FLAG: Enable detailed AI probe logging
 const DEBUG_AI_PROBES = true;
 
+// DIAGNOSTIC: Helper to get environment info
+const getEnvironmentInfo = () => {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
+  const isPreview = hostname.includes('preview') || hostname.includes('localhost') || hostname.includes('127.0.0.1');
+  const isProduction = hostname.includes('base44.io') && !hostname.includes('preview');
+  return {
+    hostname,
+    nodeEnv: typeof process !== 'undefined' ? process.env?.NODE_ENV : 'unknown',
+    isPreview,
+    isProduction,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent?.substring(0, 50) : 'unknown'
+  };
+};
+
 const syncFactsToInterviewSession = async (sessionId, questionId, packId, followUpResponse) => {
     if (packId !== 'PACK_LE_APPS' || !followUpResponse || !followUpResponse.additional_details?.facts) {
         return;
