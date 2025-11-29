@@ -1752,42 +1752,44 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       </div>
                     );
                   } else if (isDrivingPack) {
-                    // Use shared pack config for Driving packs (same pattern as PACK_LE_APPS)
-                    const drivingPackConfig = getPackConfig(packId);
+                    // PRIMARY SOURCE: Use drivingFactsFromTranscript (built from transcript_snapshot)
+                    const instanceKey = `${response.question_id}::${instanceNum}`;
+                    const transcriptFactsEntry = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey];
+                    const transcriptFacts = transcriptFactsEntry?.fields || [];
                     
-                    // Get facts fields from config, sorted by factsOrder
-                    const factsFieldsConfig = (drivingPackConfig?.fields || [])
-                      .filter(f => f.includeInFacts)
-                      .sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
-                    
-                    // Build facts from instance.details using fieldKey mapping
-                    const drivingFacts = factsFieldsConfig.map(fieldConfig => {
-                      // Try fieldKey first, then semanticKey
-                      const value = instance.details?.[fieldConfig.fieldKey] || instance.details?.[fieldConfig.semanticKey];
-                      if (!value || String(value).trim() === '') return null;
-                      return { label: fieldConfig.label, value: String(value) };
-                    }).filter(Boolean);
+                    // FALLBACK: If no transcript facts, try instance.details with pack config
+                    let drivingFacts = transcriptFacts;
+                    if (drivingFacts.length === 0) {
+                      const drivingPackConfig = getPackConfig(packId);
+                      const factsFieldsConfig = (drivingPackConfig?.fields || [])
+                        .filter(f => f.includeInFacts)
+                        .sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
+                      
+                      drivingFacts = factsFieldsConfig.map(fieldConfig => {
+                        const value = instance.details?.[fieldConfig.fieldKey] || instance.details?.[fieldConfig.semanticKey];
+                        if (!value || String(value).trim() === '') return null;
+                        return { label: fieldConfig.label, value: String(value) };
+                      }).filter(Boolean);
+                    }
                     
                     const hasAnyFacts = drivingFacts.length > 0;
                     
-                    // Build summary line from header fields
-                    const headerFieldsConfig = (drivingPackConfig?.fields || [])
-                      .filter(f => f.includeInInstanceHeader)
-                      .sort((a, b) => (a.headerOrder ?? 0) - (b.headerOrder ?? 0));
-                    const summaryParts = headerFieldsConfig
-                      .map(f => instance.details?.[f.fieldKey] || instance.details?.[f.semanticKey])
-                      .filter(Boolean);
+                    // Build summary line from first 2 facts
+                    const summaryParts = drivingFacts.slice(0, 2).map(f => f.value).filter(Boolean);
                     const summaryLine = summaryParts.length > 0 ? summaryParts.join(' • ') : null;
                     
                     // DEV LOG: Validate facts extraction
                     if (instanceIdx === 0) {
                       console.log('[SESSIONDETAILS][DRIVING_FACTS]', {
                         packId,
+                        questionId: response.question_id,
                         instanceNumber: instanceNum,
-                        rawDetails: instance.details,
-                        configFieldsCount: factsFieldsConfig.length,
+                        instanceKey,
+                        transcriptFactsCount: transcriptFacts.length,
+                        fallbackDetailsKeys: Object.keys(instance.details || {}),
                         extractedFacts: drivingFacts,
-                        hasAnyFacts
+                        hasAnyFacts,
+                        source: transcriptFacts.length > 0 ? 'transcript' : 'additional_details'
                       });
                     }
 
