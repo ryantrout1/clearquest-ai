@@ -190,23 +190,57 @@ Your response must be a single follow-up question.`;
     
     userPrompt += `Generate ONE specific follow-up question to gather more details about their response. Remember to follow all probing guidelines above.`;
 
-    console.log(`[AI-FOLLOWUP] Calling InvokeLLM with model=${aiConfig.model}, temp=${aiConfig.temperature}`);
-
-    // Call invokeLLM with unified instructions AND AI runtime config
-    const result = await base44.integrations.Core.InvokeLLM({
-      prompt: `${systemPrompt}${investigatorOverlay}\n\n${userPrompt}`,
-      add_context_from_internet: false,
+    console.log('[AI-FOLLOWUP][BACKEND-LLM-CALL]', {
+      requestId,
       model: aiConfig.model,
       temperature: aiConfig.temperature,
-      max_tokens: aiConfig.max_tokens,
-      top_p: aiConfig.top_p
+      maxTokens: aiConfig.max_tokens,
+      promptLength: (systemPrompt + investigatorOverlay + userPrompt).length
     });
+
+    // Call invokeLLM with unified instructions AND AI runtime config
+    let result;
+    try {
+      result = await base44.integrations.Core.InvokeLLM({
+        prompt: `${systemPrompt}${investigatorOverlay}\n\n${userPrompt}`,
+        add_context_from_internet: false,
+        model: aiConfig.model,
+        temperature: aiConfig.temperature,
+        max_tokens: aiConfig.max_tokens,
+        top_p: aiConfig.top_p
+      });
+      
+      console.log('[AI-FOLLOWUP][BACKEND-LLM-SUCCESS]', {
+        requestId,
+        resultType: typeof result,
+        resultLength: result?.length || 0,
+        resultPreview: result?.substring?.(0, 100) || String(result).substring(0, 100)
+      });
+    } catch (llmErr) {
+      console.error('[AI-FOLLOWUP][BACKEND-LLM-ERROR]', {
+        requestId,
+        errorMessage: llmErr?.message,
+        errorName: llmErr?.name,
+        errorStack: llmErr?.stack?.substring?.(0, 500)
+      });
+      throw llmErr;
+    }
 
     const followupQuestion = result?.trim();
 
     if (!followupQuestion || followupQuestion.length < 5) {
+      console.log('[AI-FOLLOWUP][BACKEND-EMPTY-RESPONSE]', {
+        requestId,
+        followupQuestionLength: followupQuestion?.length || 0
+      });
       return Response.json({ status: 'error', message: 'Empty AI response' });
     }
+
+    console.log('[AI-FOLLOWUP][BACKEND-SUCCESS]', {
+      requestId,
+      questionLength: followupQuestion.length,
+      questionPreview: followupQuestion.substring(0, 80)
+    });
 
     return Response.json({
       status: 'ok',
@@ -215,6 +249,12 @@ Your response must be a single follow-up question.`;
     });
 
   } catch (error) {
+    console.error('[AI-FOLLOWUP][BACKEND-ERROR]', {
+      requestId: typeof requestId !== 'undefined' ? requestId : 'unknown',
+      errorMessage: error?.message,
+      errorName: error?.name,
+      errorStack: error?.stack?.substring?.(0, 500)
+    });
     return Response.json({ status: 'error', message: error.message }, { status: 500 });
   }
 });
