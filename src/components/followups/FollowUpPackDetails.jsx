@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, FileText, ExternalLink, Plus, Edit, Trash2, ChevronRight, ChevronDown, AlertTriangle, ChevronUp, Trash } from "lucide-react";
+import { Package, Edit, Trash, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,10 @@ import { toast } from "sonner";
 import { FOLLOWUP_CATEGORIES, mapPackToCategory } from "./categoryMapping";
 import FollowUpFieldDesigner from "./FollowUpFieldDesigner";
 import DisplayTemplateSettings from "./DisplayTemplateSettings";
+import PackConfigurationSection from "./PackConfigurationSection";
+import AIInstructionsSection from "./AIInstructionsSection";
+import TriggeringQuestionsSection from "./TriggeringQuestionsSection";
+import FollowUpQuestionsSection from "./FollowUpQuestionsSection";
 
 const RESPONSE_TYPE_NAMES = {
   'text': 'Text',
