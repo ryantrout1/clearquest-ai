@@ -775,14 +775,15 @@ export default function FollowUpPackDetails({
           isExpanded={isFieldsExpanded}
           onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
           onSaveFields={async (updatedFields) => {
+            console.log('[PACK-FIELDS-SAVE] onSaveFields called', { packId: pack.id, fieldCount: updatedFields.length, fields: updatedFields });
             try {
-              console.log('[PACK-FIELDS-SAVE] Saving fields', { packId: pack.id, fieldCount: updatedFields.length });
               const updatedPack = await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
-              console.log('[PACK-FIELDS-SAVE] Success', updatedPack);
+              console.log('[PACK-FIELDS-SAVE] Database update success', updatedPack);
               onUpdate({ ...pack, field_config: updatedFields });
+              toast.success('Fields saved to database');
               return true;
             } catch (err) {
-              console.error('[PACK-FIELDS-SAVE] Failed:', err);
+              console.error('[PACK-FIELDS-SAVE] Database update failed:', err);
               toast.error('Failed to save fields: ' + (err.message || 'Unknown error'));
               throw err;
             }
