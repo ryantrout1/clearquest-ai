@@ -89,6 +89,17 @@ CORE SYSTEM RULES (ALWAYS APPLY):
 }
 
 Deno.serve(async (req) => {
+  // =====================================================================
+  // [AI-FOLLOWUP][BACKEND-ENTRY] Request received - diagnostic logging
+  // =====================================================================
+  const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+  console.log('[AI-FOLLOWUP][BACKEND-ENTRY]', {
+    requestId,
+    method: req.method,
+    url: req.url,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     const base44 = createClientFromRequest(req);
     
@@ -102,8 +113,24 @@ Deno.serve(async (req) => {
       mode = "FOLLOWUP_PROBE"
     } = payload;
 
+    console.log('[AI-FOLLOWUP][BACKEND-PAYLOAD]', {
+      requestId,
+      interviewId,
+      questionId,
+      followupPackId,
+      mode,
+      candidateAnswerLength: candidateAnswer?.length || 0,
+      transcriptWindowLength: transcriptWindow?.length || 0
+    });
+
     // Validate inputs
     if (!interviewId || !questionId || !candidateAnswer) {
+      console.log('[AI-FOLLOWUP][BACKEND-VALIDATION-FAIL]', {
+        requestId,
+        hasInterviewId: !!interviewId,
+        hasQuestionId: !!questionId,
+        hasCandidateAnswer: !!candidateAnswer
+      });
       return Response.json({ status: 'error', message: 'Missing required fields' });
     }
 
