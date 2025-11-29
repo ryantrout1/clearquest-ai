@@ -508,17 +508,39 @@ ${contextText}`;
       }
     }
     
+    // POST-WRITE SELF-CHECK: Verify summaries were actually saved
+    let postCheckSummaries = [];
+    try {
+      postCheckSummaries = await base44.asServiceRole.entities.QuestionSummary.filter({ session_id: sessionId });
+      postCheckSummaries = Array.isArray(postCheckSummaries) ? postCheckSummaries : [];
+      postCheckSummaries = postCheckSummaries.map(s => s.data || s);
+    } catch (postCheckErr) {
+      console.error('[QUESTION_SUMMARIES] POSTCHECK_ERROR', { sessionId, error: postCheckErr.message });
+    }
+    
+    console.log('[QUESTION_SUMMARIES] POSTCHECK', {
+      sessionId,
+      postCheckCount: postCheckSummaries.length,
+      postCheckQuestionIds: postCheckSummaries.map(s => s.question_id),
+      postCheckSummaryPreviews: postCheckSummaries.map(s => ({
+        questionId: s.question_id,
+        textPreview: s.question_summary_text?.substring(0, 60)
+      }))
+    });
+    
     console.log('[QUESTION_SUMMARIES] DONE', {
       sessionId,
       generatedCount,
       skippedCount,
-      totalEligible: eligibleQuestions.length
+      totalEligible: eligibleQuestions.length,
+      postCheckCount: postCheckSummaries.length
     });
     
     return Response.json({
       ok: true,
       generatedCount,
       skippedCount,
+      postCheckCount: postCheckSummaries.length,
       summaries
     });
     
