@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
         questionId: response.question_id, // Database ID of Question entity
         questionCode, // Human-readable code like 'Q001'
         questionText: response.question_text || questionEntity.question_text,
-        sectionId: questionEntity.section_id,
+        sectionId: sectionName, // Use section NAME not database ID - matches generateSessionSummaries pattern
         sectionName,
         followupPackId,
         instances: Object.values(instancesMap),
