@@ -133,6 +133,14 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
   };
 
   const handleSaveField = async () => {
+    console.log('[FIELD-SAVE] handleSaveField called', { editingField });
+    
+    if (!editingField) {
+      console.error('[FIELD-SAVE] No editingField');
+      toast.error('No field to save');
+      return;
+    }
+    
     if (!editingField.label.trim()) {
       toast.error('Label is required');
       return;
@@ -170,13 +178,15 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map((f, idx) => ({ ...f, order: idx }));
 
+    console.log('[FIELD-SAVE] Saving fields', { count: updatedFields.length });
+
     try {
       setFields(updatedFields);
       await onSaveFields(updatedFields);
       handleCloseModal();
       toast.success(existingIndex >= 0 ? 'Field updated' : 'Field added');
     } catch (err) {
-      console.error('Failed to save field:', err);
+      console.error('[FIELD-SAVE] Failed:', err);
       toast.error('Failed to save field: ' + (err.message || 'Unknown error'));
     }
   };
