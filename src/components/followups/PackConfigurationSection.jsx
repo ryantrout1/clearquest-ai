@@ -72,10 +72,10 @@ export default function PackConfigurationSection({
     <CollapsibleSection
       title="Pack Configuration"
       subtitle="Behavior type, completion requirements, and loop limits"
-      icon={Settings}
-      iconColor="text-slate-400"
-      bgColor="bg-slate-900/50"
-      borderColor="border-slate-700"
+      icon={Settings2}
+      iconColor="text-indigo-400"
+      bgColor="bg-indigo-950/20"
+      borderColor="border-indigo-500/30"
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       pills={pills}
