@@ -263,7 +263,23 @@ Object.assign(FALLBACK_PROBES, {
   "official_reason": "What reason did the employer give for any disciplinary action or separation?",
   "isolated_or_recurring": "Was this a one-time incident or part of a recurring pattern?",
   "impact": "What impact, if any, did this have on the workplace or your colleagues?",
-  "remediation": "What steps have you taken since this incident to address or prevent similar issues?"
+  "remediation": "What steps have you taken since this incident to address or prevent similar issues?",
+  
+  // === PACK_INTEGRITY_APPS ===
+  "position_applied_for": "What position were you applying for at that agency?",
+  "issue_type": "What type of integrity issue was this — an omission, misstatement, falsification, or something else?",
+  "what_omitted": "Can you describe what specific information was incomplete or inaccurate on the application?",
+  "reason_omitted": "What led you to leave that information off or answer it the way you did?",
+  "consequences": "What consequences resulted from this — were you removed from the process, allowed to continue, or something else?",
+  "corrected": "Have you since disclosed this information on other applications?",
+  "remediation_steps": "What steps have you taken to ensure accurate applications going forward?",
+  
+  // === PACK_LE_APPS ===
+  "agency_location": "What city, county, or state is that agency located in?",
+  "background_issues": "Were any background issues cited during your application process? If so, please briefly describe.",
+  
+  // === PACK_LE_MISCONDUCT_STANDARD ===
+  "allegation_description": "Can you describe what was alleged?"
 });
 
 /**
@@ -509,6 +525,95 @@ const PACK_CONFIG = {
       "PACK_WORKPLACE_STANDARD_Q05": "incident_description",
       "PACK_WORKPLACE_STANDARD_Q06": "corrective_action",
       "PACK_WORKPLACE_STANDARD_Q07": "separation_type",
+    },
+  },
+  
+  // Application Integrity Issues pack (v2.4)
+  PACK_INTEGRITY_APPS: {
+    id: "PACK_INTEGRITY_APPS",
+    requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences"],
+    priorityOrder: ["agency_name", "position_applied_for", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected", "remediation_steps"],
+    fieldKeyMap: {
+      "agency_name": "agency_name",
+      "position_applied_for": "position_applied_for",
+      "incident_date": "incident_date",
+      "issue_type": "issue_type",
+      "what_omitted": "what_omitted",
+      "reason_omitted": "reason_omitted",
+      "discovery_method": "discovery_method",
+      "consequences": "consequences",
+      "corrected": "corrected",
+      "remediation_steps": "remediation_steps",
+      // Legacy question mappings
+      "PACK_INTEGRITY_APPS_Q01": "agency_name",
+      "PACK_INTEGRITY_APPS_Q02": "incident_date",
+      "PACK_INTEGRITY_APPS_Q03": "what_omitted",
+      "PACK_INTEGRITY_APPS_Q04": "reason_omitted",
+      "PACK_INTEGRITY_APPS_Q05": "discovery_method",
+      "PACK_INTEGRITY_APPS_Q06": "consequences",
+      "PACK_INTEGRITY_APPS_Q07": "corrected",
+    },
+  },
+  
+  // Law Enforcement Applications pack (v2.4)
+  PACK_LE_APPS: {
+    id: "PACK_LE_APPS",
+    requiredFields: ["agency_name", "agency_location", "application_date", "position", "outcome"],
+    priorityOrder: ["agency_name", "agency_location", "position", "application_date", "outcome", "stage_reached", "reason_not_selected", "background_issues", "full_disclosure", "has_documentation"],
+    fieldKeyMap: {
+      "agency_name": "agency_name",
+      "agency_location": "agency_location",
+      "position": "position",
+      "application_date": "application_date",
+      "outcome": "outcome",
+      "stage_reached": "stage_reached",
+      "reason_not_selected": "reason_not_selected",
+      "background_issues": "background_issues",
+      "full_disclosure": "full_disclosure",
+      "has_documentation": "has_documentation",
+      // Legacy question mappings
+      "PACK_LE_APPS_Q1": "agency_name",
+      "PACK_LE_APPS_Q1764025170356": "position",
+      "PACK_LE_APPS_Q1764025187292": "application_date",
+      "PACK_LE_APPS_Q1764025199138": "outcome",
+      "PACK_LE_APPS_Q1764025212764": "reason_not_selected",
+      "PACK_LE_APPS_Q1764025246583": "stage_reached",
+      // Semantic aliases
+      "agency": "agency_name",
+      "monthYear": "application_date",
+      "reason": "reason_not_selected",
+      "stageReached": "stage_reached",
+    },
+  },
+  
+  // Prior Law Enforcement Misconduct pack (v2.4)
+  PACK_LE_MISCONDUCT_STANDARD: {
+    id: "PACK_LE_MISCONDUCT_STANDARD",
+    requiredFields: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "finding"],
+    priorityOrder: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "ia_case_number", "finding", "discipline", "separation_type", "appealed", "has_documentation", "remediation_steps"],
+    fieldKeyMap: {
+      "agency_name": "agency_name",
+      "position_held": "position_held",
+      "employment_dates": "employment_dates",
+      "incident_date": "incident_date",
+      "allegation_type": "allegation_type",
+      "allegation_description": "allegation_description",
+      "discovery_method": "discovery_method",
+      "ia_case_number": "ia_case_number",
+      "finding": "finding",
+      "discipline": "discipline",
+      "separation_type": "separation_type",
+      "appealed": "appealed",
+      "has_documentation": "has_documentation",
+      "remediation_steps": "remediation_steps",
+      // Legacy question mappings
+      "PACK_LE_MISCONDUCT_Q01": "agency_name",
+      "PACK_LE_MISCONDUCT_Q02": "position_held",
+      "PACK_LE_MISCONDUCT_Q03": "incident_date",
+      "PACK_LE_MISCONDUCT_Q04": "allegation_type",
+      "PACK_LE_MISCONDUCT_Q05": "allegation_description",
+      "PACK_LE_MISCONDUCT_Q06": "finding",
+      "PACK_LE_MISCONDUCT_Q07": "discipline",
     },
   },
 };
@@ -1213,7 +1318,23 @@ const FIELD_LABELS = {
   "official_reason": "Official Reason Given",
   "isolated_or_recurring": "Isolated or Recurring",
   "impact": "Impact on Workplace",
-  "remediation": "Corrective Steps / Remediation"
+  "remediation": "Corrective Steps / Remediation",
+  
+  // PACK_INTEGRITY_APPS
+  "position_applied_for": "Position Applied For",
+  "issue_type": "Integrity Issue Type",
+  "what_omitted": "Information Involved",
+  "reason_omitted": "Reason for Omission",
+  "consequences": "Application Outcome",
+  "corrected": "Corrected Disclosure",
+  "remediation_steps": "Remediation Steps",
+  
+  // PACK_LE_APPS
+  "agency_location": "Agency Location",
+  "background_issues": "Background Issues Cited",
+  
+  // PACK_LE_MISCONDUCT_STANDARD
+  "allegation_description": "Allegation Description"
 };
 
 /**
