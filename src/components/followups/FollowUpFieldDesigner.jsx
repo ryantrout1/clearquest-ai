@@ -170,10 +170,15 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map((f, idx) => ({ ...f, order: idx }));
 
-    setFields(updatedFields);
-    await onSaveFields(updatedFields);
-    handleCloseModal();
-    toast.success(existingIndex >= 0 ? 'Field updated' : 'Field added');
+    try {
+      setFields(updatedFields);
+      await onSaveFields(updatedFields);
+      handleCloseModal();
+      toast.success(existingIndex >= 0 ? 'Field updated' : 'Field added');
+    } catch (err) {
+      console.error('Failed to save field:', err);
+      toast.error('Failed to save field: ' + (err.message || 'Unknown error'));
+    }
   };
 
   const handleDeleteField = async () => {
