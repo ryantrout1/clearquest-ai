@@ -1339,6 +1339,7 @@ export default function SessionDetails() {
             session={session}
             transcriptEvents={transcriptEvents}
             sectionSummariesBySectionId={sectionSummariesBySectionId}
+            drivingFactsFromTranscript={buildDrivingFactsFromTranscript(transcriptEvents)}
           />
         ) : (
           <UnifiedTranscriptView
