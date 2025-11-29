@@ -295,6 +295,37 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_LE_MISCONDUCT_Q07: { label: "Discipline" },
     },
   },
+
+  //
+  // 💰 PACK: Financial Misconduct
+  //
+  PACK_FINANCIAL_STANDARD: {
+    displayName: "Financial Misconduct Incident",
+    pills: ["Financial", "Responsibility", "Stability", "Integrity"],
+    fields: {
+      // v2.4 field_config fields
+      financial_issue_type: { label: "Type of Financial Issue" },
+      start_date: { label: "When Issue Began" },
+      most_recent_date: { label: "Most Recent Occurrence" },
+      amount_owed: { label: "Amount Owed / Affected" },
+      creditor: { label: "Creditor or Agency Involved" },
+      legal_actions: { label: "Legal Actions Taken" },
+      employment_impact: { label: "Impact on Employment / Licensing" },
+      resolution_steps: { label: "Steps Taken to Resolve" },
+      resolution_status: { label: "Resolution Status" },
+      remaining_obligations: { label: "Outstanding Obligations" },
+      prevention_steps: { label: "Preventative Measures" },
+      // Legacy question mappings
+      PACK_FINANCIAL_STANDARD_Q01: { label: "Issue Type" },
+      PACK_FINANCIAL_STANDARD_Q02: { label: "Start Date" },
+      PACK_FINANCIAL_STANDARD_Q03: { label: "Amount" },
+      PACK_FINANCIAL_STANDARD_Q04: { label: "Creditor" },
+      PACK_FINANCIAL_STANDARD_Q05: { label: "Legal Actions" },
+      PACK_FINANCIAL_STANDARD_Q06: { label: "Resolution" },
+      PACK_FINANCIAL_STANDARD_Q07: { label: "Status" },
+      PACK_FINANCIAL_STANDARD_Q08: { label: "Prevention Steps" },
+    },
+  },
 };
 
 /**

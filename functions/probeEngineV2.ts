@@ -279,7 +279,20 @@ Object.assign(FALLBACK_PROBES, {
   "background_issues": "Were any background issues cited during your application process? If so, please briefly describe.",
   
   // === PACK_LE_MISCONDUCT_STANDARD ===
-  "allegation_description": "Can you describe what was alleged?"
+  "allegation_description": "Can you describe what was alleged?",
+  
+  // === PACK_FINANCIAL_STANDARD ===
+  "financial_issue_type": "What type of financial issue was this — bankruptcy, collections, repossession, unpaid taxes, or something else?",
+  "start_date": "When did this financial issue first occur? Please provide at least an approximate year.",
+  "most_recent_date": "When was the most recent occurrence or action related to this issue?",
+  "amount_owed": "Approximately how much was owed or affected?",
+  "creditor": "Who was the creditor or agency involved?",
+  "legal_actions": "Were there any legal actions taken, such as liens, garnishments, or judgments?",
+  "employment_impact": "Did this issue have any impact on your employment, security clearance, or licensing?",
+  "resolution_steps": "What steps have you taken to resolve this issue?",
+  "resolution_status": "What is the current status — fully resolved, in repayment, still outstanding, or something else?",
+  "remaining_obligations": "Are there any remaining debts or obligations from this issue?",
+  "prevention_steps": "What steps have you taken to prevent similar issues in the future?"
 });
 
 /**
@@ -302,7 +315,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -614,6 +627,35 @@ const PACK_CONFIG = {
       "PACK_LE_MISCONDUCT_Q05": "allegation_description",
       "PACK_LE_MISCONDUCT_Q06": "finding",
       "PACK_LE_MISCONDUCT_Q07": "discipline",
+    },
+  },
+  
+  // Financial Misconduct pack (v2.4)
+  PACK_FINANCIAL_STANDARD: {
+    id: "PACK_FINANCIAL_STANDARD",
+    requiredFields: ["financial_issue_type", "start_date", "amount_owed", "resolution_steps", "resolution_status"],
+    priorityOrder: ["financial_issue_type", "start_date", "most_recent_date", "amount_owed", "creditor", "legal_actions", "employment_impact", "resolution_steps", "resolution_status", "remaining_obligations", "prevention_steps"],
+    fieldKeyMap: {
+      "financial_issue_type": "financial_issue_type",
+      "start_date": "start_date",
+      "most_recent_date": "most_recent_date",
+      "amount_owed": "amount_owed",
+      "creditor": "creditor",
+      "legal_actions": "legal_actions",
+      "employment_impact": "employment_impact",
+      "resolution_steps": "resolution_steps",
+      "resolution_status": "resolution_status",
+      "remaining_obligations": "remaining_obligations",
+      "prevention_steps": "prevention_steps",
+      // Legacy question mappings
+      "PACK_FINANCIAL_STANDARD_Q01": "financial_issue_type",
+      "PACK_FINANCIAL_STANDARD_Q02": "start_date",
+      "PACK_FINANCIAL_STANDARD_Q03": "amount_owed",
+      "PACK_FINANCIAL_STANDARD_Q04": "creditor",
+      "PACK_FINANCIAL_STANDARD_Q05": "legal_actions",
+      "PACK_FINANCIAL_STANDARD_Q06": "resolution_steps",
+      "PACK_FINANCIAL_STANDARD_Q07": "resolution_status",
+      "PACK_FINANCIAL_STANDARD_Q08": "prevention_steps",
     },
   },
 };
@@ -1334,7 +1376,20 @@ const FIELD_LABELS = {
   "background_issues": "Background Issues Cited",
   
   // PACK_LE_MISCONDUCT_STANDARD
-  "allegation_description": "Allegation Description"
+  "allegation_description": "Allegation Description",
+  
+  // PACK_FINANCIAL_STANDARD
+  "financial_issue_type": "Type of Financial Issue",
+  "start_date": "When Issue Began",
+  "most_recent_date": "Most Recent Occurrence",
+  "amount_owed": "Amount Owed / Affected",
+  "creditor": "Creditor or Agency Involved",
+  "legal_actions": "Legal Actions Taken",
+  "employment_impact": "Impact on Employment / Licensing",
+  "resolution_steps": "Steps Taken to Resolve",
+  "resolution_status": "Resolution Status",
+  "remaining_obligations": "Outstanding Obligations",
+  "prevention_steps": "Preventative Measures"
 };
 
 /**
