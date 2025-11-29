@@ -353,7 +353,21 @@ Object.assign(FALLBACK_PROBES, {
   "arrested_charged": "Were you ever arrested or charged in connection with this activity?",
   "disclosed_prior": "Have you previously disclosed this on any application or background investigation?",
   "recurrence": "Has this type of activity occurred again since?",
-  "prevention_steps": "What steps have you taken to ensure this does not happen again?"
+  "prevention_steps": "What steps have you taken to ensure this does not happen again?",
+  
+  // === PACK_DRUG_USE_STANDARD ===
+  "first_use_date": "When did you first use this substance? Please provide at least the month and year.",
+  "last_use_date": "When was the most recent time you used this substance?",
+  "total_uses": "About how many times in total have you used this substance?",
+  "use_context": "What was the setting or situation when you used this substance?",
+  "use_location": "Where did you typically use this substance?",
+  "obtain_method": "How did you obtain this substance?",
+  "under_influence_in_prohibited_setting": "Were you ever under the influence of this substance in a prohibited setting?",
+  "consequences": "Did this cause any legal, school, or employment issues?",
+  "prior_disclosure": "Have you disclosed this to any prior employer or agency?",
+  "other_substances_used": "Were there other related substances you also used?",
+  "behavior_stopped": "Has this behavior stopped? If so, when?",
+  "mitigation_steps": "What steps have you taken to avoid future use?"
 });
 
 /**
@@ -376,7 +390,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -895,6 +909,44 @@ const PACK_CONFIG = {
       "PACK_DRUG_SALE_STANDARD_Q12": "recurrence",
       "PACK_DRUG_SALE_STANDARD_Q13": "coercion",
       "PACK_DRUG_SALE_STANDARD_Q14": "prevention_steps",
+    },
+  },
+  
+  // Illegal Drug Use / Experimentation pack (v2.4)
+  PACK_DRUG_USE_STANDARD: {
+    id: "PACK_DRUG_USE_STANDARD",
+    requiredFields: ["substance_type", "first_use_date", "last_use_date", "total_uses"],
+    priorityOrder: ["substance_type", "first_use_date", "last_use_date", "total_uses", "use_context", "use_location", "obtain_method", "under_influence_in_prohibited_setting", "consequences", "law_enforcement_involved", "prior_disclosure", "other_substances_used", "behavior_stopped", "mitigation_steps"],
+    fieldKeyMap: {
+      "substance_type": "substance_type",
+      "first_use_date": "first_use_date",
+      "last_use_date": "last_use_date",
+      "total_uses": "total_uses",
+      "use_context": "use_context",
+      "use_location": "use_location",
+      "obtain_method": "obtain_method",
+      "under_influence_in_prohibited_setting": "under_influence_in_prohibited_setting",
+      "consequences": "consequences",
+      "law_enforcement_involved": "law_enforcement_involved",
+      "prior_disclosure": "prior_disclosure",
+      "other_substances_used": "other_substances_used",
+      "behavior_stopped": "behavior_stopped",
+      "mitigation_steps": "mitigation_steps",
+      // Legacy question mappings
+      "PACK_DRUG_USE_STANDARD_Q01": "substance_type",
+      "PACK_DRUG_USE_STANDARD_Q02": "first_use_date",
+      "PACK_DRUG_USE_STANDARD_Q03": "last_use_date",
+      "PACK_DRUG_USE_STANDARD_Q04": "total_uses",
+      "PACK_DRUG_USE_STANDARD_Q05": "use_context",
+      "PACK_DRUG_USE_STANDARD_Q06": "use_location",
+      "PACK_DRUG_USE_STANDARD_Q07": "obtain_method",
+      "PACK_DRUG_USE_STANDARD_Q08": "under_influence_in_prohibited_setting",
+      "PACK_DRUG_USE_STANDARD_Q09": "consequences",
+      "PACK_DRUG_USE_STANDARD_Q10": "law_enforcement_involved",
+      "PACK_DRUG_USE_STANDARD_Q11": "prior_disclosure",
+      "PACK_DRUG_USE_STANDARD_Q12": "other_substances_used",
+      "PACK_DRUG_USE_STANDARD_Q13": "behavior_stopped",
+      "PACK_DRUG_USE_STANDARD_Q14": "mitigation_steps",
     },
   },
 };
@@ -1686,7 +1738,21 @@ const FIELD_LABELS = {
   "arrested_charged": "Arrest / Charges",
   "disclosed_prior": "Previously Disclosed",
   "recurrence": "Occurred Again",
-  "prevention_steps": "Steps Taken Since"
+  "prevention_steps": "Steps Taken Since",
+  
+  // PACK_DRUG_USE_STANDARD
+  "first_use_date": "First Use",
+  "last_use_date": "Most Recent Use",
+  "total_uses": "Times Used",
+  "use_context": "Context of Use",
+  "use_location": "Location",
+  "obtain_method": "Obtained How",
+  "under_influence_in_prohibited_setting": "Under Influence in Prohibited Setting",
+  "consequences": "Consequences",
+  "prior_disclosure": "Previously Disclosed",
+  "other_substances_used": "Other Substances",
+  "behavior_stopped": "Behavior Stopped",
+  "mitigation_steps": "Mitigation Steps"
 };
 
 /**

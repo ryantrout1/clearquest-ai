@@ -516,6 +516,46 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_DRUG_SALE_STANDARD_Q14: { label: "Prevention" },
     },
   },
+
+  //
+  // 🌿 PACK: Illegal Drug Use / Experimentation
+  //
+  PACK_DRUG_USE_STANDARD: {
+    displayName: "Illegal Drug Use / Experimentation",
+    pills: ["Drug Use", "Experimentation", "Substance", "Risk"],
+    fields: {
+      // v2.4 field_config fields
+      substance_type: { label: "Substance" },
+      first_use_date: { label: "First Use" },
+      last_use_date: { label: "Most Recent Use" },
+      total_uses: { label: "Times Used" },
+      use_context: { label: "Context of Use" },
+      use_location: { label: "Location" },
+      obtain_method: { label: "Obtained How" },
+      under_influence_in_prohibited_setting: { label: "Under Influence in Prohibited Setting" },
+      consequences: { label: "Consequences" },
+      law_enforcement_involved: { label: "LE Involvement" },
+      prior_disclosure: { label: "Previously Disclosed" },
+      other_substances_used: { label: "Other Substances" },
+      behavior_stopped: { label: "Behavior Stopped" },
+      mitigation_steps: { label: "Mitigation Steps" },
+      // Legacy question mappings
+      PACK_DRUG_USE_STANDARD_Q01: { label: "Substance" },
+      PACK_DRUG_USE_STANDARD_Q02: { label: "First Use" },
+      PACK_DRUG_USE_STANDARD_Q03: { label: "Last Use" },
+      PACK_DRUG_USE_STANDARD_Q04: { label: "Total Uses" },
+      PACK_DRUG_USE_STANDARD_Q05: { label: "Context" },
+      PACK_DRUG_USE_STANDARD_Q06: { label: "Location" },
+      PACK_DRUG_USE_STANDARD_Q07: { label: "Obtained" },
+      PACK_DRUG_USE_STANDARD_Q08: { label: "Prohibited Setting" },
+      PACK_DRUG_USE_STANDARD_Q09: { label: "Consequences" },
+      PACK_DRUG_USE_STANDARD_Q10: { label: "LE Involved" },
+      PACK_DRUG_USE_STANDARD_Q11: { label: "Prior Disclosure" },
+      PACK_DRUG_USE_STANDARD_Q12: { label: "Other Substances" },
+      PACK_DRUG_USE_STANDARD_Q13: { label: "Stopped" },
+      PACK_DRUG_USE_STANDARD_Q14: { label: "Mitigation" },
+    },
+  },
 };
 
 /**
