@@ -489,18 +489,75 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
-    fieldKeyMap: {
-      incident_date: "incident_date",
-      location: "location",
-      collision_description: "collision_description",
-      collision_type: "collision_type",
-      at_fault_status: "at_fault_status",
-      injury_severity: "injury_severity",
-      property_damage: "property_damage",
-      police_involved: "police_involved",
-      insurance_outcome: "insurance_outcome"
-    },
-    fields: []
+    fields: [
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q01",
+        semanticKey: "collision_date",
+        label: "Collision date (month/year)",
+        inputType: "month_year",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q02",
+        semanticKey: "location",
+        label: "Location (city/state)",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q03",
+        semanticKey: "description",
+        label: "Brief description",
+        inputType: "textarea",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 3
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q04",
+        semanticKey: "at_fault",
+        label: "At fault",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 4
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q05",
+        semanticKey: "injuries",
+        label: "Injuries",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 5
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q06",
+        semanticKey: "police_citation",
+        label: "Police/citation",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 6
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q07",
+        semanticKey: "insurance_outcome",
+        label: "Insurance outcome",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 7
+      }
+    ]
   },
 
   "PACK_DRIVING_DUIDWI_STANDARD": {
@@ -511,18 +568,91 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
-    fieldKeyMap: {
-      incident_date: "incident_date",
-      location: "location",
-      substance_type: "substance_type",
-      stop_reason: "stop_reason",
-      test_type: "test_type",
-      test_result: "test_result",
-      arrest_status: "arrest_status",
-      court_outcome: "court_outcome",
-      license_impact: "license_impact"
-    },
-    fields: []
+    fields: [
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q01",
+        semanticKey: "incident_date",
+        label: "Incident date (month/year)",
+        inputType: "month_year",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q02",
+        semanticKey: "location",
+        label: "Location",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 2
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q03",
+        semanticKey: "substance_type",
+        label: "Substance type",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 3
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q04",
+        semanticKey: "stop_reason",
+        label: "Reason for stop",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 4
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q05",
+        semanticKey: "test_type",
+        label: "Test type",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 5
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q06",
+        semanticKey: "test_result",
+        label: "Test result",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 6
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q07",
+        semanticKey: "arrest_status",
+        label: "Arrest status",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 7
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q08",
+        semanticKey: "court_outcome",
+        label: "Court outcome",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 8
+      },
+      {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q09",
+        semanticKey: "license_impact",
+        label: "License impact",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 9
+      }
+    ]
   },
 
   "PACK_DRIVING_VIOLATIONS_STANDARD": {
@@ -533,19 +663,66 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
-    fieldKeyMap: {
-      incident_date: "incident_date",
-      location: "location",
-      violation_type: "violation_type",
-      classification: "classification",
-      law_enforcement_contact: "law_enforcement_contact",
-      action_taken: "action_taken",
-      court_outcome: "court_outcome",
-      fine_or_penalty: "fine_or_penalty",
-      license_impact: "license_impact",
-      insurance_impact: "insurance_impact"
-    },
-    fields: []
+    fields: [
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q01",
+        semanticKey: "violation_date",
+        label: "Violation date (month/year)",
+        inputType: "month_year",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q02",
+        semanticKey: "violation_type",
+        label: "Violation type",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q03",
+        semanticKey: "location",
+        label: "Location",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 3
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q04",
+        semanticKey: "outcome",
+        label: "Outcome",
+        inputType: "text",
+        required: true,
+        includeInFacts: true,
+        factsOrder: 4
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q05",
+        semanticKey: "fine_amount",
+        label: "Fines",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 5
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q06",
+        semanticKey: "points",
+        label: "Points on license",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 6
+      }
+    ]
   }
 };
 
