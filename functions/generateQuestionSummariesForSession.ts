@@ -446,8 +446,8 @@ ${contextText}`;
           questionCode,
           error: llmErr.message
         });
-        // Continue to next question, don't fail the whole batch
-        summaryText = null;
+        // Still save a placeholder summary so we can see the row in DB
+        summaryText = `AI summary unavailable (LLM error: ${llmErr.message?.substring(0, 50)})`;
       }
       
       // Save or update the summary
