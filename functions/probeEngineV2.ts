@@ -955,6 +955,86 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       }
       return "Can you provide more details about this incident?";
     
+    // === PACK_INTEGRITY_APPS fields ===
+    case "issue_type":
+      if (isFirstProbe) {
+        return "What type of integrity issue was this — an omission, falsification, incomplete answer, or something else?";
+      }
+      return "Can you clarify what category this issue falls under?";
+    
+    case "what_omitted":
+      if (isFirstProbe) {
+        return "Can you describe what specific information was incomplete or inaccurate on the application?";
+      }
+      return "Please provide more detail about what was left out or misrepresented.";
+    
+    case "reason_omitted":
+      if (isFirstProbe) {
+        return "What led you to leave that information off or answer it the way you did?";
+      }
+      return "Can you help me understand the circumstances that led to this?";
+    
+    case "consequences":
+      if (isFirstProbe) {
+        return "What consequences or disciplinary action resulted from this issue?";
+      }
+      return "Was there any formal action taken as a result?";
+    
+    case "corrected":
+      if (isFirstProbe) {
+        return "Has this issue been addressed or corrected since then?";
+      }
+      return "Have you since disclosed this information on other applications?";
+    
+    // === PACK_LE_MISCONDUCT_STANDARD fields ===
+    case "position_held":
+      if (isFirstProbe) {
+        return "What was your position or rank at that agency when this occurred?";
+      }
+      return "Can you describe your role at the department?";
+    
+    case "employment_dates":
+      if (isFirstProbe) {
+        return "When were you employed at this agency? Please provide approximate years.";
+      }
+      return "Can you estimate the years you worked there?";
+    
+    case "allegation_type":
+      if (isFirstProbe) {
+        return "What type of allegation or concern was this — for example, policy violation, use of force, honesty issue, or something else?";
+      }
+      return "Can you clarify what category this allegation falls under?";
+    
+    case "allegation_description":
+      if (isFirstProbe) {
+        return "Can you describe what was alleged?";
+      }
+      return "Please provide more detail about the nature of the allegation.";
+    
+    case "ia_case_number":
+      if (isFirstProbe) {
+        return "Do you recall an Internal Affairs case number or reference for this incident?";
+      }
+      return "Is there any case number or tracking reference you remember?";
+    
+    case "finding":
+      if (isFirstProbe) {
+        return "What was the official finding — sustained, not sustained, exonerated, unfounded, or something else?";
+      }
+      return "What was the outcome of the investigation?";
+    
+    case "discipline":
+      if (isFirstProbe) {
+        return "What discipline, if any, resulted from this incident?";
+      }
+      return "Was any formal disciplinary action taken?";
+    
+    case "appealed":
+      if (isFirstProbe) {
+        return "Did you appeal or contest the outcome of this investigation?";
+      }
+      return "Was there any appeal or grievance process?";
+    
     default:
       return `Can you provide more details about ${fieldName}?`;
   }
