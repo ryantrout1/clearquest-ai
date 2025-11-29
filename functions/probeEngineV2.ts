@@ -319,8 +319,16 @@ Object.assign(FALLBACK_PROBES, {
   "weapon_use": "How was the weapon used, carried, or displayed during this incident?",
   "threats": "Were there any threats made or danger posed to others during this incident?",
   "discharge": "Was the weapon discharged, either intentionally or accidentally?",
-  "impairment": "Were alcohol, drugs, or any impairing factors involved in this incident?",
-  "actions_taken": "What actions were taken afterward — such as arrest, charges, or discipline?"
+  "actions_taken": "What actions were taken afterward — such as arrest, charges, or discipline?",
+  
+  // === PACK_SEX_ADULT_STANDARD ===
+  "type": "What type of misconduct was this incident?",
+  "when": "When did this incident occur? Please provide at least the month and year.",
+  "where": "Where did this incident take place?",
+  "consensual": "Was the conduct consensual between the adults involved?",
+  "environment": "What was the setting or environment where this occurred?",
+  "authority_awareness": "Were any authorities, supervisors, or employers made aware of this incident?",
+  "consequences": "What consequences or actions resulted from this incident?"
 });
 
 /**
@@ -343,7 +351,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -769,6 +777,33 @@ const PACK_CONFIG = {
       "PACK_WEAPONS_STANDARD_Q06": "weapon_use",
       "PACK_WEAPONS_STANDARD_Q07": "threats",
       "PACK_WEAPONS_STANDARD_Q08": "actions_taken",
+    },
+  },
+  
+  // Adult Sexual Misconduct pack (v2.4)
+  PACK_SEX_ADULT_STANDARD: {
+    id: "PACK_SEX_ADULT_STANDARD",
+    requiredFields: ["type", "when", "description", "consensual", "consequences"],
+    priorityOrder: ["type", "when", "where", "consensual", "description", "impairment", "environment", "authority_awareness", "consequences"],
+    fieldKeyMap: {
+      "type": "type",
+      "when": "when",
+      "where": "where",
+      "consensual": "consensual",
+      "description": "description",
+      "impairment": "impairment",
+      "environment": "environment",
+      "authority_awareness": "authority_awareness",
+      "consequences": "consequences",
+      // Legacy question mappings
+      "PACK_SEX_ADULT_STANDARD_Q01": "type",
+      "PACK_SEX_ADULT_STANDARD_Q02": "when",
+      "PACK_SEX_ADULT_STANDARD_Q03": "where",
+      "PACK_SEX_ADULT_STANDARD_Q04": "consensual",
+      "PACK_SEX_ADULT_STANDARD_Q05": "description",
+      "PACK_SEX_ADULT_STANDARD_Q06": "impairment",
+      "PACK_SEX_ADULT_STANDARD_Q07": "environment",
+      "PACK_SEX_ADULT_STANDARD_Q08": "consequences",
     },
   },
 };
@@ -1523,14 +1558,21 @@ const FIELD_LABELS = {
   // PACK_WEAPONS_STANDARD
   "weapon_type": "Type of Weapon",
   "weapon_ownership": "Ownership / Possession",
-  "incident_date": "Date of Incident",
-  "location": "Incident Location",
-  "description": "Description of Incident",
   "weapon_use": "Carrying / Displaying / Using Weapon",
   "threats": "Threats or Danger to Others",
   "discharge": "Weapon Discharge",
-  "impairment": "Alcohol / Drug / Impairing Factors",
-  "actions_taken": "Actions Taken Afterward"
+  "actions_taken": "Actions Taken Afterward",
+  
+  // PACK_SEX_ADULT_STANDARD
+  "type": "Type of Misconduct",
+  "when": "When It Occurred",
+  "where": "Location",
+  "consensual": "Consent Status",
+  "description": "Incident Summary",
+  "impairment": "Alcohol/Drug Involvement",
+  "environment": "Setting",
+  "authority_awareness": "Authority Awareness",
+  "consequences": "Consequences & Remediation"
 };
 
 /**

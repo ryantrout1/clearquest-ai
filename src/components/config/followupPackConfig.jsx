@@ -417,6 +417,35 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_WEAPONS_STANDARD_Q08: { label: "Actions Taken" },
     },
   },
+
+  //
+  // 🔞 PACK: Adult Sexual Misconduct
+  //
+  PACK_SEX_ADULT_STANDARD: {
+    displayName: "Adult Sexual Misconduct Incident",
+    pills: ["Sexual Misconduct", "Risk", "Judgment", "Consent"],
+    fields: {
+      // v2.4 field_config fields
+      type: { label: "Type of Misconduct" },
+      when: { label: "When It Occurred" },
+      where: { label: "Location" },
+      consensual: { label: "Consent Status" },
+      description: { label: "Incident Summary" },
+      impairment: { label: "Alcohol/Drug Involvement" },
+      environment: { label: "Setting" },
+      authority_awareness: { label: "Authority Awareness" },
+      consequences: { label: "Consequences & Remediation" },
+      // Legacy question mappings
+      PACK_SEX_ADULT_STANDARD_Q01: { label: "Type" },
+      PACK_SEX_ADULT_STANDARD_Q02: { label: "When" },
+      PACK_SEX_ADULT_STANDARD_Q03: { label: "Where" },
+      PACK_SEX_ADULT_STANDARD_Q04: { label: "Consent" },
+      PACK_SEX_ADULT_STANDARD_Q05: { label: "Summary" },
+      PACK_SEX_ADULT_STANDARD_Q06: { label: "Impairment" },
+      PACK_SEX_ADULT_STANDARD_Q07: { label: "Setting" },
+      PACK_SEX_ADULT_STANDARD_Q08: { label: "Consequences" },
+    },
+  },
 };
 
 /**
