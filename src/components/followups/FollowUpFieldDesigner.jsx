@@ -631,6 +631,6 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
