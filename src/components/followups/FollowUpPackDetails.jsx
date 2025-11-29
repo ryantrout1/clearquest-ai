@@ -112,7 +112,10 @@ export default function FollowUpPackDetails({
         ai_probe_instructions: formData.ai_probe_instructions || '',
         ai_summary_instructions: formData.ai_summary_instructions || '',
         active: formData.active,
-        category_id: formData.categoryId || null
+        category_id: formData.categoryId || null,
+        instance_header_template: formData.instance_header_template || '',
+        instance_title_format: formData.instance_title_format || '',
+        label_mapping_overrides: formData.label_mapping_overrides || null
       };
       
       console.log('[PACK-SAVE] Starting save', {
