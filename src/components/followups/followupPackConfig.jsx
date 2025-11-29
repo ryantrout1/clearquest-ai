@@ -661,6 +661,64 @@ export const FOLLOWUP_PACK_CONFIGS = {
     ]
   },
 
+  // PACK_DRIVING_STANDARD - Generic driving incident pack
+  "PACK_DRIVING_STANDARD": {
+    packId: "PACK_DRIVING_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Driving Incidents",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      {
+        fieldKey: "PACK_DRIVING_STANDARD_Q01",
+        semanticKey: "incident_date",
+        label: "Incident date (month/year)",
+        inputType: "month_year",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1
+      },
+      {
+        fieldKey: "PACK_DRIVING_STANDARD_Q02",
+        semanticKey: "incident_type",
+        label: "Incident type",
+        inputType: "text",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2
+      },
+      {
+        fieldKey: "PACK_DRIVING_STANDARD_Q03",
+        semanticKey: "description",
+        label: "Description",
+        inputType: "textarea",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 3
+      },
+      {
+        fieldKey: "PACK_DRIVING_STANDARD_Q04",
+        semanticKey: "outcome",
+        label: "Outcome",
+        inputType: "text",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 4
+      }
+    ]
+  },
+
   "PACK_DRIVING_VIOLATIONS_STANDARD": {
     packId: "PACK_DRIVING_VIOLATIONS_STANDARD",
     supportedBaseQuestions: [],
