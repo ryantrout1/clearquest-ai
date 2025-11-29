@@ -1539,6 +1539,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                         questionEvents={eventsByQuestion[response.question_id] || []}
+                        drivingFactsFromTranscript={drivingFactsFromTranscript}
                       />
                     ))}
                   </div>
@@ -1553,6 +1554,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                         questionEvents={eventsByQuestion[response.question_id] || []}
+                        drivingFactsFromTranscript={drivingFactsFromTranscript}
                       />
                     ))}
                   </div>
