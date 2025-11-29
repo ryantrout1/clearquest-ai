@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Package, AlertTriangle, FileText, Link2, CheckCircle2 } from "lucide-react";
@@ -12,7 +12,38 @@ export default function FollowUpPackList({
   packUsageMap,
   questionsMap 
 }) {
-  if (packs.length === 0) {
+  // Safety: de-duplicate by followup_pack_id in case of ghost/duplicate entries
+  const uniquePacks = useMemo(() => {
+    if (!packs || packs.length === 0) return [];
+
+    const seen = new Map(); // followup_pack_id -> pack
+    const duplicates = [];
+
+    packs.forEach((pack) => {
+      const key = pack.followup_pack_id || pack.id;
+
+      if (seen.has(key)) {
+        duplicates.push({
+          key,
+          existingId: seen.get(key).id,
+          duplicateId: pack.id,
+        });
+      } else {
+        seen.set(key, pack);
+      }
+    });
+
+    if (duplicates.length > 0) {
+      console.warn(
+        "[FollowUpPackList] Detected duplicate follow-up packs by followup_pack_id:",
+        duplicates.map((d) => `${d.key} (existing: ${d.existingId}, duplicate: ${d.duplicateId})`)
+      );
+    }
+
+    return Array.from(seen.values());
+  }, [packs]);
+
+  if (uniquePacks.length === 0) {
     return (
       <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
         <Package className="w-8 h-8 text-slate-600 mx-auto mb-2" />
@@ -22,7 +53,7 @@ export default function FollowUpPackList({
   }
 
   // Sort packs alphabetically by pack_name
-  const sortedPacks = [...packs].sort((a, b) => 
+  const sortedPacks = [...uniquePacks].sort((a, b) => 
     (a.pack_name || '').localeCompare(b.pack_name || '')
   );
 
