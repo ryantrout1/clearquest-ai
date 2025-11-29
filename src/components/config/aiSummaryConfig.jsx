@@ -7,10 +7,11 @@
 
 export const QUESTION_SUMMARY_CONFIG = {
   // Categories that should get question-level AI summaries
-  // These map to Section.section_name values
+  // These map to Section.section_name values (must match exactly)
   includedCategories: [
-    'Law Enforcement Applications',  // Q001 - Applications with other LE agencies
-    'Driving Record',                 // Driving questions
+    'Applications with other Law Enforcement Agencies',  // Exact match from Section entity
+    'Law Enforcement Applications',  // Alias just in case
+    'Driving Record',
   ],
   
   // Specific packs that should get question-level AI summaries

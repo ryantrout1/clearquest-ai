@@ -5,7 +5,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  */
 const QUESTION_SUMMARY_CONFIG = {
   includedCategories: [
-    'Law Enforcement Applications',
+    'Applications with other Law Enforcement Agencies',  // Exact match from Section entity
+    'Law Enforcement Applications',  // Alias just in case
     'Driving Record',
   ],
   includedPacks: [
