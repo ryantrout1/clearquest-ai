@@ -1214,15 +1214,72 @@ export default function CandidateInterview() {
       const lastFollowUpAnswer = followUpAnswers[followUpAnswers.length - 1];
       const transcriptWindow = buildTranscriptWindowForAi(questionId, packId);
       
-      const aiResult = await requestLiveAiFollowup({
-        interviewId: sessionId,
-        questionId,
-        followupPackId: packId,
-        transcriptWindow,
-        candidateAnswer: lastFollowUpAnswer?.answer || ''
+      // =====================================================================
+      // [AI-FOLLOWUP][REQUEST] About to call AI backend
+      // =====================================================================
+      console.log('[AI-FOLLOWUP][REQUEST]', {
+        packId,
+        questionCode: questionId,
+        instanceNumber,
+        sessionId,
+        agentId: null, // invokeLLM mode, not agent
+        model: 'invokeLLM-server',
+        promptKind: 'investigator-followup',
+        messagesPreview: transcriptWindow?.slice?.(-3),
+        candidateAnswer: lastFollowUpAnswer?.answer?.substring(0, 100) || ''
       });
       
+      let aiResult;
+      try {
+        aiResult = await requestLiveAiFollowup({
+          interviewId: sessionId,
+          questionId,
+          followupPackId: packId,
+          transcriptWindow,
+          candidateAnswer: lastFollowUpAnswer?.answer || ''
+        });
+        
+        // =====================================================================
+        // [AI-FOLLOWUP][SUCCESS] or partial success logging
+        // =====================================================================
+        console.log('[AI-FOLLOWUP][RESPONSE]', {
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          sessionId,
+          status: aiResult?.status,
+          hasFollowupQuestion: !!aiResult?.followupQuestion,
+          followupQuestionPreview: aiResult?.followupQuestion?.substring(0, 100) || null
+        });
+      } catch (aiErr) {
+        // =====================================================================
+        // [AI-FOLLOWUP][ERROR] Catch and log AI call errors
+        // =====================================================================
+        console.error('[AI-FOLLOWUP][ERROR]', {
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          sessionId,
+          environment: getEnvironmentInfo().nodeEnv,
+          runtimeEnv: getEnvironmentInfo().hostname,
+          message: aiErr?.message,
+          stack: aiErr?.stack?.substring(0, 500),
+          status: aiErr?.status,
+          code: aiErr?.code,
+          raw: aiErr
+        });
+        // Don't throw - fall through to agent-based or skip
+        aiResult = { status: 'error', error: aiErr?.message };
+      }
+      
       if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
+        console.log('[AI-FOLLOWUP][SUCCESS]', {
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          sessionId,
+          numFollowupsGenerated: 1
+        });
         
         // Increment counter for this pack instance
         setAiFollowupCounts(prev => ({
