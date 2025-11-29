@@ -468,10 +468,14 @@ Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individ
     });
 
   } catch (error) {
-    console.error('[AI-GENERATE] ERROR:', error.message);
+    console.error('[GENERATE_SUMMARIES] ERROR', { 
+      sessionId, 
+      errorMessage: error.message, 
+      stack: error.stack?.substring?.(0, 500) 
+    });
     return Response.json({
       ok: false,
-      error: { message: error.message }
+      error: { message: error.message || 'generateSessionSummaries failed' }
     }, { status: 500 });
   }
 });
