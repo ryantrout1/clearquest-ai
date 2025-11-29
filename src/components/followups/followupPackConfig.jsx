@@ -323,7 +323,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1",
         semanticKey: "agency",
-        label: "Agency",
+        label: "Which law enforcement agency did you apply to?",
+        factsLabel: "Agency",
         inputType: "text",
         placeholder: "Enter agency name",
         required: true,
@@ -348,7 +349,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1764025170356",
         semanticKey: "position",
-        label: "Position applied for",
+        label: "What position did you apply for?",
+        factsLabel: "Position applied for",
         inputType: "text",
         placeholder: "Enter position title",
         required: true,
@@ -373,7 +375,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1764025187292",
         semanticKey: "application_month_year",
-        label: "Application date (month/year)",
+        label: "What month and year did you apply?",
+        factsLabel: "Application date",
         inputType: "month_year",
         placeholder: "e.g., June 2020 or 06/2020",
         required: true,
@@ -399,7 +402,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1764025199138",
         semanticKey: "outcome",
-        label: "Outcome",
+        label: "What was the outcome of your application?",
+        factsLabel: "Outcome",
         inputType: "select_single",
         placeholder: "Select outcome",
         options: ["Hired", "Not selected", "Withdrew", "Process discontinued", "Still in process", "Other"],
@@ -424,7 +428,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1764025212764",
         semanticKey: "reason_not_selected",
-        label: "Reason provided by agency",
+        label: "Did the agency tell you why you were not selected?",
+        factsLabel: "Agency reason",
         inputType: "text",
         placeholder: "What reason did they give?",
         required: false,
@@ -455,7 +460,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_LE_APPS_Q1764025246583",
         semanticKey: "issues_or_concerns",
-        label: "Issues or concerns during hiring",
+        label: "Were there any issues or concerns raised during the hiring process?",
+        factsLabel: "Issues / concerns",
         inputType: "text",
         placeholder: "Any issues or concerns?",
         required: false,
