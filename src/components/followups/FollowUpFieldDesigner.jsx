@@ -29,8 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { GripVertical, Plus, Edit, Trash2, Database, X, ChevronRight } from "lucide-react";
+import { GripVertical, Plus, Edit, Trash2, Database, X } from "lucide-react";
 import { toast } from "sonner";
+import CollapsibleSection from "./CollapsibleSection";
 
 const INPUT_TYPE_OPTIONS = [
   { value: "short_text", label: "Short text" },
