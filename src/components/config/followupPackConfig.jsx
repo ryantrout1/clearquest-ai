@@ -446,6 +446,36 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_SEX_ADULT_STANDARD_Q08: { label: "Consequences" },
     },
   },
+
+  //
+  // ⚠️ PACK: Sex Crimes / Non-Consent
+  //
+  PACK_NON_CONSENT_STANDARD: {
+    displayName: "Non-Consensual Sexual Incident",
+    pills: ["Non-Consent", "Sexual Misconduct", "Risk", "Legal"],
+    fields: {
+      // v2.4 field_config fields
+      incident_type: { label: "Type of Incident" },
+      date: { label: "Date of Incident" },
+      location: { label: "Location" },
+      other_party: { label: "Other Party (Relationship Only)" },
+      narrative: { label: "What Happened" },
+      coercion: { label: "Coercion or Force" },
+      consent_signals: { label: "Consent Signals" },
+      impairment: { label: "Alcohol/Drugs" },
+      injuries: { label: "Injuries Reported" },
+      legal_action: { label: "Official Actions" },
+      // Legacy question mappings
+      PACK_NON_CONSENT_STANDARD_Q01: { label: "Type" },
+      PACK_NON_CONSENT_STANDARD_Q02: { label: "Date" },
+      PACK_NON_CONSENT_STANDARD_Q03: { label: "Location" },
+      PACK_NON_CONSENT_STANDARD_Q04: { label: "Other Party" },
+      PACK_NON_CONSENT_STANDARD_Q05: { label: "What Happened" },
+      PACK_NON_CONSENT_STANDARD_Q06: { label: "Coercion" },
+      PACK_NON_CONSENT_STANDARD_Q07: { label: "Consent Signals" },
+      PACK_NON_CONSENT_STANDARD_Q08: { label: "Official Actions" },
+    },
+  },
 };
 
 /**

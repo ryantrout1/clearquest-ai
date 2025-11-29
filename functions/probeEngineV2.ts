@@ -328,7 +328,18 @@ Object.assign(FALLBACK_PROBES, {
   "consensual": "Was the conduct consensual between the adults involved?",
   "environment": "What was the setting or environment where this occurred?",
   "authority_awareness": "Were any authorities, supervisors, or employers made aware of this incident?",
-  "consequences": "What consequences or actions resulted from this incident?"
+  "consequences": "What consequences or actions resulted from this incident?",
+  
+  // === PACK_NON_CONSENT_STANDARD ===
+  "incident_type": "What type of incident was this?",
+  "date": "When did this incident occur? Please provide at least the month and year.",
+  "location": "Where did this incident take place?",
+  "other_party": "What was your relationship to the other person involved?",
+  "narrative": "Can you provide a high-level summary of what occurred?",
+  "coercion": "Was there any force, intimidation, or coercion involved?",
+  "consent_signals": "Were there any signals indicating lack of consent?",
+  "injuries": "Were any injuries reported as a result of this incident?",
+  "legal_action": "Was there any police, employer, or school involvement or action taken?"
 });
 
 /**
@@ -351,7 +362,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -804,6 +815,34 @@ const PACK_CONFIG = {
       "PACK_SEX_ADULT_STANDARD_Q06": "impairment",
       "PACK_SEX_ADULT_STANDARD_Q07": "environment",
       "PACK_SEX_ADULT_STANDARD_Q08": "consequences",
+    },
+  },
+  
+  // Sex Crimes / Non-Consent pack (v2.4)
+  PACK_NON_CONSENT_STANDARD: {
+    id: "PACK_NON_CONSENT_STANDARD",
+    requiredFields: ["incident_type", "date", "narrative", "legal_action"],
+    priorityOrder: ["incident_type", "date", "location", "other_party", "narrative", "coercion", "consent_signals", "impairment", "injuries", "legal_action"],
+    fieldKeyMap: {
+      "incident_type": "incident_type",
+      "date": "date",
+      "location": "location",
+      "other_party": "other_party",
+      "narrative": "narrative",
+      "coercion": "coercion",
+      "consent_signals": "consent_signals",
+      "impairment": "impairment",
+      "injuries": "injuries",
+      "legal_action": "legal_action",
+      // Legacy question mappings
+      "PACK_NON_CONSENT_STANDARD_Q01": "incident_type",
+      "PACK_NON_CONSENT_STANDARD_Q02": "date",
+      "PACK_NON_CONSENT_STANDARD_Q03": "location",
+      "PACK_NON_CONSENT_STANDARD_Q04": "other_party",
+      "PACK_NON_CONSENT_STANDARD_Q05": "narrative",
+      "PACK_NON_CONSENT_STANDARD_Q06": "coercion",
+      "PACK_NON_CONSENT_STANDARD_Q07": "consent_signals",
+      "PACK_NON_CONSENT_STANDARD_Q08": "legal_action",
     },
   },
 };
@@ -1568,11 +1607,21 @@ const FIELD_LABELS = {
   "when": "When It Occurred",
   "where": "Location",
   "consensual": "Consent Status",
-  "description": "Incident Summary",
-  "impairment": "Alcohol/Drug Involvement",
   "environment": "Setting",
   "authority_awareness": "Authority Awareness",
-  "consequences": "Consequences & Remediation"
+  "consequences": "Consequences & Remediation",
+  
+  // PACK_NON_CONSENT_STANDARD
+  "incident_type": "Type of Incident",
+  "date": "Date of Incident",
+  "location": "Location",
+  "other_party": "Other Party (Relationship Only)",
+  "narrative": "What Happened",
+  "coercion": "Coercion or Force",
+  "consent_signals": "Consent Signals",
+  "impairment": "Alcohol/Drugs",
+  "injuries": "Injuries Reported",
+  "legal_action": "Official Actions"
 };
 
 /**
