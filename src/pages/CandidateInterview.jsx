@@ -1143,6 +1143,16 @@ export default function CandidateInterview() {
     if (useProbeEngineV2(packId)) {
       // Per-field probing packs handle AI validation after each deterministic answer
       // Skip pack-level probing entirely for these packs
+      const envInfo = getEnvironmentInfo();
+      console.log('[AI-FOLLOWUP][ELIGIBILITY] V2 per-field pack - skipping pack-level probing', {
+        packId,
+        questionCode: questionId,
+        instanceNumber,
+        sessionId,
+        environment: envInfo.nodeEnv,
+        runtimeEnv: envInfo.hostname,
+        reason: 'v2-per-field-mode'
+      });
       console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId} (per-field mode active)`);
       
       // Advance directly to next base question or multi-instance check
