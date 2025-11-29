@@ -276,6 +276,22 @@ const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${inst
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext } = params;
 
+  const envInfo = getEnvironmentInfo();
+  
+  // =====================================================================
+  // [AI-FOLLOWUP][V2-REQUEST] Diagnostic logging for V2 per-field probing
+  // =====================================================================
+  console.log('[AI-FOLLOWUP][V2-REQUEST]', {
+    packId,
+    fieldKey,
+    fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
+    previousProbesCount,
+    environment: envInfo.nodeEnv,
+    runtimeEnv: envInfo.hostname,
+    isPreview: envInfo.isPreview,
+    isProduction: envInfo.isProduction
+  });
+
   try {
     console.log('[V2-PER-FIELD] Calling backend for field validation:', {
       pack_id: packId,
@@ -293,6 +309,14 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       mode: 'VALIDATE_FIELD'
     });
 
+    console.log('[AI-FOLLOWUP][V2-RESPONSE]', {
+      packId,
+      fieldKey,
+      mode: response?.data?.mode,
+      hasQuestion: !!response?.data?.question,
+      questionPreview: response?.data?.question?.substring?.(0, 80) || null
+    });
+    
     console.log('[V2-PER-FIELD] Response:', response.data);
     
     // NOTE: AI probe question logging is handled in the calling code after this returns
@@ -300,6 +324,16 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     
     return response.data;
   } catch (err) {
+    console.error('[AI-FOLLOWUP][V2-ERROR]', {
+      packId,
+      fieldKey,
+      environment: envInfo.nodeEnv,
+      runtimeEnv: envInfo.hostname,
+      errorMessage: err?.message,
+      errorStatus: err?.status,
+      errorCode: err?.code,
+      errorStack: err?.stack?.substring?.(0, 300)
+    });
     console.error('[V2-PER-FIELD] Error calling backend:', err);
     return {
       mode: 'ERROR',
