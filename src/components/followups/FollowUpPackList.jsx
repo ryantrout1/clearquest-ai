@@ -69,7 +69,7 @@ export default function FollowUpPackList({
 
         return (
           <div
-            key={pack.id}
+            key={pack.followup_pack_id || pack.id}
             id={`pack-${pack.id}`}
             onClick={() => onSelectPack(pack)}
             className={cn(
