@@ -35,14 +35,6 @@ import AIInstructionsSection from "./AIInstructionsSection";
 import TriggeringQuestionsSection from "./TriggeringQuestionsSection";
 import FollowUpQuestionsSection from "./FollowUpQuestionsSection";
 
-const RESPONSE_TYPE_NAMES = {
-  'text': 'Text',
-  'yes_no': 'Yes/No',
-  'date': 'Date',
-  'number': 'Number',
-  'multi_select': 'Multi-Select'
-};
-
 export default function FollowUpPackDetails({ 
   pack, 
   questions,
@@ -53,24 +45,18 @@ export default function FollowUpPackDetails({
   const navigate = useNavigate();
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState(null);
-  const [showAddQuestion, setShowAddQuestion] = useState(false);
-  const [newQuestion, setNewQuestion] = useState({
-    question_text: '',
-    response_type: 'text',
-    active: true
-  });
-  const [isTriggeringExpanded, setIsTriggeringExpanded] = useState(false);
-  const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
+  
+  // Section expansion states
+  const [isDisplaySettingsExpanded, setIsDisplaySettingsExpanded] = useState(false);
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [isProbeInstructionsExpanded, setIsProbeInstructionsExpanded] = useState(false);
   const [isSummaryInstructionsExpanded, setIsSummaryInstructionsExpanded] = useState(false);
+  const [isTriggeringExpanded, setIsTriggeringExpanded] = useState(false);
+  const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
-  const [isDisplaySettingsExpanded, setIsDisplaySettingsExpanded] = useState(false);
+  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
-  const [questionToDelete, setQuestionToDelete] = useState(null);
-  const [showQuestionDeleteConfirm, setShowQuestionDeleteConfirm] = useState(false);
-  const [localDeletedQuestionIds, setLocalDeletedQuestionIds] = useState([]);
 
   useEffect(() => {
     if (!pack) return;
