@@ -1744,7 +1744,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       detailKey: fact.fieldKey || `field_${idx}`,
                       detailValue: fact.value,
                       displayOrder: idx,
-                      questionText: DRIVING_FIELD_LABELS[fact.fieldKey] || DRIVING_FIELD_LABELS[fact.label] || fact.label || fact.fieldKey
+                      questionText: getFieldLabelForPack(packId, fact.fieldKey, fact.label || fact.fieldKey)
                     }));
                     
                     // FALLBACK: If no transcript facts, try instance.details
