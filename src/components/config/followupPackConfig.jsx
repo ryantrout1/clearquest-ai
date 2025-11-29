@@ -5,14 +5,82 @@ export const FOLLOWUP_PACK_CONFIG = {
   // 👮 PACK: Applications with other LE agencies
   //
   PACK_LE_APPS: {
-    displayName: "Applications with other law enforcement agencies",
+    displayName: "Prior LE Application",
+    pills: ["Applications", "Law Enforcement", "Prior Attempts"],
     fields: {
+      // New v2.4 field_config fields
+      agency_name: { label: "Agency / Department Name" },
+      agency_location: { label: "Agency Location (City, State)" },
+      application_date: { label: "Application Date (Month/Year)" },
+      position: { label: "Position Applied For" },
+      outcome: { label: "Outcome" },
+      stage_reached: { label: "Stage Reached" },
+      reason_not_selected: { label: "Reason for Non-Selection" },
+      full_disclosure: { label: "Full Disclosure on Application" },
+      has_documentation: { label: "Documentation Available" },
+      // Legacy question mappings
       PACK_LE_APPS_Q01: { label: "Agency" },
       PACK_LE_APPS_Q02: { label: "Position applied for" },
       PACK_LE_APPS_Q03: { label: "Application date (month/year)" },
       PACK_LE_APPS_Q04: { label: "Outcome" },
       PACK_LE_APPS_Q05: { label: "Agency's stated reason" },
       PACK_LE_APPS_Q06: { label: "Issues / concerns noted by the agency" },
+    },
+  },
+  
+  //
+  // 🔍 PACK: Application Integrity Issues
+  //
+  PACK_INTEGRITY_APPS: {
+    displayName: "Application Integrity Issue",
+    pills: ["Integrity", "Disclosure", "Omissions"],
+    fields: {
+      agency_name: { label: "Agency Name" },
+      incident_date: { label: "Application Date (Month/Year)" },
+      issue_type: { label: "Type of Issue" },
+      what_omitted: { label: "What Was Omitted/Falsified" },
+      reason_omitted: { label: "Why It Was Omitted" },
+      discovery_method: { label: "How Discovered" },
+      consequences: { label: "Consequences" },
+      corrected: { label: "Has Been Corrected" },
+      // Legacy question mappings
+      PACK_INTEGRITY_APPS_Q01: { label: "Agency" },
+      PACK_INTEGRITY_APPS_Q02: { label: "Application Date" },
+      PACK_INTEGRITY_APPS_Q03: { label: "What Was Omitted" },
+      PACK_INTEGRITY_APPS_Q04: { label: "Reason" },
+      PACK_INTEGRITY_APPS_Q05: { label: "How Discovered" },
+      PACK_INTEGRITY_APPS_Q06: { label: "Consequences" },
+      PACK_INTEGRITY_APPS_Q07: { label: "Corrected" },
+    },
+  },
+  
+  //
+  // ⚠️ PACK: Prior Law Enforcement Misconduct
+  //
+  PACK_LE_MISCONDUCT_STANDARD: {
+    displayName: "Prior LE Misconduct",
+    pills: ["Misconduct", "Discipline", "Internal Affairs"],
+    fields: {
+      agency_name: { label: "Agency / Department Name" },
+      position_held: { label: "Position Held" },
+      employment_dates: { label: "Employment Dates" },
+      incident_date: { label: "Incident Date (Month/Year)" },
+      allegation_type: { label: "Nature of Allegation" },
+      allegation_description: { label: "Description of Allegation" },
+      discovery_method: { label: "How Allegation Arose" },
+      ia_case_number: { label: "IA Case Number" },
+      finding: { label: "Finding / Outcome" },
+      discipline: { label: "Disciplinary Action" },
+      appealed: { label: "Was Appealed" },
+      has_documentation: { label: "Documentation Available" },
+      // Legacy question mappings
+      PACK_LE_MISCONDUCT_Q01: { label: "Agency" },
+      PACK_LE_MISCONDUCT_Q02: { label: "Position" },
+      PACK_LE_MISCONDUCT_Q03: { label: "Date" },
+      PACK_LE_MISCONDUCT_Q04: { label: "Allegation Type" },
+      PACK_LE_MISCONDUCT_Q05: { label: "Description" },
+      PACK_LE_MISCONDUCT_Q06: { label: "Finding" },
+      PACK_LE_MISCONDUCT_Q07: { label: "Discipline" },
     },
   },
 
