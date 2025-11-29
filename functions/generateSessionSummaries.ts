@@ -19,6 +19,8 @@ function getAiRuntimeConfig(globalSettings) {
  * NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
  */
 Deno.serve(async (req) => {
+  let sessionId = null;
+  
   try {
     const base44 = createClientFromRequest(req);
     
@@ -27,13 +29,26 @@ Deno.serve(async (req) => {
       return Response.json({ ok: false, error: { message: 'Unauthorized' } }, { status: 401 });
     }
 
-    const body = typeof req.json === "function" ? await req.json() : req.body;
-    const sessionId = body?.sessionId || body?.session_id;
+    let body;
+    try {
+      body = typeof req.json === "function" ? await req.json() : req.body;
+    } catch (parseErr) {
+      console.error('[GENERATE_SUMMARIES] JSON_PARSE_ERROR', { error: parseErr.message });
+      return Response.json({ ok: false, error: { message: 'Invalid JSON body' } }, { status: 400 });
+    }
+    
+    sessionId = body?.sessionId || body?.session_id;
     const generateGlobal = body?.generateGlobal !== false;
     const generateSections = body?.generateSections !== false;
     const generateQuestions = body?.generateQuestions !== false;
 
-    console.log('[AI-GENERATE] START', { sessionId, generateGlobal, generateSections, generateQuestions });
+    console.log('[GENERATE_SUMMARIES] START', { 
+      sessionId, 
+      generateGlobal, 
+      generateSections, 
+      generateQuestions,
+      env: typeof Deno !== 'undefined' ? 'deno' : 'unknown'
+    });
 
     if (!sessionId) {
       return Response.json({ ok: false, error: { message: 'sessionId required' } }, { status: 400 });
