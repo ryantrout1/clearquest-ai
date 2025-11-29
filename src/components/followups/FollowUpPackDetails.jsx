@@ -151,7 +151,7 @@ export default function FollowUpPackDetails({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -194,17 +194,7 @@ export default function FollowUpPackDetails({
                   setFormData({
                     pack_name: pack.pack_name || '',
                     description: pack.description || '',
-                    behavior_type: pack.behavior_type || 'standard',
-                    requires_completion: pack.requires_completion !== false,
-                    max_probe_loops: pack.max_probe_loops || '',
-                    max_ai_followups: pack.max_ai_followups ?? 3,
-                    ai_probe_instructions: pack.ai_probe_instructions || '',
-                    ai_summary_instructions: pack.ai_summary_instructions || '',
-                    active: pack.active !== false,
-                    categoryId: categoryIdCancel,
-                    instance_header_template: pack.instance_header_template || '',
-                    instance_title_format: pack.instance_title_format || '',
-                    label_mapping_overrides: pack.label_mapping_overrides || null
+                    categoryId: categoryIdCancel
                   });
                   setIsEditing(false);
                 }}
@@ -215,7 +205,7 @@ export default function FollowUpPackDetails({
                 Cancel
               </Button>
               <Button
-                onClick={handleSave}
+                onClick={handleSaveBasicInfo}
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
@@ -228,26 +218,26 @@ export default function FollowUpPackDetails({
 
       {/* Warning for no triggers */}
       {hasNoTriggers && (
-        <div className="bg-yellow-950/30 border border-yellow-500/50 rounded-lg p-4 flex items-start gap-3">
+        <div className="bg-yellow-950/30 border border-yellow-500/50 rounded-lg p-3 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-yellow-400 mb-1">No Triggering Questions</h4>
             <p className="text-xs text-slate-300">
-              This follow-up pack has no interview questions assigned to trigger it. It will never be used in interviews.
+              This follow-up pack has no interview questions assigned to trigger it.
             </p>
           </div>
         </div>
       )}
 
-      {/* Category */}
-      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-lg font-semibold text-white mb-3 block">Category</Label>
+      {/* Category - Compact single line */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-slate-400">Category:</span>
         {isEditing ? (
           <Select
             value={formData.categoryId}
             onValueChange={(v) => setFormData({...formData, categoryId: v})}
           >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+            <SelectTrigger className="bg-slate-800 border-slate-600 text-white h-8 w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -259,25 +249,20 @@ export default function FollowUpPackDetails({
             </SelectContent>
           </Select>
         ) : (
-          <div>
-            <Badge className="bg-amber-500/20 border-amber-500/50 text-amber-300 mb-2 text-xs font-medium">
-              {categoryInfo?.label || "Uncategorized"}
-            </Badge>
-            {categoryInfo && (
-              <p className="text-sm text-slate-400 leading-relaxed mt-2">{categoryInfo.description}</p>
-            )}
-          </div>
+          <span className="text-sm font-medium text-amber-300">
+            {categoryInfo?.label || "Uncategorized"}
+          </span>
         )}
       </div>
 
-      {/* Description */}
+      {/* Description & Purpose */}
       <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-lg font-semibold text-white mb-3 block">Description & Purpose</Label>
+        <Label className="text-sm font-semibold text-white mb-2 block">Description & Purpose</Label>
         {isEditing ? (
           <Textarea
             value={formData.description}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
-            className="bg-slate-800 border-slate-600 text-white min-h-24"
+            className="bg-slate-800 border-slate-600 text-white min-h-20"
             placeholder="Admin-facing description of what this pack captures..."
           />
         ) : (
@@ -287,404 +272,75 @@ export default function FollowUpPackDetails({
         )}
       </div>
 
-      {/* Display / Template Settings - NEW CARD */}
+      {/* Display / Template Settings */}
       <DisplayTemplateSettings
         pack={pack}
         isExpanded={isDisplaySettingsExpanded}
         onToggleExpand={() => setIsDisplaySettingsExpanded(!isDisplaySettingsExpanded)}
-        isEditing={isEditing}
-        formData={formData}
-        setFormData={setFormData}
+        onSave={handleSectionSave}
       />
 
       {/* Pack Configuration */}
-      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-        <Label className="text-lg font-semibold text-white mb-3 block">Pack Configuration</Label>
-        
-        {isEditing ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm text-slate-400">Behavior Type</Label>
-                <Select
-                  value={formData.behavior_type}
-                  onValueChange={(v) => setFormData({...formData, behavior_type: v})}
-                >
-                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="strict">Strict</SelectItem>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="multi_incident">Multi-Incident</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.behavior_type === 'multi_incident' && (
-                <div>
-                  <Label className="text-sm text-slate-400">Max Probe Loops</Label>
-                  <Input
-                    type="number"
-                    value={formData.max_probe_loops}
-                    onChange={(e) => setFormData({...formData, max_probe_loops: e.target.value})}
-                    className="bg-slate-800 border-slate-600 text-white mt-1"
-                    placeholder="e.g., 5"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label className="text-sm text-slate-400 mb-1 block">Max AI Follow-ups</Label>
-              <Input
-                type="number"
-                min="0"
-                max="10"
-                value={formData.max_ai_followups}
-                onChange={(e) => setFormData({...formData, max_ai_followups: e.target.value})}
-                className="bg-slate-800 border-slate-600 text-white"
-                placeholder="Default: 3"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Maximum AI probing questions per pack instance (0-10)
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-sm text-slate-400">Requires Completion</Label>
-              <Switch
-                checked={formData.requires_completion}
-                onCheckedChange={(checked) => setFormData({...formData, requires_completion: checked})}
-                className="data-[state=checked]:bg-emerald-600"
-              />
-            </div>
-
-            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <Label className="text-sm text-slate-400">Active</Label>
-              <Switch
-                checked={formData.active}
-                onCheckedChange={(checked) => setFormData({...formData, active: checked})}
-                className="data-[state=checked]:bg-emerald-600"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-2 flex-wrap">
-            <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
-              {formData.behavior_type}
-            </Badge>
-            {pack.requires_completion && (
-              <Badge className="text-xs font-medium bg-orange-500/20 border-orange-500/50 text-orange-400">
-                Required
-              </Badge>
-            )}
-            {pack.max_probe_loops && (
-              <Badge variant="outline" className="text-xs font-medium border-slate-600 text-slate-300">
-                Max {pack.max_probe_loops} loops
-              </Badge>
-            )}
-            {pack.active === false && (
-              <Badge variant="outline" className="text-xs font-medium border-red-600 text-red-400">
-                Inactive
-              </Badge>
-            )}
-          </div>
-        )}
-      </div>
+      <PackConfigurationSection
+        pack={pack}
+        isExpanded={isConfigExpanded}
+        onToggleExpand={() => setIsConfigExpanded(!isConfigExpanded)}
+        onSave={handleSectionSave}
+      />
 
       {/* AI Probe Instructions */}
-      <div className="bg-blue-950/20 border border-blue-500/30 rounded-lg p-4">
-        <button
-          onClick={() => !isEditing && setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
-          className="w-full flex items-center gap-3 group"
-          disabled={isEditing}
-        >
-          {!isEditing && (
-            <ChevronRight className={`w-5 h-5 text-blue-400 group-hover:text-blue-300 transition-transform ${isProbeInstructionsExpanded ? 'rotate-90' : ''}`} />
-          )}
-          <div className="flex-1 text-left">
-            <Label className="text-lg font-semibold text-blue-400 cursor-pointer block">AI Probe Instructions</Label>
-            <p className="text-xs text-slate-400 mt-0.5">Controls how AI probes for missing details, clarifies vague answers, and handles sensitive topics</p>
-          </div>
-        </button>
-        {isEditing ? (
-          <Textarea
-            value={formData.ai_probe_instructions}
-            onChange={(e) => setFormData({...formData, ai_probe_instructions: e.target.value})}
-            className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
-            placeholder="Instructions for AI probing behavior for this pack..."
-          />
-        ) : isProbeInstructionsExpanded && (
-          <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-              {formData.ai_probe_instructions || 'No instructions provided'}
-            </p>
-          </div>
-        )}
-      </div>
+      <AIInstructionsSection
+        pack={pack}
+        type="probe"
+        isExpanded={isProbeInstructionsExpanded}
+        onToggleExpand={() => setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
+        onSave={handleSectionSave}
+      />
 
       {/* AI Investigator Summary Instructions */}
-              <div className="bg-purple-950/20 border border-purple-500/30 rounded-lg p-4">
-                <button
-                  onClick={() => !isEditing && setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
-                  className="w-full flex items-center gap-3 group"
-                  disabled={isEditing}
-                >
-                  {!isEditing && (
-                    <ChevronRight className={`w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-transform ${isSummaryInstructionsExpanded ? 'rotate-90' : ''}`} />
-                  )}
-                  <div className="flex-1 text-left">
-                    <Label className="text-lg font-semibold text-purple-400 cursor-pointer block">AI Investigator Summary Instructions</Label>
-                    <p className="text-xs text-slate-400 mt-0.5">Defines structure, tone, and required details for AI-generated incident summaries shown to investigators</p>
-                  </div>
-                </button>
-                {isEditing ? (
-                  <>
-                    <Textarea
-                      value={formData.ai_summary_instructions}
-                      onChange={(e) => setFormData({...formData, ai_summary_instructions: e.target.value})}
-                      className="bg-slate-800 border-slate-600 text-white min-h-64 mt-3"
-                      placeholder="Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk."
-                    />
-                    <p className="text-xs text-slate-500 mt-2">
-                      Tell the AI how to write the narrative summary for investigators. You can specify required details (who, what, when, where, why, impact, risk, etc.), tone, level of detail, and how to describe risk.
-                    </p>
-                  </>
-                ) : isSummaryInstructionsExpanded && (
-                  <div className="max-h-[280px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/50 mt-3">
-                    <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-                      {formData.ai_summary_instructions || 'No investigator summary instructions configured yet.'}
-                    </p>
-                  </div>
-                )}
-              </div>
+      <AIInstructionsSection
+        pack={pack}
+        type="summary"
+        isExpanded={isSummaryInstructionsExpanded}
+        onToggleExpand={() => setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
+        onSave={handleSectionSave}
+      />
 
-              {/* Triggering Questions */}
-      <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-lg p-4">
-        <button
-          onClick={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
-          className="w-full flex items-center gap-3 group"
-        >
-          <ChevronRight className={`w-5 h-5 text-emerald-400 group-hover:text-emerald-300 transition-transform ${isTriggeringExpanded ? 'rotate-90' : ''}`} />
-          <div className="flex-1 text-left">
-            <h4 className="text-lg font-semibold text-emerald-400">
-                                Triggering Questions ({sortedTriggeringQuestions.length})
-                              </h4>
-            <p className="text-xs text-slate-400 mt-0.5">Interview questions where a "Yes" answer triggers this pack — manage these in Interview Structure</p>
-          </div>
-        </button>
-        {sortedTriggeringQuestions.length === 0 ? (
-          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center mt-3">
-            <p className="text-sm text-slate-400">
-              No interview questions currently trigger this pack.
-            </p>
-          </div>
-        ) : isTriggeringExpanded && (
-          <div className="space-y-2 mt-3">
-            {sortedTriggeringQuestions.map((q) => (
-              <button
-                key={q.id}
-                onClick={() => handleNavigateToQuestion(q.question_id)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 hover:border-emerald-500/50 hover:bg-slate-800/70 transition-all text-left group"
-              >
-                <div className="flex items-start gap-2">
-                  <Badge variant="outline" className="font-mono text-xs font-medium border-slate-600 text-blue-400 group-hover:border-blue-500 group-hover:text-blue-300 transition-colors">
-                    {q.question_id}
-                  </Badge>
-                  <p className="text-base font-medium text-slate-300 leading-relaxed flex-1 group-hover:text-white transition-colors">
-                    {q.question_text}
-                  </p>
-                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Triggering Questions */}
+      <TriggeringQuestionsSection
+        triggeringQuestions={triggeringQuestions}
+        isExpanded={isTriggeringExpanded}
+        onToggleExpand={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
+      />
 
-      {/* Deterministic Questions */}
-      <div className="bg-pink-950/20 border border-pink-500/30 rounded-lg p-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
-            className="flex items-center gap-3 group flex-1"
-          >
-            <ChevronRight className={`w-5 h-5 text-pink-400 group-hover:text-pink-300 transition-transform ${isFollowupQuestionsExpanded ? 'rotate-90' : ''}`} />
-            <div className="flex-1 text-left">
-              <h4 className="text-lg font-semibold text-pink-400">Follow-Up Questions ({sortedQuestions.length})</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Fixed questions asked every time this pack is triggered — candidate answers all before AI probing begins</p>
-            </div>
-          </button>
-          {isFollowupQuestionsExpanded && (
-            <Button
-              onClick={() => setShowAddQuestion(true)}
-              size="sm"
-              className="bg-pink-600 hover:bg-pink-700"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add
-            </Button>
-          )}
-        </div>
+      {/* Follow-Up Questions */}
+      <FollowUpQuestionsSection
+        pack={pack}
+        questions={questions}
+        isExpanded={isFollowupQuestionsExpanded}
+        onToggleExpand={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
+        onUpdate={onUpdate}
+      />
 
-        {isFollowupQuestionsExpanded && showAddQuestion && (
-          <div className="bg-slate-900/50 border border-purple-500/50 rounded-lg p-3 mb-3">
-            <div className="space-y-2">
-              <Textarea
-                placeholder="Question text..."
-                value={newQuestion.question_text}
-                onChange={(e) => setNewQuestion({...newQuestion, question_text: e.target.value})}
-                className="bg-slate-800 border-slate-600 text-white min-h-20"
-              />
-              <div className="flex gap-2">
-                <Select
-                  value={newQuestion.response_type}
-                  onValueChange={(v) => setNewQuestion({...newQuestion, response_type: v})}
-                >
-                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={handleAddQuestion} className="bg-emerald-600 hover:bg-emerald-700">
-                  Save
-                </Button>
-                <Button variant="outline" onClick={() => setShowAddQuestion(false)} className="border-slate-600">
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Follow-Up Fields (Structured Data) */}
+      <FollowUpFieldDesigner
+        pack={pack}
+        isExpanded={isFieldsExpanded}
+        onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
+        onSaveFields={async (updatedFields) => {
+          try {
+            const updatedPack = await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
+            onUpdate({ ...pack, field_config: updatedFields });
+            toast.success('Fields saved');
+            return true;
+          } catch (err) {
+            toast.error('Failed to save fields');
+            throw err;
+          }
+        }}
+      />
 
-        {isFollowupQuestionsExpanded && sortedQuestions.length === 0 ? (
-          <div className="text-center py-6 text-slate-400 bg-slate-900/50 rounded-lg border border-slate-700 mt-3">
-            <p className="text-sm">No deterministic questions yet.</p>
-          </div>
-        ) : isFollowupQuestionsExpanded && sortedQuestions.length > 0 && (
-          <div className="space-y-2 mt-3">
-            {sortedQuestions.map((q, idx) => (
-              <div key={q.id} className="bg-slate-900/50 border border-slate-700 rounded-lg p-2">
-                {editingQuestion?.id === q.id ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={editingQuestion.question_text}
-                      onChange={(e) => setEditingQuestion({...editingQuestion, question_text: e.target.value})}
-                      className="bg-slate-800 border-slate-600 text-white min-h-20"
-                    />
-                    <div className="flex gap-2">
-                      <Button 
-                        size="sm"
-                        onClick={() => handleUpdateQuestion(q.id, { question_text: editingQuestion.question_text })}
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        Save
-                      </Button>
-                      <Button 
-                        size="sm"
-                        variant="outline" 
-                        onClick={() => setEditingQuestion(null)}
-                        className="border-slate-600"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-3">
-                    <div className="flex flex-col gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleReorderQuestion(q.id, 'up')}
-                        disabled={idx === 0}
-                        className="h-6 w-6 p-0 text-slate-400 hover:text-white"
-                      >
-                        <ChevronDown className="w-4 h-4 rotate-180" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleReorderQuestion(q.id, 'down')}
-                        disabled={idx === sortedQuestions.length - 1}
-                        className="h-6 w-6 p-0 text-slate-400 hover:text-white"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-                      <span className="text-sm font-bold text-purple-300">#{idx + 1}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white break-words leading-snug">{q.question_text}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Switch
-                        checked={q.active !== false}
-                        onCheckedChange={(checked) => handleUpdateQuestion(q.id, { active: checked })}
-                        className="data-[state=checked]:bg-emerald-600"
-                      />
-                      <span className="text-xs text-slate-400">
-                        {q.active !== false ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingQuestion(q)}
-                        className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setQuestionToDelete(q);
-                          setShowQuestionDeleteConfirm(true);
-                        }}
-                        className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-        {/* Follow-Up Fields (Structured Data) */}
-        <FollowUpFieldDesigner
-          pack={pack}
-          isExpanded={isFieldsExpanded}
-          onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
-          onSaveFields={async (updatedFields) => {
-            console.log('[PACK-FIELDS-SAVE] onSaveFields called', { packId: pack.id, fieldCount: updatedFields.length, fields: updatedFields });
-            try {
-              const updatedPack = await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
-              console.log('[PACK-FIELDS-SAVE] Database update success', updatedPack);
-              onUpdate({ ...pack, field_config: updatedFields });
-              toast.success('Fields saved to database');
-              return true;
-            } catch (err) {
-              console.error('[PACK-FIELDS-SAVE] Database update failed:', err);
-              toast.error('Failed to save fields: ' + (err.message || 'Unknown error'));
-              throw err;
-            }
-          }}
-        />
-
-        {/* Delete Confirmation Dialog - Step 1 */}
+      {/* Delete Confirmation Dialog - Step 1 */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="bg-slate-900 border-slate-700">
           <AlertDialogHeader>
@@ -739,32 +395,6 @@ export default function FollowUpPackDetails({
               className="bg-red-600 hover:bg-red-700"
             >
               Yes, delete permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Question Confirmation Dialog */}
-      <AlertDialog open={showQuestionDeleteConfirm} onOpenChange={setShowQuestionDeleteConfirm}>
-        <AlertDialogContent className="bg-slate-900 border-slate-700">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete this question?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              This will permanently delete the question. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={() => setQuestionToDelete(null)}
-              className="border-slate-600 text-slate-300"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => questionToDelete && handleDeleteQuestion(questionToDelete.id)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
