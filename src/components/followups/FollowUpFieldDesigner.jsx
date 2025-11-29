@@ -291,7 +291,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDragEnd={handleDragEnd}
-              className={`bg-slate-900/50 border border-slate-700 rounded-lg p-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all ${
+              className={`bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all ${
                 draggedIndex === index ? 'opacity-50 border-amber-500' : 'hover:border-slate-600'
               }`}
             >
