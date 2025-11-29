@@ -505,13 +505,6 @@ ${contextText}`;
             error: saveErr.message
           });
         }
-      } else {
-        skippedCount++;
-        summaries.push({
-          questionId,
-          summaryText: null,
-          status: 'error'
-        });
       }
     }
     
