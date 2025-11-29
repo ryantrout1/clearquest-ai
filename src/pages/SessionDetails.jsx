@@ -1829,69 +1829,71 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
                   // 2) All other packs that have packConfig (e.g., PACK_LE_APPS) NEXT
                   else if (packConfig) {
+                    const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                    const detailEntries = Object.entries(instance.details || {});
+                    const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
+                      let questionText = instance.questionTextSnapshot?.[detailKey];
+                      let matchedQuestion = null;
+                      if (!questionText) {
+                        matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
+                        if (matchedQuestion) { questionText = matchedQuestion.question_text; }
+                      }
+                      if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
+                      return { detailKey, detailValue, displayOrder: matchedQuestion?.display_order ?? 999, questionText };
+                    });
+                    deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
+                    const uniqueExchanges = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
+                    const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
+                    const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
+                    const summaryValues = deterministicEntries.map((e) => e.detailValue).filter(Boolean);
+                    const summaryText = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(" • ") : null;
 
-                  const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                  const detailEntries = Object.entries(instance.details || {});
-                  const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
-                    let questionText = instance.questionTextSnapshot?.[detailKey];
-                    let matchedQuestion = null;
-                    if (!questionText) {
-                      matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
-                      if (matchedQuestion) { questionText = matchedQuestion.question_text; }
-                    }
-                    if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
-                    return { detailKey, detailValue, displayOrder: matchedQuestion?.display_order ?? 999, questionText };
-                  });
-                  deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
-                  const uniqueExchanges = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
-                  const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
-                  const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
-                  const summaryValues = deterministicEntries.map((e) => e.detailValue).filter(Boolean);
-                  const summaryText = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(" • ") : null;
-
-                  return (
-                    <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
-                      <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => hasMultipleInstances && toggleInstance(instanceNum)} disabled={!hasMultipleInstances}>
-                        <div className="flex flex-col gap-0.5 text-left">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                    return (
+                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
+                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => hasMultipleInstances && toggleInstance(instanceNum)} disabled={!hasMultipleInstances}>
+                          <div className="flex flex-col gap-0.5 text-left">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                            </div>
+                            {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
                           </div>
-                          {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
-                        </div>
-                        {hasMultipleInstances && (<span className="text-[10px] text-slate-400">{isExpanded ? "Hide" : "Show"}</span>)}
-                      </button>
-                      {isExpanded && (
-                        <div className="px-3 pb-3 pt-1 space-y-2">
-                          {deterministicEntries.length > 0 && (
-                            <div>
-                              <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
-                              <div className="divide-y divide-slate-700/60 text-xs">
-                                {deterministicEntries.map((entry, idx) => (
-                                  <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
-                                    <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
-                                    <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
-                                  </div>
-                                ))}
+                          {hasMultipleInstances && (<span className="text-[10px] text-slate-400">{isExpanded ? "Hide" : "Show"}</span>)}
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-1 space-y-2">
+                            {deterministicEntries.length > 0 && (
+                              <div>
+                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
+                                <div className="divide-y divide-slate-700/60 text-xs">
+                                  {deterministicEntries.map((entry, idx) => (
+                                    <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
+                                      <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
+                                      <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                          {sortedAiExchanges.length > 0 && (
-                            <div className="pt-2">
-                              <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
-                              <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
-                                {sortedAiExchanges.map((ex, idx) => (
-                                  <div key={idx} className="space-y-1">
-                                    <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
-                                    <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
-                                  </div>
-                                ))}
+                            )}
+                            {sortedAiExchanges.length > 0 && (
+                              <div className="pt-2">
+                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
+                                <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
+                                  {sortedAiExchanges.map((ex, idx) => (
+                                    <div key={idx} className="space-y-1">
+                                      <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
+                                      <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return null;
                 })}
               </div>
             </div>
