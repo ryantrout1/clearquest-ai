@@ -142,7 +142,10 @@ export default function FollowUpPackDetails({
         ai_probe_instructions: updatedPack.ai_probe_instructions || '',
         ai_summary_instructions: updatedPack.ai_summary_instructions || '',
         active: updatedPack.active !== false,
-        categoryId: updatedPack.category_id || formData.categoryId
+        categoryId: updatedPack.category_id || formData.categoryId,
+        instance_header_template: updatedPack.instance_header_template || '',
+        instance_title_format: updatedPack.instance_title_format || '',
+        label_mapping_overrides: updatedPack.label_mapping_overrides || null
       });
       
       // Exit edit mode immediately
