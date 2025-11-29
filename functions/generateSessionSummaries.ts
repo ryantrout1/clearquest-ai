@@ -269,13 +269,45 @@ ${JSON.stringify(sectionData.responses.map(r => ({
         const packName = pack?.pack_name || incident.packId;
         
         // Format details as natural text instead of JSON
-        const detailsText = Object.entries(incident.details)
-          .filter(([key, value]) => value && key !== 'investigator_probing' && key !== 'question_text_snapshot')
-          .map(([key, value]) => {
-            const label = key.replace(/_/g, ' ');
-            return `${label}: ${value}`;
-          })
-          .join('\n');
+        // Defensive: handle missing or malformed details
+        let detailsText = '';
+        try {
+          if (incident.details && typeof incident.details === 'object') {
+            detailsText = Object.entries(incident.details)
+              .filter(([key, value]) => {
+                // Skip internal/meta fields and null/undefined values
+                if (!value) return false;
+                if (key === 'investigator_probing') return false;
+                if (key === 'question_text_snapshot') return false;
+                if (key === 'facts') return false;
+                if (key === 'unresolvedFields') return false;
+                // Skip nested objects (they can't be stringified simply)
+                if (typeof value === 'object') return false;
+                return true;
+              })
+              .map(([key, value]) => {
+                const label = key.replace(/_/g, ' ').replace(/PACK_[A-Z_]+_/g, '');
+                return `${label}: ${String(value)}`;
+              })
+              .join('\n');
+          }
+        } catch (detailsErr) {
+          console.warn('[GENERATE_SUMMARIES] DETAILS_PARSE_ERROR', { 
+            questionId: incident.questionId, 
+            error: detailsErr.message 
+          });
+          detailsText = 'Details could not be parsed.';
+        }
+        
+        // Skip if no meaningful details
+        if (!detailsText || detailsText.trim().length === 0) {
+          console.log('[GENERATE_SUMMARIES] SKIPPING_INCIDENT_NO_DETAILS', {
+            questionId: incident.questionId,
+            packId: incident.packId,
+            instanceNumber: incident.instanceNumber
+          });
+          continue;
+        }
         
         const incidentPrompt = `You are writing an investigator summary. Write ONLY using the actual data provided by the candidate.
 
