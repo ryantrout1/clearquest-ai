@@ -1333,9 +1333,26 @@ export default function CandidateInterview() {
         setIsInvokeLLMMode(true);
         setIsWaitingForAgent(true);
         setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
+        
+        console.log('[AI-FOLLOWUP][DECISION]', {
+          shouldTriggerAiFollowups: true,
+          reason: 'ok',
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          mode: 'invokeLLM'
+        });
         return true;
       } else {
         // Fall through to agent-based probing or skip
+        console.log('[AI-FOLLOWUP][DECISION]', {
+          shouldTriggerAiFollowups: false,
+          reason: aiResult?.status === 'error' ? 'ai-error' : 'no-followup-question',
+          packId,
+          questionCode: questionId,
+          instanceNumber,
+          aiResultStatus: aiResult?.status
+        });
       }
       }
     
