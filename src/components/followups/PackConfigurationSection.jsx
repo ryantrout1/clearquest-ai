@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Settings } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import CollapsibleSection from "./CollapsibleSection";
 
 export default function PackConfigurationSection({
