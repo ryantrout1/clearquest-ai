@@ -212,13 +212,15 @@ export default function DisplayTemplateSettings({
             {isEditing ? (
               <>
                 <Textarea
-                  value={localData.label_mapping_overrides ? JSON.stringify(localData.label_mapping_overrides, null, 2) : ''}
+                  value={localData.label_mapping_overrides_text ?? (localData.label_mapping_overrides ? JSON.stringify(localData.label_mapping_overrides, null, 2) : '')}
                   onChange={(e) => {
+                    const text = e.target.value;
                     try {
-                      const parsed = e.target.value ? JSON.parse(e.target.value) : null;
-                      setLocalData({...localData, label_mapping_overrides: parsed});
+                      const parsed = text ? JSON.parse(text) : null;
+                      setLocalData({...localData, label_mapping_overrides: parsed, label_mapping_overrides_text: text});
                     } catch {
-                      // Allow invalid JSON while typing
+                      // Keep text even if invalid JSON
+                      setLocalData({...localData, label_mapping_overrides_text: text});
                     }
                   }}
                   className="bg-slate-800 border-slate-600 text-white min-h-16 font-mono text-sm"
