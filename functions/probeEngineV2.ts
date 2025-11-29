@@ -232,13 +232,32 @@ Object.assign(FALLBACK_PROBES, {
   "PACK_DRIVING_STANDARD_Q01": "When did this incident occur? Please provide at least the month and year.",
   "PACK_DRIVING_STANDARD_Q02": "What type of driving incident was this?",
   "PACK_DRIVING_STANDARD_Q03": "Please describe what happened in this incident.",
-  "PACK_DRIVING_STANDARD_Q04": "What was the outcome of this incident?"
+  "PACK_DRIVING_STANDARD_Q04": "What was the outcome of this incident?",
+  
+  // === PACK_INTEGRITY_APPS ===
+  "agency_name": "Which agency were you applying with when this issue occurred?",
+  "incident_date": "When did this occur? Please provide at least the month and year.",
+  "what_omitted": "Can you describe what specific information was incomplete or inaccurate on the application?",
+  "reason_omitted": "What led you to leave that information off or answer it the way you did?",
+  "discovery_method": "How did this issue come to light — did you disclose it yourself, or was it found during the background?",
+  "consequences": "What consequences or disciplinary action resulted from this?",
+  "corrected": "Has this been addressed or corrected since then?",
+  
+  // === PACK_LE_MISCONDUCT_STANDARD ===
+  "position_held": "What was your position or rank at that agency?",
+  "employment_dates": "When were you employed there? Please provide approximate years.",
+  "allegation_type": "What type of allegation or concern was this?",
+  "allegation_description": "Can you describe what was alleged?",
+  "ia_case_number": "Do you recall an Internal Affairs case number or reference?",
+  "finding": "What was the official finding — sustained, not sustained, exonerated, or something else?",
+  "discipline": "What discipline, if any, resulted from this?",
+  "appealed": "Did you appeal or contest the outcome?"
 });
 
 /**
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
  * This ensures probing is rock-solid even when the backend has issues.
- * Supports PACK_LE_APPS and driving packs.
+ * Supports PACK_LE_APPS, PACK_INTEGRITY_APPS, PACK_LE_MISCONDUCT_STANDARD, and driving packs.
  * 
  * Now uses multi-level probing for fields that have it configured.
  */
@@ -255,7 +274,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -277,30 +296,85 @@ const PACK_CONFIG = {
     id: "PACK_LE_APPS",
     // NOTE: maxProbesPerField is now fetched from FollowUpPack entity (max_ai_followups)
     // This local config is only used for field mapping
-    requiredFields: ["agency", "position", "monthYear", "outcome", "reason", "issues", "stageReached"],
-    priorityOrder: ["agency", "position", "monthYear", "outcome", "reason", "issues", "stageReached"],
+    requiredFields: ["agency_name", "agency_location", "application_date", "position", "outcome", "stage_reached", "reason_not_selected", "full_disclosure"],
+    priorityOrder: ["agency_name", "agency_location", "application_date", "position", "outcome", "stage_reached", "reason_not_selected", "full_disclosure"],
     fieldKeyMap: {
-      "PACK_LE_APPS_Q1": "agency",
+      // Legacy mappings
+      "PACK_LE_APPS_Q1": "agency_name",
       "PACK_LE_APPS_Q1764025170356": "position",
-      "PACK_LE_APPS_Q1764025187292": "monthYear",
+      "PACK_LE_APPS_Q1764025187292": "application_date",
       "PACK_LE_APPS_Q1764025199138": "outcome",
-      "PACK_LE_APPS_Q1764025212764": "reason",
-      "PACK_LE_APPS_Q1764025246583": "issues",
-      "PACK_LE_APPS_AGENCY": "agency",
-      "PACK_LE_APPS_POSITION": "position",
-      "PACK_LE_APPS_MONTH_YEAR": "monthYear",
-      "PACK_LE_APPS_OUTCOME": "outcome",
-      "PACK_LE_APPS_REASON": "reason",
-      "PACK_LE_APPS_ISSUES": "issues",
-      "PACK_LE_APPS_STAGE_REACHED": "stageReached",
-      // Also map semantic field names to themselves
-      "agency": "agency",
+      "PACK_LE_APPS_Q1764025212764": "reason_not_selected",
+      "PACK_LE_APPS_Q1764025246583": "stage_reached",
+      // New field_config mappings
+      "agency_name": "agency_name",
+      "agency_location": "agency_location",
+      "application_date": "application_date",
       "position": "position",
-      "monthYear": "monthYear",
       "outcome": "outcome",
-      "reason": "reason",
-      "issues": "issues",
-      "stageReached": "stageReached",
+      "stage_reached": "stage_reached",
+      "reason_not_selected": "reason_not_selected",
+      "full_disclosure": "full_disclosure",
+      "has_documentation": "has_documentation",
+      // Legacy semantic aliases
+      "agency": "agency_name",
+      "monthYear": "application_date",
+      "reason": "reason_not_selected",
+      "stageReached": "stage_reached",
+    },
+  },
+  
+  // Application Integrity Issues pack
+  PACK_INTEGRITY_APPS: {
+    id: "PACK_INTEGRITY_APPS",
+    requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "corrected"],
+    priorityOrder: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected"],
+    fieldKeyMap: {
+      "agency_name": "agency_name",
+      "incident_date": "incident_date",
+      "issue_type": "issue_type",
+      "what_omitted": "what_omitted",
+      "reason_omitted": "reason_omitted",
+      "discovery_method": "discovery_method",
+      "consequences": "consequences",
+      "corrected": "corrected",
+      // Legacy question mappings
+      "PACK_INTEGRITY_APPS_Q01": "agency_name",
+      "PACK_INTEGRITY_APPS_Q02": "incident_date",
+      "PACK_INTEGRITY_APPS_Q03": "what_omitted",
+      "PACK_INTEGRITY_APPS_Q04": "reason_omitted",
+      "PACK_INTEGRITY_APPS_Q05": "discovery_method",
+      "PACK_INTEGRITY_APPS_Q06": "consequences",
+      "PACK_INTEGRITY_APPS_Q07": "corrected",
+    },
+  },
+  
+  // Prior LE Misconduct pack
+  PACK_LE_MISCONDUCT_STANDARD: {
+    id: "PACK_LE_MISCONDUCT_STANDARD",
+    requiredFields: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "finding", "appealed"],
+    priorityOrder: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "ia_case_number", "finding", "discipline", "appealed", "has_documentation"],
+    fieldKeyMap: {
+      "agency_name": "agency_name",
+      "position_held": "position_held",
+      "employment_dates": "employment_dates",
+      "incident_date": "incident_date",
+      "allegation_type": "allegation_type",
+      "allegation_description": "allegation_description",
+      "discovery_method": "discovery_method",
+      "ia_case_number": "ia_case_number",
+      "finding": "finding",
+      "discipline": "discipline",
+      "appealed": "appealed",
+      "has_documentation": "has_documentation",
+      // Legacy question mappings
+      "PACK_LE_MISCONDUCT_Q01": "agency_name",
+      "PACK_LE_MISCONDUCT_Q02": "position_held",
+      "PACK_LE_MISCONDUCT_Q03": "incident_date",
+      "PACK_LE_MISCONDUCT_Q04": "allegation_type",
+      "PACK_LE_MISCONDUCT_Q05": "allegation_description",
+      "PACK_LE_MISCONDUCT_Q06": "finding",
+      "PACK_LE_MISCONDUCT_Q07": "discipline",
     },
   },
   
@@ -513,12 +587,18 @@ function validateField(fieldName, value, incidentContext = {}) {
   switch (fieldName) {
     // === PACK_LE_APPS fields ===
     case "agency":
+    case "agency_name":
+    case "agency_location":
     case "position":
+    case "position_held":
       // Already checked for empty/unknown above
       console.log(`[V2-PER-FIELD] Validation result: COMPLETE (${fieldName} has valid value)`);
       return "complete";
     
     case "monthYear":
+    case "application_date":
+    case "incident_date":
+    case "employment_dates":
     case "collisionDate":
     case "violationDate":
     case "incidentDate":
@@ -599,6 +679,7 @@ function validateField(fieldName, value, incidentContext = {}) {
       return "incomplete";
     
     case "stageReached":
+    case "stage_reached":
       // Optional field - accept any non-empty answer
       if (normalized.length > 0) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (stageReached has value)`);
@@ -607,6 +688,54 @@ function validateField(fieldName, value, incidentContext = {}) {
       // Empty is acceptable for optional field
       console.log(`[V2-PER-FIELD] Validation result: COMPLETE (optional field)`);
       return "complete";
+    
+    // === PACK_INTEGRITY_APPS fields ===
+    case "issue_type":
+    case "discovery_method":
+    case "finding":
+    case "allegation_type":
+      // Choice fields - accept any selection
+      if (normalized.length > 0) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (choice field has value)`);
+        return "complete";
+      }
+      return "incomplete";
+    
+    case "what_omitted":
+    case "reason_omitted":
+    case "allegation_description":
+      // Require substantive description
+      if (normalized.length > 10) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (description has content)`);
+        return "complete";
+      }
+      return "incomplete";
+    
+    case "consequences":
+    case "discipline":
+    case "ia_case_number":
+    case "reason_not_selected":
+      // Optional fields - accept any content or "none"
+      if (normalized.length > 0 || ["none", "n/a", "na", "unknown"].includes(normalized)) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (optional field has value)`);
+        return "complete";
+      }
+      return "complete"; // Optional, so empty is OK
+    
+    case "corrected":
+    case "full_disclosure":
+    case "appealed":
+    case "has_documentation":
+      // Boolean fields
+      if (["yes", "y", "no", "n", "true", "false"].includes(normalized)) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (boolean answer)`);
+        return "complete";
+      }
+      if (normalized.length > 0) {
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has response)`);
+        return "complete";
+      }
+      return "incomplete";
     
     // === DRIVING COLLISION fields ===
     case "collisionLocation":
@@ -833,17 +962,43 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
 
 /**
  * Field labels for human-readable prompts
- * Supports PACK_LE_APPS and driving packs
+ * Supports PACK_LE_APPS, PACK_INTEGRITY_APPS, PACK_LE_MISCONDUCT_STANDARD, and driving packs
  */
 const FIELD_LABELS = {
   // PACK_LE_APPS
   "agency": "Agency / Department",
+  "agency_name": "Agency / Department Name",
+  "agency_location": "Agency Location",
   "position": "Position Applied For",
   "monthYear": "Application Date (month/year)",
+  "application_date": "Application Date (month/year)",
   "outcome": "Outcome",
   "reason": "Reason for Non-Selection",
+  "reason_not_selected": "Reason for Non-Selection",
   "issues": "Issues or Concerns",
   "stageReached": "Stage Reached in Hiring Process",
+  "stage_reached": "Stage Reached in Hiring Process",
+  "full_disclosure": "Full Disclosure on Application",
+  "has_documentation": "Documentation Available",
+  
+  // PACK_INTEGRITY_APPS
+  "incident_date": "Incident Date (month/year)",
+  "issue_type": "Type of Issue",
+  "what_omitted": "What Was Omitted/Falsified",
+  "reason_omitted": "Why It Was Omitted",
+  "discovery_method": "How Discovered",
+  "consequences": "Consequences",
+  "corrected": "Has Been Corrected",
+  
+  // PACK_LE_MISCONDUCT_STANDARD
+  "position_held": "Position Held",
+  "employment_dates": "Employment Dates",
+  "allegation_type": "Nature of Allegation",
+  "allegation_description": "Description of Allegation",
+  "ia_case_number": "IA Case Number",
+  "finding": "Finding / Outcome",
+  "discipline": "Disciplinary Action",
+  "appealed": "Was Appealed",
   
   // DRIVING COLLISION
   "collisionDate": "Collision Date (month/year)",
