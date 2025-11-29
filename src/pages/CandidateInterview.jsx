@@ -2247,6 +2247,24 @@ export default function CandidateInterview() {
         if (useProbeEngineV2(packId)) {
           const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
           
+          // =====================================================================
+          // [AI-FOLLOWUP][V2-FIELD-ENTRY] V2 per-field probing triggered
+          // This is the entry point for AI probing on V2 packs (PACK_LE_APPS, DRIVING_*)
+          // =====================================================================
+          const envInfo = getEnvironmentInfo();
+          console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            sessionId,
+            environment: envInfo.nodeEnv,
+            runtimeEnv: envInfo.hostname,
+            isPreview: envInfo.isPreview,
+            isProduction: envInfo.isProduction,
+            normalizedAnswer: normalizedAnswer?.substring?.(0, 50) || normalizedAnswer,
+            probeKey
+          });
+          
           // Check if we're already probing this field (StrictMode guard)
           if (v2ProbingInProgressRef.current.has(probeKey)) {
             console.log(`[V2-PER-FIELD] Already probing ${probeKey}, skipping duplicate`);
