@@ -175,6 +175,36 @@ export const FOLLOWUP_PACK_CONFIG = {
       PACK_DRIVING_DUIDWI_Q09: { label: "License Impact" },
     },
   },
+  
+  //
+  // 🏢 PACK: Workplace Integrity & Misconduct
+  //
+  PACK_WORKPLACE_STANDARD: {
+    displayName: "Workplace Misconduct Incident",
+    pills: ["Workplace", "Integrity", "Misconduct", "Termination Risk"],
+    fields: {
+      // v2.4 field_config fields
+      employer: { label: "Employer" },
+      position_at_time: { label: "Position at Time of Incident" },
+      incident_date: { label: "Incident Date (Month/Year)" },
+      misconduct_type: { label: "Type of Misconduct" },
+      incident_description: { label: "Description of Incident" },
+      corrective_action: { label: "Corrective Action Taken" },
+      separation_type: { label: "Separation Type" },
+      official_reason: { label: "Official Reason Given" },
+      isolated_or_recurring: { label: "Isolated or Recurring" },
+      impact: { label: "Impact on Workplace" },
+      remediation: { label: "Corrective Steps / Remediation" },
+      // Legacy question mappings
+      PACK_WORKPLACE_STANDARD_Q01: { label: "Employer" },
+      PACK_WORKPLACE_STANDARD_Q02: { label: "Position" },
+      PACK_WORKPLACE_STANDARD_Q03: { label: "Incident Date" },
+      PACK_WORKPLACE_STANDARD_Q04: { label: "Type of Issue" },
+      PACK_WORKPLACE_STANDARD_Q05: { label: "Description" },
+      PACK_WORKPLACE_STANDARD_Q06: { label: "Employer Action" },
+      PACK_WORKPLACE_STANDARD_Q07: { label: "Outcome" },
+    },
+  },
 };
 
 /**

@@ -1035,6 +1035,67 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       }
       return "Was there any appeal or grievance process?";
     
+    // === PACK_WORKPLACE_STANDARD fields ===
+    case "employer":
+      if (isFirstProbe) {
+        return "What company or organization were you working for when this incident occurred?";
+      }
+      return "Can you provide the employer's name?";
+    
+    case "position_at_time":
+      if (isFirstProbe) {
+        return "What was your job title or position when this happened?";
+      }
+      return "Can you describe your role at the time?";
+    
+    case "misconduct_type":
+      if (isFirstProbe) {
+        return "What type of issue was this — for example, a policy violation, dishonesty, conflict, or something else?";
+      }
+      return "Can you clarify what category this issue falls under?";
+    
+    case "incident_description":
+      if (isFirstProbe) {
+        return "Can you describe what happened in this incident?";
+      }
+      return "Please provide more details about what occurred.";
+    
+    case "corrective_action":
+      if (isFirstProbe) {
+        return "What action did your employer take — for example, a warning, suspension, or termination?";
+      }
+      return "Was there any formal action taken by the employer?";
+    
+    case "separation_type":
+      if (isFirstProbe) {
+        return "How did your employment end at this job — did you leave voluntarily, resign under pressure, or were you terminated?";
+      }
+      return "Can you clarify whether you left voluntarily or were asked to leave?";
+    
+    case "official_reason":
+      if (isFirstProbe) {
+        return "What reason did the employer give for any disciplinary action or separation?";
+      }
+      return "Was there an official reason communicated to you?";
+    
+    case "isolated_or_recurring":
+      if (isFirstProbe) {
+        return "Was this a one-time incident or part of a recurring pattern?";
+      }
+      return "Did this happen more than once?";
+    
+    case "impact":
+      if (isFirstProbe) {
+        return "What impact, if any, did this have on the workplace or your colleagues?";
+      }
+      return "Were there any consequences to the workplace?";
+    
+    case "remediation":
+      if (isFirstProbe) {
+        return "What steps have you taken since this incident to address or prevent similar issues?";
+      }
+      return "Have you made any changes since then?";
+    
     default:
       return `Can you provide more details about ${fieldName}?`;
   }
