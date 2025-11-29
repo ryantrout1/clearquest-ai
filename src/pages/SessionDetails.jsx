@@ -1779,99 +1779,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         )}
                       </div>
                     );
-                  } else if (isDrivingPack) {
-                    // PRIMARY SOURCE: Use drivingFactsFromTranscript (built from transcript_snapshot)
-                    const instanceKey = `${response.question_id}::${instanceNum}`;
-                    const transcriptFactsEntry = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey];
-                    const transcriptFacts = transcriptFactsEntry?.fields || [];
-                    
-                    // Build deterministic follow-ups from transcript facts
-                    let deterministicEntries = transcriptFacts.map((fact, idx) => ({
-                      detailKey: fact.fieldKey || `field_${idx}`,
-                      detailValue: fact.value,
-                      displayOrder: idx,
-                      questionText: DRIVING_FIELD_LABELS[fact.fieldKey] || DRIVING_FIELD_LABELS[fact.label] || fact.label || fact.fieldKey
-                    }));
-                    
-                    // FALLBACK: If no transcript facts, try instance.details
-                    if (deterministicEntries.length === 0 && instance.details) {
-                      const detailEntries = Object.entries(instance.details || {});
-                      deterministicEntries = detailEntries
-                        .filter(([key]) => key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts' && key !== 'unresolvedFields')
-                        .map(([detailKey, detailValue], idx) => ({
-                          detailKey,
-                          detailValue,
-                          displayOrder: idx,
-                          questionText: DRIVING_FIELD_LABELS[detailKey] || detailKey.replace(/_/g, ' ')
-                        }));
-                    }
-                    
-                    // Get AI investigator follow-ups from instance
-                    const aiExchanges = instance.aiExchanges || [];
-                    const uniqueExchanges = Array.from(new Map(aiExchanges.map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
-                    const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
-                    
-                    const hasAnyContent = deterministicEntries.length > 0 || sortedAiExchanges.length > 0;
-                    
-                    // Build summary line from first 2-3 deterministic values
-                    const summaryValues = deterministicEntries.map(e => e.detailValue).filter(Boolean);
-                    const summaryLine = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(' • ') : null;
-                    
-                    // Debug log
-                    console.debug('[SESSIONDETAILS] Driving instances for', response.question_id, {
-                      instanceNum,
-                      deterministicCount: deterministicEntries.length,
-                      aiFollowupsCount: sortedAiExchanges.length,
-                      source: transcriptFacts.length > 0 ? 'transcript' : 'additional_details'
-                    });
-
-                    return (
-                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
-                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
-                          <div className="flex flex-col gap-0.5 text-left">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
-                            </div>
-                            {summaryLine && (<div className="text-[11px] text-slate-400">{summaryLine}</div>)}
-                          </div>
-                          <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
-                        </button>
-                        {isInstanceExpanded && (
-                          <div className="px-3 pb-3 pt-1 space-y-2">
-                            {deterministicEntries.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
-                                <div className="divide-y divide-slate-700/60 text-xs">
-                                  {deterministicEntries.map((entry, idx) => (
-                                    <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
-                                      <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
-                                      <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {sortedAiExchanges.length > 0 && (
-                              <div className="pt-2">
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
-                                <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
-                                  {sortedAiExchanges.map((ex, idx) => (
-                                    <div key={idx} className="space-y-1">
-                                      <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
-                                      <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {!hasAnyContent && (
-                              <div className="text-xs text-slate-500 italic">No details recorded</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
                   }
+
+                  // 2) All other packs that have packConfig (e.g., PACK_LE_APPS) NEXT
+                  else if (packConfig) {
 
                   const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                   const detailEntries = Object.entries(instance.details || {});
