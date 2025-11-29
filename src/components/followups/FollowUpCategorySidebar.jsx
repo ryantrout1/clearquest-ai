@@ -1,7 +1,7 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { AlertTriangle, Folder } from "lucide-react";
+import { AlertTriangle, FolderOpen, Package, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function FollowUpCategorySidebar({ 
@@ -28,9 +28,8 @@ export default function FollowUpCategorySidebar({
     });
     
     const hasValidationIssues = validationIssues[category.id] > 0;
-    const validationIcon = hasValidationIssues ? "⚠️" : "✓";
     
-    return { packCount, totalQuestions, activeQuestions, validationIcon };
+    return { packCount, activePacks: activePacks.length, totalQuestions, activeQuestions, hasValidationIssues };
   };
 
   return (
@@ -45,20 +44,20 @@ export default function FollowUpCategorySidebar({
                 key={category.id}
                 onClick={() => onSelectCategory(category.id)}
                 className={cn(
-                  "w-full text-left px-3 py-2 rounded-md transition-all group",
+                  "w-full text-left px-3 py-2.5 rounded-md transition-all group",
                   isSelected
                     ? "bg-slate-700/50"
                     : "bg-transparent hover:bg-slate-800/30"
                 )}
               >
-                <div className="flex items-center gap-2.5 mb-1">
-                  <Folder className={cn(
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <FolderOpen className={cn(
                     "w-4 h-4 flex-shrink-0",
-                    isSelected ? "text-slate-400" : "text-slate-500 group-hover:text-slate-400"
+                    isSelected ? "text-blue-400" : "text-slate-500 group-hover:text-slate-400"
                   )} />
                   <h4 className={cn(
-                    "text-base font-medium leading-tight flex-1",
-                    isSelected ? "text-white" : "text-slate-400 group-hover:text-slate-300"
+                    "text-sm font-medium leading-tight flex-1",
+                    isSelected ? "text-white" : "text-slate-300 group-hover:text-white"
                   )}>
                     {category.label}
                   </h4>
@@ -68,11 +67,40 @@ export default function FollowUpCategorySidebar({
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
-                <div className={cn(
-                  "text-sm ml-6.5 opacity-70",
-                  isSelected ? "text-slate-400" : "text-slate-500"
-                )}>
-                  📦 {kpis.packCount} · 📝 {kpis.totalQuestions} · ✔️ {kpis.activeQuestions} · {kpis.validationIcon}
+                <div className="flex items-center gap-2 ml-6 flex-wrap">
+                  <span className={cn(
+                    "inline-flex items-center gap-1 text-xs",
+                    isSelected ? "text-amber-400" : "text-amber-500/80"
+                  )}>
+                    <Package className="w-3 h-3" />
+                    {kpis.packCount}
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className={cn(
+                    "inline-flex items-center gap-1 text-xs",
+                    isSelected ? "text-purple-400" : "text-purple-500/80"
+                  )}>
+                    <FileText className="w-3 h-3" />
+                    {kpis.totalQuestions}
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className={cn(
+                    "inline-flex items-center gap-1 text-xs",
+                    isSelected ? "text-emerald-400" : "text-emerald-500/80"
+                  )}>
+                    <CheckCircle2 className="w-3 h-3" />
+                    {kpis.activeQuestions}
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  {kpis.hasValidationIssues ? (
+                    <span className="inline-flex items-center text-xs text-yellow-400">
+                      <AlertCircle className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-xs text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                    </span>
+                  )}
                 </div>
               </button>
             );

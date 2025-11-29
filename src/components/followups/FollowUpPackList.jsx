@@ -1,7 +1,7 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Package, AlertTriangle } from "lucide-react";
+import { Package, AlertTriangle, FileText, Link2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function FollowUpPackList({ 
@@ -15,7 +15,8 @@ export default function FollowUpPackList({
   if (packs.length === 0) {
     return (
       <div className="bg-slate-900/30 border border-slate-800/50 rounded-md p-6 text-center">
-        <p className="text-slate-500 text-xs">No packs in this category</p>
+        <Package className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+        <p className="text-slate-500 text-sm">No packs in this category</p>
       </div>
     );
   }
@@ -33,6 +34,7 @@ export default function FollowUpPackList({
         const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
         const isSelected = selectedPackId === pack.id;
         const hasNoTriggers = triggeringQuestions.length === 0;
+        const isInactive = pack.active === false;
 
         return (
           <div
@@ -43,7 +45,8 @@ export default function FollowUpPackList({
               "px-3 py-2.5 rounded-md transition-all cursor-pointer group",
               isSelected
                 ? "bg-slate-800/50"
-                : "bg-transparent hover:bg-slate-800/30"
+                : "bg-transparent hover:bg-slate-800/30",
+              isInactive && "opacity-60"
             )}
           >
             <div className="flex items-start gap-2.5">
@@ -54,10 +57,13 @@ export default function FollowUpPackList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div>
-                    <h4 className="text-base font-medium text-white leading-tight">
+                    <h4 className={cn(
+                      "text-sm font-medium leading-tight",
+                      isSelected ? "text-white" : "text-slate-200 group-hover:text-white"
+                    )}>
                       {pack.pack_name}
                     </h4>
-                    <p className="text-sm text-slate-500 font-mono mt-0.5">
+                    <p className="text-xs text-slate-500 font-mono mt-0.5">
                       {pack.followup_pack_id}
                     </p>
                   </div>
@@ -71,17 +77,28 @@ export default function FollowUpPackList({
                   />
                 </div>
 
-                <div className="flex gap-1 flex-wrap mt-1.5">
-                  <span className="text-sm text-slate-500">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {/* Questions pill */}
+                  <span className={cn(
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium",
+                    activeQuestions === packQuestions.length 
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-slate-700/50 text-slate-300"
+                  )}>
+                    <FileText className="w-3 h-3" />
                     {packQuestions.length} q ({activeQuestions} active)
                   </span>
+                  
+                  {/* Triggers pill */}
                   {triggeringQuestions.length > 0 ? (
-                    <span className="text-sm text-emerald-500">
-                      • Used by {triggeringQuestions.length}
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/15 text-blue-400">
+                      <Link2 className="w-3 h-3" />
+                      Used by {triggeringQuestions.length}
                     </span>
                   ) : (
-                    <span className="text-sm text-yellow-500 flex items-center gap-1">
-                      • <AlertTriangle className="w-3 h-3" /> No triggers
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-yellow-500/15 text-yellow-400">
+                      <AlertTriangle className="w-3 h-3" />
+                      No triggers
                     </span>
                   )}
                 </div>
