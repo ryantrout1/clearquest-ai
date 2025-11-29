@@ -615,8 +615,10 @@ export default function SessionDetails() {
         // Build maps for quick lookup
         const instMap = {};
         instanceSummaries.forEach(inst => {
-          const key = `${inst.question_id}|${inst.instance_number}`;
-          instMap[key] = inst.instance_summary_text;
+          // Handle nested data structure from API
+          const data = inst.data || inst;
+          const key = `${data.question_id}|${data.instance_number}`;
+          instMap[key] = data.instance_summary_text;
         });
 
         const qMap = {};
@@ -637,8 +639,10 @@ export default function SessionDetails() {
 
         const sMap = {};
         sectionSummaries.forEach(ss => {
-          const sectionId = ss.section_id || ss.sectionId;
-          const summaryText = ss.section_summary_text || ss.sectionSummaryText;
+          // Handle nested data structure from API
+          const data = ss.data || ss;
+          const sectionId = data.section_id || data.sectionId;
+          const summaryText = data.section_summary_text || data.sectionSummaryText;
           
           if (sectionId && summaryText) {
             sMap[sectionId] = summaryText;
