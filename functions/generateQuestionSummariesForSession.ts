@@ -463,8 +463,9 @@ ${contextText}`;
         summaryText = `AI summary unavailable (LLM error: ${llmErr.message?.substring(0, 50)})`;
       }
       
-      // Save or update the summary
+      // Save or update the summary (always save, even placeholder for errors)
       if (summaryText) {
+        console.log('[QUESTION_SUMMARIES] SAVING_SUMMARY', { questionId, questionCode, summaryLength: summaryText.length });
         try {
           if (existing) {
             await base44.asServiceRole.entities.QuestionSummary.update(existing.id, {
