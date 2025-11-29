@@ -91,7 +91,10 @@ export default function FollowUpPackDetails({
       ai_probe_instructions: pack.ai_probe_instructions || '',
       ai_summary_instructions: pack.ai_summary_instructions || '',
       active: pack.active !== false,
-      categoryId: categoryId
+      categoryId: categoryId,
+      instance_header_template: pack.instance_header_template || '',
+      instance_title_format: pack.instance_title_format || '',
+      label_mapping_overrides: pack.label_mapping_overrides || null
     });
   }, [pack?.followup_pack_id]);
 
