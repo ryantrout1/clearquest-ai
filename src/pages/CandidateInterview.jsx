@@ -2702,40 +2702,6 @@ export default function CandidateInterview() {
             
             // Fall through to advance to next step
           }
-          // Normal valid answer path
-          else if (semanticResult.status === "valid") {
-            console.log(`[V2-SEMANTIC] Valid answer - saving fact and continuing`, {
-              fieldKey,
-              answer: normalizedAnswer,
-              semanticResult
-            });
-            await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
-            
-            // Mark field as completed
-            setCompletedFields(prev => ({
-              ...prev,
-              [`${packId}_${instanceNumber}`]: {
-                ...(prev[`${packId}_${instanceNumber}`] || {}),
-                [fieldKey]: true
-              }
-            }));
-            
-            // Clear probing state for this field
-            setFieldProbingState(prev => {
-              const updated = { ...prev };
-              delete updated[probeKey];
-              return updated;
-            });
-            
-            // Reset probe count for this field
-            setAiFollowupCounts(prev => {
-              const updated = { ...prev };
-              delete updated[fieldCountKey];
-              return updated;
-            });
-            
-            // Fall through to advance to next step
-          }
         }
         // ============================================================================
         // END V2 PER-FIELD PROBING
