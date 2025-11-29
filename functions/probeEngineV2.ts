@@ -251,7 +251,19 @@ Object.assign(FALLBACK_PROBES, {
   "ia_case_number": "Do you recall an Internal Affairs case number or reference?",
   "finding": "What was the official finding — sustained, not sustained, exonerated, or something else?",
   "discipline": "What discipline, if any, resulted from this?",
-  "appealed": "Did you appeal or contest the outcome?"
+  "appealed": "Did you appeal or contest the outcome?",
+  
+  // === PACK_WORKPLACE_STANDARD ===
+  "employer": "What company or organization were you working for when this incident occurred?",
+  "position_at_time": "What was your job title or position when this happened?",
+  "misconduct_type": "What type of issue was this — for example, a policy violation, dishonesty, conflict, or something else?",
+  "incident_description": "Can you describe what happened in this incident?",
+  "corrective_action": "What action did your employer take — for example, a warning, suspension, or termination?",
+  "separation_type": "How did your employment end at this job — did you leave voluntarily, resign under pressure, or were you terminated?",
+  "official_reason": "What reason did the employer give for any disciplinary action or separation?",
+  "isolated_or_recurring": "Was this a one-time incident or part of a recurring pattern?",
+  "impact": "What impact, if any, did this have on the workplace or your colleagues?",
+  "remediation": "What steps have you taken since this incident to address or prevent similar issues?"
 });
 
 /**
@@ -274,7 +286,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -469,6 +481,34 @@ const PACK_CONFIG = {
       "arrestStatus": "arrestStatus",
       "courtOutcome": "courtOutcome",
       "licenseImpact": "licenseImpact",
+    },
+  },
+  
+  // Workplace Integrity & Misconduct pack
+  PACK_WORKPLACE_STANDARD: {
+    id: "PACK_WORKPLACE_STANDARD",
+    requiredFields: ["employer", "position_at_time", "incident_date", "misconduct_type", "incident_description", "corrective_action", "separation_type"],
+    priorityOrder: ["employer", "position_at_time", "incident_date", "misconduct_type", "incident_description", "corrective_action", "separation_type", "official_reason", "isolated_or_recurring", "impact", "remediation"],
+    fieldKeyMap: {
+      "employer": "employer",
+      "position_at_time": "position_at_time",
+      "incident_date": "incident_date",
+      "misconduct_type": "misconduct_type",
+      "incident_description": "incident_description",
+      "corrective_action": "corrective_action",
+      "separation_type": "separation_type",
+      "official_reason": "official_reason",
+      "isolated_or_recurring": "isolated_or_recurring",
+      "impact": "impact",
+      "remediation": "remediation",
+      // Legacy question mappings
+      "PACK_WORKPLACE_STANDARD_Q01": "employer",
+      "PACK_WORKPLACE_STANDARD_Q02": "position_at_time",
+      "PACK_WORKPLACE_STANDARD_Q03": "incident_date",
+      "PACK_WORKPLACE_STANDARD_Q04": "misconduct_type",
+      "PACK_WORKPLACE_STANDARD_Q05": "incident_description",
+      "PACK_WORKPLACE_STANDARD_Q06": "corrective_action",
+      "PACK_WORKPLACE_STANDARD_Q07": "separation_type",
     },
   },
 };
@@ -1161,7 +1201,19 @@ const FIELD_LABELS = {
   // GENERAL DRIVING
   "incidentDate": "Incident Date (month/year)",
   "incidentType": "Type of Incident",
-  "incidentDescription": "Description of Incident"
+  "incidentDescription": "Description of Incident",
+  
+  // PACK_WORKPLACE_STANDARD
+  "employer": "Employer",
+  "position_at_time": "Position at Time of Incident",
+  "misconduct_type": "Type of Misconduct",
+  "incident_description": "Description of Incident",
+  "corrective_action": "Corrective Action Taken",
+  "separation_type": "Separation Type",
+  "official_reason": "Official Reason Given",
+  "isolated_or_recurring": "Isolated or Recurring",
+  "impact": "Impact on Workplace",
+  "remediation": "Corrective Steps / Remediation"
 };
 
 /**
