@@ -1566,7 +1566,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   );
 }
 
-function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents, session }) {
+function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents, session, drivingFactsFromTranscript }) {
   const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
