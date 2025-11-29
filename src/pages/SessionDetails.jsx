@@ -1752,18 +1752,31 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       </div>
                     );
                   } else if (isDrivingPack) {
-                    // NEW: Extract facts from transcript events (primary source)
-                    const instanceKey = `${response.question_id}::${instanceNum}`;
-                    const transcriptFacts = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey]?.fields || [];
+                    // Use shared pack config for Driving packs (same pattern as PACK_LE_APPS)
+                    const drivingPackConfig = getPackConfig(packId);
                     
-                    // Fallback to additional_details if transcript facts are empty
-                    const drivingFacts = transcriptFacts.length > 0 
-                      ? transcriptFacts 
-                      : buildDrivingPackFacts(packId, instance.details);
+                    // Get facts fields from config, sorted by factsOrder
+                    const factsFieldsConfig = (drivingPackConfig?.fields || [])
+                      .filter(f => f.includeInFacts)
+                      .sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
+                    
+                    // Build facts from instance.details using fieldKey mapping
+                    const drivingFacts = factsFieldsConfig.map(fieldConfig => {
+                      // Try fieldKey first, then semanticKey
+                      const value = instance.details?.[fieldConfig.fieldKey] || instance.details?.[fieldConfig.semanticKey];
+                      if (!value || String(value).trim() === '') return null;
+                      return { label: fieldConfig.label, value: String(value) };
+                    }).filter(Boolean);
+                    
                     const hasAnyFacts = drivingFacts.length > 0;
                     
-                    // Build summary line from first 2-3 fields
-                    const summaryParts = drivingFacts.slice(0, 2).map(f => f.value).filter(Boolean);
+                    // Build summary line from header fields
+                    const headerFieldsConfig = (drivingPackConfig?.fields || [])
+                      .filter(f => f.includeInInstanceHeader)
+                      .sort((a, b) => (a.headerOrder ?? 0) - (b.headerOrder ?? 0));
+                    const summaryParts = headerFieldsConfig
+                      .map(f => instance.details?.[f.fieldKey] || instance.details?.[f.semanticKey])
+                      .filter(Boolean);
                     const summaryLine = summaryParts.length > 0 ? summaryParts.join(' • ') : null;
                     
                     // DEV LOG: Validate facts extraction
@@ -1771,12 +1784,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       console.log('[SESSIONDETAILS][DRIVING_FACTS]', {
                         packId,
                         instanceNumber: instanceNum,
-                        instanceKey,
-                        transcriptFactsCount: transcriptFacts.length,
-                        fallbackDetailsCount: Object.keys(instance.details || {}).length,
+                        rawDetails: instance.details,
+                        configFieldsCount: factsFieldsConfig.length,
                         extractedFacts: drivingFacts,
-                        hasAnyFacts,
-                        source: transcriptFacts.length > 0 ? 'transcript' : 'additional_details'
+                        hasAnyFacts
                       });
                     }
 
