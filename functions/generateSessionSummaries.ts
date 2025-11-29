@@ -2,7 +2,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
  * Get AI runtime configuration from GlobalSettings with safe defaults
- * Single source of truth for all LLM parameters
  */
 function getAiRuntimeConfig(globalSettings) {
   return {
@@ -14,9 +13,11 @@ function getAiRuntimeConfig(globalSettings) {
 }
 
 /**
- * Unified AI Summary Generation
- * Generates all 4 layers: interview, sections, questions, instances
- * NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
+ * Incremental, Idempotent AI Summary Generation
+ * 
+ * - Section summaries: only when section is 100% complete, never updated
+ * - Interview summary: only when ALL sections are 100% complete, never updated
+ * - Safe to call multiple times
  */
 Deno.serve(async (req) => {
   let sessionId = null;
@@ -33,151 +34,157 @@ Deno.serve(async (req) => {
     try {
       body = typeof req.json === "function" ? await req.json() : req.body;
     } catch (parseErr) {
-      console.error('[GENERATE_SUMMARIES] JSON_PARSE_ERROR', { error: parseErr.message });
       return Response.json({ ok: false, error: { message: 'Invalid JSON body' } }, { status: 400 });
     }
     
     sessionId = body?.sessionId || body?.session_id;
     const generateGlobal = body?.generateGlobal !== false;
     const generateSections = body?.generateSections !== false;
-    const generateQuestions = body?.generateQuestions !== false;
 
-    console.log('[GENERATE_SUMMARIES] START', { 
-      sessionId, 
-      generateGlobal, 
-      generateSections, 
-      generateQuestions,
-      env: typeof Deno !== 'undefined' ? 'deno' : 'unknown'
-    });
+    console.log('[SSUM] START', { sessionId, generateGlobal, generateSections });
 
     if (!sessionId) {
       return Response.json({ ok: false, error: { message: 'sessionId required' } }, { status: 400 });
     }
 
-    let updatedGlobal = false;
-    let updatedSectionCount = 0;
-    let updatedQuestionCount = 0;
-    let updatedInstanceCount = 0;
+    let createdSectionCount = 0;
+    let skippedSectionExistsCount = 0;
+    let skippedSectionIncompleteCount = 0;
+    let createdGlobal = false;
 
-    // Fetch all data INCLUDING GlobalSettings for AI config
-    let responses, followUps, questions, sections, packs, globalSettingsResult;
+    // Fetch all data
+    let responses, questions, sections, globalSettingsResult, existingSectionSummaries, session;
     try {
-      [responses, followUps, questions, sections, packs, globalSettingsResult] = await Promise.all([
+      [responses, questions, sections, globalSettingsResult, existingSectionSummaries, session] = await Promise.all([
         base44.asServiceRole.entities.Response.filter({ session_id: sessionId }),
-        base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId }),
         base44.asServiceRole.entities.Question.list(),
-        base44.asServiceRole.entities.Section.list(),
-        base44.asServiceRole.entities.FollowUpPack.list(),
-        base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => [])
+        base44.asServiceRole.entities.Section.filter({ active: true }),
+        base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => []),
+        base44.asServiceRole.entities.SectionSummary.filter({ session_id: sessionId }),
+        base44.asServiceRole.entities.InterviewSession.get(sessionId)
       ]);
     } catch (fetchErr) {
-      console.error('[GENERATE_SUMMARIES] FETCH_ERROR', { sessionId, error: fetchErr.message });
-      return Response.json({ 
-        ok: false, 
-        error: { message: `Failed to fetch session data: ${fetchErr.message}` } 
-      }, { status: 500 });
+      console.error('[SSUM] FETCH_ERROR', { sessionId, error: fetchErr.message });
+      return Response.json({ ok: false, error: { message: `Failed to fetch: ${fetchErr.message}` } }, { status: 500 });
     }
     
-    // Defensive: ensure arrays
-    responses = Array.isArray(responses) ? responses : [];
-    followUps = Array.isArray(followUps) ? followUps : [];
-    questions = Array.isArray(questions) ? questions : [];
-    sections = Array.isArray(sections) ? sections : [];
-    packs = Array.isArray(packs) ? packs : [];
+    // Normalize arrays
+    responses = (Array.isArray(responses) ? responses : []).map(r => r.data || r);
+    questions = (Array.isArray(questions) ? questions : []).map(q => q.data || q);
+    sections = (Array.isArray(sections) ? sections : []).map(s => s.data || s);
+    existingSectionSummaries = (Array.isArray(existingSectionSummaries) ? existingSectionSummaries : []).map(s => s.data || s);
     
-    console.log('[GENERATE_SUMMARIES] DATA_FETCHED', {
+    // Build existing section summaries set
+    const existingSectionIds = new Set(existingSectionSummaries.map(s => s.section_id).filter(Boolean));
+    
+    const globalSettings = globalSettingsResult?.length > 0 ? globalSettingsResult[0] : null;
+    const aiConfig = getAiRuntimeConfig(globalSettings);
+    
+    console.log('[SSUM] DATA_FETCHED', {
       sessionId,
       responsesCount: responses.length,
-      followUpsCount: followUps.length,
-      questionsCount: questions.length
+      sectionsCount: sections.length,
+      existingSectionSummariesCount: existingSectionSummaries.length
     });
 
-    // Get AI runtime config from GlobalSettings
-    const globalSettings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
-    const aiConfig = getAiRuntimeConfig(globalSettings);
-    console.log(`[AI-GENERATE] AI Config: model=${aiConfig.model}, temp=${aiConfig.temperature}, max_tokens=${aiConfig.max_tokens}, top_p=${aiConfig.top_p}`);
+    // Build question-to-section mapping
+    const questionsBySectionId = {};
+    questions.forEach(q => {
+      const sectionId = q.section_id;
+      if (!sectionId) return;
+      if (!questionsBySectionId[sectionId]) {
+        questionsBySectionId[sectionId] = [];
+      }
+      questionsBySectionId[sectionId].push(q);
+    });
 
-    // Build context for LLM
-    const yesCount = responses.filter(r => r.answer === 'Yes').length;
-    const noCount = responses.filter(r => r.answer === 'No').length;
+    // Build responses by question ID (using database ID)
+    const responsesByQuestionDbId = {};
+    responses.forEach(r => {
+      responsesByQuestionDbId[r.question_id] = r;
+    });
 
-    // GLOBAL SUMMARY
-    if (generateGlobal) {
-      const globalPrompt = `You are an AI assistant for law enforcement background investigations.
+    // Calculate completion for each section
+    const sectionCompletionStatus = {};
+    let allSectionsComplete = true;
 
-INTERVIEW DATA:
-- Total questions: ${responses.length}
-- Yes answers: ${yesCount}
-- No answers: ${noCount}
-- Follow-ups: ${followUps.length}
-
-RESPONSES:
-${JSON.stringify(responses.map(r => ({
-  question: r.question_text,
-  answer: r.answer
-})), null, 2)}
-
-Generate a brief interview-level summary (2-3 sentences).`;
-
-      try {
-        const globalResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: globalPrompt,
-          response_json_schema: {
-            type: "object",
-            properties: {
-              summary: { type: "string" }
-            }
-          },
-          model: aiConfig.model,
-          temperature: aiConfig.temperature,
-          max_tokens: aiConfig.max_tokens,
-          top_p: aiConfig.top_p
-        });
-
-        await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
-          global_ai_summary: { 
-            text: globalResult.summary || 'Summary generated',
-            riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
-            keyObservations: [],
-            patterns: []
-          },
-          ai_summaries_last_generated_at: new Date().toISOString()
-        });
-
-        updatedGlobal = true;
-        console.log('[AI-GLOBAL-BE] SUMMARY_SAVED', { sessionId });
-      } catch (err) {
-        console.error('[AI-GLOBAL-BE] ERROR', { error: err.message });
+    for (const section of sections) {
+      const sectionId = section.id;
+      const sectionName = section.section_name;
+      const sectionQuestions = questionsBySectionId[sectionId] || [];
+      const activeQuestions = sectionQuestions.filter(q => q.active !== false);
+      
+      if (activeQuestions.length === 0) {
+        // Empty section is considered complete
+        sectionCompletionStatus[sectionId] = {
+          sectionName,
+          totalQuestions: 0,
+          answeredQuestions: 0,
+          complete: true,
+          responses: []
+        };
+        continue;
+      }
+      
+      // Count answered questions
+      let answeredCount = 0;
+      const sectionResponses = [];
+      
+      for (const q of activeQuestions) {
+        const response = responsesByQuestionDbId[q.id];
+        if (response && response.answer) {
+          answeredCount++;
+          sectionResponses.push(response);
+        }
+      }
+      
+      const isComplete = answeredCount === activeQuestions.length;
+      
+      sectionCompletionStatus[sectionId] = {
+        sectionName,
+        totalQuestions: activeQuestions.length,
+        answeredQuestions: answeredCount,
+        complete: isComplete,
+        responses: sectionResponses
+      };
+      
+      if (!isComplete) {
+        allSectionsComplete = false;
       }
     }
 
     // SECTION SUMMARIES
     if (generateSections) {
-      const sectionGroups = {};
-      
-      for (const response of responses) {
-        const question = questions.find(q => q.question_id === response.question_id);
-        const sectionId = question?.section_id || response.category || 'Unknown';
-        
-        if (!sectionGroups[sectionId]) {
-          const section = sections.find(s => s.id === sectionId);
-          sectionGroups[sectionId] = {
-            section_id: sectionId,
-            section_name: section?.section_name || sectionId,
-            responses: []
-          };
+      for (const [sectionId, status] of Object.entries(sectionCompletionStatus)) {
+        // RULE 1: Skip if summary already exists (never overwrite)
+        if (existingSectionIds.has(sectionId)) {
+          console.log('[SSUM][SKIP-EXISTS]', { session: sessionId, section: sectionId });
+          skippedSectionExistsCount++;
+          continue;
         }
-        sectionGroups[sectionId].responses.push(response);
-      }
-
-      for (const [sectionId, sectionData] of Object.entries(sectionGroups)) {
-        if (sectionData.responses.length === 0) continue;
-
+        
+        // RULE 2: Skip if section is not 100% complete
+        if (!status.complete) {
+          console.log('[SSUM][SKIP-INCOMPLETE]', { 
+            session: sessionId, 
+            section: sectionId,
+            answered: status.answeredQuestions,
+            total: status.totalQuestions
+          });
+          skippedSectionIncompleteCount++;
+          continue;
+        }
+        
+        // Skip empty sections
+        if (status.responses.length === 0) {
+          continue;
+        }
+        
         const sectionPrompt = `Summarize this section in 2-3 sentences:
 
-SECTION: ${sectionData.section_name}
+SECTION: ${status.sectionName}
 RESPONSES:
-${JSON.stringify(sectionData.responses.map(r => ({
+${JSON.stringify(status.responses.map(r => ({
   question: r.question_text,
   answer: r.answer
 })), null, 2)}`;
@@ -195,164 +202,76 @@ ${JSON.stringify(sectionData.responses.map(r => ({
             top_p: aiConfig.top_p
           });
 
-          const existing = await base44.asServiceRole.entities.SectionSummary.filter({
+          // Double-check no existing summary (race condition guard)
+          const existingCheck = await base44.asServiceRole.entities.SectionSummary.filter({
             session_id: sessionId,
             section_id: sectionId
           });
 
-          if (existing.length > 0) {
-            await base44.asServiceRole.entities.SectionSummary.update(existing[0].id, {
-              section_summary_text: sectionResult.summary,
-              generated_at: new Date().toISOString()
-            });
-          } else {
-            await base44.asServiceRole.entities.SectionSummary.create({
-              session_id: sessionId,
-              section_id: sectionId,
-              section_summary_text: sectionResult.summary,
-              generated_at: new Date().toISOString()
-            });
+          if (existingCheck.length > 0) {
+            console.log('[SSUM][SKIP-EXISTS]', { session: sessionId, section: sectionId });
+            skippedSectionExistsCount++;
+            continue;
           }
 
-          updatedSectionCount++;
-          console.log('[AI-SUMMARY] SECTION_SUMMARY_SAVED', {
-            sessionId,
-            sectionId,
-            questionCount: sectionData.responses.length,
-            summaryId: existing.length > 0 ? existing[0].id : 'new'
+          // CREATE ONLY - never update
+          await base44.asServiceRole.entities.SectionSummary.create({
+            session_id: sessionId,
+            section_id: sectionId,
+            section_summary_text: sectionResult.summary,
+            generated_at: new Date().toISOString()
           });
+
+          console.log('[SSUM][CREATE]', { session: sessionId, section: sectionId });
+          createdSectionCount++;
+          
         } catch (err) {
-          console.error('[AI-SECTIONS-BE] ERROR', { sectionId, error: err.message });
+          console.error('[SSUM] SECTION_ERROR', { section: sectionId, error: err.message });
         }
       }
     }
 
-    // QUESTION & INSTANCE SUMMARIES
-    if (generateQuestions) {
-      console.log('[AI-QUESTIONS-BE] START', { sessionId });
-
-      const incidents = [];
+    // GLOBAL/INTERVIEW SUMMARY
+    if (generateGlobal) {
+      // Check if interview summary already exists
+      const hasExistingGlobalSummary = session?.global_ai_summary?.text && 
+        session.global_ai_summary.text.length > 0 &&
+        !session.global_ai_summary.text.includes('lack of disclosures');
       
-      for (const response of responses) {
-        if (response.answer !== 'Yes') continue;
-        
-        const questionFollowUps = followUps.filter(f => f.response_id === response.id);
-        if (questionFollowUps.length === 0) continue;
-
-        const question = questions.find(q => q.question_id === response.question_id);
-        const sectionId = question?.section_id || response.category;
-        
-        const instanceMap = {};
-        for (const fu of questionFollowUps) {
-          const instNum = fu.instance_number || 1;
-          const key = `${fu.followup_pack}_${instNum}`;
-          
-          if (!instanceMap[key]) {
-            instanceMap[key] = {
-              questionId: response.question_id,
-              sectionId,
-              packId: fu.followup_pack,
-              instanceNumber: instNum,
-              details: fu.additional_details || {}
-            };
-          }
-        }
-        
-        incidents.push(...Object.values(instanceMap));
-      }
-
-      console.log('[AI-QUESTIONS-BE] INCIDENTS_FOUND', {
-        sessionId,
-        totalIncidents: incidents.length,
-        sampleIncidents: incidents.slice(0, 3).map(i => ({
-          questionId: i.questionId,
-          packId: i.packId,
-          instanceNumber: i.instanceNumber
-        }))
-      });
-
-      const questionSummariesMap = {};
-
-      for (const incident of incidents) {
-        const pack = packs.find(p => p.followup_pack_id === incident.packId);
-        const summaryInstructions = pack?.ai_summary_instructions || '';
-        
-        if (!summaryInstructions) {
-          console.warn('[AI-SUMMARY] No ai_summary_instructions for pack', { packId: incident.packId });
-        }
-
-        console.log('[AI-SUMMARY] INCIDENT_SUMMARY_LLM_CALL', {
-          sessionId,
-          questionId: incident.questionId,
-          packId: incident.packId,
-          instanceNumber: incident.instanceNumber,
-          hasSummaryInstructions: !!summaryInstructions
+      if (hasExistingGlobalSummary) {
+        console.log('[ISUM][SKIP-EXISTS]', { session: sessionId });
+      } else if (!allSectionsComplete) {
+        // Calculate overall progress for logging
+        const totalSections = Object.keys(sectionCompletionStatus).length;
+        const completeSections = Object.values(sectionCompletionStatus).filter(s => s.complete).length;
+        console.log('[ISUM][SKIP-INCOMPLETE]', { 
+          session: sessionId,
+          completeSections,
+          totalSections
         });
-
-        const packName = pack?.pack_name || incident.packId;
+      } else {
+        // All sections complete and no existing summary - generate it
+        const yesCount = responses.filter(r => r.answer === 'Yes').length;
+        const noCount = responses.filter(r => r.answer === 'No').length;
         
-        // Format details as natural text instead of JSON
-        // Defensive: handle missing or malformed details
-        let detailsText = '';
-        try {
-          if (incident.details && typeof incident.details === 'object') {
-            detailsText = Object.entries(incident.details)
-              .filter(([key, value]) => {
-                // Skip internal/meta fields and null/undefined values
-                if (!value) return false;
-                if (key === 'investigator_probing') return false;
-                if (key === 'question_text_snapshot') return false;
-                if (key === 'facts') return false;
-                if (key === 'unresolvedFields') return false;
-                // Skip nested objects (they can't be stringified simply)
-                if (typeof value === 'object') return false;
-                return true;
-              })
-              .map(([key, value]) => {
-                const label = key.replace(/_/g, ' ').replace(/PACK_[A-Z_]+_/g, '');
-                return `${label}: ${String(value)}`;
-              })
-              .join('\n');
-          }
-        } catch (detailsErr) {
-          console.warn('[GENERATE_SUMMARIES] DETAILS_PARSE_ERROR', { 
-            questionId: incident.questionId, 
-            error: detailsErr.message 
-          });
-          detailsText = 'Details could not be parsed.';
-        }
-        
-        // Skip if no meaningful details
-        if (!detailsText || detailsText.trim().length === 0) {
-          console.log('[GENERATE_SUMMARIES] SKIPPING_INCIDENT_NO_DETAILS', {
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber
-          });
-          continue;
-        }
-        
-        const incidentPrompt = `You are writing an investigator summary. Write ONLY using the actual data provided by the candidate.
+        const globalPrompt = `You are an AI assistant for law enforcement background investigations.
 
-CRITICAL RULES:
-- NEVER mention "Pack", "PACK_LE_APPS", "Program", or any internal system terminology
-- NEVER use brackets, placeholders, or field names like [date], [agency], incident_date, etc.
-- ONLY summarize what actually happened using the real dates, names, and facts provided
-- Write as if you're telling another investigator what the candidate disclosed
+INTERVIEW DATA:
+- Total questions: ${responses.length}
+- Yes answers: ${yesCount}
+- No answers: ${noCount}
 
-${summaryInstructions ? `INSTRUCTIONS: ${summaryInstructions}\n` : ''}
+RESPONSES:
+${JSON.stringify(responses.map(r => ({
+  question: r.question_text,
+  answer: r.answer
+})), null, 2)}
 
-CANDIDATE'S DISCLOSURE:
-${detailsText}
-
-Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individual applied to Scottsdale Police Department and was not hired." NOT "In the first quarter of 2023, regarding the Pack LE Apps Program...").`;
-
-
-        let instanceSummaryText = null;
+Generate a brief interview-level summary (2-3 sentences).`;
 
         try {
-          const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: incidentPrompt,
+          const globalResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: globalPrompt,
             response_json_schema: {
               type: "object",
               properties: { summary: { type: "string" } }
@@ -363,171 +282,46 @@ Write 1-2 natural sentences about what happened (e.g., "In May 2010, the individ
             top_p: aiConfig.top_p
           });
 
-          console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_RAW', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            rawOutputPreview: JSON.stringify(llmResult).slice(0, 200)
+          // CREATE ONLY - set once, never update
+          await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
+            global_ai_summary: { 
+              text: globalResult.summary || 'Summary generated',
+              riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
+              keyObservations: [],
+              patterns: []
+            },
+            ai_summaries_last_generated_at: new Date().toISOString()
           });
 
-          instanceSummaryText = llmResult.summary || null;
-
-          console.log('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_PARSED', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            hasSummaryText: !!instanceSummaryText,
-            summaryLength: instanceSummaryText ? instanceSummaryText.length : 0
-          });
+          console.log('[ISUM][CREATE]', { session: sessionId });
+          createdGlobal = true;
+          
         } catch (err) {
-          console.error('[AI-QUESTIONS-BE] INCIDENT_SUMMARY_LLM_ERROR', {
-            sessionId,
-            questionId: incident.questionId,
-            error: err.message
-          });
-        }
-
-        if (!instanceSummaryText) {
-          console.warn('[AI-QUESTIONS-BE] No summary from LLM, using placeholder', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber
-          });
-          instanceSummaryText = 'Incident disclosed - summary generation pending.';
-        }
-
-        // Save InstanceSummary
-        try {
-          const existingInst = await base44.asServiceRole.entities.InstanceSummary.filter({
-            session_id: sessionId,
-            question_id: incident.questionId,
-            pack_id: incident.packId,
-            instance_number: incident.instanceNumber
-          });
-
-          let savedInstanceSummary;
-          if (existingInst.length > 0) {
-            savedInstanceSummary = await base44.asServiceRole.entities.InstanceSummary.update(existingInst[0].id, {
-              instance_summary_text: instanceSummaryText,
-              generated_at: new Date().toISOString()
-            });
-          } else {
-            savedInstanceSummary = await base44.asServiceRole.entities.InstanceSummary.create({
-              session_id: sessionId,
-              section_id: incident.sectionId,
-              question_id: incident.questionId,
-              pack_id: incident.packId,
-              instance_number: incident.instanceNumber,
-              instance_summary_text: instanceSummaryText,
-              generated_at: new Date().toISOString()
-            });
-          }
-
-          console.log('[AI-SUMMARY] INSTANCE_SUMMARY_SAVED', {
-            sessionId,
-            questionId: incident.questionId,
-            packId: incident.packId,
-            instanceNumber: incident.instanceNumber,
-            summaryId: savedInstanceSummary.id
-          });
-
-          updatedInstanceCount++;
-
-          // Collect for question rollup
-          if (!questionSummariesMap[incident.questionId]) {
-            questionSummariesMap[incident.questionId] = {
-              sectionId: incident.sectionId,
-              instances: []
-            };
-          }
-          questionSummariesMap[incident.questionId].instances.push(instanceSummaryText);
-
-        } catch (err) {
-          console.error('[AI-QUESTIONS-BE] INSTANCE_SUMMARY_SAVE_ERROR', {
-            sessionId,
-            questionId: incident.questionId,
-            error: err.message
-          });
+          console.error('[ISUM] ERROR', { error: err.message });
         }
       }
-
-      // Aggregate into QuestionSummary
-      for (const [questionId, data] of Object.entries(questionSummariesMap)) {
-        const aggregatedSummary = data.instances.length === 1
-          ? data.instances[0]
-          : data.instances.join(' | ');
-
-        try {
-          const existingQ = await base44.asServiceRole.entities.QuestionSummary.filter({
-            session_id: sessionId,
-            question_id: questionId
-          });
-
-          let savedQuestionSummary;
-          if (existingQ.length > 0) {
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.update(existingQ[0].id, {
-              question_summary_text: aggregatedSummary,
-              generated_at: new Date().toISOString()
-            });
-          } else {
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.create({
-              session_id: sessionId,
-              section_id: data.sectionId,
-              question_id: questionId,
-              question_summary_text: aggregatedSummary,
-              generated_at: new Date().toISOString()
-            });
-          }
-
-          console.log('[AI-SUMMARY] QUESTION_SUMMARY_SAVED', {
-            sessionId,
-            questionId,
-            instanceCount: data.instances.length,
-            summaryId: savedQuestionSummary.id
-          });
-
-          updatedQuestionCount++;
-        } catch (err) {
-          console.error('[AI-QUESTIONS-BE] QUESTION_SUMMARY_SAVE_ERROR', {
-            sessionId,
-            questionId,
-            error: err.message
-          });
-        }
-      }
-
-      console.log('[AI-SUMMARY] DONE', {
-        sessionId,
-        updatedInstanceCount,
-        updatedQuestionCount
-      });
     }
 
-    console.log('[GENERATE_SUMMARIES] DONE', {
+    console.log('[SSUM] DONE', {
       sessionId,
-      updatedGlobal,
-      updatedSectionCount,
-      updatedQuestionCount,
-      updatedInstanceCount
+      createdSectionCount,
+      skippedSectionExistsCount,
+      skippedSectionIncompleteCount,
+      createdGlobal,
+      allSectionsComplete
     });
 
     return Response.json({
       success: true,
-      updatedGlobal,
-      updatedSectionCount,
-      updatedQuestionCount,
-      updatedInstanceCount
+      createdSectionCount,
+      skippedSectionExistsCount,
+      skippedSectionIncompleteCount,
+      createdGlobal,
+      allSectionsComplete
     });
 
   } catch (error) {
-    console.error('[GENERATE_SUMMARIES] ERROR', { 
-      sessionId, 
-      errorMessage: error.message, 
-      stack: error.stack?.substring?.(0, 500) 
-    });
+    console.error('[SSUM] ERROR', { sessionId, error: error.message });
     return Response.json({
       ok: false,
       error: { message: error.message || 'generateSessionSummaries failed' }

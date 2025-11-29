@@ -1,12 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * AI Summary Configuration (duplicated here for backend - keep in sync with frontend config)
+ * AI Summary Configuration
  */
 const QUESTION_SUMMARY_CONFIG = {
   includedCategories: [
-    'Applications with other Law Enforcement Agencies',  // Exact match from Section entity
-    'Law Enforcement Applications',  // Alias just in case
+    'Applications with other Law Enforcement Agencies',
+    'Law Enforcement Applications',
     'Driving Record',
   ],
   includedPacks: [
@@ -25,15 +25,12 @@ const QUESTION_SUMMARY_CONFIG = {
  * Field label mappings for better prompt context
  */
 const FIELD_LABELS = {
-  // PACK_LE_APPS
   'PACK_LE_APPS_Q1': 'Agency',
   'PACK_LE_APPS_Q1764025170356': 'Position',
   'PACK_LE_APPS_Q1764025187292': 'Application Date',
   'PACK_LE_APPS_Q1764025199138': 'Outcome',
   'PACK_LE_APPS_Q1764025212764': 'Reason Not Selected',
   'PACK_LE_APPS_Q1764025246583': 'Issues/Concerns',
-  
-  // Driving packs
   'PACK_DRIVING_COLLISION_Q01': 'Collision Date',
   'PACK_DRIVING_COLLISION_Q02': 'Location',
   'PACK_DRIVING_COLLISION_Q03': 'Description',
@@ -42,14 +39,12 @@ const FIELD_LABELS = {
   'PACK_DRIVING_COLLISION_Q06': 'Property Damage',
   'PACK_DRIVING_COLLISION_Q07': 'Police/Citation',
   'PACK_DRIVING_COLLISION_Q08': 'Insurance Outcome',
-  
   'PACK_DRIVING_VIOLATIONS_Q01': 'Violation Date',
   'PACK_DRIVING_VIOLATIONS_Q02': 'Violation Type',
   'PACK_DRIVING_VIOLATIONS_Q03': 'Location',
   'PACK_DRIVING_VIOLATIONS_Q04': 'Outcome',
   'PACK_DRIVING_VIOLATIONS_Q05': 'Fines',
   'PACK_DRIVING_VIOLATIONS_Q06': 'Points on License',
-  
   'PACK_DRIVING_DUIDWI_Q01': 'Incident Date',
   'PACK_DRIVING_DUIDWI_Q02': 'Location',
   'PACK_DRIVING_DUIDWI_Q03': 'Substance Type',
@@ -65,32 +60,6 @@ function getFieldLabel(fieldKey) {
   return FIELD_LABELS[fieldKey] || fieldKey.replace(/PACK_[A-Z_]+_/g, '').replace(/_/g, ' ');
 }
 
-/**
- * Check if a question should get a summary
- */
-function shouldSummarizeQuestion({ questionCode, sectionName, followupPackId }) {
-  const config = QUESTION_SUMMARY_CONFIG;
-  
-  if (questionCode) {
-    if (questionCode < config.minQuestionCode || questionCode > config.maxQuestionCode) {
-      return false;
-    }
-  }
-  
-  if (sectionName && config.includedCategories.includes(sectionName)) {
-    return true;
-  }
-  
-  if (followupPackId && config.includedPacks.includes(followupPackId)) {
-    return true;
-  }
-  
-  return false;
-}
-
-/**
- * Get AI runtime config from GlobalSettings
- */
 function getAiRuntimeConfig(globalSettings) {
   return {
     model: globalSettings?.ai_model || "gpt-4o-mini",
@@ -101,8 +70,76 @@ function getAiRuntimeConfig(globalSettings) {
 }
 
 /**
- * Build question transcript context for LLM
+ * Check if a question's follow-up instance is complete.
+ * An instance is complete when all required fields have non-empty values.
  */
+function isInstanceComplete(followUpResponse) {
+  if (!followUpResponse) return false;
+  
+  const details = followUpResponse.additional_details || {};
+  const completed = followUpResponse.completed === true;
+  
+  // If marked completed explicitly, trust that
+  if (completed) return true;
+  
+  // Otherwise check if there are meaningful details
+  const meaningfulFields = Object.entries(details).filter(([key, value]) => {
+    if (!value) return false;
+    if (key === 'investigator_probing') return false;
+    if (key === 'question_text_snapshot') return false;
+    if (key === 'facts') return false;
+    if (key === 'unresolvedFields') return false;
+    if (typeof value === 'object') return false;
+    return String(value).trim().length > 0;
+  });
+  
+  // Require at least 2 meaningful fields to consider complete
+  return meaningfulFields.length >= 2;
+}
+
+/**
+ * Check if a question is complete for summary generation.
+ * A question is complete when:
+ * 1. It has a Yes response
+ * 2. All its follow-up instances are complete (or no follow-ups required)
+ */
+function isQuestionCompleteForSession(questionId, responseId, followUps) {
+  const questionFollowUps = followUps.filter(f => f.response_id === responseId);
+  
+  // If no follow-ups, question is complete (simple Yes/No)
+  if (questionFollowUps.length === 0) {
+    return { complete: true, reason: 'no_followups' };
+  }
+  
+  // Group by instance number
+  const instanceMap = {};
+  for (const fu of questionFollowUps) {
+    const instNum = fu.instance_number || 1;
+    if (!instanceMap[instNum]) {
+      instanceMap[instNum] = [];
+    }
+    instanceMap[instNum].push(fu);
+  }
+  
+  // Check each instance
+  for (const [instNum, instanceFollowUps] of Object.entries(instanceMap)) {
+    // Use the most recent follow-up for this instance
+    const latestFu = instanceFollowUps.sort((a, b) => 
+      new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
+    )[0];
+    
+    if (!isInstanceComplete(latestFu)) {
+      return { 
+        complete: false, 
+        reason: `instance_${instNum}_incomplete`,
+        packId: latestFu.followup_pack
+      };
+    }
+  }
+  
+  return { complete: true, reason: 'all_instances_complete', instanceCount: Object.keys(instanceMap).length };
+}
+
 function buildQuestionContext(questionData) {
   const { questionCode, questionText, instances, aiExchanges } = questionData;
   
@@ -112,7 +149,6 @@ function buildQuestionContext(questionData) {
     instances.forEach((instance, idx) => {
       context += `Instance ${idx + 1}:\n`;
       
-      // Add deterministic follow-up answers
       if (instance.details && typeof instance.details === 'object') {
         Object.entries(instance.details).forEach(([key, value]) => {
           if (key === 'investigator_probing' || key === 'question_text_snapshot' || 
@@ -123,11 +159,10 @@ function buildQuestionContext(questionData) {
         });
       }
       
-      // Add AI probing exchanges for this instance
       const instanceProbes = instance.aiExchanges || [];
       if (instanceProbes.length > 0) {
         context += `  AI Follow-Up Exchanges:\n`;
-        instanceProbes.forEach((ex, exIdx) => {
+        instanceProbes.forEach((ex) => {
           context += `    Q: ${ex.probing_question}\n`;
           context += `    A: ${ex.candidate_response}\n`;
         });
@@ -137,10 +172,9 @@ function buildQuestionContext(questionData) {
     });
   }
   
-  // Add any question-level AI probing (legacy format)
   if (aiExchanges && aiExchanges.length > 0) {
     context += `AI Probing Exchanges:\n`;
-    aiExchanges.forEach((ex, idx) => {
+    aiExchanges.forEach((ex) => {
       context += `  Q: ${ex.probing_question}\n`;
       context += `  A: ${ex.candidate_response}\n`;
     });
@@ -150,10 +184,11 @@ function buildQuestionContext(questionData) {
 }
 
 /**
- * Generate Question-Level AI Summaries
+ * Generate Question-Level AI Summaries (Incremental, Idempotent)
  * 
- * Creates summaries for eligible questions (LE Apps, Driving, etc.)
- * based on the QUESTION_SUMMARY_CONFIG.
+ * - Only creates summaries for COMPLETE questions
+ * - Never updates existing summaries
+ * - Safe to call multiple times
  */
 Deno.serve(async (req) => {
   let sessionId = null;
@@ -170,14 +205,12 @@ Deno.serve(async (req) => {
     try {
       body = typeof req.json === "function" ? await req.json() : req.body;
     } catch (parseErr) {
-      console.error('[QUESTION_SUMMARIES] JSON_PARSE_ERROR', { error: parseErr.message });
       return Response.json({ ok: false, error: { message: 'Invalid JSON body' } }, { status: 400 });
     }
     
     sessionId = body?.sessionId || body?.session_id;
-    const force = body?.force === true;
     
-    console.log('[QUESTION_SUMMARIES] START', { sessionId, force });
+    console.log('[QSUM] START', { sessionId });
     
     if (!sessionId) {
       return Response.json({ ok: false, error: { message: 'sessionId required' } }, { status: 400 });
@@ -195,151 +228,83 @@ Deno.serve(async (req) => {
         base44.asServiceRole.entities.QuestionSummary.filter({ session_id: sessionId })
       ]);
     } catch (fetchErr) {
-      console.error('[QUESTION_SUMMARIES] FETCH_ERROR', { sessionId, error: fetchErr.message });
-      return Response.json({ 
-        ok: false, 
-        error: { message: `Failed to fetch session data: ${fetchErr.message}` } 
-      }, { status: 500 });
+      console.error('[QSUM] FETCH_ERROR', { sessionId, error: fetchErr.message });
+      return Response.json({ ok: false, error: { message: `Failed to fetch: ${fetchErr.message}` } }, { status: 500 });
     }
     
-    // Defensive: ensure arrays and unwrap nested data
-    responses = Array.isArray(responses) ? responses : [];
-    followUps = Array.isArray(followUps) ? followUps : [];
-    questions = Array.isArray(questions) ? questions : [];
-    sections = Array.isArray(sections) ? sections : [];
-    existingSummaries = Array.isArray(existingSummaries) ? existingSummaries : [];
+    // Normalize arrays
+    responses = (Array.isArray(responses) ? responses : []).map(r => r.data || r);
+    followUps = (Array.isArray(followUps) ? followUps : []).map(f => f.data || f);
+    questions = (Array.isArray(questions) ? questions : []).map(q => q.data || q);
+    sections = (Array.isArray(sections) ? sections : []).map(s => s.data || s);
+    existingSummaries = (Array.isArray(existingSummaries) ? existingSummaries : []).map(s => s.data || s);
     
-    // Unwrap nested data if needed (API sometimes returns { data: {...} })
-    responses = responses.map(r => r.data || r);
-    followUps = followUps.map(f => f.data || f);
-    questions = questions.map(q => q.data || q);
-    sections = sections.map(s => s.data || s);
-    existingSummaries = existingSummaries.map(s => s.data || s);
+    // Build existing summaries set for quick lookup
+    const existingSummaryQuestionIds = new Set(existingSummaries.map(s => s.question_id).filter(Boolean));
     
-    // Build existing summaries map for quick lookup
-    const existingSummariesMap = {};
-    existingSummaries.forEach(s => {
-      if (s.question_id) {
-        existingSummariesMap[s.question_id] = s;
-      }
-    });
-    
-    // Get AI config
     const globalSettings = globalSettingsResult?.length > 0 ? globalSettingsResult[0] : null;
     const aiConfig = getAiRuntimeConfig(globalSettings);
     
-    console.log('[QUESTION_SUMMARIES] DATA_FETCHED', {
+    console.log('[QSUM] DATA_FETCHED', {
       sessionId,
       responsesCount: responses.length,
       followUpsCount: followUps.length,
-      existingSummariesCount: existingSummaries.length,
-      aiModel: aiConfig.model
+      existingSummariesCount: existingSummaries.length
     });
     
-    // Build lookup maps for questions and sections
-    // CRITICAL: Response.question_id is the Question entity's DATABASE ID, not the question_id field (Q001)
-    // So we need to look up by entity.id, not entity.question_id
+    // Build lookup maps
     const questionsById = {};
     questions.forEach(q => {
-      // Handle nested data structure - API sometimes returns {data: {...}}
-      const qData = q.data || q;
-      const qId = qData.id || q.id;
-      if (qId) {
-        questionsById[qId] = qData;
-      }
+      const qId = q.id;
+      if (qId) questionsById[qId] = q;
     });
     
     const sectionsById = {};
     sections.forEach(s => {
-      const sData = s.data || s;
-      const sId = sData.id || s.id;
-      if (sId) {
-        sectionsById[sId] = sData;
-      }
+      const sId = s.id;
+      if (sId) sectionsById[sId] = s;
     });
-    
-    // Verify the target question IDs are in the map
-    const targetQuestionIds = ['691964d43baf47fb38b66e93', '691964d43baf47fb38b66ea1'];
-    const foundTargets = targetQuestionIds.map(id => ({
-      id,
-      found: !!questionsById[id],
-      questionCode: questionsById[id]?.question_id
-    }));
-    
-    // Debug: also show raw question structure
-    const rawQuestionSample = questions.slice(0, 2).map(q => ({
-      topLevelId: q.id,
-      hasData: !!q.data,
-      dataId: q.data?.id,
-      questionIdField: q.question_id || q.data?.question_id
-    }));
-    
-    console.log('[QUESTION_SUMMARIES] LOOKUP_MAPS', {
-      sessionId,
-      questionCount: Object.keys(questionsById).length,
-      sectionCount: Object.keys(sectionsById).length,
-      sampleQuestionIds: Object.keys(questionsById).slice(0, 5),
-      rawQuestionSample,
-      foundTargets
-    });
-    
-    // Build question data map with section info
-    const questionDataMap = {};
     
     // Filter to Yes responses only
     const yesResponses = responses.filter(r => r.answer === 'Yes');
     
-    // Debug: show raw response structure
-    const rawResponseSample = yesResponses.slice(0, 2).map(r => ({
-      topLevelId: r.id,
-      hasData: !!r.data,
-      dataId: r.data?.id,
-      questionIdField: r.question_id || r.data?.question_id,
-      answer: r.answer || r.data?.answer
-    }));
-    
-    console.log('[QUESTION_SUMMARIES] YES_RESPONSES', {
-      sessionId,
-      count: yesResponses.length,
-      questionIds: yesResponses.map(r => r.question_id || r.data?.question_id),
-      rawResponseSample
-    });
+    let createdCount = 0;
+    let skippedExistsCount = 0;
+    let skippedIncompleteCount = 0;
+    const summaries = [];
     
     for (const response of yesResponses) {
-      // Response.question_id is the Question entity's DATABASE ID
-      const questionEntity = questionsById[response.question_id];
+      const questionId = response.question_id;
+      const questionEntity = questionsById[questionId];
       
-      if (!questionEntity) {
-        console.log('[QUESTION_SUMMARIES] QUESTION_NOT_FOUND', {
-          responseQuestionId: response.question_id,
-          availableIds: Object.keys(questionsById).slice(0, 5)
+      if (!questionEntity) continue;
+      
+      // RULE 1: Skip if summary already exists (never overwrite)
+      if (existingSummaryQuestionIds.has(questionId)) {
+        console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionId });
+        skippedExistsCount++;
+        continue;
+      }
+      
+      // RULE 2: Check if question is complete
+      const completionStatus = isQuestionCompleteForSession(questionId, response.id, followUps);
+      if (!completionStatus.complete) {
+        console.log('[QSUM][SKIP-INCOMPLETE]', { 
+          session: sessionId, 
+          question: questionId,
+          reason: completionStatus.reason
         });
+        skippedIncompleteCount++;
         continue;
       }
       
       const sectionEntity = sectionsById[questionEntity.section_id];
       const sectionName = sectionEntity?.section_name || response.category || '';
-      const questionCode = questionEntity.question_id || ''; // This is 'Q001', 'Q015', etc.
+      const questionCode = questionEntity.question_id || '';
       
-      // Get related follow-ups to determine pack - also use response.followup_pack as fallback
+      // Get related follow-ups
       const relatedFollowUps = followUps.filter(f => f.response_id === response.id);
-      const followupPackId = relatedFollowUps[0]?.followup_pack || response.followup_pack || '';
-      
-      console.log('[QUESTION_SUMMARIES] CHECKING_QUESTION', {
-        responseId: response.id,
-        questionDbId: response.question_id,
-        questionCode,
-        sectionName,
-        followupPackId,
-        hasFollowUps: relatedFollowUps.length > 0
-      });
-      
-      // TEMPORARILY DISABLED: Allow all Yes responses to get summaries for debugging
-      // if (!shouldSummarizeQuestion({ questionCode, sectionName, followupPackId })) {
-      //   console.log('[QUESTION_SUMMARIES] SKIPPED_BY_CONFIG', { questionCode, sectionName, followupPackId });
-      //   continue;
-      // }
-      console.log('[QUESTION_SUMMARIES] ALLOWING_QUESTION', { questionCode, sectionName, followupPackId });
+      const followupPackId = relatedFollowUps[0]?.followup_pack || '';
       
       // Build instances from follow-ups
       const instancesMap = {};
@@ -367,88 +332,24 @@ Deno.serve(async (req) => {
         }
       }
       
-      // Use the Response's question_id (database ID) as the key - this is what SessionDetails uses
-      questionDataMap[response.question_id] = {
-        responseId: response.id,
-        questionId: response.question_id, // Database ID of Question entity
-        questionCode, // Human-readable code like 'Q001'
+      const questionData = {
+        questionId,
+        questionCode,
         questionText: response.question_text || questionEntity.question_text,
-        sectionId: sectionName, // Use section NAME not database ID - matches generateSessionSummaries pattern
+        sectionId: sectionName,
         sectionName,
         followupPackId,
         instances: Object.values(instancesMap),
         aiExchanges: response.investigator_probing || []
       };
       
-      console.log('[QUESTION_SUMMARIES] ADDED_TO_ELIGIBLE', {
-        questionDbId: response.question_id,
-        questionCode,
-        instanceCount: Object.keys(instancesMap).length
-      });
-    }
-    
-    const eligibleQuestions = Object.values(questionDataMap);
-    console.log('[QUESTION_SUMMARIES] ELIGIBLE_QUESTIONS', {
-      sessionId,
-      count: eligibleQuestions.length,
-      questions: eligibleQuestions.map(q => ({ 
-        questionId: q.questionId,
-        questionCode: q.questionCode, 
-        sectionName: q.sectionName,
-        packId: q.followupPackId,
-        instanceCount: q.instances.length
-      }))
-    });
-    
-    // Early return if no eligible questions
-    if (eligibleQuestions.length === 0) {
-      console.log('[QUESTION_SUMMARIES] NO_ELIGIBLE_QUESTIONS', { sessionId, yesResponseCount: yesResponses.length });
-      return Response.json({
-        ok: true,
-        generatedCount: 0,
-        skippedCount: 0,
-        summaries: [],
-        message: 'No eligible questions found'
-      });
-    }
-    
-    let generatedCount = 0;
-    let skippedCount = 0;
-    const summaries = [];
-    
-    // Generate summaries for each eligible question
-    // USING EXACT SAME PATTERN AS generateSessionSummaries (lines 476-483)
-    for (const questionData of eligibleQuestions) {
-      const { questionId, questionCode, questionText, sectionId, instances } = questionData;
-      
-      // Check if summary already exists and we're not forcing regeneration
-      const existing = existingSummariesMap[questionId];
-      if (existing && !force) {
-        console.log('[QUESTION_SUMMARIES] SKIPPING_EXISTING', { questionId, questionCode });
-        skippedCount++;
-        summaries.push({
-          questionId,
-          summaryText: existing.question_summary_text,
-          status: 'existing'
-        });
-        continue;
-      }
-      
-      // Build context for this question
+      // Build context and generate summary
       const contextText = buildQuestionContext(questionData);
       
-      console.log('[QUESTION_SUMMARIES] BUILT_CONTEXT', {
-        questionId,
-        questionCode,
-        contextLength: contextText.length,
-        instanceCount: instances.length
-      });
-      
-      // Build the prompt
       const prompt = `You are an AI investigator summarizing a single interview question.
 
 Context:
-- The candidate was answering question ${questionCode}: "${questionText}".
+- The candidate was answering question ${questionCode}: "${questionData.questionText}".
 - Below are all follow-up questions, answers, and AI probing exchanges for this question.
 
 Task:
@@ -465,15 +366,11 @@ ${contextText}`;
       let summaryText = null;
       
       try {
-        console.log('[QUESTION_SUMMARIES] LLM_CALL', { questionId, questionCode });
-        
         const llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt,
           response_json_schema: {
             type: "object",
-            properties: {
-              summary: { type: "string" }
-            }
+            properties: { summary: { type: "string" } }
           },
           model: aiConfig.model,
           temperature: aiConfig.temperature,
@@ -482,124 +379,61 @@ ${contextText}`;
         });
         
         summaryText = llmResult?.summary || null;
-        
-        console.log('[QUESTION_SUMMARIES] LLM_SUCCESS', {
-          questionId,
-          questionCode,
-          summaryLength: summaryText?.length || 0
-        });
-        
       } catch (llmErr) {
-        console.error('[QUESTION_SUMMARIES] LLM_ERROR', {
-          questionId,
-          questionCode,
-          error: llmErr.message
-        });
-        // Still save a placeholder summary so we can see the row in DB
-        summaryText = `AI summary unavailable (LLM error: ${llmErr.message?.substring(0, 50)})`;
+        console.error('[QSUM] LLM_ERROR', { question: questionId, error: llmErr.message });
+        summaryText = `AI summary unavailable (LLM error)`;
       }
       
-      // Save or update the summary using EXACT SAME PATTERN as generateSessionSummaries
       if (summaryText) {
         try {
-          // Check for existing using filter (same pattern as generateSessionSummaries line 464-467)
-          const existingQ = await base44.asServiceRole.entities.QuestionSummary.filter({
+          // Double-check no existing summary (race condition guard)
+          const existingCheck = await base44.asServiceRole.entities.QuestionSummary.filter({
             session_id: sessionId,
             question_id: questionId
           });
-
-          let savedQuestionSummary;
-          if (existingQ.length > 0) {
-            // Update existing (same pattern as generateSessionSummaries line 471-474)
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.update(existingQ[0].id, {
-              question_summary_text: summaryText,
-              generated_at: new Date().toISOString()
-            });
-          } else {
-            // Create new (same pattern as generateSessionSummaries line 476-482)
-            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.create({
-              session_id: sessionId,
-              section_id: sectionId,
-              question_id: questionId,
-              question_summary_text: summaryText,
-              generated_at: new Date().toISOString()
-            });
+          
+          if (existingCheck.length > 0) {
+            console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionId });
+            skippedExistsCount++;
+            continue;
           }
-
-          console.log('[QUESTION_SUMMARIES][CREATED]', {
-            sessionId,
-            sectionId,
-            questionId,
-            summaryId: savedQuestionSummary?.id
+          
+          // CREATE ONLY - never update
+          await base44.asServiceRole.entities.QuestionSummary.create({
+            session_id: sessionId,
+            section_id: sectionName,
+            question_id: questionId,
+            question_summary_text: summaryText,
+            generated_at: new Date().toISOString()
           });
           
-          generatedCount++;
-          summaries.push({
-            questionId,
-            summaryText,
-            status: 'generated'
-          });
+          console.log('[QSUM][CREATE]', { session: sessionId, question: questionId });
+          createdCount++;
+          summaries.push({ questionId, summaryText, status: 'created' });
           
         } catch (saveErr) {
-          console.error('[QUESTION_SUMMARIES] SAVE_ERROR', {
-            questionId,
-            questionCode,
-            error: saveErr.message,
-            stack: saveErr.stack?.substring(0, 300)
-          });
-          summaries.push({
-            questionId,
-            summaryText: null,
-            status: 'save_error',
-            error: saveErr.message
-          });
+          console.error('[QSUM] SAVE_ERROR', { question: questionId, error: saveErr.message });
         }
       }
     }
     
-    // POST-WRITE SELF-CHECK: Verify summaries were actually saved
-    // Using same filter pattern that SessionDetails will use
-    let postCheckRaw = [];
-    try {
-      postCheckRaw = await base44.asServiceRole.entities.QuestionSummary.filter({ session_id: sessionId });
-    } catch (postCheckErr) {
-      console.error('[QUESTION_SUMMARIES][POSTCHECK_ERROR]', { sessionId, error: postCheckErr.message });
-    }
-    
-    const postCheck = Array.isArray(postCheckRaw) ? postCheckRaw : [];
-    
-    console.log('[QUESTION_SUMMARIES][POSTCHECK]', {
+    console.log('[QSUM] DONE', {
       sessionId,
-      postCheckCount: postCheck.length,
-      postCheckQuestionIds: postCheck.map(r => r.data?.question_id ?? r.question_id),
-      postCheckSummaryPreviews: postCheck.map(r => ({
-        questionId: r.data?.question_id ?? r.question_id,
-        textPreview: (r.data?.question_summary_text ?? r.question_summary_text)?.substring(0, 60)
-      }))
-    });
-    
-    console.log('[QUESTION_SUMMARIES] DONE', {
-      sessionId,
-      generatedCount,
-      skippedCount,
-      totalEligible: eligibleQuestions.length,
-      postCheckCount: postCheck.length
+      createdCount,
+      skippedExistsCount,
+      skippedIncompleteCount
     });
     
     return Response.json({
       ok: true,
-      generatedCount,
-      skippedCount,
-      postCheckCount: postCheck.length,
+      generatedCount: createdCount,
+      skippedExistsCount,
+      skippedIncompleteCount,
       summaries
     });
     
   } catch (error) {
-    console.error('[QUESTION_SUMMARIES] ERROR', {
-      sessionId,
-      errorMessage: error.message,
-      stack: error.stack?.substring?.(0, 500)
-    });
+    console.error('[QSUM] ERROR', { sessionId, error: error.message });
     return Response.json({
       ok: false,
       error: { message: error.message || 'generateQuestionSummariesForSession failed' }
