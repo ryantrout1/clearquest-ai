@@ -1756,7 +1756,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           detailKey,
                           detailValue,
                           displayOrder: idx,
-                          questionText: DRIVING_FIELD_LABELS[detailKey] || detailKey.replace(/_/g, ' ')
+                          questionText: getFieldLabelForPack(packId, detailKey, detailKey.replace(/_/g, ' '))
                         }));
                     }
                     
