@@ -142,14 +142,22 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
     }
     
     if (!editingField.label.trim()) {
+      console.log('[FIELD-SAVE] Validation failed: label required');
       toast.error('Label is required');
       return;
     }
     if (!editingField.fieldKey.trim()) {
+      console.log('[FIELD-SAVE] Validation failed: fieldKey required');
       toast.error('Field Key is required');
       return;
     }
-    if (!isValidFieldKey(editingField.fieldKey)) {
+    
+    // Normalize fieldKey to lowercase
+    const normalizedFieldKey = editingField.fieldKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const fieldToSave = { ...editingField, fieldKey: normalizedFieldKey };
+    
+    if (!isValidFieldKey(normalizedFieldKey)) {
+      console.log('[FIELD-SAVE] Validation failed: invalid fieldKey', normalizedFieldKey);
       toast.error('Field Key must contain only lowercase letters, numbers, and underscores');
       return;
     }
