@@ -506,6 +506,14 @@ ${contextText}`;
           console.error('[QUESTION_SUMMARIES] SAVE_ERROR', {
             questionId,
             questionCode,
+            error: saveErr.message,
+            stack: saveErr.stack?.substring(0, 300)
+          });
+          // Still add to summaries so we know it was attempted
+          summaries.push({
+            questionId,
+            summaryText: null,
+            status: 'save_error',
             error: saveErr.message
           });
         }
