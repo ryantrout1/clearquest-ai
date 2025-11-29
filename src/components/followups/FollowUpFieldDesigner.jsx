@@ -560,10 +560,19 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseModal} className="border-slate-600 text-slate-300">
+            <Button type="button" variant="outline" onClick={handleCloseModal} className="border-slate-600 text-slate-300">
               Cancel
             </Button>
-            <Button onClick={handleSaveField} className="bg-amber-600 hover:bg-amber-700">
+            <Button 
+              type="button" 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[FIELD-SAVE] Button clicked');
+                handleSaveField();
+              }} 
+              className="bg-amber-600 hover:bg-amber-700"
+            >
               Save Field
             </Button>
           </DialogFooter>
