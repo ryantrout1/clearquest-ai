@@ -417,6 +417,7 @@ Deno.serve(async (req) => {
     const summaries = [];
     
     // Generate summaries for each eligible question
+    // USING EXACT SAME PATTERN AS generateSessionSummaries (lines 476-483)
     for (const questionData of eligibleQuestions) {
       const { questionId, questionCode, questionText, sectionId, instances } = questionData;
       
@@ -498,35 +499,39 @@ ${contextText}`;
         summaryText = `AI summary unavailable (LLM error: ${llmErr.message?.substring(0, 50)})`;
       }
       
-      // Save or update the summary (always save, even placeholder for errors)
+      // Save or update the summary using EXACT SAME PATTERN as generateSessionSummaries
       if (summaryText) {
-        console.log('[QUESTION_SUMMARIES] SAVING_SUMMARY', { questionId, questionCode, summaryLength: summaryText.length });
         try {
-          if (existing) {
-            await base44.asServiceRole.entities.QuestionSummary.update(existing.id, {
+          // Check for existing using filter (same pattern as generateSessionSummaries line 464-467)
+          const existingQ = await base44.asServiceRole.entities.QuestionSummary.filter({
+            session_id: sessionId,
+            question_id: questionId
+          });
+
+          let savedQuestionSummary;
+          if (existingQ.length > 0) {
+            // Update existing (same pattern as generateSessionSummaries line 471-474)
+            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.update(existingQ[0].id, {
               question_summary_text: summaryText,
               generated_at: new Date().toISOString()
             });
           } else {
-            const createPayload = {
+            // Create new (same pattern as generateSessionSummaries line 476-482)
+            savedQuestionSummary = await base44.asServiceRole.entities.QuestionSummary.create({
               session_id: sessionId,
-              section_id: sectionId || '',
+              section_id: sectionId,
               question_id: questionId,
               question_summary_text: summaryText,
               generated_at: new Date().toISOString()
-            };
-            
-            console.log('[QUESTION_SUMMARIES] CREATING_NEW', createPayload);
-            
-            const createResult = await base44.asServiceRole.entities.QuestionSummary.create(createPayload);
-            
-            console.log('[QUESTION_SUMMARIES] CREATE_RESULT', {
-              questionId,
-              questionCode,
-              result: createResult,
-              resultId: createResult?.id || createResult?.data?.id
             });
           }
+
+          console.log('[QUESTION_SUMMARIES][CREATED]', {
+            sessionId,
+            sectionId,
+            questionId,
+            summaryId: savedQuestionSummary?.id
+          });
           
           generatedCount++;
           summaries.push({
@@ -535,8 +540,6 @@ ${contextText}`;
             status: 'generated'
           });
           
-          console.log('[QUESTION_SUMMARIES] UPSERTED', { questionId, questionCode, sessionId });
-          
         } catch (saveErr) {
           console.error('[QUESTION_SUMMARIES] SAVE_ERROR', {
             questionId,
@@ -544,7 +547,6 @@ ${contextText}`;
             error: saveErr.message,
             stack: saveErr.stack?.substring(0, 300)
           });
-          // Still add to summaries so we know it was attempted
           summaries.push({
             questionId,
             summaryText: null,
