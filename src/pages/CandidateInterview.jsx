@@ -1233,6 +1233,11 @@ export default function CandidateInterview() {
 
     // ============================================================================
     // PROBE ENGINE V2 - Packs configured for per-field probing skip pack-level AI
+    // ROOT CAUSE ANALYSIS (2025-11):
+    // V2 packs (PACK_LE_APPS, DRIVING_*) use per-field probing DURING deterministic steps,
+    // not after pack completion. When a V2 pack finishes deterministic steps,
+    // we call onFollowupPackComplete which handles multi-instance or advances.
+    // This is CORRECT behavior - V2 probing happens inline, not at end.
     // ============================================================================
     if (useProbeEngineV2(packId)) {
       // Per-field probing packs handle AI validation after each deterministic answer
@@ -1245,7 +1250,10 @@ export default function CandidateInterview() {
         sessionId,
         environment: envInfo.nodeEnv,
         runtimeEnv: envInfo.hostname,
-        reason: 'v2-per-field-mode'
+        isPreview: envInfo.isPreview,
+        isProduction: envInfo.isProduction,
+        reason: 'v2-per-field-mode',
+        note: 'V2 probing happens inline during deterministic steps, not here'
       });
       console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId} (per-field mode active)`);
       
