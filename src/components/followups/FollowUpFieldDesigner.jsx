@@ -307,22 +307,22 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
 
         {/* Fields Table */}
         {sortedFields.length === 0 && (
-        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6 text-center mt-3">
-          <Database className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-400 mb-3">No fields configured yet.</p>
-          <Button
-            onClick={handleOpenAddModal}
-            size="sm"
-            variant="outline"
-            className="border-amber-500/50 text-amber-300 hover:bg-amber-500/10"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add your first field
-          </Button>
-        </div>
-      )}
-      {isExpanded && sortedFields.length > 0 && (
-        <div className="space-y-2 mt-3">
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6 text-center">
+            <Database className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+            <p className="text-sm text-slate-400 mb-3">No fields configured yet.</p>
+            <Button
+              onClick={handleOpenAddModal}
+              size="sm"
+              variant="outline"
+              className="border-amber-500/50 text-amber-300 hover:bg-amber-500/10"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add your first field
+            </Button>
+          </div>
+        )}
+        {sortedFields.length > 0 && (
+          <div className="space-y-2">
           {sortedFields.map((field, index) => (
             <div
               key={field.id}
