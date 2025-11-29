@@ -20,9 +20,14 @@ export default function FollowUpPackList({
     );
   }
 
+  // Sort packs alphabetically by pack_name
+  const sortedPacks = [...packs].sort((a, b) => 
+    (a.pack_name || '').localeCompare(b.pack_name || '')
+  );
+
   return (
     <div className="space-y-1.5">
-      {packs.map((pack) => {
+      {sortedPacks.map((pack) => {
         const packQuestions = questionsMap[pack.followup_pack_id] || [];
         const activeQuestions = packQuestions.filter(q => q.active !== false).length;
         const triggeringQuestions = packUsageMap[pack.followup_pack_id] || [];
