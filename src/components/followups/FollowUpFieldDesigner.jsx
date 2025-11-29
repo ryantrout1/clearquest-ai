@@ -164,21 +164,22 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
 
     // Check for duplicate fieldKey
     const existingWithKey = fields.find(
-      f => f.fieldKey === editingField.fieldKey && f.id !== editingField.id
+      f => f.fieldKey === fieldToSave.fieldKey && f.id !== fieldToSave.id
     );
     if (existingWithKey) {
+      console.log('[FIELD-SAVE] Validation failed: duplicate fieldKey');
       toast.error('A field with this key already exists');
       return;
     }
 
     let updatedFields;
-    const existingIndex = fields.findIndex(f => f.id === editingField.id);
+    const existingIndex = fields.findIndex(f => f.id === fieldToSave.id);
     
     if (existingIndex >= 0) {
       updatedFields = [...fields];
-      updatedFields[existingIndex] = editingField;
+      updatedFields[existingIndex] = fieldToSave;
     } else {
-      updatedFields = [...fields, editingField];
+      updatedFields = [...fields, fieldToSave];
     }
 
     // Normalize order
@@ -186,11 +187,13 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
       .sort((a, b) => (a.order || 0) - (b.order || 0))
       .map((f, idx) => ({ ...f, order: idx }));
 
-    console.log('[FIELD-SAVE] Saving fields', { count: updatedFields.length });
+    console.log('[FIELD-SAVE] Saving fields', { count: updatedFields.length, updatedFields });
 
     try {
       setFields(updatedFields);
-      await onSaveFields(updatedFields);
+      console.log('[FIELD-SAVE] Calling onSaveFields...');
+      const result = await onSaveFields(updatedFields);
+      console.log('[FIELD-SAVE] onSaveFields returned', result);
       handleCloseModal();
       toast.success(existingIndex >= 0 ? 'Field updated' : 'Field added');
     } catch (err) {
