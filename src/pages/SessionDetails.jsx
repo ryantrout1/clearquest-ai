@@ -63,8 +63,8 @@ function buildDrivingFactsFromTranscript(transcriptEvents) {
 
     if (!value || String(value).trim() === '') continue;
 
-    // Get label from field key, or use the question text from a prior Q event if needed
-    let label = DRIVING_FIELD_LABELS[fieldKey] || fieldKey || 'Unknown Field';
+    // Get label from centralized config
+    let label = getFieldLabelForPack(packId, fieldKey, fieldKey) || 'Unknown Field';
 
     // Initialize containers
     if (!factsByBaseQuestion[baseQuestionId]) {
