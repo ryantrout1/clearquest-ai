@@ -1728,7 +1728,12 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   if (!instance) return null;
                   const isInstanceExpanded = expandedInstances.has(String(instanceNum));
 
-                  if (packConfig) {
+                  // NOTE: Driving packs are handled first using transcript-derived facts
+                  // (drivingFactsFromTranscript). Other packs with packConfig (like PACK_LE_APPS)
+                  // use getInstanceFacts(). When adding new multi-instance packs, prefer
+                  // following this pattern instead of mixing pipelines.
+
+                  if (isDrivingPack) {
                     const instanceFacts = getInstanceFacts(packId, instance);
                     const factsFieldsConfig = (packConfig.fields || []).filter(f => f.includeInFacts).sort((a, b) => (a.factsOrder ?? 0) - (b.factsOrder ?? 0));
                     const facts = factsFieldsConfig.map(fieldConfig => {
