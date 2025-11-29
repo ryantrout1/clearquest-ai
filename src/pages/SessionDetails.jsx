@@ -916,49 +916,43 @@ export default function SessionDetails() {
     }
   };
 
-  // Unified AI generation handler - now uses new question-level summaries function
+  // Unified AI generation handler - calls single orchestrator for all summary types
   const handleGenerateAllAISummaries = async () => {
     if (!sessionId || isGeneratingAI) return;
     setIsGeneratingAI(true);
 
     try {
-      console.log('[AI-GENERATE] QUESTION_SUMMARIES_START', { sessionId });
+      console.log('[AI-GENERATE] START', { sessionId });
 
-      // Call new question-level summaries function
-      const questionResult = await base44.functions.invoke('generateQuestionSummariesForSession', {
-        sessionId: sessionId,
-        force: false
+      // Call unified orchestrator - handles question, section, and interview summaries
+      const result = await base44.functions.invoke('generateSessionSummaries', {
+        sessionId: sessionId
       });
 
-      console.log('[AI-GENERATE] QUESTION_SUMMARIES_RESULT', { 
-        sessionId, 
-        data: questionResult.data 
-      });
+      console.log('[AI-GENERATE] RESULT', { sessionId, data: result.data });
 
-      // Also generate global/section summaries using the old function (for backwards compatibility)
-      try {
-        await base44.functions.invoke('generateSessionSummaries', {
-          session_id: sessionId,
-          generateGlobal: true,
-          generateSections: true,
-          generateQuestions: false // Skip question summaries in old function
-        });
-      } catch (legacyErr) {
-        console.warn('[AI-GENERATE] Legacy function error (non-fatal)', { error: legacyErr.message });
-      }
-
-      if (questionResult.data?.ok) {
-        const { generatedCount, skippedCount } = questionResult.data;
-        toast.success(`AI summaries generated: ${generatedCount} new, ${skippedCount} existing`);
-        console.log('[AI-GENERATE] QUESTION_SUMMARIES_DONE', { generatedCount, skippedCount });
+      if (result.data?.ok || result.data?.success) {
+        const created = result.data.created || {};
+        const skipped = result.data.skippedExists || {};
+        const totalCreated = (created.question || 0) + (created.section || 0) + (created.interview || 0);
+        const totalSkipped = (skipped.question || 0) + (skipped.section || 0) + (skipped.interview || 0);
+        
+        if (totalCreated > 0) {
+          toast.success(`AI summaries generated: ${totalCreated} new, ${totalSkipped} existing`);
+        } else if (totalSkipped > 0) {
+          toast.info(`All summaries already exist (${totalSkipped} skipped)`);
+        } else {
+          toast.info('No complete questions/sections to summarize yet');
+        }
+        console.log('[AI-GENERATE] DONE', { totalCreated, totalSkipped });
       } else {
-        toast.error('Failed to generate question summaries');
+        toast.error('Failed to generate summaries');
       }
 
       // Reload all data to show new summaries
       await loadSessionData();
     } catch (err) {
-      console.error('[AI-GENERATE] FRONT_ERROR', { sessionId, error: err });
+      console.error('[AI-GENERATE][FRONT_ERROR]', { sessionId, error: err });
       toast.error('Failed to generate summaries');
     } finally {
       setIsGeneratingAI(false);
