@@ -622,13 +622,18 @@ export default function SessionDetails() {
         const qMap = {};
         questionSummaries.forEach(qs => {
           // Normalize: handle both camelCase and snake_case field names from API
-          const questionId = qs.question_id || qs.questionId;
-          const summaryText = qs.question_summary_text || qs.questionSummaryText;
+          // API returns data nested under 'data' property OR flat depending on context
+          const data = qs.data || qs;
+          const questionId = data.question_id || data.questionId;
+          const summaryText = data.question_summary_text || data.questionSummaryText;
           
           if (questionId && summaryText) {
             qMap[questionId] = summaryText;
           }
         });
+        
+        console.log('[SESSIONDETAILS] QuestionSummary raw rows', questionSummaries.slice(0, 2));
+        console.log('[SESSIONDETAILS] QuestionSummary mapped keys', Object.keys(qMap));
 
         const sMap = {};
         sectionSummaries.forEach(ss => {
