@@ -962,6 +962,40 @@ async function probeEngineV2(input, base44Client) {
   console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
 
   const packConfig = PACK_CONFIG[pack_id];
+  
+  // DETERMINISTIC RULE: Force probe for required date fields with no-recall answers
+  // This runs BEFORE LLM to guarantee probing when frontend flags no-recall
+  if (packConfig) {
+    const semanticFieldEarly = mapFieldKey(packConfig, field_key);
+    const isReqDate = isRequiredDateField(packConfig, semanticFieldEarly);
+    const backendNoRecall = answerLooksLikeNoRecall(field_value);
+    
+    if (isReqDate && (frontendNoRecallFlag || backendNoRecall)) {
+      console.log(`[V2-PER-FIELD] Backend forced QUESTION due to no-recall on required date field`, {
+        pack_id,
+        field_key,
+        semanticField: semanticFieldEarly,
+        frontendNoRecallFlag,
+        backendNoRecall
+      });
+      
+      return {
+        mode: "QUESTION",
+        pack_id,
+        field_key,
+        semanticField: semanticFieldEarly,
+        question: "About what month and year did this incident occur?",
+        validationResult: "incomplete",
+        previousProbeCount: previous_probes_count,
+        maxProbesPerField: 3,
+        isFallback: false,
+        probeSource: 'deterministic_no_recall_date',
+        reasoning: 'Required date field answered with no-recall phrase',
+        message: `Forced probe for required date field ${semanticFieldEarly}`
+      };
+    }
+  }
+  
   if (!packConfig) {
     console.log(`[V2-PER-FIELD] No pack config found for ${pack_id} - using generic validation`);
     
