@@ -369,6 +369,34 @@ const PACK_CONFIG = {
       "outcome": "outcome",
     },
   },
+  
+  // DUI/DWI pack
+  PACK_DRIVING_DUIDWI_STANDARD: {
+    id: "PACK_DRIVING_DUIDWI_STANDARD",
+    requiredFields: ["incidentDate", "location", "substanceType", "stopReason", "testType", "testResult", "arrestStatus", "courtOutcome", "licenseImpact"],
+    priorityOrder: ["incidentDate", "location", "substanceType", "stopReason", "testType", "testResult", "arrestStatus", "courtOutcome", "licenseImpact"],
+    fieldKeyMap: {
+      "PACK_DRIVING_DUIDWI_Q01": "incidentDate",
+      "PACK_DRIVING_DUIDWI_Q02": "location",
+      "PACK_DRIVING_DUIDWI_Q03": "substanceType",
+      "PACK_DRIVING_DUIDWI_Q04": "stopReason",
+      "PACK_DRIVING_DUIDWI_Q05": "testType",
+      "PACK_DRIVING_DUIDWI_Q06": "testResult",
+      "PACK_DRIVING_DUIDWI_Q07": "arrestStatus",
+      "PACK_DRIVING_DUIDWI_Q08": "courtOutcome",
+      "PACK_DRIVING_DUIDWI_Q09": "licenseImpact",
+      // Semantic field name mappings
+      "incidentDate": "incidentDate",
+      "location": "location",
+      "substanceType": "substanceType",
+      "stopReason": "stopReason",
+      "testType": "testType",
+      "testResult": "testResult",
+      "arrestStatus": "arrestStatus",
+      "courtOutcome": "courtOutcome",
+      "licenseImpact": "licenseImpact",
+    },
+  },
 };
 
 /**
