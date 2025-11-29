@@ -600,11 +600,16 @@ export default function SessionDetails() {
           base44.entities.SectionSummary.filter({ session_id: sessionId })
         ]);
 
-        console.log('[SESSIONDETAILS] AI summaries loaded', {
+        console.log('[SESSIONDETAILS] AI summaries loaded (raw)', {
           sessionId,
           instanceCount: instanceSummaries.length,
           questionCount: questionSummaries.length,
           sectionCount: sectionSummaries.length,
+          questionSummariesRaw: questionSummaries.map(qs => ({
+            id: qs.id,
+            question_id: qs.question_id,
+            textPreview: qs.question_summary_text?.substring(0, 60)
+          }))
         });
 
         // Build maps for quick lookup
@@ -616,16 +621,30 @@ export default function SessionDetails() {
 
         const qMap = {};
         questionSummaries.forEach(qs => {
-          if (qs.question_id && qs.question_summary_text) {
-            qMap[qs.question_id] = qs.question_summary_text;
+          // Normalize: handle both camelCase and snake_case field names from API
+          const questionId = qs.question_id || qs.questionId;
+          const summaryText = qs.question_summary_text || qs.questionSummaryText;
+          
+          if (questionId && summaryText) {
+            qMap[questionId] = summaryText;
           }
         });
 
         const sMap = {};
         sectionSummaries.forEach(ss => {
-          if (ss.section_id && ss.section_summary_text) {
-            sMap[ss.section_id] = ss.section_summary_text;
+          const sectionId = ss.section_id || ss.sectionId;
+          const summaryText = ss.section_summary_text || ss.sectionSummaryText;
+          
+          if (sectionId && summaryText) {
+            sMap[sectionId] = summaryText;
           }
+        });
+
+        console.log('[SESSIONDETAILS] AI summaries mapped', {
+          sessionId,
+          questionSummaryKeys: Object.keys(qMap),
+          sectionSummaryKeys: Object.keys(sMap),
+          instanceSummaryKeys: Object.keys(instMap)
         });
 
         setInstanceSummariesByKey(instMap);
