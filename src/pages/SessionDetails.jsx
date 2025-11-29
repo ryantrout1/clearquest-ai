@@ -59,7 +59,30 @@ const DRIVING_FIELD_LABELS = {
   'PACK_DRIVING_DUIDWI_Q06': 'Test Result',
   'PACK_DRIVING_DUIDWI_Q07': 'Arrest Status',
   'PACK_DRIVING_DUIDWI_Q08': 'Court Outcome',
-  'PACK_DRIVING_DUIDWI_Q09': 'License Impact'
+  'PACK_DRIVING_DUIDWI_Q09': 'License Impact',
+  
+  // Semantic key fallbacks for clean labels
+  'incident_date': 'Incident Date',
+  'collision_date': 'Date (month/year)',
+  'violation_date': 'Violation Date',
+  'when_occurred': 'When Occurred',
+  'location': 'Location',
+  'circumstances': 'Circumstances',
+  'description': 'Description',
+  'your_role': 'Your Role',
+  'property_damage': 'Property Damage',
+  'law_enforcement_involved': 'Law Enforcement Involved',
+  'reported': 'Reported',
+  'injuries': 'Injuries',
+  'legal_outcome': 'Legal Outcome',
+  'accountability': 'Accountability',
+  'at_fault': 'At Fault',
+  'police_citation': 'Police/Citation',
+  'insurance_outcome': 'Insurance Outcome',
+  'violation_type': 'Violation Type',
+  'outcome': 'Outcome',
+  'fine_amount': 'Fines',
+  'points': 'Points on License'
 };
 
 const DRIVING_PACKS = new Set([
