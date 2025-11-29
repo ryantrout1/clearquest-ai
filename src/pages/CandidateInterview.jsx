@@ -2304,6 +2304,28 @@ export default function CandidateInterview() {
             semanticStatus: semanticResult?.status
           });
           
+          // =====================================================================
+          // [V2 PROBING DECISION] Diagnostic log for decision-making
+          // =====================================================================
+          console.log('[V2 PROBING DECISION]', {
+            packId,
+            fieldKey,
+            answerValue: normalizedAnswer?.substring?.(0, 50),
+            isNoRecall,
+            isEmpty,
+            semanticStatus: semanticResult?.status,
+            flags: {
+              ENABLE_LIVE_AI_FOLLOWUPS,
+              aiProbingEnabled,
+              aiProbingDisabledForSession
+            },
+            counters: {
+              probeCount,
+              maxAiFollowups,
+              willCallBackend: ENABLE_LIVE_AI_FOLLOWUPS && aiProbingEnabled && !aiProbingDisabledForSession && probeCount < maxAiFollowups
+            }
+          });
+          
           logAiProbeDebug('semanticResult', {
             packId,
             fieldKey,
