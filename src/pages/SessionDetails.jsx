@@ -647,14 +647,16 @@ export default function SessionDetails() {
 
         // DEBUG: Log sample response question_id for matching verification
         const sampleResponseQuestionIds = responsesData.filter(r => r.answer === 'Yes').slice(0, 3).map(r => r.question_id);
-        
+
         console.log('[SESSIONDETAILS] AI summaries mapped', {
           sessionId,
           questionSummaryKeys: Object.keys(qMap),
           sectionSummaryKeys: Object.keys(sMap),
           instanceSummaryKeys: Object.keys(instMap),
           sampleResponseQuestionIds,
-          keysMatch: sampleResponseQuestionIds.some(id => qMap[id])
+          keysMatch: sampleResponseQuestionIds.some(id => qMap[id]),
+          // Deep debug: show what we're actually mapping
+          qMapSample: Object.entries(qMap).slice(0, 2).map(([k, v]) => ({ key: k, textPreview: v?.substring(0, 50) }))
         });
 
         setInstanceSummariesByKey(instMap);
