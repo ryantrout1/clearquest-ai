@@ -264,25 +264,37 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
     }));
   };
 
+  // Build pills
+  const pills = [
+    { label: `${fields.length} field${fields.length !== 1 ? 's' : ''}`, className: 'bg-amber-500/20 text-amber-300' }
+  ];
+  if (fields.length > 0) {
+    const mappedCount = fields.filter(f => f.semanticType || f.aiProbeHint).length;
+    if (mappedCount === fields.length) {
+      pills.push({ label: 'Mapped', className: 'bg-emerald-500/20 text-emerald-300' });
+    } else if (mappedCount > 0) {
+      pills.push({ label: `${mappedCount}/${fields.length} Mapped`, className: 'bg-slate-700/50 text-slate-300' });
+    } else {
+      pills.push({ label: 'Not Mapped', className: 'bg-slate-700/50 text-slate-400' });
+    }
+  }
+
   return (
-    <div className="bg-amber-950/20 border border-amber-500/30 rounded-lg p-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onToggleExpand}
-          className="flex items-center gap-3 group flex-1"
-        >
-          <ChevronRight className={`w-5 h-5 text-amber-400 group-hover:text-amber-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-          <div className="flex-1 text-left">
-            <h4 className="text-lg font-semibold text-amber-400">
-              Follow-Up Fields ({fields.length})
-            </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Defines the structured data fields extracted from candidate answers for investigator review and risk scoring
-            </p>
-          </div>
-        </button>
-        {isExpanded && (
+    <>
+      <CollapsibleSection
+        title="Follow-Up Fields"
+        subtitle="Defines the structured data fields extracted from candidate answers for investigator review and risk scoring"
+        icon={Database}
+        iconColor="text-amber-400"
+        bgColor="bg-amber-950/20"
+        borderColor="border-amber-500/30"
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+        pills={pills}
+        editable={false}
+      >
+        {/* Add Button */}
+        <div className="mb-3">
           <Button
             onClick={handleOpenAddModal}
             size="sm"
@@ -291,11 +303,10 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
             <Plus className="w-4 h-4 mr-1" />
             Add Field
           </Button>
-        )}
-      </div>
+        </div>
 
-      {/* Fields Table */}
-      {isExpanded && sortedFields.length === 0 && (
+        {/* Fields Table */}
+        {sortedFields.length === 0 && (
         <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6 text-center mt-3">
           <Database className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <p className="text-sm text-slate-400 mb-3">No fields configured yet.</p>
