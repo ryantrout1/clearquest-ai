@@ -60,14 +60,37 @@ Deno.serve(async (req) => {
     let updatedInstanceCount = 0;
 
     // Fetch all data INCLUDING GlobalSettings for AI config
-    const [responses, followUps, questions, sections, packs, globalSettingsResult] = await Promise.all([
-      base44.asServiceRole.entities.Response.filter({ session_id: sessionId }),
-      base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId }),
-      base44.asServiceRole.entities.Question.list(),
-      base44.asServiceRole.entities.Section.list(),
-      base44.asServiceRole.entities.FollowUpPack.list(),
-      base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => [])
-    ]);
+    let responses, followUps, questions, sections, packs, globalSettingsResult;
+    try {
+      [responses, followUps, questions, sections, packs, globalSettingsResult] = await Promise.all([
+        base44.asServiceRole.entities.Response.filter({ session_id: sessionId }),
+        base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId }),
+        base44.asServiceRole.entities.Question.list(),
+        base44.asServiceRole.entities.Section.list(),
+        base44.asServiceRole.entities.FollowUpPack.list(),
+        base44.asServiceRole.entities.GlobalSettings.filter({ settings_id: 'global' }).catch(() => [])
+      ]);
+    } catch (fetchErr) {
+      console.error('[GENERATE_SUMMARIES] FETCH_ERROR', { sessionId, error: fetchErr.message });
+      return Response.json({ 
+        ok: false, 
+        error: { message: `Failed to fetch session data: ${fetchErr.message}` } 
+      }, { status: 500 });
+    }
+    
+    // Defensive: ensure arrays
+    responses = Array.isArray(responses) ? responses : [];
+    followUps = Array.isArray(followUps) ? followUps : [];
+    questions = Array.isArray(questions) ? questions : [];
+    sections = Array.isArray(sections) ? sections : [];
+    packs = Array.isArray(packs) ? packs : [];
+    
+    console.log('[GENERATE_SUMMARIES] DATA_FETCHED', {
+      sessionId,
+      responsesCount: responses.length,
+      followUpsCount: followUps.length,
+      questionsCount: questions.length
+    });
 
     // Get AI runtime config from GlobalSettings
     const globalSettings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
