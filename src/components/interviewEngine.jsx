@@ -1404,11 +1404,43 @@ export function parseQuestionsToMaps(questions, sections, categories) {
 
     const dbQuestionId = q.id; // Database ID is now the UNIQUE key
     const questionCode = (q.question_id || '').trim(); // question_code is display label only
+    const questionText = (q.question_text || '').trim();
+    const sectionIdOnRecord = q.section_id;
+
+    // ============================================================================
+    // INTEGRITY CHECK: Validate critical fields BEFORE adding to runtime map
+    // ============================================================================
+    
+    if (!dbQuestionId) {
+      console.error('[QUESTION-INTEGRITY] Invalid question - missing database ID', { raw: q });
+      validationErrors.push(`Question is missing database ID (id field)`);
+      return; // SKIP - cannot route without database ID
+    }
+    
+    if (!questionText) {
+      console.error('[QUESTION-INTEGRITY] Invalid question in section', q.section_id, {
+        dbId: dbQuestionId,
+        code: questionCode,
+        reason: 'Missing question_text'
+      });
+      validationErrors.push(`Question ${dbQuestionId} (code: ${questionCode}) is missing question_text`);
+      return; // SKIP - cannot display without text
+    }
+    
+    if (!sectionIdOnRecord) {
+      console.error('[QUESTION-INTEGRITY] Invalid question - missing section_id', {
+        dbId: dbQuestionId,
+        code: questionCode,
+        text: questionText.substring(0, 60)
+      });
+      validationErrors.push(`Question ${dbQuestionId} (code: ${questionCode}) is missing section_id`);
+      return; // SKIP - cannot place in section
+    }
 
     // VALIDATION: Check for empty or whitespace-only question_code (warn but don't block)
     if (!questionCode) {
       validationErrors.push(
-        `Question with database id ${dbQuestionId} in section ${q.section_id} has empty question_code (will use db id for display).`
+        `Question with database id ${dbQuestionId} in section ${sectionIdOnRecord} has empty question_code (will use db id for display).`
       );
       console.warn(`⚠️ Question ${dbQuestionId} has empty question_code`);
     }
@@ -1420,17 +1452,17 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       }
       codeToDbIds[questionCode].push({
         dbId: dbQuestionId,
-        sectionId: q.section_id,
-        text: q.question_text
+        sectionId: sectionIdOnRecord,
+        text: questionText
       });
     }
 
     // Find section object to get section string ID
-    const sectionEntity = sections.find(s => s.id === q.section_id);
+    const sectionEntity = sections.find(s => s.id === sectionIdOnRecord);
     if (!sectionEntity) {
-      console.warn(`⚠️ Question ${dbQuestionId} (code: ${questionCode}) has section_id ${q.section_id} but no matching Section entity found - skipping`);
+      console.warn(`⚠️ Question ${dbQuestionId} (code: ${questionCode}) has section_id ${sectionIdOnRecord} but no matching Section entity found - skipping`);
       validationErrors.push(
-        `Question ${dbQuestionId} references section_id ${q.section_id} which does not exist.`
+        `Question ${dbQuestionId} references section_id ${sectionIdOnRecord} which does not exist.`
       );
       return;
     }
@@ -1485,13 +1517,17 @@ export function parseQuestionsToMaps(questions, sections, categories) {
   if (duplicateCodes.length > 0) {
     console.warn(`\n⚠️ WARNING: ${duplicateCodes.length} duplicate question_code(s) detected (not blocking - routing uses database IDs):\n`);
     duplicateCodes.forEach(([code, instances]) => {
-      console.warn(`   code: ${code}`);
-      console.warn(`   occurrences: ${instances.length}`);
+      console.warn(`\n   Duplicate code: ${code}`);
+      console.warn(`   Occurrences: ${instances.length}`);
       instances.forEach(inst => {
         const section = sections.find(s => s.id === inst.sectionId);
-        console.warn(`     - id=${inst.dbId}, section=${section?.section_name || 'Unknown'}`);
+        const fullQ = QById[inst.dbId];
+        console.warn(`     - dbId=${inst.dbId}`);
+        console.warn(`       sectionName=${section?.section_name || 'Unknown'}`);
+        console.warn(`       displayOrder=${fullQ?.display_order || 'N/A'}`);
+        console.warn(`       active=${fullQ?.active !== false ? 'true' : 'false'}`);
+        console.warn(`       text="${(inst.text || '').substring(0, 80)}..."`);
       });
-      console.warn('');
     });
   }
 
@@ -1829,17 +1865,46 @@ export function debugPrintQuestionSectionMap(sections, questions) {
     console.log(`Active questions (sorted by display_order): ${activeSectionQuestions.length}\n`);
     
     if (activeSectionQuestions.length > 0) {
-      activeSectionQuestions.forEach(q => {
-        const shortText = (q.question_text || '').substring(0, 80);
-        console.log(`  - dbId: ${q.id}`);
-        console.log(`    code: ${q.question_id}`);
-        console.log(`    displayOrder: ${q.display_order}`);
-        console.log(`    sectionIdOnRecord: ${q.section_id}`);
-        console.log(`    text: ${shortText}${q.question_text?.length > 80 ? '...' : ''}`);
-        console.log('');
-      });
+    console.log(`QuestionIds in runtime map: ${activeSectionQuestions.length} questions`);
+    activeSectionQuestions.forEach(q => {
+      // INTEGRITY CHECK: Validate each question before logging
+      const dbId = q.id;
+      const code = q.question_id || '';
+      const text = q.question_text || '';
+      const sectionIdOnRecord = q.section_id;
+
+      // Check for missing critical fields
+      if (!dbId) {
+        console.error(`[QUESTION-INTEGRITY] Invalid question - missing dbId`, { raw: q });
+        validationErrors.push(`Question in section ${section.section_name} is missing database ID`);
+        return; // Skip this question
+      }
+
+      if (!code.trim()) {
+        console.warn(`[QUESTION-INTEGRITY] Question ${dbId} has empty question_code (will use db id for display)`, { dbId, sectionId: sectionIdOnRecord });
+      }
+
+      if (!text.trim()) {
+        console.error(`[QUESTION-INTEGRITY] Invalid question - missing question_text`, { dbId, code, sectionId: sectionIdOnRecord });
+        validationErrors.push(`Question ${dbId} (code: ${code}) is missing question_text`);
+        return; // Skip this question
+      }
+
+      if (!sectionIdOnRecord) {
+        console.error(`[QUESTION-INTEGRITY] Invalid question - missing section_id`, { dbId, code });
+        validationErrors.push(`Question ${dbId} (code: ${code}) is missing section_id`);
+        return; // Skip this question
+      }
+
+      // Log valid question
+      const shortText = text.substring(0, 80);
+      console.log(`  - dbId=${dbId} | code=${code || 'MISSING'} | fromDbSection=${sectionIdOnRecord || 'MISSING'}`);
+      if (text.length > 80) {
+        console.log(`    text: ${shortText}...`);
+      }
+    });
     } else {
-      console.log(`  (No active questions)\n`);
+    console.log(`  (No active questions)\n`);
     }
     
     console.log('---\n');
@@ -1922,10 +1987,12 @@ export function debugPrintSuspiciousSectionsMapping(engine, sections) {
       console.log(`QuestionIds in runtime map: ${questionDbIds.length} questions\n`);
       
       if (questionDbIds.length > 0) {
-        questionDbIds.forEach((dbId, idx) => {
+        questionDbIds.forEach((qData) => {
+          const dbId = qData.id || qData;
           const fullQ = engine.QById[dbId];
-          const code = engine.QuestionCodeById[dbId] || `db_${dbId}`;
-          console.log(`  - db_id=${dbId} | code=${code} | fromDbSection=${fullQ?.section_id || 'unknown'}`);
+          const code = engine.QuestionCodeById[dbId] || fullQ?.question_id || `db_${dbId}`;
+          const sectionName = sections.find(s => s.id === fullQ?.section_id)?.section_name || 'unknown';
+          console.log(`  - dbId=${dbId} | code=${code} | fromDbSection=${sectionName}`);
         });
       } else {
         console.log(`  (No questions in runtime map)`);
