@@ -80,15 +80,6 @@ export default function FollowUpCategorySidebar({
                   <span className={cn(
                     "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
                     isSelected 
-                      ? "bg-purple-500/20 text-purple-300 border-purple-500/30" 
-                      : "bg-purple-500/15 text-purple-400/80 border-purple-500/20"
-                  )}>
-                    <FileText className="w-3 h-3" />
-                    {kpis.totalQuestions}
-                  </span>
-                  <span className={cn(
-                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
-                    isSelected 
                       ? "bg-teal-500/20 text-teal-300 border-teal-500/30" 
                       : "bg-teal-500/15 text-teal-400/80 border-teal-500/20"
                   )}>
