@@ -382,7 +382,18 @@ Object.assign(FALLBACK_PROBES, {
   "authority_awareness": "Did law enforcement, a doctor, or an employer ever become aware of this?",
   "help_sought": "Have you attempted to stop, seek help, or change your behavior?",
   "recurrence": "Has this misuse occurred again since the highest-risk incident you described?",
-  "prevention_steps": "What steps have you taken to ensure this will not happen again?"
+  "prevention_steps": "What steps have you taken to ensure this will not happen again?",
+  
+  // === PACK_PRIOR_LE_APPS_STANDARD ===
+  "PACK_PRLE_Q01": "What type of law enforcement agency did you apply to? (e.g., municipal police, county sheriff, state police, federal)",
+  "PACK_PRLE_Q02": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
+  "PACK_PRLE_Q03": "How far did you get in the hiring process? (e.g., written test, physical, interview, background, polygraph, psychological)",
+  "PACK_PRLE_Q04": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
+  "PACK_PRLE_Q05": "Were any background concerns or issues identified during the hiring process? Please describe.",
+  "PACK_PRLE_Q06": "Did you withdraw your application at any point? If so, why?",
+  "PACK_PRLE_Q07": "Have you disclosed this prior application on other law enforcement applications?",
+  "PACK_PRLE_Q08": "What changes or improvements have you made since this application?",
+  "PACK_PRLE_Q09": "What city and state was this agency located in?"
 });
 
 /**
@@ -1851,7 +1862,18 @@ const FIELD_LABELS = {
   "authority_awareness": "Authority Awareness",
   "help_sought": "Help Sought",
   "recurrence": "Recurrence",
-  "prevention_steps": "Prevention Steps"
+  "prevention_steps": "Prevention Steps",
+  
+  // PACK_PRIOR_LE_APPS_STANDARD
+  "agency_type": "Type of Agency",
+  "time_period": "Application Time Period",
+  "stage_reached": "Stage Reached",
+  "outcome": "Outcome",
+  "background_concerns": "Background Concerns Identified",
+  "withdrew": "Withdrew Application",
+  "prior_disclosure": "Prior Disclosure",
+  "preventive_steps": "Changes/Improvements Since",
+  "location_general": "Agency Location"
 };
 
 /**
