@@ -30,6 +30,9 @@ import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/followups/semanticValidator";
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
 
+// Global logging flag for CandidateInterview
+const DEBUG_MODE = false;
+
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
   'PACK_LE_APPS': 'Applications with other Law Enforcement Agencies',
@@ -112,21 +115,7 @@ const HEAVY_SECTIONS = [
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 
 // DEBUG FLAG: Enable detailed AI probe logging
-const DEBUG_AI_PROBES = true;
-
-// DIAGNOSTIC: Helper to get environment info
-const getEnvironmentInfo = () => {
-  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
-  const isPreview = hostname.includes('preview') || hostname.includes('localhost') || hostname.includes('127.0.0.1');
-  const isProduction = hostname.includes('base44.io') && !hostname.includes('preview');
-  return {
-    hostname,
-    nodeEnv: typeof process !== 'undefined' ? process.env?.NODE_ENV : 'unknown',
-    isPreview,
-    isProduction,
-    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent?.substring(0, 50) : 'unknown'
-  };
-};
+const DEBUG_AI_PROBES = DEBUG_MODE;
 
 const syncFactsToInterviewSession = async (sessionId, questionId, packId, followUpResponse) => {
     if (packId !== 'PACK_LE_APPS' || !followUpResponse || !followUpResponse.additional_details?.facts) {
@@ -160,7 +149,7 @@ const syncFactsToInterviewSession = async (sessionId, questionId, packId, follow
             structured_followup_facts: allFacts
         });
         
-        console.log(`[SYNC_FACTS] Synced facts for Q:${questionId} on session ${sessionId}`, newFactEntry);
+        if (DEBUG_MODE) console.log(`[SYNC_FACTS] Synced facts for Q:${questionId} on session ${sessionId}`);
 
     } catch (err) {
         console.error('[SYNC_FACTS] Error syncing facts to InterviewSession:', err);
@@ -276,29 +265,16 @@ const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${inst
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext } = params;
 
-  const envInfo = getEnvironmentInfo();
-  
-  // =====================================================================
-  // [AI-FOLLOWUP][V2-REQUEST] Diagnostic logging for V2 per-field probing
-  // =====================================================================
-  console.log('[AI-FOLLOWUP][V2-REQUEST]', {
-    packId,
-    fieldKey,
-    fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
-    previousProbesCount,
-    environment: envInfo.nodeEnv,
-    runtimeEnv: envInfo.hostname,
-    isPreview: envInfo.isPreview,
-    isProduction: envInfo.isProduction
-  });
+  if (DEBUG_MODE) {
+    console.log('[AI-FOLLOWUP][V2-REQUEST]', {
+      packId,
+      fieldKey,
+      fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
+      previousProbesCount
+    });
+  }
 
   try {
-    console.log('[V2-PER-FIELD] Calling backend for field validation:', {
-      pack_id: packId,
-      field_key: fieldKey,
-      field_value: fieldValue,
-      previous_probes_count: previousProbesCount
-    });
 
     const response = await base44Client.functions.invoke('probeEngineV2', {
       pack_id: packId,
@@ -309,15 +285,14 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       mode: 'VALIDATE_FIELD'
     });
 
-    console.log('[AI-FOLLOWUP][V2-RESPONSE]', {
-      packId,
-      fieldKey,
-      mode: response?.data?.mode,
-      hasQuestion: !!response?.data?.question,
-      questionPreview: response?.data?.question?.substring?.(0, 80) || null
-    });
-    
-    console.log('[V2-PER-FIELD] Response:', response.data);
+    if (DEBUG_MODE) {
+      console.log('[AI-FOLLOWUP][V2-RESPONSE]', {
+        packId,
+        fieldKey,
+        mode: response?.data?.mode,
+        hasQuestion: !!response?.data?.question
+      });
+    }
     
     // NOTE: AI probe question logging is handled in the calling code after this returns
     // when response.data.mode === 'QUESTION'
@@ -327,14 +302,8 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     console.error('[AI-FOLLOWUP][V2-ERROR]', {
       packId,
       fieldKey,
-      environment: envInfo.nodeEnv,
-      runtimeEnv: envInfo.hostname,
-      errorMessage: err?.message,
-      errorStatus: err?.status,
-      errorCode: err?.code,
-      errorStack: err?.stack?.substring?.(0, 300)
+      message: err?.message
     });
-    console.error('[V2-PER-FIELD] Error calling backend:', err);
     return {
       mode: 'ERROR',
       message: err.message || 'Failed to call probeEngineV2'
@@ -1035,16 +1004,14 @@ export default function CandidateInterview() {
   const requestLiveAiFollowup = async (params) => {
     const { interviewId, questionId, followupPackId, transcriptWindow, candidateAnswer } = params;
 
-    const envInfo = getEnvironmentInfo();
-    console.log('[AI-FOLLOWUP][INVOKE-START]', {
-      functionName: 'interviewAiFollowup',
-      interviewId,
-      questionId,
-      followupPackId,
-      mode: 'FOLLOWUP_PROBE',
-      environment: envInfo.nodeEnv,
-      runtimeEnv: envInfo.hostname
-    });
+    if (DEBUG_MODE) {
+      console.log('[AI-FOLLOWUP][INVOKE-START]', {
+        functionName: 'interviewAiFollowup',
+        interviewId,
+        questionId,
+        followupPackId
+      });
+    }
 
     try {
       const response = await base44.functions.invoke("interviewAiFollowup", {
@@ -1056,26 +1023,20 @@ export default function CandidateInterview() {
         mode: "FOLLOWUP_PROBE"
       });
 
-      console.log('[AI-FOLLOWUP][INVOKE-RESPONSE]', {
-        functionName: 'interviewAiFollowup',
-        status: response?.data?.status,
-        hasData: !!response?.data,
-        dataKeys: response?.data ? Object.keys(response.data) : []
-      });
+      if (DEBUG_MODE) {
+        console.log('[AI-FOLLOWUP][INVOKE-RESPONSE]', {
+          status: response?.data?.status,
+          hasData: !!response?.data
+        });
+      }
 
       return response.data;
     } catch (err) {
       console.error('[AI-FOLLOWUP][INVOKE-ERROR]', {
-        functionName: 'interviewAiFollowup',
         interviewId,
         questionId,
         followupPackId,
-        environment: envInfo.nodeEnv,
-        runtimeEnv: envInfo.hostname,
-        errorMessage: err?.message,
-        errorStatus: err?.status,
-        errorCode: err?.code,
-        errorStack: err?.stack?.substring(0, 300)
+        message: err?.message
       });
       return { status: 'error', errorMessage: err?.message };
     }
@@ -1193,38 +1154,18 @@ export default function CandidateInterview() {
 
   // NEW: Start per-pack AI mini-session
   const startAiProbingForPackInstance = async (questionId, packId, substanceName, followUpAnswers, instanceNumber = 1) => {
-    const envInfo = getEnvironmentInfo();
-    
-    // =====================================================================
-    // [AI-FOLLOWUP][ENTRY] Entry point for AI probing - comprehensive logging
-    // =====================================================================
-    console.log('[AI-FOLLOWUP][ENTRY] startAiProbingForPackInstance called', {
-      questionId,
-      packId,
-      instanceNumber,
-      sessionId,
-      environment: envInfo.nodeEnv,
-      runtimeEnv: envInfo.hostname,
-      isPreview: envInfo.isPreview,
-      isProduction: envInfo.isProduction,
-      flags: {
-        ENABLE_LIVE_AI_FOLLOWUPS,
-        aiProbingDisabledForSession,
-        aiProbingEnabled,
-        useProbeEngineV2ForPack: useProbeEngineV2(packId)
-      },
-      followUpAnswersCount: followUpAnswers?.length || 0
-    });
+    if (DEBUG_MODE) {
+      console.log('[AI-FOLLOWUP][ENTRY]', {
+        questionId,
+        packId,
+        instanceNumber,
+        sessionId
+      });
+    }
     
     // Check if AI is disabled for this session
     if (aiProbingDisabledForSession) {
-      console.log('[AI-FOLLOWUP][DECISION]', {
-        shouldTriggerAiFollowups: false,
-        reason: 'disabled-for-session',
-        packId,
-        questionCode: questionId,
-        instanceNumber
-      });
+      if (DEBUG_MODE) console.log('[AI-FOLLOWUP] Disabled for session');
       return false;
     }
     
@@ -1240,22 +1181,7 @@ export default function CandidateInterview() {
     // This is CORRECT behavior - V2 probing happens inline, not at end.
     // ============================================================================
     if (useProbeEngineV2(packId)) {
-      // Per-field probing packs handle AI validation after each deterministic answer
-      // Skip pack-level probing entirely for these packs
-      const envInfo = getEnvironmentInfo();
-      console.log('[AI-FOLLOWUP][ELIGIBILITY] V2 per-field pack - skipping pack-level probing', {
-        packId,
-        questionCode: questionId,
-        instanceNumber,
-        sessionId,
-        environment: envInfo.nodeEnv,
-        runtimeEnv: envInfo.hostname,
-        isPreview: envInfo.isPreview,
-        isProduction: envInfo.isProduction,
-        reason: 'v2-per-field-mode',
-        note: 'V2 probing happens inline during deterministic steps, not here'
-      });
-      console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId} (per-field mode active)`);
+      if (DEBUG_MODE) console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId}`);
       
       // Advance directly to next base question or multi-instance check
       onFollowupPackComplete(questionId, packId);
@@ -1271,75 +1197,17 @@ export default function CandidateInterview() {
       // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
       const maxAiFollowups = getPackMaxAiFollowups(packId);
       
-      const envInfo = getEnvironmentInfo();
-      
-      // =====================================================================
-      // [AI-FOLLOWUP][ELIGIBILITY] Diagnostic logging for Prod vs Preview
-      // =====================================================================
-      console.log('[AI-FOLLOWUP][ELIGIBILITY] Checking AI probing eligibility', {
-        packId,
-        questionCode: questionId,
-        environment: envInfo.nodeEnv,
-        runtimeEnv: envInfo.hostname,
-        sessionId,
-        aiConfig: {
-          enabledGlobally: ENABLE_LIVE_AI_FOLLOWUPS,
-          perPackEnabled: !useProbeEngineV2(packId), // Packs with V2 per-field skip this
-          maxFollowupsForPack: maxAiFollowups,
-        },
-        flags: {
-          isPreviewEnv: envInfo.isPreview,
-          isProductionEnv: envInfo.isProduction,
-          aiProbingDisabledForSession: aiProbingDisabledForSession,
-          aiProbingEnabled: aiProbingEnabled,
-        },
-        counters: {
-          usedForInstance: currentCount,
-          maxForInstance: maxAiFollowups,
-        }
-      });
-      
-      console.log('[LIVE_AI_FOLLOWUP] Count', currentCount, '/', maxAiFollowups, 'for pack', packId);
+      if (DEBUG_MODE) {
+        console.log('[AI-FOLLOWUP][ELIGIBILITY]', { packId, currentCount, maxAiFollowups });
+      }
       
       if (currentCount >= maxAiFollowups) {
-        console.log('[AI-FOLLOWUP][DECISION]', {
-          shouldTriggerAiFollowups: false,
-          reason: 'quota-hit',
-          packId,
-          questionCode: questionId,
-          instanceNumber,
-          currentCount,
-          maxAiFollowups
-        });
-        console.log('[LIVE_AI_FOLLOWUP] Max AI follow-ups reached for pack', packId, '– not asking another probe');
+        if (DEBUG_MODE) console.log('[AI-FOLLOWUP] Max quota reached for', packId);
         return false;
       }
       
-      console.log('LIVE_AI_FOLLOWUP start', { 
-        interviewId: sessionId, 
-        questionId, 
-        followupPackId: packId,
-        currentCount,
-        maxAiFollowups
-      });
-      
       const lastFollowUpAnswer = followUpAnswers[followUpAnswers.length - 1];
       const transcriptWindow = buildTranscriptWindowForAi(questionId, packId);
-      
-      // =====================================================================
-      // [AI-FOLLOWUP][REQUEST] About to call AI backend
-      // =====================================================================
-      console.log('[AI-FOLLOWUP][REQUEST]', {
-        packId,
-        questionCode: questionId,
-        instanceNumber,
-        sessionId,
-        agentId: null, // invokeLLM mode, not agent
-        model: 'invokeLLM-server',
-        promptKind: 'investigator-followup',
-        messagesPreview: transcriptWindow?.slice?.(-3),
-        candidateAnswer: lastFollowUpAnswer?.answer?.substring(0, 100) || ''
-      });
       
       let aiResult;
       try {
@@ -1351,47 +1219,25 @@ export default function CandidateInterview() {
           candidateAnswer: lastFollowUpAnswer?.answer || ''
         });
         
-        // =====================================================================
-        // [AI-FOLLOWUP][SUCCESS] or partial success logging
-        // =====================================================================
-        console.log('[AI-FOLLOWUP][RESPONSE]', {
-          packId,
-          questionCode: questionId,
-          instanceNumber,
-          sessionId,
-          status: aiResult?.status,
-          hasFollowupQuestion: !!aiResult?.followupQuestion,
-          followupQuestionPreview: aiResult?.followupQuestion?.substring(0, 100) || null
-        });
+        if (DEBUG_MODE) {
+          console.log('[AI-FOLLOWUP][RESPONSE]', {
+            packId,
+            status: aiResult?.status,
+            hasFollowupQuestion: !!aiResult?.followupQuestion
+          });
+        }
       } catch (aiErr) {
-        // =====================================================================
-        // [AI-FOLLOWUP][ERROR] Catch and log AI call errors
-        // =====================================================================
         console.error('[AI-FOLLOWUP][ERROR]', {
           packId,
-          questionCode: questionId,
-          instanceNumber,
-          sessionId,
-          environment: getEnvironmentInfo().nodeEnv,
-          runtimeEnv: getEnvironmentInfo().hostname,
-          message: aiErr?.message,
-          stack: aiErr?.stack?.substring(0, 500),
-          status: aiErr?.status,
-          code: aiErr?.code,
-          raw: aiErr
+          questionId,
+          message: aiErr?.message
         });
         // Don't throw - fall through to agent-based or skip
         aiResult = { status: 'error', error: aiErr?.message };
       }
       
       if (aiResult?.status === 'ok' && aiResult.followupQuestion) {
-        console.log('[AI-FOLLOWUP][SUCCESS]', {
-          packId,
-          questionCode: questionId,
-          instanceNumber,
-          sessionId,
-          numFollowupsGenerated: 1
-        });
+        if (DEBUG_MODE) console.log('[AI-FOLLOWUP][SUCCESS]', { packId, questionId });
         
         // Increment counter for this pack instance
         setAiFollowupCounts(prev => ({
@@ -1419,14 +1265,7 @@ export default function CandidateInterview() {
           isProbe: true
         };
         
-        console.debug('[AI-PROBE-TRANSCRIPT] Added question event (startAiProbing)', {
-          type: aiQuestionEntry.type,
-          baseQuestionId: questionId,
-          followupPackId: packId,
-          instanceNumber: instanceNumber,
-          probeIndex: 0,
-          text: aiResult.followupQuestion.substring(0, 50) + '...'
-        });
+        if (DEBUG_MODE) console.debug('[AI-PROBE] Added question event');
 
         const newTranscript = [...transcript, aiQuestionEntry];
         setTranscript(newTranscript);
@@ -1446,32 +1285,15 @@ export default function CandidateInterview() {
         setIsWaitingForAgent(true);
         setCurrentFollowUpPack({ questionId, packId, substanceName, instanceNumber });
         
-        console.log('[AI-FOLLOWUP][DECISION]', {
-          shouldTriggerAiFollowups: true,
-          reason: 'ok',
-          packId,
-          questionCode: questionId,
-          instanceNumber,
-          mode: 'invokeLLM'
-        });
         return true;
       } else {
-        // Fall through to agent-based probing or skip
-        console.log('[AI-FOLLOWUP][DECISION]', {
-          shouldTriggerAiFollowups: false,
-          reason: aiResult?.status === 'error' ? 'ai-error' : 'no-followup-question',
-          packId,
-          questionCode: questionId,
-          instanceNumber,
-          aiResultStatus: aiResult?.status
-        });
+        if (DEBUG_MODE) console.log('[AI-FOLLOWUP] No followup generated', { packId });
       }
       }
     
     // Create a fresh AI conversation JUST for this pack instance
     try {
       const aiConfig = getAiAgentConfig(session.department_code);
-      console.log('🔧 [AI MINI-SESSION] Creating conversation for', packInstanceKey);
 
       const newConversation = await base44.agents.createConversation({
         agent_name: aiConfig.agentName,
@@ -1492,7 +1314,7 @@ export default function CandidateInterview() {
       }
 
       setAiSessionId(newConversation.id);
-      console.log('✅ AI mini-session created:', newConversation.id);
+      if (DEBUG_MODE) console.log('[AI] Mini-session created:', newConversation.id);
     
     // Build summary message for the agent (context for THIS pack only)
     const question = engine.QById[questionId];
@@ -1533,8 +1355,6 @@ export default function CandidateInterview() {
 
     const summaryMessage = summaryLines.join('\n');
 
-    console.log('📤 [AI MINI-SESSION] Sending context to agent');
-
     await base44.agents.addMessage(newConversation, {
       role: 'user',
       content: summaryMessage
@@ -1544,7 +1364,6 @@ export default function CandidateInterview() {
     const unsubscribe = base44.agents.subscribeToConversation(
       newConversation.id,
       (data) => {
-        console.log('📨 [AI MINI-SESSION] Message update');
         setAgentMessages(data.messages || []);
       }
     );
@@ -1578,7 +1397,7 @@ export default function CandidateInterview() {
   // NEW: Save invokeLLM-based probing exchanges directly
   const saveInvokeLLMProbingToDatabase = async (questionId, packId, exchanges, instanceNumber = 1) => {
     try {
-      console.log(`💾 Saving ${exchanges.length} invokeLLM probing exchanges for ${questionId}/${packId} (instance ${instanceNumber})`);
+      if (DEBUG_MODE) console.log(`[AI] Saving ${exchanges.length} probing exchanges`);
       
       const responses = await base44.entities.Response.filter({
         session_id: sessionId,
@@ -1604,12 +1423,6 @@ export default function CandidateInterview() {
       if (followUpResponses.length > 0) {
         const followUpResponse = followUpResponses[0];
         
-        console.log("[MI AI-SAVE BEFORE]", {
-          instanceNumber,
-          existingDetails: followUpResponse.additional_details || {},
-          probingExchangesCount: exchanges.length
-        });
-        
         const updatedDetails = {
           ...(followUpResponse.additional_details || {}),
           investigator_probing: exchanges
@@ -1619,12 +1432,7 @@ export default function CandidateInterview() {
           additional_details: updatedDetails
         });
         
-        console.log("[MI AI-SAVE AFTER]", {
-          instanceNumber,
-          updatedDetails: updatedDetails
-        });
-        
-        console.log(`✅ Saved ${exchanges.length} invokeLLM probing exchanges to instance ${instanceNumber}`);
+        if (DEBUG_MODE) console.log(`[AI] Saved ${exchanges.length} probing exchanges`);
       }
     } catch (err) {
       console.error('❌ Error saving invokeLLM probing:', err);
@@ -1698,7 +1506,7 @@ export default function CandidateInterview() {
   const saveProbingToDatabase = async (questionId, packId, messages) => {
     try {
       const instanceNumber = currentFollowUpPack?.instanceNumber || 1;
-      console.log(`💾 Saving AI probing exchanges for ${questionId}/${packId} (instance ${instanceNumber}) to database...`);
+      if (DEBUG_MODE) console.log(`[AI] Saving probing for ${questionId}/${packId}`);
       
       // Extract Q&A pairs from agent conversation
       const exchanges = [];
@@ -1769,7 +1577,7 @@ export default function CandidateInterview() {
         }
       }
       
-      console.log(`📊 Extracted ${exchanges.length} probing exchanges to save for instance ${instanceNumber}`);
+      if (DEBUG_MODE) console.log(`[AI] Extracted ${exchanges.length} probing exchanges`);
       
       if (exchanges.length > 0) {
         // Find the Response record for this question
@@ -1793,12 +1601,6 @@ export default function CandidateInterview() {
           if (followUpResponses.length > 0) {
             const followUpResponse = followUpResponses[0];
             
-            console.log("[MI AI-SAVE BEFORE]", {
-              instanceNumber,
-              existingDetails: followUpResponse.additional_details || {},
-              probingExchangesCount: exchanges.length
-            });
-            
             const updatedDetails = {
               ...(followUpResponse.additional_details || {}),
               investigator_probing: exchanges
@@ -1809,12 +1611,7 @@ export default function CandidateInterview() {
               additional_details: updatedDetails
             });
             
-            console.log("[MI AI-SAVE AFTER]", {
-              instanceNumber,
-              updatedDetails: updatedDetails
-            });
-            
-            console.log(`✅ Saved ${exchanges.length} probing exchanges to FollowUpResponse instance ${instanceNumber} (${followUpResponse.id})`);
+            if (DEBUG_MODE) console.log(`[AI] Saved ${exchanges.length} probing exchanges`);
           } else {
             console.error(`❌ No FollowUpResponse found for instance ${instanceNumber}`);
           }
@@ -1842,7 +1639,7 @@ export default function CandidateInterview() {
     );
     
     if (handoffMessage) {
-      console.log(`🎯 AI probing complete (handoff marker detected) for base question ${currentFollowUpPack.questionId} — delegating to follow-up completion handler`);
+      if (DEBUG_MODE) console.log('[AI] Handoff marker detected, completing probing');
       
       // Set flag to prevent re-processing
       setHandoffProcessed(true);
@@ -1891,7 +1688,7 @@ export default function CandidateInterview() {
         return;
       }
 
-      console.log(`✅ Agent sent next base question (legacy): ${nextQuestionId}`);
+      if (DEBUG_MODE) console.log('[AI] Agent sent next base question (legacy):', nextQuestionId);
 
       saveProbingToDatabase(currentFollowUpPack.questionId, currentFollowUpPack.packId, agentMessages);
 
@@ -1914,7 +1711,6 @@ export default function CandidateInterview() {
 
   const handleAnswer = useCallback(async (value) => {
     if (isCommitting || !currentItem || !engine) {
-      console.warn('⚠️ Already committing or no current item');
       return;
     }
 
@@ -1927,7 +1723,7 @@ export default function CandidateInterview() {
     }
 
     try {
-      console.log(`📝 Processing answer for ${currentItem.type}:`, value);
+      if (DEBUG_MODE) console.log(`[ANSWER] Processing ${currentItem.type}:`, value);
 
       if (currentItem.type === 'question') {
         // PRIMARY QUESTION
@@ -2033,7 +1829,7 @@ export default function CandidateInterview() {
             // IDEMPOTENCY: Check if this pack was already triggered for this base question
             const triggerKey = `${currentItem.id}:${packId}`;
             if (triggeredPacksRef.current.has(triggerKey)) {
-              console.log(`⏭️ Skipping duplicate pack trigger for ${packId} on base question ${currentItem.id}`);
+            if (DEBUG_MODE) console.log(`[SKIP] Duplicate pack trigger for ${packId}`);
               // Still advance to next question since the pack is already being handled
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
@@ -2054,7 +1850,7 @@ export default function CandidateInterview() {
             
             // Mark this pack as triggered
             triggeredPacksRef.current.add(triggerKey);
-            console.log(`🔔 Follow-up triggered: ${packId}`, substanceName ? `with substance: ${substanceName}` : '');
+            if (DEBUG_MODE) console.log(`[FOLLOWUP] Triggered: ${packId}`);
             
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
             
@@ -2086,7 +1882,7 @@ export default function CandidateInterview() {
               await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
             } else {
               // Empty or invalid pack - advance to next question
-              console.warn(`⚠️ Follow-up pack ${packId} has no steps or is invalid - advancing to next question`);
+              console.error(`Invalid pack ${packId} - advancing to next question`);
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
                 setQueue([]);
@@ -2094,7 +1890,6 @@ export default function CandidateInterview() {
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
               } else {
                 // No next question - interview complete
-                console.log('✅ No next question after empty/invalid follow-up pack - marking interview complete');
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -2119,21 +1914,15 @@ export default function CandidateInterview() {
           }
         } else {
           // CRITICAL FIX: "No" answer - ALWAYS advance to next question, NEVER trigger follow-ups
-          console.log(`➡️ Answer is "No" - skipping any follow-ups and advancing to next question`);
           const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-          
-          console.log(`🔍 Computing next question after ${currentItem.id}:`);
-          console.log(`   - Returned nextQuestionId: ${nextQuestionId}`);
           
           // RESTORED ORIGINAL LOGIC: If no next question, interview is complete
           if (nextQuestionId && engine.QById[nextQuestionId]) {
-            console.log(`✅ Advancing to next question: ${nextQuestionId}`);
             setQueue([]);
             setCurrentItem({ id: nextQuestionId, type: 'question' });
             await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
           } else {
             // No next question - interview complete
-            console.log(`✅ No next question found - marking interview complete`);
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(newTranscript, [], null);
@@ -2157,7 +1946,7 @@ export default function CandidateInterview() {
 
         // Auto-fill substance_name field if prefilled
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-          console.log(`💉 Auto-filling substance_name: ${step.PrefilledAnswer}`);
+          if (DEBUG_MODE) console.log(`[AUTO-FILL] substance_name`);
           
           const prefilledEntry = {
             id: `fu-${Date.now()}`,
@@ -2233,7 +2022,6 @@ export default function CandidateInterview() {
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
         
         if (!validation.valid) {
-          console.log(`❌ Validation failed: ${validation.hint}`);
           setValidationHint(validation.hint);
           setIsCommitting(false);
           
@@ -2257,7 +2045,7 @@ export default function CandidateInterview() {
           
           // Check if we're already probing this field (StrictMode guard)
           if (v2ProbingInProgressRef.current.has(probeKey)) {
-            console.log(`[V2-PER-FIELD] Already probing ${probeKey}, skipping duplicate`);
+            if (DEBUG_MODE) console.log(`[V2] Already probing ${probeKey}`);
             setIsCommitting(false);
             return;
           }
@@ -2283,32 +2071,22 @@ export default function CandidateInterview() {
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
           
-          // =====================================================================
-          // [AI-FOLLOWUP][V2-FIELD-ENTRY] Entry point for V2 per-field probing
-          // =====================================================================
-          const envInfo = getEnvironmentInfo();
-          console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
-            packId,
-            fieldKey,
-            instanceNumber,
-            sessionId,
-            environment: envInfo.nodeEnv,
-            runtimeEnv: envInfo.hostname,
-            isPreview: envInfo.isPreview,
-            isProduction: envInfo.isProduction,
-            normalizedAnswer: normalizedAnswer?.substring?.(0, 50) || normalizedAnswer,
-            probeCount,
-            maxAiFollowups,
-            isEmpty,
-            isNoRecall,
-            semanticStatus: semanticResult?.status
-          });
+          if (DEBUG_MODE) {
+            console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
+              packId,
+              fieldKey,
+              isEmpty,
+              isNoRecall,
+              probeCount,
+              maxAiFollowups
+            });
+          }
           
           // ============================================================================
           // HELPER: Complete field without probing (save & advance)
           // ============================================================================
           const completeV2FieldWithoutProbe = async () => {
-            console.log(`[V2-PER-FIELD] Completing field ${fieldKey} without probe`);
+            if (DEBUG_MODE) console.log(`[V2] Completing field ${fieldKey} without probe`);
             
             await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
             
@@ -2349,27 +2127,14 @@ export default function CandidateInterview() {
             !aiProbingDisabledForSession &&
             probeCount < maxAiFollowups;
           
-          // =====================================================================
-          // [V2 PROBING DECISION] Diagnostic log for decision-making
-          // =====================================================================
-          console.log('[V2 PROBING DECISION]', {
-            packId,
-            fieldKey,
-            answerValue: normalizedAnswer?.substring?.(0, 50),
-            isNoRecall,
-            isEmpty,
-            semanticStatus: semanticResult?.status,
-            flags: {
-              ENABLE_LIVE_AI_FOLLOWUPS,
-              aiProbingEnabled,
-              aiProbingDisabledForSession
-            },
-            counters: {
-              probeCount,
-              maxAiFollowups
-            },
-            willProbe: shouldProbe
-          });
+          if (DEBUG_MODE) {
+            console.log('[V2 DECISION]', {
+              fieldKey,
+              isEmpty,
+              isNoRecall,
+              willProbe: shouldProbe
+            });
+          }
           
           logAiProbeDebug('semanticResult', {
             packId,
@@ -2386,39 +2151,26 @@ export default function CandidateInterview() {
           
           // Check if AI probing is globally disabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
-            console.log('[V2 PROBING] Skipping probe: AI globally or session disabled');
+            if (DEBUG_MODE) console.log('[V2] Skipping probe: AI disabled');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // Max probes reached - accept current value and move on
           else if (probeCount >= maxAiFollowups) {
-            console.log('[V2 PROBING] Skipping probe: reached maxAiFollowups for this field', {
-              probeCount,
-              maxAiFollowups,
-            });
+            if (DEBUG_MODE) console.log('[V2] Max probes reached for field');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // NEW: Semantic gate - only probe if answer is vague/uncertain
           else if (!isEmpty && !isNoRecall) {
-            console.log('[V2 PROBING] Skipping probe: answer is clear/non-vague', {
-              answerValue: normalizedAnswer?.substring?.(0, 50),
-              semanticStatus: semanticResult?.status,
-            });
+            if (DEBUG_MODE) console.log('[V2] Skipping probe: answer is clear');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // Answer is vague/uncertain - proceed with probing
           else {
             try {
-              console.log('[V2 PROBING] Proceeding with backend probe', {
-                fieldKey,
-                answerValue: normalizedAnswer?.substring?.(0, 50),
-                isEmpty,
-                isNoRecall,
-                probeCount,
-                maxAiFollowups,
-              });
+              if (DEBUG_MODE) console.log('[V2] Calling backend probe for', fieldKey);
               
               logAiProbeDebug('triggerBackendCheck', {
                 packId,
@@ -2434,14 +2186,6 @@ export default function CandidateInterview() {
               // Mark as in progress
               v2ProbingInProgressRef.current.add(probeKey);
               
-              // Call backend to get AI probe decision
-              console.log(`[AI-FOLLOWUP][V2-REQUEST]`, {
-                packId,
-                fieldKey,
-                fieldValue: normalizedAnswer?.substring?.(0, 50),
-                previousProbesCount: probeCount
-              });
-              
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
                 fieldKey,
@@ -2455,18 +2199,17 @@ export default function CandidateInterview() {
               const rawQuestion = typeof v2Result?.question === "string" ? v2Result.question.trim() : "";
               const hasProbeQuestion = rawQuestion.length > 0;
 
-              console.log('[AI-FOLLOWUP][V2-RESPONSE]', {
-                packId,
-                fieldKey,
-                previousProbesCount: probeCount,
-                mode,
-                hasProbeQuestion,
-                raw: v2Result
-              });
+              if (DEBUG_MODE) {
+                console.log('[V2-RESPONSE]', {
+                  fieldKey,
+                  mode,
+                  hasProbeQuestion
+                });
+              }
 
               // Backend says probe needed - show AI question
               if (mode === 'QUESTION' || hasProbeQuestion) {
-                console.log(`[V2-PER-FIELD] Field ${fieldKey} needs probing → storing pending probe (mode=${mode})`);
+                if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} needs probing`);
                 
                 // Increment probe count for this field
                 setAiFollowupCounts(prev => ({
@@ -2524,7 +2267,6 @@ export default function CandidateInterview() {
                   probeEngineVersion: 'v2-per-field'
                 };
                 
-                console.log('[AI-PROBE-V2] Pending probe set', pendingProbeData);
                 setPendingProbe(pendingProbeData);
                 
                 const newTranscript = [...transcript, followupEntry];
@@ -2564,12 +2306,12 @@ export default function CandidateInterview() {
               
               // Backend says no probe needed - complete field
               v2ProbingInProgressRef.current.delete(probeKey);
-              console.log(`[V2-PER-FIELD] Backend says field ${fieldKey} is complete (mode=${mode})`);
+              if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} complete`);
               await completeV2FieldWithoutProbe();
               // Fall through to advance to next step
               
             } catch (err) {
-              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, err });
+              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, message: err?.message });
               v2ProbingInProgressRef.current.delete(probeKey);
               
               // On backend failure, fail open: save and advance
@@ -2631,12 +2373,6 @@ export default function CandidateInterview() {
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
         // Save to database - dates stored as plain text
-        console.log("[MI INSTANCES SNAPSHOT]", {
-          packId,
-          currentInstanceNumber: instanceNumber,
-          fieldKey: step.Field_Key,
-          answer: normalizedAnswer
-        });
         
         await saveFollowUpAnswer(packId, step.Field_Key, normalizedAnswer, substanceName, instanceNumber);
         
@@ -2663,17 +2399,11 @@ export default function CandidateInterview() {
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
         
         if (isLastFollowUp) {
-          console.log("[MI INSTANCE FINALIZED]", {
-            packId,
-            instanceNumber: currentItem.instanceNumber || 1,
-            allDeterministicAnswers: updatedFollowUpAnswers
-          });
-          
-          console.log(`🎯 Last follow-up in ${packId} completed`);
+          if (DEBUG_MODE) console.log(`[PACK] ${packId} completed`);
           
           // NEW: Check if we should skip probing for PACK_LE_APPS when hired
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
-            console.log(`✅ Skipping AI probing for PACK_LE_APPS (outcome: hired) - moving to next base question`);
+            if (DEBUG_MODE) console.log('[SKIP] PACK_LE_APPS hired, no probing');
             
             // Find the original question that triggered this pack
             const triggeringQuestion = [...newTranscript].reverse().find(t => 
@@ -2694,7 +2424,6 @@ export default function CandidateInterview() {
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
                 await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
               } else {
-                console.log('✅ No next base question after skipping AI probing - marking interview complete');
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -2718,7 +2447,7 @@ export default function CandidateInterview() {
             const baseQuestionId = currentItem.baseQuestionId;
             
             if (baseQuestionId && engine.QById[baseQuestionId]) {
-              console.log(`✅ Using stored baseQuestionId for AI handoff: ${baseQuestionId}`);
+              if (DEBUG_MODE) console.log('[AI] Using stored baseQuestionId for handoff');
               
               // Reset follow-up answers tracker
               setCurrentFollowUpAnswers({});
@@ -2739,7 +2468,7 @@ export default function CandidateInterview() {
               
               // FAIL-SAFE: If AI handoff failed, advance to next base question immediately
               if (!aiHandoffSuccessful) {
-                console.log('⚠️ AI handoff failed - skipping AI probing and advancing to next base question');
+                if (DEBUG_MODE) console.log('[AI] Handoff failed, advancing to next question');
                 advanceToNextBaseQuestion(baseQuestionId);
               }
             } else {
@@ -2757,7 +2486,7 @@ export default function CandidateInterview() {
               const fallbackQuestionId = triggeringAnswer?.questionId;
               
               if (fallbackQuestionId && engine.QById[fallbackQuestionId]) {
-                console.log(`⚠️ Using fallback baseQuestionId from transcript: ${fallbackQuestionId}`);
+                if (DEBUG_MODE) console.log('[FALLBACK] Using baseQuestionId from transcript');
                 setCurrentItem(null);
                 setQueue([]);
                 await persistStateToDatabase(newTranscript, [], null);
@@ -2810,15 +2539,6 @@ export default function CandidateInterview() {
         
         const question = engine.QById[questionId];
         
-        console.log("[MI ANSWER]", {
-          baseQuestionId: questionId,
-          baseQuestionCode: question?.question_id,
-          followupPackId: packId,
-          answer,
-          instanceNumber,
-          existingInstancesCount: instanceNumber - 1
-        });
-        
         // Add to transcript using functional update (single call to avoid duplicates)
         const transcriptEntry = {
           id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
@@ -2835,28 +2555,13 @@ export default function CandidateInterview() {
           const newTranscript = [...prev, transcriptEntry];
 
           if (answer === 'Yes') {
-            console.log("[MI DECISION]", {
-              action: "create_new_instance",
-              baseQuestionId: questionId,
-              baseQuestionCode: question?.question_id,
-              followupPackId: packId,
-              newInstanceNumber: instanceNumber + 1
-            });
+            if (DEBUG_MODE) console.log('[MI] Creating new instance', instanceNumber + 1);
 
             // Re-trigger the same follow-up pack for new instance
             const substanceName = question?.substance_name || null;
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
 
             if (packSteps && packSteps.length > 0) {
-              console.log("[MI INSTANCE NEW CREATED]", {
-                baseQuestionId: questionId,
-                baseQuestionCode: question?.question_id,
-                followupPackId: packId,
-                instanceNumber: instanceNumber + 1,
-                totalSteps: packSteps.length,
-                substanceName,
-                details: {}
-              });
 
               setCurrentFollowUpAnswers({});
 
@@ -2883,13 +2588,7 @@ export default function CandidateInterview() {
               persistStateToDatabase(newTranscript, remainingQueue, firstItem);
             }
           } else {
-            console.log("[MI DECISION]", {
-              action: "stop_multi_instance_and_advance",
-              baseQuestionId: questionId,
-              baseQuestionCode: question?.question_id,
-              followupPackId: packId,
-              recordedInstancesCount: instanceNumber
-            });
+            if (DEBUG_MODE) console.log('[MI] Stopping multi-instance, advancing');
 
             // No more instances - advance to next base question
             setCurrentItem(null);
@@ -2925,7 +2624,7 @@ export default function CandidateInterview() {
       const { packId, instanceNumber, fieldKey, semanticField, baseQuestionId, substanceName, currentItem: savedCurrentItem } = currentFieldProbe;
       const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
       
-      console.log(`[V2-PER-FIELD] Processing probe answer for ${fieldKey}:`, value);
+      if (DEBUG_MODE) console.log(`[V2] Processing probe answer for ${fieldKey}`);
       
       // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
       const maxAiFollowups = getPackMaxAiFollowups(packId);
@@ -2936,22 +2635,12 @@ export default function CandidateInterview() {
       const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
       const probeCount = aiFollowupCounts[fieldCountKey] || 0;
       
-      console.log(`[V2-PER-FIELD] Current probe count for ${fieldKey}: ${probeCount}/${maxAiFollowups}`);
-      
       // NEW: Now that candidate answered, log BOTH the probe question AND answer as a pair
       // This is the ONLY place probe events get added to transcript
       const currentProbeQuestion = currentFieldProbe.question;
       
       // Determine probeIndex from pendingProbe if available, else use probeCount - 1
       const probeIndex = pendingProbe?.probeIndex ?? (probeCount - 1);
-      
-      console.log('[AI-PROBE-V2] Logging probe Q&A', { 
-        baseQuestionId, 
-        fieldKey, 
-        probeIndex,
-        questionText: currentProbeQuestion?.substring(0, 50) + '...',
-        answerText: value.substring(0, 50) + '...'
-      });
       
       // Create AI probe QUESTION event (was pending, now being logged)
       const aiQuestionEntry = createChatEvent('ai_probe_question', {
@@ -2990,15 +2679,7 @@ export default function CandidateInterview() {
       aiAnswerEntry.role = 'candidate';
       aiAnswerEntry.label = 'Candidate';
       
-      console.debug('[AI-PROBE-TRANSCRIPT] Added Q&A pair', {
-        questionType: aiQuestionEntry.type,
-        answerType: aiAnswerEntry.type,
-        baseQuestionId: baseQuestionId,
-        followupPackId: packId,
-        fieldKey: fieldKey,
-        instanceNumber: instanceNumber,
-        probeIndex: probeIndex
-      });
+      if (DEBUG_MODE) console.debug('[AI-PROBE] Added Q&A pair');
       
       // Clear pendingProbe after logging
       setPendingProbe(null);
@@ -3011,12 +2692,11 @@ export default function CandidateInterview() {
       
       // Run semantic validation on the probe answer
       const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: value });
-      console.log(`[V2-SEMANTIC] Probe answer validation for ${fieldKey}:`, semanticResult);
       
       // Check if semantic validation passes now
       if (semanticResult.status === "valid") {
         // Valid answer - save and continue
-        console.log(`[V2-SEMANTIC] Probe answer is valid - saving fact and continuing`);
+        if (DEBUG_MODE) console.log('[V2] Probe answer valid, continuing');
         await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "ai_probed");
         
         // Field is now complete - clean up and advance
@@ -3081,7 +2761,7 @@ export default function CandidateInterview() {
       // Still invalid/unknown - check if we can probe again
       if (probeCount < maxAiFollowups) {
         // Can probe again - call backend for next question
-        console.log(`[V2-SEMANTIC] Probe answer still ${semanticResult.status} - probing again (${probeCount + 1}/${maxAiFollowups})`);
+        if (DEBUG_MODE) console.log(`[V2] Probing again (${probeCount + 1}/${maxAiFollowups})`);
         
         // Increment probe count BEFORE calling backend
         const newProbeCount = probeCount + 1;
@@ -3092,27 +2772,12 @@ export default function CandidateInterview() {
         
         setInput("");
         
-        // Call V2 to get next probe question - pass CURRENT probe count (before increment)
-        console.log('[V2-PER-FIELD] Calling backend for next probe question:', {
-          pack_id: packId,
-          field_key: fieldKey,
-          field_value: value,
-          previous_probes_count: probeCount
-        });
-        
         const v2Result = await callProbeEngineV2PerField(base44, {
           packId,
           fieldKey,
           fieldValue: value,
           previousProbesCount: probeCount,
           incidentContext: updatedAnswers
-        });
-        
-        console.log('[V2-PER-FIELD][RAW-RESPONSE]', {
-          packId,
-          fieldKey,
-          previousProbesCount: probeCount,
-          raw: v2Result
         });
         
         if (v2Result.mode === 'QUESTION') {
@@ -3128,7 +2793,6 @@ export default function CandidateInterview() {
             probeEngineVersion: 'v2-per-field-subsequent'
           };
           
-          console.log('[AI-PROBE-V2] Pending probe set (subsequent)', nextPendingProbe);
           setPendingProbe(nextPendingProbe);
           
           setFieldProbingState(prev => ({
@@ -3152,7 +2816,7 @@ export default function CandidateInterview() {
       }
       
       // Max probes reached or backend says done - mark as unresolved
-      console.log(`[V2-SEMANTIC] Max probes (${maxAiFollowups}) reached for ${fieldKey} - marking unresolved`);
+      if (DEBUG_MODE) console.log(`[V2] Max probes reached for ${fieldKey}`);
       const displayValue = fieldConfig?.unknownDisplayLabel || `Not recalled after ${probeCount} attempts`;
       await saveFollowUpAnswer(packId, fieldKey, displayValue, substanceName, instanceNumber, "ai_probed");
       
@@ -3247,14 +2911,7 @@ export default function CandidateInterview() {
         aiAnswerEntry.type = 'ai_answer';
         aiAnswerEntry.label = 'Candidate';
         
-        console.debug('[AI-PROBE-TRANSCRIPT] Added answer event (invokeLLM)', {
-          type: aiAnswerEntry.type,
-          baseQuestionId: currentFollowUpPack.questionId,
-          followupPackId: currentFollowUpPack.packId,
-          instanceNumber: currentFollowUpPack.instanceNumber,
-          probeIndex: probingSequence - 1,
-          text: value.substring(0, 50) + '...'
-        });
+        if (DEBUG_MODE) console.debug('[AI-PROBE] Added answer event');
         
         // Use functional update to ensure we have latest transcript
         setTranscript(prev => {
@@ -3269,7 +2926,6 @@ export default function CandidateInterview() {
         
         // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
         const maxAiFollowups = getPackMaxAiFollowups(currentFollowUpPack.packId);
-        console.log('[LIVE_AI_FOLLOWUP] Count', currentCount, '/', maxAiFollowups, 'for pack', currentFollowUpPack.packId);
         
         if (currentCount < maxAiFollowups) {
           // Ask another AI question
@@ -3323,14 +2979,7 @@ export default function CandidateInterview() {
               isProbe: true
             };
             
-            console.debug('[AI-PROBE-TRANSCRIPT] Added question event (invokeLLM)', {
-              type: nextAiQuestion.type,
-              baseQuestionId: currentFollowUpPack.questionId,
-              followupPackId: currentFollowUpPack.packId,
-              instanceNumber: currentFollowUpPack.instanceNumber,
-              probeIndex: newExchangeIndex - 1,
-              text: aiResult.followupQuestion.substring(0, 50) + '...'
-            });
+            if (DEBUG_MODE) console.debug('[AI-PROBE] Added question event');
             
             setTranscript(prev => {
               const updatedTranscript = [...prev, nextAiQuestion];
@@ -3344,7 +2993,7 @@ export default function CandidateInterview() {
         }
         
         // Done with AI probing - save all exchanges and continue interview
-        console.log(`💾 Saving ${updatedExchanges.length} invokeLLM probing exchanges for ${currentFollowUpPack.questionId}/${currentFollowUpPack.packId}`);
+        if (DEBUG_MODE) console.log(`[AI] Saving ${updatedExchanges.length} exchanges`);
         await saveInvokeLLMProbingToDatabase(
           currentFollowUpPack.questionId,
           currentFollowUpPack.packId,
@@ -3446,7 +3095,6 @@ export default function CandidateInterview() {
       });
       
       if (existing.length > 0) {
-        console.log(`ℹ️ Response for ${questionId} already exists, skipping`);
         return;
       }
       
@@ -3558,16 +3206,6 @@ export default function CandidateInterview() {
       }
       
       if (existingFollowups.length === 0) {
-        console.log("[MI SAVE-DET BEFORE]", {
-          action: "create",
-          baseQuestionId: triggeringResponse.question_id,
-          followupPackId: packId,
-          instanceNumber,
-          savingKey: fieldKey,
-          savingValue: answer,
-          existingDetails: null,
-          factsUpdate
-        });
         
         const createData = {
           session_id: sessionId,
@@ -3596,26 +3234,8 @@ export default function CandidateInterview() {
         if (packId === 'PACK_LE_APPS') {
             await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
         }
-        
-        console.log("[MI SAVE-DET AFTER]", {
-          action: "create",
-          instanceNumber,
-          createdRecordId: createdRecord.id,
-          updatedDetails: createData.additional_details
-        });
       } else {
         const existing = existingFollowups[0];
-        
-        console.log("[MI SAVE-DET BEFORE]", {
-          action: "update",
-          baseQuestionId: triggeringResponse.question_id,
-          followupPackId: packId,
-          instanceNumber,
-          savingKey: fieldKey,
-          savingValue: answer,
-          existingDetails: existing.additional_details || {},
-          factsUpdate
-        });
         
         const updatedDetails = {
           ...(existing.additional_details || {}),
@@ -3648,13 +3268,6 @@ export default function CandidateInterview() {
         if (packId === 'PACK_LE_APPS') {
             await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, updatedRecord);
         }
-        
-        console.log("[MI SAVE-DET AFTER]", {
-          action: "update",
-          instanceNumber,
-          existingFollowupId: existing.id,
-          updatedDetails: updatedDetails
-        });
       }
 
     } catch (err) {
@@ -3675,8 +3288,6 @@ export default function CandidateInterview() {
         completed_date: new Date().toISOString(),
         completion_percentage: 100,
       });
-
-      console.log('✅ Interview marked as completed');
       navigate(createPageUrl("Home"));
       
     } catch (err) {
@@ -3692,7 +3303,6 @@ export default function CandidateInterview() {
         status: 'paused'
       });
       setShowPauseModal(true);
-      console.log('⏸️ Interview paused');
     } catch (err) {
       console.error('❌ Error pausing interview:', err);
       toast.error('Failed to pause interview');
@@ -3790,7 +3400,6 @@ export default function CandidateInterview() {
       const step = packSteps[stepIndex];
       
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-        console.log(`⏩ Skipping auto-filled question in UI: ${step.Field_Key}`);
         const triggerAutoFill = () => {
           handleAnswer(step.PrefilledAnswer);
         };
