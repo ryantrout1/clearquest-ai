@@ -263,7 +263,22 @@ export default function FollowUpPackManagerV2() {
     );
   }
 
-  const rightWidth = 100 - leftWidth - middleWidth;
+  // Calculate widths dynamically based on collapsed state
+  const getEffectiveWidths = () => {
+    const collapsedWidth = 2.5; // ~40px as percentage of typical screen
+    
+    if (leftCollapsed && middleCollapsed) {
+      return { left: collapsedWidth, middle: collapsedWidth, right: 100 - collapsedWidth * 2 };
+    } else if (leftCollapsed) {
+      return { left: collapsedWidth, middle: middleWidth, right: 100 - collapsedWidth - middleWidth };
+    } else if (middleCollapsed) {
+      return { left: leftWidth, middle: collapsedWidth, right: 100 - leftWidth - collapsedWidth };
+    } else {
+      return { left: leftWidth, middle: middleWidth, right: 100 - leftWidth - middleWidth };
+    }
+  };
+  
+  const effectiveWidths = getEffectiveWidths();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
