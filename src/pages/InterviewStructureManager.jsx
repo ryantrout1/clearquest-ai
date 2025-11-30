@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, Lock, AlertCircle, ShieldAlert, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, Lock, AlertCircle, ShieldAlert, PanelLeftClose, PanelLeftOpen, CheckCircle2, Link2 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { getFollowupPackDisplay, getResponseTypeDisplay, FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../components/utils/followupPackNames";
@@ -142,12 +142,6 @@ export default function InterviewStructureManager() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Panel state
-  const [leftWidth, setLeftWidth] = useState(20);
-  const [middleWidth, setMiddleWidth] = useState(30);
-  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
-  const [isDraggingRight, setIsDraggingRight] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [middleCollapsed, setMiddleCollapsed] = useState(false);
 
@@ -346,71 +340,6 @@ export default function InterviewStructureManager() {
 
 
 
-  // Resizable dividers
-  const handleMouseDownLeft = (e) => {
-    e.preventDefault();
-    setIsDraggingLeft(true);
-  };
-
-  const handleMouseDownRight = (e) => {
-    e.preventDefault();
-    setIsDraggingRight(true);
-  };
-
-  useEffect(() => {
-    if (!isDraggingLeft && !isDraggingRight) return;
-
-    const handleMouseMove = (e) => {
-      const container = document.getElementById('interview-container');
-      if (!container) return;
-
-      const containerRect = container.getBoundingClientRect();
-      const mouseX = e.clientX - containerRect.left;
-      const totalWidth = containerRect.width;
-
-      if (isDraggingLeft) {
-        const newLeftWidth = (mouseX / totalWidth) * 100;
-        const clampedLeft = Math.min(Math.max(newLeftWidth, 15), 40);
-        setLeftWidth(clampedLeft);
-      } else if (isDraggingRight) {
-        const newMiddleEnd = (mouseX / totalWidth) * 100;
-        const newMiddleWidth = newMiddleEnd - leftWidth;
-        const clampedMiddle = Math.min(Math.max(newMiddleWidth, 20), 60);
-        setMiddleWidth(clampedMiddle);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingLeft(false);
-      setIsDraggingRight(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDraggingLeft, isDraggingRight, leftWidth]);
-
-  // Calculate widths dynamically based on collapsed state
-  const getEffectiveWidths = () => {
-    const collapsedWidth = 2.5;
-    
-    if (leftCollapsed && middleCollapsed) {
-      return { left: collapsedWidth, middle: collapsedWidth, right: 100 - collapsedWidth * 2 };
-    } else if (leftCollapsed) {
-      return { left: collapsedWidth, middle: middleWidth, right: 100 - collapsedWidth - middleWidth };
-    } else if (middleCollapsed) {
-      return { left: leftWidth, middle: collapsedWidth, right: 100 - leftWidth - collapsedWidth };
-    } else {
-      return { left: leftWidth, middle: middleWidth, right: 100 - leftWidth - middleWidth };
-    }
-  };
-  
-  const effectiveWidths = getEffectiveWidths();
-
   const recalculateGlobalQuestionNumbers = async () => {
     if (!sections || !questions) {
       toast.error('Sections or questions not loaded');
@@ -498,10 +427,7 @@ export default function InterviewStructureManager() {
             </span>
           </div>
         ) : (
-          <div 
-            style={{ width: `${effectiveWidths.left}%` }}
-            className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
-          >
+          <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: '20%' }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-white">Sections</h3>
               <div className="flex gap-1">
@@ -560,33 +486,22 @@ export default function InterviewStructureManager() {
                                   setSelectedSection(section);
                                   setSelectedItem({ type: 'section', data: section });
                                 }}
-                                className={`px-3 py-2 rounded-md transition-all cursor-pointer group ${
+                                className={`px-3 py-2.5 rounded-md transition-all cursor-pointer group ${
                                   isSelected
                                     ? 'bg-slate-700/50'
                                     : 'bg-transparent hover:bg-slate-800/30'
                                 }`}
                               >
-                                <div className="flex items-center gap-2.5">
-                                  <FolderOpen className={`w-4 h-4 flex-shrink-0 ${
-                                    isSelected ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
+                                <div className="flex items-start gap-2.5 mb-1.5">
+                                  <FolderOpen className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                                    isSelected ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'
                                   }`} />
                                   <div className="flex-1 min-w-0">
-                                   <h4 className={`text-base font-medium leading-tight ${
-                                     isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                                   <h4 className={`text-sm font-medium leading-tight ${
+                                     isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'
                                    }`}>
                                      {section.section_name}
                                    </h4>
-                                   <span className={`text-sm block mt-0.5 ${
-                                     isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
-                                   }`}>
-                                     {sectionQuestionsAll.length} questions ({activeCount} active)
-                                   </span>
-                                    {hasGate && (
-                                      <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400 mt-1 px-2 py-0.5">
-                                        <Lock className="w-3 h-3 mr-1" />
-                                        Gate
-                                      </Badge>
-                                    )}
                                   </div>
                                   <Switch
                                     checked={section.active !== false}
@@ -595,19 +510,32 @@ export default function InterviewStructureManager() {
                                       toggleSectionActive(e, section);
                                     }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="data-[state=checked]:bg-emerald-500 scale-75"
+                                    className="data-[state=checked]:bg-emerald-600 scale-75"
                                   />
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedItem({ type: 'section', data: section });
-                                    }}
-                                    className="text-slate-500 hover:text-white hover:bg-slate-700/50 h-7 w-7 p-0 opacity-0 group-hover:opacity-100"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </Button>
+                                </div>
+                                <div className="flex items-center gap-1.5 ml-6 flex-wrap">
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                                    isSelected 
+                                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30" 
+                                      : "bg-amber-500/15 text-amber-400/80 border-amber-500/20"
+                                  }`}>
+                                    <FileText className="w-3 h-3" />
+                                    {sectionQuestionsAll.length}
+                                  </span>
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                                    isSelected 
+                                      ? "bg-teal-500/20 text-teal-300 border-teal-500/30" 
+                                      : "bg-teal-500/15 text-teal-400/80 border-teal-500/20"
+                                  }`}>
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    {activeCount}
+                                  </span>
+                                  {hasGate && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                      <Lock className="w-3 h-3" />
+                                      Gate
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -621,17 +549,6 @@ export default function InterviewStructureManager() {
               </DragDropContext>
             )}
           </div>
-        )}
-
-        {/* Left Drag Handle */}
-        {!leftCollapsed && (
-          <div 
-            className={`w-1 flex-shrink-0 transition-colors ${
-              isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
-            }`}
-            onMouseDown={handleMouseDownLeft}
-            style={{ cursor: 'col-resize', userSelect: 'none' }}
-          />
         )}
 
         {/* Middle Panel - Questions List */}
@@ -649,103 +566,86 @@ export default function InterviewStructureManager() {
             </span>
           </div>
         ) : (
-          <div 
-            style={{ width: `${effectiveWidths.middle}%` }}
-            className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
-          >
-          <div className="p-4">
-            {!selectedSection ? (
-              <div className="text-center py-12">
-                <p className="text-slate-500 text-sm">Select a section to view questions</p>
-              </div>
-            ) : (
-              <>
-                {(() => {
-                  const sectionQuestions = questions.filter(q => q.section_id === selectedSection.id);
-                  const filtered = sectionQuestions.filter(q => {
-                    if (!searchTerm) return true;
-                    const search = searchTerm.toLowerCase();
+          <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: leftCollapsed ? '35%' : '30%' }}>
+            <div className="p-4">
+              {!selectedSection ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 text-sm">Select a section to view questions</p>
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    const sectionQuestions = questions.filter(q => q.section_id === selectedSection.id);
+                    const filtered = sectionQuestions.filter(q => {
+                      if (!searchTerm) return true;
+                      const search = searchTerm.toLowerCase();
+                      return (
+                        q.question_text?.toLowerCase().includes(search) ||
+                        q.question_id?.toLowerCase().includes(search) ||
+                        q.followup_pack?.toLowerCase().includes(search)
+                      );
+                    });
+                    
                     return (
-                      q.question_text?.toLowerCase().includes(search) ||
-                      q.question_id?.toLowerCase().includes(search) ||
-                      q.followup_pack?.toLowerCase().includes(search)
-                    );
-                  });
-                  
-                  return (
-                    <>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-lg font-semibold text-white">
-                          {selectedSection.section_name}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-500">
-                            {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
-                          </span>
-                          <button 
-                            onClick={() => setMiddleCollapsed(true)}
-                            className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
-                            title="Collapse panel"
-                          >
-                            <PanelLeftClose className="w-4 h-4" />
-                          </button>
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold text-white">
+                            {selectedSection.section_name}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-500">
+                              {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
+                            </span>
+                            <button 
+                              onClick={() => setMiddleCollapsed(true)}
+                              className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                              title="Collapse panel"
+                            >
+                              <PanelLeftClose className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="mb-3">
-                        <Input
-                          placeholder="Search questions..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                        <div className="mb-3">
+                          <Input
+                            placeholder="Search questions..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                          />
+                        </div>
+
+                        <Button
+                          onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 w-full mb-3"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add Question
+                        </Button>
+
+                        <QuestionsList
+                          section={selectedSection}
+                          questions={questions}
+                          categories={categories}
+                          followUpPacks={followUpPacks}
+                          searchTerm={searchTerm}
+                          selectedItem={selectedItem}
+                          setSelectedItem={setSelectedItem}
+                          toggleQuestionActive={toggleQuestionActive}
+                          onDragEnd={handleQuestionDragEnd}
                         />
-                      </div>
-
-                      <Button
-                        onClick={() => setSelectedItem({ type: 'new-question', sectionId: selectedSection.id, sectionName: selectedSection.section_name })}
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 w-full mb-3"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Question
-                      </Button>
-
-                      <QuestionsList
-                        section={selectedSection}
-                        questions={questions}
-                        categories={categories}
-                        followUpPacks={followUpPacks}
-                        searchTerm={searchTerm}
-                        selectedItem={selectedItem}
-                        setSelectedItem={setSelectedItem}
-                        toggleQuestionActive={toggleQuestionActive}
-                        onDragEnd={handleQuestionDragEnd}
-                      />
-                    </>
-                  );
-                })()}
-              </>
-            )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        )}
-
-        {/* Right Drag Handle */}
-        {!middleCollapsed && (
-          <div 
-            className={`w-1 flex-shrink-0 transition-colors ${
-              isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
-            }`}
-            onMouseDown={handleMouseDownRight}
-            style={{ cursor: 'col-resize', userSelect: 'none' }}
-          />
         )}
 
         {/* Right Panel - Details */}
-        <div 
-          style={{ width: `${effectiveWidths.right}%` }}
-          className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
-        >
+        <div className="overflow-auto bg-slate-900/30 backdrop-blur-sm flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600">
           <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
@@ -897,13 +797,19 @@ function QuestionsList({ section, questions, categories, followUpPacks, searchTe
                             />
                           </div>
                           
-                          <div className="flex gap-1 flex-wrap mt-1.5">
-                            <span className="text-sm text-slate-500">
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-500/20 text-slate-300 border border-slate-500/30">
                               {getResponseTypeDisplay(question.response_type)}
                             </span>
                             {question.followup_pack && (
-                              <span className="text-sm text-purple-400">
-                                • {question.followup_pack}
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                <Link2 className="w-3 h-3" />
+                                {question.followup_pack}
+                              </span>
+                            )}
+                            {question.followup_multi_instance && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                Multi
                               </span>
                             )}
                           </div>
