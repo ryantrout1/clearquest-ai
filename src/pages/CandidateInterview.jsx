@@ -4155,24 +4155,6 @@ export default function CandidateInterview() {
         {/* Header */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-2">
           <div className="max-w-5xl mx-auto">
-            {/* Section Header */}
-            {activeSection && sections.length > 0 && (
-              <div className="mb-3 pb-2 border-b border-slate-700/50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-blue-400">
-                      Section {currentSectionIndex + 1} of {sections.length}: {activeSection.displayName}
-                    </div>
-                    {activeSection.description && (
-                      <div className="text-xs text-slate-400 mt-0.5">
-                        {activeSection.description}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <img 
@@ -4212,24 +4194,89 @@ export default function CandidateInterview() {
             </div>
             
             <div>
-              <div 
-                className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress}
-                aria-label={`Interview progress: ${progress}% complete`}
-              >
-                <div 
-                  className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full transition-all duration-500 ease-out"
-                  style={{ 
-                    width: `${progress}%`,
-                    boxShadow: progress > 0 ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none'
-                  }}
-                />
-              </div>
+              {/* Segmented Overall Bar - one segment per section */}
+              {(() => {
+                // Build section progress data
+                const sectionProgressData = sections.map((section, idx) => {
+                  const sectionQuestionIds = section.questionIds || [];
+                  const totalInSection = sectionQuestionIds.length;
+                  const answeredInSection = transcript.filter(t => 
+                    t.type === 'question' && sectionQuestionIds.includes(t.questionId)
+                  ).length;
+                  return {
+                    sectionId: section.id,
+                    sectionName: section.displayName,
+                    index: idx,
+                    totalQuestions: totalInSection,
+                    answeredQuestions: answeredInSection
+                  };
+                });
+                
+                const totalQuestionsAllSections = sectionProgressData.reduce((sum, s) => sum + s.totalQuestions, 0);
+                
+                return (
+                  <div 
+                    className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden flex"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progress}
+                    aria-label={`Interview progress: ${progress}% complete`}
+                  >
+                    {sectionProgressData.map((s, idx) => {
+                      const widthPct = totalQuestionsAllSections > 0 
+                        ? (s.totalQuestions / totalQuestionsAllSections) * 100 
+                        : 0;
+                      const completion = s.totalQuestions === 0 
+                        ? 0 
+                        : s.answeredQuestions / s.totalQuestions;
+                      const isCurrent = s.index === currentSectionIndex;
+                      const isComplete = completion >= 1;
+                      const isPending = !isCurrent && !isComplete;
+                      
+                      return (
+                        <div
+                          key={s.sectionId}
+                          className={`h-full relative transition-all duration-300 ${
+                            idx === 0 ? 'rounded-l-full' : ''
+                          } ${
+                            idx === sectionProgressData.length - 1 ? 'rounded-r-full' : ''
+                          } ${
+                            isComplete 
+                              ? 'bg-gradient-to-r from-green-500 to-green-600' 
+                              : isPending 
+                                ? 'bg-slate-700/50 border-r border-slate-600/30' 
+                                : 'bg-slate-700/50 border-r border-slate-600/30'
+                          }`}
+                          style={{ 
+                            width: `${widthPct}%`,
+                            boxShadow: isComplete ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none'
+                          }}
+                        >
+                          {/* Inner fill for current section */}
+                          {isCurrent && !isComplete && (
+                            <div
+                              className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500 ease-out"
+                              style={{ 
+                                width: `${completion * 100}%`,
+                                borderRadius: idx === 0 ? '9999px 0 0 9999px' : '0',
+                                boxShadow: completion > 0 ? '0 0 8px rgba(34, 197, 94, 0.5)' : 'none'
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[10px] text-slate-300">Overall</span>
+                <span className="text-[10px] text-slate-300">
+                  Overall
+                  {activeSection && sections.length > 0 && (
+                    <> • Section {currentSectionIndex + 1} of {sections.length}: {activeSection.displayName}</>
+                  )}
+                </span>
                 <div className="flex items-center gap-2">
                   <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
                   <span className="text-xs font-medium text-green-400">{progress}%</span>
