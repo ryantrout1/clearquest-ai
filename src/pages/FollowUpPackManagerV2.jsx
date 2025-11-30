@@ -63,17 +63,8 @@ export default function FollowUpPackManagerV2() {
     enabled: !!user
   });
 
-  // Filter packs based on showLegacyPacks and showActiveOnly toggles
-  const packs = useMemo(() => {
-    let filtered = allPacks;
-    if (!showLegacyPacks) {
-      filtered = filtered.filter(pack => pack.is_standard_cluster === true);
-    }
-    if (showActiveOnly) {
-      filtered = filtered.filter(pack => pack.active !== false);
-    }
-    return filtered;
-  }, [allPacks, showLegacyPacks, showActiveOnly]);
+  // Show all packs (no filtering)
+  const packs = allPacks;
 
   const { data: allQuestions = [] } = useQuery({
     queryKey: ['followUpQuestions'],
