@@ -1760,6 +1760,25 @@ export async function bootstrapEngine(base44) {
     // DEBUG: Print full section order summary
     debugPrintSectionOrderSummary(engineState, sections);
 
+    // V2 PACK DEBUG: Print detailed info for PACK_PRIOR_LE_APPS_STANDARD
+    const priorLePack = v2Packs.find(p => p.followup_pack_id === 'PACK_PRIOR_LE_APPS_STANDARD');
+    if (priorLePack) {
+      const packSteps = PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'] || [];
+      console.log('\n[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD meta:', {
+        packId: priorLePack.followup_pack_id,
+        packName: priorLePack.pack_name,
+        isStandardCluster: priorLePack.is_standard_cluster,
+        active: priorLePack.active,
+        maxAiFollowups: priorLePack.max_ai_followups,
+        aiProbeInstructions: priorLePack.ai_probe_instructions ? 'present' : 'missing',
+        fixedQuestionsCount: packSteps.length,
+        isInPackStepsById: !!PackStepsById['PACK_PRIOR_LE_APPS_STANDARD'],
+        isV2Pack: packSteps.length > 0 && packSteps[0]?.IsV2
+      });
+    } else {
+      console.warn('[V2 PACK DEBUG] PACK_PRIOR_LE_APPS_STANDARD not found in v2Packs array');
+    }
+
     const elapsed = performance.now() - startTime;
     console.log(`✅ Engine bootstrapped successfully in ${elapsed.toFixed(2)}ms`);
     console.log(`   - Architecture: SECTION-FIRST (Section entities) + V2 Packs`);

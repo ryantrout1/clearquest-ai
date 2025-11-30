@@ -972,6 +972,12 @@ export default function CandidateInterview() {
       return;
     }
     
+    console.log('[V2 PROBE DECISION] Pack completed, checking if probing needed', {
+      baseQuestionId,
+      packId,
+      questionCode: question?.question_id
+    });
+    
     // Check if multi-instance is enabled for this question
     if (question.followup_multi_instance) {
       const maxInstances = question.max_instances_per_question || 5;
@@ -1222,7 +1228,14 @@ export default function CandidateInterview() {
     }
 
     // NEW: Check feature flag and attempt invokeLLM-based AI (lightweight alternative)
+    // This is pack-level probing for LEGACY packs (not V2 per-field packs)
     if (ENABLE_LIVE_AI_FOLLOWUPS) {
+      console.log('[V2 PROBE DECISION] Legacy pack-level probing check', {
+        packId,
+        aiProbingEnabled,
+        aiProbingDisabledForSession
+      });
+      
       // Check if we've reached the AI follow-up limit for this pack instance
       const countKey = `${packId}:${instanceNumber}`;
       const currentCount = aiFollowupCounts[countKey] || 0;
