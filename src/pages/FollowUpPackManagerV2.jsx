@@ -443,7 +443,7 @@ export default function FollowUpPackManagerV2() {
 
         {/* Right Panel - Pack Details */}
         <div 
-          style={{ width: `${rightWidth}%` }}
+          style={{ width: `${effectiveWidths.right}%` }}
           className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
         >
           <div className="p-4">
