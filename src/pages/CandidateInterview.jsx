@@ -2310,6 +2310,7 @@ export default function CandidateInterview() {
 
               v2ProbingInProgressRef.current.add(probeKey);
 
+              const t0 = performance.now();
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
                 fieldKey,
@@ -2319,6 +2320,14 @@ export default function CandidateInterview() {
                 semanticStatus: semanticResult?.status,
                 isEmpty,
                 isNoRecall
+              });
+              const t1 = performance.now();
+              
+              console.log('[V2 PROBING][FRONTEND] Per-field probe latency (ms):', (t1 - t0).toFixed(0), {
+                packId,
+                fieldKey,
+                instanceNumber,
+                probeCount
               });
 
               const mode = v2Result?.mode;
@@ -2909,12 +2918,21 @@ export default function CandidateInterview() {
         
         setInput("");
         
+        const t0 = performance.now();
         const v2Result = await callProbeEngineV2PerField(base44, {
           packId,
           fieldKey,
           fieldValue: value,
           previousProbesCount: probeCount,
           incidentContext: updatedAnswers
+        });
+        const t1 = performance.now();
+        
+        console.log('[V2 PROBING][FRONTEND] Per-field probe latency (ms):', (t1 - t0).toFixed(0), {
+          packId,
+          fieldKey,
+          instanceNumber,
+          probeCount
         });
         
         if (v2Result.mode === 'QUESTION') {

@@ -1863,6 +1863,9 @@ Generate ONE specific follow-up question to get a clearer answer for the "${fiel
     console.log(`[V2-LLM] Calling InvokeLLM for pack=${packId}, field=${fieldName}, probeCount=${probeCount}`);
     console.log(`[V2-LLM] AI Config: model=${aiConfig.model}, temp=${aiConfig.temperature}, max_tokens=${aiConfig.max_tokens}`);
     
+    // TIMING: Start LLM latency measurement
+    const t0 = Date.now();
+    
     // Call InvokeLLM with unified instructions AND AI runtime config
     const result = await base44Client.integrations.Core.InvokeLLM({
       prompt: `${instructions}\n\n${userPrompt}`,
@@ -1871,6 +1874,17 @@ Generate ONE specific follow-up question to get a clearer answer for the "${fiel
       temperature: aiConfig.temperature,
       max_tokens: aiConfig.max_tokens,
       top_p: aiConfig.top_p
+    });
+    
+    const t1 = Date.now();
+    
+    // TIMING: Log LLM latency with context
+    console.log('[V2 PROBING][BACKEND] LLM latency (ms):', (t1 - t0), {
+      pack_id: packId,
+      field_key: fieldKey,
+      semanticRole: fieldName,
+      probeCount,
+      model: aiConfig.model
     });
     
     const question = result?.trim();
