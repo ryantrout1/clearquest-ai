@@ -790,6 +790,229 @@ export const FOLLOWUP_PACK_CONFIGS = {
         factsOrder: 6
       }
     ]
+  },
+
+  // Prior Law Enforcement Applications pack (v2.5)
+  "PACK_PRIOR_LE_APPS_STANDARD": {
+    packId: "PACK_PRIOR_LE_APPS_STANDARD",
+    supportedBaseQuestions: ["Q001"],
+    instancesLabel: "Prior LE Applications",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      {
+        fieldKey: "PACK_PRLE_Q01",
+        semanticKey: "agency_type",
+        label: "Type of Agency",
+        factsLabel: "Agency Type",
+        inputType: "text",
+        placeholder: "e.g., Municipal Police, County Sheriff, State Police",
+        required: true,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after probing",
+        validation: {
+          type: "agency_name",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q02",
+        semanticKey: "time_period",
+        label: "Application Time Period",
+        factsLabel: "Time Period",
+        inputType: "month_year",
+        placeholder: "e.g., June 2020 or around 2019",
+        required: true,
+        aiProbingEnabled: true,
+        probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled after probing",
+        validation: {
+          type: "month_year",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 3,
+          mustContainLetters: false
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q03",
+        semanticKey: "stage_reached",
+        label: "Stage Reached",
+        factsLabel: "Stage Reached",
+        inputType: "select_single",
+        placeholder: "Select stage",
+        options: ["Written Test", "Physical Test", "Interview", "Background Investigation", "Polygraph", "Psychological", "Medical", "Academy", "Other"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 3,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        validation: {
+          type: "outcome",
+          allowUnknown: true,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q04",
+        semanticKey: "outcome",
+        label: "Outcome",
+        factsLabel: "Outcome",
+        inputType: "select_single",
+        placeholder: "Select outcome",
+        options: ["Hired", "Not Selected", "Withdrew", "Disqualified", "Still in Process", "Other"],
+        required: true,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 4,
+        includeInInstanceHeader: true,
+        headerOrder: 3,
+        includeInNarrative: true,
+        allowUnknown: true,
+        validation: {
+          type: "outcome",
+          allowUnknown: true,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q05",
+        semanticKey: "background_concerns",
+        label: "Background Concerns Identified",
+        factsLabel: "Background Concerns",
+        inputType: "textarea",
+        placeholder: "Describe any concerns identified during the background investigation",
+        required: false,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 5,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not specified",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q06",
+        semanticKey: "withdrew",
+        label: "Withdrew Application",
+        factsLabel: "Withdrew",
+        inputType: "yes_no",
+        placeholder: "Did you withdraw?",
+        required: false,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 6,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "yes_no",
+          allowUnknown: false,
+          minLength: 1
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q07",
+        semanticKey: "prior_disclosure",
+        label: "Prior Disclosure",
+        factsLabel: "Previously Disclosed",
+        inputType: "yes_no",
+        placeholder: "Have you disclosed this before?",
+        required: false,
+        aiProbingEnabled: false,
+        includeInFacts: true,
+        factsOrder: 7,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: false,
+        validation: {
+          type: "yes_no",
+          allowUnknown: false,
+          minLength: 1
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q08",
+        semanticKey: "preventive_steps",
+        label: "Changes/Improvements Since",
+        factsLabel: "Steps Taken",
+        inputType: "textarea",
+        placeholder: "What changes or improvements have you made since?",
+        required: false,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 8,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not specified",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q09",
+        semanticKey: "location_general",
+        label: "Agency Location (city/state)",
+        factsLabel: "Location",
+        inputType: "text",
+        placeholder: "e.g., Phoenix, AZ",
+        required: false,
+        aiProbingEnabled: true,
+        includeInFacts: true,
+        factsOrder: 9,
+        includeInInstanceHeader: false,
+        includeInNarrative: true,
+        allowUnknown: true,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not recalled",
+        validation: {
+          type: "free_text",
+          allowUnknown: true,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        }
+      }
+    ]
   }
 };
 

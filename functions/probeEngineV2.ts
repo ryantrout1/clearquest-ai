@@ -1004,6 +1004,35 @@ const PACK_CONFIG = {
       "PACK_PRESCRIPTION_MISUSE_STANDARD_Q15": "prevention_steps",
     },
   },
+  
+  // Prior Law Enforcement Applications pack (v2.5)
+  PACK_PRIOR_LE_APPS_STANDARD: {
+    id: "PACK_PRIOR_LE_APPS_STANDARD",
+    requiredFields: ["agency_type", "time_period", "stage_reached", "outcome"],
+    priorityOrder: ["agency_type", "time_period", "stage_reached", "outcome", "background_concerns", "withdrew", "prior_disclosure", "preventive_steps", "location_general"],
+    fieldKeyMap: {
+      // Semantic field mappings
+      "agency_type": "agency_type",
+      "time_period": "time_period",
+      "stage_reached": "stage_reached",
+      "outcome": "outcome",
+      "background_concerns": "background_concerns",
+      "withdrew": "withdrew",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+      "location_general": "location_general",
+      // Question code mappings
+      "PACK_PRLE_Q01": "agency_type",
+      "PACK_PRLE_Q02": "time_period",
+      "PACK_PRLE_Q03": "stage_reached",
+      "PACK_PRLE_Q04": "outcome",
+      "PACK_PRLE_Q05": "background_concerns",
+      "PACK_PRLE_Q06": "withdrew",
+      "PACK_PRLE_Q07": "prior_disclosure",
+      "PACK_PRLE_Q08": "preventive_steps",
+      "PACK_PRLE_Q09": "location_general",
+    },
+  },
 };
 
 /**
@@ -1982,39 +2011,21 @@ async function probeEngineV2(input, base44Client) {
   }
   
   if (!packConfig) {
-    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id} - using generic validation`);
+    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id} - failing closed (no generic probe)`);
     
-    // For unsupported packs, still apply global semantic rules
+    // For unsupported packs, fail closed - do NOT generate generic probes
+    // This prevents confusing "be more specific" questions when pack-specific behavior was expected
     const semanticInfo = semanticV2EvaluateAnswer(field_key, field_value, incident_context);
     
-    // If the answer looks like "no recall", trigger a generic probe
-    if (semanticInfo.status === "needs_probe") {
-      const genericProbe = `You mentioned "${field_value || '(no answer)'}". Could you please provide a more specific answer?`;
-      return {
-        mode: "QUESTION",
-        pack_id,
-        field_key,
-        semanticField: field_key,
-        question: genericProbe,
-        validationResult: "incomplete",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField: 3,
-        isFallback: true,
-        probeSource: 'generic_unsupported_pack',
-        semanticInfo,
-        message: `Generic probe for unsupported pack ${pack_id}`
-      };
-    }
-    
-    // If answer seems valid, just proceed
     return { 
       mode: "NEXT_FIELD", 
       pack_id,
       field_key,
       semanticField: field_key,
-      validationResult: "complete",
+      validationResult: "skipped_unsupported_pack",
+      hasProbeQuestion: false,
       semanticInfo,
-      message: `Unsupported pack ${pack_id} - accepting answer` 
+      message: `Pack ${pack_id} not configured for V2 probing - accepting answer without probe` 
     };
   }
 
