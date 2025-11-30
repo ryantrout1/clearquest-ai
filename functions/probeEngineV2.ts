@@ -1154,7 +1154,8 @@ function validateField(fieldName, value, incidentContext = {}) {
     case "employment_dates":
     case "collisionDate":
     case "violationDate":
-    case "incidentDate": {
+    case "incidentDate":
+    case "TIMELINE": {
       // Check for any year pattern (4 digits) or approximate terms
       const hasYear = /\b(19|20)\d{2}\b/.test(normalized);
       const hasApproximate = /(early|late|mid|around|about|spring|summer|fall|winter|beginning|end)/i.test(normalized);

@@ -368,6 +368,11 @@ export default function CandidateInterview() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // NEW: Section-based state
+  const [sections, setSections] = useState([]);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const activeSection = sections[currentSectionIndex] || null;
+  
   // Queue-based state (persisted to DB for resume)
   const [transcript, setTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
@@ -586,6 +591,14 @@ export default function CandidateInterview() {
       // Step 2: Bootstrap engine
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
+      
+      // Step 2.5: Build sections from engine metadata
+      const orderedSections = buildSectionsFromEngine(engineData);
+      setSections(orderedSections);
+      
+      // Determine initial section index from session state
+      const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
+      setCurrentSectionIndex(initialSectionIndex);
       
       // Step 5: Restore state from snapshots or rebuild from responses
       const hasValidSnapshots = loadedSession.transcript_snapshot && 
@@ -895,75 +908,90 @@ export default function CandidateInterview() {
       return;
     }
 
-    const currentSectionId = currentQuestion.section_id;
-    const currentSectionIndex = engine.Sections.findIndex(s => s.id === currentSectionId);
-
-    // Compute next question in linear flow
-    const nextQuestionId = computeNextQuestionId(engine, baseQuestionId, 'Yes');
+    // NEW: Section-aware advancement
+    // Check if current section is complete
+    const sectionComplete = isSectionComplete(activeSection, engine, transcript, queue, currentItem);
     
-    if (nextQuestionId && engine.QById[nextQuestionId]) {
-      const nextQuestion = engine.QById[nextQuestionId];
-      const nextSectionId = nextQuestion.section_id;
-      const nextSectionIndex = engine.Sections.findIndex(s => s.id === nextSectionId);
-
-      const isSectionTransition = currentSectionId !== nextSectionId;
-
-      if (isSectionTransition) {
-        
-        // Add section completion message to transcript
-        const completionMessage = {
-          id: `section-complete-${Date.now()}`,
-          type: 'system_message',
-          content: `You've completed the ${engine.Sections[currentSectionIndex]?.section_name} section. Moving to ${engine.Sections[nextSectionIndex]?.section_name}...`,
-          timestamp: new Date().toISOString(),
-          kind: 'section_completion',
-          role: 'system'
-        };
-        
-        const newTranscript = [...transcript, completionMessage];
-        setTranscript(newTranscript);
-        
-        setQueue([]);
-        setCurrentItem({ id: nextQuestionId, type: 'question' });
-        await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
-        } else {
-        setQueue([]);
-        setCurrentItem({ id: nextQuestionId, type: 'question' });
-        await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
-        }
-        } else {
-        // CRITICAL: Only mark complete if we're truly at the end
-        const lastSectionIndex = engine.Sections.length - 1;
-        const lastSection = engine.Sections[lastSectionIndex];
-        const questionsInLastSection = Object.values(engine.QById).filter(
-        q => q.section_id === lastSection.id && q.active !== false
-        );
-        const lastQuestionInLastSection = questionsInLastSection[questionsInLastSection.length - 1];
-
-        if (currentSectionIndex === lastSectionIndex && baseQuestionId === lastQuestionInLastSection?.id) {
-        
-        // Add completion message to transcript
-        const completionMessage = {
-          id: `interview-complete-${Date.now()}`,
-          type: 'system_message',
-          content: 'Interview complete! Thank you for your thorough and honest responses.',
-          timestamp: new Date().toISOString(),
-          kind: 'interview_complete',
-          role: 'system'
-        };
-        
-        const newTranscript = [...transcript, completionMessage];
-        setTranscript(newTranscript);
-        
-        setCurrentItem(null);
-        setQueue([]);
-        await persistStateToDatabase(newTranscript, [], null);
-        setShowCompletionModal(true);
-        } else {
-        setShowCompletionModal(true);
-        }
-        }
-        }, [engine, transcript]);
+    if (sectionComplete && currentSectionIndex < sections.length - 1) {
+      // Move to next section
+      const nextSectionIndex = currentSectionIndex + 1;
+      const nextSection = sections[nextSectionIndex];
+      
+      // Add section completion message
+      const completionMessage = {
+        id: `section-complete-${Date.now()}`,
+        type: 'system_message',
+        content: `Section complete: ${activeSection.displayName}. Next we'll move into: ${nextSection.displayName}.`,
+        timestamp: new Date().toISOString(),
+        kind: 'section_completion',
+        role: 'system'
+      };
+      
+      const newTranscript = [...transcript, completionMessage];
+      setTranscript(newTranscript);
+      setCurrentSectionIndex(nextSectionIndex);
+      
+      // Get first question of next section
+      const nextQuestionId = nextSection.questionIds[0];
+      setQueue([]);
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+      return;
+    }
+    
+    // Get next question within current section or move to next section
+    const nextQuestionId = getNextQuestionInSection(activeSection, engine, transcript);
+    
+    if (nextQuestionId) {
+      // Stay in current section
+      setQueue([]);
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      return;
+    }
+    
+    // No more questions in section - check if we can move to next section
+    if (currentSectionIndex < sections.length - 1) {
+      const nextSectionIndex = currentSectionIndex + 1;
+      const nextSection = sections[nextSectionIndex];
+      
+      const completionMessage = {
+        id: `section-complete-${Date.now()}`,
+        type: 'system_message',
+        content: `Section complete: ${activeSection.displayName}. Next we'll move into: ${nextSection.displayName}.`,
+        timestamp: new Date().toISOString(),
+        kind: 'section_completion',
+        role: 'system'
+      };
+      
+      const newTranscript = [...transcript, completionMessage];
+      setTranscript(newTranscript);
+      setCurrentSectionIndex(nextSectionIndex);
+      
+      const nextQuestionId = nextSection.questionIds[0];
+      setQueue([]);
+      setCurrentItem({ id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+    } else {
+      // Last section complete - end interview
+      const completionMessage = {
+        id: `interview-complete-${Date.now()}`,
+        type: 'system_message',
+        content: 'Interview complete! Thank you for your thorough and honest responses.',
+        timestamp: new Date().toISOString(),
+        kind: 'interview_complete',
+        role: 'system'
+      };
+      
+      const newTranscript = [...transcript, completionMessage];
+      setTranscript(newTranscript);
+      
+      setCurrentItem(null);
+      setQueue([]);
+      await persistStateToDatabase(newTranscript, [], null);
+      setShowCompletionModal(true);
+    }
+  }, [engine, transcript, sections, currentSectionIndex, activeSection, isSectionComplete, getNextQuestionInSection, queue, currentItem]);
 
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine.QById[baseQuestionId];
@@ -1827,59 +1855,12 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, combinedEntry];
         setTranscript(newTranscript);
         
-        // Detect section transition BEFORE advancing to next question
-        const detectAndSetSectionTransition = (currentQuestionId, answerValue) => {
-          // Compute what the next question will be
-          let nextQuestionId = null;
-          
-          if (answerValue === 'Yes') {
-            // Check if follow-up will be triggered
-            const followUpResult = checkFollowUpTrigger(engine, currentQuestionId, answerValue);
-            if (followUpResult) {
-              // Follow-up will be triggered, so section transition won't happen immediately
-              return;
-            }
-          }
-          
-          // Get next base question
-          nextQuestionId = computeNextQuestionId(engine, currentQuestionId, answerValue);
-          
-          if (nextQuestionId && engine.QById[nextQuestionId]) {
-            const nextQuestion = engine.QById[nextQuestionId];
-            const currentSectionId = question.section_id;
-            const nextSectionId = nextQuestion.section_id;
-            
-            const isSectionTransition = currentSectionId && nextSectionId && currentSectionId !== nextSectionId;
-            
-            if (isSectionTransition) {
-              const nextSectionEntity = engine.Sections.find(s => s.id === nextSectionId);
-              const nextSectionName = nextSectionEntity?.section_name || 'the next section';
+        // SECTION-AWARE: Remove old section transition detection (now handled in advanceToNextBaseQuestion)
 
-              console.log('[SECTION-TRANSITION] Setting transition info for acknowledgment', {
-                from: sectionName,
-                to: nextSectionName,
-                nextQuestionId
-              });
-
-              // Store transition info to show as acknowledgment screen
-              setSectionTransitionInfo({
-                fromSection: sectionName,
-                toSection: nextSectionName,
-                nextQuestionId: nextQuestionId
-              });
-
-              // Don't advance yet - wait for user to click Next
-              return;
-            }
-          }
-        };
-        
-        detectAndSetSectionTransition(currentItem.id, value);
-        
         // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
-          
+
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
             
@@ -1954,38 +1935,13 @@ export default function CandidateInterview() {
               }
             }
           } else {
-            // No follow-up triggered - advance to next question
-            const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-            if (nextQuestionId && engine.QById[nextQuestionId]) {
-              setQueue([]);
-              setCurrentItem({ id: nextQuestionId, type: 'question' });
-              await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
-            } else {
-              // No next question - interview complete
-              console.log('✅ No next question after "Yes" answer with no follow-up - marking interview complete');
-              setCurrentItem(null);
-              setQueue([]);
-              await persistStateToDatabase(newTranscript, [], null);
-              setShowCompletionModal(true);
-            }
+            // No follow-up triggered - advance within section or to next section
+            advanceToNextBaseQuestion(currentItem.id);
           }
-        } else {
-          // CRITICAL FIX: "No" answer - ALWAYS advance to next question, NEVER trigger follow-ups
-          const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-          
-          // RESTORED ORIGINAL LOGIC: If no next question, interview is complete
-          if (nextQuestionId && engine.QById[nextQuestionId]) {
-            setQueue([]);
-            setCurrentItem({ id: nextQuestionId, type: 'question' });
-            await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
           } else {
-            // No next question - interview complete
-            setCurrentItem(null);
-            setQueue([]);
-            await persistStateToDatabase(newTranscript, [], null);
-            setShowCompletionModal(true);
+          // "No" answer - advance within section or to next section
+          advanceToNextBaseQuestion(currentItem.id);
           }
-        }
         
         // PERFORMANCE FIX: Parallelize database saves
         saveAnswerToDatabase(currentItem.id, value, question);
@@ -3664,6 +3620,129 @@ export default function CandidateInterview() {
     return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
   };
 
+  // ============================================================================
+  // SECTION-BASED HELPERS
+  // ============================================================================
+
+  /**
+   * Build ordered sections array from engine metadata
+   * Derives sections from Section entities already in engine
+   */
+  const buildSectionsFromEngine = (engineData) => {
+    try {
+      if (!engineData.Sections || engineData.Sections.length === 0) {
+        console.warn('[SECTIONS] No Section entities found - falling back to legacy flow');
+        return [];
+      }
+
+      const orderedSections = engineData.Sections
+        .filter(s => s.active !== false)
+        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+        .map(section => {
+          const sectionId = section.section_id;
+          const questionIds = (engineData.questionsBySection[sectionId] || []).map(q => q.id);
+          
+          return {
+            id: sectionId,
+            dbId: section.id,
+            displayName: section.section_name,
+            description: section.description || null,
+            questionIds: questionIds,
+            section_order: section.section_order
+          };
+        })
+        .filter(s => s.questionIds.length > 0); // Only include sections with questions
+
+      console.log(`[SECTIONS] Built ${orderedSections.length} sections from engine:`, 
+        orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
+
+      return orderedSections;
+    } catch (err) {
+      console.error('[SECTIONS] Error building sections:', err);
+      return [];
+    }
+  };
+
+  /**
+   * Determine which section index to start from based on session state
+   */
+  const determineInitialSectionIndex = (orderedSections, sessionData, engineData) => {
+    if (!orderedSections || orderedSections.length === 0) return 0;
+    
+    // If session has current_item_snapshot with a questionId, find its section
+    const currentItemSnapshot = sessionData.current_item_snapshot;
+    if (currentItemSnapshot?.id && currentItemSnapshot?.type === 'question') {
+      const questionId = currentItemSnapshot.id;
+      const location = engineData.questionIdToSection?.[questionId];
+      
+      if (location?.sectionId) {
+        const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
+        if (sectionIndex !== -1) {
+          console.log(`[SECTIONS] Resuming at section ${sectionIndex}: ${orderedSections[sectionIndex].displayName}`);
+          return sectionIndex;
+        }
+      }
+    }
+    
+    // Default to first section
+    return 0;
+  };
+
+  /**
+   * Check if current section is complete
+   * Section is complete when all base questions + follow-ups are done
+   */
+  const isSectionComplete = useCallback((section, engineData, transcriptData, queueData, currentItemData) => {
+    if (!section || !engineData) return false;
+    
+    // Check 1: All base questions in section have answers
+    const answeredQuestionIds = new Set(
+      transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
+    );
+    
+    const allBaseQuestionsAnswered = section.questionIds.every(qId => answeredQuestionIds.has(qId));
+    
+    if (!allBaseQuestionsAnswered) {
+      return false;
+    }
+    
+    // Check 2: No active follow-ups in queue for this section
+    const hasActiveFollowups = queueData.some(item => 
+      item.type === 'followup' || item.type === 'multi_instance'
+    );
+    
+    if (hasActiveFollowups) {
+      return false;
+    }
+    
+    // Check 3: Current item is not a follow-up for this section
+    if (currentItemData?.type === 'followup' || currentItemData?.type === 'multi_instance') {
+      return false;
+    }
+    
+    return true;
+  }, []);
+
+  /**
+   * Get next question within current section, or null if section complete
+   */
+  const getNextQuestionInSection = useCallback((section, engineData, transcriptData) => {
+    if (!section || !engineData) return null;
+    
+    const answeredQuestionIds = new Set(
+      transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
+    );
+    
+    // Find first unanswered question in section
+    for (const questionId of section.questionIds) {
+      if (!answeredQuestionIds.has(questionId)) {
+        return questionId;
+      }
+    }
+    
+    return null;
+  }, []);
+
   const getCurrentPrompt = () => {
     if (isWaitingForAgent) {
       // Show last agent message
@@ -3889,6 +3968,24 @@ export default function CandidateInterview() {
         {/* Header */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-2">
           <div className="max-w-5xl mx-auto">
+            {/* Section Header */}
+            {activeSection && sections.length > 0 && (
+              <div className="mb-3 pb-2 border-b border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-blue-400">
+                      Section {currentSectionIndex + 1} of {sections.length}: {activeSection.displayName}
+                    </div>
+                    {activeSection.description && (
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {activeSection.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <img 
