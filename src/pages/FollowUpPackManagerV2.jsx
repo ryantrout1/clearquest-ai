@@ -25,8 +25,6 @@ export default function FollowUpPackManagerV2() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(FOLLOWUP_CATEGORIES[0].id);
   const [selectedPack, setSelectedPack] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showLegacyPacks, setShowLegacyPacks] = useState(false);
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [leftWidth, setLeftWidth] = useState(20);
   const [middleWidth, setMiddleWidth] = useState(30);
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
