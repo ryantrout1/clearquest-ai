@@ -4196,14 +4196,20 @@ export default function CandidateInterview() {
             <div>
               {/* Segmented Overall Bar - one segment per section, green only when complete */}
               {(() => {
-                // Build section progress data
+                // Build set of answered question IDs from transcript
+                const answeredQuestionIdsSet = new Set(
+                  transcript.filter(t => t.type === 'question').map(t => t.questionId)
+                );
+                
+                // Build section progress data - isComplete based ONLY on answered questions
                 const sectionProgressData = sections.map((section, idx) => {
                   const sectionQuestionIds = section.questionIds || [];
                   const totalInSection = sectionQuestionIds.length;
-                  const answeredInSection = transcript.filter(t => 
-                    t.type === 'question' && sectionQuestionIds.includes(t.questionId)
-                  ).length;
+                  // Count how many of this section's questions have been answered
+                  const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
+                  // Section is complete when ALL questions in it are answered
                   const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
+                  
                   return {
                     sectionId: section.id,
                     sectionName: section.displayName,
@@ -4237,6 +4243,7 @@ export default function CandidateInterview() {
                           : 0;
                         const isCurrent = s.index === currentSectionIndex;
                         
+                        // Color logic: green ONLY if isComplete, regardless of current section
                         return (
                           <div
                             key={s.sectionId}
