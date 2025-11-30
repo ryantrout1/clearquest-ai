@@ -268,6 +268,17 @@ const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${inst
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext } = params;
 
+  // DEEP DEBUG: Log full request context
+  console.debug('[V2 PROBING][REQUEST]', {
+    packId,
+    fieldKey,
+    fieldValuePreview: fieldValue?.substring?.(0, 120) || fieldValue,
+    fieldValueLength: fieldValue?.length || 0,
+    previousProbesCount,
+    hasIncidentContext: !!incidentContext,
+    incidentContextKeys: incidentContext ? Object.keys(incidentContext) : []
+  });
+
   if (DEBUG_MODE) {
     console.log('[AI-FOLLOWUP][V2-REQUEST]', {
       packId,
@@ -2074,6 +2085,33 @@ export default function CandidateInterview() {
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
           
+          // DEEP DEBUG: Full V2 probing decision context
+          console.debug('[V2 PROBING][FIELD-ENTRY]', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            sessionId,
+            normalizedAnswerPreview: normalizedAnswer?.substring?.(0, 80) || normalizedAnswer,
+            normalizedAnswerLength: normalizedAnswer?.length || 0,
+            semanticResult: {
+              status: semanticResult?.status,
+              isEmpty,
+              isNoRecall,
+              reason: semanticResult?.reason
+            },
+            counters: {
+              probeCount,
+              maxAiFollowups,
+              fieldCountKey
+            },
+            flags: {
+              ENABLE_LIVE_AI_FOLLOWUPS,
+              aiProbingEnabled,
+              aiProbingDisabledForSession,
+              useProbeEngineV2ForPack: useProbeEngineV2(packId)
+            }
+          });
+
           if (DEBUG_MODE) {
             console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
               packId,
@@ -2130,6 +2168,30 @@ export default function CandidateInterview() {
             !aiProbingDisabledForSession &&
             probeCount < maxAiFollowups;
           
+          // DEEP DEBUG: Final probing decision
+          console.debug('[V2 PROBING][DECISION]', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            willProbe: shouldProbe,
+            decisionFactors: {
+              isEmpty,
+              isNoRecall,
+              ENABLE_LIVE_AI_FOLLOWUPS,
+              aiProbingEnabled,
+              aiProbingDisabledForSession,
+              probeCountVsMax: `${probeCount}/${maxAiFollowups}`,
+              quotaHit: probeCount >= maxAiFollowups
+            },
+            skipReason: !shouldProbe ? (
+              !ENABLE_LIVE_AI_FOLLOWUPS ? 'ENABLE_LIVE_AI_FOLLOWUPS=false' :
+              !aiProbingEnabled ? 'aiProbingEnabled=false' :
+              aiProbingDisabledForSession ? 'aiProbingDisabledForSession=true' :
+              probeCount >= maxAiFollowups ? 'quotaHit' :
+              (!isEmpty && !isNoRecall) ? 'answerIsClear' : 'unknown'
+            ) : null
+          });
+
           if (DEBUG_MODE) {
             console.log('[V2 DECISION]', {
               fieldKey,
@@ -2154,18 +2216,40 @@ export default function CandidateInterview() {
           
           // Check if AI probing is globally disabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
+            console.debug('[V2 PROBING][SKIP]', {
+              reason: 'AI globally disabled or session disabled',
+              packId,
+              fieldKey,
+              flags: { ENABLE_LIVE_AI_FOLLOWUPS, aiProbingEnabled, aiProbingDisabledForSession }
+            });
             if (DEBUG_MODE) console.log('[V2] Skipping probe: AI disabled');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // Max probes reached - accept current value and move on
           else if (probeCount >= maxAiFollowups) {
+            console.debug('[V2 PROBING][SKIP]', {
+              reason: 'Max probes quota hit',
+              packId,
+              fieldKey,
+              probeCount,
+              maxAiFollowups
+            });
             if (DEBUG_MODE) console.log('[V2] Max probes reached for field');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
           // NEW: Semantic gate - only probe if answer is vague/uncertain
           else if (!isEmpty && !isNoRecall) {
+            console.debug('[V2 PROBING][SKIP]', {
+              reason: 'Answer is clear (not empty, not no-recall)',
+              packId,
+              fieldKey,
+              isEmpty,
+              isNoRecall,
+              semanticStatus: semanticResult?.status,
+              answerPreview: normalizedAnswer?.substring?.(0, 50)
+            });
             if (DEBUG_MODE) console.log('[V2] Skipping probe: answer is clear');
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
@@ -2173,6 +2257,15 @@ export default function CandidateInterview() {
           // Answer is vague/uncertain - proceed with probing
           else {
             try {
+              console.debug('[V2 PROBING][CALL]', {
+                reason: 'Answer is vague/uncertain - proceeding with backend call',
+                packId,
+                fieldKey,
+                isEmpty,
+                isNoRecall,
+                probeCount,
+                answerPreview: normalizedAnswer?.substring?.(0, 80)
+              });
               if (DEBUG_MODE) console.log('[V2] Calling backend probe for', fieldKey);
               
               logAiProbeDebug('triggerBackendCheck', {
@@ -2201,6 +2294,17 @@ export default function CandidateInterview() {
               const mode = v2Result?.mode;
               const rawQuestion = typeof v2Result?.question === "string" ? v2Result.question.trim() : "";
               const hasProbeQuestion = rawQuestion.length > 0;
+
+              // DEEP DEBUG: Backend response decision
+              console.debug('[V2 PROBING][BACKEND-DECISION]', {
+                packId,
+                fieldKey,
+                mode,
+                hasProbeQuestion,
+                rawQuestionLength: rawQuestion?.length || 0,
+                willShowProbe: mode === 'QUESTION' || hasProbeQuestion,
+                willComplete: mode === 'COMPLETE' || mode === 'VALIDATED'
+              });
 
               if (DEBUG_MODE) {
                 console.log('[V2-RESPONSE]', {
