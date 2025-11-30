@@ -81,10 +81,20 @@ export default function DisplayTemplateSettings({
   );
 
   const handleSave = async () => {
+    // Parse label_mapping_overrides from text if needed
+    let parsedOverrides = localData.label_mapping_overrides;
+    if (localData.label_mapping_overrides_text) {
+      try {
+        parsedOverrides = JSON.parse(localData.label_mapping_overrides_text);
+      } catch {
+        parsedOverrides = null;
+      }
+    }
+    
     await onSave({
       instance_header_template: localData.instance_header_template || '',
       instance_title_format: localData.instance_title_format || '',
-      label_mapping_overrides: localData.label_mapping_overrides || null
+      label_mapping_overrides: parsedOverrides || null
     });
     setIsEditing(false);
   };
