@@ -958,6 +958,10 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
         await base44.entities.Question.update(selectedItem.data.id, saveData);
         queryClient.invalidateQueries({ queryKey: ['questions'] });
         queryClient.invalidateQueries({ queryKey: ['sections'] });
+        
+        // Update local state with saved data
+        setSelectedItem({ type: 'question', data: { ...selectedItem.data, ...saveData } });
+        
         toast.success('Question updated');
         setIsEditMode(false);
         setOriginalData(saveData);
@@ -1393,9 +1397,19 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                         .filter(p => p.active !== false)
                         .sort((a, b) => (a.pack_name || '').localeCompare(b.pack_name || ''));
 
+                      // Deduplicate by followup_pack_id (keep first occurrence)
+                      const uniquePacks = [];
+                      const seenIds = new Set();
+                      activePacks.forEach(pack => {
+                        if (!seenIds.has(pack.followup_pack_id)) {
+                          seenIds.add(pack.followup_pack_id);
+                          uniquePacks.push(pack);
+                        }
+                      });
+
                       // Group active packs by category_id
                       const groupedActivePacks = {};
-                      activePacks.forEach(pack => {
+                      uniquePacks.forEach(pack => {
                         const category = pack.category_id || 'Other';
                         if (!groupedActivePacks[category]) {
                           groupedActivePacks[category] = [];
@@ -1411,7 +1425,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                         const packsInGroup = groupedActivePacks[groupName];
 
                         return (
-                          <React.Fragment key={groupName}>
+                          <div key={groupName}>
                             <div className={`px-3 py-2 text-xs font-bold bg-slate-800 border-b border-slate-700 sticky top-0 ${
                               isDefaultGroup ? 'text-green-400' : 'text-purple-400'
                             }`}>
@@ -1420,7 +1434,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                             </div>
                             {packsInGroup.map(pack => (
                               <SelectItem 
-                                key={pack.followup_pack_id} 
+                                key={pack.id} 
                                 value={pack.followup_pack_id} 
                                 className="pl-6 py-2.5 text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:text-white"
                               >
@@ -1432,7 +1446,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                                 </div>
                               </SelectItem>
                             ))}
-                          </React.Fragment>
+                          </div>
                         );
                       });
                     })()}
