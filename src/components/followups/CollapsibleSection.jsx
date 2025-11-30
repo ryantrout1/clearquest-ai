@@ -91,7 +91,11 @@ export default function CollapsibleSection({
                 </Button>
                 <Button
                   size="sm"
-                  onClick={onSave}
+                  onClick={async () => {
+                    if (onSave) {
+                      await onSave();
+                    }
+                  }}
                   disabled={saveDisabled}
                   className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700"
                 >
