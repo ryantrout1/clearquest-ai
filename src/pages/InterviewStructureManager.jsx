@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, Lock, AlertCircle, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical, FolderOpen, FileText, Layers, Package, Lock, AlertCircle, ShieldAlert, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { getFollowupPackDisplay, getResponseTypeDisplay, FOLLOWUP_PACK_NAMES, RESPONSE_TYPE_NAMES } from "../components/utils/followupPackNames";
@@ -142,6 +142,14 @@ export default function InterviewStructureManager() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteInput, setDeleteInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Panel state
+  const [leftWidth, setLeftWidth] = useState(20);
+  const [middleWidth, setMiddleWidth] = useState(30);
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [middleCollapsed, setMiddleCollapsed] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -338,6 +346,71 @@ export default function InterviewStructureManager() {
 
 
 
+  // Resizable dividers
+  const handleMouseDownLeft = (e) => {
+    e.preventDefault();
+    setIsDraggingLeft(true);
+  };
+
+  const handleMouseDownRight = (e) => {
+    e.preventDefault();
+    setIsDraggingRight(true);
+  };
+
+  useEffect(() => {
+    if (!isDraggingLeft && !isDraggingRight) return;
+
+    const handleMouseMove = (e) => {
+      const container = document.getElementById('interview-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const mouseX = e.clientX - containerRect.left;
+      const totalWidth = containerRect.width;
+
+      if (isDraggingLeft) {
+        const newLeftWidth = (mouseX / totalWidth) * 100;
+        const clampedLeft = Math.min(Math.max(newLeftWidth, 15), 40);
+        setLeftWidth(clampedLeft);
+      } else if (isDraggingRight) {
+        const newMiddleEnd = (mouseX / totalWidth) * 100;
+        const newMiddleWidth = newMiddleEnd - leftWidth;
+        const clampedMiddle = Math.min(Math.max(newMiddleWidth, 20), 60);
+        setMiddleWidth(clampedMiddle);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingLeft(false);
+      setIsDraggingRight(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingLeft, isDraggingRight, leftWidth]);
+
+  // Calculate widths dynamically based on collapsed state
+  const getEffectiveWidths = () => {
+    const collapsedWidth = 2.5;
+    
+    if (leftCollapsed && middleCollapsed) {
+      return { left: collapsedWidth, middle: collapsedWidth, right: 100 - collapsedWidth * 2 };
+    } else if (leftCollapsed) {
+      return { left: collapsedWidth, middle: middleWidth, right: 100 - collapsedWidth - middleWidth };
+    } else if (middleCollapsed) {
+      return { left: leftWidth, middle: collapsedWidth, right: 100 - leftWidth - collapsedWidth };
+    } else {
+      return { left: leftWidth, middle: middleWidth, right: 100 - leftWidth - middleWidth };
+    }
+  };
+  
+  const effectiveWidths = getEffectiveWidths();
+
   const recalculateGlobalQuestionNumbers = async () => {
     if (!sections || !questions) {
       toast.error('Sections or questions not loaded');
@@ -409,124 +482,177 @@ export default function InterviewStructureManager() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
+      <div id="interview-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Left Panel - Sections */}
-        <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: '20%' }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-white">Sections</h3>
-            <div className="flex gap-1">
-              <Button
-                onClick={recalculateGlobalQuestionNumbers}
-                size="sm"
-                variant="ghost"
-                className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
-                title="Recalculate Question Numbers"
-              >
-                <Layers className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={() => setSelectedItem({ type: 'new-section' })}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 h-8 px-2"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
+        {leftCollapsed ? (
+          <div 
+            className="w-10 flex-shrink-0 border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center py-4 cursor-pointer hover:bg-slate-800/40 transition-colors"
+            onClick={() => setLeftCollapsed(false)}
+          >
+            <PanelLeftOpen className="w-4 h-4 text-slate-400 mb-3" />
+            <span 
+              className="text-xs font-semibold text-slate-400 whitespace-nowrap"
+              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+            >
+              Sections
+            </span>
           </div>
-
-          {sectionsLoading ? (
-            <div className="text-center py-8">
-              <p className="text-slate-500 text-sm">Loading sections...</p>
+        ) : (
+          <div 
+            style={{ width: `${effectiveWidths.left}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-white">Sections</h3>
+              <div className="flex gap-1">
+                <Button
+                  onClick={recalculateGlobalQuestionNumbers}
+                  size="sm"
+                  variant="ghost"
+                  className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
+                  title="Recalculate Question Numbers"
+                >
+                  <Layers className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={() => setSelectedItem({ type: 'new-section' })}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 h-8 px-2"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+                <button 
+                  onClick={() => setLeftCollapsed(true)}
+                  className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                  title="Collapse panel"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          ) : sortedSections.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-slate-500 text-sm">No sections yet</p>
-            </div>
-          ) : (
-            <DragDropContext onDragEnd={handleSectionDragEnd}>
-              <Droppable droppableId="sections">
-                {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
-                    {sortedSections.map((section, index) => {
-                     const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
-                     const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
-                     const isSelected = selectedSection?.id === section.id;
-                     const hasGate = sectionQuestionsAll.some(q => q.is_control_question === true);
 
-                     return (
-                        <Draggable key={section.id} draggableId={section.id} index={index}>
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              onClick={() => {
-                                setSelectedSection(section);
-                                setSelectedItem({ type: 'section', data: section });
-                              }}
-                              className={`px-3 py-2 rounded-md transition-all cursor-pointer group ${
-                                isSelected
-                                  ? 'bg-slate-700/50'
-                                  : 'bg-transparent hover:bg-slate-800/30'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <FolderOpen className={`w-4 h-4 flex-shrink-0 ${
-                                  isSelected ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
-                                }`} />
-                                <div className="flex-1 min-w-0">
-                                 <h4 className={`text-base font-medium leading-tight ${
-                                   isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
-                                 }`}>
-                                   {section.section_name}
-                                 </h4>
-                                 <span className={`text-sm block mt-0.5 ${
-                                   isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
-                                 }`}>
-                                   {sectionQuestionsAll.length} questions ({activeCount} active)
-                                 </span>
-                                  {hasGate && (
-                                    <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400 mt-1 px-2 py-0.5">
-                                      <Lock className="w-3 h-3 mr-1" />
-                                      Gate
-                                    </Badge>
-                                  )}
+            {sectionsLoading ? (
+              <div className="text-center py-8">
+                <p className="text-slate-500 text-sm">Loading sections...</p>
+              </div>
+            ) : sortedSections.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-slate-500 text-sm">No sections yet</p>
+              </div>
+            ) : (
+              <DragDropContext onDragEnd={handleSectionDragEnd}>
+                <Droppable droppableId="sections">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-1">
+                      {sortedSections.map((section, index) => {
+                       const sectionQuestionsAll = questions.filter(q => q.section_id === section.id);
+                       const activeCount = sectionQuestionsAll.filter(q => q.active !== false).length;
+                       const isSelected = selectedSection?.id === section.id;
+                       const hasGate = sectionQuestionsAll.some(q => q.is_control_question === true);
+
+                       return (
+                          <Draggable key={section.id} draggableId={section.id} index={index}>
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                onClick={() => {
+                                  setSelectedSection(section);
+                                  setSelectedItem({ type: 'section', data: section });
+                                }}
+                                className={`px-3 py-2 rounded-md transition-all cursor-pointer group ${
+                                  isSelected
+                                    ? 'bg-slate-700/50'
+                                    : 'bg-transparent hover:bg-slate-800/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <FolderOpen className={`w-4 h-4 flex-shrink-0 ${
+                                    isSelected ? 'text-slate-400' : 'text-slate-500 group-hover:text-slate-400'
+                                  }`} />
+                                  <div className="flex-1 min-w-0">
+                                   <h4 className={`text-base font-medium leading-tight ${
+                                     isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                                   }`}>
+                                     {section.section_name}
+                                   </h4>
+                                   <span className={`text-sm block mt-0.5 ${
+                                     isSelected ? 'text-slate-500' : 'text-slate-600 group-hover:text-slate-500'
+                                   }`}>
+                                     {sectionQuestionsAll.length} questions ({activeCount} active)
+                                   </span>
+                                    {hasGate && (
+                                      <Badge className="text-xs bg-amber-500/20 border-amber-500/50 text-amber-400 mt-1 px-2 py-0.5">
+                                        <Lock className="w-3 h-3 mr-1" />
+                                        Gate
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Switch
+                                    checked={section.active !== false}
+                                    onCheckedChange={(checked) => {
+                                      const e = { stopPropagation: () => {} };
+                                      toggleSectionActive(e, section);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="data-[state=checked]:bg-emerald-500 scale-75"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedItem({ type: 'section', data: section });
+                                    }}
+                                    className="text-slate-500 hover:text-white hover:bg-slate-700/50 h-7 w-7 p-0 opacity-0 group-hover:opacity-100"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </Button>
                                 </div>
-                                <Switch
-                                  checked={section.active !== false}
-                                  onCheckedChange={(checked) => {
-                                    const e = { stopPropagation: () => {} };
-                                    toggleSectionActive(e, section);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="data-[state=checked]:bg-emerald-500 scale-75"
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedItem({ type: 'section', data: section });
-                                  }}
-                                  className="text-slate-500 hover:text-white hover:bg-slate-700/50 h-7 w-7 p-0 opacity-0 group-hover:opacity-100"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </Button>
                               </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      );
-                    })}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
-          )}
-        </div>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
+          </div>
+        )}
+
+        {/* Left Drag Handle */}
+        {!leftCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownLeft}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
 
         {/* Middle Panel - Questions List */}
-        <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: '30%' }}>
+        {middleCollapsed ? (
+          <div 
+            className="w-10 flex-shrink-0 border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm flex flex-col items-center py-4 cursor-pointer hover:bg-slate-800/40 transition-colors"
+            onClick={() => setMiddleCollapsed(false)}
+          >
+            <PanelLeftOpen className="w-4 h-4 text-slate-400 mb-3" />
+            <span 
+              className="text-xs font-semibold text-slate-400 whitespace-nowrap"
+              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+            >
+              {selectedSection?.section_name || 'Questions'}
+            </span>
+          </div>
+        ) : (
+          <div 
+            style={{ width: `${effectiveWidths.middle}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
           <div className="p-4">
             {!selectedSection ? (
               <div className="text-center py-12">
@@ -552,9 +678,18 @@ export default function InterviewStructureManager() {
                         <h3 className="text-lg font-semibold text-white">
                           {selectedSection.section_name}
                         </h3>
-                        <span className="text-sm text-slate-500">
-                          {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-500">
+                            {filtered.length} {filtered.length === 1 ? 'question' : 'questions'}
+                          </span>
+                          <button 
+                            onClick={() => setMiddleCollapsed(true)}
+                            className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                            title="Collapse panel"
+                          >
+                            <PanelLeftClose className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="mb-3">
@@ -593,9 +728,24 @@ export default function InterviewStructureManager() {
             )}
           </div>
         </div>
+        )}
+
+        {/* Right Drag Handle */}
+        {!middleCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownRight}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
 
         {/* Right Panel - Details */}
-        <div className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: '50%' }}>
+        <div 
+          style={{ width: `${effectiveWidths.right}%` }}
+          className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+        >
           <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
