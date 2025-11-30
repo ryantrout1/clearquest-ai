@@ -314,6 +314,22 @@ const HEAVY_SECTIONS = [
   'Domestic Violence'
 ];
 
+// Section "What to Expect" descriptions
+const WHAT_TO_EXPECT = {
+  'APPLICATIONS_WITH_OTHER_LE': 'your prior law enforcement applications and their outcomes',
+  'DRIVING_RECORD': 'your driving-related history, including citations, collisions, and license actions',
+  'CRIMINAL_INVOLVEMENT': 'any past criminal involvement, police contacts, or major accusations',
+  'EXTREMIST_ORGANIZATIONS': 'any involvement with extremist, hate, or gang organizations',
+  'SEXUAL_ACTIVITIES': 'sexual conduct and behavior relevant to suitability for public safety work',
+  'FINANCIAL_HISTORY': 'your financial history, including debts, bankruptcies, or unmet obligations',
+  'EMPLOYMENT_HISTORY': 'your work history, performance, separations, disputes, and reliability',
+  'ALCOHOL_USE': 'past or current alcohol use patterns and any alcohol-related incidents',
+  'ILLEGAL_DRUG': 'past or current drug use, possession, sales, or related contacts',
+  'MILITARY_HISTORY': 'your military service, including conduct, separations, and performance',
+  'PRIOR_LAW_ENFORCEMENT': 'your prior law enforcement employment and any related issues',
+  'GENERAL_DISCLOSURES': 'general eligibility, disclosures, and suitability topics'
+};
+
 // FEATURE FLAG: Enable live AI follow-ups (via invokeLLM server function)
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 
@@ -636,6 +652,7 @@ export default function CandidateInterview() {
   // Section completion message state
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
+  const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
 
   // Refs
   const historyRef = useRef(null);
@@ -1147,23 +1164,33 @@ export default function CandidateInterview() {
         await persistStateToDatabase(newTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
         return;
       } else if (nextResult.mode === 'SECTION_TRANSITION') {
-        // Section complete - add completion message then advance
+        // Section complete - add enhanced completion message with Next button
+        const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
+        
         const completionMessage = {
           id: `section-complete-${Date.now()}`,
           type: 'system_message',
-          content: `Section complete: ${nextResult.completedSection.displayName}. Next we'll move into: ${nextResult.nextSection.displayName}.`,
+          content: `You've finished the ${nextResult.completedSection.displayName} section.\n\nNext up is ${nextResult.nextSection.displayName} — this part focuses on ${whatToExpect}.\n\nPlease answer in as much detail as you can, even if events happened a long time ago.`,
           timestamp: new Date().toISOString(),
           kind: 'section_completion',
-          role: 'system'
+          role: 'system',
+          completedSectionName: nextResult.completedSection.displayName,
+          nextSectionName: nextResult.nextSection.displayName
         };
         
         const newTranscript = [...transcript, completionMessage];
         setTranscript(newTranscript);
-        setCurrentSectionIndex(nextResult.nextSectionIndex);
+        
+        // Set pending transition - will show Next button
+        setPendingSectionTransition({
+          nextSectionIndex: nextResult.nextSectionIndex,
+          nextQuestionId: nextResult.nextQuestionId,
+          nextSectionName: nextResult.nextSection.displayName
+        });
         
         setQueue([]);
-        setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
-        await persistStateToDatabase(newTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
+        setCurrentItem(null); // Clear current item while waiting for acknowledgment
+        await persistStateToDatabase(newTranscript, [], null);
         return;
       } else {
         // Interview complete
@@ -3935,6 +3962,7 @@ export default function CandidateInterview() {
 
   // Check if we're showing section transition acknowledgment
   const isSectionTransitionMode = sectionTransitionInfo !== null;
+  const isPendingSectionTransition = pendingSectionTransition !== null;
   
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
@@ -4259,8 +4287,42 @@ export default function CandidateInterview() {
             </div>
           )}
 
-          {/* Active Question (Deterministic) or Agent Probing or Intro */}
-          {lastAgentQuestion && isWaitingForAgent ? (
+          {/* Active Question (Deterministic) or Agent Probing or Intro or Section Transition */}
+          {isPendingSectionTransition ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-green-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(34, 197, 94, 0.2) inset'
+                  }}
+                  data-active-question="true"
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="text-center space-y-4">
+                    <div className="text-lg font-bold text-white">
+                      Ready to begin the <span className="text-green-400">{pendingSectionTransition.nextSectionName}</span> section?
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
+                        setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                        setQueue([]);
+                        setPendingSectionTransition(null);
+                        await persistStateToDatabase(transcript, [], { id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                        setTimeout(() => autoScrollToBottom(), 100);
+                      }}
+                      disabled={isCommitting}
+                      className="min-h-[48px] px-12 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98] transition-all duration-75 flex items-center justify-center gap-2 text-lg mx-auto"
+                    >
+                      Begin Next Section →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -4423,45 +4485,52 @@ export default function CandidateInterview() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {requiresClarification ? (
-                          <>
-                            <span className="text-sm font-semibold text-purple-400">Clarification Needed</span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-sm text-purple-300">
-                              {getFollowUpPackName(currentPrompt.packId)}
-                            </span>
-                          </>
-                        ) : isMultiInstanceMode ? (
-                          <>
-                            <span className="text-sm font-semibold text-cyan-400">
-                              Additional Instance Check
-                            </span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-sm text-cyan-300">
-                              Instance {currentPrompt.instanceNumber} of {currentPrompt.maxInstances}
-                            </span>
-                          </>
-                        ) : isFollowUpMode ? (
-                          <>
-                            <span className="text-sm font-semibold text-orange-400">
-                              Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
-                            </span>
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="text-sm text-orange-300">
-                              {currentPrompt.substanceName ? `${currentPrompt.substanceName} Use` : getFollowUpPackName(currentPrompt.packId)}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-lg font-bold text-blue-400">
-                              Question {getQuestionDisplayNumber(currentItem.id)}
-                            </span>
-                            <span className="text-sm text-slate-500">•</span>
-                            <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
-                          </>
-                        )}
-                      </div>
+                     {/* Progress line for base questions */}
+                     {!requiresClarification && !isFollowUpMode && !isMultiInstanceMode && sections.length > 0 && (
+                       <div className="text-xs text-slate-400 mb-2">
+                         {currentSectionIndex} of {sections.length} sections complete · {answeredCount} of {totalQuestions} questions answered
+                       </div>
+                     )}
+
+                     <div className="flex items-center gap-2 mb-2">
+                       {requiresClarification ? (
+                         <>
+                           <span className="text-sm font-semibold text-purple-400">Clarification Needed</span>
+                           <span className="text-xs text-slate-500">•</span>
+                           <span className="text-sm text-purple-300">
+                             {getFollowUpPackName(currentPrompt.packId)}
+                           </span>
+                         </>
+                       ) : isMultiInstanceMode ? (
+                         <>
+                           <span className="text-sm font-semibold text-cyan-400">
+                             Additional Instance Check
+                           </span>
+                           <span className="text-xs text-slate-500">•</span>
+                           <span className="text-sm text-cyan-300">
+                             Instance {currentPrompt.instanceNumber} of {currentPrompt.maxInstances}
+                           </span>
+                         </>
+                       ) : isFollowUpMode ? (
+                         <>
+                           <span className="text-sm font-semibold text-orange-400">
+                             Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                           </span>
+                           <span className="text-xs text-slate-500">•</span>
+                           <span className="text-sm text-orange-300">
+                             {currentPrompt.substanceName ? `${currentPrompt.substanceName} Use` : getFollowUpPackName(currentPrompt.packId)}
+                           </span>
+                         </>
+                       ) : (
+                         <>
+                           <span className="text-lg font-bold text-blue-400">
+                             Question {getQuestionDisplayNumber(currentItem.id)}
+                           </span>
+                           <span className="text-sm text-slate-500">•</span>
+                           <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                         </>
+                       )}
+                     </div>
                       <p className="text-white text-lg font-semibold leading-relaxed">
                         {currentPrompt.text}
                       </p>
@@ -4484,13 +4553,32 @@ export default function CandidateInterview() {
 
         {/* Footer - show for intro (with Next button) and normal questions */}
         <footer 
-          className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
-          role="form"
-          aria-label="Response area"
+        className="flex-shrink-0 bg-[#121c33] border-t border-slate-700/50 shadow-[0_-6px_16px_rgba(0,0,0,0.45)] rounded-t-[14px]"
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+        role="form"
+        aria-label="Response area"
         >
-          <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
-            {isIntroPhase ? (
+        <div className="max-w-5xl mx-auto px-4 py-3 md:py-4">
+          {isPendingSectionTransition ? (
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
+                  setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                  setQueue([]);
+                  setPendingSectionTransition(null);
+                  await persistStateToDatabase(transcript, [], { id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                  setTimeout(() => autoScrollToBottom(), 100);
+                }}
+                disabled={isCommitting}
+                className="min-h-[52px] px-12 rounded-[10px] font-bold text-white border-2 border-green-500 transition-all duration-75 ease-out flex items-center justify-center gap-2 text-lg bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(34,197,94,0.15)] disabled:opacity-50 disabled:pointer-events-none"
+                aria-label="Begin next section"
+              >
+                Begin Next Section →
+              </button>
+            </div>
+          ) : isIntroPhase ? (
               <div className="flex justify-center mb-3">
                 <button
                   type="button"
@@ -4613,15 +4701,17 @@ export default function CandidateInterview() {
             )}
             
               <p className="text-xs text-slate-400 text-center leading-relaxed px-2">
-                {isIntroPhase
-                  ? "Click Next to begin your interview"
-                  : isResumePhase
-                    ? "Click Next to continue where you left off"
-                    : isSectionTransitionMode
-                      ? "Click Next to continue to the next section"
-                      : isWaitingForAgent 
-                        ? "Responding to investigator's probing questions..." 
-                        : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+                {isPendingSectionTransition
+                  ? "Click the button above to begin the next section"
+                  : isIntroPhase
+                    ? "Click Next to begin your interview"
+                    : isResumePhase
+                      ? "Click Next to continue where you left off"
+                      : isSectionTransitionMode
+                        ? "Click Next to continue to the next section"
+                        : isWaitingForAgent 
+                          ? "Responding to investigator's probing questions..." 
+                          : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
               </p>
               </div>
               </footer>
@@ -4766,7 +4856,30 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
 
   // System messages (timeouts, reminders)
   if (entry.type === 'system_message') {
-    // Section transition messages get special styling
+    // Section transition messages get enhanced styling
+    if (entry.kind === 'section_completion') {
+      return (
+        <div className="bg-gradient-to-br from-green-950/40 to-slate-900/40 border-2 border-green-500/50 rounded-xl p-6 shadow-lg my-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0 border-2 border-green-500/50">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+            </div>
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold text-green-400">Section complete: {entry.completedSectionName} ✅</span>
+              </div>
+              <div className="text-white leading-relaxed space-y-2 text-sm">
+                {entry.content.split('\n\n').map((para, idx) => (
+                  <p key={idx}>{para}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Section transition legacy format
     if (entry.kind === 'section_transition') {
       return (
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
