@@ -416,7 +416,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
   }
   
   // Try using semantic field name for fallback (for any supported pack)
-  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD", "PACK_PRESCRIPTION_MISUSE_STANDARD"];
+  const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_DRIVING_DUIDWI_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD", "PACK_PRESCRIPTION_MISUSE_STANDARD", "PACK_PRIOR_LE_APPS_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
     if (staticFallback && !staticFallback.includes('provide more details about')) {
@@ -491,11 +491,11 @@ const PACK_CONFIG = {
     },
   },
   
-  // Prior LE Misconduct pack
+  // Prior LE Misconduct pack (v2.4)
   PACK_LE_MISCONDUCT_STANDARD: {
     id: "PACK_LE_MISCONDUCT_STANDARD",
-    requiredFields: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "finding", "appealed"],
-    priorityOrder: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "ia_case_number", "finding", "discipline", "appealed", "has_documentation"],
+    requiredFields: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "finding"],
+    priorityOrder: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "ia_case_number", "finding", "discipline", "separation_type", "appealed", "has_documentation", "remediation_steps"],
     fieldKeyMap: {
       "agency_name": "agency_name",
       "position_held": "position_held",
@@ -507,8 +507,10 @@ const PACK_CONFIG = {
       "ia_case_number": "ia_case_number",
       "finding": "finding",
       "discipline": "discipline",
+      "separation_type": "separation_type",
       "appealed": "appealed",
       "has_documentation": "has_documentation",
+      "remediation_steps": "remediation_steps",
       // Legacy question mappings
       "PACK_LE_MISCONDUCT_Q01": "agency_name",
       "PACK_LE_MISCONDUCT_Q02": "position_held",
@@ -669,67 +671,7 @@ const PACK_CONFIG = {
     },
   },
   
-  // Law Enforcement Applications pack (v2.4)
-  PACK_LE_APPS: {
-    id: "PACK_LE_APPS",
-    requiredFields: ["agency_name", "agency_location", "application_date", "position", "outcome"],
-    priorityOrder: ["agency_name", "agency_location", "position", "application_date", "outcome", "stage_reached", "reason_not_selected", "background_issues", "full_disclosure", "has_documentation"],
-    fieldKeyMap: {
-      "agency_name": "agency_name",
-      "agency_location": "agency_location",
-      "position": "position",
-      "application_date": "application_date",
-      "outcome": "outcome",
-      "stage_reached": "stage_reached",
-      "reason_not_selected": "reason_not_selected",
-      "background_issues": "background_issues",
-      "full_disclosure": "full_disclosure",
-      "has_documentation": "has_documentation",
-      // Legacy question mappings
-      "PACK_LE_APPS_Q1": "agency_name",
-      "PACK_LE_APPS_Q1764025170356": "position",
-      "PACK_LE_APPS_Q1764025187292": "application_date",
-      "PACK_LE_APPS_Q1764025199138": "outcome",
-      "PACK_LE_APPS_Q1764025212764": "reason_not_selected",
-      "PACK_LE_APPS_Q1764025246583": "stage_reached",
-      // Semantic aliases
-      "agency": "agency_name",
-      "monthYear": "application_date",
-      "reason": "reason_not_selected",
-      "stageReached": "stage_reached",
-    },
-  },
-  
-  // Prior Law Enforcement Misconduct pack (v2.4)
-  PACK_LE_MISCONDUCT_STANDARD: {
-    id: "PACK_LE_MISCONDUCT_STANDARD",
-    requiredFields: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "finding"],
-    priorityOrder: ["agency_name", "position_held", "employment_dates", "incident_date", "allegation_type", "allegation_description", "discovery_method", "ia_case_number", "finding", "discipline", "separation_type", "appealed", "has_documentation", "remediation_steps"],
-    fieldKeyMap: {
-      "agency_name": "agency_name",
-      "position_held": "position_held",
-      "employment_dates": "employment_dates",
-      "incident_date": "incident_date",
-      "allegation_type": "allegation_type",
-      "allegation_description": "allegation_description",
-      "discovery_method": "discovery_method",
-      "ia_case_number": "ia_case_number",
-      "finding": "finding",
-      "discipline": "discipline",
-      "separation_type": "separation_type",
-      "appealed": "appealed",
-      "has_documentation": "has_documentation",
-      "remediation_steps": "remediation_steps",
-      // Legacy question mappings
-      "PACK_LE_MISCONDUCT_Q01": "agency_name",
-      "PACK_LE_MISCONDUCT_Q02": "position_held",
-      "PACK_LE_MISCONDUCT_Q03": "incident_date",
-      "PACK_LE_MISCONDUCT_Q04": "allegation_type",
-      "PACK_LE_MISCONDUCT_Q05": "allegation_description",
-      "PACK_LE_MISCONDUCT_Q06": "finding",
-      "PACK_LE_MISCONDUCT_Q07": "discipline",
-    },
-  },
+
   
   // Financial Misconduct pack (v2.4)
   PACK_FINANCIAL_STANDARD: {

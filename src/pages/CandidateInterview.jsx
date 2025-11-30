@@ -2107,9 +2107,7 @@ export default function CandidateInterview() {
         // V2 PER-FIELD PROBING FOR PACK_LE_APPS & DRIVING PACKS
         // ============================================================================
 
-        const isV2Pack =
-          useProbeEngineV2(packId) ||
-          packId === 'PACK_PRIOR_LE_APPS_STANDARD';
+        const isV2Pack = useProbeEngineV2(packId);
 
         console.log('[V2 PROBING][PACK-CHECK]', {
           packId,
