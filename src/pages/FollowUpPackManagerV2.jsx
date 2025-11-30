@@ -350,18 +350,6 @@ export default function FollowUpPackManagerV2() {
               <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
                 <p className="text-slate-500 text-center text-sm">Loading packs...</p>
               </div>
-            ) : packs.length === 0 && !showLegacyPacks ? (
-              <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
-                <div className="text-center space-y-3">
-                  <Package className="w-12 h-12 text-slate-600 mx-auto" />
-                  <p className="text-slate-400 text-sm">
-                    No standardized follow-up packs have been created yet.
-                  </p>
-                  <p className="text-slate-500 text-xs">
-                    Use the action below to create them.
-                  </p>
-                </div>
-              </div>
             ) : (
               <FollowUpPackList
                 packs={filteredPacks}
