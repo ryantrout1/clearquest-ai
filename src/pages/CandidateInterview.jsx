@@ -3458,6 +3458,50 @@ export default function CandidateInterview() {
   }
 
   // ============================================================================
+  // DEBUG-ONLY SANITY CHECK (NO SIDE EFFECTS)
+  // ============================================================================
+
+  /**
+   * Read-only validation that transcript isn't corrupted by virtualization
+   * Only runs in DEBUG_MODE with virtualization enabled
+   */
+  function useTranscriptSanityCheck(transcript) {
+    useEffect(() => {
+      if (!DEBUG_MODE || !ENABLE_CHAT_VIRTUALIZATION) return;
+
+      // 1. Basic shape check
+      if (!Array.isArray(transcript)) {
+        console.error("[CQ Debug] Transcript is not an array", { type: typeof transcript });
+        return;
+      }
+
+      // 2. ID presence check
+      const missingIdCount = transcript.reduce(
+        (count, event) => (!event || !event.id ? count + 1 : count),
+        0
+      );
+
+      if (missingIdCount > 0) {
+        console.warn("[CQ Debug] Transcript contains events without stable IDs", { missingIdCount });
+      }
+
+      // 3. Monotonic length check (transcript should only grow or stay same, never shrink mid-interview)
+      if (typeof window !== 'undefined') {
+        window.__cqLastTranscriptLength = window.__cqLastTranscriptLength ?? 0;
+
+        if (transcript.length < window.__cqLastTranscriptLength) {
+          console.warn("[CQ Debug] Transcript length decreased between renders", {
+            previous: window.__cqLastTranscriptLength,
+            current: transcript.length
+          });
+        }
+
+        window.__cqLastTranscriptLength = transcript.length;
+      }
+    }, [transcript]);
+  }
+
+  // ============================================================================
   // RENDER HELPERS - OPTIMIZED FOR SMOOTH CHAT
   // ============================================================================
 
@@ -3677,6 +3721,9 @@ export default function CandidateInterview() {
   const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
   const requiresClarification = validationHint !== null;
 
+  // DEBUG-ONLY: Sanity check for virtualization (no side effects)
+  useTranscriptSanityCheck(transcript);
+  
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
   const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
     ? (() => {
@@ -3700,38 +3747,6 @@ export default function CandidateInterview() {
         });
       })()
     : [];
-
-  // DEBUG-ONLY: Sanity check for virtualization (no side effects) - MUST be unconditional
-  useEffect(() => {
-    if (!DEBUG_MODE || !ENABLE_CHAT_VIRTUALIZATION) return;
-    
-    if (!Array.isArray(transcript)) {
-      console.error("[CQ Debug] Transcript is not an array", { type: typeof transcript });
-      return;
-    }
-    
-    const missingIdCount = transcript.reduce(
-      (count, event) => (!event || !event.id ? count + 1 : count),
-      0
-    );
-    
-    if (missingIdCount > 0) {
-      console.warn("[CQ Debug] Transcript contains events without stable IDs", { missingIdCount });
-    }
-    
-    if (typeof window !== 'undefined') {
-      window.__cqLastTranscriptLength = window.__cqLastTranscriptLength ?? 0;
-      
-      if (transcript.length < window.__cqLastTranscriptLength) {
-        console.warn("[CQ Debug] Transcript length decreased between renders", {
-          previous: window.__cqLastTranscriptLength,
-          current: transcript.length
-        });
-      }
-      
-      window.__cqLastTranscriptLength = transcript.length;
-    }
-  }, [transcript]);
 
   return (
     <>
