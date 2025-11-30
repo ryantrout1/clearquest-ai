@@ -36,6 +36,129 @@ const DEBUG_MODE = false;
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
+// ============================================================================
+// SECTION-BASED HELPER FUNCTIONS (HOISTED)
+// ============================================================================
+
+/**
+ * Build ordered sections array from engine metadata
+ * Derives sections from Section entities already in engine
+ */
+function buildSectionsFromEngine(engineData) {
+  try {
+    if (!engineData.Sections || engineData.Sections.length === 0) {
+      console.warn('[SECTIONS] No Section entities found - falling back to legacy flow');
+      return [];
+    }
+
+    const orderedSections = engineData.Sections
+      .filter(s => s.active !== false)
+      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+      .map(section => {
+        const sectionId = section.section_id;
+        const questionIds = (engineData.questionsBySection[sectionId] || []).map(q => q.id);
+        
+        return {
+          id: sectionId,
+          dbId: section.id,
+          displayName: section.section_name,
+          description: section.description || null,
+          questionIds: questionIds,
+          section_order: section.section_order
+        };
+      })
+      .filter(s => s.questionIds.length > 0); // Only include sections with questions
+
+    console.log(`[SECTIONS] Built ${orderedSections.length} sections from engine:`, 
+      orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
+
+    return orderedSections;
+  } catch (err) {
+    console.error('[SECTIONS] Error building sections:', err);
+    return [];
+  }
+}
+
+/**
+ * Determine which section index to start from based on session state
+ */
+function determineInitialSectionIndex(orderedSections, sessionData, engineData) {
+  if (!orderedSections || orderedSections.length === 0) return 0;
+  
+  // If session has current_item_snapshot with a questionId, find its section
+  const currentItemSnapshot = sessionData.current_item_snapshot;
+  if (currentItemSnapshot?.id && currentItemSnapshot?.type === 'question') {
+    const questionId = currentItemSnapshot.id;
+    const location = engineData.questionIdToSection?.[questionId];
+    
+    if (location?.sectionId) {
+      const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
+      if (sectionIndex !== -1) {
+        console.log(`[SECTIONS] Resuming at section ${sectionIndex}: ${orderedSections[sectionIndex].displayName}`);
+        return sectionIndex;
+      }
+    }
+  }
+  
+  // Default to first section
+  return 0;
+}
+
+/**
+ * Check if current section is complete
+ * Section is complete when all base questions + follow-ups are done
+ */
+function isSectionComplete(section, engineData, transcriptData, queueData, currentItemData) {
+  if (!section || !engineData) return false;
+  
+  // Check 1: All base questions in section have answers
+  const answeredQuestionIds = new Set(
+    transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
+  );
+  
+  const allBaseQuestionsAnswered = section.questionIds.every(qId => answeredQuestionIds.has(qId));
+  
+  if (!allBaseQuestionsAnswered) {
+    return false;
+  }
+  
+  // Check 2: No active follow-ups in queue for this section
+  const hasActiveFollowups = queueData.some(item => 
+    item.type === 'followup' || item.type === 'multi_instance'
+  );
+  
+  if (hasActiveFollowups) {
+    return false;
+  }
+  
+  // Check 3: Current item is not a follow-up for this section
+  if (currentItemData?.type === 'followup' || currentItemData?.type === 'multi_instance') {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Get next question within current section, or null if section complete
+ */
+function getNextQuestionInSection(section, engineData, transcriptData) {
+  if (!section || !engineData) return null;
+  
+  const answeredQuestionIds = new Set(
+    transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
+  );
+  
+  // Find first unanswered question in section
+  for (const questionId of section.questionIds) {
+    if (!answeredQuestionIds.has(questionId)) {
+      return questionId;
+    }
+  }
+  
+  return null;
+}
+
 // Follow-up pack display names
 const FOLLOWUP_PACK_NAMES = {
   'PACK_LE_APPS': 'Applications with other Law Enforcement Agencies',
@@ -592,13 +715,22 @@ export default function CandidateInterview() {
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
       
-      // Step 2.5: Build sections from engine metadata
-      const orderedSections = buildSectionsFromEngine(engineData);
-      setSections(orderedSections);
-      
-      // Determine initial section index from session state
-      const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
-      setCurrentSectionIndex(initialSectionIndex);
+      // Step 2.5: Build sections from engine metadata (using hoisted helper)
+      try {
+        const orderedSections = buildSectionsFromEngine(engineData);
+        setSections(orderedSections);
+        
+        if (orderedSections.length > 0) {
+          // Determine initial section index from session state
+          const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
+          setCurrentSectionIndex(initialSectionIndex);
+        } else {
+          console.warn('[SECTIONS] No sections built - using legacy flow');
+        }
+      } catch (sectionErr) {
+        console.error('[SECTIONS] Error initializing sections:', sectionErr);
+        // Continue with legacy flow (sections will be empty array)
+      }
       
       // Step 5: Restore state from snapshots or rebuild from responses
       const hasValidSnapshots = loadedSession.transcript_snapshot && 
@@ -910,7 +1042,7 @@ export default function CandidateInterview() {
 
     // NEW: Section-aware advancement
     // Check if current section is complete
-    const sectionComplete = isSectionComplete(activeSection, engine, transcript, queue, currentItem);
+    const sectionComplete = activeSection ? isSectionComplete(activeSection, engine, transcript, queue, currentItem) : false;
     
     if (sectionComplete && currentSectionIndex < sections.length - 1) {
       // Move to next section
@@ -940,7 +1072,7 @@ export default function CandidateInterview() {
     }
     
     // Get next question within current section or move to next section
-    const nextQuestionId = getNextQuestionInSection(activeSection, engine, transcript);
+    const nextQuestionId = activeSection ? getNextQuestionInSection(activeSection, engine, transcript) : null;
     
     if (nextQuestionId) {
       // Stay in current section
@@ -991,7 +1123,7 @@ export default function CandidateInterview() {
       await persistStateToDatabase(newTranscript, [], null);
       setShowCompletionModal(true);
     }
-  }, [engine, transcript, sections, currentSectionIndex, activeSection, isSectionComplete, getNextQuestionInSection, queue, currentItem]);
+  }, [engine, transcript, sections, currentSectionIndex, activeSection, queue, currentItem]);
 
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine.QById[baseQuestionId];
@@ -3619,129 +3751,6 @@ export default function CandidateInterview() {
   const getFollowUpPackName = (packId) => {
     return FOLLOWUP_PACK_NAMES[packId] || 'Follow-up Questions';
   };
-
-  // ============================================================================
-  // SECTION-BASED HELPERS
-  // ============================================================================
-
-  /**
-   * Build ordered sections array from engine metadata
-   * Derives sections from Section entities already in engine
-   */
-  const buildSectionsFromEngine = (engineData) => {
-    try {
-      if (!engineData.Sections || engineData.Sections.length === 0) {
-        console.warn('[SECTIONS] No Section entities found - falling back to legacy flow');
-        return [];
-      }
-
-      const orderedSections = engineData.Sections
-        .filter(s => s.active !== false)
-        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
-        .map(section => {
-          const sectionId = section.section_id;
-          const questionIds = (engineData.questionsBySection[sectionId] || []).map(q => q.id);
-          
-          return {
-            id: sectionId,
-            dbId: section.id,
-            displayName: section.section_name,
-            description: section.description || null,
-            questionIds: questionIds,
-            section_order: section.section_order
-          };
-        })
-        .filter(s => s.questionIds.length > 0); // Only include sections with questions
-
-      console.log(`[SECTIONS] Built ${orderedSections.length} sections from engine:`, 
-        orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
-
-      return orderedSections;
-    } catch (err) {
-      console.error('[SECTIONS] Error building sections:', err);
-      return [];
-    }
-  };
-
-  /**
-   * Determine which section index to start from based on session state
-   */
-  const determineInitialSectionIndex = (orderedSections, sessionData, engineData) => {
-    if (!orderedSections || orderedSections.length === 0) return 0;
-    
-    // If session has current_item_snapshot with a questionId, find its section
-    const currentItemSnapshot = sessionData.current_item_snapshot;
-    if (currentItemSnapshot?.id && currentItemSnapshot?.type === 'question') {
-      const questionId = currentItemSnapshot.id;
-      const location = engineData.questionIdToSection?.[questionId];
-      
-      if (location?.sectionId) {
-        const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
-        if (sectionIndex !== -1) {
-          console.log(`[SECTIONS] Resuming at section ${sectionIndex}: ${orderedSections[sectionIndex].displayName}`);
-          return sectionIndex;
-        }
-      }
-    }
-    
-    // Default to first section
-    return 0;
-  };
-
-  /**
-   * Check if current section is complete
-   * Section is complete when all base questions + follow-ups are done
-   */
-  const isSectionComplete = useCallback((section, engineData, transcriptData, queueData, currentItemData) => {
-    if (!section || !engineData) return false;
-    
-    // Check 1: All base questions in section have answers
-    const answeredQuestionIds = new Set(
-      transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
-    );
-    
-    const allBaseQuestionsAnswered = section.questionIds.every(qId => answeredQuestionIds.has(qId));
-    
-    if (!allBaseQuestionsAnswered) {
-      return false;
-    }
-    
-    // Check 2: No active follow-ups in queue for this section
-    const hasActiveFollowups = queueData.some(item => 
-      item.type === 'followup' || item.type === 'multi_instance'
-    );
-    
-    if (hasActiveFollowups) {
-      return false;
-    }
-    
-    // Check 3: Current item is not a follow-up for this section
-    if (currentItemData?.type === 'followup' || currentItemData?.type === 'multi_instance') {
-      return false;
-    }
-    
-    return true;
-  }, []);
-
-  /**
-   * Get next question within current section, or null if section complete
-   */
-  const getNextQuestionInSection = useCallback((section, engineData, transcriptData) => {
-    if (!section || !engineData) return null;
-    
-    const answeredQuestionIds = new Set(
-      transcriptData.filter(t => t.type === 'question').map(t => t.questionId)
-    );
-    
-    // Find first unanswered question in section
-    for (const questionId of section.questionIds) {
-      if (!answeredQuestionIds.has(questionId)) {
-        return questionId;
-      }
-    }
-    
-    return null;
-  }, []);
 
   const getCurrentPrompt = () => {
     if (isWaitingForAgent) {
