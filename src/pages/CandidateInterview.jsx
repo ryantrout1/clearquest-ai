@@ -3463,11 +3463,13 @@ export default function CandidateInterview() {
 
   /**
    * Read-only validation that transcript isn't corrupted by virtualization
-   * Only runs in DEBUG_MODE with virtualization enabled
+   * Only runs when enabled=true (DEBUG_MODE && ENABLE_CHAT_VIRTUALIZATION)
+   * IMPORTANT: Hook is ALWAYS called to maintain stable hook count
    */
-  function useTranscriptSanityCheck(transcript) {
+  function useTranscriptSanityCheck({ enabled, transcript }) {
     useEffect(() => {
-      if (!DEBUG_MODE || !ENABLE_CHAT_VIRTUALIZATION) return;
+      // Guard inside hook - hook always runs, effect is conditional
+      if (!enabled) return;
 
       // 1. Basic shape check
       if (!Array.isArray(transcript)) {
@@ -3498,7 +3500,7 @@ export default function CandidateInterview() {
 
         window.__cqLastTranscriptLength = transcript.length;
       }
-    }, [transcript]);
+    }, [enabled, transcript]);
   }
 
   // ============================================================================
@@ -3722,7 +3724,11 @@ export default function CandidateInterview() {
   const requiresClarification = validationHint !== null;
 
   // DEBUG-ONLY: Sanity check for virtualization (no side effects)
-  useTranscriptSanityCheck(transcript);
+  // Hook always called for stable hook count; conditional logic is internal
+  useTranscriptSanityCheck({ 
+    enabled: DEBUG_MODE && ENABLE_CHAT_VIRTUALIZATION, 
+    transcript 
+  });
   
   // OPTIMIZED: Filter displayable agent messages inline (avoid useCallback recalculation)
   const displayableAgentMessages = isWaitingForAgent && agentMessages.length > 0
