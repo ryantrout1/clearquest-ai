@@ -46,36 +46,73 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
  */
 function buildSectionsFromEngine(engineData) {
   try {
-    if (!engineData.Sections || engineData.Sections.length === 0) {
-      console.warn('[SECTIONS] No Section entities found - falling back to legacy flow');
-      return [];
+    // Check multiple possible sources for sections
+    const sectionEntities = engineData.Sections || [];
+    const sectionOrder = engineData.sectionOrder || [];
+    const questionsBySection = engineData.questionsBySection || {};
+    
+    // If we have Section entities, use them
+    if (sectionEntities.length > 0) {
+      const orderedSections = sectionEntities
+        .filter(section => section.active !== false)
+        .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
+        .map(section => {
+          const sectionId = section.section_id;
+          const sectionQuestions = questionsBySection[sectionId] || [];
+          const questionIds = sectionQuestions.map(q => q.id || q.question_id);
+          
+          return {
+            id: sectionId,
+            dbId: section.id,
+            displayName: section.section_name,
+            description: section.description || null,
+            questionIds: questionIds,
+            section_order: section.section_order,
+            active: section.active !== false
+          };
+        })
+        .filter(s => s.questionIds.length > 0);
+
+      if (orderedSections.length > 0) {
+        console.log(`[SECTIONS] Built ${orderedSections.length} sections from engine:`, 
+          orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
+        return orderedSections;
+      }
     }
+    
+    // Fallback: try to build from sectionOrder if available
+    if (sectionOrder.length > 0) {
+      console.log('[SECTIONS] Attempting to build from sectionOrder');
+      const orderedSections = sectionOrder
+        .filter(s => s.active !== false)
+        .map((section, idx) => {
+          const sectionId = section.id || section.section_id;
+          const sectionQuestions = questionsBySection[sectionId] || [];
+          const questionIds = sectionQuestions.map(q => q.id || q.question_id);
+          
+          return {
+            id: sectionId,
+            dbId: section.dbId || section.id,
+            displayName: section.name || section.section_name || sectionId,
+            description: section.description || null,
+            questionIds: questionIds,
+            section_order: section.order || section.section_order || idx + 1,
+            active: section.active !== false
+          };
+        })
+        .filter(s => s.questionIds.length > 0);
 
-    const orderedSections = engineData.Sections
-      .filter(s => s.active !== false)
-      .sort((a, b) => (a.section_order || 0) - (b.section_order || 0))
-      .map(section => {
-        const sectionId = section.section_id;
-        const questionIds = (engineData.questionsBySection[sectionId] || []).map(q => q.id);
-        
-        return {
-          id: sectionId,
-          dbId: section.id,
-          displayName: section.section_name,
-          description: section.description || null,
-          questionIds: questionIds,
-          section_order: section.section_order,
-          active: s.active !== false
-        };
-      })
-      .filter(s => s.questionIds.length > 0); // Only include sections with questions
-
-    console.log(`[SECTIONS] Built ${orderedSections.length} sections from engine:`, 
-      orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
-
-    return orderedSections;
+      if (orderedSections.length > 0) {
+        console.log(`[SECTIONS] Built ${orderedSections.length} sections from sectionOrder:`, 
+          orderedSections.map(s => `${s.section_order}. ${s.displayName} (${s.questionIds.length} Qs)`));
+        return orderedSections;
+      }
+    }
+    
+    console.warn('[SECTIONS] No section data found - returning empty array');
+    return [];
   } catch (err) {
-    console.error('[SECTIONS] Error building sections:', err);
+    console.warn('[SECTIONS] Error building sections (non-fatal):', err.message);
     return [];
   }
 }
