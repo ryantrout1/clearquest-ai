@@ -337,44 +337,13 @@ export default function FollowUpPackManagerV2() {
               </span>
             </div>
 
-            <div className="mb-3 space-y-2">
+            <div className="mb-3">
               <Input
                 placeholder="Search packs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
               />
-              
-              <div className="flex items-center gap-4 px-1">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="show-legacy"
-                    checked={showLegacyPacks}
-                    onCheckedChange={setShowLegacyPacks}
-                    className="border-slate-600"
-                  />
-                  <label
-                    htmlFor="show-legacy"
-                    className="text-xs text-slate-400 cursor-pointer select-none"
-                  >
-                    Show legacy packs
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="show-active-only"
-                    checked={showActiveOnly}
-                    onCheckedChange={setShowActiveOnly}
-                    className="border-slate-600"
-                  />
-                  <label
-                    htmlFor="show-active-only"
-                    className="text-xs text-slate-400 cursor-pointer select-none"
-                  >
-                    Show active packs only
-                  </label>
-                </div>
-              </div>
             </div>
 
             {packsLoading ? (
