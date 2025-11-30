@@ -1212,19 +1212,30 @@ export default function CandidateInterview() {
     setAiProbingPackInstanceKey(packInstanceKey);
 
     // ============================================================================
-    // PROBE ENGINE V2 - Packs configured for per-field probing skip pack-level AI
-    // ROOT CAUSE ANALYSIS (2025-11):
-    // V2 packs (PACK_LE_APPS, DRIVING_*) use per-field probing DURING deterministic steps,
-    // not after pack completion. When a V2 pack finishes deterministic steps,
-    // we call onFollowupPackComplete which handles multi-instance or advances.
-    // This is CORRECT behavior - V2 probing happens inline, not at end.
+    // V2 PACK PROBING DECISION - Metadata-Driven (Not Pack-Specific)
+    // Check if this pack uses per-field probing OR has V2 metadata
     // ============================================================================
-    if (useProbeEngineV2(packId)) {
-      if (DEBUG_MODE) console.log(`[V2-PER-FIELD] Skipping pack-level probing for ${packId}`);
-      
-      // Advance directly to next base question or multi-instance check
+    const isV2PerFieldPack = useProbeEngineV2(packId);
+    const v2PackMeta = engine?.V2Packs?.find(p => p.followup_pack_id === packId);
+    const hasV2Metadata = !!v2PackMeta;
+    const isStandardCluster = v2PackMeta?.is_standard_cluster === true;
+    const hasAiProbeInstructions = !!v2PackMeta?.ai_probe_instructions;
+    
+    console.log('[V2 PROBE DECISION] Pack metadata analysis', {
+      packId,
+      isV2PerFieldPack,
+      hasV2Metadata,
+      isStandardCluster,
+      hasAiProbeInstructions,
+      maxAiFollowups: v2PackMeta?.max_ai_followups,
+      probingEnabled: ENABLE_LIVE_AI_FOLLOWUPS && aiProbingEnabled && !aiProbingDisabledForSession
+    });
+    
+    // V2 per-field packs already handled probing during steps - skip pack-level probing
+    if (isV2PerFieldPack) {
+      console.log(`[V2 PROBE SKIP] ${packId} uses per-field probing - already handled during steps`);
       onFollowupPackComplete(questionId, packId);
-      return true; // Per-field mode handled this pack - skip all other probing
+      return true;
     }
 
     // NEW: Check feature flag and attempt invokeLLM-based AI (lightweight alternative)
