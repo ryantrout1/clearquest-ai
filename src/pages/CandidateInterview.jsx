@@ -2097,38 +2097,37 @@ export default function CandidateInterview() {
         // ============================================================================
         // V2 PER-FIELD PROBING FOR PACK_LE_APPS & DRIVING PACKS
         // ============================================================================
+
         if (useProbeEngineV2(packId)) {
           const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
-          
-          // Check if we're already probing this field (StrictMode guard)
+
+          // StrictMode guard: don't double-probe the same field
           if (v2ProbingInProgressRef.current.has(probeKey)) {
-            if (DEBUG_MODE) console.log(`[V2] Already probing ${probeKey}`);
+            if (DEBUG_MODE) console.log('[V2] Already probing field', { packId, fieldKey, instanceNumber });
             setIsCommitting(false);
             return;
           }
 
-          // Build incident context from all answers so far
+          // Build incident context from all answers so far (including this one)
           const incidentContext = { ...currentFollowUpAnswers, [fieldKey]: normalizedAnswer };
-          
-          // ============================================================================
-          // SEMANTIC VALIDATION - Check if answer is valid, unknown, or invalid
-          // ============================================================================
+
+          // Semantic validation (still useful as a hint to the backend)
           const semanticResult = validateFollowupValue({
             packId,
             fieldKey,
             rawValue: normalizedAnswer
           });
-          
-          const { isEmpty, isNoRecall } = semanticResult;
-          
-          // Get max AI followups from centralized config - SINGLE SOURCE OF TRUTH
+
+          const { isEmpty, isNoRecall } = semanticResult || {};
+
+          // Centralized per-pack max followups
           const maxAiFollowups = getPackMaxAiFollowups(packId);
-          
-          // Get probe count from aiFollowupCounts using per-field key
+
+          // Per-field probe counter key
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
-          
-          // DEEP DEBUG: Full V2 probing decision context
+
+          // Deep debug entry point
           console.debug('[V2 PROBING][FIELD-ENTRY]', {
             packId,
             fieldKey,
@@ -2159,81 +2158,7 @@ export default function CandidateInterview() {
             console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
               packId,
               fieldKey,
-              isEmpty,
-              isNoRecall,
-              probeCount,
-              maxAiFollowups
-            });
-          }
-          
-          // ============================================================================
-          // HELPER: Complete field without probing (save & advance)
-          // ============================================================================
-          const completeV2FieldWithoutProbe = async () => {
-            if (DEBUG_MODE) console.log(`[V2] Completing field ${fieldKey} without probe`);
-            
-            await saveFollowUpAnswer(packId, fieldKey, semanticResult.normalizedValue, substanceName, instanceNumber, "user");
-            
-            setCompletedFields(prev => ({
-              ...prev,
-              [`${packId}_${instanceNumber}`]: {
-                ...(prev[`${packId}_${instanceNumber}`] || {}),
-                [fieldKey]: true
-              }
-            }));
-            
-            setFieldProbingState(prev => {
-              const updated = { ...prev };
-              delete updated[probeKey];
-              return updated;
-            });
-            
-            setAiFollowupCounts(prev => {
-              const updated = { ...prev };
-              delete updated[fieldCountKey];
-              return updated;
-            });
-            
-            // Update follow-up answers tracker
-            setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
-          };
-          
-          // ============================================================================
-          // DECISION LOGIC: Let backend decide when probing is needed
-          // Backend is ALWAYS consulted when feature is enabled and quota not hit
-          // ============================================================================
-
-          // Can we even talk to the backend? (feature flags + quota only)
-          const canProbeBackend =
-            ENABLE_LIVE_AI_FOLLOWUPS &&
-            aiProbingEnabled &&
-            !aiProbingDisabledForSession &&
-            probeCount < maxAiFollowups;
-
-          // DEEP DEBUG: Final probing decision (front-end side)
-          console.debug('[V2 PROBING][DECISION]', {
-            packId,
-            fieldKey,
-            instanceNumber,
-            willCallBackend: canProbeBackend,
-            decisionFactors: {
-              ENABLE_LIVE_AI_FOLLOWUPS,
-              aiProbingEnabled,
-              aiProbingDisabledForSession,
-              probeCountVsMax: `${probeCount}/${maxAiFollowups}`,
-              quotaHit: probeCount >= maxAiFollowups
-            },
-            semanticSnapshot: {
-              status: semanticResult?.status,
-              isEmpty,
-              isNoRecall
-            }
-          });
-
-          if (DEBUG_MODE) {
-            console.log('[V2 DECISION]', {
-              fieldKey,
-              willCallBackend: canProbeBackend,
+              instanceNumber,
               probeCount,
               maxAiFollowups
             });
@@ -2243,28 +2168,103 @@ export default function CandidateInterview() {
             packId,
             fieldKey,
             instanceNumber,
-            status: semanticResult.status,
+            status: semanticResult?.status,
             isEmpty,
             isNoRecall,
             normalizedAnswer,
             probeCount,
-            maxAiFollowups,
-            willCallBackend: canProbeBackend
+            maxAiFollowups
           });
 
-          // 1) AI globally disabled or session disabled -> save and move on
+          // Helper: complete field WITHOUT probing (save + mark complete)
+          const completeV2FieldWithoutProbe = async () => {
+            if (DEBUG_MODE) console.log('[V2] Completing field without probe', { packId, fieldKey, instanceNumber });
+
+            await saveFollowUpAnswer(
+              packId,
+              fieldKey,
+              semanticResult?.normalizedValue ?? normalizedAnswer,
+              substanceName,
+              instanceNumber,
+              'user'
+            );
+
+            setCompletedFields(prev => ({
+              ...prev,
+              [`${packId}_${instanceNumber}`]: {
+                ...(prev[`${packId}_${instanceNumber}`] || {}),
+                [fieldKey]: true
+              }
+            }));
+
+            setFieldProbingState(prev => {
+              const updated = { ...prev };
+              delete updated[probeKey];
+              return updated;
+            });
+
+            setAiFollowupCounts(prev => {
+              const updated = { ...prev };
+              delete updated[fieldCountKey];
+              return updated;
+            });
+
+            setCurrentFollowUpAnswers(prev => ({
+              ...prev,
+              [fieldKey]: semanticResult?.normalizedValue ?? normalizedAnswer
+            }));
+          };
+
+          // ===================== FRONTEND DECISION LAYER =====================
+          // 1) If AI is globally disabled or disabled for this session -> never probe
+          // 2) If field has hit its probe quota -> never probe
+          // 3) Otherwise -> ALWAYS call backend; backend decides whether to probe
+          // ==================================================================
+
+          const canCallBackend =
+            ENABLE_LIVE_AI_FOLLOWUPS &&
+            aiProbingEnabled &&
+            !aiProbingDisabledForSession &&
+            probeCount < maxAiFollowups;
+
+          console.debug('[V2 PROBING][DECISION]', {
+            packId,
+            fieldKey,
+            instanceNumber,
+            canCallBackend,
+            flags: {
+              ENABLE_LIVE_AI_FOLLOWUPS,
+              aiProbingEnabled,
+              aiProbingDisabledForSession
+            },
+            counters: {
+              probeCount,
+              maxAiFollowups
+            }
+          });
+
+          if (DEBUG_MODE) {
+            console.log('[V2 DECISION]', {
+              fieldKey,
+              canCallBackend,
+              probeCount,
+              maxAiFollowups
+            });
+          }
+
+          // Case 1: AI disabled or session disabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
             console.debug('[V2 PROBING][SKIP]', {
-              reason: 'AI globally disabled or session disabled',
+              reason: 'AI disabled (global or session)',
               packId,
               fieldKey,
               flags: { ENABLE_LIVE_AI_FOLLOWUPS, aiProbingEnabled, aiProbingDisabledForSession }
             });
-            if (DEBUG_MODE) console.log('[V2] Skipping probe: AI disabled');
+
             await completeV2FieldWithoutProbe();
-            // Fall through to advance to next step (handled below)
+            // Do NOT return – let the normal follow-up flow advance below
           }
-          // 2) Max probes reached for this field -> save and move on
+          // Case 2: Field has hit probe quota
           else if (probeCount >= maxAiFollowups) {
             console.debug('[V2 PROBING][SKIP]', {
               reason: 'Max probes quota hit',
@@ -2273,26 +2273,25 @@ export default function CandidateInterview() {
               probeCount,
               maxAiFollowups
             });
-            if (DEBUG_MODE) console.log('[V2] Max probes reached for field');
+
             await completeV2FieldWithoutProbe();
-            // Fall through to advance to next step (handled below)
+            // Do NOT return – let the normal follow-up flow advance below
           }
-          // 3) Backend decides: ALWAYS call it when enabled + under quota
+          // Case 3: Call backend and let it decide
           else {
             try {
               console.debug('[V2 PROBING][CALL]', {
-                reason: 'Backend decides if additional probing is needed',
+                reason: 'Backend decides if probing is needed',
                 packId,
                 fieldKey,
+                instanceNumber,
                 probeCount,
                 maxAiFollowups,
                 semanticStatus: semanticResult?.status,
                 isEmpty,
-                isNoRecall,
-                answerPreview: normalizedAnswer?.substring?.(0, 80)
+                isNoRecall
               });
-              if (DEBUG_MODE) console.log('[V2] Calling backend probe for', fieldKey);
-              
+
               logAiProbeDebug('triggerBackendCheck', {
                 packId,
                 fieldKey,
@@ -2301,30 +2300,26 @@ export default function CandidateInterview() {
                 maxAiFollowups,
                 isEmpty,
                 isNoRecall,
-                status: semanticResult.status
+                status: semanticResult?.status
               });
-              
-              // Mark as in progress
+
               v2ProbingInProgressRef.current.add(probeKey);
-              
+
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
                 fieldKey,
-                fieldValue: normalizedAnswer,
+                fieldValue: semanticResult?.normalizedValue ?? normalizedAnswer,
                 previousProbesCount: probeCount,
                 incidentContext,
-                // Pass semantic hints so backend can still use them
                 semanticStatus: semanticResult?.status,
                 isEmpty,
                 isNoRecall
               });
-              
-              // Extract mode and question text safely
+
               const mode = v2Result?.mode;
-              const rawQuestion = typeof v2Result?.question === "string" ? v2Result.question.trim() : "";
+              const rawQuestion = typeof v2Result?.question === 'string' ? v2Result.question.trim() : '';
               const hasProbeQuestion = rawQuestion.length > 0;
 
-              // DEEP DEBUG: Backend response decision
               console.debug('[V2 PROBING][BACKEND-DECISION]', {
                 packId,
                 fieldKey,
@@ -2335,64 +2330,54 @@ export default function CandidateInterview() {
                 willComplete: mode === 'COMPLETE' || mode === 'VALIDATED'
               });
 
-              if (DEBUG_MODE) {
-                console.log('[V2-RESPONSE]', {
-                  fieldKey,
-                  mode,
-                  hasProbeQuestion
-                });
-              }
-
-              // Backend says probe needed - show AI question
+              // Backend says: show AI probe
               if (mode === 'QUESTION' || hasProbeQuestion) {
-                if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} needs probing`);
-                
-                // Increment probe count for this field
+                if (DEBUG_MODE) console.log('[V2] Backend requested probe for field', fieldKey);
+
                 setAiFollowupCounts(prev => ({
                   ...prev,
                   [fieldCountKey]: probeCount + 1
                 }));
-                
-                setInput("");
-                
-                // Add the deterministic follow-up Q+A to transcript FIRST
+
+                setInput('');
+
                 const followupQuestionEntry = createChatEvent('followup_question', {
                   questionId: currentItem.id,
                   questionText: step.Prompt,
-                  packId: packId,
-                  substanceName: substanceName,
+                  packId,
+                  substanceName,
                   kind: 'deterministic_followup_question',
                   text: step.Prompt,
                   content: step.Prompt,
-                  fieldKey: fieldKey,
+                  fieldKey,
                   followupPackId: packId,
-                  instanceNumber: instanceNumber,
+                  instanceNumber,
                   baseQuestionId: currentItem.baseQuestionId
                 });
-                
+
                 const followupAnswerEntry = createChatEvent('followup_answer', {
                   questionId: currentItem.id,
-                  packId: packId,
-                  substanceName: substanceName,
+                  packId,
+                  substanceName,
                   kind: 'deterministic_followup_answer',
                   answer: normalizedAnswer,
                   text: normalizedAnswer,
                   content: normalizedAnswer,
-                  fieldKey: fieldKey,
+                  fieldKey,
                   followupPackId: packId,
-                  instanceNumber: instanceNumber,
+                  instanceNumber,
                   baseQuestionId: currentItem.baseQuestionId
                 });
-                
+
                 const followupEntry = {
                   ...followupQuestionEntry,
                   type: 'followup',
                   answer: normalizedAnswer,
                   text: normalizedAnswer
                 };
-                
+
                 const probeText = rawQuestion;
-                
+
                 const pendingProbeData = {
                   packId,
                   fieldKey,
@@ -2402,9 +2387,9 @@ export default function CandidateInterview() {
                   baseQuestionId: currentItem.baseQuestionId,
                   probeEngineVersion: 'v2-per-field'
                 };
-                
+
                 setPendingProbe(pendingProbeData);
-                
+
                 const newTranscript = [...transcript, followupEntry];
                 setTranscript(newTranscript);
 
@@ -2416,9 +2401,12 @@ export default function CandidateInterview() {
                     isProbing: true
                   }
                 }));
-                
-                setCurrentFollowUpAnswers(prev => ({ ...prev, [fieldKey]: normalizedAnswer }));
-                
+
+                setCurrentFollowUpAnswers(prev => ({
+                  ...prev,
+                  [fieldKey]: normalizedAnswer
+                }));
+
                 setCurrentFieldProbe({
                   packId,
                   instanceNumber,
@@ -2427,32 +2415,40 @@ export default function CandidateInterview() {
                   question: probeText,
                   baseQuestionId: currentItem.baseQuestionId,
                   substanceName,
-                  currentItem: currentItem
+                  currentItem
                 });
-                
-                await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, "user");
+
+                await saveFollowUpAnswer(
+                  packId,
+                  fieldKey,
+                  semanticResult?.normalizedValue ?? normalizedAnswer,
+                  substanceName,
+                  instanceNumber,
+                  'user'
+                );
+
                 await persistStateToDatabase(newTranscript, queue, currentItem);
-                
+
                 setIsWaitingForAgent(true);
                 setIsInvokeLLMMode(true);
                 setIsCommitting(false);
                 v2ProbingInProgressRef.current.delete(probeKey);
-                return;
+                return; // important: stop normal follow-up flow while AI probe is active
               }
-              
-              // Backend says no probe needed - complete field
+
+              // Backend says: no probe needed, field is complete
               v2ProbingInProgressRef.current.delete(probeKey);
-              if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} complete (no probe from backend)`);
+              if (DEBUG_MODE) console.log('[V2] Backend completed field without probe', { fieldKey });
               await completeV2FieldWithoutProbe();
-              // Fall through to advance to next step
-              
+              // Do NOT return – let normal follow-up flow advance below
+
             } catch (err) {
               console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, message: err?.message });
               v2ProbingInProgressRef.current.delete(probeKey);
-              
-              // On backend failure, fail open: save and advance
+
+              // Fail open: save and move on
               await completeV2FieldWithoutProbe();
-              // Fall through to advance to next step
+              // Do NOT return – let normal follow-up flow advance below
             }
           }
         }
