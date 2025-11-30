@@ -1385,31 +1385,57 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                       {formData.followup_pack ? `${FOLLOWUP_PACK_NAMES[formData.followup_pack] || formData.followup_pack}` : "None"}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="max-h-96 bg-slate-900">
-                    <SelectItem value={null}>None</SelectItem>
-                    {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
-                      const isDefaultGroup = defaultPackGroup === groupName;
-                      return (
-                        <React.Fragment key={groupName}>
-                          <div className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 ${
-                            isDefaultGroup ? 'text-green-400' : 'text-blue-400'
-                          }`}>
-                            {groupName}
-                            {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
-                          </div>
-                          {packs.map(pack => (
-                            <SelectItem key={pack} value={pack} className="pl-8 py-2.5">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-medium text-white">
-                                  {FOLLOWUP_PACK_NAMES[pack] || pack}
-                                </span>
-                                <span className="text-xs text-slate-500 font-mono">{pack}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
+                  <SelectContent className="max-h-96 bg-slate-900 border-slate-700">
+                    <SelectItem value={null} className="text-slate-300 hover:bg-slate-800">None</SelectItem>
+                    {(() => {
+                      // Only show packs that exist in the database and are active
+                      const activePacks = followUpPacks
+                        .filter(p => p.active !== false)
+                        .sort((a, b) => (a.pack_name || '').localeCompare(b.pack_name || ''));
+
+                      // Group active packs by category_id
+                      const groupedActivePacks = {};
+                      activePacks.forEach(pack => {
+                        const category = pack.category_id || 'Other';
+                        if (!groupedActivePacks[category]) {
+                          groupedActivePacks[category] = [];
+                        }
+                        groupedActivePacks[category].push(pack);
+                      });
+
+                      // Sort groups alphabetically
+                      const sortedGroups = Object.keys(groupedActivePacks).sort();
+
+                      return sortedGroups.map(groupName => {
+                        const isDefaultGroup = defaultPackGroup === groupName;
+                        const packsInGroup = groupedActivePacks[groupName];
+
+                        return (
+                          <React.Fragment key={groupName}>
+                            <div className={`px-3 py-2 text-xs font-bold bg-slate-800 border-b border-slate-700 sticky top-0 ${
+                              isDefaultGroup ? 'text-green-400' : 'text-purple-400'
+                            }`}>
+                              {groupName}
+                              {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
+                            </div>
+                            {packsInGroup.map(pack => (
+                              <SelectItem 
+                                key={pack.followup_pack_id} 
+                                value={pack.followup_pack_id} 
+                                className="pl-6 py-2.5 text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:text-white"
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-sm font-medium text-slate-100">
+                                    {pack.pack_name || pack.followup_pack_id}
+                                  </span>
+                                  <span className="text-xs text-slate-400 font-mono">{pack.followup_pack_id}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
               ) : (
