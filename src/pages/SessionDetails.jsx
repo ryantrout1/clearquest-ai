@@ -590,8 +590,32 @@ export default function SessionDetails() {
           const summaryText = data.section_summary_text || data.sectionSummaryText;
           
           if (sectionId && summaryText) {
+            // Map by section_id (database ID) for lookup
             sMap[sectionId] = summaryText;
           }
+        });
+        
+        // CRITICAL: Build section name to summary map for SectionHeader lookup
+        // SectionHeader receives category (section_name string), not section_id
+        const sMapByName = {};
+        sectionsData.forEach(section => {
+          const sectionDbId = section.id;
+          const sectionName = section.section_name;
+          const summaryText = sMap[sectionDbId];
+          
+          if (sectionName && summaryText) {
+            sMapByName[sectionName] = summaryText;
+          }
+        });
+        
+        console.log('[SESSIONDETAILS] Section summary mapping', {
+          sectionSummariesCount: sectionSummaries.length,
+          sMapByIdKeys: Object.keys(sMap),
+          sMapByNameKeys: Object.keys(sMapByName),
+          sampleMapping: Object.entries(sMapByName).slice(0, 2).map(([name, text]) => ({
+            sectionName: name,
+            textPreview: text?.substring(0, 60)
+          }))
         });
 
         // DEBUG: Log sample response question_id for matching verification
@@ -610,7 +634,7 @@ export default function SessionDetails() {
 
         setInstanceSummariesByKey(instMap);
         setQuestionSummariesByQuestionId(qMap);
-        setSectionSummariesBySectionId(sMap);
+        setSectionSummariesBySectionId(sMapByName); // Use name-based map for SectionHeader
       } catch (err) {
         console.error('[SESSIONDETAILS] Failed to load summaries', { error: err });
       }
@@ -1544,7 +1568,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                 allFollowups={followups}
                 isCollapsed={isSectionCollapsed}
                 onToggle={() => toggleSection(category)}
-                sectionAISummary={sectionSummariesBySectionId[category] ? { text: sectionSummariesBySectionId[category] } : session.section_ai_summaries?.[category]}
+                sectionAISummary={sectionSummariesBySectionId[category] ? { text: sectionSummariesBySectionId[category] } : null}
               />
             </div>
 
