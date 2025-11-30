@@ -2199,51 +2199,46 @@ export default function CandidateInterview() {
           };
           
           // ============================================================================
-          // DECISION LOGIC: Only probe when answer is vague/uncertain
-          // FIX (2025-11-29): Gate on isEmpty/isNoRecall - don't call backend for clear answers
+          // DECISION LOGIC: Let backend decide when probing is needed
+          // Backend is ALWAYS consulted when feature is enabled and quota not hit
           // ============================================================================
-          
-          // Compute whether we should probe based on semantic analysis
-          const shouldProbe = 
-            (isEmpty || isNoRecall) &&
+
+          // Can we even talk to the backend? (feature flags + quota only)
+          const canProbeBackend =
             ENABLE_LIVE_AI_FOLLOWUPS &&
             aiProbingEnabled &&
             !aiProbingDisabledForSession &&
             probeCount < maxAiFollowups;
-          
-          // DEEP DEBUG: Final probing decision
+
+          // DEEP DEBUG: Final probing decision (front-end side)
           console.debug('[V2 PROBING][DECISION]', {
             packId,
             fieldKey,
             instanceNumber,
-            willProbe: shouldProbe,
+            willCallBackend: canProbeBackend,
             decisionFactors: {
-              isEmpty,
-              isNoRecall,
               ENABLE_LIVE_AI_FOLLOWUPS,
               aiProbingEnabled,
               aiProbingDisabledForSession,
               probeCountVsMax: `${probeCount}/${maxAiFollowups}`,
               quotaHit: probeCount >= maxAiFollowups
             },
-            skipReason: !shouldProbe ? (
-              !ENABLE_LIVE_AI_FOLLOWUPS ? 'ENABLE_LIVE_AI_FOLLOWUPS=false' :
-              !aiProbingEnabled ? 'aiProbingEnabled=false' :
-              aiProbingDisabledForSession ? 'aiProbingDisabledForSession=true' :
-              probeCount >= maxAiFollowups ? 'quotaHit' :
-              (!isEmpty && !isNoRecall) ? 'answerIsClear' : 'unknown'
-            ) : null
+            semanticSnapshot: {
+              status: semanticResult?.status,
+              isEmpty,
+              isNoRecall
+            }
           });
 
           if (DEBUG_MODE) {
             console.log('[V2 DECISION]', {
               fieldKey,
-              isEmpty,
-              isNoRecall,
-              willProbe: shouldProbe
+              willCallBackend: canProbeBackend,
+              probeCount,
+              maxAiFollowups
             });
           }
-          
+
           logAiProbeDebug('semanticResult', {
             packId,
             fieldKey,
@@ -2254,10 +2249,10 @@ export default function CandidateInterview() {
             normalizedAnswer,
             probeCount,
             maxAiFollowups,
-            shouldProbe
+            willCallBackend: canProbeBackend
           });
-          
-          // Check if AI probing is globally disabled
+
+          // 1) AI globally disabled or session disabled -> save and move on
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
             console.debug('[V2 PROBING][SKIP]', {
               reason: 'AI globally disabled or session disabled',
@@ -2269,7 +2264,7 @@ export default function CandidateInterview() {
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
-          // Max probes reached - accept current value and move on
+          // 2) Max probes reached for this field -> save and move on
           else if (probeCount >= maxAiFollowups) {
             console.debug('[V2 PROBING][SKIP]', {
               reason: 'Max probes quota hit',
@@ -2282,31 +2277,18 @@ export default function CandidateInterview() {
             await completeV2FieldWithoutProbe();
             // Fall through to advance to next step (handled below)
           }
-          // NEW: Semantic gate - only probe if answer is vague/uncertain
-          else if (!isEmpty && !isNoRecall) {
-            console.debug('[V2 PROBING][SKIP]', {
-              reason: 'Answer is clear (not empty, not no-recall)',
-              packId,
-              fieldKey,
-              isEmpty,
-              isNoRecall,
-              semanticStatus: semanticResult?.status,
-              answerPreview: normalizedAnswer?.substring?.(0, 50)
-            });
-            if (DEBUG_MODE) console.log('[V2] Skipping probe: answer is clear');
-            await completeV2FieldWithoutProbe();
-            // Fall through to advance to next step (handled below)
-          }
-          // Answer is vague/uncertain - proceed with probing
+          // 3) Backend decides: ALWAYS call it when enabled + under quota
           else {
             try {
               console.debug('[V2 PROBING][CALL]', {
-                reason: 'Answer is vague/uncertain - proceeding with backend call',
+                reason: 'Backend decides if additional probing is needed',
                 packId,
                 fieldKey,
+                probeCount,
+                maxAiFollowups,
+                semanticStatus: semanticResult?.status,
                 isEmpty,
                 isNoRecall,
-                probeCount,
                 answerPreview: normalizedAnswer?.substring?.(0, 80)
               });
               if (DEBUG_MODE) console.log('[V2] Calling backend probe for', fieldKey);
@@ -2330,7 +2312,11 @@ export default function CandidateInterview() {
                 fieldKey,
                 fieldValue: normalizedAnswer,
                 previousProbesCount: probeCount,
-                incidentContext
+                incidentContext,
+                // Pass semantic hints so backend can still use them
+                semanticStatus: semanticResult?.status,
+                isEmpty,
+                isNoRecall
               });
               
               // Extract mode and question text safely
@@ -2456,7 +2442,7 @@ export default function CandidateInterview() {
               
               // Backend says no probe needed - complete field
               v2ProbingInProgressRef.current.delete(probeKey);
-              if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} complete`);
+              if (DEBUG_MODE) console.log(`[V2] Field ${fieldKey} complete (no probe from backend)`);
               await completeV2FieldWithoutProbe();
               // Fall through to advance to next step
               
