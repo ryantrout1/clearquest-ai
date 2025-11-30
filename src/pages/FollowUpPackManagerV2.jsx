@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { ChevronLeft, Package, AlertTriangle, Zap, Beaker } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySidebar";
