@@ -354,7 +354,7 @@ const HEAVY_SECTIONS = [
 // Section "What to Expect" descriptions
 const WHAT_TO_EXPECT = {
   'APPLICATIONS_WITH_OTHER_LE': 'your prior law enforcement applications and their outcomes',
-  'DRIVING_RECORD': 'your driving-related history, including citations, collisions, and license actions',
+  'DRIVING_RECORD': 'your driving history, such as citations, collisions, and any license actions',
   'CRIMINAL_INVOLVEMENT': 'any past criminal involvement, police contacts, or major accusations',
   'EXTREMIST_ORGANIZATIONS': 'any involvement with extremist, hate, or gang organizations',
   'SEXUAL_ACTIVITIES': 'sexual conduct and behavior relevant to suitability for public safety work',
@@ -363,8 +363,20 @@ const WHAT_TO_EXPECT = {
   'ALCOHOL_USE': 'past or current alcohol use patterns and any alcohol-related incidents',
   'ILLEGAL_DRUG': 'past or current drug use, possession, sales, or related contacts',
   'MILITARY_HISTORY': 'your military service, including conduct, separations, and performance',
-  'PRIOR_LAW_ENFORCEMENT': 'your prior law enforcement employment and any related issues',
-  'GENERAL_DISCLOSURES': 'general eligibility, disclosures, and suitability topics'
+  'PRIOR_LAW_ENFORCEMENT': 'your prior police applications, selections, and agency contacts',
+  'GENERAL_DISCLOSURES': 'general eligibility, disclosures, and suitability topics',
+  // Category-based keys for legacy compatibility
+  'CAT_DRIVING_RECORD': 'your driving history, such as citations, collisions, and any license actions',
+  'CAT_CRIMINAL': 'any past criminal involvement, police contacts, or major accusations',
+  'CAT_EXTREMIST': 'any involvement with extremist, hate, or gang organizations',
+  'CAT_SEXUAL': 'sexual conduct and behavior relevant to suitability for public safety work',
+  'CAT_FINANCIAL': 'your financial history, including debts, bankruptcies, or unmet obligations',
+  'CAT_EMPLOYMENT': 'your work history, performance, separations, disputes, and reliability',
+  'CAT_ALCOHOL': 'past or current alcohol use patterns and any alcohol-related incidents',
+  'CAT_DRUGS': 'past or current drug use, possession, sales, or related contacts',
+  'CAT_MILITARY_HISTORY': 'your military service, including conduct, separations, and performance',
+  'CAT_GENERAL': 'general eligibility, disclosures, and suitability topics',
+  'CAT_PRIOR_LAW_ENFORCEMENT': 'your prior police applications, selections, and agency contacts'
 };
 
 // FEATURE FLAG: Enable live AI follow-ups (via invokeLLM server function)
@@ -1201,24 +1213,37 @@ export default function CandidateInterview() {
         await persistStateToDatabase(newTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
         return;
       } else if (nextResult.mode === 'SECTION_TRANSITION') {
-        // Section complete - add enhanced completion message with Next button
+        // Section complete - add enhanced completion message with progress
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
+        
+        // Calculate progress for the completion card
+        const completedSectionsCount = nextResult.nextSectionIndex;
+        const totalSectionsCount = sections.length;
+        const answeredQuestionsCount = transcript.filter(t => t.type === 'question').length + 1; // +1 for current answer
         
         const completionMessage = {
           id: `section-complete-${Date.now()}`,
-          type: 'system_message',
-          content: `You've finished the ${nextResult.completedSection.displayName} section.\n\nNext up is ${nextResult.nextSection.displayName} — this part focuses on ${whatToExpect}.\n\nPlease answer in as much detail as you can, even if events happened a long time ago.`,
+          type: 'system_section_complete',
           timestamp: new Date().toISOString(),
           kind: 'section_completion',
           role: 'system',
+          completedSectionId: nextResult.completedSection.id,
           completedSectionName: nextResult.completedSection.displayName,
-          nextSectionName: nextResult.nextSection.displayName
+          nextSectionId: nextResult.nextSection.id,
+          nextSectionName: nextResult.nextSection.displayName,
+          whatToExpect: whatToExpect,
+          progress: {
+            completedSections: completedSectionsCount,
+            totalSections: totalSectionsCount,
+            answeredQuestions: answeredQuestionsCount,
+            totalQuestions: engine?.TotalQuestions || 0
+          }
         };
         
         const newTranscript = [...transcript, completionMessage];
         setTranscript(newTranscript);
         
-        // Set pending transition - will show Next button
+        // Set pending transition - footer button will advance
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
           nextQuestionId: nextResult.nextQuestionId,
@@ -4325,41 +4350,8 @@ export default function CandidateInterview() {
           )}
 
           {/* Active Question (Deterministic) or Agent Probing or Intro or Section Transition */}
-          {isPendingSectionTransition ? (
-            <div className="flex-shrink-0 px-4 pb-4">
-              <div className="max-w-5xl mx-auto">
-                <div 
-                  className="bg-slate-800/95 backdrop-blur-sm border-2 border-green-500/50 rounded-xl p-6 shadow-2xl"
-                  style={{
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.45), 0 0 0 3px rgba(34, 197, 94, 0.2) inset'
-                  }}
-                  data-active-question="true"
-                  role="region"
-                  aria-live="polite"
-                >
-                  <div className="text-center space-y-4">
-                    <div className="text-lg font-bold text-white">
-                      Ready to begin the <span className="text-green-400">{pendingSectionTransition.nextSectionName}</span> section?
-                    </div>
-                    <button
-                      onClick={async () => {
-                        setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
-                        setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
-                        setQueue([]);
-                        setPendingSectionTransition(null);
-                        await persistStateToDatabase(transcript, [], { id: pendingSectionTransition.nextQuestionId, type: 'question' });
-                        setTimeout(() => autoScrollToBottom(), 100);
-                      }}
-                      disabled={isCommitting}
-                      className="min-h-[48px] px-12 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 hover:scale-[1.02] active:scale-[0.98] transition-all duration-75 flex items-center justify-center gap-2 text-lg mx-auto"
-                    >
-                      Begin Next Section →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : lastAgentQuestion && isWaitingForAgent ? (
+          {/* When pending section transition, the card is already in transcript - no duplicate card here */}
+          {isPendingSectionTransition ? null : lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -4891,9 +4883,45 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
     );
   }
 
+  // Section completion card (new unified format)
+  if (entry.type === 'system_section_complete') {
+    const { completedSectionName, nextSectionName, whatToExpect, progress } = entry;
+    return (
+      <div className="bg-gradient-to-br from-green-950/40 to-slate-900/40 border-2 border-green-500/50 rounded-xl p-6 shadow-lg my-4">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0 border-2 border-green-500/50">
+            <CheckCircle2 className="w-5 h-5 text-green-400" />
+          </div>
+          <div className="flex-1 space-y-2">
+            {/* Title */}
+            <div className="text-lg font-bold text-green-400">
+              Section complete: {completedSectionName} ✅
+            </div>
+            
+            {/* Body paragraphs */}
+            <div className="text-white leading-relaxed space-y-2 text-sm">
+              <p>Nice work — you've finished this section.</p>
+              <p>
+                <strong>Next up: {nextSectionName}.</strong> This section focuses on {whatToExpect}.
+              </p>
+              <p>Please answer as accurately and in as much detail as you can, even if events happened a long time ago.</p>
+            </div>
+            
+            {/* Progress line */}
+            {progress && (
+              <p className="text-xs text-slate-400 pt-2">
+                Progress: {progress.completedSections} of {progress.totalSections} sections · {progress.answeredQuestions} of {progress.totalQuestions} questions answered
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // System messages (timeouts, reminders)
   if (entry.type === 'system_message') {
-    // Section transition messages get enhanced styling
+    // Section transition messages get enhanced styling (legacy format)
     if (entry.kind === 'section_completion') {
       return (
         <div className="bg-gradient-to-br from-green-950/40 to-slate-900/40 border-2 border-green-500/50 rounded-xl p-6 shadow-lg my-4">
@@ -4906,7 +4934,7 @@ function HistoryEntry({ entry, getQuestionDisplayNumber, getFollowUpPackName }) 
                 <span className="text-lg font-bold text-green-400">Section complete: {entry.completedSectionName} ✅</span>
               </div>
               <div className="text-white leading-relaxed space-y-2 text-sm">
-                {entry.content.split('\n\n').map((para, idx) => (
+                {entry.content?.split('\n\n').map((para, idx) => (
                   <p key={idx}>{para}</p>
                 ))}
               </div>
