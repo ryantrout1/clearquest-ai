@@ -109,15 +109,10 @@ export default function FollowUpPackList({
                 </div>
 
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {/* Questions pill */}
-                  <span className={cn(
-                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium",
-                    activeQuestions === packQuestions.length 
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                      : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                  )}>
+                  {/* Questions pill - only show active count */}
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     <FileText className="w-3 h-3" />
-                    {packQuestions.length} q ({activeQuestions} active)
+                    {activeQuestions} active
                   </span>
 
                   {/* Triggers pill */}
