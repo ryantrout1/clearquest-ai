@@ -4194,7 +4194,7 @@ export default function CandidateInterview() {
             </div>
             
             <div>
-              {/* Segmented Overall Bar - one segment per section */}
+              {/* Segmented Overall Bar - one segment per section, green only when complete */}
               {(() => {
                 // Build section progress data
                 const sectionProgressData = sections.map((section, idx) => {
@@ -4203,87 +4203,79 @@ export default function CandidateInterview() {
                   const answeredInSection = transcript.filter(t => 
                     t.type === 'question' && sectionQuestionIds.includes(t.questionId)
                   ).length;
+                  const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
                   return {
                     sectionId: section.id,
                     sectionName: section.displayName,
                     index: idx,
                     totalQuestions: totalInSection,
-                    answeredQuestions: answeredInSection
+                    answeredQuestions: answeredInSection,
+                    isComplete
                   };
                 });
                 
                 const totalQuestionsAllSections = sectionProgressData.reduce((sum, s) => sum + s.totalQuestions, 0);
+                const completedSectionsCount = sectionProgressData.filter(s => s.isComplete).length;
+                const totalSectionsCount = sections.length;
+                const sectionCompletionPct = totalSectionsCount > 0 
+                  ? Math.round((completedSectionsCount / totalSectionsCount) * 100) 
+                  : 0;
                 
                 return (
-                  <div 
-                    className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden flex"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={progress}
-                    aria-label={`Interview progress: ${progress}% complete`}
-                  >
-                    {sectionProgressData.map((s, idx) => {
-                      const widthPct = totalQuestionsAllSections > 0 
-                        ? (s.totalQuestions / totalQuestionsAllSections) * 100 
-                        : 0;
-                      const completion = s.totalQuestions === 0 
-                        ? 0 
-                        : s.answeredQuestions / s.totalQuestions;
-                      const isCurrent = s.index === currentSectionIndex;
-                      const isComplete = completion >= 1;
-                      const isPending = !isCurrent && !isComplete;
-                      
-                      return (
-                        <div
-                          key={s.sectionId}
-                          className={`h-full relative transition-all duration-300 ${
-                            idx === 0 ? 'rounded-l-full' : ''
-                          } ${
-                            idx === sectionProgressData.length - 1 ? 'rounded-r-full' : ''
-                          } ${
-                            isComplete 
-                              ? 'bg-gradient-to-r from-green-500 to-green-600' 
-                              : isPending 
-                                ? 'bg-slate-700/50 border-r border-slate-600/30' 
-                                : 'bg-slate-700/50 border-r border-slate-600/30'
-                          }`}
-                          style={{ 
-                            width: `${widthPct}%`,
-                            boxShadow: isComplete ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none'
-                          }}
-                        >
-                          {/* Inner fill for current section */}
-                          {isCurrent && !isComplete && (
-                            <div
-                              className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500 ease-out"
-                              style={{ 
-                                width: `${completion * 100}%`,
-                                borderRadius: idx === 0 ? '9999px 0 0 9999px' : '0',
-                                boxShadow: completion > 0 ? '0 0 8px rgba(34, 197, 94, 0.5)' : 'none'
-                              }}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div 
+                      className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden flex"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={sectionCompletionPct}
+                      aria-label={`Interview progress: ${completedSectionsCount} of ${totalSectionsCount} sections complete`}
+                    >
+                      {sectionProgressData.map((s, idx) => {
+                        const widthPct = totalQuestionsAllSections > 0 
+                          ? (s.totalQuestions / totalQuestionsAllSections) * 100 
+                          : 0;
+                        const isCurrent = s.index === currentSectionIndex;
+                        
+                        return (
+                          <div
+                            key={s.sectionId}
+                            className={`h-full relative transition-all duration-300 ${
+                              idx === 0 ? 'rounded-l-full' : ''
+                            } ${
+                              idx === sectionProgressData.length - 1 ? 'rounded-r-full' : ''
+                            } ${
+                              s.isComplete 
+                                ? 'bg-gradient-to-r from-green-500 to-green-600' 
+                                : isCurrent
+                                  ? 'bg-slate-600/60 border-r border-slate-500/40'
+                                  : 'bg-slate-700/50 border-r border-slate-600/30'
+                            }`}
+                            style={{ 
+                              width: `${widthPct}%`,
+                              boxShadow: s.isComplete ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none'
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-slate-300">
+                        Overall
+                        {activeSection && sections.length > 0 && (
+                          <> • Section {currentSectionIndex + 1} of {totalSectionsCount}: {activeSection.displayName}</>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="sr-only">Progress: {completedSectionsCount} of {totalSectionsCount} sections complete</span>
+                        <span className="text-xs font-medium text-green-400">{sectionCompletionPct}%</span>
+                        <span className="text-xs text-green-400">•</span>
+                        <span className="text-xs font-medium text-green-400">{completedSectionsCount} / {totalSectionsCount} sections complete</span>
+                      </div>
+                    </div>
+                  </>
                 );
               })()}
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-[10px] text-slate-300">
-                  Overall
-                  {activeSection && sections.length > 0 && (
-                    <> • Section {currentSectionIndex + 1} of {sections.length}: {activeSection.displayName}</>
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="sr-only">Progress: {answeredCount} of {totalQuestions} questions answered</span>
-                  <span className="text-xs font-medium text-green-400">{progress}%</span>
-                  <span className="text-xs text-green-400">•</span>
-                  <span className="text-xs font-medium text-green-400">{answeredCount} / {totalQuestions}</span>
-                </div>
-              </div>
               
               {/* Current Section Progress */}
               {engine && engine.Sections && currentPrompt && (
@@ -4561,10 +4553,16 @@ export default function CandidateInterview() {
                       )}
                     </div>
                     <div className="flex-1">
-                     {/* Progress line for base questions */}
+                     {/* Progress line for base questions - section-only */}
                      {!requiresClarification && !isFollowUpMode && !isMultiInstanceMode && sections.length > 0 && (
                        <div className="text-xs text-slate-400 mb-2">
-                         {currentSectionIndex} of {sections.length} sections complete · {answeredCount} of {totalQuestions} questions answered
+                         {sections.filter((s, idx) => {
+                           const sectionQuestionIds = s.questionIds || [];
+                           const answeredInSection = transcript.filter(t => 
+                             t.type === 'question' && sectionQuestionIds.includes(t.questionId)
+                           ).length;
+                           return sectionQuestionIds.length > 0 && answeredInSection >= sectionQuestionIds.length;
+                         }).length} of {sections.length} sections complete
                        </div>
                      )}
 
