@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-import { ChevronLeft, Package, AlertTriangle, Zap, Beaker } from "lucide-react";
+import { ChevronLeft, Package, AlertTriangle, Zap, Beaker, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySidebar";
 import FollowUpPackList from "../components/followups/FollowUpPackList";
@@ -29,6 +29,8 @@ export default function FollowUpPackManagerV2() {
   const [middleWidth, setMiddleWidth] = useState(30);
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
   const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [middleCollapsed, setMiddleCollapsed] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -294,83 +296,135 @@ export default function FollowUpPackManagerV2() {
       {/* Main Content */}
       <div id="followup-container" className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
         {/* Left Panel - Categories */}
-        <div 
-          style={{ width: `${leftWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-white">Categories</h3>
+        {leftCollapsed ? (
+          <div 
+            className="w-10 flex-shrink-0 border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center py-4 cursor-pointer hover:bg-slate-800/40 transition-colors"
+            onClick={() => setLeftCollapsed(false)}
+          >
+            <PanelLeftOpen className="w-4 h-4 text-slate-400 mb-3" />
+            <span 
+              className="text-xs font-semibold text-slate-400 whitespace-nowrap"
+              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+            >
+              Categories
+            </span>
           </div>
-          <FollowUpCategorySidebar
-            categories={FOLLOWUP_CATEGORIES}
-            packsByCategory={packsByCategory}
-            selectedCategoryId={selectedCategoryId}
-            onSelectCategory={setSelectedCategoryId}
-            validationIssues={validationIssues}
-            questionsMap={questionsMap}
-          />
-        </div>
+        ) : (
+          <div 
+            style={{ width: `${leftWidth}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-white">Categories</h3>
+              <button 
+                onClick={() => setLeftCollapsed(true)}
+                className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                title="Collapse panel"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            </div>
+            <FollowUpCategorySidebar
+              categories={FOLLOWUP_CATEGORIES}
+              packsByCategory={packsByCategory}
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              validationIssues={validationIssues}
+              questionsMap={questionsMap}
+            />
+          </div>
+        )}
 
         {/* Left Drag Handle */}
-        <div 
-          className={`w-1 flex-shrink-0 transition-colors ${
-            isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
-          }`}
-          onMouseDown={handleMouseDownLeft}
-          style={{ cursor: 'col-resize', userSelect: 'none' }}
-        />
+        {!leftCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownLeft}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
 
         {/* Middle Panel - Pack List */}
-        <div 
-          style={{ width: `${middleWidth}%` }}
-          className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
-        >
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-white">
-                {selectedCategoryId === "UNCATEGORIZED" 
-                  ? "Uncategorized Packs"
-                  : FOLLOWUP_CATEGORIES.find(c => c.id === selectedCategoryId)?.label}
-              </h3>
-              <span className="text-sm text-slate-500">
-                {filteredPacks.length} {filteredPacks.length === 1 ? 'pack' : 'packs'}
-              </span>
-            </div>
-
-            <div className="mb-3">
-              <Input
-                placeholder="Search packs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
-              />
-            </div>
-
-            {packsLoading ? (
-              <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
-                <p className="text-slate-500 text-center text-sm">Loading packs...</p>
-              </div>
-            ) : (
-              <FollowUpPackList
-                packs={filteredPacks}
-                selectedPackId={selectedPack?.id}
-                onSelectPack={setSelectedPack}
-                onToggleActive={handleToggleActive}
-                packUsageMap={packUsageMap}
-                questionsMap={questionsMap}
-              />
-            )}
+        {middleCollapsed ? (
+          <div 
+            className="w-10 flex-shrink-0 border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm flex flex-col items-center py-4 cursor-pointer hover:bg-slate-800/40 transition-colors"
+            onClick={() => setMiddleCollapsed(false)}
+          >
+            <PanelLeftOpen className="w-4 h-4 text-slate-400 mb-3" />
+            <span 
+              className="text-xs font-semibold text-slate-400 whitespace-nowrap"
+              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+            >
+              {selectedCategoryId === "UNCATEGORIZED" 
+                ? "Uncategorized Packs"
+                : FOLLOWUP_CATEGORIES.find(c => c.id === selectedCategoryId)?.label}
+            </span>
           </div>
-        </div>
+        ) : (
+          <div 
+            style={{ width: `${middleWidth}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-white">
+                  {selectedCategoryId === "UNCATEGORIZED" 
+                    ? "Uncategorized Packs"
+                    : FOLLOWUP_CATEGORIES.find(c => c.id === selectedCategoryId)?.label}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">
+                    {filteredPacks.length} {filteredPacks.length === 1 ? 'pack' : 'packs'}
+                  </span>
+                  <button 
+                    onClick={() => setMiddleCollapsed(true)}
+                    className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                    title="Collapse panel"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <Input
+                  placeholder="Search packs..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-slate-900/50 border-slate-700/50 text-white placeholder:text-slate-500 h-9 text-sm"
+                />
+              </div>
+
+              {packsLoading ? (
+                <div className="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
+                  <p className="text-slate-500 text-center text-sm">Loading packs...</p>
+                </div>
+              ) : (
+                <FollowUpPackList
+                  packs={filteredPacks}
+                  selectedPackId={selectedPack?.id}
+                  onSelectPack={setSelectedPack}
+                  onToggleActive={handleToggleActive}
+                  packUsageMap={packUsageMap}
+                  questionsMap={questionsMap}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Right Drag Handle */}
-        <div 
-          className={`w-1 flex-shrink-0 transition-colors ${
-            isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
-          }`}
-          onMouseDown={handleMouseDownRight}
-          style={{ cursor: 'col-resize', userSelect: 'none' }}
-        />
+        {!middleCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownRight}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
 
         {/* Right Panel - Pack Details */}
         <div 
