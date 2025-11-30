@@ -1996,6 +1996,17 @@ export default function CandidateInterview() {
         
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         
+        const instanceNumber = currentItem.instanceNumber || 1;
+        const fieldKey = packSteps?.[stepIndex]?.Field_Key;
+        
+        console.log('[HANDLE_ANSWER][FOLLOWUP-ENTRY]', {
+          questionId: currentItem.id,
+          packId,
+          fieldKey,
+          instanceNumber,
+          isV2Pack: useProbeEngineV2(packId) || packId === 'PACK_PRIOR_LE_APPS_STANDARD'
+        });
+        
         if (!packSteps || !packSteps[stepIndex]) {
           throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
         }
@@ -2098,7 +2109,17 @@ export default function CandidateInterview() {
         // V2 PER-FIELD PROBING FOR PACK_LE_APPS & DRIVING PACKS
         // ============================================================================
 
-        if (useProbeEngineV2(packId)) {
+        const isV2Pack =
+          useProbeEngineV2(packId) ||
+          packId === 'PACK_PRIOR_LE_APPS_STANDARD';
+
+        console.log('[V2 PROBING][PACK-CHECK]', {
+          packId,
+          isV2Pack,
+          useProbeEngineV2Result: useProbeEngineV2(packId)
+        });
+
+        if (isV2Pack) {
           const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
 
           // StrictMode guard: don't double-probe the same field
@@ -2128,30 +2149,18 @@ export default function CandidateInterview() {
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
 
           // Deep debug entry point
-          console.debug('[V2 PROBING][FIELD-ENTRY]', {
+          console.log('[V2 PROBING][FIELD-ENTRY]', {
             packId,
             fieldKey,
             instanceNumber,
             sessionId,
             normalizedAnswerPreview: normalizedAnswer?.substring?.(0, 80) || normalizedAnswer,
             normalizedAnswerLength: normalizedAnswer?.length || 0,
-            semanticResult: {
-              status: semanticResult?.status,
-              isEmpty,
-              isNoRecall,
-              reason: semanticResult?.reason
-            },
-            counters: {
-              probeCount,
-              maxAiFollowups,
-              fieldCountKey
-            },
-            flags: {
-              ENABLE_LIVE_AI_FOLLOWUPS,
-              aiProbingEnabled,
-              aiProbingDisabledForSession,
-              useProbeEngineV2ForPack: useProbeEngineV2(packId)
-            }
+            semanticStatus: semanticResult?.status,
+            isEmpty,
+            isNoRecall,
+            probeCount,
+            maxAiFollowups
           });
 
           if (DEBUG_MODE) {
@@ -2227,7 +2236,7 @@ export default function CandidateInterview() {
             !aiProbingDisabledForSession &&
             probeCount < maxAiFollowups;
 
-          console.debug('[V2 PROBING][DECISION]', {
+          console.log('[V2 PROBING][DECISION]', {
             packId,
             fieldKey,
             instanceNumber,
@@ -2254,7 +2263,7 @@ export default function CandidateInterview() {
 
           // Case 1: AI disabled or session disabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
-            console.debug('[V2 PROBING][SKIP]', {
+            console.log('[V2 PROBING][SKIP]', {
               reason: 'AI disabled (global or session)',
               packId,
               fieldKey,
@@ -2266,7 +2275,7 @@ export default function CandidateInterview() {
           }
           // Case 2: Field has hit probe quota
           else if (probeCount >= maxAiFollowups) {
-            console.debug('[V2 PROBING][SKIP]', {
+            console.log('[V2 PROBING][SKIP]', {
               reason: 'Max probes quota hit',
               packId,
               fieldKey,
@@ -2320,7 +2329,7 @@ export default function CandidateInterview() {
               const rawQuestion = typeof v2Result?.question === 'string' ? v2Result.question.trim() : '';
               const hasProbeQuestion = rawQuestion.length > 0;
 
-              console.debug('[V2 PROBING][BACKEND-DECISION]', {
+              console.log('[V2 PROBING][BACKEND-DECISION]', {
                 packId,
                 fieldKey,
                 mode,
@@ -2438,12 +2447,12 @@ export default function CandidateInterview() {
 
               // Backend says: no probe needed, field is complete
               v2ProbingInProgressRef.current.delete(probeKey);
-              if (DEBUG_MODE) console.log('[V2] Backend completed field without probe', { fieldKey });
+              console.log('[V2 PROBING][COMPLETE-NO-PROBE]', { packId, fieldKey, instanceNumber, mode });
               await completeV2FieldWithoutProbe();
               // Do NOT return – let normal follow-up flow advance below
 
             } catch (err) {
-              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, message: err?.message });
+              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, error: err?.message });
               v2ProbingInProgressRef.current.delete(probeKey);
 
               // Fail open: save and move on
