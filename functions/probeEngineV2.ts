@@ -1154,23 +1154,21 @@ function validateField(fieldName, value, incidentContext = {}) {
     case "employment_dates":
     case "collisionDate":
     case "violationDate":
-    case "incidentDate":
+    case "incidentDate": {
       // Check for any year pattern (4 digits) or approximate terms
       const hasYear = /\b(19|20)\d{2}\b/.test(normalized);
       const hasApproximate = /(early|late|mid|around|about|spring|summer|fall|winter|beginning|end)/i.test(normalized);
       const hasMonth = /(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)/i.test(normalized);
+      const hasDigits = /\d/.test(normalized);
       
-      if (hasYear || hasMonth || hasApproximate) {
+      if (hasYear || hasMonth || hasApproximate || hasDigits) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has date indicator)`);
         return "complete";
       }
-      // If they gave something but no date indicators, still accept if long enough
-      if (normalized.length > 3) {
-        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (has content)`);
-        return "complete";
-      }
-      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (no date found)`);
+      
+      console.log(`[V2-PER-FIELD] Validation result: INCOMPLETE (no date indicators found)`);
       return "incomplete";
+    }
     
     case "outcome":
       // Must be one of: selected, not selected, withdrew, disqualified, still in process
