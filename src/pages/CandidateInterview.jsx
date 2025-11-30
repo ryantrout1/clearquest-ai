@@ -3330,6 +3330,134 @@ export default function CandidateInterview() {
   };
 
   // ============================================================================
+  // CHAT VIRTUALIZATION COMPONENTS (VIEW-ONLY)
+  // ============================================================================
+
+  /**
+   * Plain (non-virtualized) transcript renderer - BASELINE FALLBACK
+   * Used when ENABLE_CHAT_VIRTUALIZATION = false
+   */
+  function PlainTranscript({ transcript, getQuestionDisplayNumber, getFollowUpPackName, sessionId }) {
+    return (
+      <>
+        {transcript.map((entry, index) => {
+          // Build stable composite key to prevent React key warnings
+          const keyParts = [
+            sessionId || 'session',
+            entry.questionId || 'no-question',
+            entry.packId || entry.followupPackId || 'no-pack',
+            entry.instanceNumber ?? 0,
+            entry.type || 'unknown',
+            entry.id || `index-${index}`
+          ];
+          const stableKey = keyParts.join(':');
+
+          return (
+            <HistoryEntry 
+              key={stableKey}
+              entry={entry}
+              getQuestionDisplayNumber={getQuestionDisplayNumber}
+              getFollowUpPackName={getFollowUpPackName}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  /**
+   * Virtualized transcript renderer - PERFORMANCE OPTIMIZATION
+   * Only renders visible messages + overscan buffer
+   * Read-only: NEVER mutates transcript array
+   */
+  function VirtualizedTranscript({ transcript, getQuestionDisplayNumber, getFollowUpPackName, sessionId }) {
+    const containerRef = useRef(null);
+
+    // Safe constants for windowing
+    const ITEM_HEIGHT = 100; // Average message height in pixels
+    const OVERSCAN = 15; // Render 15 extra messages above/below viewport
+
+    const [windowState, setWindowState] = useState({
+      startIndex: Math.max(0, transcript.length - 50), // Start showing last 50
+      endIndex: transcript.length
+    });
+
+    const totalHeight = transcript.length * ITEM_HEIGHT;
+
+    const handleScroll = useCallback(() => {
+      const el = containerRef.current;
+      if (!el) return;
+
+      const scrollTop = el.scrollTop;
+      const containerHeight = el.clientHeight;
+
+      const startIndex = Math.max(
+        0,
+        Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN
+      );
+      const endIndex = Math.min(
+        transcript.length,
+        Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN
+      );
+
+      setWindowState(prev => 
+        prev.startIndex === startIndex && prev.endIndex === endIndex
+          ? prev
+          : { startIndex, endIndex }
+      );
+    }, [transcript.length]);
+
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      handleScroll();
+    }, [handleScroll, transcript.length]);
+
+    const { startIndex, endIndex } = windowState;
+    const visible = transcript.slice(startIndex, endIndex);
+
+    const topSpacerHeight = startIndex * ITEM_HEIGHT;
+    const bottomSpacerHeight = (transcript.length - endIndex) * ITEM_HEIGHT;
+
+    return (
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="overflow-y-auto flex-1 px-4 py-6"
+        style={{ position: 'relative' }}
+      >
+        <div className="max-w-5xl mx-auto">
+          <div style={{ height: topSpacerHeight }} />
+          <div className="space-y-4">
+            {visible.map((entry, idx) => {
+              const absoluteIndex = startIndex + idx;
+              const keyParts = [
+                sessionId || 'session',
+                entry.questionId || 'no-question',
+                entry.packId || entry.followupPackId || 'no-pack',
+                entry.instanceNumber ?? 0,
+                entry.type || 'unknown',
+                entry.id || `index-${absoluteIndex}`
+              ];
+              const stableKey = keyParts.join(':');
+
+              return (
+                <HistoryEntry 
+                  key={stableKey}
+                  entry={entry}
+                  getQuestionDisplayNumber={getQuestionDisplayNumber}
+                  getFollowUpPackName={getFollowUpPackName}
+                />
+              );
+            })}
+          </div>
+          <div style={{ height: bottomSpacerHeight }} />
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
   // RENDER HELPERS - OPTIMIZED FOR SMOOTH CHAT
   // ============================================================================
 
@@ -3738,60 +3866,54 @@ export default function CandidateInterview() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-hidden flex flex-col">
-          <div 
-            ref={historyRef}
-            className="flex-1 overflow-y-auto px-4 py-6"
-          >
-            <div className="max-w-5xl mx-auto space-y-4">
-              {answeredCount > 0 && !showStartMessage && (
-                <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    You've completed {answeredCount} of {totalQuestions} questions. Keep going!
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Show deterministic transcript + AI probing */}
-              {transcript.map((entry, index) => {
-                // Build stable composite key to prevent React key warnings
-                const keyParts = [
-                  sessionId || 'session',
-                  entry.questionId || 'no-question',
-                  entry.packId || entry.followupPackId || 'no-pack',
-                  entry.instanceNumber ?? 0,
-                  entry.type || 'unknown',
-                  entry.id || `index-${index}`
-                ];
-                const stableKey = keyParts.join(':');
+          {ENABLE_CHAT_VIRTUALIZATION ? (
+            <VirtualizedTranscript 
+              transcript={transcript}
+              getQuestionDisplayNumber={getQuestionDisplayNumber}
+              getFollowUpPackName={getFollowUpPackName}
+              sessionId={sessionId}
+            />
+          ) : (
+            <div 
+              ref={historyRef}
+              className="flex-1 overflow-y-auto px-4 py-6"
+            >
+              <div className="max-w-5xl mx-auto space-y-4">
+                {answeredCount > 0 && !showStartMessage && (
+                  <Alert className="bg-blue-950/30 border-blue-800/50 text-blue-200">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      You've completed {answeredCount} of {totalQuestions} questions. Keep going!
+                    </AlertDescription>
+                  </Alert>
+                )}
                 
-                return (
-                  <HistoryEntry 
-                    key={stableKey}
-                    entry={entry}
-                    getQuestionDisplayNumber={getQuestionDisplayNumber}
-                    getFollowUpPackName={getFollowUpPackName}
-                  />
-                );
-              })}
-              
-              {/* Show ALL agent messages as continuous thread (NO REFRESH) */}
-              {displayableAgentMessages.length > 0 && (
-                <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
-                  <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    Investigator Follow-up Conversations
+                {/* Show deterministic transcript + AI probing */}
+                <PlainTranscript 
+                  transcript={transcript}
+                  getQuestionDisplayNumber={getQuestionDisplayNumber}
+                  getFollowUpPackName={getFollowUpPackName}
+                  sessionId={sessionId}
+                />
+                
+                {/* Show ALL agent messages as continuous thread (NO REFRESH) */}
+                {displayableAgentMessages.length > 0 && (
+                  <div className="space-y-4 border-t-2 border-purple-500/30 pt-4 mt-4">
+                    <div className="text-sm font-semibold text-purple-400 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Investigator Follow-up Conversations
+                    </div>
+                    {displayableAgentMessages.map((msg, idx) => (
+                      <AgentMessageBubble 
+                        key={msg.id || `msg-${idx}`} 
+                        message={msg} 
+                      />
+                    ))}
                   </div>
-                  {displayableAgentMessages.map((msg, idx) => (
-                    <AgentMessageBubble 
-                      key={msg.id || `msg-${idx}`} 
-                      message={msg} 
-                    />
-                  ))}
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Active Question (Deterministic) or Agent Probing or Intro */}
           {lastAgentQuestion && isWaitingForAgent ? (
