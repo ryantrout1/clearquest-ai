@@ -299,6 +299,18 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       mode: 'VALIDATE_FIELD'
     });
 
+    // DEEP DEBUG: Log full response
+    console.debug('[V2 PROBING][RESPONSE RAW]', {
+      packId,
+      fieldKey,
+      status: response?.status,
+      dataKeys: response?.data ? Object.keys(response.data) : [],
+      mode: response?.data?.mode,
+      hasQuestion: !!response?.data?.question,
+      questionPreview: response?.data?.question?.substring?.(0, 100) || null,
+      fullData: response?.data
+    });
+
     if (DEBUG_MODE) {
       console.log('[AI-FOLLOWUP][V2-RESPONSE]', {
         packId,
@@ -313,6 +325,13 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     
     return response.data;
   } catch (err) {
+    console.debug('[V2 PROBING][ERROR]', {
+      packId,
+      fieldKey,
+      errorMessage: err?.message,
+      errorName: err?.name,
+      errorStack: err?.stack?.substring?.(0, 200)
+    });
     console.error('[AI-FOLLOWUP][V2-ERROR]', {
       packId,
       fieldKey,
