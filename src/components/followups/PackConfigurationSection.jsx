@@ -56,16 +56,16 @@ export default function PackConfigurationSection({
   // Build pills
   const pills = [];
   if (localData.behavior_type === 'multi_incident') {
-    pills.push({ label: 'Multi-Incident', className: 'bg-purple-500/20 text-purple-300' });
+    pills.push({ label: 'Multi-Incident', className: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' });
   }
   if (localData.requires_completion) {
-    pills.push({ label: 'Required', className: 'bg-orange-500/20 text-orange-300' });
+    pills.push({ label: 'Required', className: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' });
   }
   if (localData.max_probe_loops) {
-    pills.push({ label: `Max ${localData.max_probe_loops} Loops`, className: 'bg-slate-700/50 text-slate-300' });
+    pills.push({ label: `Max ${localData.max_probe_loops} Loops`, className: 'bg-slate-700/50 text-slate-300 border border-slate-600' });
   }
   if (!localData.active) {
-    pills.push({ label: 'Inactive', className: 'bg-red-500/20 text-red-300' });
+    pills.push({ label: 'Inactive', className: 'bg-red-500/20 text-red-300 border border-red-500/30' });
   }
 
   return (
@@ -73,9 +73,9 @@ export default function PackConfigurationSection({
       title="Pack Configuration"
       subtitle="Behavior type, completion requirements, and loop limits"
       icon={Settings2}
-      iconColor="text-indigo-400"
-      bgColor="bg-indigo-950/20"
-      borderColor="border-indigo-500/30"
+      iconColor="text-purple-400"
+      bgColor="bg-purple-950/20"
+      borderColor="border-purple-500/30"
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       pills={pills}

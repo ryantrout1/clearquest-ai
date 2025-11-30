@@ -266,16 +266,16 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
 
   // Build pills
   const pills = [
-    { label: `${fields.length} field${fields.length !== 1 ? 's' : ''}`, className: 'bg-amber-500/20 text-amber-300' }
+    { label: `${fields.length} field${fields.length !== 1 ? 's' : ''}`, className: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' }
   ];
   if (fields.length > 0) {
     const mappedCount = fields.filter(f => f.semanticType || f.aiProbeHint).length;
     if (mappedCount === fields.length) {
-      pills.push({ label: 'Mapped', className: 'bg-emerald-500/20 text-emerald-300' });
+      pills.push({ label: 'Mapped', className: 'bg-teal-500/20 text-teal-300 border border-teal-500/30' });
     } else if (mappedCount > 0) {
-      pills.push({ label: `${mappedCount}/${fields.length} Mapped`, className: 'bg-slate-700/50 text-slate-300' });
+      pills.push({ label: `${mappedCount}/${fields.length} Mapped`, className: 'bg-slate-700/50 text-slate-300 border border-slate-600' });
     } else {
-      pills.push({ label: 'Not Mapped', className: 'bg-slate-700/50 text-slate-400' });
+      pills.push({ label: 'Not Mapped', className: 'bg-slate-700/50 text-slate-400 border border-slate-600' });
     }
   }
 
@@ -285,9 +285,9 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
         title="Follow-Up Fields"
         subtitle="Defines the structured data fields extracted from candidate answers for investigator review and risk scoring"
         icon={Database}
-        iconColor="text-amber-400"
-        bgColor="bg-amber-950/20"
-        borderColor="border-amber-500/30"
+        iconColor="text-purple-400"
+        bgColor="bg-purple-950/20"
+        borderColor="border-purple-500/30"
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
         pills={pills}
@@ -298,7 +298,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
           <Button
             onClick={handleOpenAddModal}
             size="sm"
-            className="bg-amber-600 hover:bg-amber-700"
+            className="bg-purple-600 hover:bg-purple-700"
           >
             <Plus className="w-4 h-4 mr-1" />
             Add Field
@@ -314,7 +314,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
               onClick={handleOpenAddModal}
               size="sm"
               variant="outline"
-              className="border-amber-500/50 text-amber-300 hover:bg-amber-500/10"
+              className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10"
             >
               <Plus className="w-4 h-4 mr-1" />
               Add your first field
@@ -331,7 +331,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
               onDragOver={(e) => handleDragOver(e, index)}
               onDragEnd={handleDragEnd}
               className={`bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all ${
-                draggedIndex === index ? 'opacity-50 border-amber-500' : 'hover:border-slate-600'
+                draggedIndex === index ? 'opacity-50 border-purple-500' : 'hover:border-slate-600'
               }`}
             >
               {/* Drag Handle */}
@@ -606,7 +606,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
                 console.log('[FIELD-SAVE] Button clicked');
                 handleSaveField();
               }} 
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-purple-600 hover:bg-purple-700"
             >
               Save Field
             </Button>

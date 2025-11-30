@@ -43,7 +43,7 @@ export default function AIInstructionsSection({
   const pills = [];
   if (localValue) {
     const wordCount = localValue.trim().split(/\s+/).length;
-    pills.push({ label: `${wordCount} words`, className: 'bg-slate-700/50 text-slate-400' });
+    pills.push({ label: `${wordCount} words`, className: 'bg-slate-700/50 text-slate-300 border border-slate-600' });
   }
 
   return (

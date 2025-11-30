@@ -121,10 +121,10 @@ export default function FollowUpQuestionsSection({
 
   // Build pills
   const pills = [
-    { label: `${sortedQuestions.length} question${sortedQuestions.length !== 1 ? 's' : ''}`, className: 'bg-pink-500/20 text-pink-300' }
+    { label: `${sortedQuestions.length} question${sortedQuestions.length !== 1 ? 's' : ''}`, className: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' }
   ];
   if (sortedQuestions.length > 0) {
-    pills.push({ label: 'Fixed Sequence', className: 'bg-slate-700/50 text-slate-300' });
+    pills.push({ label: 'Fixed Sequence', className: 'bg-slate-700/50 text-slate-300 border border-slate-600' });
   }
 
   return (
@@ -132,9 +132,9 @@ export default function FollowUpQuestionsSection({
       title="Follow-Up Questions"
       subtitle="Fixed questions asked every time this pack is triggered — candidate answers all before AI probing begins"
       icon={MessageSquare}
-      iconColor="text-pink-400"
-      bgColor="bg-pink-950/20"
-      borderColor="border-pink-500/30"
+      iconColor="text-amber-400"
+      bgColor="bg-amber-950/20"
+      borderColor="border-amber-500/30"
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       pills={pills}
@@ -145,7 +145,7 @@ export default function FollowUpQuestionsSection({
         <Button
           onClick={() => setShowAddForm(true)}
           size="sm"
-          className="bg-pink-600 hover:bg-pink-700"
+          className="bg-amber-600 hover:bg-amber-700"
         >
           <Plus className="w-4 h-4 mr-1" />
           Add Question
@@ -154,7 +154,7 @@ export default function FollowUpQuestionsSection({
 
       {/* Add Form */}
       {showAddForm && (
-        <div className="bg-slate-900/50 border border-pink-500/50 rounded-lg p-3 mb-3">
+        <div className="bg-slate-900/50 border border-amber-500/50 rounded-lg p-3 mb-3">
           <div className="space-y-2">
             <Textarea
               placeholder="Question text..."
@@ -243,8 +243,8 @@ export default function FollowUpQuestionsSection({
                       <ChevronDown className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center">
-                    <span className="text-sm font-bold text-pink-300">#{idx + 1}</span>
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <span className="text-sm font-bold text-amber-300">#{idx + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white break-words leading-snug">{q.question_text}</p>

@@ -113,21 +113,21 @@ export default function FollowUpPackList({
                   <span className={cn(
                     "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium",
                     activeQuestions === packQuestions.length 
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-slate-700/50 text-slate-300"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                   )}>
                     <FileText className="w-3 h-3" />
                     {packQuestions.length} q ({activeQuestions} active)
                   </span>
-                  
+
                   {/* Triggers pill */}
                   {triggeringQuestions.length > 0 ? (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/15 text-blue-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-teal-500/20 text-teal-300 border border-teal-500/30">
                       <Link2 className="w-3 h-3" />
                       Used by {triggeringQuestions.length}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-yellow-500/15 text-yellow-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                       <AlertTriangle className="w-3 h-3" />
                       No triggers
                     </span>

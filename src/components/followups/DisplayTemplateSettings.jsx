@@ -102,7 +102,7 @@ export default function DisplayTemplateSettings({
   // Build pills
   const pills = [];
   if (localData.instance_header_template) {
-    pills.push({ label: 'Template Set', className: 'bg-teal-500/20 text-teal-300' });
+    pills.push({ label: 'Template Set', className: 'bg-teal-500/20 text-teal-300 border border-teal-500/30' });
   }
 
   return (

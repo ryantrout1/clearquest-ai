@@ -20,10 +20,10 @@ export default function TriggeringQuestionsSection({
 
   // Build pills
   const pills = [
-    { label: `${sortedQuestions.length} trigger${sortedQuestions.length !== 1 ? 's' : ''}`, className: 'bg-emerald-500/20 text-emerald-300' }
+    { label: `${sortedQuestions.length} trigger${sortedQuestions.length !== 1 ? 's' : ''}`, className: 'bg-teal-500/20 text-teal-300 border border-teal-500/30' }
   ];
   if (sortedQuestions.length > 0) {
-    pills.push({ label: 'Triggers Pack', className: 'bg-slate-700/50 text-slate-300' });
+    pills.push({ label: 'Triggers Pack', className: 'bg-slate-700/50 text-slate-300 border border-slate-600' });
   }
 
   return (
@@ -31,9 +31,9 @@ export default function TriggeringQuestionsSection({
       title="Triggering Questions"
       subtitle="Interview questions where a 'Yes' answer triggers this pack — manage these in Interview Structure"
       icon={Target}
-      iconColor="text-emerald-400"
-      bgColor="bg-emerald-950/20"
-      borderColor="border-emerald-500/30"
+      iconColor="text-teal-400"
+      bgColor="bg-teal-950/20"
+      borderColor="border-teal-500/30"
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       pills={pills}

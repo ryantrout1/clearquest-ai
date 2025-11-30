@@ -67,37 +67,40 @@ export default function FollowUpCategorySidebar({
                     onClick={(e) => e.stopPropagation()}
                   />
                 </div>
-                <div className="flex items-center gap-2 ml-6 flex-wrap">
+                <div className="flex items-center gap-1.5 ml-6 flex-wrap">
                   <span className={cn(
-                    "inline-flex items-center gap-1 text-xs",
-                    isSelected ? "text-amber-400" : "text-amber-500/80"
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+                    isSelected 
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30" 
+                      : "bg-amber-500/15 text-amber-400/80 border-amber-500/20"
                   )}>
                     <Package className="w-3 h-3" />
                     {kpis.packCount}
                   </span>
-                  <span className="text-slate-600">·</span>
                   <span className={cn(
-                    "inline-flex items-center gap-1 text-xs",
-                    isSelected ? "text-purple-400" : "text-purple-500/80"
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+                    isSelected 
+                      ? "bg-purple-500/20 text-purple-300 border-purple-500/30" 
+                      : "bg-purple-500/15 text-purple-400/80 border-purple-500/20"
                   )}>
                     <FileText className="w-3 h-3" />
                     {kpis.totalQuestions}
                   </span>
-                  <span className="text-slate-600">·</span>
                   <span className={cn(
-                    "inline-flex items-center gap-1 text-xs",
-                    isSelected ? "text-emerald-400" : "text-emerald-500/80"
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+                    isSelected 
+                      ? "bg-teal-500/20 text-teal-300 border-teal-500/30" 
+                      : "bg-teal-500/15 text-teal-400/80 border-teal-500/20"
                   )}>
                     <CheckCircle2 className="w-3 h-3" />
                     {kpis.activeQuestions}
                   </span>
-                  <span className="text-slate-600">·</span>
                   {kpis.hasValidationIssues ? (
-                    <span className="inline-flex items-center text-xs text-yellow-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                       <AlertCircle className="w-3 h-3" />
                     </span>
                   ) : (
-                    <span className="inline-flex items-center text-xs text-emerald-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 text-teal-300 border border-teal-500/30">
                       <CheckCircle2 className="w-3 h-3" />
                     </span>
                   )}
