@@ -1996,8 +1996,13 @@ export default function CandidateInterview() {
         
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         
+        if (!packSteps || !packSteps[stepIndex]) {
+          throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
+        }
+        const step = packSteps[stepIndex];
+        
         const instanceNumber = currentItem.instanceNumber || 1;
-        const fieldKey = packSteps?.[stepIndex]?.Field_Key;
+        const fieldKey = step.Field_Key;
         
         console.log('[HANDLE_ANSWER][FOLLOWUP-ENTRY]', {
           questionId: currentItem.id,
@@ -2006,11 +2011,6 @@ export default function CandidateInterview() {
           instanceNumber,
           isV2Pack: useProbeEngineV2(packId) || packId === 'PACK_PRIOR_LE_APPS_STANDARD'
         });
-        
-        if (!packSteps || !packSteps[stepIndex]) {
-          throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
-        }
-        const step = packSteps[stepIndex];
 
         // Auto-fill substance_name field if prefilled
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
@@ -2102,8 +2102,6 @@ export default function CandidateInterview() {
         }
 
         const normalizedAnswer = validation.normalized || value;
-        const instanceNumber = currentItem.instanceNumber || 1;
-        const fieldKey = step.Field_Key;
 
         // ============================================================================
         // V2 PER-FIELD PROBING FOR PACK_LE_APPS & DRIVING PACKS
