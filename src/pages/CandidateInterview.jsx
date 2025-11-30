@@ -3462,45 +3462,22 @@ export default function CandidateInterview() {
   // ============================================================================
 
   /**
-   * Read-only validation that transcript isn't corrupted by virtualization
-   * Only runs when enabled=true (DEBUG_MODE && ENABLE_CHAT_VIRTUALIZATION)
-   * IMPORTANT: Hook is ALWAYS called to maintain stable hook count
+   * Debug helper – intentionally contains NO React hooks
+   * Temporarily disabled to stabilize hook order.
+   * Keep this function lightweight and side-effect free for now.
    */
   function useTranscriptSanityCheck({ enabled, transcript }) {
-    useEffect(() => {
-      // Guard inside hook - hook always runs, effect is conditional
-      if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
 
-      // 1. Basic shape check
-      if (!Array.isArray(transcript)) {
-        console.error("[CQ Debug] Transcript is not an array", { type: typeof transcript });
-        return;
-      }
-
-      // 2. ID presence check
-      const missingIdCount = transcript.reduce(
-        (count, event) => (!event || !event.id ? count + 1 : count),
-        0
-      );
-
-      if (missingIdCount > 0) {
-        console.warn("[CQ Debug] Transcript contains events without stable IDs", { missingIdCount });
-      }
-
-      // 3. Monotonic length check (transcript should only grow or stay same, never shrink mid-interview)
-      if (typeof window !== 'undefined') {
-        window.__cqLastTranscriptLength = window.__cqLastTranscriptLength ?? 0;
-
-        if (transcript.length < window.__cqLastTranscriptLength) {
-          console.warn("[CQ Debug] Transcript length decreased between renders", {
-            previous: window.__cqLastTranscriptLength,
-            current: transcript.length
-          });
-        }
-
-        window.__cqLastTranscriptLength = transcript.length;
-      }
-    }, [enabled, transcript]);
+    // Optional: simple debug logging that does NOT use hooks
+    try {
+      // Only log if you want, but no hooks allowed here
+      // console.debug('[SanityCheck] Transcript length:', transcript?.length ?? 0);
+    } catch (e) {
+      // Swallow any errors to avoid interfering with the interview flow
+    }
   }
 
   // ============================================================================
