@@ -1180,6 +1180,15 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
             )}
           </div>
           <div className="flex gap-2">
+            {(isEditMode || isNewQuestion) && (
+              <Button 
+                onClick={handleSave} 
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isNewQuestion ? 'Create Question' : 'Save Changes'}
+              </Button>
+            )}
             {!isNewQuestion && !isEditMode && (
               <Button
                 onClick={() => setIsEditMode(true)}
@@ -1596,13 +1605,6 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
           </div>
         </div>
 
-        {(isEditMode || isNewQuestion) && (
-          <div className="flex gap-2 pt-4">
-            <Button onClick={handleSave} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-              {isNewQuestion ? 'Create Question' : 'Save Changes'}
-            </Button>
-          </div>
-        )}
       </div>
     );
   }
