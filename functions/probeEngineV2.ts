@@ -435,7 +435,7 @@ Object.assign(FALLBACK_PROBES, {
   "recurrence": "Has this misuse occurred again since the highest-risk incident you described?",
   "prevention_steps": "What steps have you taken to ensure this will not happen again?",
   
-  // === PACK_PRIOR_LE_APPS_STANDARD ===
+  // === PACK_PRIOR_LE_APPS_STANDARD (question codes) ===
   "PACK_PRLE_Q01": "What type of law enforcement agency did you apply to? (e.g., municipal police, county sheriff, state police, federal)",
   "PACK_PRLE_Q02": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
   "PACK_PRLE_Q03": "How far did you get in the hiring process? (e.g., written test, physical, interview, background, polygraph, psychological)",
@@ -444,7 +444,18 @@ Object.assign(FALLBACK_PROBES, {
   "PACK_PRLE_Q06": "Did you withdraw your application at any point? If so, why?",
   "PACK_PRLE_Q07": "Have you disclosed this prior application on other law enforcement applications?",
   "PACK_PRLE_Q08": "What changes or improvements have you made since this application?",
-  "PACK_PRLE_Q09": "What city and state was this agency located in?"
+  "PACK_PRLE_Q09": "What city and state was this agency located in?",
+  
+  // === PACK_PRIOR_LE_APPS_STANDARD (uppercase semantic keys) ===
+  "AGENCY_TYPE": "What type of law enforcement agency did you apply to? For example, was it a municipal police department, county sheriff's office, state police, or federal agency?",
+  "TIMELINE": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
+  "LOCATION": "What city and state was this agency located in?",
+  "STAGE": "How far did you get in the hiring process? For example, written test, physical, interview, background investigation, polygraph, or psychological evaluation?",
+  "OUTCOME": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
+  "BACKGROUND_ISSUES": "Were any background concerns or issues identified during the hiring process? Please describe.",
+  "WITHDRAW_REASON": "Did you withdraw your application at any point? If so, why?",
+  "PRIOR_DISCLOSURE": "Have you disclosed this prior application on other law enforcement applications?",
+  "IMPROVEMENTS": "What changes or improvements have you made since this application?"
 });
 
 /**
@@ -517,13 +528,15 @@ const PACK_CONFIG = {
     },
   },
   
-  // Application Integrity Issues pack
+  // Application Integrity Issues pack (v2.4 consolidated)
   PACK_INTEGRITY_APPS: {
     id: "PACK_INTEGRITY_APPS",
-    requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "corrected"],
-    priorityOrder: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected"],
+    requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences"],
+    priorityOrder: ["agency_name", "position_applied_for", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected", "remediation_steps"],
     fieldKeyMap: {
+      // Semantic field self-mappings
       "agency_name": "agency_name",
+      "position_applied_for": "position_applied_for",
       "incident_date": "incident_date",
       "issue_type": "issue_type",
       "what_omitted": "what_omitted",
@@ -531,6 +544,7 @@ const PACK_CONFIG = {
       "discovery_method": "discovery_method",
       "consequences": "consequences",
       "corrected": "corrected",
+      "remediation_steps": "remediation_steps",
       // Legacy question mappings
       "PACK_INTEGRITY_APPS_Q01": "agency_name",
       "PACK_INTEGRITY_APPS_Q02": "incident_date",
@@ -692,33 +706,6 @@ const PACK_CONFIG = {
       "PACK_WORKPLACE_STANDARD_Q05": "incident_description",
       "PACK_WORKPLACE_STANDARD_Q06": "corrective_action",
       "PACK_WORKPLACE_STANDARD_Q07": "separation_type",
-    },
-  },
-  
-  // Application Integrity Issues pack (v2.4)
-  PACK_INTEGRITY_APPS: {
-    id: "PACK_INTEGRITY_APPS",
-    requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences"],
-    priorityOrder: ["agency_name", "position_applied_for", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected", "remediation_steps"],
-    fieldKeyMap: {
-      "agency_name": "agency_name",
-      "position_applied_for": "position_applied_for",
-      "incident_date": "incident_date",
-      "issue_type": "issue_type",
-      "what_omitted": "what_omitted",
-      "reason_omitted": "reason_omitted",
-      "discovery_method": "discovery_method",
-      "consequences": "consequences",
-      "corrected": "corrected",
-      "remediation_steps": "remediation_steps",
-      // Legacy question mappings
-      "PACK_INTEGRITY_APPS_Q01": "agency_name",
-      "PACK_INTEGRITY_APPS_Q02": "incident_date",
-      "PACK_INTEGRITY_APPS_Q03": "what_omitted",
-      "PACK_INTEGRITY_APPS_Q04": "reason_omitted",
-      "PACK_INTEGRITY_APPS_Q05": "discovery_method",
-      "PACK_INTEGRITY_APPS_Q06": "consequences",
-      "PACK_INTEGRITY_APPS_Q07": "corrected",
     },
   },
   
@@ -1662,8 +1649,71 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       }
       return "Have you made any changes since then?";
     
+    // === PACK_PRIOR_LE_APPS_STANDARD uppercase semantic fields ===
+    case "AGENCY_TYPE":
+      if (isFirstProbe) {
+        return "What type of law enforcement agency did you apply to? For example, was it a municipal police department, county sheriff's office, state police, or federal agency?";
+      }
+      return "Even if you don't remember the exact agency name, do you recall what type of agency it was — city police, sheriff, state, or federal?";
+    
+    case "TIMELINE":
+      if (isFirstProbe) {
+        return "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?";
+      }
+      if (isSecondProbe) {
+        return "Think about what else was happening in your life at that time — where you were living, what job you had. Can you estimate even the year you applied?";
+      }
+      return "If you still can't pinpoint a specific year, please give your best estimate as a range, like 'sometime between 2015 and 2018'.";
+    
+    case "LOCATION":
+      if (isFirstProbe) {
+        return "What city and state was this agency located in?";
+      }
+      return "Can you provide any details about where this agency was located?";
+    
+    case "STAGE":
+      if (isFirstProbe) {
+        return "How far did you get in the hiring process? For example, written test, physical, interview, background investigation, polygraph, or psychological evaluation?";
+      }
+      return "What was the last step you completed in their hiring process?";
+    
+    case "OUTCOME":
+      if (isFirstProbe) {
+        return "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?";
+      }
+      return "Please clarify: did the process end with you being hired, rejected, withdrawing your application, or are you still waiting to hear back?";
+    
+    case "BACKGROUND_ISSUES":
+      if (isFirstProbe) {
+        return "Were any background concerns or issues identified during the hiring process? Please describe.";
+      }
+      return "Can you provide more detail about what background issues came up, if any?";
+    
+    case "WITHDRAW_REASON":
+      if (isFirstProbe) {
+        return "You mentioned you withdrew your application. What led you to withdraw?";
+      }
+      return "Can you help us understand the circumstances that led to your withdrawal?";
+    
+    case "PRIOR_DISCLOSURE":
+      if (isFirstProbe) {
+        return "Have you disclosed this prior application on other law enforcement applications?";
+      }
+      return "Has this application been mentioned on any other background questionnaires you've completed?";
+    
+    case "IMPROVEMENTS":
+      if (isFirstProbe) {
+        return "What changes or improvements have you made since this application?";
+      }
+      return "Is there anything you've done differently or any steps you've taken since then?";
+
     default:
-      return `Can you provide more details about ${fieldName}?`;
+      // Safe fallback that doesn't expose internal keys
+      const label = FIELD_LABELS[fieldName];
+      if (label) {
+        return `Can you provide more details about ${label.toLowerCase()}?`;
+      }
+      return "Can you provide more details about this?";
   }
 }
 
@@ -1857,7 +1907,7 @@ const FIELD_LABELS = {
   "recurrence": "Recurrence",
   "prevention_steps": "Prevention Steps",
   
-  // PACK_PRIOR_LE_APPS_STANDARD
+  // PACK_PRIOR_LE_APPS_STANDARD (lowercase aliases)
   "agency_type": "Type of Agency",
   "time_period": "Application Time Period",
   "stage_reached": "Stage Reached",
@@ -1866,7 +1916,18 @@ const FIELD_LABELS = {
   "withdrew": "Withdrew Application",
   "prior_disclosure": "Prior Disclosure",
   "preventive_steps": "Changes/Improvements Since",
-  "location_general": "Agency Location"
+  "location_general": "Agency Location",
+  
+  // PACK_PRIOR_LE_APPS_STANDARD (uppercase semantic keys - MUST have human-friendly labels)
+  "AGENCY_TYPE": "Type of Agency",
+  "TIMELINE": "Approximate Time Period",
+  "LOCATION": "Agency Location",
+  "STAGE": "Stage Reached in Hiring Process",
+  "OUTCOME": "Application Outcome",
+  "BACKGROUND_ISSUES": "Background Concerns Identified",
+  "WITHDRAW_REASON": "Reason for Withdrawing",
+  "PRIOR_DISCLOSURE": "Disclosed on Other Applications",
+  "IMPROVEMENTS": "Changes or Improvements Since"
 };
 
 /**
@@ -1932,7 +1993,7 @@ Generate ONE specific follow-up question to get a clearer answer for the "${fiel
     // TIMING: Log LLM latency with context
     console.log('[V2 PROBING][BACKEND] LLM latency (ms):', (t1 - t0), {
       pack_id: packId,
-      field_key: fieldKey,
+      field_key: fieldName,
       semanticRole: fieldName,
       probeCount,
       model: aiConfig.model
@@ -1971,10 +2032,26 @@ function mapFieldKey(packConfig, rawFieldKey) {
 
 /**
  * Semantic types that are considered "date" fields for no-recall forcing
+ * Includes all date-type semantic keys used across PACK_CONFIG
  */
 const DATE_SEMANTIC_TYPES = new Set([
+  // Legacy / common date fields
   'monthYear', 'collisionDate', 'violationDate', 'incidentDate',
-  'date', 'incident_date', 'applicationDate'
+  'date', 'incident_date', 'applicationDate',
+  // PACK_LE_APPS
+  'application_date',
+  // PACK_PRIOR_LE_APPS_STANDARD (uppercase semantic keys)
+  'TIMELINE',
+  // PACK_LE_MISCONDUCT_STANDARD
+  'employment_dates',
+  // PACK_FINANCIAL_STANDARD / PACK_GANG_STANDARD / etc.
+  'start_date', 'most_recent_date', 'end_date',
+  // PACK_DRUG_USE_STANDARD
+  'first_use_date', 'last_use_date',
+  // PACK_DRUG_SALE_STANDARD
+  'approx_date',
+  // PACK_PRESCRIPTION_MISUSE_STANDARD
+  'first_occurrence_date'
 ]);
 
 /**
