@@ -371,67 +371,109 @@ ${contextText}`;
     })).filter(s => s.answered > 0)
   });
   
-  // Generate section summaries for complete sections
-  for (const [sectionId, status] of Object.entries(sectionCompletionStatus)) {
-    if (existingSSummaryIds.has(sectionId)) {
-      console.log('[SSUM][SKIP-EXISTS]', { session: sessionId, section: sectionId });
+  // Build a map of section DB ID to section name for existing summary lookup
+  // The UI looks up summaries by section_name, so we store section_id as the name
+  const existingSSummaryByName = new Set(
+    existingSectionSummaries.map(s => {
+      // Check if section_id is a name or a DB ID
+      const sec = sections.find(sec => sec.id === s.section_id);
+      return sec ? sec.section_name : s.section_id;
+    }).filter(Boolean)
+  );
+  
+  console.log('[SSUM] Existing summaries by name:', [...existingSSummaryByName]);
+  
+  // Generate section summaries for sections with answered questions
+  for (const [sectionDbId, status] of Object.entries(sectionCompletionStatus)) {
+    const sectionName = status.name;
+    
+    // Skip sections with no answered questions
+    if (!status.responses || status.responses.length === 0) {
+      continue;
+    }
+    
+    // Check if summary already exists (by section name, which is what UI uses)
+    if (existingSSummaryByName.has(sectionName)) {
+      console.log('[SSUM][SKIP-EXISTS]', { session: sessionId, sectionName });
       result.skippedExists.section++;
       continue;
     }
     
-    if (!status.complete) {
-      console.log('[SSUM][SKIP-INCOMPLETE]', { session: sessionId, section: sectionId, completed: status.completed, total: status.total });
-      result.skippedIncomplete.section++;
+    // Also check by DB ID for backwards compatibility
+    if (existingSSummaryIds.has(sectionDbId)) {
+      console.log('[SSUM][SKIP-EXISTS-DBID]', { session: sessionId, sectionDbId });
+      result.skippedExists.section++;
       continue;
     }
     
-    if (status.responses.length === 0) continue;
+    // Count Yes vs No answers
+    const yesAnswers = status.responses.filter(r => r.answer === 'Yes');
+    const noAnswers = status.responses.filter(r => r.answer === 'No');
     
-    const sectionPrompt = `Summarize this interview section in 2-3 sentences:
+    let summaryText;
+    
+    // If all answers are "No", generate a clean section summary without LLM
+    if (yesAnswers.length === 0 && noAnswers.length > 0) {
+      summaryText = `No issues were disclosed in this section. The applicant answered "No" to all ${noAnswers.length} questions regarding ${sectionName.toLowerCase()}.`;
+      console.log('[SSUM][CLEAN-SECTION]', { session: sessionId, sectionName, noCount: noAnswers.length });
+    } else {
+      // Section has Yes answers - generate via LLM
+      const sectionPrompt = `Summarize this interview section in 2-3 sentences:
 
-SECTION: ${status.name}
+SECTION: ${sectionName}
 RESPONSES:
 ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer: r.answer })), null, 2)}`;
 
-    try {
-      const sectionResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
-        prompt: sectionPrompt,
-        response_json_schema: {
-          type: "object",
-          properties: { summary: { type: "string" } }
-        },
-        model: aiConfig.model,
-        temperature: aiConfig.temperature,
-        max_tokens: aiConfig.max_tokens,
-        top_p: aiConfig.top_p
-      });
-      
-      if (sectionResult?.summary) {
-        // Double-check no existing summary
+      try {
+        const sectionResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+          prompt: sectionPrompt,
+          response_json_schema: {
+            type: "object",
+            properties: { summary: { type: "string" } }
+          },
+          model: aiConfig.model,
+          temperature: aiConfig.temperature,
+          max_tokens: aiConfig.max_tokens,
+          top_p: aiConfig.top_p
+        });
+        
+        summaryText = sectionResult?.summary;
+      } catch (err) {
+        console.error('[SSUM][LLM-ERROR]', { session: sessionId, sectionName, error: err.message });
+        result.errors.push({ type: 'section', id: sectionName, error: err.message });
+        continue;
+      }
+    }
+    
+    if (summaryText) {
+      try {
+        // Double-check no existing summary by name
         const existingCheck = await base44.asServiceRole.entities.SectionSummary.filter({
           session_id: sessionId,
-          section_id: sectionId
+          section_id: sectionDbId
         });
         
         if (existingCheck.length > 0) {
-          console.log('[SSUM][SKIP-EXISTS]', { session: sessionId, section: sectionId });
+          console.log('[SSUM][SKIP-EXISTS-RACE]', { session: sessionId, sectionName });
           result.skippedExists.section++;
           continue;
         }
         
+        // CRITICAL: Store section_id as the DATABASE ID (for consistency)
+        // The UI will map DB ID -> section name when loading
         await base44.asServiceRole.entities.SectionSummary.create({
           session_id: sessionId,
-          section_id: sectionId,
-          section_summary_text: sectionResult.summary,
+          section_id: sectionDbId,
+          section_summary_text: summaryText,
           generated_at: new Date().toISOString()
         });
         
-        console.log('[SSUM][CREATE]', { session: sessionId, section: sectionId });
+        console.log('[SSUM][CREATE]', { session: sessionId, sectionName, sectionDbId });
         result.created.section++;
+      } catch (err) {
+        console.error('[SSUM][ERROR]', { session: sessionId, sectionName, error: err.message });
+        result.errors.push({ type: 'section', id: sectionName, error: err.message });
       }
-    } catch (err) {
-      console.error('[SSUM][ERROR]', { session: sessionId, section: sectionId, error: err.message });
-      result.errors.push({ type: 'section', id: sectionId, error: err.message });
     }
   }
   
