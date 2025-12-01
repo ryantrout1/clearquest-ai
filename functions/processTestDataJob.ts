@@ -578,6 +578,10 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     console.log('[PROCESS] Could not load FollowUpQuestion entities:', e.message);
   }
   
+  // ========== CREATE ONE FollowUpResponse PER FollowUpQuestion ==========
+  // This is the CRITICAL fix: we create one FollowUpResponse for each deterministic FollowUpQuestion,
+  // NOT one per pack. This ensures FollowUpResponse count matches the transcript follow-up count.
+  
   for (const q of questions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
@@ -590,76 +594,82 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       .filter(fuq => fuq.followup_pack_id === q.followup_pack)
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    console.log('[PROCESS] Pack', q.followup_pack, 'has', packFollowUpQuestions.length, 'deterministic questions for', q.question_id);
+    console.log('[PROCESS] Creating FollowUpResponses for pack', q.followup_pack, '- found', packFollowUpQuestions.length, 'questions for base Q', q.question_id);
     
-    // Build additional_details with answers for each deterministic follow-up question
-    const additionalDetails = {};
-    const questionTextSnapshot = {};
-    
-    packFollowUpQuestions.forEach((fuq, idx) => {
-      // Generate a realistic answer for this specific follow-up question
-      const answer = generateFollowUpAnswerForQuestion(fuq, q.followup_pack, riskLevel, packData, idx);
-      additionalDetails[fuq.followup_question_id] = answer;
-      questionTextSnapshot[fuq.followup_question_id] = fuq.question_text;
-    });
-    
-    // Also add legacy template data if available
-    if (packData) {
-      const templateData = Array.isArray(packData) ? packData[0] : packData;
-      Object.entries(templateData || {}).forEach(([key, value]) => {
-        if (!additionalDetails[key] && key !== 'instance_number' && key !== 'substance_name') {
-          additionalDetails[key] = value;
-        }
-      });
+    if (packFollowUpQuestions.length === 0) {
+      console.log('[PROCESS] WARNING: No FollowUpQuestion entities found for pack', q.followup_pack);
+      continue;
     }
-    
-    additionalDetails.question_text_snapshot = questionTextSnapshot;
-    
-    // Generate the main narrative answer
-    const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
-    additionalDetails.candidate_narrative = narrativeAnswer;
     
     const items = packData ? (Array.isArray(packData) ? packData : [packData]) : [{}];
     const maxInstances = enableMultiLoopBackgrounds && riskLevel !== 'low' ? Math.min(items.length, 3) : 1;
     
+    // For each instance (multi-instance support)
     for (let i = 0; i < maxInstances; i++) {
       const data = items[i] || {};
       const instanceNum = data.instance_number || (i + 1);
       
-      // Build instance-specific additional_details
-      const instanceDetails = { ...additionalDetails };
-      if (data.substance_name) instanceDetails.substance_name = data.substance_name;
-      
-      try {
-        const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
-          session_id: session.id, 
-          response_id: responseId,
-          question_id: q.question_id, 
-          question_text_snapshot: q.question_text, 
-          followup_pack: q.followup_pack, 
-          instance_number: instanceNum, 
-          substance_name: data.substance_name || null, 
-          incident_date: data.incident_date || null, 
-          incident_location: data.incident_location || null, 
-          incident_description: data.incident_description || narrativeAnswer,
-          frequency: data.frequency || null, 
-          last_occurrence: data.last_occurrence || null, 
-          circumstances: data.circumstances || narrativeAnswer,
-          accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
-          legal_outcome: data.legal_outcome || null, 
-          additional_details: instanceDetails, 
-          completed: true, 
-          completed_timestamp: endTime.toISOString() 
-        });
-        console.log('[PROCESS] Created FollowUpResponse', created.id, 'for', q.question_id, 'instance', instanceNum);
-        followupsCreated++;
-      } catch (e) {
-        console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, 'instance', instanceNum, ':', e.message);
+      // Create ONE FollowUpResponse PER FollowUpQuestion in the pack
+      for (let fuqIdx = 0; fuqIdx < packFollowUpQuestions.length; fuqIdx++) {
+        const fuq = packFollowUpQuestions[fuqIdx];
+        const followupQuestionId = fuq.followup_question_id;
+        const followupQuestionText = fuq.question_text;
+        
+        // Generate a realistic answer for this specific follow-up question
+        const answer = generateFollowUpAnswerForQuestion(fuq, q.followup_pack, riskLevel, packData, fuqIdx);
+        
+        // Build additional_details for this specific question
+        const questionDetails = {
+          followup_question_id: followupQuestionId,
+          followup_question_text: followupQuestionText,
+          answer_text: answer,
+          question_text_snapshot: { [followupQuestionId]: followupQuestionText }
+        };
+        
+        // Add legacy template data if available
+        if (packData && !Array.isArray(packData)) {
+          Object.entries(packData || {}).forEach(([key, value]) => {
+            if (key !== 'instance_number' && key !== 'substance_name') {
+              questionDetails[key] = value;
+            }
+          });
+        }
+        if (data.substance_name) questionDetails.substance_name = data.substance_name;
+        
+        try {
+          const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
+            session_id: sessionId, 
+            response_id: responseId,
+            question_id: q.question_id, 
+            question_text_snapshot: followupQuestionText, 
+            followup_pack: q.followup_pack, 
+            instance_number: instanceNum, 
+            substance_name: data.substance_name || null, 
+            incident_date: data.incident_date || null, 
+            incident_location: data.incident_location || null, 
+            incident_description: answer,
+            frequency: data.frequency || null, 
+            last_occurrence: data.last_occurrence || null, 
+            circumstances: answer,
+            accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
+            legal_outcome: data.legal_outcome || null, 
+            additional_details: questionDetails, 
+            completed: true, 
+            completed_timestamp: endTime.toISOString() 
+          });
+          console.log('[PROCESS] Created FollowUpResponse', created.id, 'for', q.question_id, '/', followupQuestionId, 'instance', instanceNum);
+          followupsCreated++;
+        } catch (e) {
+          console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, '/', followupQuestionId, 'instance', instanceNum, ':', e.message, e.stack);
+        }
       }
     }
   }
   
-  await base44.asServiceRole.entities.InterviewSession.update(session.id, { followups_count: transcriptFollowupCount });
+  console.log('[PROCESS] Total FollowUpResponse records created:', followupsCreated);
+  console.log('[PROCESS] Total transcript follow-up exchanges:', transcriptFollowupCount);
+  
+  await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: followupsCreated });
   
   return { action: session ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, yesCount, noCount, redFlagsCount } };
 }
