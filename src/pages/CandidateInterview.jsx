@@ -719,7 +719,7 @@ export default function CandidateInterview() {
   
   // QUESTION-LEVEL PROGRESS: Track answered questions vs total
   const totalQuestionsAllSections = engine?.TotalQuestions || 0;
-  const answeredQuestionsAllSections = useMemo(
+  const answeredQuestionsAllSections = React.useMemo(
     () => transcript.filter(t => t.type === 'question').length,
     [transcript]
   );
