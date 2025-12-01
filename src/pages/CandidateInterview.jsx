@@ -719,22 +719,18 @@ export default function CandidateInterview() {
   // MEMOIZED: Section progress data for header bar and completion tracking
   // This hook is ALWAYS called at the same position to avoid hook order issues
   const sectionProgress = React.useMemo(() => {
-    // Safe default when engine/sections aren't ready
-    if (!sections || sections.length === 0 || !engine) {
+    // Safe default when sections aren't ready
+    if (!sections || sections.length === 0) {
       return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
     }
     
-    // Build set of answered question IDs from transcript (database IDs)
+    // Build set of answered question IDs from transcript
     const answeredQuestionIdsSet = new Set(
       transcript.filter(t => t.type === 'question').map(t => t.questionId)
     );
     
     const perSection = sections.map((section, idx) => {
-      // Get questions for this section from engine.questionsBySection
-      // CRITICAL: questionsBySection[sectionId] is an array of {id, display_order} objects
-      const sectionQuestionObjects = engine.questionsBySection?.[section.id] || [];
-      const sectionQuestionIds = sectionQuestionObjects.map(qObj => qObj.id || qObj); // Extract IDs
-      
+      const sectionQuestionIds = section.questionIds || [];
       const totalInSection = sectionQuestionIds.length;
       const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
       const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
@@ -758,7 +754,7 @@ export default function CandidateInterview() {
       perSection,
       totalQuestionsAllSections
     };
-  }, [sections, transcript, engine]);
+  }, [sections, transcript]);
   
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
