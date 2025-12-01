@@ -2100,10 +2100,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         )}
                       </div>
                     );
-                  }
+                    }
 
-                  // 2) All other packs that have packConfig (e.g., PACK_LE_APPS) NEXT
-                  else if (packConfig) {
+                    // 2) All other packs that have packConfig (e.g., PACK_LE_APPS) NEXT
+                    else if (packConfig) {
                     const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
                     const detailEntries = Object.entries(instance.details || {});
                     const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
