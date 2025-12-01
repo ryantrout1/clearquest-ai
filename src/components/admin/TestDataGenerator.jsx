@@ -494,16 +494,40 @@ export default function TestDataGenerator() {
                 {(() => {
                   const statusDisplay = getJobStatusDisplay(latestJob.status);
                   const StatusIcon = statusDisplay.icon;
+                  const canCancel = latestJob.status === 'queued' || latestJob.status === 'running';
                   return (
-                    <div className="flex items-center gap-2">
-                      <Badge className={cn("text-[10px] px-2 py-0.5", statusDisplay.color)}>
-                        <StatusIcon className={cn("w-3 h-3 mr-1", latestJob.status === 'running' && "animate-spin")} />
-                        {statusDisplay.label}
-                      </Badge>
-                      {latestJob.config && (
-                        <span className="text-[10px] text-slate-500">
-                          {latestJob.config.totalCandidates} candidates
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className={cn("text-[10px] px-2 py-0.5", statusDisplay.color)}>
+                          <StatusIcon className={cn("w-3 h-3 mr-1", latestJob.status === 'running' && "animate-spin")} />
+                          {statusDisplay.label}
+                        </Badge>
+                        {latestJob.config && (
+                          <span className="text-[10px] text-slate-500">
+                            {latestJob.config.totalCandidates} candidates
+                          </span>
+                        )}
+                      </div>
+                      {canCancel && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCancelJob(latestJob.id)}
+                          disabled={isCancelling}
+                          className="w-full h-7 text-[10px] bg-red-900/30 border-red-700/50 text-red-300 hover:bg-red-800/40 hover:text-red-200"
+                        >
+                          {isCancelling ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Cancelling...
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Cancel Job
+                            </>
+                          )}
+                        </Button>
                       )}
                     </div>
                   );
