@@ -741,11 +741,14 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   
   const sectionMap = {};
   for (const s of sections) sectionMap[s.section_id] = s.section_name;
+  // Also map by database ID for questions that use section DB ID
+  for (const s of sections) sectionMap[s.id] = s.section_name;
   
   const transcript = [];
   let yesCount = 0, noCount = 0, redFlagsCount = 0, followupsCreated = 0;
   
-  for (const q of questions) {
+  // FULL INTERVIEW: Iterate through ALL questions (not filtered by yesSet)
+  for (const q of allQuestions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
     if (isYes) yesCount++; else noCount++;
