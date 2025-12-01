@@ -91,6 +91,9 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
 
   // Base question with answer combined (matches CandidateInterview HistoryEntry)
   if (kind === "base_question") {
+    // Only show "Question N" if we have a valid question number > 0
+    const showQuestionNumber = questionNumber > 0;
+    
     return (
       <div className="space-y-3">
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 opacity-85">
@@ -100,11 +103,21 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-blue-400">
-                  Question {questionNumber}
-                </span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-sm font-medium text-slate-300">{sectionName || ''}</span>
+                {showQuestionNumber ? (
+                  <span className="text-sm font-bold text-blue-400">
+                    Question {questionNumber}
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-blue-400">
+                    Interview Question
+                  </span>
+                )}
+                {sectionName && (
+                  <>
+                    <span className="text-xs text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{sectionName}</span>
+                  </>
+                )}
               </div>
               <p className="text-white leading-relaxed">{text}</p>
             </div>
