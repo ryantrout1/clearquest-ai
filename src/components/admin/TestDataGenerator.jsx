@@ -547,6 +547,11 @@ export default function TestDataGenerator() {
                       Finished: {format(new Date(latestJob.finished_at), "MMM d, h:mm a")}
                     </div>
                   )}
+                  {latestJob.cancelled_at && (
+                    <div className="text-slate-400">
+                      Cancelled: {format(new Date(latestJob.cancelled_at), "MMM d, h:mm a")}
+                    </div>
+                  )}
                   {latestJob.status === 'completed' && latestJob.result_summary && (
                     <div className="text-green-400">
                       Created {latestJob.result_summary.created || 0}, Updated {latestJob.result_summary.updated || 0}
