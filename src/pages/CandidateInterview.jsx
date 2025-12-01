@@ -41,53 +41,6 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // ============================================================================
 
 /**
- * CANONICAL PROGRESS COMPUTATION
- * Single source of truth for section/question progress
- * Used by both header and section completion cards
- */
-function computeSectionProgress(sections, transcript, engine, extraAnsweredQuestionId = null) {
-  // Build a set of answered question IDs from transcript
-  const answeredQuestionIdsSet = new Set(
-    transcript
-      .filter(t => t.type === 'question' && t.questionId)
-      .map(t => t.questionId)
-  );
-
-  // Optionally include the just-answered question if provided
-  if (extraAnsweredQuestionId) {
-    answeredQuestionIdsSet.add(extraAnsweredQuestionId);
-  }
-
-  const perSection = sections.map((section, index) => {
-    const sectionQuestionIds = section.questionIds || [];
-    const totalQuestions = sectionQuestionIds.length;
-    const answeredQuestions = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
-    const isComplete = totalQuestions > 0 && answeredQuestions >= totalQuestions;
-    return {
-      id: section.id,
-      name: section.displayName || section.name,
-      index,
-      totalQuestions,
-      answeredQuestions,
-      isComplete
-    };
-  });
-
-  const totalSections = sections.length;
-  const completedSections = perSection.filter(s => s.isComplete).length;
-  const totalQuestionsAllSections =
-    perSection.reduce((sum, s) => sum + s.totalQuestions, 0) ||
-    (engine?.TotalQuestions || 0);
-
-  return {
-    totalSections,
-    completedSections,
-    perSection,
-    totalQuestionsAllSections
-  };
-}
-
-/**
  * Build ordered sections array from engine metadata
  * Derives sections from Section entities already in engine
  */
@@ -683,6 +636,7 @@ export default function CandidateInterview() {
   // NEW: Section-based state
   const [sections, setSections] = useState([]);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const activeSection = sections[currentSectionIndex] || null;
   
   // Queue-based state (persisted to DB for resume)
@@ -762,19 +716,6 @@ export default function CandidateInterview() {
   
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
-  
-  // MEMOIZED: Section progress data for header bar and completion tracking
-  // This hook is ALWAYS called at the same position to avoid hook order issues
-  const sectionProgress = React.useMemo(() => {
-    // Safe default when sections aren't ready
-    if (!sections || sections.length === 0) {
-      return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
-    }
-    
-    const result = computeSectionProgress(sections, transcript, engine);
-    console.log('[HEADER-SECTION-PROGRESS]', result);
-    return result;
-  }, [sections, transcript, engine]);
   
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
@@ -1276,32 +1217,32 @@ export default function CandidateInterview() {
         // Section complete - add enhanced completion message with progress
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
         
-        // CANONICAL PROGRESS: Use shared helper with just-answered question included
-        const progressSnapshot = computeSectionProgress(
-          sections,
-          transcript,
-          engine,
-          baseQuestionId
-        );
+        // Update completed sections count (nextSectionIndex is 0-based)
+        setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
         
-        const answeredQuestionsCount = progressSnapshot.perSection
-          .reduce((sum, s) => sum + s.answeredQuestions, 0);
+        const totalSectionsCount = sections.length;
+        const answeredQuestionsCount = transcript.filter(t => t.type === 'question').length + 1;
+        const totalQuestionsCount = engine?.TotalQuestions || 0;
         
-        console.log('[CARD-SECTION-PROGRESS]', progressSnapshot);
+        console.log('[SECTION-COMPLETE][STATE]', {
+          nextSectionIndex: nextResult.nextSectionIndex,
+          completedSectionsWillBe: nextResult.nextSectionIndex
+        });
+        
         console.log('[SECTION-PROGRESS][AFTER-ADVANCE]', {
           baseQuestionId,
           completedSectionName: nextResult.completedSection.displayName,
           nextSectionName: nextResult.nextSection.displayName,
           headerProgress: {
-            completedSections: progressSnapshot.completedSections,
-            totalSections: progressSnapshot.totalSections,
-            percent: Math.round((progressSnapshot.completedSections / progressSnapshot.totalSections) * 100)
+            completedSections: nextResult.nextSectionIndex,
+            totalSections: totalSectionsCount,
+            percent: Math.round((nextResult.nextSectionIndex / totalSectionsCount) * 100)
           },
           cardProgress: {
-            completedSections: progressSnapshot.completedSections,
-            totalSections: progressSnapshot.totalSections,
+            completedSections: nextResult.nextSectionIndex,
+            totalSections: totalSectionsCount,
             answeredQuestions: answeredQuestionsCount,
-            totalQuestions: progressSnapshot.totalQuestionsAllSections
+            totalQuestions: totalQuestionsCount
           }
         });
         
@@ -1317,10 +1258,10 @@ export default function CandidateInterview() {
           nextSectionName: nextResult.nextSection.displayName,
           whatToExpect: whatToExpect,
           progress: {
-            completedSections: progressSnapshot.completedSections,
-            totalSections: progressSnapshot.totalSections,
+            completedSections: nextResult.nextSectionIndex,
+            totalSections: totalSectionsCount,
             answeredQuestions: answeredQuestionsCount,
-            totalQuestions: progressSnapshot.totalQuestionsAllSections
+            totalQuestions: totalQuestionsCount
           }
         };
         
@@ -4176,7 +4117,6 @@ export default function CandidateInterview() {
 
   // DEBUG: Log section flow state and header progress on every render
   if (sections.length > 0 && currentItem?.type === 'question') {
-    const { totalSections, completedSections, perSection } = sectionProgress;
     console.log('[SECTION-FLOW][RENDER]', {
       currentSectionIndex,
       currentSectionId: activeSection?.id,
@@ -4185,9 +4125,9 @@ export default function CandidateInterview() {
       totalSections: sections.length,
       questionsInSection: activeSection?.questionIds?.length || 0,
       headerProgress: {
-        completedSections,
-        totalSections,
-        percent: Math.round((completedSections / totalSections) * 100)
+        completedSections: completedSectionsCount,
+        totalSections: sections.length,
+        percent: Math.round((completedSectionsCount / sections.length) * 100)
       }
     });
   }
@@ -4284,17 +4224,41 @@ export default function CandidateInterview() {
             </div>
             
             <div>
-              {/* Segmented Overall Bar - uses memoized sectionProgress */}
+              {/* Segmented Overall Bar - uses stateful completedSectionsCount */}
               {(() => {
-                // CRITICAL: Use ONLY sectionProgress values - no local recalculation
-                const headerTotalSections = sectionProgress?.totalSections ?? (sections?.length ?? 0);
-                const headerCompletedSections = sectionProgress?.completedSections ?? 0;
-                const perSection = sectionProgress?.perSection ?? [];
-                const totalQuestionsAllSections = sectionProgress?.totalQuestionsAllSections ?? 0;
+                // CRITICAL: Use ONLY stateful values - no computed progress
+                const headerTotalSections = sections.length || 0;
+                const headerCompletedSections = completedSectionsCount;
                 
                 const sectionCompletionPct = headerTotalSections > 0 
                   ? Math.round((headerCompletedSections / headerTotalSections) * 100) 
                   : 0;
+                
+                console.log('[HEADER-SECTION-PROGRESS]', {
+                  headerCompletedSections,
+                  headerTotalSections,
+                  sectionCompletionPct
+                });
+                
+                // Build perSection for bar segments
+                const answeredQuestionIdsSet = new Set(
+                  transcript.filter(t => t.type === 'question' && t.questionId).map(t => t.questionId)
+                );
+                
+                const perSection = sections.map((section, index) => {
+                  const sectionQuestionIds = section.questionIds || [];
+                  const totalQuestions = sectionQuestionIds.length;
+                  const answeredQuestions = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
+                  const isComplete = totalQuestions > 0 && answeredQuestions >= totalQuestions;
+                  return {
+                    id: section.id,
+                    index,
+                    totalQuestions,
+                    isComplete
+                  };
+                });
+                
+                const totalQuestionsAllSections = perSection.reduce((sum, s) => sum + s.totalQuestions, 0);
                 
                 return (
                   <>
@@ -4632,13 +4596,7 @@ export default function CandidateInterview() {
                      {/* Progress line for base questions - section-only */}
                      {!requiresClarification && !isFollowUpMode && !isMultiInstanceMode && sections.length > 0 && (
                        <div className="text-xs text-slate-400 mb-2">
-                         {sections.filter((s, idx) => {
-                           const sectionQuestionIds = s.questionIds || [];
-                           const answeredInSection = transcript.filter(t => 
-                             t.type === 'question' && sectionQuestionIds.includes(t.questionId)
-                           ).length;
-                           return sectionQuestionIds.length > 0 && answeredInSection >= sectionQuestionIds.length;
-                         }).length} of {sections.length} sections complete
+                         {completedSectionsCount} of {sections.length} sections complete
                        </div>
                      )}
 
