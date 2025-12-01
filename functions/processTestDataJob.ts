@@ -389,6 +389,23 @@ const FOLLOWUP_ANSWER_TEMPLATES = {
       "I was disqualified from a previous agency in 2019 due to drug use history. At that time, I wasn't as far removed from my past. Now I have over five years clean and feel confident about this application."
     ]
   },
+  // Workplace misconduct/integrity (PACK_WORKPLACE_STANDARD)
+  WORKPLACE: {
+    low: [
+      "I received a verbal warning in 2022 for being late twice in one week. My car had broken down. Manager understood but still documented it. I got it fixed right away and haven't been late since.",
+      "I had a minor issue where I accidentally used a company printer for personal documents. Supervisor gave me a verbal reminder about policy. It was an honest mistake and didn't happen again."
+    ],
+    moderate: [
+      "I received a written warning in March 2020 at a warehouse job for using my phone on the floor, which was against safety policy. I understood their concern—it was a safety issue. I stopped immediately and followed all policies after that. Left later for a better opportunity with a good reference.",
+      "I was reprimanded in 2019 for a conflict with a coworker. We had a disagreement that got heated. HR mediated it, I apologized, and we worked professionally together after that. I learned to handle workplace conflicts better.",
+      "I received disciplinary action for unauthorized overtime in 2020. I was trying to finish a project and didn't get approval. Got a written warning and had to review the overtime policy. Understood the importance of following procedures."
+    ],
+    high: [
+      "I was terminated from an insurance company in January 2019 after an investigation found I had falsified time records. I was having financial problems and thought no one would notice. I was wrong and it cost me my job. It was a serious mistake that I deeply regret. I've learned that integrity matters more than anything.",
+      "I've had two workplace issues. First, I was terminated in 2019 for dishonesty related to time records. Second, I resigned in lieu of termination from a call center in 2020 after multiple performance warnings. Both experiences taught me hard lessons about integrity and finding work that's a good fit for my skills.",
+      "I was fired in 2018 for what they called misconduct. I had taken supplies from the office—pens, paper, small things—thinking it wasn't a big deal. They considered it theft. Looking back, I understand why. I've never done anything like that since and I'm committed to complete honesty in everything I do."
+    ]
+  },
   // General fallback
   GENERAL: {
     low: [
@@ -527,6 +544,8 @@ function generateFollowUpAnswer(packId, riskLevel, followupData) {
     category = 'FINANCIAL';
   } else if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED') || packUpper.includes('FIRED') || packUpper.includes('JOB')) {
     category = 'EMPLOYMENT';
+  } else if (packUpper.includes('WORKPLACE')) {
+    category = 'WORKPLACE';
   } else if (packUpper.includes('CRIME') || packUpper.includes('ARREST') || packUpper.includes('POLICE') || packUpper.includes('CHARGE')) {
     category = 'CRIME';
   } else if (packUpper.includes('DOMESTIC') || packUpper.includes('FAMILY') || packUpper.includes('RELATIONSHIP')) {
@@ -899,6 +918,10 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       .filter(fuq => fuq.followup_pack_id === q.followup_pack)
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
+    // Log workplace pack specifically
+    if (q.followup_pack === 'PACK_WORKPLACE_STANDARD') {
+      console.log('[TEST_DATA][WORKPLACE] 🏢 Generating PACK_WORKPLACE_STANDARD incident for question', q.question_id, '- risk:', riskLevel);
+    }
     console.log('[PROCESS] Creating FollowUpResponses for pack', q.followup_pack, '- found', packFollowUpQuestions.length, 'questions for base Q', q.question_id, '- responseId:', responseId);
     
     if (packFollowUpQuestions.length === 0) {
