@@ -1937,7 +1937,70 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     );
                   }
 
-                  return null;
+                  // 3) Fallback for packs without packConfig - show candidate narrative from FollowUpResponse fields
+                  else {
+                    const candidateNarrative = instance.candidateNarrative || instance.incidentDescription || instance.circumstances;
+                    const hasContent = !!candidateNarrative || instance.incidentDate || instance.legalOutcome;
+                    
+                    if (!hasContent) return null;
+                    
+                    // Build display entries from available fields
+                    const displayEntries = [];
+                    if (instance.incidentDate) displayEntries.push({ label: 'When', value: instance.incidentDate });
+                    if (instance.incidentLocation) displayEntries.push({ label: 'Where', value: instance.incidentLocation });
+                    if (instance.substanceName) displayEntries.push({ label: 'Substance', value: instance.substanceName });
+                    if (instance.frequency) displayEntries.push({ label: 'Frequency', value: instance.frequency });
+                    if (instance.lastOccurrence) displayEntries.push({ label: 'Last Occurrence', value: instance.lastOccurrence });
+                    if (instance.legalOutcome) displayEntries.push({ label: 'Outcome', value: instance.legalOutcome });
+                    
+                    const summaryText = candidateNarrative ? candidateNarrative.substring(0, 80) + (candidateNarrative.length > 80 ? '...' : '') : null;
+                    const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+                    
+                    return (
+                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
+                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
+                          <div className="flex flex-col gap-0.5 text-left">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                            </div>
+                            {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
+                          </div>
+                          <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
+                        </button>
+                        {isInstanceExpanded && (
+                          <div className="px-3 pb-3 pt-1 space-y-2">
+                            {candidateNarrative && (
+                              <div>
+                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Candidate Response</div>
+                                <div className="text-xs text-slate-200 leading-relaxed bg-slate-800/30 rounded p-2">
+                                  {candidateNarrative}
+                                </div>
+                              </div>
+                            )}
+                            {displayEntries.length > 0 && (
+                              <div>
+                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Details</div>
+                                <div className="divide-y divide-slate-700/60 text-xs">
+                                  {displayEntries.map((entry, idx) => (
+                                    <div key={idx} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 py-1.5">
+                                      <div className="text-slate-400">{entry.label}</div>
+                                      <div className="text-slate-50">{entry.value}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {instance.accountabilityResponse && (
+                              <div>
+                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Accountability</div>
+                                <div className="text-xs text-slate-300 italic">{instance.accountabilityResponse}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
                 })}
               </div>
             </div>
