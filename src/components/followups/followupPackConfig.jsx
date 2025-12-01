@@ -1013,6 +1013,210 @@ export const FOLLOWUP_PACK_CONFIGS = {
         }
       }
     ]
+  },
+
+  // ============================================================
+  // ADDITIONAL V2 STANDARD CLUSTER PACKS (Synced from Database)
+  // ============================================================
+
+  "PACK_ALCOHOL_STANDARD": {
+    packId: "PACK_ALCOHOL_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Alcohol Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "frequency", semanticKey: "frequency", label: "Frequency of Alcohol Use", inputType: "select_single", required: true, options: ["Daily", "Several times per week", "Weekly", "Monthly", "Occasionally", "Rarely", "No longer drink"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "binge_episodes", semanticKey: "binge_episodes", label: "Binge Drinking Episodes", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "blackouts", semanticKey: "blackouts", label: "Memory Blackouts", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "misconduct", semanticKey: "misconduct", label: "Alcohol-Related Misconduct", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "unsafe_behaviors", semanticKey: "unsafe_behaviors", label: "Unsafe Behaviors While Drinking", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 },
+      { fieldKey: "work_impact", semanticKey: "work_impact", label: "Impact on Work/School", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 6 },
+      { fieldKey: "treatment_history", semanticKey: "treatment_history", label: "Treatment/Counseling History", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 7 }
+    ]
+  },
+
+  "PACK_GENERAL_DISCLOSURE_STANDARD": {
+    packId: "PACK_GENERAL_DISCLOSURE_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "General Disclosures",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "disclosure_type", semanticKey: "disclosure_type", label: "Nature of Disclosure", inputType: "select_single", required: true, options: ["Integrity concern", "Policy violation", "Personal conduct", "Eligibility issue", "Undisclosed information", "Background concern", "Character issue", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "time_period", semanticKey: "time_period", label: "Time Period", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3, includeInInstanceHeader: true, headerOrder: 2 }
+    ]
+  },
+
+  "PACK_GENERAL_CRIME_STANDARD": {
+    packId: "PACK_GENERAL_CRIME_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Criminal Incidents",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_type", semanticKey: "incident_type", label: "Type of Incident", inputType: "select_single", required: true, options: ["Arrest", "Detention", "Charge", "Investigation", "Accusation", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "description", semanticKey: "description", label: "Description", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 }
+    ]
+  },
+
+  "PACK_ASSAULT_STANDARD": {
+    packId: "PACK_ASSAULT_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Assault Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "What Happened", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "injuries", semanticKey: "injuries", label: "Injuries", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 }
+    ]
+  },
+
+  "PACK_DOMESTIC_VIOLENCE_STANDARD": {
+    packId: "PACK_DOMESTIC_VIOLENCE_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Domestic Violence Incidents",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "relationship", semanticKey: "relationship", label: "Relationship", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "incident_type", semanticKey: "incident_type", label: "Type of Incident", inputType: "select_single", required: true, options: ["Physical assault", "Threats", "Harassment", "Stalking", "Property damage", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "What Happened", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 6 }
+    ]
+  },
+
+  "PACK_CHILD_ABUSE_STANDARD": {
+    packId: "PACK_CHILD_ABUSE_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Child Abuse/Neglect Incidents",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "child_age", semanticKey: "child_age", label: "Child Age", inputType: "text", required: true, aiProbingEnabled: false, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "allegation_type", semanticKey: "allegation_type", label: "Type of Allegation", inputType: "select_single", required: true, options: ["Physical abuse", "Neglect", "Sexual abuse", "Emotional abuse", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 4, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 },
+      { fieldKey: "investigation_outcome", semanticKey: "investigation_outcome", label: "Investigation Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 6 }
+    ]
+  },
+
+  "PACK_THEFT_STANDARD": {
+    packId: "PACK_THEFT_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Theft Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "what_stolen", semanticKey: "what_stolen", label: "What Was Taken", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "value", semanticKey: "value", label: "Approximate Value", inputType: "text", required: false, aiProbingEnabled: false, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 6 }
+    ]
+  },
+
+  "PACK_PROPERTY_CRIME_STANDARD": {
+    packId: "PACK_PROPERTY_CRIME_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Property Crime Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
+      { fieldKey: "property_type", semanticKey: "property_type", label: "Property Type", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "What Happened", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 }
+    ]
+  },
+
+  "PACK_FRAUD_STANDARD": {
+    packId: "PACK_FRAUD_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Fraud Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "fraud_type", semanticKey: "fraud_type", label: "Type of Fraud", inputType: "select_single", required: true, options: ["Identity theft", "Credit card fraud", "Check fraud", "Insurance fraud", "Forgery", "Embezzlement", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "amount_involved", semanticKey: "amount_involved", label: "Amount Involved", inputType: "text", required: false, aiProbingEnabled: false, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 }
+    ]
+  },
+
+  "PACK_EMPLOYMENT_STANDARD": {
+    packId: "PACK_EMPLOYMENT_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Employment Incidents",
+    maxAiFollowups: 2,
+    requiresCompletion: true,
+    flagOnUnresolved: "warning",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "employer", semanticKey: "employer", label: "Employer Name", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "incident_type", semanticKey: "incident_type", label: "Type of Incident", inputType: "select_single", required: true, options: ["Termination", "Discipline", "Resignation", "Investigation", "Performance issue", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "What Happened", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 },
+      { fieldKey: "outcome", semanticKey: "outcome", label: "Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 5 }
+    ]
+  },
+
+  "PACK_STALKING_HARASSMENT_STANDARD": {
+    packId: "PACK_STALKING_HARASSMENT_STANDARD",
+    supportedBaseQuestions: [],
+    instancesLabel: "Stalking/Harassment Incidents",
+    maxAiFollowups: 3,
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    multiInstance: true,
+    fields: [
+      { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
+      { fieldKey: "behavior_type", semanticKey: "behavior_type", label: "Type of Behavior", inputType: "select_single", required: true, options: ["Stalking", "Harassment", "Threats", "Unwanted contact", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
+      { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 3 },
+      { fieldKey: "legal_outcome", semanticKey: "legal_outcome", label: "Legal Outcome", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 4 }
+    ]
   }
 };
 
