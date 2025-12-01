@@ -684,6 +684,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       try {
         const fallbackPayload = { 
           session_id: sessionId, 
+          response_id: responseId, // REQUIRED: Link to parent Response
           question_id: q.question_id, 
           followup_pack: q.followup_pack, 
           instance_number: 1, 
@@ -691,12 +692,18 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
           incident_description: narrativeAnswer,
           circumstances: narrativeAnswer,
           accountability_response: "I take full responsibility for my actions.",
-          additional_details: { candidate_narrative: narrativeAnswer }, 
+          additional_details: { 
+            candidate_narrative: narrativeAnswer,
+            // Generic fallback field
+            generic_response: narrativeAnswer
+          }, 
           completed: true, 
           completed_timestamp: endTime.toISOString() 
         };
-        // Only add response_id if it exists
-        if (responseId) fallbackPayload.response_id = responseId;
+        
+        if (!responseId) {
+          console.error('[PROCESS] WARNING: No response_id for fallback FollowUpResponse! Question:', q.question_id);
+        }
         
         console.log('[PROCESS] Creating fallback FollowUpResponse with payload:', JSON.stringify({
           session_id: fallbackPayload.session_id,
