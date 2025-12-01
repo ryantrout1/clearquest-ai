@@ -412,20 +412,20 @@ export default function TestDataGenerator() {
 
             {/* Generate Button */}
             <Button
-              onClick={handleSeed}
-              disabled={isSeeding || !isValid}
+              onClick={handleEnqueueJob}
+              disabled={isEnqueuing || !isValid}
               size="lg"
               className={cn(
                 "w-full text-sm font-medium h-12",
-                isSeeding 
+                isEnqueuing 
                   ? "bg-purple-800" 
                   : "bg-purple-600 hover:bg-purple-700"
               )}
             >
-              {isSeeding ? (
+              {isEnqueuing ? (
                 <>
-                  <Clock className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Queueing...
                 </>
               ) : (
                 <>
@@ -434,6 +434,64 @@ export default function TestDataGenerator() {
                 </>
               )}
             </Button>
+
+            <p className="text-[10px] text-slate-500 text-center">
+              Job runs in background — you can navigate away
+            </p>
+
+            {/* Last Job Status */}
+            {latestJob && (
+              <div className="bg-slate-800/40 rounded-lg p-3 space-y-2 border border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-medium">Last Job</span>
+                  <button
+                    onClick={() => refetchJob()}
+                    className="text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    <RefreshCw className={cn("w-3 h-3", isLoadingJob && "animate-spin")} />
+                  </button>
+                </div>
+                
+                {(() => {
+                  const statusDisplay = getJobStatusDisplay(latestJob.status);
+                  const StatusIcon = statusDisplay.icon;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Badge className={cn("text-[10px] px-2 py-0.5", statusDisplay.color)}>
+                        <StatusIcon className={cn("w-3 h-3 mr-1", latestJob.status === 'running' && "animate-spin")} />
+                        {statusDisplay.label}
+                      </Badge>
+                      {latestJob.config && (
+                        <span className="text-[10px] text-slate-500">
+                          {latestJob.config.totalCandidates} candidates
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="text-[10px] text-slate-500 space-y-0.5">
+                  <div>
+                    Queued: {latestJob.created_date ? format(new Date(latestJob.created_date), 'MMM d, h:mm a') : 'N/A'}
+                  </div>
+                  {latestJob.finished_at && (
+                    <div>
+                      Finished: {format(new Date(latestJob.finished_at), 'MMM d, h:mm a')}
+                    </div>
+                  )}
+                  {latestJob.status === 'completed' && latestJob.result_summary && (
+                    <div className="text-green-400">
+                      Created {latestJob.result_summary.created || 0}, Updated {latestJob.result_summary.updated || 0}
+                    </div>
+                  )}
+                  {latestJob.status === 'failed' && latestJob.error_message && (
+                    <div className="text-red-400 truncate" title={latestJob.error_message}>
+                      Error: {latestJob.error_message}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
