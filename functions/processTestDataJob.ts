@@ -757,8 +757,11 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
         if (data.substance_name) questionDetails.substance_name = data.substance_name;
         
         // Build the FollowUpResponse payload
+        // CRITICAL: response_id links this FollowUpResponse to the base Response record
+        // This is required for the UI to properly display follow-ups under their parent question
         const followupPayload = { 
           session_id: sessionId, 
+          response_id: responseId, // REQUIRED: Link to parent Response
           question_id: q.question_id, 
           followup_pack: q.followup_pack, 
           instance_number: instanceNum, 
@@ -766,13 +769,21 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
           incident_description: answer,
           circumstances: answer,
           accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
-          additional_details: questionDetails, 
+          additional_details: {
+            ...questionDetails,
+            // Store the followup_question_id in additional_details for transcript builder
+            [followupQuestionId]: answer
+          }, 
           completed: true, 
           completed_timestamp: endTime.toISOString() 
         };
         
+        // Log if response_id is missing (this would be a bug)
+        if (!responseId) {
+          console.error('[PROCESS] WARNING: No response_id for FollowUpResponse! Question:', q.question_id);
+        }
+        
         // Add optional fields only if they have values
-        if (responseId) followupPayload.response_id = responseId;
         if (data.substance_name) followupPayload.substance_name = data.substance_name;
         if (data.incident_date) followupPayload.incident_date = data.incident_date;
         if (data.incident_location) followupPayload.incident_location = data.incident_location;
