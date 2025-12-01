@@ -2242,6 +2242,8 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     );
                   }
                 })}
+                  </>
+                )}
               </div>
             </div>
           </div>
