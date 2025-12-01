@@ -725,15 +725,30 @@ export default function CandidateInterview() {
     }
     
     // Build set of answered question IDs from transcript
+    // Include both questionId (database ID) format
     const answeredQuestionIdsSet = new Set(
       transcript.filter(t => t.type === 'question').map(t => t.questionId)
     );
+    
+    // DEBUG: Log what we're working with
+    if (DEBUG_MODE) {
+      console.log('[SECTION-PROGRESS] Answered question IDs:', Array.from(answeredQuestionIdsSet));
+      console.log('[SECTION-PROGRESS] Sections:', sections.map(s => ({
+        id: s.id,
+        name: s.displayName,
+        questionIds: s.questionIds?.slice(0, 5) // First 5 for brevity
+      })));
+    }
     
     const perSection = sections.map((section, idx) => {
       const sectionQuestionIds = section.questionIds || [];
       const totalInSection = sectionQuestionIds.length;
       const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
       const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
+      
+      if (DEBUG_MODE && answeredInSection > 0) {
+        console.log(`[SECTION-PROGRESS] Section "${section.displayName}": ${answeredInSection}/${totalInSection} answered, isComplete=${isComplete}`);
+      }
       
       return {
         id: section.id,
