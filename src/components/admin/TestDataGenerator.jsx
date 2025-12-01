@@ -173,6 +173,8 @@ export default function TestDataGenerator() {
     }
   };
 
+  const [isCancelling, setIsCancelling] = useState(false);
+
   // Get status badge color and icon
   const getJobStatusDisplay = (status) => {
     switch (status) {
@@ -184,8 +186,33 @@ export default function TestDataGenerator() {
         return { color: 'bg-green-500/20 text-green-300 border-green-500/30', icon: CheckCircle, label: 'Completed' };
       case 'failed':
         return { color: 'bg-red-500/20 text-red-300 border-red-500/30', icon: XCircle, label: 'Failed' };
+      case 'cancelled':
+        return { color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', icon: XCircle, label: 'Cancelled' };
       default:
         return { color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', icon: Clock, label: status };
+    }
+  };
+
+  const handleCancelJob = async (jobId) => {
+    if (!jobId) return;
+    
+    setIsCancelling(true);
+    try {
+      const response = await base44.functions.invoke('cancelTestDataJob', { jobId });
+      const result = response.data;
+      
+      if (result.error) {
+        toast.error(`Failed to cancel job: ${result.error}`);
+        return;
+      }
+      
+      toast.success('Test data job was cancelled.');
+      refetchJob();
+    } catch (error) {
+      console.error('[TEST_DATA] Cancel error:', error);
+      toast.error(`Failed to cancel job: ${error.message || 'Network error'}`);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
