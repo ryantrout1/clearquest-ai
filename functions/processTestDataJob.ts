@@ -199,6 +199,82 @@ const FOLLOWUP_ANSWER_TEMPLATES = {
   }
 };
 
+// Generate answer for a specific deterministic follow-up question
+function generateFollowUpAnswerForQuestion(followUpQuestion, packId, riskLevel, packData, questionIndex) {
+  const questionText = (followUpQuestion.question_text || '').toLowerCase();
+  const questionId = followUpQuestion.followup_question_id || '';
+  
+  // Check question keywords to generate appropriate answers
+  if (questionText.includes('agency') || questionText.includes('department') || questionText.includes('which law enforcement')) {
+    const agencies = ['Metro Police Department', 'County Sheriff\'s Office', 'State Highway Patrol', 'City Police Department'];
+    return agencies[Math.floor(Math.random() * agencies.length)];
+  }
+  
+  if (questionText.includes('position') || questionText.includes('what position')) {
+    return 'Police Officer';
+  }
+  
+  if (questionText.includes('month') || questionText.includes('year') || questionText.includes('date') || questionText.includes('when')) {
+    const years = ['2019', '2020', '2021', '2022'];
+    const months = ['January', 'March', 'June', 'September', 'November'];
+    return `${months[Math.floor(Math.random() * months.length)]} ${years[Math.floor(Math.random() * years.length)]}`;
+  }
+  
+  if (questionText.includes('outcome') || questionText.includes('status') || questionText.includes('result')) {
+    const outcomes = ['Not selected', 'Withdrew application', 'Still in process', 'Did not pass background'];
+    return outcomes[Math.floor(Math.random() * outcomes.length)];
+  }
+  
+  if (questionText.includes('why') || questionText.includes('reason') || questionText.includes('tell you')) {
+    const reasons = [
+      'They said there were more qualified candidates',
+      'I was told my background check revealed some concerns',
+      'No specific reason was given',
+      'The process took too long and I accepted another position'
+    ];
+    return reasons[Math.floor(Math.random() * reasons.length)];
+  }
+  
+  if (questionText.includes('issues') || questionText.includes('concerns') || questionText.includes('problems')) {
+    if (riskLevel === 'low') {
+      return 'No issues were raised during the process.';
+    }
+    return 'There were some questions about my employment history that I addressed.';
+  }
+  
+  if (questionText.includes('disclosed') || questionText.includes('told')) {
+    return 'Yes, I have disclosed this on all subsequent applications.';
+  }
+  
+  if (questionText.includes('learned') || questionText.includes('lesson')) {
+    return 'I learned the importance of thorough preparation and being completely honest throughout the process.';
+  }
+  
+  if (questionText.includes('steps') || questionText.includes('improve') || questionText.includes('strengthen')) {
+    return 'I have taken additional courses, improved my physical fitness, and addressed the concerns raised in my previous applications.';
+  }
+  
+  if (questionText.includes('integrity') || questionText.includes('honesty') || questionText.includes('background concerns')) {
+    if (riskLevel === 'low') {
+      return 'No integrity or honesty concerns were raised.';
+    }
+    return 'Some questions were raised about my background that I have since addressed.';
+  }
+  
+  if (questionText.includes('anything else') || questionText.includes('additional')) {
+    return 'No, I believe I have provided all relevant information about this application.';
+  }
+  
+  // Default response based on risk level
+  if (riskLevel === 'low') {
+    return 'No significant issues to report.';
+  } else if (riskLevel === 'moderate') {
+    return 'There were some minor concerns that have since been resolved.';
+  } else {
+    return 'I have addressed all previous concerns and am committed to transparency in this process.';
+  }
+}
+
 // Generate a follow-up question text based on pack type
 function getFollowupQuestionText(packId) {
   const packUpper = (packId || '').toUpperCase();
