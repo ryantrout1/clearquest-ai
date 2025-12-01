@@ -1221,7 +1221,15 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
 async function runSeeder(base44, config, jobId) {
   const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona, useAiFollowups } = config;
   
-  console.log('[PROCESS] runSeeder config:', { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona, useAiFollowups });
+  console.log('[TEST_DATA][JOB_START] jobId:', jobId, 'config:', { 
+    deptCode, 
+    totalCandidates, 
+    lowRiskCount, 
+    midRiskCount, 
+    highRiskCount, 
+    randomizeWithinPersona, 
+    useAiFollowups 
+  });
   
   // FULL INTERVIEW COVERAGE: Load ALL active questions
   const rawQuestions = await base44.asServiceRole.entities.Question.filter({ active: true });
@@ -1300,12 +1308,17 @@ async function runSeeder(base44, config, jobId) {
   const candidateConfigs = [];
   const isLegacyMode = !randomizeWithinPersona && deptCode === "MPD-12345" && totalCandidates === 5 && lowRiskCount === 2 && midRiskCount === 1 && highRiskCount === 2;
   
+  console.log('[TEST_DATA][CANDIDATE_PLAN] isLegacyMode:', isLegacyMode, 'totalCandidates:', totalCandidates, 'riskMix:', { lowRiskCount, midRiskCount, highRiskCount });
+  
   if (isLegacyMode) {
     Object.entries(LEGACY_PERSONAS).forEach(([key, persona]) => {
       candidateConfigs.push({ fileNumber: key, name: persona.name, riskLevel: persona.riskLevel, yesQuestionIds: persona.yesQuestionIds });
     });
+    console.log('[TEST_DATA][CANDIDATE_PLAN] Legacy mode: added', candidateConfigs.length, 'personas');
   } else {
     let lowIdx = 0, midIdx = 0, highIdx = 0;
+    
+    // Generate low-risk candidates
     for (let i = 0; i < lowRiskCount; i++) {
       const poolConfig = QUESTION_POOLS.low;
       const yesIds = randomizeWithinPersona 
@@ -1313,6 +1326,9 @@ async function runSeeder(base44, config, jobId) {
         : poolConfig.pool.slice(0, 2);
       candidateConfigs.push({ fileNumber: generateFileNumber('low', lowIdx++, randomizeWithinPersona), name: `TEST – Low Risk Candidate ${lowIdx}`, riskLevel: 'low', yesQuestionIds: yesIds });
     }
+    console.log('[TEST_DATA][CANDIDATE_PLAN] After low-risk loop: added', lowIdx, 'low-risk candidates. Total:', candidateConfigs.length);
+    
+    // Generate mid-risk candidates
     for (let i = 0; i < midRiskCount; i++) {
       const poolConfig = QUESTION_POOLS.moderate;
       // ALWAYS include guaranteed workplace questions for mid-risk (Q128 - disciplined/reprimanded)
@@ -1323,6 +1339,9 @@ async function runSeeder(base44, config, jobId) {
       console.log('[TEST_DATA][WORKPLACE] Mid-risk candidate', midIdx + 1, 'yesIds:', yesIds, '- guaranteed workplace:', guaranteed);
       candidateConfigs.push({ fileNumber: generateFileNumber('moderate', midIdx++, randomizeWithinPersona), name: `TEST – Mid Risk Candidate ${midIdx}`, riskLevel: 'moderate', yesQuestionIds: Array.isArray(yesIds) ? yesIds : Array.from(yesIds) });
     }
+    console.log('[TEST_DATA][CANDIDATE_PLAN] After mid-risk loop: added', midIdx, 'mid-risk candidates. Total:', candidateConfigs.length);
+    
+    // Generate high-risk candidates
     for (let i = 0; i < highRiskCount; i++) {
       const poolConfig = QUESTION_POOLS.high;
       // ALWAYS include guaranteed workplace questions for high-risk (Q127 - misconduct, Q129 - terminated)
@@ -1333,6 +1352,12 @@ async function runSeeder(base44, config, jobId) {
       console.log('[TEST_DATA][WORKPLACE] High-risk candidate', highIdx + 1, 'yesIds:', yesIds, '- guaranteed workplace:', guaranteed);
       candidateConfigs.push({ fileNumber: generateFileNumber('high', highIdx++, randomizeWithinPersona), name: `TEST – High Risk Candidate ${highIdx}`, riskLevel: 'elevated', yesQuestionIds: Array.isArray(yesIds) ? yesIds : Array.from(yesIds) });
     }
+    console.log('[TEST_DATA][CANDIDATE_PLAN] After high-risk loop: added', highIdx, 'high-risk candidates. Total:', candidateConfigs.length);
+  }
+  
+  // CRITICAL: Ensure candidateConfigs is populated
+  if (candidateConfigs.length === 0) {
+    console.error('[TEST_DATA][ERROR] No candidates configured! Check config:', { lowRiskCount, midRiskCount, highRiskCount, isLegacyMode });
   }
   
   const results = [];
