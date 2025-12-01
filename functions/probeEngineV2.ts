@@ -14,17 +14,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * - V2.5 MVP: Whitelisted packs only, topic-anchored prompts, max 1 probe per field by default
  */
 
-// V2 PROBE WHITELIST - Only these packs use per-field AI probing
-const V2_PROBE_PACK_WHITELIST = new Set([
-  'PACK_LE_APPS',
-  'PACK_INTEGRITY_APPS',
-  'PACK_PRIOR_LE_APPS_STANDARD',
-  'PACK_DRIVING_COLLISION_STANDARD',
-  'PACK_DRIVING_VIOLATIONS_STANDARD',
-  'PACK_DRIVING_STANDARD',
-  'PACK_DRIVING_DUIDWI_STANDARD',
-]);
-
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
@@ -2114,19 +2103,6 @@ async function probeEngineV2(input, base44Client) {
   } = input;
 
   console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
-  
-  // WHITELIST CHECK: Only process V2 packs
-  if (!V2_PROBE_PACK_WHITELIST.has(pack_id)) {
-    console.log(`[V2-PER-FIELD] Pack ${pack_id} not in whitelist - skipping V2 probing`);
-    return {
-      mode: "NEXT_FIELD",
-      pack_id,
-      field_key,
-      semanticField: field_key,
-      validationResult: "skipped_not_whitelisted",
-      message: `Pack ${pack_id} not enabled for V2 probing`
-    };
-  }
 
   const packConfig = PACK_CONFIG[pack_id];
   
