@@ -138,7 +138,12 @@ export default function TestDataGenerator() {
       
       if (result.error) {
         console.error('[TEST_DATA] Enqueue error:', result.error);
-        toast.error(`Failed to queue job: ${result.error}`);
+        // Handle conflict (existing job running)
+        if (result.existingJobId) {
+          toast.error(result.error, { duration: 6000 });
+        } else {
+          toast.error(`Failed to queue job: ${result.error}`);
+        }
         return;
       }
 
