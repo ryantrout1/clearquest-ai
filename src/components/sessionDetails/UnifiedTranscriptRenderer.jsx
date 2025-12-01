@@ -19,7 +19,7 @@ const needsReview = (text) => {
  * Renders structured view: events grouped by base question
  */
 export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEntities, questionNumber, isFirstAiProbing }) {
-  const { kind, role, text, instanceNumber, followupPackId, fieldKey } = event;
+  const { kind, role, text, instanceNumber, followupPackId, fieldKey, responseId, parentResponseId, followupQuestionId } = event;
 
   // Base question and answer not rendered here (handled in CompactQuestionRow)
   if (kind === "base_question" || kind === "base_answer") {
