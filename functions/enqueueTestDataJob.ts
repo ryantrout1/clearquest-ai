@@ -46,28 +46,20 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    // Check for existing active jobs for this department
+    // Check for existing active jobs for this department and cancel them
     const existingJobs = await base44.asServiceRole.entities.TestDataJob.filter({
       dept_code: deptCode
     });
     
-    const activeJob = existingJobs.find(j => j.status === 'queued' || j.status === 'running');
-    if (activeJob) {
-      console.log('[ENQUEUE] Blocking - active job exists:', activeJob.id, activeJob.status);
-      return Response.json({ 
-        errorCode: 'JOB_ALREADY_RUNNING',
-        message: `A test data job is already ${activeJob.status} for this department. Cancel it or wait until it completes.`,
-        job: {
-          id: activeJob.id,
-          deptCode: activeJob.dept_code,
-          status: activeJob.status,
-          totalCandidates: activeJob.config?.totalCandidates || 0,
-          queuedAt: activeJob.created_date || null,
-          startedAt: activeJob.started_at || null,
-          finishedAt: activeJob.finished_at || null,
-          config: activeJob.config
-        }
-      }, { status: 409 });
+    const activeJobs = existingJobs.filter(j => j.status === 'queued' || j.status === 'running');
+    for (const activeJob of activeJobs) {
+      console.log('[ENQUEUE] Auto-cancelling existing job:', activeJob.id, activeJob.status);
+      const now = new Date().toISOString();
+      await base44.asServiceRole.entities.TestDataJob.update(activeJob.id, {
+        status: 'cancelled',
+        finished_at: now,
+        cancelled_at: now
+      });
     }
 
     // Create the job record
