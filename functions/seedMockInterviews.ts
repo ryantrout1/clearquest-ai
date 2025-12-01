@@ -315,9 +315,86 @@ function generateGreatBTranscript(startTime) {
 }
 
 /**
- * Generate transcript for MID-C (Danny Rios)
+ * Generate transcript for MID-C (Danny Rios)  
  */
 function generateMidCTranscript(startTime) {
+  const timestamps = generateTimestamps(startTime, 120);
+  let idx = 0;
+  
+  return {
+    transcript: [
+      // Prior LE - No
+      { type: "question", section: "Applications with other Law Enforcement Agencies", question_id: "Q001", question_text: "Have you ever applied to any other law enforcement agency?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q001", answer: "No", timestamp: timestamps[idx++] },
+      
+      // Driving - Citation
+      { type: "question", section: "Driving Record", question_id: "Q011", question_text: "Have you ever received a traffic citation?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q011", answer: "Yes", triggered_followup: true, timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_DRIVING_VIOLATIONS_STANDARD", field: "violation_date", question_text: "When did this occur?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_DRIVING_VIOLATIONS_STANDARD", field: "violation_date", answer: "Uh, I think it was like... 2020 maybe?", timestamp: timestamps[idx++] },
+      { type: "ai_probe", pack_id: "PACK_DRIVING_VIOLATIONS_STANDARD", field: "violation_date", question_text: "Can you narrow down the timeframe?", timestamp: timestamps[idx++] },
+      { type: "ai_probe_answer", pack_id: "PACK_DRIVING_VIOLATIONS_STANDARD", field: "violation_date", answer: "October 2020, right before Halloween.", timestamp: timestamps[idx++] },
+      
+      // Criminal - Police contact  
+      { type: "question", section: "Criminal Involvement / Police Contacts", question_id: "Q021", question_text: "Have you ever had police contact as a suspect?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q021", answer: "Yes", triggered_followup: true, timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_GENERAL_CRIME_STANDARD", field: "incident_date", question_text: "When?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_GENERAL_CRIME_STANDARD", field: "incident_date", answer: "Summer 2019, maybe July", timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_GENERAL_CRIME_STANDARD", field: "description", question_text: "What happened?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_GENERAL_CRIME_STANDARD", field: "description", answer: "Roommate argument. Neighbors called cops. They just talked to us and left.", timestamp: timestamps[idx++] },
+      
+      // Financial
+      { type: "question", section: "Financial History", question_id: "Q052", question_text: "Ever 90+ days late on an account?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q052", answer: "Yes", triggered_followup: true, timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_FINANCIAL_STANDARD", field: "financial_issue_type", question_text: "What type?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_FINANCIAL_STANDARD", field: "financial_issue_type", answer: "Credit card during COVID", timestamp: timestamps[idx++] },
+      
+      // Drugs - Marijuana
+      { type: "question", section: "Illegal Drug / Narcotic History", question_id: "Q060", question_text: "Have you used marijuana?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q060", answer: "Yes", triggered_followup: true, timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_DRUG_USE_STANDARD", field: "first_use_date", question_text: "When first?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_DRUG_USE_STANDARD", field: "first_use_date", answer: "High school, junior year, around 2012", timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_DRUG_USE_STANDARD", field: "total_uses", question_text: "How many times?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_DRUG_USE_STANDARD", field: "total_uses", answer: "Maybe 10 times total at parties", timestamp: timestamps[idx++] },
+      
+      // Employment termination
+      { type: "question", section: "Employment History", question_id: "Q090", question_text: "Ever terminated from a job?", timestamp: timestamps[idx++] },
+      { type: "answer", question_id: "Q090", answer: "Yes", triggered_followup: true, timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_EMPLOYMENT_STANDARD", field: "employer", question_text: "What employer?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_EMPLOYMENT_STANDARD", field: "employer", answer: "Target when I was 22", timestamp: timestamps[idx++] },
+      { type: "followup_question", pack_id: "PACK_EMPLOYMENT_STANDARD", field: "circumstances", question_text: "What happened?", timestamp: timestamps[idx++] },
+      { type: "followup_answer", pack_id: "PACK_EMPLOYMENT_STANDARD", field: "circumstances", answer: "Attendance issues. Calling out sick too much during a rough patch.", timestamp: timestamps[idx++] }
+    ],
+    responses: [
+      { question_id: "Q001", answer: "No", category: "Applications with other Law Enforcement Agencies", is_flagged: false },
+      { question_id: "Q011", answer: "Yes", category: "Driving Record", is_flagged: false, triggered_followup: true },
+      { question_id: "Q021", answer: "Yes", category: "Criminal Involvement / Police Contacts", is_flagged: true, triggered_followup: true },
+      { question_id: "Q052", answer: "Yes", category: "Financial History", is_flagged: false, triggered_followup: true },
+      { question_id: "Q060", answer: "Yes", category: "Illegal Drug / Narcotic History", is_flagged: true, triggered_followup: true },
+      { question_id: "Q090", answer: "Yes", category: "Employment History", is_flagged: true, triggered_followup: true }
+    ],
+    followups: [
+      { question_id: "Q011", followup_pack: "PACK_DRIVING_VIOLATIONS_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q021", followup_pack: "PACK_GENERAL_CRIME_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q052", followup_pack: "PACK_FINANCIAL_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q060", followup_pack: "PACK_DRUG_USE_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q090", followup_pack: "PACK_EMPLOYMENT_STANDARD", instance_number: 1, completed: true }
+    ],
+    stats: {
+      questions_answered: 20,
+      yes_count: 6,
+      no_count: 14,
+      followups_triggered: 5,
+      ai_probes: 8,
+      red_flags: 3
+    }
+  };
+}
+
+/**
+ * Generate transcript for GREAT-A (Marcus Delaney)
+ */
+function generateGreatATranscript(startTime) {
   const timestamps = generateTimestamps(startTime, 100);
   let idx = 0;
   
