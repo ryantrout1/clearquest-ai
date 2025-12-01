@@ -400,26 +400,22 @@ export default function SystemAdminDashboard() {
             <Settings className="w-4 h-4" />
             AI Settings
           </button>
+          <button
+            onClick={() => setActiveTab("test-data")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
+              activeTab === "test-data"
+                ? "text-purple-400 border-purple-400"
+                : "text-slate-400 border-transparent hover:text-slate-300"
+            )}
+          >
+            <Database className="w-4 h-4" />
+            Test Data
+          </button>
         </div>
 
         {activeTab === "departments" && (
           <>
-            {/* Mock Data Seeder Card */}
-            <Card className="bg-gradient-to-br from-purple-900/30 to-slate-900/50 border-purple-700/50 mb-4">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold text-purple-300 flex items-center gap-2">
-                  <Rocket className="w-4 h-4" />
-                  Test Data Generator
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-slate-400 mb-3">
-                  Creates 5 complete test interview sessions for Dept Code <span className="font-mono text-purple-300">MPD-12345</span> with realistic candidate profiles (GREAT-A, GREAT-B, MID-C, HIGH-D, HIGH-E).
-                </p>
-                <SeedMockInterviewsButton />
-              </CardContent>
-            </Card>
-
             {systemMetrics && (
               <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
             <MetricCard
