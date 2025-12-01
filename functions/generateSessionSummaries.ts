@@ -523,17 +523,20 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     const yesCount = responses.filter(r => r.answer === 'Yes').length;
     const noCount = responses.filter(r => r.answer === 'No').length;
     
+    // OPTIMIZATION: Only include Yes answers in the prompt to reduce token count
+    const yesResponses = responses.filter(r => r.answer === 'Yes');
+    
     const globalPrompt = `You are an AI assistant for law enforcement background investigations.
 
 INTERVIEW DATA:
 - Total questions: ${responses.length}
-- Yes answers: ${yesCount}
-- No answers: ${noCount}
+- Yes answers (disclosures): ${yesCount}
+- No answers (no issues): ${noCount}
 
-RESPONSES:
-${JSON.stringify(responses.map(r => ({ question: r.question_text, answer: r.answer })), null, 2)}
+DISCLOSED ITEMS (Yes answers only):
+${JSON.stringify(yesResponses.map(r => ({ question: r.question_text, answer: r.answer })), null, 2)}
 
-Generate a brief interview-level summary (2-3 sentences).`;
+Generate a brief interview-level summary (2-3 sentences) focusing on what was disclosed.`;
 
     try {
       const globalResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
@@ -549,22 +552,30 @@ Generate a brief interview-level summary (2-3 sentences).`;
       });
       
       if (globalResult?.summary) {
-        await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
-          global_ai_summary: {
-            text: globalResult.summary,
-            riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
-            keyObservations: [],
-            patterns: []
-          },
-          ai_summaries_last_generated_at: new Date().toISOString()
-        });
-        
-        console.log('[ISUM][CREATE]', { session: sessionId });
-        result.created.interview++;
+        try {
+          await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
+            global_ai_summary: {
+              text: globalResult.summary,
+              riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
+              keyObservations: [],
+              patterns: []
+            },
+            ai_summaries_last_generated_at: new Date().toISOString()
+          });
+          
+          console.log('[ISUM][CREATE]', { session: sessionId });
+          result.created.interview++;
+        } catch (updateErr) {
+          console.error('[ISUM][UPDATE-ERROR]', { session: sessionId, error: updateErr.message });
+          result.errors.push({ type: 'interview_update', id: sessionId, error: updateErr.message });
+        }
+      } else {
+        console.warn('[ISUM][NO-SUMMARY]', { session: sessionId });
       }
     } catch (err) {
-      console.error('[ISUM][ERROR]', { session: sessionId, error: err.message });
-      result.errors.push({ type: 'interview', id: sessionId, error: err.message });
+      console.error('[ISUM][LLM-ERROR]', { session: sessionId, error: err.message });
+      result.errors.push({ type: 'interview_llm', id: sessionId, error: err.message });
+      // Don't throw - continue gracefully
     }
   }
   
