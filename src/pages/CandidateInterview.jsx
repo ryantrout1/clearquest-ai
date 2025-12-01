@@ -4293,7 +4293,7 @@ export default function CandidateInterview() {
                           : 0;
                         const isCurrent = s.index === currentSectionIndex;
                         
-                        // Color logic: green ONLY if isComplete, regardless of current section
+                        // Color logic: green if complete, bright cyan/green for current section, gray for future
                         return (
                           <div
                             key={s.id}
@@ -4305,12 +4305,16 @@ export default function CandidateInterview() {
                               s.isComplete 
                                 ? 'bg-gradient-to-r from-green-500 to-green-600' 
                                 : isCurrent
-                                  ? 'bg-slate-600/60 border-r border-slate-500/40'
+                                  ? 'bg-gradient-to-r from-emerald-400 to-green-500 border-r border-green-400/60'
                                   : 'bg-slate-700/50 border-r border-slate-600/30'
                             }`}
                             style={{ 
                               width: `${widthPct}%`,
-                              boxShadow: s.isComplete ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none'
+                              boxShadow: s.isComplete 
+                                ? '0 0 8px rgba(34, 197, 94, 0.4)' 
+                                : isCurrent 
+                                  ? '0 0 12px rgba(52, 211, 153, 0.5)' 
+                                  : 'none'
                             }}
                           />
                         );
