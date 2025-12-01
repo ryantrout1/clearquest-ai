@@ -546,6 +546,7 @@ Generate a brief interview-level summary (2-3 sentences).`;
 
 /**
  * HTTP Handler - Unified Summary Generation Endpoint
+ * HARDENED: Always returns 200, logs errors, never throws unhandled exceptions
  */
 Deno.serve(async (req) => {
   let sessionId = null;
@@ -553,16 +554,42 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    const user = await base44.auth.me();
+    let user = null;
+    try {
+      user = await base44.auth.me();
+    } catch (authErr) {
+      console.error('[SUMMARIES] AUTH_ERROR', { error: authErr.message });
+      return Response.json({ 
+        ok: false, 
+        success: false,
+        error: { message: 'Authentication failed' },
+        created: { question: 0, section: 0, interview: 0 },
+        errors: [{ type: 'auth', error: authErr.message }]
+      }, { status: 200 }); // Return 200 with error details instead of 401
+    }
+    
     if (!user) {
-      return Response.json({ ok: false, error: { message: 'Unauthorized' } }, { status: 401 });
+      return Response.json({ 
+        ok: false, 
+        success: false,
+        error: { message: 'Unauthorized' },
+        created: { question: 0, section: 0, interview: 0 },
+        errors: [{ type: 'auth', error: 'No user' }]
+      }, { status: 200 }); // Return 200 with error details
     }
 
     let body;
     try {
       body = typeof req.json === "function" ? await req.json() : req.body;
     } catch (parseErr) {
-      return Response.json({ ok: false, error: { message: 'Invalid JSON body' } }, { status: 400 });
+      console.error('[SUMMARIES] PARSE_ERROR', { error: parseErr.message });
+      return Response.json({ 
+        ok: false, 
+        success: false,
+        error: { message: 'Invalid JSON body' },
+        created: { question: 0, section: 0, interview: 0 },
+        errors: [{ type: 'parse', error: parseErr.message }]
+      }, { status: 200 });
     }
     
     sessionId = body?.sessionId || body?.session_id;
@@ -570,22 +597,45 @@ Deno.serve(async (req) => {
     console.log('[SUMMARIES] START', { sessionId });
 
     if (!sessionId) {
-      return Response.json({ ok: false, error: { message: 'sessionId required' } }, { status: 400 });
+      return Response.json({ 
+        ok: false, 
+        success: false,
+        error: { message: 'sessionId required' },
+        created: { question: 0, section: 0, interview: 0 },
+        errors: [{ type: 'validation', error: 'sessionId required' }]
+      }, { status: 200 });
     }
 
-    const result = await runSummariesForSession(base44, sessionId);
+    // Run with top-level try/catch to ensure we never return 5xx
+    let result;
+    try {
+      result = await runSummariesForSession(base44, sessionId);
+    } catch (runErr) {
+      console.error('[SUMMARIES] RUN_ERROR', { sessionId, error: runErr.message, stack: runErr.stack?.substring(0, 500) });
+      return Response.json({
+        ok: false,
+        success: false,
+        error: { message: runErr.message || 'Summary generation failed' },
+        created: { question: 0, section: 0, interview: 0 },
+        errors: [{ type: 'runtime', error: runErr.message }]
+      }, { status: 200 }); // Return 200 even on runtime error
+    }
 
     return Response.json({
       ok: true,
       success: true,
       ...result
-    });
+    }, { status: 200 });
 
   } catch (error) {
-    console.error('[SUMMARIES] ERROR', { sessionId, error: error.message });
+    // Absolute fallback - should never reach here
+    console.error('[SUMMARIES] FATAL_ERROR', { sessionId, error: error.message, stack: error.stack?.substring(0, 500) });
     return Response.json({
       ok: false,
-      error: { message: error.message || 'generateSessionSummaries failed' }
-    }, { status: 500 });
+      success: false,
+      error: { message: error.message || 'generateSessionSummaries failed unexpectedly' },
+      created: { question: 0, section: 0, interview: 0 },
+      errors: [{ type: 'fatal', error: error.message }]
+    }, { status: 200 }); // ALWAYS return 200
   }
 });
