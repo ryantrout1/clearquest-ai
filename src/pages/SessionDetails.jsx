@@ -2240,18 +2240,18 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         )}
                       </div>
                     );
-                  }
-                })}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+                    }
+                    })}
+                    </>
+                    )}
+                    </div>
+                    </div>
+                    </div>
+                    </>
+                    )}
+                    </div>
+                    );
+                    }
 
 function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, questions }) {
   // Calculate sequential question numbers based on order in transcript (not global question_number)
