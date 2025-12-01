@@ -87,7 +87,7 @@ export function StructuredEventRenderer({ event, nextEvent, followUpQuestionEnti
  * MATCHES THE INTERVIEW CHAT HISTORY EXACTLY
  */
 export function TranscriptEventRenderer({ event, followUpQuestionEntities, questionNumber, sectionName }) {
-  const { kind, role, text, instanceNumber, followupPackId, fieldKey } = event;
+  const { kind, role, text, instanceNumber, followupPackId, fieldKey, responseId, parentResponseId, followupQuestionId } = event;
 
   // Base question with answer combined (matches CandidateInterview HistoryEntry)
   if (kind === "base_question") {
