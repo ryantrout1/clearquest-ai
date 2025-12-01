@@ -1081,6 +1081,29 @@ async function runSeeder(base44, config, jobId) {
     return (a.display_order || 0) - (b.display_order || 0);
   });
   
+  // Pre-fetch all FollowUpQuestion entities ONCE for reuse across all candidates
+  let allFollowUpQuestions = [];
+  try {
+    const rawFollowUpQuestions = await base44.asServiceRole.entities.FollowUpQuestion.filter({ active: true });
+    allFollowUpQuestions = rawFollowUpQuestions.map(q => {
+      const data = q.data || q;
+      return {
+        id: q.id,
+        followup_question_id: data.followup_question_id,
+        followup_pack_id: data.followup_pack_id,
+        display_order: data.display_order,
+        question_text: data.question_text,
+        response_type: data.response_type,
+        active: data.active
+      };
+    });
+    console.log('[PROCESS] Pre-fetched', allFollowUpQuestions.length, 'FollowUpQuestion entities');
+    const uniquePackIds = [...new Set(allFollowUpQuestions.map(q => q.followup_pack_id))];
+    console.log('[PROCESS] Unique pack IDs:', uniquePackIds.slice(0, 10));
+  } catch (e) {
+    console.log('[PROCESS] Could not pre-fetch FollowUpQuestion entities:', e.message);
+  }
+  
   const candidateConfigs = [];
   const isLegacyMode = !randomizeWithinPersona && deptCode === "MPD-12345" && totalCandidates === 5 && lowRiskCount === 2 && midRiskCount === 1 && highRiskCount === 2;
   
