@@ -60,10 +60,11 @@ export default function TestDataGenerator() {
       return jobs.length > 0 ? jobs[0] : null;
     },
     enabled: !!config.deptCode,
-    refetchInterval: (data) => {
-      // Poll every 10s if job is queued or running
+    refetchInterval: (query) => {
+      // Poll every 3s if job is queued or running
+      const data = query.state?.data;
       if (data?.status === 'queued' || data?.status === 'running') {
-        return 10000;
+        return 3000;
       }
       return false;
     }
