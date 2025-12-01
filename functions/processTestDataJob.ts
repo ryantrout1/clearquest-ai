@@ -596,11 +596,32 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
         investigator_probing: investigatorProbing.length > 0 ? investigatorProbing : undefined
       });
       // Store for linking FollowUpResponses
-      responsesByQuestionId[q.question_id] = responseRecord.id;
+      const createdResponseId = responseRecord?.id || responseRecord?.data?.id;
+      responsesByQuestionId[q.question_id] = createdResponseId;
       responsesCreated++;
+      
+      // Update transcript entries with responseId for this question's follow-ups
+      const indicesToUpdate = transcriptIndicesToUpdate[q.question_id] || [];
+      for (const idx of indicesToUpdate) {
+        if (finalTranscript[idx]) {
+          finalTranscript[idx].responseId = createdResponseId;
+          finalTranscript[idx].parentResponseId = createdResponseId;
+        }
+      }
     } catch (e) {
       console.log('[PROCESS] Failed to create Response for', q.question_id, e.message);
     }
+  }
+  
+  // After all Responses created, update the session's transcript_snapshot with responseIds
+  console.log('[PROCESS] Updating session transcript with responseIds...');
+  try {
+    await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
+      transcript_snapshot: finalTranscript
+    });
+    console.log('[PROCESS] Session transcript updated with responseIds');
+  } catch (e) {
+    console.error('[PROCESS] Failed to update session transcript:', e.message);
   }
   
   // Fetch all FollowUpQuestion entities for deterministic follow-up generation
