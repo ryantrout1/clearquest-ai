@@ -47,6 +47,28 @@ export default function TestDataGenerator() {
     }
   }, [departments]);
 
+  // Fetch latest job for the selected department
+  const { data: latestJob, refetch: refetchJob, isLoading: isLoadingJob } = useQuery({
+    queryKey: ['latest-test-job', config.deptCode],
+    queryFn: async () => {
+      if (!config.deptCode) return null;
+      const jobs = await base44.entities.TestDataJob.filter(
+        { dept_code: config.deptCode },
+        '-created_date',
+        1
+      );
+      return jobs.length > 0 ? jobs[0] : null;
+    },
+    enabled: !!config.deptCode,
+    refetchInterval: (data) => {
+      // Poll every 10s if job is queued or running
+      if (data?.status === 'queued' || data?.status === 'running') {
+        return 10000;
+      }
+      return false;
+    }
+  });
+
   // Validate risk counts
   const riskCountTotal = config.lowRiskCount + config.midRiskCount + config.highRiskCount;
   const isValid = riskCountTotal === config.totalCandidates;
