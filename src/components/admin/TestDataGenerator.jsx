@@ -162,24 +162,38 @@ export default function TestDataGenerator() {
     } catch (error) {
       console.error('[TEST_DATA] Exception:', error);
       
-      // Handle HTTP errors with better messaging
-      let errorMessage = error.message || 'Network error';
+      // Handle 409 Conflict - job already running (expected state, not an error)
       if (error.response?.status === 409) {
-        // Conflict - job already exists
-        errorMessage = error.response?.data?.error || 'A job is already running for this department. Cancel it first or wait for it to complete.';
-        toast.error(errorMessage, { duration: 6000 });
-        refetchJob(); // Refresh to show the existing job
-      } else if (error.response?.status === 403) {
-        errorMessage = 'Access denied (403 Forbidden). Ensure you have admin permissions.';
-        toast.error(errorMessage);
+        const data = error.response?.data;
+        if (data?.errorCode === 'JOB_ALREADY_RUNNING') {
+          // Find department name for toast
+          const dept = departments.find(d => d.department_code === config.deptCode);
+          const deptName = dept?.department_name || config.deptCode;
+          
+          toast.error(
+            `A test data job is already ${data.job?.status || 'running'} for ${deptName}. You can wait for it to finish or cancel it from the Last Job panel.`,
+            { duration: 6000 }
+          );
+          
+          // Refresh to show the existing active job
+          refetchJob();
+          return; // Not an error - expected state
+        }
+        // Fallback for unknown 409
+        toast.error(data?.message || 'A job is already running for this department.', { duration: 6000 });
+        refetchJob();
+        return;
+      }
+      
+      // Handle other HTTP errors
+      if (error.response?.status === 403) {
+        toast.error('Access denied (403 Forbidden). Ensure you have admin permissions.');
       } else if (error.response?.status === 401) {
-        errorMessage = 'Authentication required. Please log in again.';
-        toast.error(errorMessage);
+        toast.error('Authentication required. Please log in again.');
       } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-        toast.error(`Failed to queue job: ${errorMessage}`);
+        toast.error(`Failed to queue job: ${error.response.data.error}`);
       } else {
-        toast.error(`Failed to queue job: ${errorMessage}`);
+        toast.error(`Failed to queue job: ${error.message || 'Network error'}`);
       }
     } finally {
       setIsEnqueuing(false);
@@ -463,29 +477,41 @@ export default function TestDataGenerator() {
             </div>
 
             {/* Generate Button */}
-            <Button
-              onClick={handleEnqueueJob}
-              disabled={isEnqueuing || !isValid}
-              size="lg"
-              className={cn(
-                "w-full text-sm font-medium h-12",
-                isEnqueuing 
-                  ? "bg-purple-800" 
-                  : "bg-purple-600 hover:bg-purple-700"
-              )}
-            >
-              {isEnqueuing ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Queueing...
-                </>
-              ) : (
-                <>
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Generate Test Data
-                </>
-              )}
-            </Button>
+            {(() => {
+              const hasActiveJob = latestJob && (latestJob.status === 'queued' || latestJob.status === 'running');
+              return (
+                <Button
+                  onClick={handleEnqueueJob}
+                  disabled={isEnqueuing || !isValid || hasActiveJob}
+                  size="lg"
+                  className={cn(
+                    "w-full text-sm font-medium h-12",
+                    hasActiveJob
+                      ? "bg-slate-700 cursor-not-allowed"
+                      : isEnqueuing 
+                        ? "bg-purple-800" 
+                        : "bg-purple-600 hover:bg-purple-700"
+                  )}
+                >
+                  {isEnqueuing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Queueing...
+                    </>
+                  ) : hasActiveJob ? (
+                    <>
+                      <Clock className="w-4 h-4 mr-2" />
+                      Job {latestJob.status === 'queued' ? 'Queued' : 'Running'}...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="w-4 h-4 mr-2" />
+                      Generate Test Data
+                    </>
+                  )}
+                </Button>
+              );
+            })()}
 
             <p className="text-[10px] text-slate-500 text-center">
               Job runs in background — you can navigate away

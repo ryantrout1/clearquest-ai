@@ -55,9 +55,18 @@ Deno.serve(async (req) => {
     if (activeJob) {
       console.log('[ENQUEUE] Blocking - active job exists:', activeJob.id, activeJob.status);
       return Response.json({ 
-        error: `A test data job is already ${activeJob.status} for this department. Cancel it or wait until it completes.`,
-        existingJobId: activeJob.id,
-        existingJobStatus: activeJob.status
+        errorCode: 'JOB_ALREADY_RUNNING',
+        message: `A test data job is already ${activeJob.status} for this department. Cancel it or wait until it completes.`,
+        job: {
+          id: activeJob.id,
+          deptCode: activeJob.dept_code,
+          status: activeJob.status,
+          totalCandidates: activeJob.config?.totalCandidates || 0,
+          queuedAt: activeJob.created_date || null,
+          startedAt: activeJob.started_at || null,
+          finishedAt: activeJob.finished_at || null,
+          config: activeJob.config
+        }
       }, { status: 409 });
     }
 
