@@ -426,7 +426,101 @@ const FOLLOWUP_ANSWER_TEMPLATES = {
 function generateFollowUpAnswerForQuestion(followUpQuestion, packId, riskLevel, packData, questionIndex) {
   const questionText = (followUpQuestion.question_text || '').toLowerCase();
   const questionId = followUpQuestion.followup_question_id || '';
+  const packUpper = (packId || '').toUpperCase();
   
+  // ========== PACK_WORKPLACE_STANDARD SPECIFIC HANDLING ==========
+  if (packUpper.includes('WORKPLACE')) {
+    // Employer name
+    if (questionText.includes('employer') || questionText.includes('company') || questionText.includes('organization') || questionText.includes('working at')) {
+      const employers = ['Regional Logistics Company', 'Insurance Company', 'Telecom Company', 'Local Retail Store', 'Restaurant Group', 'Warehouse Distribution Center', 'Call Center Services', 'Office Supply Store'];
+      return employers[Math.floor(Math.random() * employers.length)];
+    }
+    
+    // Position/role
+    if (questionText.includes('position') || questionText.includes('role') || questionText.includes('job title') || questionText.includes('your role')) {
+      const positions = ['Sales Associate', 'Warehouse Associate', 'Customer Service Rep', 'Claims Processor', 'Shift Supervisor', 'Administrative Assistant', 'Cashier', 'Stock Clerk'];
+      return positions[Math.floor(Math.random() * positions.length)];
+    }
+    
+    // Type of misconduct/issue
+    if (questionText.includes('type of') && (questionText.includes('misconduct') || questionText.includes('issue') || questionText.includes('workplace'))) {
+      if (riskLevel === 'low') return 'Attendance Issue';
+      if (riskLevel === 'moderate') return 'Policy Violation';
+      return 'Dishonesty';
+    }
+    
+    // Corrective/disciplinary action
+    if (questionText.includes('corrective') || questionText.includes('disciplinary') || questionText.includes('action taken') || questionText.includes('employer take')) {
+      if (riskLevel === 'low') return 'Verbal Warning';
+      if (riskLevel === 'moderate') return 'Written Warning';
+      return 'Termination';
+    }
+    
+    // Describe incident
+    if (questionText.includes('describe') && (questionText.includes('incident') || questionText.includes('what happened') || questionText.includes('detail'))) {
+      if (riskLevel === 'low') return 'Minor attendance issue - was late twice in one week due to car trouble. Manager gave verbal counseling.';
+      if (riskLevel === 'moderate') return 'Received written warning for policy violation - used phone on warehouse floor which was against safety rules. Understood their concern and stopped immediately.';
+      return 'Terminated after investigation found time record discrepancies. I was having financial problems and made a serious mistake. I take full responsibility.';
+    }
+    
+    // Separation type
+    if (questionText.includes('separation') || questionText.includes('how did') && questionText.includes('end') || questionText.includes('left')) {
+      if (riskLevel === 'low') return 'Left on good terms';
+      if (riskLevel === 'moderate') return 'Resigned for better opportunity';
+      return 'Terminated';
+    }
+    
+    // Isolated or recurring
+    if (questionText.includes('isolated') || questionText.includes('recurring') || questionText.includes('one-time') || questionText.includes('part of')) {
+      if (riskLevel === 'low') return 'Isolated Incident';
+      if (riskLevel === 'moderate') return 'Isolated Incident';
+      return 'Part of Multiple Issues';
+    }
+    
+    // Policies involved
+    if (questionText.includes('policy') || questionText.includes('policies') || questionText.includes('rule')) {
+      return 'Company attendance policy / time and attendance procedures';
+    }
+    
+    // Location/worksite
+    if (questionText.includes('location') || questionText.includes('worksite') || questionText.includes('where')) {
+      const locations = ['Main Office', 'Warehouse', 'Distribution Center', 'Retail Store', 'Call Center Floor', 'Corporate Office'];
+      return locations[Math.floor(Math.random() * locations.length)];
+    }
+    
+    // Date/when
+    if (questionText.includes('when') || questionText.includes('date') || questionText.includes('month') || questionText.includes('year')) {
+      const years = ['2019', '2020', '2021', '2022'];
+      const months = ['January', 'March', 'June', 'August', 'November'];
+      return `${months[Math.floor(Math.random() * months.length)]} ${years[Math.floor(Math.random() * years.length)]}`;
+    }
+    
+    // Others involved
+    if (questionText.includes('others') || questionText.includes('involved') || questionText.includes('aware')) {
+      if (riskLevel === 'low') return 'Just my direct supervisor was aware.';
+      if (riskLevel === 'moderate') return 'My supervisor and HR were involved in documenting the warning.';
+      return 'HR conducted an investigation. My supervisor, HR manager, and department head were involved.';
+    }
+    
+    // Accountability/responsibility/learned
+    if (questionText.includes('accountability') || questionText.includes('responsibility') || questionText.includes('learned') || questionText.includes('lesson')) {
+      if (riskLevel === 'low') return 'I took responsibility and made sure it didnt happen again. Fixed my car and improved my attendance.';
+      if (riskLevel === 'moderate') return 'I understood their concerns, accepted the warning, and changed my behavior immediately. Left later with a good reference.';
+      return 'I made a serious mistake. I take full responsibility and have learned that integrity is non-negotiable. It cost me my job but taught me an important lesson.';
+    }
+    
+    // Anything else / additional
+    if (questionText.includes('anything else') || questionText.includes('additional')) {
+      return 'No, I believe I have provided all relevant information about this workplace incident.';
+    }
+    
+    // Default workplace answer by risk
+    if (riskLevel === 'low') return 'It was a minor issue that was addressed and resolved appropriately.';
+    if (riskLevel === 'moderate') return 'I learned from the experience and made sure it didnt happen again.';
+    return 'I take full responsibility for my actions and have grown significantly since then.';
+  }
+  
+  // ========== OTHER PACKS (original logic) ==========
   // Check question keywords to generate appropriate answers
   if (questionText.includes('agency') || questionText.includes('department') || questionText.includes('which law enforcement')) {
     const agencies = ['Metro Police Department', 'County Sheriff\'s Office', 'State Highway Patrol', 'City Police Department'];
