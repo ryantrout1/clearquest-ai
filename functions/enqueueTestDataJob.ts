@@ -10,16 +10,23 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // Auth check
+    // Auth check - allow admin users
     let user = null;
     try { 
       user = await base44.auth.me(); 
+      console.log('[ENQUEUE] User authenticated:', user?.email, 'role:', user?.role);
     } catch (e) {
       console.log('[ENQUEUE] Auth error:', e.message);
+      return Response.json({ error: 'Authentication required' }, { status: 401 });
     }
     
-    if (!user || (user.role !== 'admin' && user.role !== 'SUPER_ADMIN')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 403 });
+    // Allow admin and SUPER_ADMIN roles (case-insensitive check)
+    const userRole = (user?.role || '').toUpperCase();
+    const allowedRoles = ['ADMIN', 'SUPER_ADMIN'];
+    
+    if (!user || !allowedRoles.includes(userRole)) {
+      console.log('[ENQUEUE] Access denied for role:', user?.role);
+      return Response.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     // Parse config from request body
