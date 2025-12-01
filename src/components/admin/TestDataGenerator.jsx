@@ -164,15 +164,23 @@ export default function TestDataGenerator() {
       
       // Handle HTTP errors with better messaging
       let errorMessage = error.message || 'Network error';
-      if (error.response?.status === 403) {
+      if (error.response?.status === 409) {
+        // Conflict - job already exists
+        errorMessage = error.response?.data?.error || 'A job is already running for this department. Cancel it first or wait for it to complete.';
+        toast.error(errorMessage, { duration: 6000 });
+        refetchJob(); // Refresh to show the existing job
+      } else if (error.response?.status === 403) {
         errorMessage = 'Access denied (403 Forbidden). Ensure you have admin permissions.';
+        toast.error(errorMessage);
       } else if (error.response?.status === 401) {
         errorMessage = 'Authentication required. Please log in again.';
+        toast.error(errorMessage);
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
+        toast.error(`Failed to queue job: ${errorMessage}`);
+      } else {
+        toast.error(`Failed to queue job: ${errorMessage}`);
       }
-      
-      toast.error(`Failed to queue job: ${errorMessage}`);
     } finally {
       setIsEnqueuing(false);
     }
