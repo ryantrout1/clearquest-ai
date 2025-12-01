@@ -1145,10 +1145,11 @@ async function runSeeder(base44, config, jobId) {
     }
     
     try {
-      const result = await createMockSession(base44, config, candidateConfig, questions, sections);
+      const result = await createMockSession(base44, config, candidateConfig, questions, sections, allFollowUpQuestions);
       results.push({ ...result, success: true });
       if (result.action === "created") created++; else updated++;
     } catch (error) {
+      console.error('[PROCESS] Error creating session for', candidateConfig.fileNumber, error.message);
       results.push({ fileNumber: candidateConfig.fileNumber, success: false, error: error.message });
     }
   }
