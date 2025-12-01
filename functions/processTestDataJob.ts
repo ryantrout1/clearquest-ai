@@ -311,14 +311,40 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     currentTime += 3000 + Math.floor(Math.random() * 4000);
     transcript.push({ type: "answer", question_id: q.question_id, answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, timestamp: new Date(currentTime).toISOString() });
     
+    // Add deterministic follow-up Q&A to transcript for Yes answers with follow-up packs
+    if (isYes && q.followup_pack) {
+      const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
+      const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
+      
+      // Generate follow-up question text based on pack type
+      const followupQuestionText = getFollowupQuestionText(q.followup_pack);
+      
+      currentTime += 2000 + Math.floor(Math.random() * 2000);
+      transcript.push({ 
+        type: "followup", 
+        kind: "deterministic_followup",
+        questionId: q.question_id,
+        baseQuestionId: q.question_id,
+        packId: q.followup_pack,
+        followupPackId: q.followup_pack,
+        instanceNumber: 1,
+        questionText: followupQuestionText,
+        text: followupQuestionText,
+        answer: narrativeAnswer,
+        category: sectionName,
+        sectionName: sectionName,
+        timestamp: new Date(currentTime).toISOString() 
+      });
+    }
+    
     if (includeAiProbing && isYes && riskLevel !== 'low') {
       const probes = AI_PROBING_TEMPLATES[q.question_id];
       if (probes) {
         for (const probe of probes) {
           currentTime += 3000 + Math.floor(Math.random() * 3000);
-          transcript.push({ type: "ai_probe", question_id: q.question_id, question_text: probe.probing_question, timestamp: new Date(currentTime).toISOString() });
+          transcript.push({ type: "ai_probe", kind: "ai_probe_question", question_id: q.question_id, baseQuestionId: q.question_id, question_text: probe.probing_question, text: probe.probing_question, timestamp: new Date(currentTime).toISOString() });
           currentTime += 4000 + Math.floor(Math.random() * 4000);
-          transcript.push({ type: "ai_probe_answer", question_id: q.question_id, answer: probe.candidate_response, timestamp: new Date(currentTime).toISOString() });
+          transcript.push({ type: "ai_probe_answer", kind: "ai_probe_answer", question_id: q.question_id, baseQuestionId: q.question_id, answer: probe.candidate_response, text: probe.candidate_response, timestamp: new Date(currentTime).toISOString() });
         }
       }
     }
