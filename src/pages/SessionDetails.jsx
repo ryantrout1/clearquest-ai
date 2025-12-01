@@ -1736,6 +1736,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                         questionEvents={eventsByQuestion[response.question_id] || []}
                         drivingFactsFromTranscript={drivingFactsFromTranscript}
+                        transcriptFollowups={followupsByResponseId[response.id] || {}}
                       />
                     ))}
                   </div>
@@ -1751,6 +1752,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
                         questionEvents={eventsByQuestion[response.question_id] || []}
                         drivingFactsFromTranscript={drivingFactsFromTranscript}
+                        transcriptFollowups={followupsByResponseId[response.id] || {}}
                       />
                     ))}
                   </div>
