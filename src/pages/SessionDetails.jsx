@@ -1555,7 +1555,8 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
       followupQuestionId,
       questionText: qEvent.text,
       answerText: matchingAnswer?.text || '',
-      fieldKey: qEvent.fieldKey
+      fieldKey: qEvent.fieldKey,
+      baseQuestionId: qEvent.baseQuestionId // Store for diagnostic logging
     });
   });
   
