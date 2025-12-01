@@ -140,22 +140,32 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
 
   // Deterministic follow-up question (matches CandidateInterview format)
   if (kind === "deterministic_followup_question") {
-    // Try to resolve from followUpQuestionEntities first using followupQuestionId or fieldKey
-    const followupQuestionId = event.followupQuestionId || fieldKey;
+    // PRIORITY 1: Use event.text if it looks like actual question text (not just a field key)
     let resolvedText = text;
+    const looksLikeFieldKey = text && (text.startsWith('PACK_') || text.includes('_Q0') || text.includes('_Q1'));
     
-    if (followupQuestionId && followUpQuestionEntities) {
+    // PRIORITY 2: Try to resolve from followUpQuestionEntities using followupQuestionId or fieldKey
+    const fuqId = event.followupQuestionId || fieldKey;
+    if (looksLikeFieldKey && fuqId && followUpQuestionEntities) {
       const matchedQuestion = followUpQuestionEntities.find(
-        q => q.followup_question_id === followupQuestionId && q.followup_pack_id === followupPackId
+        q => q.followup_question_id === fuqId && q.followup_pack_id === followupPackId
       );
       if (matchedQuestion?.question_text) {
         resolvedText = matchedQuestion.question_text;
       }
     }
     
-    // Fallback to resolveFollowupQuestionText helper
-    if (!resolvedText || resolvedText === fieldKey) {
-      resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
+    // PRIORITY 3: Fallback to resolveFollowupQuestionText helper
+    if (!resolvedText || looksLikeFieldKey) {
+      const helperText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
+      if (helperText && helperText !== fieldKey) {
+        resolvedText = helperText;
+      }
+    }
+    
+    // PRIORITY 4: Final fallback - use a human-readable label instead of field key
+    if (!resolvedText || resolvedText.startsWith('PACK_')) {
+      resolvedText = 'Follow-up question';
     }
     
     return (
