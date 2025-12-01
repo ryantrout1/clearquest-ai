@@ -921,7 +921,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   });
   
   const sessionData = {
-    session_code: sessionCode, department_code: deptCode, file_number: fileNumber, status: "completed", is_archived: false,
+    session_code: uniqueSessionCode, department_code: deptCode, file_number: uniqueFileNumber, status: "completed", is_archived: false,
     started_at: startTime.toISOString(), completed_at: endTime.toISOString(), last_activity_at: endTime.toISOString(),
     questions_answered_count: allQuestions.length, followups_count: 0,
     ai_probes_count: includeAiProbing && riskLevel !== 'low' ? Math.floor(yesCount * 0.3) : 0,
