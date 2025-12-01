@@ -762,7 +762,18 @@ async function runSeeder(base44, config, jobId) {
       category: d.category
     };
   });
-  const sections = await base44.asServiceRole.entities.Section.filter({ active: true });
+  const rawSections = await base44.asServiceRole.entities.Section.filter({ active: true });
+  // Normalize section data
+  const sections = rawSections.map(s => {
+    const d = s.data || s;
+    return {
+      id: s.id,
+      section_id: d.section_id,
+      section_name: d.section_name,
+      section_order: d.section_order,
+      active: d.active
+    };
+  });
   
   const sectionOrderMap = {};
   for (const s of sections) sectionOrderMap[s.section_id] = s.section_order || 999;
