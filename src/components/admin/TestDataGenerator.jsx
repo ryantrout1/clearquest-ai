@@ -156,7 +156,18 @@ export default function TestDataGenerator() {
       
     } catch (error) {
       console.error('[TEST_DATA] Exception:', error);
-      toast.error(`Failed to queue job: ${error.message || 'Network error'}`);
+      
+      // Handle HTTP errors with better messaging
+      let errorMessage = error.message || 'Network error';
+      if (error.response?.status === 403) {
+        errorMessage = 'Access denied (403 Forbidden). Ensure you have admin permissions.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      toast.error(`Failed to queue job: ${errorMessage}`);
     } finally {
       setIsEnqueuing(false);
     }
