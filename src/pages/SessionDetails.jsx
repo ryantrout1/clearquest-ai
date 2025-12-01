@@ -1989,26 +1989,26 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         </div>
                       );
                     })}
-                  </>
-                ) : (
-                  /* FALLBACK: Use FollowUpResponse entity (legacy path) */
-                  <>
-                {instanceNumbers.length > 1 && (
-                  <div className="text-xs font-semibold text-cyan-400 mb-1">
-                    🔁 {instanceNumbers.length} Instances Recorded
-                  </div>
-                )}
-                {instanceNumbers.map((instanceNum, instanceIdx) => {
-                  const instance = instancesMap[instanceNum];
-                  if (!instance) return null;
-                  const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+                    </>
+                    ) : (
+                    /* FALLBACK: Use FollowUpResponse entity (legacy path) */
+                    <>
+                    {instanceNumbers.length > 1 && (
+                     <div className="text-xs font-semibold text-cyan-400 mb-1">
+                       🔁 {instanceNumbers.length} Instances Recorded
+                     </div>
+                    )}
+                    {instanceNumbers.map((instanceNum, instanceIdx) => {
+                     const instance = instancesMap[instanceNum];
+                     if (!instance) return null;
+                     const isInstanceExpanded = expandedInstances.has(String(instanceNum));
 
-                  // NOTE: Driving packs are handled first using transcript-derived facts
-                  // (drivingFactsFromTranscript). Other packs with packConfig (like PACK_LE_APPS)
-                  // use getInstanceFacts(). When adding new multi-instance packs, prefer
-                  // following this pattern instead of mixing pipelines.
+                     // NOTE: Driving packs are handled first using transcript-derived facts
+                     // (drivingFactsFromTranscript). Other packs with packConfig (like PACK_LE_APPS)
+                     // use getInstanceFacts(). When adding new multi-instance packs, prefer
+                     // following this pattern instead of mixing pipelines.
 
-                  if (isDrivingPack) {
+                     if (isDrivingPack) {
                     // PRIMARY SOURCE: Use drivingFactsFromTranscript (built from transcript_snapshot)
                     const instanceKey = `${response.question_id}::${instanceNum}`;
                     const transcriptFactsEntry = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey];
