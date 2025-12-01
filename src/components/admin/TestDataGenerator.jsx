@@ -121,38 +121,59 @@ export default function TestDataGenerator() {
     setConfig(prev => ({ ...prev, [key]: numValue }));
   };
 
-  const handleSeed = async () => {
+  const handleEnqueueJob = async () => {
     if (!isValid) {
       toast.error("Risk profile counts must equal total candidates");
       return;
     }
 
-    setIsSeeding(true);
-    console.log('[TEST_DATA] Starting seed with config:', config);
+    setIsEnqueuing(true);
+    console.log('[TEST_DATA] Enqueueing job with config:', config);
     
     try {
-      const response = await base44.functions.invoke('seedMockInterviews', config);
-      console.log('[TEST_DATA] Response:', response);
+      const response = await base44.functions.invoke('enqueueTestDataJob', config);
+      console.log('[TEST_DATA] Enqueue response:', response);
       const result = response.data;
       
       if (result.error) {
-        console.error('[TEST_DATA] Error:', result.error);
-        toast.error(`Seed failed: ${result.error}`);
+        console.error('[TEST_DATA] Enqueue error:', result.error);
+        toast.error(`Failed to queue job: ${result.error}`);
         return;
       }
 
-      const msg = `Generated ${result.created || 0} new, ${result.updated || 0} updated candidates for ${config.deptCode}`;
-      console.log('[TEST_DATA] Success:', msg);
-      toast.success(msg);
+      // Find department name for toast
+      const dept = departments.find(d => d.department_code === config.deptCode);
+      const deptName = dept?.department_name || config.deptCode;
+
+      toast.success(
+        `Test data generation queued for ${deptName}. You can navigate away; sessions will appear in the Interview Dashboard when ready.`,
+        { duration: 6000 }
+      );
       
-      // Refresh queries
-      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      // Refresh the job status
+      refetchJob();
+      
     } catch (error) {
       console.error('[TEST_DATA] Exception:', error);
-      toast.error(`Failed to generate: ${error.message || 'Network error'}`);
+      toast.error(`Failed to queue job: ${error.message || 'Network error'}`);
     } finally {
-      setIsSeeding(false);
+      setIsEnqueuing(false);
+    }
+  };
+
+  // Get status badge color and icon
+  const getJobStatusDisplay = (status) => {
+    switch (status) {
+      case 'queued':
+        return { color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', icon: Clock, label: 'Queued' };
+      case 'running':
+        return { color: 'bg-blue-500/20 text-blue-300 border-blue-500/30', icon: Loader2, label: 'Running…' };
+      case 'completed':
+        return { color: 'bg-green-500/20 text-green-300 border-green-500/30', icon: CheckCircle, label: 'Completed' };
+      case 'failed':
+        return { color: 'bg-red-500/20 text-red-300 border-red-500/30', icon: XCircle, label: 'Failed' };
+      default:
+        return { color: 'bg-slate-500/20 text-slate-300 border-slate-500/30', icon: Clock, label: status };
     }
   };
 
