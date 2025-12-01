@@ -999,6 +999,232 @@ const PACK_CONFIG = {
       "PACK_PRESCRIPTION_MISUSE_STANDARD_Q15": "prevention_steps",
     },
   },
+
+  // ============================================================
+  // ADDITIONAL V2 STANDARD CLUSTER PACKS (Added for full V2 probing support)
+  // ============================================================
+
+  // Alcohol Misuse pack (v2.4)
+  PACK_ALCOHOL_STANDARD: {
+    id: "PACK_ALCOHOL_STANDARD",
+    requiredFields: ["frequency", "binge_episodes", "blackouts", "misconduct", "work_impact", "treatment_history"],
+    priorityOrder: ["frequency", "binge_episodes", "blackouts", "misconduct", "unsafe_behaviors", "work_impact", "relationship_impact", "health_issues", "treatment_history", "le_involvement", "consequences", "preventive_steps"],
+    fieldKeyMap: {
+      "frequency": "frequency",
+      "binge_episodes": "binge_episodes",
+      "blackouts": "blackouts",
+      "misconduct": "misconduct",
+      "unsafe_behaviors": "unsafe_behaviors",
+      "work_impact": "work_impact",
+      "relationship_impact": "relationship_impact",
+      "health_issues": "health_issues",
+      "treatment_history": "treatment_history",
+      "le_involvement": "le_involvement",
+      "consequences": "consequences",
+      "similar_incidents": "similar_incidents",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // General Disclosure pack (v2.4)
+  PACK_GENERAL_DISCLOSURE_STANDARD: {
+    id: "PACK_GENERAL_DISCLOSURE_STANDARD",
+    requiredFields: ["disclosure_type", "circumstances", "time_period"],
+    priorityOrder: ["disclosure_type", "circumstances", "time_period", "integrity_issues", "policy_violations", "harm_risk", "employer_school_consequences", "le_consequences", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "disclosure_type": "disclosure_type",
+      "circumstances": "circumstances",
+      "time_period": "time_period",
+      "integrity_issues": "integrity_issues",
+      "policy_violations": "policy_violations",
+      "harm_risk": "harm_risk",
+      "employer_school_consequences": "employer_school_consequences",
+      "le_consequences": "le_consequences",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // General Crime pack (v2.4)
+  PACK_GENERAL_CRIME_STANDARD: {
+    id: "PACK_GENERAL_CRIME_STANDARD",
+    requiredFields: ["incident_type", "incident_date", "location", "description", "legal_outcome"],
+    priorityOrder: ["incident_type", "incident_date", "location", "description", "arrest_status", "charges", "legal_outcome", "sentence", "probation", "restitution", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_type": "incident_type",
+      "incident_date": "incident_date",
+      "location": "location",
+      "description": "description",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "sentence": "sentence",
+      "probation": "probation",
+      "restitution": "restitution",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Assault pack (v2.4)
+  PACK_ASSAULT_STANDARD: {
+    id: "PACK_ASSAULT_STANDARD",
+    requiredFields: ["incident_date", "location", "circumstances", "injuries", "legal_outcome"],
+    priorityOrder: ["incident_date", "location", "circumstances", "injuries", "weapons_involved", "arrest_status", "charges", "legal_outcome", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "location": "location",
+      "circumstances": "circumstances",
+      "injuries": "injuries",
+      "weapons_involved": "weapons_involved",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Domestic Violence pack (v2.4)
+  PACK_DOMESTIC_VIOLENCE_STANDARD: {
+    id: "PACK_DOMESTIC_VIOLENCE_STANDARD",
+    requiredFields: ["incident_date", "location", "relationship", "incident_type", "circumstances", "legal_outcome"],
+    priorityOrder: ["incident_date", "location", "relationship", "incident_type", "circumstances", "injuries", "weapons_involved", "protective_order", "arrest_status", "charges", "legal_outcome", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "location": "location",
+      "relationship": "relationship",
+      "incident_type": "incident_type",
+      "circumstances": "circumstances",
+      "injuries": "injuries",
+      "weapons_involved": "weapons_involved",
+      "protective_order": "protective_order",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Child Abuse pack (v2.4)
+  PACK_CHILD_ABUSE_STANDARD: {
+    id: "PACK_CHILD_ABUSE_STANDARD",
+    requiredFields: ["incident_date", "location", "child_age", "allegation_type", "circumstances", "investigation_outcome"],
+    priorityOrder: ["incident_date", "location", "child_age", "allegation_type", "circumstances", "cps_involvement", "investigation_outcome", "legal_outcome", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "location": "location",
+      "child_age": "child_age",
+      "allegation_type": "allegation_type",
+      "circumstances": "circumstances",
+      "cps_involvement": "cps_involvement",
+      "investigation_outcome": "investigation_outcome",
+      "legal_outcome": "legal_outcome",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Theft pack (v2.4)
+  PACK_THEFT_STANDARD: {
+    id: "PACK_THEFT_STANDARD",
+    requiredFields: ["incident_date", "location", "what_stolen", "circumstances", "legal_outcome"],
+    priorityOrder: ["incident_date", "location", "what_stolen", "value", "circumstances", "arrest_status", "charges", "legal_outcome", "restitution", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "location": "location",
+      "what_stolen": "what_stolen",
+      "value": "value",
+      "circumstances": "circumstances",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "restitution": "restitution",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Property Crime pack (v2.4)
+  PACK_PROPERTY_CRIME_STANDARD: {
+    id: "PACK_PROPERTY_CRIME_STANDARD",
+    requiredFields: ["incident_date", "location", "property_type", "circumstances", "legal_outcome"],
+    priorityOrder: ["incident_date", "location", "property_type", "damage_amount", "circumstances", "arrest_status", "charges", "legal_outcome", "restitution", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "location": "location",
+      "property_type": "property_type",
+      "damage_amount": "damage_amount",
+      "circumstances": "circumstances",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "restitution": "restitution",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Fraud pack (v2.4)
+  PACK_FRAUD_STANDARD: {
+    id: "PACK_FRAUD_STANDARD",
+    requiredFields: ["incident_date", "fraud_type", "circumstances", "legal_outcome"],
+    priorityOrder: ["incident_date", "fraud_type", "circumstances", "amount_involved", "victim_type", "arrest_status", "charges", "legal_outcome", "restitution", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "fraud_type": "fraud_type",
+      "circumstances": "circumstances",
+      "amount_involved": "amount_involved",
+      "victim_type": "victim_type",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "restitution": "restitution",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Employment Misconduct pack (v2.4)
+  PACK_EMPLOYMENT_STANDARD: {
+    id: "PACK_EMPLOYMENT_STANDARD",
+    requiredFields: ["employer", "incident_date", "incident_type", "circumstances", "outcome"],
+    priorityOrder: ["employer", "position", "incident_date", "incident_type", "circumstances", "corrective_action", "outcome", "separation_type", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "employer": "employer",
+      "position": "position",
+      "incident_date": "incident_date",
+      "incident_type": "incident_type",
+      "circumstances": "circumstances",
+      "corrective_action": "corrective_action",
+      "outcome": "outcome",
+      "separation_type": "separation_type",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
+
+  // Stalking/Harassment pack (v2.4)
+  PACK_STALKING_HARASSMENT_STANDARD: {
+    id: "PACK_STALKING_HARASSMENT_STANDARD",
+    requiredFields: ["incident_date", "behavior_type", "circumstances", "legal_outcome"],
+    priorityOrder: ["incident_date", "behavior_type", "circumstances", "duration", "victim_relationship", "protective_order", "arrest_status", "charges", "legal_outcome", "prior_disclosure", "preventive_steps"],
+    fieldKeyMap: {
+      "incident_date": "incident_date",
+      "behavior_type": "behavior_type",
+      "circumstances": "circumstances",
+      "duration": "duration",
+      "victim_relationship": "victim_relationship",
+      "protective_order": "protective_order",
+      "arrest_status": "arrest_status",
+      "charges": "charges",
+      "legal_outcome": "legal_outcome",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
+    },
+  },
   
   // Prior Law Enforcement Applications pack (v2.5)
   PACK_PRIOR_LE_APPS_STANDARD: {
