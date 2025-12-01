@@ -716,6 +716,46 @@ export default function CandidateInterview() {
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
   
+  // MEMOIZED: Section progress data for header bar and completion tracking
+  // This hook is ALWAYS called at the same position to avoid hook order issues
+  const sectionProgress = React.useMemo(() => {
+    // Safe default when sections aren't ready
+    if (!sections || sections.length === 0) {
+      return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
+    }
+    
+    // Build set of answered question IDs from transcript
+    const answeredQuestionIdsSet = new Set(
+      transcript.filter(t => t.type === 'question').map(t => t.questionId)
+    );
+    
+    const perSection = sections.map((section, idx) => {
+      const sectionQuestionIds = section.questionIds || [];
+      const totalInSection = sectionQuestionIds.length;
+      const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
+      const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
+      
+      return {
+        id: section.id,
+        name: section.displayName,
+        index: idx,
+        totalQuestions: totalInSection,
+        answeredQuestions: answeredInSection,
+        isComplete
+      };
+    });
+    
+    const totalQuestionsAllSections = perSection.reduce((sum, s) => sum + s.totalQuestions, 0);
+    const completedSections = perSection.filter(s => s.isComplete).length;
+    
+    return {
+      totalSections: sections.length,
+      completedSections,
+      perSection,
+      totalQuestionsAllSections
+    };
+  }, [sections, transcript]);
+  
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
   const AI_RESPONSE_TIMEOUT_MS = 45000; // 45 seconds - how long we wait for AI to respond
