@@ -1766,8 +1766,17 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   );
 }
 
-function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents, session, drivingFactsFromTranscript }) {
-  const hasFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
+function CompactQuestionRow({ response, followups, followUpQuestionEntities, isExpanded, onToggleExpand, questionEvents, session, drivingFactsFromTranscript, transcriptFollowups }) {
+  // PRIMARY: Check if we have follow-ups from transcript (preferred source)
+  const transcriptInstanceNumbers = Object.keys(transcriptFollowups || {}).map(n => parseInt(n)).sort((a, b) => a - b);
+  const hasTranscriptFollowups = transcriptInstanceNumbers.length > 0 && 
+    transcriptInstanceNumbers.some(n => (transcriptFollowups[n]?.followups?.length > 0 || transcriptFollowups[n]?.aiProbes?.length > 0));
+  
+  // FALLBACK: Check FollowUpResponse entity (legacy)
+  const hasDbFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
+  
+  // Use transcript as primary source
+  const hasFollowups = hasTranscriptFollowups || hasDbFollowups;
   const answerLetter = response.answer === "Yes" ? "Y" : "N";
   const displayNumber = typeof response.display_number === "number" ? response.display_number : parseInt(response.question_id?.replace(/\D/g, '') || '0', 10);
   const questionNumber = displayNumber.toString().padStart(3, '0');
