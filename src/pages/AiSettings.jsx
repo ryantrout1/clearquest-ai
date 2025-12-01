@@ -297,8 +297,7 @@ export default function AiSettings() {
                   <Button
                     onClick={() => setIsEditing(true)}
                     size="sm"
-                    variant="outline"
-                    className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     Edit Instructions
                   </Button>
