@@ -27,7 +27,8 @@ export default function TestDataGenerator() {
     highRiskCount: 2,
     randomizeWithinPersona: false,
     includeAiProbing: false,
-    enableMultiLoopBackgrounds: true
+    enableMultiLoopBackgrounds: true,
+    useAiFollowups: true // NEW: Use AI to generate realistic follow-up answers
   });
 
   // Fetch departments for dropdown
