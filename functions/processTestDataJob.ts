@@ -348,7 +348,10 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     session = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
   }
   
+  // Create Response records and track them by question_id for linking FollowUpResponses
+  const responsesByQuestionId = {};
   let responsesCreated = 0;
+  
   for (const q of questions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
@@ -358,15 +361,19 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       if (probes) probes.forEach((p, i) => investigatorProbing.push({ sequence_number: i + 1, probing_question: p.probing_question, candidate_response: p.candidate_response, timestamp: new Date().toISOString() }));
     }
     try {
-      await base44.asServiceRole.entities.Response.create({
+      const responseRecord = await base44.asServiceRole.entities.Response.create({
         session_id: session.id, question_id: q.question_id, question_text: q.question_text, category: sectionName,
         answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, followup_pack: isYes ? q.followup_pack : null,
         is_flagged: isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG')),
         response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString(),
         investigator_probing: investigatorProbing.length > 0 ? investigatorProbing : undefined
       });
+      // Store for linking FollowUpResponses
+      responsesByQuestionId[q.question_id] = responseRecord.id;
       responsesCreated++;
-    } catch (e) {}
+    } catch (e) {
+      console.log('[PROCESS] Failed to create Response for', q.question_id, e.message);
+    }
   }
   
   for (const q of questions) {
