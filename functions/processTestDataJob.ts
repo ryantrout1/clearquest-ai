@@ -708,13 +708,16 @@ function getFollowupData(packId, riskLevel, templates) {
   return levelTemplates[packId] || null;
 }
 
-async function createMockSession(base44, config, candidateConfig, questions, sections, allFollowUpQuestions) {
+async function createMockSession(base44, config, candidateConfig, allQuestions, sections, allFollowUpQuestions) {
   const { deptCode, includeAiProbing, enableMultiLoopBackgrounds, useAiFollowups } = config;
   const { fileNumber, name, riskLevel, yesQuestionIds } = candidateConfig;
   const sessionCode = `${deptCode}_${fileNumber}`;
   const yesSet = new Set(yesQuestionIds);
   
-  console.log(`[PROCESS] Processing ${fileNumber} (${name}), risk: ${riskLevel}, ${yesSet.size} YES answers, useAiFollowups: ${useAiFollowups}`);
+  // FULL INTERVIEW COVERAGE: Use ALL active questions, not just the subset
+  // yesSet only determines which questions get "Yes" answers
+  console.log(`[TEST_DATA][FULL_INTERVIEW] Processing ${fileNumber} (${name}), risk: ${riskLevel}`);
+  console.log(`[TEST_DATA][FULL_INTERVIEW] Total questions: ${allQuestions.length}, Yes answers: ${yesSet.size}, useAiFollowups: ${useAiFollowups}`);
   
   let session = null;
   try {
