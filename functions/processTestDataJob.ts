@@ -753,7 +753,21 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   console.log('[PROCESS] Total FollowUpResponse records created:', followupsCreated);
   console.log('[PROCESS] Total transcript follow-up exchanges:', transcriptFollowupCount);
   
-  await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: followupsCreated });
+  // Compute followups_count from transcript_snapshot (canonical source)
+  // This ensures the count matches what the UI renders, regardless of FollowUpResponse persistence
+  const followupAnswerEventsInTranscript = finalTranscript.filter(
+    e => e.type === 'followup_answer' || e.kind === 'deterministic_followup_answer'
+  ).length;
+  
+  console.log('[PROCESS] followupAnswerEventsInTranscript:', followupAnswerEventsInTranscript);
+  
+  // Use the larger of: actual FollowUpResponse records created OR transcript count
+  // This handles cases where FollowUpResponse creation might partially fail
+  const finalFollowupsCount = Math.max(followupsCreated, followupAnswerEventsInTranscript);
+  
+  console.log('[PROCESS] Setting followups_count to:', finalFollowupsCount);
+  
+  await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: finalFollowupsCount });
   
   return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount } };
 }
