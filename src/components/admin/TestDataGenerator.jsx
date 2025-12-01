@@ -464,7 +464,8 @@ export default function TestDataGenerator() {
             Full Demo (20)
           </Button>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
