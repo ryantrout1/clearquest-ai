@@ -456,11 +456,12 @@ export default function TestDataGenerator() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Options</span>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap justify-end">
                   {config.randomizeWithinPersona && <Badge className="bg-purple-500/20 text-purple-300 text-[10px] px-1.5 py-0">Rand</Badge>}
-                  {config.includeAiProbing && <Badge className="bg-blue-500/20 text-blue-300 text-[10px] px-1.5 py-0">AI</Badge>}
+                  {config.includeAiProbing && <Badge className="bg-blue-500/20 text-blue-300 text-[10px] px-1.5 py-0">Probe</Badge>}
                   {config.enableMultiLoopBackgrounds && <Badge className="bg-orange-500/20 text-orange-300 text-[10px] px-1.5 py-0">Multi</Badge>}
-                  {!config.randomizeWithinPersona && !config.includeAiProbing && !config.enableMultiLoopBackgrounds && (
+                  {config.useAiFollowups && <Badge className="bg-pink-500/20 text-pink-300 text-[10px] px-1.5 py-0">🧠AI</Badge>}
+                  {!config.randomizeWithinPersona && !config.includeAiProbing && !config.enableMultiLoopBackgrounds && !config.useAiFollowups && (
                     <span className="text-slate-500 text-xs">None</span>
                   )}
                 </div>
