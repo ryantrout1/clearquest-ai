@@ -795,7 +795,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     // After a Yes answer with follow-up pack, insert the deterministic follow-up Q&A
     if (entry.type === 'answer' && entry.answer === 'Yes' && entry.triggered_followup) {
       const questionId = entry.question_id;
-      const baseQ = questions.find(q => q.question_id === questionId);
+      const baseQ = allQuestions.find(q => q.question_id === questionId);
       const packId = baseQ?.followup_pack;
       
       if (packId) {
