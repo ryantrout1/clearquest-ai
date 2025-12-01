@@ -950,11 +950,12 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   
   console.log('[PROCESS] Session ID for FollowUpResponse creation:', sessionId);
   
-  // Create Response records and track them by question_id for linking FollowUpResponses
+  // Create Response records for ALL questions and track them by question_id for linking FollowUpResponses
   const responsesByQuestionId = {};
   let responsesCreated = 0;
   
-  for (const q of questions) {
+  // FULL INTERVIEW: Create Response for every question
+  for (const q of allQuestions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
     const investigatorProbing = [];
