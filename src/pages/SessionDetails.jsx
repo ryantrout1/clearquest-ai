@@ -557,37 +557,51 @@ export default function SessionDetails() {
         console.log('[SESSIONDETAILS] QuestionSummary raw rows', questionSummaries.slice(0, 2));
         console.log('[SESSIONDETAILS] QuestionSummary mapped keys', Object.keys(qMap));
 
-        const sMap = {};
+        // Build section ID to name map from Section entities
+        const sectionIdToName = {};
+        const sectionNameToId = {};
+        sectionsData.forEach(section => {
+          const sectionData = section.data || section;
+          const dbId = section.id;
+          const sectionName = sectionData.section_name;
+          if (dbId && sectionName) {
+            sectionIdToName[dbId] = sectionName;
+            sectionNameToId[sectionName] = dbId;
+          }
+        });
+
+        // Build section summary map keyed by section NAME (what SectionHeader uses)
+        const sMapByName = {};
         sectionSummaries.forEach(ss => {
           // Handle nested data structure from API
           const data = ss.data || ss;
           const sectionId = data.section_id || data.sectionId;
           const summaryText = data.section_summary_text || data.sectionSummaryText;
-          
-          if (sectionId && summaryText) {
-            // Map by section_id (database ID) for lookup
-            sMap[sectionId] = summaryText;
+
+          if (!sectionId || !summaryText) return;
+
+          // Resolve section name: sectionId could be a DB ID or already a name
+          let sectionName = sectionIdToName[sectionId];
+          if (!sectionName) {
+            // Maybe it's already a name
+            if (sectionNameToId[sectionId]) {
+              sectionName = sectionId;
+            } else {
+              // Last resort: use as-is
+              sectionName = sectionId;
+            }
           }
-        });
-        
-        // CRITICAL: Build section name to summary map for SectionHeader lookup
-        // SectionHeader receives category (section_name string), not section_id
-        const sMapByName = {};
-        sectionsData.forEach(section => {
-          const sectionDbId = section.id;
-          const sectionName = section.section_name;
-          const summaryText = sMap[sectionDbId];
-          
-          if (sectionName && summaryText) {
+
+          if (sectionName) {
             sMapByName[sectionName] = summaryText;
           }
         });
-        
+
         console.log('[SESSIONDETAILS] Section summary mapping', {
           sectionSummariesCount: sectionSummaries.length,
-          sMapByIdKeys: Object.keys(sMap),
+          sectionIdToNameKeys: Object.keys(sectionIdToName).slice(0, 5),
           sMapByNameKeys: Object.keys(sMapByName),
-          sampleMapping: Object.entries(sMapByName).slice(0, 2).map(([name, text]) => ({
+          sampleMapping: Object.entries(sMapByName).slice(0, 3).map(([name, text]) => ({
             sectionName: name,
             textPreview: text?.substring(0, 60)
           }))
