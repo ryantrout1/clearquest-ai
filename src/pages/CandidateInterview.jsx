@@ -771,7 +771,9 @@ export default function CandidateInterview() {
       return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
     }
     
-    return computeSectionProgress(sections, transcript, engine);
+    const result = computeSectionProgress(sections, transcript, engine);
+    console.log('[HEADER-SECTION-PROGRESS]', result);
+    return result;
   }, [sections, transcript, engine]);
   
   // CONSTANTS - Separate timeouts for typing vs AI response
@@ -1285,11 +1287,11 @@ export default function CandidateInterview() {
         const answeredQuestionsCount = progressSnapshot.perSection
           .reduce((sum, s) => sum + s.answeredQuestions, 0);
         
+        console.log('[CARD-SECTION-PROGRESS]', progressSnapshot);
         console.log('[SECTION-PROGRESS][AFTER-ADVANCE]', {
           baseQuestionId,
           completedSectionName: nextResult.completedSection.displayName,
           nextSectionName: nextResult.nextSection.displayName,
-          progressSnapshot,
           headerProgress: {
             completedSections: progressSnapshot.completedSections,
             totalSections: progressSnapshot.totalSections,
@@ -4284,9 +4286,14 @@ export default function CandidateInterview() {
             <div>
               {/* Segmented Overall Bar - uses memoized sectionProgress */}
               {(() => {
-                const { totalSections, completedSections, perSection, totalQuestionsAllSections } = sectionProgress;
-                const sectionCompletionPct = totalSections > 0 
-                  ? Math.round((completedSections / totalSections) * 100) 
+                // CRITICAL: Use ONLY sectionProgress values - no local recalculation
+                const headerTotalSections = sectionProgress?.totalSections ?? (sections?.length ?? 0);
+                const headerCompletedSections = sectionProgress?.completedSections ?? 0;
+                const perSection = sectionProgress?.perSection ?? [];
+                const totalQuestionsAllSections = sectionProgress?.totalQuestionsAllSections ?? 0;
+                
+                const sectionCompletionPct = headerTotalSections > 0 
+                  ? Math.round((headerCompletedSections / headerTotalSections) * 100) 
                   : 0;
                 
                 return (
@@ -4297,7 +4304,7 @@ export default function CandidateInterview() {
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={sectionCompletionPct}
-                      aria-label={`Interview progress: ${completedSections} of ${totalSections} sections complete`}
+                      aria-label={`Interview progress: ${headerCompletedSections} of ${headerTotalSections} sections complete`}
                     >
                       {perSection.map((s, idx) => {
                         const widthPct = totalQuestionsAllSections > 0 
@@ -4331,15 +4338,15 @@ export default function CandidateInterview() {
                     <div className="flex justify-between items-center mt-1">
                       <span className="text-[10px] text-slate-300">
                         Overall
-                        {activeSection && totalSections > 0 && (
-                          <> • Section {currentSectionIndex + 1} of {totalSections}: {activeSection.displayName}</>
+                        {activeSection && headerTotalSections > 0 && (
+                          <> • Section {currentSectionIndex + 1} of {headerTotalSections}: {activeSection.displayName}</>
                         )}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="sr-only">Progress: {completedSections} of {totalSections} sections complete</span>
+                        <span className="sr-only">Progress: {headerCompletedSections} of {headerTotalSections} sections complete</span>
                         <span className="text-xs font-medium text-green-400">{sectionCompletionPct}%</span>
                         <span className="text-xs text-green-400">•</span>
-                        <span className="text-xs font-medium text-green-400">{completedSections} / {totalSections} sections complete</span>
+                        <span className="text-xs font-medium text-green-400">{headerCompletedSections} / {headerTotalSections} sections complete</span>
                       </div>
                     </div>
                   </>
