@@ -917,12 +917,18 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     }
   }
   
-  console.log('[PROCESS] Added', transcriptFollowupCount, 'deterministic follow-up exchanges to transcript (responseId pending)');
+  console.log('[TEST_DATA][TRANSCRIPT_COUNTS]', {
+    totalQuestions: allQuestions.length,
+    totalTranscriptEvents: finalTranscript.length,
+    yesCount,
+    noCount,
+    followupCount: transcriptFollowupCount
+  });
   
   const sessionData = {
     session_code: sessionCode, department_code: deptCode, file_number: fileNumber, status: "completed", is_archived: false,
     started_at: startTime.toISOString(), completed_at: endTime.toISOString(), last_activity_at: endTime.toISOString(),
-    questions_answered_count: questions.length, followups_count: 0,
+    questions_answered_count: allQuestions.length, followups_count: 0,
     ai_probes_count: includeAiProbing && riskLevel !== 'low' ? Math.floor(yesCount * 0.3) : 0,
     red_flags_count: redFlagsCount, completion_percent: 100,
     elapsed_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000),
