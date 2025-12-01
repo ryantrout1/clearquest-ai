@@ -139,7 +139,10 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               sessionId,
               baseQuestionId: response.question_id,
               baseQuestionCode: questionCode,
+              responseId: response.id, // Link to parent Response
+              parentResponseId: response.id,
               followupPackId: packId,
+              followupQuestionId: key,
               instanceNumber: instanceNum,
               role: "investigator",
               kind: "deterministic_followup_question",
@@ -155,11 +158,15 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               sessionId,
               baseQuestionId: response.question_id,
               baseQuestionCode: questionCode,
+              responseId: response.id, // Link to parent Response
+              parentResponseId: response.id,
               followupPackId: packId,
+              followupQuestionId: key,
               instanceNumber: instanceNum,
               role: "candidate",
               kind: "deterministic_followup_answer",
               text: value,
+              fieldKey: key,
               createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 + detailCounter * 10 + 1,
               sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + detailCounter * 10 + 1
             });
