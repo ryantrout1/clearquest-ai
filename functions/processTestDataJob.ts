@@ -415,30 +415,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     transcript.push({ type: "answer", question_id: q.question_id, answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, timestamp: new Date(currentTime).toISOString() });
     
     // Add deterministic follow-up Q&A to transcript for Yes answers with follow-up packs
-    if (isYes && q.followup_pack) {
-      const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
-      const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
-      
-      // Generate follow-up question text based on pack type
-      const followupQuestionText = getFollowupQuestionText(q.followup_pack);
-      
-      currentTime += 2000 + Math.floor(Math.random() * 2000);
-      transcript.push({ 
-        type: "followup", 
-        kind: "deterministic_followup",
-        questionId: q.question_id,
-        baseQuestionId: q.question_id,
-        packId: q.followup_pack,
-        followupPackId: q.followup_pack,
-        instanceNumber: 1,
-        questionText: followupQuestionText,
-        text: followupQuestionText,
-        answer: narrativeAnswer,
-        category: sectionName,
-        sectionName: sectionName,
-        timestamp: new Date(currentTime).toISOString() 
-      });
-    }
+    // This will be populated with actual FollowUpQuestion entities after the loop
     
     if (includeAiProbing && isYes && riskLevel !== 'low') {
       const probes = AI_PROBING_TEMPLATES[q.question_id];
