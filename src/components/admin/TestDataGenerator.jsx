@@ -391,7 +391,7 @@ export default function TestDataGenerator() {
               randomizeWithinPersona: false,
               includeAiProbing: false
             })}
-            className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="text-xs bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
           >
             Default (5 mixed)
           </Button>
@@ -406,7 +406,7 @@ export default function TestDataGenerator() {
               highRiskCount: 0,
               randomizeWithinPersona: true
             })}
-            className="text-xs border-green-700 text-green-400 hover:bg-green-900/30"
+            className="text-xs bg-green-900/50 border-green-600 text-green-300 hover:bg-green-800/60 hover:text-green-200"
           >
             All Great (10)
           </Button>
@@ -422,7 +422,7 @@ export default function TestDataGenerator() {
               randomizeWithinPersona: true,
               includeAiProbing: true
             })}
-            className="text-xs border-red-700 text-red-400 hover:bg-red-900/30"
+            className="text-xs bg-red-900/50 border-red-600 text-red-300 hover:bg-red-800/60 hover:text-red-200"
           >
             All Challenging (10)
           </Button>
@@ -439,7 +439,7 @@ export default function TestDataGenerator() {
               includeAiProbing: true,
               enableMultiLoopBackgrounds: true
             })}
-            className="text-xs border-purple-700 text-purple-400 hover:bg-purple-900/30"
+            className="text-xs bg-purple-900/50 border-purple-600 text-purple-300 hover:bg-purple-800/60 hover:text-purple-200"
           >
             Full Demo (20)
           </Button>
