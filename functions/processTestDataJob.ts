@@ -826,34 +826,8 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     console.error('[PROCESS] Failed to update session transcript:', e.message);
   }
   
-  // Fetch all FollowUpQuestion entities for deterministic follow-up generation
-  let allFollowUpQuestions = [];
-  try {
-    const rawFollowUpQuestions = await base44.asServiceRole.entities.FollowUpQuestion.filter({ active: true });
-    // Normalize the data structure - API may return nested 'data' property
-    allFollowUpQuestions = rawFollowUpQuestions.map(q => {
-      const data = q.data || q;
-      return {
-        id: q.id,
-        followup_question_id: data.followup_question_id,
-        followup_pack_id: data.followup_pack_id,
-        display_order: data.display_order,
-        question_text: data.question_text,
-        response_type: data.response_type,
-        active: data.active
-      };
-    });
-    console.log('[PROCESS] Loaded', allFollowUpQuestions.length, 'FollowUpQuestion entities');
-    // Log sample for debugging
-    if (allFollowUpQuestions.length > 0) {
-      console.log('[PROCESS] Sample FollowUpQuestion:', JSON.stringify(allFollowUpQuestions[0]));
-      // Log unique pack IDs
-      const uniquePackIds = [...new Set(allFollowUpQuestions.map(q => q.followup_pack_id))];
-      console.log('[PROCESS] Unique pack IDs in FollowUpQuestion entities:', uniquePackIds.slice(0, 10));
-    }
-  } catch (e) {
-    console.log('[PROCESS] Could not load FollowUpQuestion entities:', e.message);
-  }
+  // Use pre-fetched FollowUpQuestions (passed from runSeeder)
+  console.log('[PROCESS] Using', allFollowUpQuestions.length, 'FollowUpQuestion entities for FollowUpResponse creation');
   
   // ========== CREATE ONE FollowUpResponse PER FollowUpQuestion ==========
   // This is the CRITICAL fix: we create one FollowUpResponse for each deterministic FollowUpQuestion,
