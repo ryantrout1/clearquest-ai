@@ -375,17 +375,18 @@ export default function SessionDetails() {
               });
             }
           } else if (entryType === 'followup' || entryKind === 'deterministic_followup') {
-            // Deterministic follow-up Q+A combined entry
+            // Legacy combined followup entry (Q+A in one entry)
             events.push({
               id: entry.id || `evt-${idx}-fq`,
               sessionId,
               baseQuestionId: entry.questionId || entry.baseQuestionId,
               followupPackId: entry.packId || entry.followupPackId,
+              followupQuestionId: entry.followupQuestionId,
               instanceNumber: entry.instanceNumber || 1,
               role: 'investigator',
               kind: 'deterministic_followup_question',
               text: entry.questionText || entry.text || '',
-              fieldKey: entry.fieldKey,
+              fieldKey: entry.fieldKey || entry.followupQuestionId,
               sectionName: entry.category || entry.sectionName || null,
               createdAt: new Date(entry.timestamp).getTime(),
               sortKey: idx * 10
@@ -398,16 +399,51 @@ export default function SessionDetails() {
                 sessionId,
                 baseQuestionId: entry.questionId || entry.baseQuestionId,
                 followupPackId: entry.packId || entry.followupPackId,
+                followupQuestionId: entry.followupQuestionId,
                 instanceNumber: entry.instanceNumber || 1,
                 role: 'candidate',
                 kind: 'deterministic_followup_answer',
                 text: entry.answer,
-                fieldKey: entry.fieldKey,
+                fieldKey: entry.fieldKey || entry.followupQuestionId,
                 sectionName: entry.category || entry.sectionName || null,
                 createdAt: new Date(entry.timestamp).getTime() + 1,
                 sortKey: idx * 10 + 1
               });
             }
+          } else if (entryType === 'followup_question' || entryKind === 'deterministic_followup_question') {
+            // New separate follow-up question entry
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId || entry.baseQuestionId,
+              followupPackId: entry.packId || entry.followupPackId,
+              followupQuestionId: entry.followupQuestionId,
+              instanceNumber: entry.instanceNumber || 1,
+              role: 'investigator',
+              kind: 'deterministic_followup_question',
+              text: entry.questionText || entry.text || '',
+              fieldKey: entry.fieldKey || entry.followupQuestionId,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
+          } else if (entryType === 'followup_answer' || entryKind === 'deterministic_followup_answer') {
+            // New separate follow-up answer entry
+            events.push({
+              id: entry.id || `evt-${idx}`,
+              sessionId,
+              baseQuestionId: entry.questionId || entry.baseQuestionId,
+              followupPackId: entry.packId || entry.followupPackId,
+              followupQuestionId: entry.followupQuestionId,
+              instanceNumber: entry.instanceNumber || 1,
+              role: 'candidate',
+              kind: 'deterministic_followup_answer',
+              text: entry.answer || entry.text || '',
+              fieldKey: entry.fieldKey || entry.followupQuestionId,
+              sectionName: entry.category || entry.sectionName || null,
+              createdAt: new Date(entry.timestamp).getTime(),
+              sortKey: idx * 10
+            });
           } else if (entryType === 'ai_question' || entryKind === 'ai_field_probe' || entryKind === 'ai_probe_question' || entryKind === 'ai_probe') {
             // AI probing question - handles v2 per-field probes and legacy LE_APPS probes
             events.push({
