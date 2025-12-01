@@ -524,7 +524,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     red_flags_count: redFlagsCount, completion_percent: 100,
     elapsed_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000),
     active_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000) - 300,
-    transcript_snapshot: transcript, session_hash: generateSessionHash(), risk_rating: riskLevel,
+    transcript_snapshot: finalTranscript, session_hash: generateSessionHash(), risk_rating: riskLevel,
     metadata: { isTestData: true, testPersona: fileNumber, candidateName: name, generatedAt: now.toISOString(), yesCount, noCount, config: { includeAiProbing, enableMultiLoopBackgrounds, randomized: config.randomizeWithinPersona } },
     data_version: "v2.5-hybrid"
   };
