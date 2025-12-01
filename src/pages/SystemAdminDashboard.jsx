@@ -882,21 +882,28 @@ function SeedMockInterviewsButton() {
 
   const handleSeed = async () => {
     setIsSeeding(true);
+    console.log('[SEED_BUTTON] Starting seed request...');
     try {
       const response = await base44.functions.invoke('seedMockInterviews', {});
+      console.log('[SEED_BUTTON] Response:', response);
       const result = response.data;
       
       if (result.error) {
-        toast.error(result.error);
+        console.error('[SEED_BUTTON] Error from server:', result.error);
+        toast.error(`Seed failed: ${result.error}`);
         return;
       }
 
-      toast.success(`Mock interviews seeded: ${result.created} created, ${result.skipped} skipped`);
+      const msg = `Seeded for MPD-12345: ${result.created || 0} created, ${result.updated || 0} updated`;
+      console.log('[SEED_BUTTON] Success:', msg);
+      toast.success(msg);
+      
+      // Refresh queries
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['departments'] });
     } catch (error) {
-      console.error('Seed error:', error);
-      toast.error('Failed to seed mock interviews');
+      console.error('[SEED_BUTTON] Exception:', error);
+      toast.error(`Failed to seed: ${error.message || 'Network error'}`);
     } finally {
       setIsSeeding(false);
     }
