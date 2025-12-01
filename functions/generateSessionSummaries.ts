@@ -17,18 +17,28 @@ function getAiRuntimeConfig(globalSettings) {
  * A question is complete when:
  * 1. It has a response (any answer - Yes/No/other)
  * 2. If it triggered follow-ups, all follow-up instances are in a terminal state
+ * 
+ * @param questionCode - The question string code (e.g., "Q008")
+ * @param responsesByQuestionCode - Map of question code to response
+ * @param followUpsByResponseId - Map of response ID to follow-ups
  */
-function isQuestionComplete(questionDbId, responsesByQuestionDbId, followUpsByResponseId) {
-  const response = responsesByQuestionDbId[questionDbId];
+function isQuestionComplete(questionCode, responsesByQuestionCode, followUpsByResponseId) {
+  const response = responsesByQuestionCode[questionCode];
   if (!response || !response.answer) {
     return { complete: false, reason: 'no_response' };
   }
   
   const responseFollowUps = followUpsByResponseId[response.id] || [];
   
-  // If no follow-ups, question is complete (simple answer)
+  // If answer is "No" or no follow-ups triggered, question is complete
+  if (response.answer === 'No' || !response.triggered_followup) {
+    return { complete: true, reason: 'no_followup_needed' };
+  }
+  
+  // If follow-ups were triggered but none exist yet, still consider it complete
+  // (the transcript may have captured the data even if FollowUpResponse wasn't created)
   if (responseFollowUps.length === 0) {
-    return { complete: true, reason: 'no_followups' };
+    return { complete: true, reason: 'no_followup_records' };
   }
   
   // Group by instance number
@@ -162,8 +172,13 @@ async function runSummariesForSession(base44, sessionId) {
   });
   
   // 2) Build lookup maps
+  // questionsById: maps database ID to question entity
   const questionsById = {};
   questions.forEach(q => { if (q.id) questionsById[q.id] = q; });
+  
+  // questionsByCode: maps question_id string code (Q008, Q009) to question entity
+  const questionsByCode = {};
+  questions.forEach(q => { if (q.question_id) questionsByCode[q.question_id] = q; });
   
   const questionsBySectionId = {};
   questions.forEach(q => {
@@ -172,8 +187,16 @@ async function runSummariesForSession(base44, sessionId) {
     questionsBySectionId[q.section_id].push(q);
   });
   
-  const responsesByQuestionDbId = {};
-  responses.forEach(r => { responsesByQuestionDbId[r.question_id] = r; });
+  // CRITICAL: Response.question_id stores the string code (Q008), NOT the database ID
+  // responsesByQuestionCode: maps question code to response
+  const responsesByQuestionCode = {};
+  responses.forEach(r => { 
+    if (r.question_id) responsesByQuestionCode[r.question_id] = r; 
+  });
+  
+  // Also build by response database ID for follow-up linking
+  const responsesById = {};
+  responses.forEach(r => { if (r.id) responsesById[r.id] = r; });
   
   const followUpsByResponseId = {};
   followUps.forEach(f => {
@@ -181,27 +204,47 @@ async function runSummariesForSession(base44, sessionId) {
     followUpsByResponseId[f.response_id].push(f);
   });
   
+  // existingQSummaryIds uses question_id (the string code like Q008)
   const existingQSummaryIds = new Set(existingQuestionSummaries.map(s => s.question_id).filter(Boolean));
   const existingSSummaryIds = new Set(existingSectionSummaries.map(s => s.section_id).filter(Boolean));
   
+  console.log('[SUMMARIES] LOOKUP_MAPS', {
+    questionsByCode: Object.keys(questionsByCode).slice(0, 5),
+    responsesByQuestionCode: Object.keys(responsesByQuestionCode).slice(0, 5),
+    sampleResponse: responses[0] ? { id: responses[0].id, question_id: responses[0].question_id } : null
+  });
+  
   // 3) Process QUESTION SUMMARIES
+  // Iterate over responses (which have the actual answers)
   for (const response of responses) {
-    const questionDbId = response.question_id;
-    const questionEntity = questionsById[questionDbId];
+    // response.question_id is the string code (Q008, Q009, etc.)
+    const questionCode = response.question_id;
     
-    if (!questionEntity) continue;
+    // Skip if no question code
+    if (!questionCode) {
+      console.log('[QSUM][SKIP-NO-CODE]', { session: sessionId, responseId: response.id });
+      continue;
+    }
     
-    // Check if summary already exists
-    if (existingQSummaryIds.has(questionDbId)) {
-      console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionDbId });
+    // Find the question entity by code
+    const questionEntity = questionsByCode[questionCode];
+    
+    if (!questionEntity) {
+      console.log('[QSUM][SKIP-NO-ENTITY]', { session: sessionId, questionCode });
+      continue;
+    }
+    
+    // Check if summary already exists (keyed by question code)
+    if (existingQSummaryIds.has(questionCode)) {
+      console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
       result.skippedExists.question++;
       continue;
     }
     
     // Check if question is complete
-    const completionStatus = isQuestionComplete(questionDbId, responsesByQuestionDbId, followUpsByResponseId);
+    const completionStatus = isQuestionComplete(questionCode, responsesByQuestionCode, followUpsByResponseId);
     if (!completionStatus.complete) {
-      console.log('[QSUM][SKIP-INCOMPLETE]', { session: sessionId, question: questionDbId, reason: completionStatus.reason });
+      console.log('[QSUM][SKIP-INCOMPLETE]', { session: sessionId, question: questionCode, reason: completionStatus.reason });
       result.skippedIncomplete.question++;
       continue;
     }
@@ -239,11 +282,11 @@ ${contextText}`;
         // Double-check no existing summary (race condition guard)
         const existingCheck = await base44.asServiceRole.entities.QuestionSummary.filter({
           session_id: sessionId,
-          question_id: questionDbId
+          question_id: questionCode
         });
         
         if (existingCheck.length > 0) {
-          console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionDbId });
+          console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
           result.skippedExists.question++;
           continue;
         }
@@ -255,17 +298,17 @@ ${contextText}`;
         await base44.asServiceRole.entities.QuestionSummary.create({
           session_id: sessionId,
           section_id: sectionName,
-          question_id: questionDbId,
+          question_id: questionCode,
           question_summary_text: summaryText,
           generated_at: new Date().toISOString()
         });
         
-        console.log('[QSUM][CREATE]', { session: sessionId, question: questionDbId });
+        console.log('[QSUM][CREATE]', { session: sessionId, question: questionCode });
         result.created.question++;
       }
     } catch (err) {
-      console.error('[QSUM][ERROR]', { session: sessionId, question: questionDbId, error: err.message });
-      result.errors.push({ type: 'question', id: questionDbId, error: err.message });
+      console.error('[QSUM][ERROR]', { session: sessionId, question: questionCode, error: err.message });
+      result.errors.push({ type: 'question', id: questionCode, error: err.message });
     }
   }
   
@@ -283,28 +326,50 @@ ${contextText}`;
     }
     
     let completeCount = 0;
+    let answeredCount = 0;
     const sectionResponses = [];
     
     for (const q of sectionQuestions) {
-      const status = isQuestionComplete(q.id, responsesByQuestionDbId, followUpsByResponseId);
-      if (status.complete) {
-        completeCount++;
-        const resp = responsesByQuestionDbId[q.id];
-        if (resp) sectionResponses.push(resp);
+      // Use question_id (string code) to look up response
+      const questionCode = q.question_id;
+      const resp = responsesByQuestionCode[questionCode];
+      
+      if (resp) {
+        answeredCount++;
+        sectionResponses.push(resp);
+        
+        const status = isQuestionComplete(questionCode, responsesByQuestionCode, followUpsByResponseId);
+        if (status.complete) {
+          completeCount++;
+        }
       }
     }
     
-    const isComplete = completeCount === sectionQuestions.length;
+    // A section is complete if all ANSWERED questions are complete
+    // (not all questions in the schema, since some may be skipped)
+    const isComplete = answeredCount > 0 && completeCount === answeredCount;
     sectionCompletionStatus[sectionId] = {
       complete: isComplete,
       name: section.section_name,
       total: sectionQuestions.length,
+      answered: answeredCount,
       completed: completeCount,
       responses: sectionResponses
     };
     
-    if (!isComplete) allSectionsComplete = false;
+    // Only mark incomplete if there are answered but incomplete questions
+    if (answeredCount > 0 && !isComplete) allSectionsComplete = false;
   }
+  
+  console.log('[SUMMARIES] SECTION_STATUS', {
+    sessionId,
+    sections: Object.entries(sectionCompletionStatus).map(([id, s]) => ({
+      name: s.name,
+      complete: s.complete,
+      answered: s.answered || s.responses?.length || 0,
+      total: s.total
+    })).filter(s => s.answered > 0)
+  });
   
   // Generate section summaries for complete sections
   for (const [sectionId, status] of Object.entries(sectionCompletionStatus)) {
