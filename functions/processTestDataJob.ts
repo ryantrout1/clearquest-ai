@@ -429,6 +429,15 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     }
   }
   
+  // Fetch all FollowUpQuestion entities for deterministic follow-up generation
+  let allFollowUpQuestions = [];
+  try {
+    allFollowUpQuestions = await base44.asServiceRole.entities.FollowUpQuestion.filter({ active: true });
+    console.log('[PROCESS] Loaded', allFollowUpQuestions.length, 'FollowUpQuestion entities');
+  } catch (e) {
+    console.log('[PROCESS] Could not load FollowUpQuestion entities:', e.message);
+  }
+  
   for (const q of questions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
@@ -436,66 +445,76 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     // Get the response_id for linking
     const responseId = responsesByQuestionId[q.question_id] || null;
     
-    // Generate a realistic narrative answer for this follow-up
-    const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
+    // Get deterministic follow-up questions for this pack
+    const packFollowUpQuestions = allFollowUpQuestions
+      .filter(fuq => fuq.followup_pack_id === q.followup_pack)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    if (!packData) {
-      try {
-        await base44.asServiceRole.entities.FollowUpResponse.create({ 
-          session_id: session.id, 
-          response_id: responseId,
-          question_id: q.question_id, 
-          question_text_snapshot: q.question_text, 
-          followup_pack: q.followup_pack, 
-          instance_number: 1, 
-          incident_description: narrativeAnswer,
-          circumstances: narrativeAnswer,
-          accountability_response: "I take full responsibility and have learned from this experience.",
-          additional_details: {
-            candidate_narrative: narrativeAnswer
-          },
-          completed: true, 
-          completed_timestamp: endTime.toISOString() 
-        });
-        followupsCreated++;
-      } catch (e) {
-        console.log('[PROCESS] Failed to create FollowUpResponse for', q.question_id, e.message);
-      }
-      continue;
+    console.log('[PROCESS] Pack', q.followup_pack, 'has', packFollowUpQuestions.length, 'deterministic questions for', q.question_id);
+    
+    // Build additional_details with answers for each deterministic follow-up question
+    const additionalDetails = {};
+    const questionTextSnapshot = {};
+    
+    packFollowUpQuestions.forEach((fuq, idx) => {
+      // Generate a realistic answer for this specific follow-up question
+      const answer = generateFollowUpAnswerForQuestion(fuq, q.followup_pack, riskLevel, packData, idx);
+      additionalDetails[fuq.followup_question_id] = answer;
+      questionTextSnapshot[fuq.followup_question_id] = fuq.question_text;
+    });
+    
+    // Also add legacy template data if available
+    if (packData) {
+      const templateData = Array.isArray(packData) ? packData[0] : packData;
+      Object.entries(templateData || {}).forEach(([key, value]) => {
+        if (!additionalDetails[key] && key !== 'instance_number' && key !== 'substance_name') {
+          additionalDetails[key] = value;
+        }
+      });
     }
-    const items = Array.isArray(packData) ? packData : [packData];
-    const maxInstances = enableMultiLoopBackgrounds && riskLevel !== 'low' ? items.length : 1;
-    for (let i = 0; i < Math.min(items.length, maxInstances); i++) {
-      const data = items[i];
-      // Generate unique narrative for each instance
-      const instanceNarrative = generateFollowUpAnswer(q.followup_pack, riskLevel, data);
+    
+    additionalDetails.question_text_snapshot = questionTextSnapshot;
+    
+    // Generate the main narrative answer
+    const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
+    additionalDetails.candidate_narrative = narrativeAnswer;
+    
+    const items = packData ? (Array.isArray(packData) ? packData : [packData]) : [{}];
+    const maxInstances = enableMultiLoopBackgrounds && riskLevel !== 'low' ? Math.min(items.length, 3) : 1;
+    
+    for (let i = 0; i < maxInstances; i++) {
+      const data = items[i] || {};
+      const instanceNum = data.instance_number || (i + 1);
+      
+      // Build instance-specific additional_details
+      const instanceDetails = { ...additionalDetails };
+      if (data.substance_name) instanceDetails.substance_name = data.substance_name;
+      
       try {
-        await base44.asServiceRole.entities.FollowUpResponse.create({ 
+        const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
           session_id: session.id, 
           response_id: responseId,
           question_id: q.question_id, 
           question_text_snapshot: q.question_text, 
           followup_pack: q.followup_pack, 
-          instance_number: data.instance_number || (i + 1), 
-          substance_name: data.substance_name, 
-          incident_date: data.incident_date, 
-          incident_location: data.incident_location, 
-          incident_description: data.incident_description || instanceNarrative,
-          frequency: data.frequency, 
-          last_occurrence: data.last_occurrence, 
-          circumstances: data.circumstances || instanceNarrative,
+          instance_number: instanceNum, 
+          substance_name: data.substance_name || null, 
+          incident_date: data.incident_date || null, 
+          incident_location: data.incident_location || null, 
+          incident_description: data.incident_description || narrativeAnswer,
+          frequency: data.frequency || null, 
+          last_occurrence: data.last_occurrence || null, 
+          circumstances: data.circumstances || narrativeAnswer,
           accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
-          legal_outcome: data.legal_outcome, 
-          additional_details: { 
-            ...data, 
-            candidate_narrative: instanceNarrative 
-          }, 
+          legal_outcome: data.legal_outcome || null, 
+          additional_details: instanceDetails, 
           completed: true, 
           completed_timestamp: endTime.toISOString() 
         });
+        console.log('[PROCESS] Created FollowUpResponse', created.id, 'for', q.question_id, 'instance', instanceNum);
         followupsCreated++;
       } catch (e) {
-        console.log('[PROCESS] Failed to create FollowUpResponse instance', i, 'for', q.question_id, e.message);
+        console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, 'instance', instanceNum, ':', e.message);
       }
     }
   }
