@@ -612,26 +612,9 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   
   const endTime = new Date(currentTime + 60000);
   
-  // Now fetch FollowUpQuestions and add deterministic follow-up entries to transcript
-  let allFollowUpQuestionsForTranscript = [];
-  try {
-    const rawFuqs = await base44.asServiceRole.entities.FollowUpQuestion.filter({ active: true });
-    // Normalize the data structure
-    allFollowUpQuestionsForTranscript = rawFuqs.map(q => {
-      const data = q.data || q;
-      return {
-        id: q.id,
-        followup_question_id: data.followup_question_id,
-        followup_pack_id: data.followup_pack_id,
-        display_order: data.display_order,
-        question_text: data.question_text,
-        active: data.active
-      };
-    });
-    console.log('[PROCESS] Loaded', allFollowUpQuestionsForTranscript.length, 'FollowUpQuestions for transcript');
-  } catch (e) {
-    console.log('[PROCESS] Could not load FollowUpQuestions for transcript:', e.message);
-  }
+  // Use pre-fetched FollowUpQuestions (passed from runSeeder to avoid duplicate fetches)
+  const allFollowUpQuestionsForTranscript = allFollowUpQuestions || [];
+  console.log('[PROCESS] Using', allFollowUpQuestionsForTranscript.length, 'FollowUpQuestions for transcript');
   
   // Insert deterministic follow-up Q&A entries into transcript after their base answers
   // NOTE: We need responsesByQuestionId to be populated first, but it's populated AFTER session creation.
