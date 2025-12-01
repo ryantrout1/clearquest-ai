@@ -203,24 +203,34 @@ const LEGACY_PERSONAS = {
   "HIGH-E": { name: "TEST – Shawn Patrick O'Neill", riskLevel: "elevated", yesQuestionIds: ["Q007", "Q008", "Q096", "Q097", "Q098", "Q022", "Q301", "Q024", "Q025", "Q091", "Q092", "Q093", "Q125", "Q159", "Q160"] }
 };
 
+// ========== WORKPLACE QUESTION POOL ==========
+// Questions mapped to PACK_WORKPLACE_STANDARD for workplace misconduct/integrity testing
+const WORKPLACE_QUESTIONS = ["Q127", "Q128", "Q129", "Q130", "Q163", "Q203"];
+
 const QUESTION_POOLS = {
   low: { pool: ["Q008", "Q009", "Q091", "Q001"], minYes: 1, maxYes: 3 },
-  moderate: { pool: ["Q008", "Q009", "Q096", "Q091", "Q092", "Q125", "Q022", "Q301", "Q126", "Q159"], minYes: 5, maxYes: 7 },
-  high: { pool: ["Q007", "Q008", "Q009", "Q096", "Q097", "Q098", "Q022", "Q301", "Q024", "Q025", "Q091", "Q092", "Q093", "Q094", "Q125", "Q126", "Q127", "Q159", "Q160", "Q161"], minYes: 10, maxYes: 15 }
+  // Moderate: includes at least 1 workplace question (Q128 - disciplined/reprimanded)
+  moderate: { pool: ["Q008", "Q009", "Q096", "Q091", "Q092", "Q125", "Q022", "Q301", "Q126", "Q159", "Q128"], minYes: 5, maxYes: 7, guaranteedQuestions: ["Q128"] },
+  // High: includes 2+ workplace questions (Q127 - misconduct, Q129 - terminated, Q163 - policy violations)
+  high: { pool: ["Q007", "Q008", "Q009", "Q096", "Q097", "Q098", "Q022", "Q301", "Q024", "Q025", "Q091", "Q092", "Q093", "Q094", "Q125", "Q126", "Q127", "Q129", "Q163", "Q159", "Q160", "Q161"], minYes: 10, maxYes: 15, guaranteedQuestions: ["Q127", "Q129"] }
 };
 
 const FOLLOWUP_TEMPLATES = {
   low: {
     "PACK_DRIVING_VIOLATIONS_STANDARD": { incident_date: "March 2021", incident_location: "Highway, local area", incident_description: "Minor speeding ticket, less than 10 mph over limit", legal_outcome: "Paid fine, no points", circumstances: "Was running late, wasn't paying attention to speed", accountability_response: "My fault. I've been more careful since." },
     "PACK_PRIOR_LE_APPS_STANDARD": { incident_date: "2022", incident_location: "Local area", incident_description: "Applied to nearby agency, withdrew application", legal_outcome: "Withdrew voluntarily", circumstances: "Family circumstances changed, timing wasn't right", accountability_response: "Made the right choice for my family. Ready now." },
-    "PACK_FINANCIAL_STANDARD": { incident_date: "2022", incident_description: "Minor bill went to collections", legal_outcome: "Fully paid off", circumstances: "Unexpected expense, set up payment plan and completed it", accountability_response: "Should have addressed it sooner but paid in full." }
+    "PACK_FINANCIAL_STANDARD": { incident_date: "2022", incident_description: "Minor bill went to collections", legal_outcome: "Fully paid off", circumstances: "Unexpected expense, set up payment plan and completed it", accountability_response: "Should have addressed it sooner but paid in full." },
+    // PACK_WORKPLACE_STANDARD - low risk (minor verbal warning)
+    "PACK_WORKPLACE_STANDARD": { incident_date: "June 2022", incident_location: "Main Office", employer: "Local Retail Store", position_at_time: "Sales Associate", misconduct_type: "Attendance Issue", incident_description: "Was late twice in one week due to car trouble", corrective_action: "Verbal warning from manager", accountability_response: "Understood their concern. Got car fixed and haven't been late since." }
   },
   moderate: {
     "PACK_DRIVING_VIOLATIONS_STANDARD": { incident_date: "Around October 2020", incident_location: "Local area", incident_description: "Red light or speeding violation", legal_outcome: "Paid the fine", circumstances: "Was distracted, not sure exactly what happened", accountability_response: "My fault for not paying attention." },
     "PACK_DRUG_USE_STANDARD": { incident_date: "First used around 2012-2015", frequency: "Maybe 10-15 times total", last_occurrence: "2018 or early 2019", incident_description: "Marijuana experimentation at parties", circumstances: "Social use only at parties. Never bought my own.", accountability_response: "It was a phase. Haven't used in years." },
     "PACK_FINANCIAL_STANDARD": { incident_date: "2020", incident_description: "Credit account went 90+ days late", legal_outcome: "Caught up and current now", circumstances: "Hours got cut during economic downturn. Paid off once stable.", accountability_response: "Should have communicated with creditor sooner." },
     "PACK_EMPLOYMENT_STANDARD": { incident_date: "2018", incident_description: "Terminated for attendance", legal_outcome: "Clean separation", circumstances: "Calling out too much during rough personal time. Got write-ups then terminated.", accountability_response: "My fault. Should have communicated better." },
-    "PACK_GENERAL_CRIME_STANDARD": { incident_date: "Summer 2019", incident_description: "Noise complaint, roommate argument", legal_outcome: "No arrests, no charges. Officers talked to us and left.", circumstances: "Arguing about bills and chores. Got loud but never physical.", accountability_response: "We both got too heated. I've learned to walk away." }
+    "PACK_GENERAL_CRIME_STANDARD": { incident_date: "Summer 2019", incident_description: "Noise complaint, roommate argument", legal_outcome: "No arrests, no charges. Officers talked to us and left.", circumstances: "Arguing about bills and chores. Got loud but never physical.", accountability_response: "We both got too heated. I've learned to walk away." },
+    // PACK_WORKPLACE_STANDARD - moderate risk (written warning, policy violation)
+    "PACK_WORKPLACE_STANDARD": { incident_date: "March 2020", incident_location: "Warehouse, Distribution Center", employer: "Regional Logistics Company", position_at_time: "Warehouse Associate", misconduct_type: "Policy Violation", incident_description: "Received written warning for using personal phone during shift, which violated safety policy on the warehouse floor", corrective_action: "Written Warning", separation_type: "Still employed at time, left later for better opportunity", accountability_response: "I understood their concern for safety. Stopped using phone on floor immediately and followed all policies after that." }
   },
   high: {
     "PACK_DRIVING_DUIDWI_STANDARD": { incident_date: "2019", incident_description: "DUI arrest", legal_outcome: "Pled to lesser charge, community service, classes, license suspended", circumstances: "Got pulled over after drinking at a bar.", accountability_response: "It was a wake-up call. Don't drink and drive anymore." },
@@ -231,7 +241,12 @@ const FOLLOWUP_TEMPLATES = {
     "PACK_DOMESTIC_VIOLENCE_STANDARD": { incident_date: "2020-2021", incident_description: "Argument with ex, property damage", legal_outcome: "No charges filed. Left before cops arrived.", circumstances: "Heated argument during relationship ending. Put hole in wall, never touched anyone.", accountability_response: "Paid for damage. Relationship was hard on both of us." },
     "PACK_FINANCIAL_STANDARD": { incident_date: "Current", incident_description: "Several thousand in collections", legal_outcome: "Working on it", circumstances: "Credit card debt, medical bills, old utilities.", accountability_response: "Trying to get back on feet after job loss." },
     "PACK_EMPLOYMENT_STANDARD": [{ instance_number: 1, incident_date: "2016-2018", incident_description: "Terminated for insubordination or attitude", circumstances: "Got into argument with supervisor. Had attitude problem back then.", accountability_response: "Was young and immature. Grown a lot since then." }, { instance_number: 2, incident_date: "2019-2020", incident_description: "Terminated for attendance", circumstances: "Going through personal issues, wasn't showing up consistently.", accountability_response: "Personal issues affected work. Learned to separate the two." }],
-    "PACK_GENERAL_DISCLOSURE_STANDARD": { incident_date: "Over the years", incident_description: "Problematic social media posts", circumstances: "Angry posts when going through stuff. Arguments online. Some inappropriate comments.", accountability_response: "Deleted most of it. Need to be more careful." }
+    "PACK_GENERAL_DISCLOSURE_STANDARD": { incident_date: "Over the years", incident_description: "Problematic social media posts", circumstances: "Angry posts when going through stuff. Arguments online. Some inappropriate comments.", accountability_response: "Deleted most of it. Need to be more careful." },
+    // PACK_WORKPLACE_STANDARD - high risk (termination, multiple incidents)
+    "PACK_WORKPLACE_STANDARD": [
+      { instance_number: 1, incident_date: "January 2019", incident_location: "Corporate Office, Downtown", employer: "Insurance Company", position_at_time: "Claims Processor", misconduct_type: "Dishonesty", incident_description: "Terminated after investigation found I had falsified time records by clocking in early when arriving late", corrective_action: "Termination", separation_type: "Terminated", accountability_response: "I made a serious mistake. I was having financial problems and thought no one would notice. I was wrong and it cost me my job. I've learned that integrity matters more than anything." },
+      { instance_number: 2, incident_date: "August 2020", incident_location: "Call Center", employer: "Telecom Company", position_at_time: "Customer Service Rep", misconduct_type: "Performance Issue", incident_description: "Resigned in lieu of termination after multiple performance warnings for call handle time and customer complaints", corrective_action: "Resignation in Lieu of Termination", separation_type: "Resigned in Lieu of Termination", accountability_response: "That job wasn't a good fit. I was struggling with the metrics and got frustrated. Should have found a better position sooner instead of letting it get to that point." }
+    ]
   }
 };
 
