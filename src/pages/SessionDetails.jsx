@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -1609,8 +1608,23 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
     });
   });
   
+  // DIAGNOSTIC: Log detailed summary for debugging in required format
+  const debugSummary = Object.entries(followupsByResponseId).map(([responseId, instances]) => {
+    const firstInstance = instances[1] || Object.values(instances)[0];
+    // Find the baseQuestionId from the first followup
+    const sampleFollowup = firstInstance?.followups?.[0];
+    return {
+      responseId: responseId.substring(0, 8) + '...',
+      questionId: sampleFollowup?.baseQuestionId || 'unknown',
+      qCount: firstInstance?.followups?.length || 0,
+      aCount: firstInstance?.followups?.filter(f => f.answerText).length || 0
+    };
+  });
+  
+  console.log('[SESSIONDEBUG] followupsByResponseId:', debugSummary);
   console.log('[SESSIONDETAILS] Built followupsByResponseId from transcript', {
     responseIdCount: Object.keys(followupsByResponseId).length,
+    totalFollowupQAPairs: debugSummary.reduce((sum, r) => sum + r.qCount, 0),
     sampleEntry: Object.entries(followupsByResponseId)[0]
   });
   
