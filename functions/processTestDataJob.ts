@@ -457,8 +457,14 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   }
   
   // Insert deterministic follow-up Q&A entries into transcript after their base answers
+  // NOTE: We need responsesByQuestionId to be populated first, but it's populated AFTER session creation.
+  // So we'll do a TWO-PASS approach: first create transcript with placeholders, then update after Response creation.
+  // For now, we'll store the transcript entries with question_id and update the session after Response creation.
   const finalTranscript = [];
   let transcriptFollowupCount = 0;
+  
+  // Store mapping of question_id to transcript indices that need response_id
+  const transcriptIndicesToUpdate = {}; // question_id -> [indices]
   
   for (let i = 0; i < transcript.length; i++) {
     const entry = transcript[i];
@@ -478,17 +484,25 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
         const sectionName = sectionMap[baseQ.section_id] || baseQ.category || 'Unknown';
         const packData = getFollowupData(packId, riskLevel, FOLLOWUP_TEMPLATES);
         
+        // Track indices for this question's follow-ups
+        if (!transcriptIndicesToUpdate[questionId]) {
+          transcriptIndicesToUpdate[questionId] = [];
+        }
+        
         // Add each deterministic follow-up question and answer
         packQuestions.forEach((fuq, idx) => {
           currentTime += 2000 + Math.floor(Math.random() * 1000);
           const answer = generateFollowUpAnswerForQuestion(fuq, packId, riskLevel, packData, idx);
           
-          // Add follow-up question entry
+          const questionEntryIndex = finalTranscript.length;
+          
+          // Add follow-up question entry (responseId will be added later)
           finalTranscript.push({
             type: "followup_question",
             kind: "deterministic_followup_question",
             questionId: questionId,
             baseQuestionId: questionId,
+            // responseId: null - will be populated after Response creation
             packId: packId,
             followupPackId: packId,
             followupQuestionId: fuq.followup_question_id,
@@ -501,14 +515,19 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
             timestamp: new Date(currentTime).toISOString()
           });
           
+          transcriptIndicesToUpdate[questionId].push(questionEntryIndex);
+          
           currentTime += 3000 + Math.floor(Math.random() * 2000);
           
-          // Add follow-up answer entry
+          const answerEntryIndex = finalTranscript.length;
+          
+          // Add follow-up answer entry (responseId will be added later)
           finalTranscript.push({
             type: "followup_answer",
             kind: "deterministic_followup_answer",
             questionId: questionId,
             baseQuestionId: questionId,
+            // responseId: null - will be populated after Response creation
             packId: packId,
             followupPackId: packId,
             followupQuestionId: fuq.followup_question_id,
@@ -521,13 +540,15 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
             timestamp: new Date(currentTime).toISOString()
           });
           
+          transcriptIndicesToUpdate[questionId].push(answerEntryIndex);
+          
           transcriptFollowupCount++;
         });
       }
     }
   }
   
-  console.log('[PROCESS] Added', transcriptFollowupCount, 'deterministic follow-up exchanges to transcript');
+  console.log('[PROCESS] Added', transcriptFollowupCount, 'deterministic follow-up exchanges to transcript (responseId pending)');
   
   const sessionData = {
     session_code: sessionCode, department_code: deptCode, file_number: fileNumber, status: "completed", is_archived: false,
