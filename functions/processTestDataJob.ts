@@ -767,6 +767,17 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   
   console.log('[PROCESS] Setting followups_count to:', finalFollowupsCount);
   
+  // Verify FollowUpResponse records were actually persisted
+  try {
+    const verifyFollowups = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: sessionId });
+    console.log('[PROCESS] VERIFICATION: Found', verifyFollowups.length, 'FollowUpResponse records for session', sessionId);
+    if (verifyFollowups.length === 0 && followupsCreated > 0) {
+      console.error('[PROCESS] CRITICAL: Created', followupsCreated, 'FollowUpResponses but verification query returned 0!');
+    }
+  } catch (verifyErr) {
+    console.error('[PROCESS] VERIFICATION failed:', verifyErr.message);
+  }
+  
   await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: finalFollowupsCount });
   
   return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount } };
