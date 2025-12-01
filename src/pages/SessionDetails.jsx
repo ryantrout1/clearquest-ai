@@ -2109,10 +2109,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                     const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
                       // Try to find a matching field config to get the short factsLabel
                       const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === detailKey || f.semanticKey === detailKey);
-                      
+
                       let questionText = fieldConfig?.factsLabel || fieldConfig?.label;
                       let matchedQuestion = null;
-                      
+
                       if (!questionText) {
                         questionText = instance.questionTextSnapshot?.[detailKey];
                       }
@@ -2121,7 +2121,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         if (matchedQuestion) { questionText = matchedQuestion.question_text; }
                       }
                       if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
-                      
+
                       const displayOrder = fieldConfig?.factsOrder ?? matchedQuestion?.display_order ?? 999;
                       return { detailKey, detailValue, displayOrder, questionText };
                     });
@@ -2175,10 +2175,10 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         )}
                       </div>
                     );
-                  }
+                    }
 
-                  // 3) Fallback for packs without packConfig - show candidate narrative from FollowUpResponse fields
-                  else {
+                    // 3) Fallback for packs without packConfig - show candidate narrative from FollowUpResponse fields
+                    else {
                     const candidateNarrative = instance.candidateNarrative || instance.incidentDescription || instance.circumstances;
                     const hasContent = !!candidateNarrative || instance.incidentDate || instance.legalOutcome;
                     
