@@ -2605,6 +2605,11 @@ export default function CandidateInterview() {
               v2ProbingInProgressRef.current.add(probeKey);
 
               const t0 = performance.now();
+              
+              // Get section context for topic-anchored probing
+              const question = engine.QById[currentItem.baseQuestionId || currentItem.id];
+              const sectionEntity = engine.Sections?.find(s => s.id === question?.section_id);
+              
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
                 fieldKey,
@@ -2613,7 +2618,11 @@ export default function CandidateInterview() {
                 incidentContext,
                 semanticStatus: semanticResult?.status,
                 isEmpty,
-                isNoRecall
+                isNoRecall,
+                sectionName: sectionEntity?.section_name || null,
+                baseQuestionText: question?.question_text || null,
+                questionDbId: question?.id || null,
+                questionCode: question?.question_id || null
               });
               const t1 = performance.now();
               
@@ -3213,12 +3222,21 @@ export default function CandidateInterview() {
         setInput("");
         
         const t0 = performance.now();
+        
+        // Get section context for topic-anchored probing
+        const question = engine.QById[baseQuestionId];
+        const sectionEntity = engine.Sections?.find(s => s.id === question?.section_id);
+        
         const v2Result = await callProbeEngineV2PerField(base44, {
           packId,
           fieldKey,
           fieldValue: value,
           previousProbesCount: probeCount,
-          incidentContext: updatedAnswers
+          incidentContext: updatedAnswers,
+          sectionName: sectionEntity?.section_name || null,
+          baseQuestionText: question?.question_text || null,
+          questionDbId: question?.id || null,
+          questionCode: question?.question_id || null
         });
         const t1 = performance.now();
         

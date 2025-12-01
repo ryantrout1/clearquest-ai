@@ -11,7 +11,19 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * - NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
  * - NOW USES: FollowUpPack.ai_probe_instructions via InvokeLLM
  * - Falls back to static probes if LLM fails
+ * - V2.5 MVP: Whitelisted packs only, topic-anchored prompts, max 1 probe per field by default
  */
+
+// V2 PROBE WHITELIST - Only these packs use per-field AI probing
+const V2_PROBE_PACK_WHITELIST = new Set([
+  'PACK_LE_APPS',
+  'PACK_INTEGRITY_APPS',
+  'PACK_PRIOR_LE_APPS_STANDARD',
+  'PACK_DRIVING_COLLISION_STANDARD',
+  'PACK_DRIVING_VIOLATIONS_STANDARD',
+  'PACK_DRIVING_STANDARD',
+  'PACK_DRIVING_DUIDWI_STANDARD',
+]);
 
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
@@ -74,8 +86,10 @@ function getAiRuntimeConfig(globalSettings) {
  * Build unified AI instructions for per-field probing (same pattern as interviewAiFollowup.js)
  * Layers: Core rules → GlobalSettings → FollowUpPack → Field-specific context
  * Returns: { instructions: string, aiConfig: object }
+ * 
+ * V2.5 MVP: Anchored to section context, enforces topic boundaries
  */
-async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes) {
+async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes, sectionContext) {
   const coreRules = `You are the ClearQuest AI V2 per-field probing engine.
 
 Your ONLY job is to decide:
@@ -85,59 +99,60 @@ Your ONLY job is to decide:
 You are NOT interviewing the candidate yourself. You are helping a professional background investigator get a cleaner, more complete answer to a specific question on a law-enforcement pre-employment questionnaire.
 
 --------------------
+CRITICAL: TOPIC BOUNDARIES
+--------------------
+You are operating within the "${sectionContext.sectionName || 'current section'}" section.
+
+Your follow-up question MUST:
+- Stay within this section's topic area ONLY
+- Never ask about topics from other sections (drugs, sexual conduct, criminal history, employment, etc. unless that IS the current section)
+- Base your question ONLY on:
+  * The section topic
+  * The base question text: "${sectionContext.baseQuestionText || ''}"
+  * The candidate's answer to this specific field
+
+DO NOT ask about unrelated background areas.
+
+--------------------
 GENERAL BEHAVIOR
 --------------------
 1) DO NOT leak internal keys
 - NEVER display fieldKey values (e.g. TIMELINE, AGENCY_TYPE, INCIDENT_DESCRIPTION) in your follow-up.
 - If a label looks like an internal key (ALL CAPS, underscores, generic words like "DETAILS", "TIMELINE", "AGENCY_TYPE"), treat it as INTERNAL ONLY.
-- Instead, rely on the original question text to phrase your follow-up.
+- Instead, use natural language based on the base question text.
 
 BAD (not allowed):
 - "Can you provide more details about TIMELINE?"
 - "Please explain AGENCY_TYPE in more detail."
-- "Tell me more about INCIDENT_DESCRIPTION."
 
 GOOD:
 - "Can you provide more details about when this happened?"
 - "Can you provide more details about the type of agency you applied to?"
-- "Can you describe the incident in more detail, including what happened and when?"
 
 2) Respect "I don't recall" / "unknown" answers
-If the answer clearly expresses no memory, such as:
-- "I don't know"
-- "I don't recall"
-- "I can't remember the exact date"
-- "Not sure"
-
-Then:
-- Ask at most ONE gentle clarifying question that helps narrow down the answer WITHOUT pressuring the candidate for exact details they don't know.
+If the answer clearly expresses no memory, ask at most ONE gentle clarifying question that helps narrow down the answer WITHOUT pressuring for exact details.
 
 Examples:
 - "If you do not remember the exact month and year, please provide your best estimate (for example, early 2010, mid-2012, or late 2015)."
-- "If you cannot recall exact dates, you may describe the general time period (for example, around high school graduation, during college, before or after a specific job)."
-
-Do NOT demand precision the candidate clearly does not have.
+- "If you cannot recall exact dates, you may describe the general time period (for example, around high school graduation, during college)."
 
 3) When follow-up IS needed
-Trigger a follow-up when:
-- The answer is obviously vague or missing essential elements (e.g., "yes", "maybe", "a long time ago") and more detail is needed for an investigator to understand the situation.
+Trigger a follow-up when the answer is vague or missing essential elements (e.g., "yes", "maybe", "a long time ago").
 
 The follow-up should:
-- Be ONE question.
-- Be concise and neutral.
-- Ask only for the most important missing piece (date range, location, frequency, nature of conduct, etc.).
-- NOT ask for extremely sensitive, unnecessary, or identifying details beyond what a typical background questionnaire would collect.
+- Be ONE short question (under 30 words)
+- Be concise and neutral
+- Ask only for the most important missing piece
+- Stay within the section's topic boundaries
 
-4) Never request:
-- Agency names
-- Exact addresses
-- Full names or other PII
+4) When NO follow-up is needed
+If the answer is already clear and complete, respond with exactly: "NO_PROBE_NEEDED"
 
 --------------------
 OUTPUT FORMAT
 --------------------
-Respond with ONLY the follow-up question text. No preamble, no explanation, just the question.
-If no follow-up is needed, respond with exactly: "NO_FOLLOWUP_NEEDED"`;
+Respond with ONLY the follow-up question text, OR "NO_PROBE_NEEDED".
+No preamble, no explanation, just the question or the exact phrase "NO_PROBE_NEEDED".`;
 
   let instructions = coreRules + '\n\n';
   let aiConfig = getAiRuntimeConfig(null); // Defaults
@@ -1933,6 +1948,7 @@ const FIELD_LABELS = {
  * Generate a probe question for a specific incomplete field using LLM
  * Falls back to static question if LLM fails
  * NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
+ * V2.5: Anchored to section context for topic boundaries
  */
 async function generateFieldProbeQuestion(base44Client, {
   fieldName,
@@ -1940,7 +1956,8 @@ async function generateFieldProbeQuestion(base44Client, {
   probeCount,
   incidentContext = {},
   packId,
-  maxProbesPerField
+  maxProbesPerField,
+  sectionContext = {}
 }) {
   console.log(`[V2-PER-FIELD] Generating probe for ${fieldName} (probe #${probeCount + 1})`);
   
@@ -1953,7 +1970,8 @@ async function generateFieldProbeQuestion(base44Client, {
       packId,
       fieldName,
       fieldLabel,
-      maxProbesPerField
+      maxProbesPerField,
+      sectionContext
     );
     
     // Build user prompt with context
@@ -2000,10 +2018,22 @@ Generate ONE specific follow-up question to get a clearer answer for the "${fiel
     
     const question = result?.trim();
     
+    // Check if LLM explicitly said no probe needed
+    if (question === "NO_PROBE_NEEDED" || question === "NO_FOLLOWUP_NEEDED") {
+      console.log(`[V2-LLM] LLM determined no probe needed for pack=${packId}, field=${fieldName}`);
+      return { question: null, isFallback: false, source: 'llm_no_probe', model: aiConfig.model };
+    }
+    
     if (question && question.length >= 10 && question.length <= 500) {
-      // EXPLICIT LOGGING: LLM success
-      console.log(`[V2-LLM] Probe question generated by LLM for pack=${packId}, field=${fieldName}`);
-      console.log(`[V2-LLM] Question: "${question.substring(0, 80)}..."`);
+      // EXPLICIT LOGGING: LLM success with topic validation
+      console.log(`[V2-PROBE-SUMMARY]`, {
+        packId,
+        sectionName: sectionContext.sectionName || 'unknown',
+        questionId: sectionContext.questionDbId || 'unknown',
+        questionCodeOrDbId: sectionContext.questionCode || sectionContext.questionDbId || 'unknown',
+        truncatedBaseQuestion: (sectionContext.baseQuestionText || '').substring(0, 60),
+        truncatedProbeText: question.substring(0, 80)
+      });
       return { question, isFallback: false, source: 'llm', model: aiConfig.model };
     } else {
       // EXPLICIT LOGGING: LLM returned invalid output
@@ -2066,6 +2096,7 @@ function isRequiredDateField(packConfig, semanticField) {
 /**
  * Main probe engine function - Per-Field Mode
  * NOW USES: GlobalSettings + FollowUpPack.ai_probe_instructions via InvokeLLM
+ * V2.5 MVP: Whitelist check, topic-anchored prompts, max 1 probe per field by default
  */
 async function probeEngineV2(input, base44Client) {
   const {
@@ -2075,10 +2106,27 @@ async function probeEngineV2(input, base44Client) {
     previous_probes_count = 0,    // How many times we've probed this field
     incident_context = {},        // Other field values for context
     mode: requestMode = "VALIDATE_FIELD",  // VALIDATE_FIELD or LEGACY
-    answerLooksLikeNoRecall: frontendNoRecallFlag = false  // Frontend hint
+    answerLooksLikeNoRecall: frontendNoRecallFlag = false,  // Frontend hint
+    sectionName = null,           // Section context for topic anchoring
+    baseQuestionText = null,      // Full base question text for context
+    questionDbId = null,          // Database ID (unique identifier)
+    questionCode = null           // Display code (may not be unique)
   } = input;
 
   console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
+  
+  // WHITELIST CHECK: Only process V2 packs
+  if (!V2_PROBE_PACK_WHITELIST.has(pack_id)) {
+    console.log(`[V2-PER-FIELD] Pack ${pack_id} not in whitelist - skipping V2 probing`);
+    return {
+      mode: "NEXT_FIELD",
+      pack_id,
+      field_key,
+      semanticField: field_key,
+      validationResult: "skipped_not_whitelisted",
+      message: `Pack ${pack_id} not enabled for V2 probing`
+    };
+  }
 
   const packConfig = PACK_CONFIG[pack_id];
   
@@ -2210,14 +2258,38 @@ async function probeEngineV2(input, base44Client) {
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)
+  const sectionContext = {
+    sectionName,
+    baseQuestionText,
+    questionDbId,
+    questionCode: questionCode || questionDbId
+  };
+  
   const probeResult = await generateFieldProbeQuestion(base44Client, {
     fieldName: semanticField,
     currentValue: field_value,
     probeCount: previous_probes_count,
     incidentContext: incident_context,
     packId: pack_id,
-    maxProbesPerField
+    maxProbesPerField,
+    sectionContext
   });
+  
+  // If LLM explicitly said no probe needed, advance to next field
+  if (!probeResult.question) {
+    console.log(`[V2-PER-FIELD] LLM determined no probe needed for ${semanticField} → advancing`);
+    return {
+      mode: "NEXT_FIELD",
+      pack_id,
+      field_key,
+      semanticField,
+      validationResult: "llm_no_probe",
+      previousProbeCount: previous_probes_count,
+      maxProbesPerField,
+      semanticInfo,
+      message: `LLM determined field ${semanticField} is acceptable`
+    };
+  }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
   console.log(`[V2-PER-FIELD] Question: "${probeResult.question.substring(0, 80)}..."`);
