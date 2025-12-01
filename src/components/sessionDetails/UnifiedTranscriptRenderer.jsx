@@ -127,7 +127,23 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
 
   // Deterministic follow-up question (matches CandidateInterview format)
   if (kind === "deterministic_followup_question") {
-    const resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
+    // Try to resolve from followUpQuestionEntities first using followupQuestionId or fieldKey
+    const followupQuestionId = event.followupQuestionId || fieldKey;
+    let resolvedText = text;
+    
+    if (followupQuestionId && followUpQuestionEntities) {
+      const matchedQuestion = followUpQuestionEntities.find(
+        q => q.followup_question_id === followupQuestionId && q.followup_pack_id === followupPackId
+      );
+      if (matchedQuestion?.question_text) {
+        resolvedText = matchedQuestion.question_text;
+      }
+    }
+    
+    // Fallback to resolveFollowupQuestionText helper
+    if (!resolvedText || resolvedText === fieldKey) {
+      resolvedText = resolveFollowupQuestionText(fieldKey || text, followupPackId, followUpQuestionEntities);
+    }
     
     return (
       <div className="space-y-3">
@@ -140,7 +156,7 @@ export function TranscriptEventRenderer({ event, followUpQuestionEntities, quest
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-sm font-semibold text-orange-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
-                <span className="text-sm text-orange-300">Follow-up Questions</span>
+                <span className="text-sm text-orange-300">Deterministic Question</span>
               </div>
               <p className="text-white leading-relaxed">{resolvedText}</p>
             </div>
