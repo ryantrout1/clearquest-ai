@@ -1362,6 +1362,9 @@ async function runSeeder(base44, config, jobId) {
   
   const results = [];
   let created = 0, updated = 0;
+  const createdSessionIds = [];
+  
+  console.log('[TEST_DATA][CANDIDATE_PLAN] Starting to process', candidateConfigs.length, 'candidates');
   
   for (const candidateConfig of candidateConfigs) {
     // Check if job was cancelled mid-run
@@ -1370,7 +1373,7 @@ async function runSeeder(base44, config, jobId) {
         const currentJob = await base44.asServiceRole.entities.TestDataJob.filter({ id: jobId });
         if (currentJob[0]?.status === 'cancelled' || currentJob[0]?.status === 'failed') {
           console.log('[PROCESS] Job cancelled/failed mid-run, stopping');
-          return { created, updated, results, questionsUsed: questions.length, cancelled: true };
+          return { created, updated, results, questionsUsed: allQuestions.length, cancelled: true, createdSessionIds };
         }
       } catch (e) {
         console.log('[PROCESS] Could not check job status:', e.message);
@@ -1379,17 +1382,29 @@ async function runSeeder(base44, config, jobId) {
     
     try {
       // FULL INTERVIEW: Pass all questions to createMockSession
+      console.log('[TEST_DATA][PROCESSING] Creating session for candidate:', candidateConfig.fileNumber, 'risk:', candidateConfig.riskLevel);
       const result = await createMockSession(base44, config, candidateConfig, allQuestions, sections, allFollowUpQuestions);
       results.push({ ...result, success: true });
-      if (result.action === "created") created++; else updated++;
+      if (result.action === "created") {
+        created++;
+        // Extract session ID from result if available
+        if (result.sessionId) {
+          createdSessionIds.push(result.sessionId);
+        }
+      } else {
+        updated++;
+      }
+      console.log('[TEST_DATA][PROCESSING] Completed candidate:', candidateConfig.fileNumber, 'action:', result.action);
     } catch (error) {
       console.error('[PROCESS] Error creating session for', candidateConfig.fileNumber, error.message);
+      console.error('[PROCESS] Stack:', error.stack?.substring(0, 500));
       results.push({ fileNumber: candidateConfig.fileNumber, success: false, error: error.message });
     }
   }
   
-  console.log('[TEST_DATA][FULL_INTERVIEW] Seeder complete. Total questions used:', allQuestions.length);
-  return { created, updated, results, questionsUsed: allQuestions.length, cancelled: false };
+  console.log('[TEST_DATA][CREATED_SESSIONS] count:', created, 'sessionIds:', createdSessionIds);
+  console.log('[TEST_DATA][JOB_DONE] created:', created, 'updated:', updated, 'questionsUsed:', allQuestions.length);
+  return { created, updated, results, questionsUsed: allQuestions.length, cancelled: false, createdSessionIds };
 }
 
 // ========== MAIN HANDLER ==========
