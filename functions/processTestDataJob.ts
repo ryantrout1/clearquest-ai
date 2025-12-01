@@ -372,9 +372,24 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   for (const q of questions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
+    
+    // Generate a realistic narrative answer for this follow-up
+    const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
+    
     if (!packData) {
       try {
-        await base44.asServiceRole.entities.FollowUpResponse.create({ session_id: session.id, question_id: q.question_id, question_text_snapshot: q.question_text, followup_pack: q.followup_pack, instance_number: 1, incident_description: "Details provided during interview", completed: true, completed_timestamp: endTime.toISOString() });
+        await base44.asServiceRole.entities.FollowUpResponse.create({ 
+          session_id: session.id, 
+          question_id: q.question_id, 
+          question_text_snapshot: q.question_text, 
+          followup_pack: q.followup_pack, 
+          instance_number: 1, 
+          incident_description: narrativeAnswer,
+          circumstances: narrativeAnswer,
+          accountability_response: "I take full responsibility and have learned from this experience.",
+          completed: true, 
+          completed_timestamp: endTime.toISOString() 
+        });
         followupsCreated++;
       } catch (e) {}
       continue;
@@ -383,8 +398,31 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     const maxInstances = enableMultiLoopBackgrounds && riskLevel !== 'low' ? items.length : 1;
     for (let i = 0; i < Math.min(items.length, maxInstances); i++) {
       const data = items[i];
+      // Generate unique narrative for each instance
+      const instanceNarrative = generateFollowUpAnswer(q.followup_pack, riskLevel, data);
       try {
-        await base44.asServiceRole.entities.FollowUpResponse.create({ session_id: session.id, question_id: q.question_id, question_text_snapshot: q.question_text, followup_pack: q.followup_pack, instance_number: data.instance_number || (i + 1), substance_name: data.substance_name, incident_date: data.incident_date, incident_location: data.incident_location, incident_description: data.incident_description, frequency: data.frequency, last_occurrence: data.last_occurrence, circumstances: data.circumstances, accountability_response: data.accountability_response, legal_outcome: data.legal_outcome, additional_details: data, completed: true, completed_timestamp: endTime.toISOString() });
+        await base44.asServiceRole.entities.FollowUpResponse.create({ 
+          session_id: session.id, 
+          question_id: q.question_id, 
+          question_text_snapshot: q.question_text, 
+          followup_pack: q.followup_pack, 
+          instance_number: data.instance_number || (i + 1), 
+          substance_name: data.substance_name, 
+          incident_date: data.incident_date, 
+          incident_location: data.incident_location, 
+          incident_description: data.incident_description || instanceNarrative,
+          frequency: data.frequency, 
+          last_occurrence: data.last_occurrence, 
+          circumstances: data.circumstances || instanceNarrative,
+          accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
+          legal_outcome: data.legal_outcome, 
+          additional_details: { 
+            ...data, 
+            candidate_narrative: instanceNarrative 
+          }, 
+          completed: true, 
+          completed_timestamp: endTime.toISOString() 
+        });
         followupsCreated++;
       } catch (e) {}
     }
