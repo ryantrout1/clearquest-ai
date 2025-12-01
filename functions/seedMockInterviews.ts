@@ -628,4 +628,180 @@ function generateHighETranscript(startTime) {
       { type: "question", section: "Criminal Involvement / Police Contacts", question_id: "Q021_multi", question_text: "How many times?", timestamp: timestamps[idx++] },
       { type: "answer", question_id: "Q021_multi", answer: "A few times over the years", timestamp: timestamps[idx++] },
       { type: "ai_probe", question_id: "Q021_multi", question_text: "Can you give me an approximate number?", timestamp: timestamps[idx++] },
-      { type: "ai_probe_answer", question_id: "Q021_multi", answer: "I
+      { type: "ai_probe_answer", question_id: "Q021_multi", answer: "I don't know, maybe 3 or 4 times? Nothing serious though.", timestamp: timestamps[idx++] }
+    ],
+    responses: [
+      { question_id: "Q012", answer: "Yes", category: "Driving Record", is_flagged: true, triggered_followup: true },
+      { question_id: "Q021", answer: "Yes", category: "Criminal Involvement / Police Contacts", is_flagged: true, triggered_followup: true },
+      { question_id: "Q062", answer: "Yes", category: "Illegal Drug / Narcotic History", is_flagged: true, triggered_followup: true },
+      { question_id: "Q063", answer: "Yes", category: "Illegal Drug / Narcotic History", is_flagged: true, triggered_followup: true },
+      { question_id: "Q090", answer: "Yes", category: "Employment History", is_flagged: true, triggered_followup: true },
+      { question_id: "Q053", answer: "Yes", category: "Financial History", is_flagged: true, triggered_followup: true }
+    ],
+    followups: [
+      { question_id: "Q012", followup_pack: "PACK_DRIVING_DUIDWI_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q062", followup_pack: "PACK_DRUG_USE_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q063", followup_pack: "PACK_PRESCRIPTION_MISUSE_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q025", followup_pack: "PACK_DOMESTIC_VIOLENCE_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q090", followup_pack: "PACK_EMPLOYMENT_STANDARD", instance_number: 1, completed: true },
+      { question_id: "Q053", followup_pack: "PACK_FINANCIAL_STANDARD", instance_number: 1, completed: true }
+    ],
+    stats: {
+      questions_answered: 25,
+      yes_count: 13,
+      no_count: 12,
+      followups_triggered: 6,
+      ai_probes: 15,
+      red_flags: 8
+    }
+  };
+}
+
+/**
+ * Create a complete interview session with all data
+ */
+async function createMockSession(base44, persona) {
+  const fileNumber = persona.fileNumber;
+  const sessionCode = `${DEPT_CODE}_${fileNumber}`;
+  
+  // Check if session already exists
+  const existing = await base44.asServiceRole.entities.InterviewSession.filter({
+    department_code: DEPT_CODE,
+    file_number: fileNumber
+  });
+  
+  if (existing.length > 0) {
+    console.log(`Session already exists for ${fileNumber}, skipping...`);
+    return { action: "skipped", session: existing[0] };
+  }
+  
+  const now = new Date();
+  const startTime = new Date(now.getTime() - (3600000 * 2)); // Started 2 hours ago
+  const endTime = new Date(now.getTime() - (300000)); // Completed 5 min ago
+  
+  // Generate persona-specific transcript
+  let transcriptData;
+  if (fileNumber === "GREAT-A") {
+    transcriptData = generateGreatATranscript(startTime);
+  } else if (fileNumber === "GREAT-B") {
+    transcriptData = generateGreatBTranscript(startTime);
+  } else if (fileNumber === "MID-C") {
+    transcriptData = generateMidCTranscript(startTime);
+  } else if (fileNumber === "HIGH-D") {
+    transcriptData = generateHighDTranscript(startTime);
+  } else if (fileNumber === "HIGH-E") {
+    transcriptData = generateHighETranscript(startTime);
+  }
+  
+  // Create session
+  const session = await base44.asServiceRole.entities.InterviewSession.create({
+    session_code: sessionCode,
+    department_code: DEPT_CODE,
+    file_number: fileNumber,
+    status: "completed",
+    started_at: startTime.toISOString(),
+    completed_at: endTime.toISOString(),
+    last_activity_at: endTime.toISOString(),
+    questions_answered_count: transcriptData.stats.questions_answered,
+    followups_count: transcriptData.stats.followups_triggered,
+    ai_probes_count: transcriptData.stats.ai_probes,
+    red_flags_count: transcriptData.stats.red_flags,
+    completion_percent: 100,
+    elapsed_seconds: Math.floor((endTime - startTime) / 1000),
+    active_seconds: Math.floor((endTime - startTime) / 1000) - 600, // Minus 10 min idle
+    transcript_snapshot: transcriptData.transcript,
+    session_hash: generateSessionHash(),
+    risk_rating: persona.riskLevel === "low" ? "low" : persona.riskLevel === "moderate" ? "moderate" : "elevated",
+    metadata: {
+      isTestData: true,
+      testPersona: fileNumber,
+      candidateName: persona.name,
+      generatedAt: now.toISOString()
+    },
+    data_version: "v2.5-hybrid"
+  });
+  
+  // Create Response records
+  for (const resp of transcriptData.responses) {
+    await base44.asServiceRole.entities.Response.create({
+      session_id: session.id,
+      question_id: resp.question_id,
+      question_text: resp.question_text || "Sample question",
+      category: resp.category,
+      answer: resp.answer,
+      triggered_followup: resp.triggered_followup || false,
+      followup_pack: resp.followup_pack || null,
+      is_flagged: resp.is_flagged || false,
+      response_timestamp: startTime.toISOString()
+    });
+  }
+  
+  // Create FollowUpResponse records
+  for (const fu of transcriptData.followups) {
+    await base44.asServiceRole.entities.FollowUpResponse.create({
+      session_id: session.id,
+      question_id: fu.question_id,
+      followup_pack: fu.followup_pack,
+      instance_number: fu.instance_number || 1,
+      additional_details: fu.additional_details || {},
+      completed: true,
+      completed_timestamp: endTime.toISOString()
+    });
+  }
+  
+  console.log(`Created session for ${persona.name} (${fileNumber})`);
+  return { action: "created", session };
+}
+
+/**
+ * Main seeding function
+ */
+async function seedAllMockInterviews(base44) {
+  const results = [];
+  
+  for (const [fileNumber, persona] of Object.entries(CANDIDATE_PERSONAS)) {
+    try {
+      const result = await createMockSession(base44, persona);
+      results.push({ fileNumber, ...result, success: true });
+    } catch (error) {
+      console.error(`Error creating session for ${fileNumber}:`, error.message);
+      results.push({ fileNumber, success: false, error: error.message });
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Deno serve handler
+ */
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    
+    // Auth check - only admins can seed data
+    const user = await base44.auth.me();
+    if (!user || user.role !== 'admin') {
+      return Response.json({ 
+        error: 'Unauthorized - Admin access required' 
+      }, { status: 403 });
+    }
+    
+    const results = await seedAllMockInterviews(base44);
+    
+    const summary = {
+      total: results.length,
+      created: results.filter(r => r.action === 'created').length,
+      skipped: results.filter(r => r.action === 'skipped').length,
+      failed: results.filter(r => !r.success).length,
+      results
+    };
+    
+    return Response.json(summary);
+  } catch (error) {
+    console.error('[SEED_MOCK_INTERVIEWS] Error:', error.message);
+    return Response.json({ 
+      error: error.message 
+    }, { status: 500 });
+  }
+});
