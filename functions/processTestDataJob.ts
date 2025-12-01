@@ -435,6 +435,87 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   
   const endTime = new Date(currentTime + 60000);
   
+  // Now fetch FollowUpQuestions and add deterministic follow-up entries to transcript
+  let allFollowUpQuestionsForTranscript = [];
+  try {
+    allFollowUpQuestionsForTranscript = await base44.asServiceRole.entities.FollowUpQuestion.filter({ active: true });
+  } catch (e) {
+    console.log('[PROCESS] Could not load FollowUpQuestions for transcript:', e.message);
+  }
+  
+  // Insert deterministic follow-up Q&A entries into transcript after their base answers
+  const finalTranscript = [];
+  let transcriptFollowupCount = 0;
+  
+  for (let i = 0; i < transcript.length; i++) {
+    const entry = transcript[i];
+    finalTranscript.push(entry);
+    
+    // After a Yes answer with follow-up pack, insert the deterministic follow-up Q&A
+    if (entry.type === 'answer' && entry.answer === 'Yes' && entry.triggered_followup) {
+      const questionId = entry.question_id;
+      const baseQ = questions.find(q => q.question_id === questionId);
+      const packId = baseQ?.followup_pack;
+      
+      if (packId) {
+        const packQuestions = allFollowUpQuestionsForTranscript
+          .filter(fuq => fuq.followup_pack_id === packId)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        
+        const sectionName = sectionMap[baseQ.section_id] || baseQ.category || 'Unknown';
+        const packData = getFollowupData(packId, riskLevel, FOLLOWUP_TEMPLATES);
+        
+        // Add each deterministic follow-up question and answer
+        packQuestions.forEach((fuq, idx) => {
+          currentTime += 2000 + Math.floor(Math.random() * 1000);
+          const answer = generateFollowUpAnswerForQuestion(fuq, packId, riskLevel, packData, idx);
+          
+          // Add follow-up question entry
+          finalTranscript.push({
+            type: "followup_question",
+            kind: "deterministic_followup_question",
+            questionId: questionId,
+            baseQuestionId: questionId,
+            packId: packId,
+            followupPackId: packId,
+            followupQuestionId: fuq.followup_question_id,
+            instanceNumber: 1,
+            questionText: fuq.question_text,
+            text: fuq.question_text,
+            fieldKey: fuq.followup_question_id,
+            category: sectionName,
+            sectionName: sectionName,
+            timestamp: new Date(currentTime).toISOString()
+          });
+          
+          currentTime += 3000 + Math.floor(Math.random() * 2000);
+          
+          // Add follow-up answer entry
+          finalTranscript.push({
+            type: "followup_answer",
+            kind: "deterministic_followup_answer",
+            questionId: questionId,
+            baseQuestionId: questionId,
+            packId: packId,
+            followupPackId: packId,
+            followupQuestionId: fuq.followup_question_id,
+            instanceNumber: 1,
+            text: answer,
+            answer: answer,
+            fieldKey: fuq.followup_question_id,
+            category: sectionName,
+            sectionName: sectionName,
+            timestamp: new Date(currentTime).toISOString()
+          });
+          
+          transcriptFollowupCount++;
+        });
+      }
+    }
+  }
+  
+  console.log('[PROCESS] Added', transcriptFollowupCount, 'deterministic follow-up exchanges to transcript');
+  
   const sessionData = {
     session_code: sessionCode, department_code: deptCode, file_number: fileNumber, status: "completed", is_archived: false,
     started_at: startTime.toISOString(), completed_at: endTime.toISOString(), last_activity_at: endTime.toISOString(),
