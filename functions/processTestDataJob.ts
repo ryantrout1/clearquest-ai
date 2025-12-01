@@ -380,6 +380,9 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
     
+    // Get the response_id for linking
+    const responseId = responsesByQuestionId[q.question_id] || null;
+    
     // Generate a realistic narrative answer for this follow-up
     const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
     
@@ -387,6 +390,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       try {
         await base44.asServiceRole.entities.FollowUpResponse.create({ 
           session_id: session.id, 
+          response_id: responseId,
           question_id: q.question_id, 
           question_text_snapshot: q.question_text, 
           followup_pack: q.followup_pack, 
@@ -394,11 +398,16 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
           incident_description: narrativeAnswer,
           circumstances: narrativeAnswer,
           accountability_response: "I take full responsibility and have learned from this experience.",
+          additional_details: {
+            candidate_narrative: narrativeAnswer
+          },
           completed: true, 
           completed_timestamp: endTime.toISOString() 
         });
         followupsCreated++;
-      } catch (e) {}
+      } catch (e) {
+        console.log('[PROCESS] Failed to create FollowUpResponse for', q.question_id, e.message);
+      }
       continue;
     }
     const items = Array.isArray(packData) ? packData : [packData];
@@ -410,6 +419,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       try {
         await base44.asServiceRole.entities.FollowUpResponse.create({ 
           session_id: session.id, 
+          response_id: responseId,
           question_id: q.question_id, 
           question_text_snapshot: q.question_text, 
           followup_pack: q.followup_pack, 
@@ -431,7 +441,9 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
           completed_timestamp: endTime.toISOString() 
         });
         followupsCreated++;
-      } catch (e) {}
+      } catch (e) {
+        console.log('[PROCESS] Failed to create FollowUpResponse instance', i, 'for', q.question_id, e.message);
+      }
     }
   }
   
