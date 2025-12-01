@@ -141,6 +141,17 @@ function buildIncidentStory(packId, riskLevel, baseQuestionText) {
     }
   }
   
+  // PACK_WORKPLACE_STANDARD - Workplace integrity & misconduct incidents
+  if (packUpper.includes('WORKPLACE')) {
+    if (riskLevel === 'low') {
+      return `Received verbal warning in June 2022 for being late twice in one week due to car trouble. Manager understood, gave verbal counseling. Fixed car, haven't been late since. Left on good terms.`;
+    } else if (riskLevel === 'moderate') {
+      return `Received written warning in March 2020 at a warehouse job for using phone on the floor, which violated safety policy. Understood the concern, stopped immediately, and followed all policies after. Left later for a better opportunity with good reference.`;
+    } else {
+      return `Two workplace issues: First, terminated from insurance company in 2019 after investigation found I falsified time records. Made a serious mistake due to financial problems. Second, resigned in lieu of termination from call center in 2020 after performance warnings. Both taught me hard lessons about integrity and finding the right fit.`;
+    }
+  }
+  
   // Default fallback
   return `${riskAdjective.charAt(0).toUpperCase() + riskAdjective.slice(1)} incident related to ${baseQuestionText || 'the disclosed matter'}. The applicant has addressed the situation and learned from the experience.`;
 }
@@ -167,6 +178,9 @@ function getSectionInfoFromPack(packId, sectionName) {
     return { sectionId: 'CAT_FINANCIAL', sectionName: sectionName || 'Financial History' };
   }
   if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED')) {
+    return { sectionId: 'CAT_EMPLOYMENT', sectionName: sectionName || 'Employment History' };
+  }
+  if (packUpper.includes('WORKPLACE')) {
     return { sectionId: 'CAT_EMPLOYMENT', sectionName: sectionName || 'Employment History' };
   }
   if (packUpper.includes('DOMESTIC') || packUpper.includes('VIOLENCE')) {
@@ -551,10 +565,29 @@ function generateFileNumber(riskLevel, index, randomize) {
   return `TEST-${prefix}-${suffix}`;
 }
 
-function selectRandomYesQuestions(pool, min, max) {
+function selectRandomYesQuestions(pool, min, max, guaranteedQuestions = []) {
   const count = Math.floor(Math.random() * (max - min + 1)) + min;
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return new Set(shuffled.slice(0, count));
+  
+  // Start with guaranteed questions
+  const selected = new Set(guaranteedQuestions);
+  
+  // Filter out guaranteed questions from pool to avoid duplicates
+  const remainingPool = pool.filter(q => !guaranteedQuestions.includes(q));
+  const shuffled = [...remainingPool].sort(() => Math.random() - 0.5);
+  
+  // Add random questions until we reach the count
+  for (const q of shuffled) {
+    if (selected.size >= count) break;
+    selected.add(q);
+  }
+  
+  // Log workplace question selection
+  const workplaceSelected = [...selected].filter(q => WORKPLACE_QUESTIONS.includes(q));
+  if (workplaceSelected.length > 0) {
+    console.log('[TEST_DATA][WORKPLACE] Selected workplace questions for "Yes" answers:', workplaceSelected);
+  }
+  
+  return selected;
 }
 
 function getFollowupData(packId, riskLevel, templates) {
@@ -1129,16 +1162,31 @@ async function runSeeder(base44, config, jobId) {
   } else {
     let lowIdx = 0, midIdx = 0, highIdx = 0;
     for (let i = 0; i < lowRiskCount; i++) {
-      const yesIds = randomizeWithinPersona ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.low.pool, QUESTION_POOLS.low.minYes, QUESTION_POOLS.low.maxYes)) : QUESTION_POOLS.low.pool.slice(0, 2);
+      const poolConfig = QUESTION_POOLS.low;
+      const yesIds = randomizeWithinPersona 
+        ? Array.from(selectRandomYesQuestions(poolConfig.pool, poolConfig.minYes, poolConfig.maxYes, poolConfig.guaranteedQuestions || [])) 
+        : poolConfig.pool.slice(0, 2);
       candidateConfigs.push({ fileNumber: generateFileNumber('low', lowIdx++, randomizeWithinPersona), name: `TEST – Low Risk Candidate ${lowIdx}`, riskLevel: 'low', yesQuestionIds: yesIds });
     }
     for (let i = 0; i < midRiskCount; i++) {
-      const yesIds = randomizeWithinPersona ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.moderate.pool, QUESTION_POOLS.moderate.minYes, QUESTION_POOLS.moderate.maxYes)) : QUESTION_POOLS.moderate.pool.slice(0, 6);
-      candidateConfigs.push({ fileNumber: generateFileNumber('moderate', midIdx++, randomizeWithinPersona), name: `TEST – Mid Risk Candidate ${midIdx}`, riskLevel: 'moderate', yesQuestionIds: yesIds });
+      const poolConfig = QUESTION_POOLS.moderate;
+      // ALWAYS include guaranteed workplace questions for mid-risk (Q128 - disciplined/reprimanded)
+      const guaranteed = poolConfig.guaranteedQuestions || ["Q128"];
+      const yesIds = randomizeWithinPersona 
+        ? Array.from(selectRandomYesQuestions(poolConfig.pool, poolConfig.minYes, poolConfig.maxYes, guaranteed)) 
+        : [...new Set([...poolConfig.pool.slice(0, 6), ...guaranteed])];
+      console.log('[TEST_DATA][WORKPLACE] Mid-risk candidate', midIdx + 1, 'yesIds:', yesIds, '- guaranteed workplace:', guaranteed);
+      candidateConfigs.push({ fileNumber: generateFileNumber('moderate', midIdx++, randomizeWithinPersona), name: `TEST – Mid Risk Candidate ${midIdx}`, riskLevel: 'moderate', yesQuestionIds: Array.isArray(yesIds) ? yesIds : Array.from(yesIds) });
     }
     for (let i = 0; i < highRiskCount; i++) {
-      const yesIds = randomizeWithinPersona ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.high.pool, QUESTION_POOLS.high.minYes, QUESTION_POOLS.high.maxYes)) : QUESTION_POOLS.high.pool.slice(0, 12);
-      candidateConfigs.push({ fileNumber: generateFileNumber('high', highIdx++, randomizeWithinPersona), name: `TEST – High Risk Candidate ${highIdx}`, riskLevel: 'elevated', yesQuestionIds: yesIds });
+      const poolConfig = QUESTION_POOLS.high;
+      // ALWAYS include guaranteed workplace questions for high-risk (Q127 - misconduct, Q129 - terminated)
+      const guaranteed = poolConfig.guaranteedQuestions || ["Q127", "Q129"];
+      const yesIds = randomizeWithinPersona 
+        ? Array.from(selectRandomYesQuestions(poolConfig.pool, poolConfig.minYes, poolConfig.maxYes, guaranteed)) 
+        : [...new Set([...poolConfig.pool.slice(0, 12), ...guaranteed])];
+      console.log('[TEST_DATA][WORKPLACE] High-risk candidate', highIdx + 1, 'yesIds:', yesIds, '- guaranteed workplace:', guaranteed);
+      candidateConfigs.push({ fileNumber: generateFileNumber('high', highIdx++, randomizeWithinPersona), name: `TEST – High Risk Candidate ${highIdx}`, riskLevel: 'elevated', yesQuestionIds: Array.isArray(yesIds) ? yesIds : Array.from(yesIds) });
     }
   }
   
