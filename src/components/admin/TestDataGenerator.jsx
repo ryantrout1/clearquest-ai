@@ -406,6 +406,19 @@ export default function TestDataGenerator() {
                 />
               </div>
             </div>
+            
+            {/* AI Followups - Full Width Row */}
+            <div className="mt-4 flex items-center justify-between gap-3 bg-gradient-to-r from-pink-900/30 to-purple-900/30 border border-pink-700/40 rounded-lg px-3 py-2.5">
+              <div>
+                <Label className="text-pink-300 text-xs font-medium">🧠 AI Follow-up Answers</Label>
+                <p className="text-[10px] text-slate-400 mt-0.5">Generate realistic, varied answers for each follow-up question using AI</p>
+              </div>
+              <Switch
+                checked={config.useAiFollowups}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, useAiFollowups: checked }))}
+                className="data-[state=checked]:bg-pink-600"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
