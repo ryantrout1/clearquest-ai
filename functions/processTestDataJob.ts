@@ -1361,7 +1361,8 @@ async function runSeeder(base44, config, jobId) {
     }
     
     try {
-      const result = await createMockSession(base44, config, candidateConfig, questions, sections, allFollowUpQuestions);
+      // FULL INTERVIEW: Pass all questions to createMockSession
+      const result = await createMockSession(base44, config, candidateConfig, allQuestions, sections, allFollowUpQuestions);
       results.push({ ...result, success: true });
       if (result.action === "created") created++; else updated++;
     } catch (error) {
@@ -1370,7 +1371,8 @@ async function runSeeder(base44, config, jobId) {
     }
   }
   
-  return { created, updated, results, questionsUsed: questions.length, cancelled: false };
+  console.log('[TEST_DATA][FULL_INTERVIEW] Seeder complete. Total questions used:', allQuestions.length);
+  return { created, updated, results, questionsUsed: allQuestions.length, cancelled: false };
 }
 
 // ========== MAIN HANDLER ==========
