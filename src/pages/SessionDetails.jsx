@@ -1634,13 +1634,24 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
         details: {},
         aiExchanges: [],
         questionTextSnapshot: f.additional_details?.question_text_snapshot || {},
-        facts: f.additional_details?.facts || {}
+        facts: f.additional_details?.facts || {},
+        // Store top-level fields from FollowUpResponse for display
+        candidateNarrative: f.additional_details?.candidate_narrative || f.incident_description || f.circumstances || null,
+        incidentDescription: f.incident_description,
+        circumstances: f.circumstances,
+        accountabilityResponse: f.accountability_response,
+        incidentDate: f.incident_date,
+        incidentLocation: f.incident_location,
+        legalOutcome: f.legal_outcome,
+        frequency: f.frequency,
+        lastOccurrence: f.last_occurrence,
+        substanceName: f.substance_name
       };
     }
 
     const details = f.additional_details || {};
     Object.entries(details).forEach(([key, value]) => {
-      if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts' && key !== 'unresolvedFields') {
+      if (key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts' && key !== 'unresolvedFields' && key !== 'candidate_narrative') {
         instancesMap[instNum].details[key] = value;
       }
     });
