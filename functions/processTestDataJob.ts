@@ -582,6 +582,12 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   // This is the CRITICAL fix: we create one FollowUpResponse for each deterministic FollowUpQuestion,
   // NOT one per pack. This ensures FollowUpResponse count matches the transcript follow-up count.
   
+  console.log('[PROCESS] Starting FollowUpResponse creation. Session ID:', sessionId);
+  console.log('[PROCESS] Questions with Yes answers and followup_pack:', 
+    questions.filter(q => yesSet.has(q.question_id) && q.followup_pack).map(q => ({ id: q.question_id, pack: q.followup_pack }))
+  );
+  console.log('[PROCESS] Total FollowUpQuestion entities loaded:', allFollowUpQuestions.length);
+  
   for (const q of questions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
@@ -594,10 +600,32 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       .filter(fuq => fuq.followup_pack_id === q.followup_pack)
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    console.log('[PROCESS] Creating FollowUpResponses for pack', q.followup_pack, '- found', packFollowUpQuestions.length, 'questions for base Q', q.question_id);
+    console.log('[PROCESS] Creating FollowUpResponses for pack', q.followup_pack, '- found', packFollowUpQuestions.length, 'questions for base Q', q.question_id, '- responseId:', responseId);
     
     if (packFollowUpQuestions.length === 0) {
       console.log('[PROCESS] WARNING: No FollowUpQuestion entities found for pack', q.followup_pack);
+      // Even if no FollowUpQuestion entities, create at least one generic FollowUpResponse
+      const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
+      try {
+        const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
+          session_id: sessionId, 
+          response_id: responseId,
+          question_id: q.question_id, 
+          question_text_snapshot: q.question_text, 
+          followup_pack: q.followup_pack, 
+          instance_number: 1, 
+          incident_description: narrativeAnswer,
+          circumstances: narrativeAnswer,
+          accountability_response: "I take full responsibility for my actions.",
+          additional_details: { candidate_narrative: narrativeAnswer }, 
+          completed: true, 
+          completed_timestamp: endTime.toISOString() 
+        });
+        console.log('[PROCESS] Created fallback FollowUpResponse', created.id, 'for', q.question_id);
+        followupsCreated++;
+      } catch (e) {
+        console.error('[PROCESS] FAILED to create fallback FollowUpResponse for', q.question_id, ':', e.message);
+      }
       continue;
     }
     
@@ -636,31 +664,37 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
         }
         if (data.substance_name) questionDetails.substance_name = data.substance_name;
         
+        // Build the FollowUpResponse payload
+        const followupPayload = { 
+          session_id: sessionId, 
+          question_id: q.question_id, 
+          followup_pack: q.followup_pack, 
+          instance_number: instanceNum, 
+          question_text_snapshot: followupQuestionText, 
+          incident_description: answer,
+          circumstances: answer,
+          accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
+          additional_details: questionDetails, 
+          completed: true, 
+          completed_timestamp: endTime.toISOString() 
+        };
+        
+        // Add optional fields only if they have values
+        if (responseId) followupPayload.response_id = responseId;
+        if (data.substance_name) followupPayload.substance_name = data.substance_name;
+        if (data.incident_date) followupPayload.incident_date = data.incident_date;
+        if (data.incident_location) followupPayload.incident_location = data.incident_location;
+        if (data.frequency) followupPayload.frequency = data.frequency;
+        if (data.last_occurrence) followupPayload.last_occurrence = data.last_occurrence;
+        if (data.legal_outcome) followupPayload.legal_outcome = data.legal_outcome;
+        
         try {
-          const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
-            session_id: sessionId, 
-            response_id: responseId,
-            question_id: q.question_id, 
-            question_text_snapshot: followupQuestionText, 
-            followup_pack: q.followup_pack, 
-            instance_number: instanceNum, 
-            substance_name: data.substance_name || null, 
-            incident_date: data.incident_date || null, 
-            incident_location: data.incident_location || null, 
-            incident_description: answer,
-            frequency: data.frequency || null, 
-            last_occurrence: data.last_occurrence || null, 
-            circumstances: answer,
-            accountability_response: data.accountability_response || "I take full responsibility for my actions and have grown from this experience.",
-            legal_outcome: data.legal_outcome || null, 
-            additional_details: questionDetails, 
-            completed: true, 
-            completed_timestamp: endTime.toISOString() 
-          });
+          const created = await base44.asServiceRole.entities.FollowUpResponse.create(followupPayload);
           console.log('[PROCESS] Created FollowUpResponse', created.id, 'for', q.question_id, '/', followupQuestionId, 'instance', instanceNum);
           followupsCreated++;
         } catch (e) {
-          console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, '/', followupQuestionId, 'instance', instanceNum, ':', e.message, e.stack);
+          console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, '/', followupQuestionId, 'instance', instanceNum, ':', e.message);
+          console.error('[PROCESS] Payload was:', JSON.stringify(followupPayload).substring(0, 500));
         }
       }
     }
