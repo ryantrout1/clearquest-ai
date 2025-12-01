@@ -744,7 +744,24 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
 async function runSeeder(base44, config, jobId) {
   const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona } = config;
   
-  const questions = await base44.asServiceRole.entities.Question.filter({ active: true });
+  const rawQuestions = await base44.asServiceRole.entities.Question.filter({ active: true });
+  // Normalize question data - API may return nested 'data' property
+  const questions = rawQuestions.map(q => {
+    const d = q.data || q;
+    return {
+      id: q.id,
+      question_id: d.question_id,
+      section_id: d.section_id,
+      question_text: d.question_text,
+      response_type: d.response_type,
+      display_order: d.display_order,
+      active: d.active,
+      followup_pack_id: d.followup_pack_id,
+      followup_pack: d.followup_pack,
+      followup_multi_instance: d.followup_multi_instance,
+      category: d.category
+    };
+  });
   const sections = await base44.asServiceRole.entities.Section.filter({ active: true });
   
   const sectionOrderMap = {};
