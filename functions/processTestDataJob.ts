@@ -66,6 +66,185 @@ const AI_PROBING_TEMPLATES = {
   "Q159": [{ probing_question: "Can you describe what might cause embarrassment?", candidate_response: "Some old social media posts. Arguments online. Maybe some inappropriate comments." }]
 };
 
+// Follow-up answer templates by pack type and risk level
+const FOLLOWUP_ANSWER_TEMPLATES = {
+  // DUI/DWI answers
+  DRIVING_DUI: {
+    low: [
+      "I received a warning for a minor traffic violation in 2021. The officer let me go with a verbal warning after checking my license and registration. No citation was issued."
+    ],
+    moderate: [
+      "I was pulled over in late 2019 after leaving a friend's birthday party. I had two drinks over several hours. The officer conducted field sobriety tests. I passed and was released without charges, but it was a wake-up call.",
+      "In 2018, I was stopped at a checkpoint. I had one beer with dinner. They tested me and I blew under the limit. No arrest or citation, but I learned to be more careful."
+    ],
+    high: [
+      "Yes, I was arrested for DUI in late 2016 after leaving a bar downtown. My BAC was just over the legal limit at 0.09. I pled guilty, paid approximately $3,500 in fines, completed the required alcohol education classes, and my license was suspended for 90 days. I haven't driven after drinking since then.",
+      "I got a DWI in early 2019. I had been at a work happy hour and thought I was okay to drive. I was wrong. I hit a parked car trying to parallel park. No one was hurt. I took full responsibility, completed all court requirements, and installed an interlock device for a year.",
+      "In 2017, I was arrested for DUI after running a red light. I had been drinking at a friend's house. My BAC was 0.11. I spent the night in jail, hired a lawyer, and pled to a reduced charge. I completed 40 hours of community service and two years of probation. It was the lowest point of my life."
+    ]
+  },
+  // Traffic violations
+  DRIVING_VIOLATIONS: {
+    low: [
+      "I received one speeding ticket in 2020 for going 8 mph over the limit on the freeway. I paid it on time and haven't had any other issues since.",
+      "I got a fix-it ticket in 2021 for an expired registration sticker. I renewed it immediately and got the ticket dismissed. That's my only citation."
+    ],
+    moderate: [
+      "I've had two speeding tickets over the past five years. One in 2019 for 15 over on the highway, and another in 2021 for 12 over in a school zone (though school was not in session). Both were paid.",
+      "In 2018, I was cited for running a yellow light that turned red. I thought I could make it. I took traffic school to keep it off my record."
+    ],
+    high: [
+      "I've had multiple traffic citations over the years. Two speeding tickets, one for failure to yield, and one for improper lane change. The most recent was about 18 months ago. I've been more careful since.",
+      "I had several tickets between 2016 and 2020. Speeding mostly, but also one for driving with a suspended license (I didn't realize it was suspended). All fines are paid and my license is current now."
+    ]
+  },
+  // Drug use
+  DRUG_USE: {
+    low: [
+      "I tried marijuana once at a college party around 2018. I took a couple of puffs, didn't like how it made me feel, and never tried it again. That's the extent of my drug use."
+    ],
+    moderate: [
+      "I experimented with marijuana between 2017 and 2019, mostly at parties with friends. I'd estimate I used it maybe 10-12 times total. I never purchased it myself. I stopped completely about three years ago when I started taking my career more seriously.",
+      "I used marijuana occasionally during my early twenties. It was a social thing at parties or concerts. Never daily use. I stopped in 2019 and have no interest in using it again."
+    ],
+    high: [
+      "I used marijuana regularly for about two years, from 2015 to 2017. At its peak, I was smoking 2-3 times a week. I also tried cocaine twice at parties during that period. I stopped everything when I realized it was affecting my work and relationships. I've been completely clean for over five years.",
+      "I went through a rough period after my divorce. I used marijuana daily for about six months in 2018. I also misused some prescription anxiety medication that wasn't prescribed to me. I got help through an outpatient program and have been clean since early 2019.",
+      "I experimented with several substances in my late teens and early twenties. Marijuana, ecstasy at raves, and mushrooms a couple of times. This was all before age 25. I grew up, got a real job, and left that life behind."
+    ]
+  },
+  // Financial issues
+  FINANCIAL: {
+    low: [
+      "I had one medical bill go to collections in 2021 due to an insurance dispute. Once it was resolved, I paid the balance in full. My credit is now in good standing."
+    ],
+    moderate: [
+      "I went through a difficult period after losing my job in 2020. A credit card and a utility bill went to collections. I've since paid off both and am current on all my obligations. My credit score has improved significantly.",
+      "I had some credit card debt that got out of hand a few years ago. At one point I was about $8,000 in debt with one card 90 days past due. I worked with a credit counselor, set up payment plans, and paid everything off by 2022."
+    ],
+    high: [
+      "I have about $12,000 in collections currently. It's a mix of medical bills, an old apartment lease I broke, and credit card debt from when I was unemployed. I'm working with a debt management company and making monthly payments. It's a work in progress.",
+      "I filed for Chapter 7 bankruptcy in 2019. I had over $35,000 in credit card debt and couldn't keep up. The bankruptcy was discharged in 2020. Since then, I've been rebuilding my credit and living within my means. I have one secured credit card that I pay off monthly."
+    ]
+  },
+  // Employment issues
+  EMPLOYMENT: {
+    low: [
+      "I left one job in 2020 after a disagreement about scheduling. I gave two weeks' notice and left on reasonable terms. I would not say I was fired, but we agreed it wasn't the right fit."
+    ],
+    moderate: [
+      "I was terminated from a retail job in 2018 for attendance issues. I was going through a difficult time with family health problems and missed too many shifts. I learned to communicate better with employers about personal issues.",
+      "I was let go from a position in 2019 during a company restructure. They called it a layoff, but my position was eliminated due to performance concerns. I've been successful in my jobs since then."
+    ],
+    high: [
+      "I've been terminated twice. First in 2017 for insubordination—I had an argument with a supervisor and said some things I regret. Second in 2019 for attendance after going through a rough patch personally. I've matured a lot since then and my last two jobs have excellent references.",
+      "I was fired in 2018 for what they called policy violations. I was taking too many breaks and leaving early without approval. I was young and had a bad attitude. I've grown up since then and take my responsibilities seriously."
+    ]
+  },
+  // Criminal/police contact
+  CRIME: {
+    low: [
+      "I was questioned as a witness to a minor car accident in 2020. I gave a statement and that was the extent of my involvement with law enforcement."
+    ],
+    moderate: [
+      "Police were called to my apartment in 2019 due to a noise complaint. My roommate and I were having a loud argument about bills. Officers came, we calmed down, and they left without any further action.",
+      "I was a victim of a theft in 2018 and filed a police report. I also was questioned once as a possible witness to an altercation at a bar, but I hadn't seen anything useful."
+    ],
+    high: [
+      "I was arrested in 2017 for disorderly conduct after a fight outside a bar. I didn't throw the first punch, but I participated. Charges were dropped after I completed anger management. Haven't been in any physical altercations since.",
+      "Police have responded to my residence several times over the years. Once for a domestic argument with my ex-girlfriend, once for a neighbor dispute, and once when my car was vandalized. No arrests from any of these, but I understand it looks concerning."
+    ]
+  },
+  // Domestic issues
+  DOMESTIC: {
+    low: [
+      "I had a verbal disagreement with a family member that got loud enough for a neighbor to call police. Officers came, talked to both of us, and determined there was no issue. No arrests or reports filed."
+    ],
+    moderate: [
+      "During my divorce in 2019, my ex-wife called police during an argument. We were both upset and yelling. Officers separated us and I left for the night. No arrests, no charges, no protective orders.",
+      "I was involved in a heated argument with my brother at a family gathering. Someone called 911 because we were shouting. Police came, we had both calmed down, and they left after talking to us."
+    ],
+    high: [
+      "My ex-girlfriend and I had a toxic relationship. Police were called three times in 2020 during arguments. On one occasion, I threw a phone against the wall out of frustration. I was not arrested, but I know it doesn't look good. I've since completed counseling and am in a healthy relationship.",
+      "In 2018, I was arrested on a domestic violence charge after an argument with my ex. She had some bruises but they were from her grabbing me. Charges were eventually dropped when she didn't want to pursue it. We've both moved on."
+    ]
+  },
+  // Prior LE applications
+  PRIOR_LE: {
+    low: [
+      "I applied to one other agency in 2021 but withdrew my application when I relocated for family reasons. There were no issues with my application; the timing just wasn't right."
+    ],
+    moderate: [
+      "I applied to two other agencies before this one. I was not selected by the first after the oral board stage. The second, I completed the process but ultimately they chose another candidate. Both gave me feedback that helped me improve.",
+      "I was in the process with another department but was eliminated after the background phase. The investigator said there were concerns about my employment history, which I've since stabilized."
+    ],
+    high: [
+      "I've applied to law enforcement three times before. First two times I was too immature and didn't take the process seriously. Third time I made it further but was DQ'd for my financial history. I've spent the last two years getting my life in order.",
+      "I was disqualified from a previous agency in 2019 due to drug use history. At that time, I wasn't as far removed from my past. Now I have over five years clean and feel confident about this application."
+    ]
+  },
+  // General fallback
+  GENERAL: {
+    low: [
+      "I don't have much to add beyond what I indicated. It was a minor situation that was resolved appropriately."
+    ],
+    moderate: [
+      "This was a situation I learned from. At the time, I didn't handle it as well as I should have, but I've grown from the experience and it hasn't repeated.",
+      "Looking back, I would have made different choices. But I was younger and less mature. I'm a different person now."
+    ],
+    high: [
+      "I know my history has some concerning elements. I'm not going to make excuses. I made mistakes, faced consequences, and have worked hard to become a better person. I'm ready to prove myself.",
+      "I've had more life experience than most applicants, including some negative experiences. Those experiences have taught me accountability and the importance of making good decisions."
+    ]
+  }
+};
+
+// Generate realistic follow-up answer based on pack type and risk level
+function generateFollowUpAnswer(packId, riskLevel, followupData) {
+  // Map risk levels to template keys
+  const riskKey = riskLevel === 'low' ? 'low' : riskLevel === 'moderate' ? 'moderate' : 'high';
+  
+  // Determine pack category based on packId
+  let category = 'GENERAL';
+  const packUpper = (packId || '').toUpperCase();
+  
+  if (packUpper.includes('DUI') || packUpper.includes('DWI')) {
+    category = 'DRIVING_DUI';
+  } else if (packUpper.includes('DRIVING') || packUpper.includes('TRAFFIC') || packUpper.includes('VIOLATION')) {
+    category = 'DRIVING_VIOLATIONS';
+  } else if (packUpper.includes('DRUG') || packUpper.includes('SUBSTANCE') || packUpper.includes('MARIJUANA') || packUpper.includes('PRESCRIPTION')) {
+    category = 'DRUG_USE';
+  } else if (packUpper.includes('FINANCIAL') || packUpper.includes('DEBT') || packUpper.includes('CREDIT') || packUpper.includes('BANKRUPTCY')) {
+    category = 'FINANCIAL';
+  } else if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED') || packUpper.includes('FIRED') || packUpper.includes('JOB')) {
+    category = 'EMPLOYMENT';
+  } else if (packUpper.includes('CRIME') || packUpper.includes('ARREST') || packUpper.includes('POLICE') || packUpper.includes('CHARGE')) {
+    category = 'CRIME';
+  } else if (packUpper.includes('DOMESTIC') || packUpper.includes('FAMILY') || packUpper.includes('RELATIONSHIP')) {
+    category = 'DOMESTIC';
+  } else if (packUpper.includes('LE_APP') || packUpper.includes('PRIOR') || packUpper.includes('APPLICATION')) {
+    category = 'PRIOR_LE';
+  }
+  
+  // Get templates for this category and risk level
+  const categoryTemplates = FOLLOWUP_ANSWER_TEMPLATES[category] || FOLLOWUP_ANSWER_TEMPLATES.GENERAL;
+  const templates = categoryTemplates[riskKey] || categoryTemplates.moderate || categoryTemplates.high;
+  
+  // Pick a random template
+  const template = templates[Math.floor(Math.random() * templates.length)];
+  
+  // Optionally customize with follow-up data if available
+  let answer = template;
+  if (followupData) {
+    // Replace placeholders with actual data if present
+    if (followupData.incident_date && answer.includes('20')) {
+      // Could enhance to replace dates, but template already has realistic dates
+    }
+  }
+  
+  return answer;
+}
+
 function generateSessionHash() {
   const chars = 'abcdef0123456789';
   return Array.from({length: 64}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
