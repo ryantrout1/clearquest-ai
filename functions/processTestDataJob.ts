@@ -1009,11 +1009,12 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   
   console.log('[PROCESS] Starting FollowUpResponse creation. Session ID:', sessionId);
   console.log('[PROCESS] Questions with Yes answers and followup_pack:', 
-    questions.filter(q => yesSet.has(q.question_id) && q.followup_pack).map(q => ({ id: q.question_id, pack: q.followup_pack }))
+    allQuestions.filter(q => yesSet.has(q.question_id) && q.followup_pack).map(q => ({ id: q.question_id, pack: q.followup_pack }))
   );
   console.log('[PROCESS] Total FollowUpQuestion entities loaded:', allFollowUpQuestions.length);
   
-  for (const q of questions) {
+  // Only create FollowUpResponses for Yes answers with followup_pack
+  for (const q of allQuestions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
     
