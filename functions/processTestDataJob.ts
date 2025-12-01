@@ -671,7 +671,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   
   await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: followupsCreated });
   
-  return { action: session ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, yesCount, noCount, redFlagsCount } };
+  return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount } };
 }
 
 async function runSeeder(base44, config, jobId) {
