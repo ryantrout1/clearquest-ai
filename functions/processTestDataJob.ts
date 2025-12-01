@@ -1037,7 +1037,9 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
 }
 
 async function runSeeder(base44, config, jobId) {
-  const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona } = config;
+  const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona, useAiFollowups } = config;
+  
+  console.log('[PROCESS] runSeeder config:', { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona, useAiFollowups });
   
   const rawQuestions = await base44.asServiceRole.entities.Question.filter({ active: true });
   // Normalize question data - API may return nested 'data' property
