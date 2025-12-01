@@ -719,36 +719,25 @@ export default function CandidateInterview() {
   // MEMOIZED: Section progress data for header bar and completion tracking
   // This hook is ALWAYS called at the same position to avoid hook order issues
   const sectionProgress = React.useMemo(() => {
-    // Safe default when sections aren't ready
-    if (!sections || sections.length === 0) {
+    // Safe default when engine/sections aren't ready
+    if (!sections || sections.length === 0 || !engine) {
       return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
     }
     
-    // Build set of answered question IDs from transcript
-    // Include both questionId (database ID) format
+    // Build set of answered question IDs from transcript (database IDs)
     const answeredQuestionIdsSet = new Set(
       transcript.filter(t => t.type === 'question').map(t => t.questionId)
     );
     
-    // DEBUG: Log what we're working with
-    if (DEBUG_MODE) {
-      console.log('[SECTION-PROGRESS] Answered question IDs:', Array.from(answeredQuestionIdsSet));
-      console.log('[SECTION-PROGRESS] Sections:', sections.map(s => ({
-        id: s.id,
-        name: s.displayName,
-        questionIds: s.questionIds?.slice(0, 5) // First 5 for brevity
-      })));
-    }
-    
     const perSection = sections.map((section, idx) => {
-      const sectionQuestionIds = section.questionIds || [];
+      // Get questions for this section from engine.questionsBySection
+      // CRITICAL: questionsBySection[sectionId] is an array of {id, display_order} objects
+      const sectionQuestionObjects = engine.questionsBySection?.[section.id] || [];
+      const sectionQuestionIds = sectionQuestionObjects.map(qObj => qObj.id || qObj); // Extract IDs
+      
       const totalInSection = sectionQuestionIds.length;
       const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
       const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
-      
-      if (DEBUG_MODE && answeredInSection > 0) {
-        console.log(`[SECTION-PROGRESS] Section "${section.displayName}": ${answeredInSection}/${totalInSection} answered, isComplete=${isComplete}`);
-      }
       
       return {
         id: section.id,
@@ -769,7 +758,7 @@ export default function CandidateInterview() {
       perSection,
       totalQuestionsAllSections
     };
-  }, [sections, transcript]);
+  }, [sections, transcript, engine]);
   
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
