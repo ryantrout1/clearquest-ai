@@ -933,15 +933,12 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     data_version: "v2.5-hybrid"
   };
   
+  // Always create a NEW session (never update existing)
   let sessionId;
-  if (session) {
-    sessionId = session.id;
-    await base44.asServiceRole.entities.InterviewSession.update(sessionId, sessionData);
-  } else {
-    const created = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
-    sessionId = created.id;
-    session = created;
-  }
+  const created = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
+  sessionId = created.id;
+  session = created;
+  console.log('[TEST_DATA] Created NEW session:', sessionId, 'with status: completed, is_archived: false');
   
   console.log('[PROCESS] Session ID for FollowUpResponse creation:', sessionId);
   
