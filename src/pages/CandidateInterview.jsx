@@ -4090,44 +4090,6 @@ export default function CandidateInterview() {
   const answeredCount = transcript.filter(t => t.type === 'question').length;
   const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
-  // MEMOIZED: Section progress data for header bar and completion tracking
-  const sectionProgress = React.useMemo(() => {
-    if (!sections || sections.length === 0) {
-      return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
-    }
-    
-    // Build set of answered question IDs from transcript
-    const answeredQuestionIdsSet = new Set(
-      transcript.filter(t => t.type === 'question').map(t => t.questionId)
-    );
-    
-    const perSection = sections.map((section, idx) => {
-      const sectionQuestionIds = section.questionIds || [];
-      const totalInSection = sectionQuestionIds.length;
-      const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
-      const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
-      
-      return {
-        id: section.id,
-        name: section.displayName,
-        index: idx,
-        totalQuestions: totalInSection,
-        answeredQuestions: answeredInSection,
-        isComplete
-      };
-    });
-    
-    const totalQuestionsAllSections = perSection.reduce((sum, s) => sum + s.totalQuestions, 0);
-    const completedSections = perSection.filter(s => s.isComplete).length;
-    
-    return {
-      totalSections: sections.length,
-      completedSections,
-      perSection,
-      totalQuestionsAllSections
-    };
-  }, [sections, transcript]);
-
   // DEBUG: Log section flow state on every render
   if (sections.length > 0 && currentItem?.type === 'question') {
     console.log('[SECTION-FLOW][RENDER]', {
