@@ -1215,7 +1215,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     transcriptFollowupCount
   });
   
-  return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount, totalQuestions: allQuestions.length } };
+  return { action: "created", sessionId, fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount, totalQuestions: allQuestions.length } };
 }
 
 async function runSeeder(base44, config, jobId) {
