@@ -722,11 +722,28 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
         if (data.legal_outcome) followupPayload.legal_outcome = data.legal_outcome;
         
         try {
-          const created = await base44.asServiceRole.entities.FollowUpResponse.create(followupPayload);
-          console.log('[PROCESS] Created FollowUpResponse', created.id, 'for', q.question_id, '/', followupQuestionId, 'instance', instanceNum);
-          followupsCreated++;
+          console.log('[PROCESS] Creating FollowUpResponse with payload:', JSON.stringify({
+            session_id: followupPayload.session_id,
+            question_id: followupPayload.question_id,
+            followup_pack: followupPayload.followup_pack,
+            instance_number: followupPayload.instance_number
+          }));
+          
+          const createResult = await base44.asServiceRole.entities.FollowUpResponse.create(followupPayload);
+          
+          // Handle nested data structure from API response
+          const createdId = createResult?.id || createResult?.data?.id;
+          
+          if (createdId) {
+            console.log('[PROCESS] SUCCESS: Created FollowUpResponse', createdId, 'for', q.question_id, '/', followupQuestionId, 'instance', instanceNum);
+            followupsCreated++;
+          } else {
+            console.error('[PROCESS] WARNING: FollowUpResponse.create returned but no id found. Result:', JSON.stringify(createResult).substring(0, 300));
+          }
         } catch (e) {
-          console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, '/', followupQuestionId, 'instance', instanceNum, ':', e.message);
+          console.error('[PROCESS] FAILED to create FollowUpResponse for', q.question_id, '/', followupQuestionId, 'instance', instanceNum);
+          console.error('[PROCESS] Error:', e.message);
+          console.error('[PROCESS] Error stack:', e.stack?.substring(0, 500));
           console.error('[PROCESS] Payload was:', JSON.stringify(followupPayload).substring(0, 500));
         }
       }
