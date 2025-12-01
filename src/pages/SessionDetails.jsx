@@ -416,6 +416,8 @@ export default function SessionDetails() {
               id: entry.id || `evt-${idx}`,
               sessionId,
               baseQuestionId: entry.questionId || entry.baseQuestionId,
+              responseId: entry.responseId || entry.parentResponseId || null, // Link to parent Response
+              parentResponseId: entry.responseId || entry.parentResponseId || null,
               followupPackId: entry.packId || entry.followupPackId,
               followupQuestionId: entry.followupQuestionId,
               instanceNumber: entry.instanceNumber || 1,
@@ -433,6 +435,8 @@ export default function SessionDetails() {
               id: entry.id || `evt-${idx}`,
               sessionId,
               baseQuestionId: entry.questionId || entry.baseQuestionId,
+              responseId: entry.responseId || entry.parentResponseId || null, // Link to parent Response
+              parentResponseId: entry.responseId || entry.parentResponseId || null,
               followupPackId: entry.packId || entry.followupPackId,
               followupQuestionId: entry.followupQuestionId,
               instanceNumber: entry.instanceNumber || 1,
