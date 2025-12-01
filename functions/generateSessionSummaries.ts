@@ -215,8 +215,23 @@ async function runSummariesForSession(base44, sessionId) {
   });
   
   // 3) Process QUESTION SUMMARIES
-  // Iterate over responses (which have the actual answers)
-  for (const response of responses) {
+  // OPTIMIZATION: Only generate summaries for Yes answers OR questions with follow-ups
+  // This prevents hammering the LLM with 100+ "No" answer summaries
+  const questionsNeedingSummary = responses.filter(response => {
+    const hasFollowUps = (followUpsByResponseId[response.id] || []).length > 0;
+    const isYes = response.answer === 'Yes';
+    return isYes || hasFollowUps;
+  });
+  
+  console.log('[SUMMARIES] QUESTION_FILTER', {
+    sessionId,
+    totalResponses: responses.length,
+    needingSummary: questionsNeedingSummary.length,
+    yesCount: responses.filter(r => r.answer === 'Yes').length
+  });
+  
+  // Iterate over filtered responses only
+  for (const response of questionsNeedingSummary) {
     // response.question_id is the string code (Q008, Q009, etc.)
     const questionCode = response.question_id;
     
@@ -280,35 +295,48 @@ ${contextText}`;
       const summaryText = llmResult?.summary;
       if (summaryText) {
         // Double-check no existing summary (race condition guard)
-        const existingCheck = await base44.asServiceRole.entities.QuestionSummary.filter({
-          session_id: sessionId,
-          question_id: questionCode
-        });
-        
-        if (existingCheck.length > 0) {
-          console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
-          result.skippedExists.question++;
-          continue;
+        try {
+          const existingCheck = await base44.asServiceRole.entities.QuestionSummary.filter({
+            session_id: sessionId,
+            question_id: questionCode
+          });
+          
+          if (existingCheck.length > 0) {
+            console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
+            result.skippedExists.question++;
+            continue;
+          }
+        } catch (checkErr) {
+          console.warn('[QSUM][CHECK-ERROR]', { session: sessionId, question: questionCode, error: checkErr.message });
+          // Continue anyway - worst case we get a duplicate that fails
         }
         
         // Find section name for this question
         const sectionEntity = sections.find(s => s.id === questionEntity.section_id);
         const sectionName = sectionEntity?.section_name || '';
         
-        await base44.asServiceRole.entities.QuestionSummary.create({
-          session_id: sessionId,
-          section_id: sectionName,
-          question_id: questionCode,
-          question_summary_text: summaryText,
-          generated_at: new Date().toISOString()
-        });
-        
-        console.log('[QSUM][CREATE]', { session: sessionId, question: questionCode });
-        result.created.question++;
+        try {
+          await base44.asServiceRole.entities.QuestionSummary.create({
+            session_id: sessionId,
+            section_id: sectionName,
+            question_id: questionCode,
+            question_summary_text: summaryText,
+            generated_at: new Date().toISOString()
+          });
+          
+          console.log('[QSUM][CREATE]', { session: sessionId, question: questionCode });
+          result.created.question++;
+        } catch (createErr) {
+          console.error('[QSUM][CREATE-ERROR]', { session: sessionId, question: questionCode, error: createErr.message });
+          result.errors.push({ type: 'question_create', id: questionCode, error: createErr.message });
+        }
+      } else {
+        console.warn('[QSUM][NO-SUMMARY]', { session: sessionId, question: questionCode });
       }
     } catch (err) {
-      console.error('[QSUM][ERROR]', { session: sessionId, question: questionCode, error: err.message });
-      result.errors.push({ type: 'question', id: questionCode, error: err.message });
+      console.error('[QSUM][LLM-ERROR]', { session: sessionId, question: questionCode, error: err.message });
+      result.errors.push({ type: 'question_llm', id: questionCode, error: err.message });
+      // Continue to next question - don't fail the whole batch
     }
   }
   
