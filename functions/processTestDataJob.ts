@@ -1265,14 +1265,22 @@ async function runSeeder(base44, config, jobId) {
     };
   });
   
+  // FULL INTERVIEW: Sort ALL questions by section order, then display order
   const sectionOrderMap = {};
-  for (const s of sections) sectionOrderMap[s.section_id] = s.section_order || 999;
-  questions.sort((a, b) => {
+  for (const s of sections) {
+    sectionOrderMap[s.section_id] = s.section_order || 999;
+    sectionOrderMap[s.id] = s.section_order || 999; // Also map by DB ID
+  }
+  allQuestions.sort((a, b) => {
     const sA = sectionOrderMap[a.section_id] || 999;
     const sB = sectionOrderMap[b.section_id] || 999;
     if (sA !== sB) return sA - sB;
     return (a.display_order || 0) - (b.display_order || 0);
   });
+  
+  console.log('[TEST_DATA][FULL_INTERVIEW] Questions sorted by section/display order. First 5:', 
+    allQuestions.slice(0, 5).map(q => ({ id: q.question_id, section: q.section_id, order: q.display_order }))
+  );
   
   // Pre-fetch all FollowUpQuestion entities ONCE for reuse across all candidates
   let allFollowUpQuestions = [];
