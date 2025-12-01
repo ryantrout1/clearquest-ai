@@ -5,6 +5,183 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * This is the long-running background worker
  */
 
+// ========== AI FOLLOWUP ANSWER GENERATION ==========
+
+/**
+ * Generate AI-powered follow-up answers for a set of questions
+ * Uses the TEST_CANDIDATE_FOLLOWUP_GENERATOR AI config
+ */
+async function generateAIFollowupAnswers(base44, payload) {
+  try {
+    console.log('[TEST_DATA][FOLLOWUPS_AI] Calling LLM for section', payload.sectionInfo?.sectionId, {
+      questionCount: payload.questions?.length || 0
+    });
+    
+    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt: JSON.stringify(payload),
+      response_json_schema: {
+        type: "object",
+        properties: {
+          answers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                questionId: { type: "string" },
+                answer: { type: "string" }
+              },
+              required: ["questionId", "answer"]
+            }
+          }
+        },
+        required: ["answers"]
+      }
+    });
+    
+    // Result is already parsed JSON when using response_json_schema
+    const generatedAnswers = result || { answers: [] };
+    
+    console.log('[TEST_DATA][FOLLOWUPS_AI] Section', payload.sectionInfo?.sectionId, {
+      questionCount: payload.questions?.length || 0,
+      answerCount: generatedAnswers.answers?.length ?? 0,
+      sample: generatedAnswers.answers?.[0]
+    });
+    
+    return generatedAnswers;
+  } catch (err) {
+    console.error('[TEST_DATA][FOLLOWUPS_AI] Failed to generate AI answers:', err.message);
+    return { answers: [] };
+  }
+}
+
+/**
+ * Build the incident story summary based on pack type and risk level
+ */
+function buildIncidentStory(packId, riskLevel, baseQuestionText) {
+  const packUpper = (packId || '').toUpperCase();
+  const riskAdjective = riskLevel === 'low' ? 'minor' : riskLevel === 'moderate' ? 'moderate' : 'significant';
+  
+  if (packUpper.includes('COLLISION')) {
+    if (riskLevel === 'low') {
+      return `Minor fender-bender in a parking lot in 2021. No injuries, minor damage, exchanged insurance info. The other driver was partially at fault. Damage was under $1,500.`;
+    } else if (riskLevel === 'moderate') {
+      return `Rear-ended another vehicle at a stoplight in 2020 while distracted by phone. No injuries but the other car had significant bumper damage (~$3,000). Police arrived, filed a report. Insurance rates went up.`;
+    } else {
+      return `Hit-and-run incident in 2019. Was involved in a collision, panicked, and left the scene. Returned 30 minutes later when conscience caught up. Filed a police report the same day. Other driver had minor injuries. Charges were reduced after restitution was paid.`;
+    }
+  }
+  
+  if (packUpper.includes('DUI') || packUpper.includes('DWI')) {
+    if (riskLevel === 'low') {
+      return `Was stopped at a checkpoint in 2021 after having one beer with dinner. Passed field sobriety tests, no citation.`;
+    } else if (riskLevel === 'moderate') {
+      return `Pulled over in 2019 after leaving a bar. BAC was 0.06, under the legal limit. Officer issued a warning and suggested calling a ride.`;
+    } else {
+      return `Arrested for DUI in 2018 after leaving a work happy hour. BAC was 0.11. Spent night in jail, hired lawyer, pled to reduced charge. Completed alcohol education classes, community service, and 90-day license suspension.`;
+    }
+  }
+  
+  if (packUpper.includes('DRUG')) {
+    if (riskLevel === 'low') {
+      return `Tried marijuana once at a college party in 2018. Didn't enjoy the experience and never used again.`;
+    } else if (riskLevel === 'moderate') {
+      return `Used marijuana socially about 10-15 times between 2017-2019, mostly at parties. Never purchased, never daily use. Stopped completely when getting serious about career.`;
+    } else {
+      return `Used marijuana regularly for about 2 years (2015-2017), smoking 2-3 times per week. Also tried cocaine twice at parties. Stopped when it started affecting work. Have been clean for over 5 years.`;
+    }
+  }
+  
+  if (packUpper.includes('FINANCIAL') || packUpper.includes('DEBT')) {
+    if (riskLevel === 'low') {
+      return `Had one medical bill go to collections in 2021 due to insurance dispute. Resolved and paid in full within 60 days.`;
+    } else if (riskLevel === 'moderate') {
+      return `After job loss in 2020, one credit card and utility bill went to collections. Set up payment plans and paid everything off by 2022. Credit score has recovered.`;
+    } else {
+      return `Currently have about $12,000 in collections including medical bills, broken apartment lease, and credit card debt from unemployment period. Working with debt management company on payment plans.`;
+    }
+  }
+  
+  if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED')) {
+    if (riskLevel === 'low') {
+      return `Left a retail job in 2020 after scheduling disagreement. Gave two weeks notice, parted on reasonable terms.`;
+    } else if (riskLevel === 'moderate') {
+      return `Was terminated from a job in 2018 for attendance issues during a family health crisis. Learned to communicate better with employers about personal issues.`;
+    } else {
+      return `Have been terminated twice: once in 2017 for insubordination (argument with supervisor), and once in 2019 for attendance during personal difficulties. Have matured since then, last two jobs have excellent references.`;
+    }
+  }
+  
+  if (packUpper.includes('DOMESTIC') || packUpper.includes('VIOLENCE')) {
+    if (riskLevel === 'low') {
+      return `Had a verbal argument with family member that got loud. Neighbor called police. Officers talked to both parties, determined no issue, left without filing report.`;
+    } else if (riskLevel === 'moderate') {
+      return `During divorce in 2019, ex-wife called police during argument. Both upset and yelling. Officers separated us, I left for the night. No arrests, charges, or protective orders.`;
+    } else {
+      return `Toxic relationship with ex-girlfriend. Police called 3 times in 2020 during arguments. Once threw phone at wall out of frustration. Never arrested but completed counseling. Now in healthy relationship.`;
+    }
+  }
+  
+  if (packUpper.includes('CRIME') || packUpper.includes('ARREST') || packUpper.includes('POLICE')) {
+    if (riskLevel === 'low') {
+      return `Was questioned as witness to a car accident in 2020. Gave statement and that was extent of police contact.`;
+    } else if (riskLevel === 'moderate') {
+      return `Police called to apartment in 2019 due to noise complaint. Roommate and I were arguing about bills. Officers came, we calmed down, they left without action.`;
+    } else {
+      return `Arrested in 2017 for disorderly conduct after bar fight. Didn't throw first punch but participated. Charges dropped after completing anger management. No physical altercations since.`;
+    }
+  }
+  
+  if (packUpper.includes('LE_APP') || packUpper.includes('PRIOR') || packUpper.includes('APPLICATION')) {
+    if (riskLevel === 'low') {
+      return `Applied to one other agency in 2021 but withdrew when relocated for family reasons. No issues with application, just timing.`;
+    } else if (riskLevel === 'moderate') {
+      return `Applied to two agencies before this one. First: not selected after oral board. Second: completed process but another candidate was chosen. Got valuable feedback from both.`;
+    } else {
+      return `Applied to law enforcement three times before. First two times was immature and didn't take process seriously. Third time made it further but DQ'd for financial history. Spent last two years getting life in order.`;
+    }
+  }
+  
+  // Default fallback
+  return `${riskAdjective.charAt(0).toUpperCase() + riskAdjective.slice(1)} incident related to ${baseQuestionText || 'the disclosed matter'}. The applicant has addressed the situation and learned from the experience.`;
+}
+
+/**
+ * Get section info from pack ID
+ */
+function getSectionInfoFromPack(packId, sectionName) {
+  const packUpper = (packId || '').toUpperCase();
+  
+  if (packUpper.includes('COLLISION')) {
+    return { sectionId: 'CAT_DRIVING_COLLISION', sectionName: sectionName || 'Driving History – Collisions' };
+  }
+  if (packUpper.includes('DUI') || packUpper.includes('DWI')) {
+    return { sectionId: 'CAT_DRIVING_DUI', sectionName: sectionName || 'Driving History – DUI/DWI' };
+  }
+  if (packUpper.includes('DRIVING') || packUpper.includes('VIOLATION')) {
+    return { sectionId: 'CAT_DRIVING_VIOLATIONS', sectionName: sectionName || 'Driving History – Violations' };
+  }
+  if (packUpper.includes('DRUG') || packUpper.includes('MARIJUANA') || packUpper.includes('SUBSTANCE')) {
+    return { sectionId: 'CAT_DRUG_USE', sectionName: sectionName || 'Illegal Drug / Narcotic History' };
+  }
+  if (packUpper.includes('FINANCIAL') || packUpper.includes('DEBT') || packUpper.includes('CREDIT')) {
+    return { sectionId: 'CAT_FINANCIAL', sectionName: sectionName || 'Financial History' };
+  }
+  if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED')) {
+    return { sectionId: 'CAT_EMPLOYMENT', sectionName: sectionName || 'Employment History' };
+  }
+  if (packUpper.includes('DOMESTIC') || packUpper.includes('VIOLENCE')) {
+    return { sectionId: 'CAT_DOMESTIC', sectionName: sectionName || 'Domestic Incidents' };
+  }
+  if (packUpper.includes('CRIME') || packUpper.includes('ARREST') || packUpper.includes('POLICE')) {
+    return { sectionId: 'CAT_CRIME', sectionName: sectionName || 'Criminal Involvement / Police Contacts' };
+  }
+  if (packUpper.includes('LE_APP') || packUpper.includes('PRIOR') || packUpper.includes('APPLICATION')) {
+    return { sectionId: 'CAT_PRIOR_LE', sectionName: sectionName || 'Applications with other Law Enforcement Agencies' };
+  }
+  
+  return { sectionId: 'CAT_GENERAL', sectionName: sectionName || 'General Disclosures' };
+}
+
 // ========== SEEDER LOGIC (copied from seedMockInterviews) ==========
 
 const DEFAULT_CONFIG = {
