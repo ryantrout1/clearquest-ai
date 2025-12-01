@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
  * Enqueue a test data generation job
- * Returns immediately after creating the job record
+ * Creates the job record then triggers the processor via SDK
  */
 Deno.serve(async (req) => {
   console.log('[ENQUEUE] Starting enqueue request...');
@@ -48,29 +48,18 @@ Deno.serve(async (req) => {
 
     console.log('[ENQUEUE] Job created:', job.id);
 
-    // Fire and forget: trigger the background processor
-    // We use fetch with no await so it doesn't block the response
-    const processUrl = `${Deno.env.get('BASE44_FUNCTIONS_URL') || ''}/processTestDataJob`;
-    
-    // Use EdgeRuntime.waitUntil if available, otherwise fire-and-forget fetch
-    const triggerPayload = JSON.stringify({ jobId: job.id });
-    
-    // Get the authorization header from the original request to pass along
-    const authHeader = req.headers.get('Authorization');
-    
-    // Fire off the background job without waiting
-    fetch(processUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader || ''
-      },
-      body: triggerPayload
-    }).catch(err => {
-      console.log('[ENQUEUE] Background trigger error (non-blocking):', err.message);
-    });
+    // Trigger the background processor using SDK's function invoke
+    // This runs server-side and continues even if client disconnects
+    // We don't await - this is fire-and-forget
+    base44.asServiceRole.functions.invoke('processTestDataJob', { jobId: job.id })
+      .then(result => {
+        console.log('[ENQUEUE] Background processor completed:', result?.data);
+      })
+      .catch(err => {
+        console.error('[ENQUEUE] Background processor error:', err.message);
+      });
 
-    console.log('[ENQUEUE] Background job triggered, returning immediately');
+    console.log('[ENQUEUE] Background job triggered via SDK, returning immediately');
 
     // Return immediately with job info
     return Response.json({
