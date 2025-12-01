@@ -1231,9 +1231,12 @@ async function runSeeder(base44, config, jobId) {
   
   console.log('[PROCESS] runSeeder config:', { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona, useAiFollowups });
   
+  // FULL INTERVIEW COVERAGE: Load ALL active questions
   const rawQuestions = await base44.asServiceRole.entities.Question.filter({ active: true });
+  console.log('[TEST_DATA][FULL_INTERVIEW] Loaded', rawQuestions.length, 'active questions from database');
+  
   // Normalize question data - API may return nested 'data' property
-  const questions = rawQuestions.map(q => {
+  const allQuestions = rawQuestions.map(q => {
     const d = q.data || q;
     return {
       id: q.id,
