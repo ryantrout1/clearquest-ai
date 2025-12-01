@@ -547,13 +547,13 @@ function getFollowupData(packId, riskLevel, templates) {
   return levelTemplates[packId] || null;
 }
 
-async function createMockSession(base44, config, candidateConfig, questions, sections) {
-  const { deptCode, includeAiProbing, enableMultiLoopBackgrounds } = config;
+async function createMockSession(base44, config, candidateConfig, questions, sections, allFollowUpQuestions) {
+  const { deptCode, includeAiProbing, enableMultiLoopBackgrounds, useAiFollowups } = config;
   const { fileNumber, name, riskLevel, yesQuestionIds } = candidateConfig;
   const sessionCode = `${deptCode}_${fileNumber}`;
   const yesSet = new Set(yesQuestionIds);
   
-  console.log(`[PROCESS] Processing ${fileNumber} (${name}), risk: ${riskLevel}, ${yesSet.size} YES answers`);
+  console.log(`[PROCESS] Processing ${fileNumber} (${name}), risk: ${riskLevel}, ${yesSet.size} YES answers, useAiFollowups: ${useAiFollowups}`);
   
   let session = null;
   try {
