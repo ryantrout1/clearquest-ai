@@ -216,7 +216,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
   return { action: session ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, yesCount, noCount, redFlagsCount } };
 }
 
-async function runSeeder(base44, config) {
+async function runSeeder(base44, config, jobId) {
   const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona } = config;
   
   const questions = await base44.asServiceRole.entities.Question.filter({ active: true });
@@ -258,6 +258,19 @@ async function runSeeder(base44, config) {
   let created = 0, updated = 0;
   
   for (const candidateConfig of candidateConfigs) {
+    // Check if job was cancelled mid-run
+    if (jobId) {
+      try {
+        const currentJob = await base44.asServiceRole.entities.TestDataJob.filter({ id: jobId });
+        if (currentJob[0]?.status === 'cancelled' || currentJob[0]?.status === 'failed') {
+          console.log('[PROCESS] Job cancelled/failed mid-run, stopping');
+          return { created, updated, results, questionsUsed: questions.length, cancelled: true };
+        }
+      } catch (e) {
+        console.log('[PROCESS] Could not check job status:', e.message);
+      }
+    }
+    
     try {
       const result = await createMockSession(base44, config, candidateConfig, questions, sections);
       results.push({ ...result, success: true });
@@ -267,7 +280,7 @@ async function runSeeder(base44, config) {
     }
   }
   
-  return { created, updated, results, questionsUsed: questions.length };
+  return { created, updated, results, questionsUsed: questions.length, cancelled: false };
 }
 
 // ========== MAIN HANDLER ==========
@@ -310,7 +323,13 @@ Deno.serve(async (req) => {
     // Check status - only process queued jobs
     if (job.status !== 'queued') {
       console.log('[PROCESS] Job not in queued state:', job.status);
-      return Response.json({ message: 'Job already processed', status: job.status });
+      return Response.json({ message: 'Job already processed or cancelled', status: job.status });
+    }
+    
+    // Check if job was cancelled before we could start
+    if (job.status === 'cancelled') {
+      console.log('[PROCESS] Job was cancelled before processing');
+      return Response.json({ message: 'Job was cancelled', status: 'cancelled' });
     }
     
     // Mark as running
@@ -322,22 +341,50 @@ Deno.serve(async (req) => {
     console.log('[PROCESS] Job marked as running, starting seeder...');
     
     try {
-      // Run the seeder
-      const config = job.config;
-      const result = await runSeeder(base44, config);
+      // Run the seeder, passing jobId for cancellation checks
+      const jobConfig = job.config;
+      const result = await runSeeder(base44, jobConfig, job.id);
+      
+      // Re-check job status before marking complete (might have been cancelled)
+      const finalJobCheck = await base44.asServiceRole.entities.TestDataJob.filter({ id: job.id });
+      const finalJob = finalJobCheck[0];
+      
+      if (finalJob?.status === 'cancelled') {
+        console.log('[PROCESS] Job was cancelled, not marking as completed');
+        return Response.json({
+          success: false,
+          jobId: job.id,
+          message: 'Job was cancelled',
+          created: result.created,
+          updated: result.updated
+        });
+      }
+      
+      if (result.cancelled) {
+        console.log('[PROCESS] Seeder stopped early due to cancellation');
+        return Response.json({
+          success: false,
+          jobId: job.id,
+          message: 'Job was cancelled mid-processing',
+          created: result.created,
+          updated: result.updated
+        });
+      }
       
       console.log('[PROCESS] Seeder completed successfully');
       
-      // Mark as completed
-      await base44.asServiceRole.entities.TestDataJob.update(job.id, {
-        status: 'completed',
-        finished_at: new Date().toISOString(),
-        result_summary: {
-          created: result.created,
-          updated: result.updated,
-          questionsUsed: result.questionsUsed
-        }
-      });
+      // Mark as completed only if still in running state
+      if (finalJob?.status === 'running') {
+        await base44.asServiceRole.entities.TestDataJob.update(job.id, {
+          status: 'completed',
+          finished_at: new Date().toISOString(),
+          result_summary: {
+            created: result.created,
+            updated: result.updated,
+            questionsUsed: result.questionsUsed
+          }
+        });
+      }
       
       return Response.json({
         success: true,

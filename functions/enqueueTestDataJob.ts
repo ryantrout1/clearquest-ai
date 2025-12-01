@@ -46,6 +46,21 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
+    // Check for existing active jobs for this department
+    const existingJobs = await base44.asServiceRole.entities.TestDataJob.filter({
+      dept_code: deptCode
+    });
+    
+    const activeJob = existingJobs.find(j => j.status === 'queued' || j.status === 'running');
+    if (activeJob) {
+      console.log('[ENQUEUE] Blocking - active job exists:', activeJob.id, activeJob.status);
+      return Response.json({ 
+        error: `A test data job is already ${activeJob.status} for this department. Cancel it or wait until it completes.`,
+        existingJobId: activeJob.id,
+        existingJobStatus: activeJob.status
+      }, { status: 409 });
+    }
+
     // Create the job record
     const job = await base44.asServiceRole.entities.TestDataJob.create({
       dept_code: deptCode,
