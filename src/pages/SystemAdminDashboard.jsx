@@ -876,6 +876,54 @@ function MetricCard({ title, value, subtitle, color, alert }) {
 
 
 
+function SeedMockInterviewsButton() {
+  const [isSeeding, setIsSeeding] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    try {
+      const response = await base44.functions.invoke('seedMockInterviews', {});
+      const result = response.data;
+      
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(`Mock interviews seeded: ${result.created} created, ${result.skipped} skipped`);
+      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+    } catch (error) {
+      console.error('Seed error:', error);
+      toast.error('Failed to seed mock interviews');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleSeed}
+      disabled={isSeeding}
+      size="sm"
+      className="bg-purple-600 hover:bg-purple-700 text-xs w-full"
+    >
+      {isSeeding ? (
+        <>
+          <Clock className="w-3 h-3 mr-1 animate-spin" />
+          Generating...
+        </>
+      ) : (
+        <>
+          <Rocket className="w-3 h-3 mr-1" />
+          Seed 5 Mock Interviews
+        </>
+      )}
+    </Button>
+  );
+}
+
 function getPlanBadgeColor(plan) {
   switch (plan) {
     case 'Trial': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
