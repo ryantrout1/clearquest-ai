@@ -2255,24 +2255,35 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
 
 function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, questions }) {
   // Calculate sequential question numbers based on order in transcript (not global question_number)
+  // Only count base_question events, not follow-ups
   let sequentialQuestionNumber = 0;
   const sequentialNumberMap = {};
   
   transcriptEvents.forEach((event) => {
-    if (event.kind === 'base_question' && !sequentialNumberMap[event.baseQuestionId]) {
+    // Only assign numbers to base questions, not follow-ups
+    if (event.kind === 'base_question' && event.baseQuestionId && !sequentialNumberMap[event.baseQuestionId]) {
       sequentialQuestionNumber++;
       sequentialNumberMap[event.baseQuestionId] = sequentialQuestionNumber;
     }
   });
+  
+  console.log('[TRANSCRIPT VIEW] Question number map', {
+    totalBaseQuestions: sequentialQuestionNumber,
+    mapSize: Object.keys(sequentialNumberMap).length,
+    sample: Object.entries(sequentialNumberMap).slice(0, 5)
+  });
 
   return (
     <div className="space-y-4">
-      {transcriptEvents.map((event) => {
-        const questionNum = sequentialNumberMap[event.baseQuestionId] || 0;
+      {transcriptEvents.map((event, idx) => {
+        // For base questions, use the sequential number
+        // For follow-ups, don't pass a question number (they're not numbered)
+        const isBaseQuestion = event.kind === 'base_question';
+        const questionNum = isBaseQuestion ? (sequentialNumberMap[event.baseQuestionId] || 0) : 0;
         
         return (
           <TranscriptEventRenderer 
-            key={event.id}
+            key={event.id || `evt-${idx}`}
             event={event}
             followUpQuestionEntities={followUpQuestionEntities}
             questionNumber={questionNum}
