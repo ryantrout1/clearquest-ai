@@ -472,11 +472,16 @@ export default function TestDataGenerator() {
 
                 <div className="text-[10px] text-slate-500 space-y-0.5">
                   <div>
-                    Queued: {latestJob.created_date ? format(new Date(latestJob.created_date), 'MMM d, h:mm a') : 'N/A'}
+                    Queued: {latestJob.created_date ? format(new Date(latestJob.created_date), "MMM d, h:mm a") : 'N/A'}
                   </div>
+                  {latestJob.started_at && (
+                    <div>
+                      Started: {format(new Date(latestJob.started_at), "MMM d, h:mm a")}
+                    </div>
+                  )}
                   {latestJob.finished_at && (
                     <div>
-                      Finished: {format(new Date(latestJob.finished_at), 'MMM d, h:mm a')}
+                      Finished: {format(new Date(latestJob.finished_at), "MMM d, h:mm a")}
                     </div>
                   )}
                   {latestJob.status === 'completed' && latestJob.result_summary && (
