@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -89,71 +90,6 @@ function buildDrivingFactsFromTranscript(transcriptEvents) {
   console.log('[SESSIONDETAILS][DRIVING_FACTS_FROM_TRANSCRIPT]', factsByBaseQuestion);
 
   return factsByBaseQuestion;
-}
-
-/**
- * Build structured facts from additional_details for Driving packs (FALLBACK)
- * Maps field keys to human-readable labels and extracts values
- * @param {string} packId - Pack identifier
- * @param {Object} details - additional_details object from FollowUpResponse
- * @returns {Array<{label: string, value: string}>} - Array of label-value pairs
- */
-function buildDrivingPackFacts(packId, details) {
-  if (!details || typeof details !== 'object') return [];
-  
-  // Define display order for each pack
-  const FIELD_ORDER = {
-    'PACK_DRIVING_COLLISION_STANDARD': [
-      'PACK_DRIVING_COLLISION_Q01',
-      'PACK_DRIVING_COLLISION_Q02',
-      'PACK_DRIVING_COLLISION_Q03',
-      'PACK_DRIVING_COLLISION_Q04',
-      'PACK_DRIVING_COLLISION_Q05',
-      'PACK_DRIVING_COLLISION_Q06',
-      'PACK_DRIVING_COLLISION_Q07',
-      'PACK_DRIVING_COLLISION_Q08'
-    ],
-    'PACK_DRIVING_VIOLATIONS_STANDARD': [
-      'PACK_DRIVING_VIOLATIONS_Q01',
-      'PACK_DRIVING_VIOLATIONS_Q02',
-      'PACK_DRIVING_VIOLATIONS_Q03',
-      'PACK_DRIVING_VIOLATIONS_Q04',
-      'PACK_DRIVING_VIOLATIONS_Q05',
-      'PACK_DRIVING_VIOLATIONS_Q06'
-    ],
-    'PACK_DRIVING_STANDARD': [
-      'PACK_DRIVING_STANDARD_Q01',
-      'PACK_DRIVING_STANDARD_Q02',
-      'PACK_DRIVING_STANDARD_Q03',
-      'PACK_DRIVING_STANDARD_Q04'
-    ],
-    'PACK_DRIVING_DUIDWI_STANDARD': [
-      'PACK_DRIVING_DUIDWI_Q01',
-      'PACK_DRIVING_DUIDWI_Q02',
-      'PACK_DRIVING_DUIDWI_Q03',
-      'PACK_DRIVING_DUIDWI_Q04',
-      'PACK_DRIVING_DUIDWI_Q05',
-      'PACK_DRIVING_DUIDWI_Q06',
-      'PACK_DRIVING_DUIDWI_Q07',
-      'PACK_DRIVING_DUIDWI_Q08',
-      'PACK_DRIVING_DUIDWI_Q09'
-    ]
-  };
-  
-  const orderedFields = FIELD_ORDER[packId] || Object.keys(details);
-  const facts = [];
-  
-  orderedFields.forEach(fieldKey => {
-    const value = details[fieldKey];
-    const label = DRIVING_FIELD_LABELS[fieldKey];
-    
-    // Only include fields that have labels and non-empty values
-    if (label && value && String(value).trim() !== '') {
-      facts.push({ label, value: String(value) });
-    }
-  });
-  
-  return facts;
 }
 
 const REVIEW_KEYWORDS = [
@@ -745,8 +681,8 @@ export default function SessionDetails() {
     const questionSummary = questionSummariesByQuestionId[responseQuestionId] || null;
 
     // Get instance summaries for this question
-    const relatedInstances = followups.filter(f => f.response_id === r.id);
-    const instanceSummaries = relatedInstances.map(f => {
+    const relatedFollowupsFromDb = followups.filter(f => f.response_id === r.id);
+    const instanceSummaries = relatedFollowupsFromDb.map(f => {
       const key = `${responseQuestionId}|${f.instance_number || 1}`;
       return instanceSummariesByKey[key];
     }).filter(Boolean);
@@ -761,10 +697,10 @@ export default function SessionDetails() {
     const summarySource = questionSummary ? 'question' : instanceSummaries.length ? 'instances' : 'none';
 
     // Only log for Yes answers with follow-ups (where we expect summaries)
-    if (r.answer === 'Yes' && relatedInstances.length > 0) {
+    if (r.answer === 'Yes' && relatedFollowupsFromDb.length > 0) {
       console.log('[SESSIONDETAILS] Question summary check', {
         responseQuestionId,
-        hasFollowups: relatedInstances.length > 0,
+        hasFollowups: relatedFollowupsFromDb.length > 0,
         hasSummary,
         summarySource,
         availableKeys: Object.keys(questionSummariesByQuestionId).slice(0, 5),
@@ -1577,10 +1513,20 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
   const aiQuestionEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_question');
   const aiAnswerEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_answer');
   
+  console.log('[BUILD_FOLLOWUPS] Input', {
+    totalEvents: transcriptEvents.length,
+    questionEvents: questionEvents.length,
+    answerEvents: answerEvents.length,
+    sampleQuestion: questionEvents[0]
+  });
+
   // Group deterministic follow-ups by responseId
   questionEvents.forEach(qEvent => {
     const responseId = qEvent.responseId || qEvent.parentResponseId;
-    if (!responseId) return;
+    if (!responseId) {
+      console.warn('[BUILD_FOLLOWUPS] Question event missing responseId', qEvent);
+      return;
+    }
     
     const instanceNum = qEvent.instanceNumber || 1;
     const packId = qEvent.followupPackId;
@@ -1590,7 +1536,8 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
     const matchingAnswer = answerEvents.find(aEvent => 
       (aEvent.responseId === responseId || aEvent.parentResponseId === responseId) &&
       (aEvent.followupQuestionId === followupQuestionId || aEvent.fieldKey === followupQuestionId) &&
-      aEvent.instanceNumber === qEvent.instanceNumber
+      (aEvent.instanceNumber || 1) === instanceNum &&
+      Math.abs((aEvent.sortKey || 0) - (qEvent.sortKey || 0)) < 20 // Close in sequence to handle multiple instances of same field
     );
     
     // Initialize containers
@@ -1624,16 +1571,17 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
     // Find matching answer
     const matchingAnswer = aiAnswerEvents.find(aEvent => 
       aEvent.baseQuestionId === baseQuestionId &&
-      aEvent.instanceNumber === instanceNum &&
+      (aEvent.instanceNumber || 1) === instanceNum &&
       Math.abs((aEvent.sortKey || 0) - (qEvent.sortKey || 0)) < 20 // Close in sequence
     );
     
-    // Try to find the responseId from deterministic follow-ups for same baseQuestionId
+    // Try to find the targetResponseId:
+    // 1. If qEvent has responseId, use it.
+    // 2. Otherwise, look for an existing entry in followupsByResponseId for the same baseQuestionId and packId.
     let targetResponseId = responseId;
     if (!targetResponseId) {
-      // Look through existing entries to find one with matching baseQuestionId
       for (const [rid, instances] of Object.entries(followupsByResponseId)) {
-        // Check if any instance has matching packId for this question
+        // Check if any instance under this responseId has a matching packId for this question
         if (Object.values(instances).some(inst => inst.packId === qEvent.followupPackId)) {
           targetResponseId = rid;
           break;
@@ -1641,7 +1589,7 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
       }
     }
     
-    if (!targetResponseId) return;
+    if (!targetResponseId) return; // Cannot map AI probe to a response
     
     if (!followupsByResponseId[targetResponseId]) {
       followupsByResponseId[targetResponseId] = {};
@@ -1783,7 +1731,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const showSummary = response.answer === "Yes" && response.question_id !== US_CITIZENSHIP_QUESTION_ID && hasFollowups;
   const summary = response.investigator_summary || null;
   
-  // Build instances from raw FollowUpResponse data
+  // Build instances from raw FollowUpResponse data (fallback only)
   const instancesMap = {};
   followups.forEach(f => {
     const instNum = f.instance_number || 1;
@@ -1831,22 +1779,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const instanceNumbers = Object.keys(instancesMap).map(n => parseInt(n)).sort((a, b) => a - b);
   const hasMultipleInstances = instanceNumbers.length > 1;
 
-  const packId = followups[0]?.followup_pack;
-  const packConfig = packId ? getPackConfig(packId) : null;
-  const isPackLeApps = packId === 'PACK_LE_APPS';
-  const isDrivingPack = packId === 'PACK_DRIVING_COLLISION_STANDARD' || 
-                        packId === 'PACK_DRIVING_VIOLATIONS_STANDARD' || 
-                        packId === 'PACK_DRIVING_DUIDWI_STANDARD' || 
-                        packId === 'PACK_DRIVING_STANDARD';
-
-  const structuredFacts = isPackLeApps ? session?.structured_followup_facts?.[response.question_id] : null;
-  const showStructuredFacts = structuredFacts && structuredFacts.length > 0;
-
-  const hasAnyUnresolved = isPackLeApps && instanceNumbers.some(instNum => {
-    const instance = instancesMap[instNum];
-    return hasUnresolvedFields(packId, instance);
-  });
-
   const [expandedInstances, setExpandedInstances] = React.useState(() => new Set());
 
   const toggleInstance = (instanceNumber) => {
@@ -1886,9 +1818,14 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
             onClick={onToggleExpand}
           >
             <div className="flex items-center gap-2 flex-1">
-              {hasAnyUnresolved && (
+              {/* Only show 'unresolved' if there are DB followups and we're not using transcript (for now) */}
+              {hasDbFollowups && !hasTranscriptFollowups && instanceNumbers.some(instNum => {
+                const instance = instancesMap[instNum];
+                const packId = instance?.followupPackId;
+                return packId && hasUnresolvedFields(packId, instance);
+              }) && (
                 <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                  ⚠ Unresolved details
+                  ⚠ Unresolved details (legacy)
                 </Badge>
               )}
               {summary ? (
@@ -1989,269 +1926,139 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         </div>
                       );
                     })}
-                    </>
-                    ) : (
-                    /* FALLBACK: Use FollowUpResponse entity (legacy path) */
-                    <>
+                  </>
+                ) : (
+                  // FALLBACK: Unified rendering for FollowUpResponse entity (if no transcript followups)
+                  <>
                     {instanceNumbers.length > 1 && (
-                     <div className="text-xs font-semibold text-cyan-400 mb-1">
-                       🔁 {instanceNumbers.length} Instances Recorded
-                     </div>
+                      <div className="text-xs font-semibold text-cyan-400 mb-1">
+                        🔁 {instanceNumbers.length} Instances Recorded
+                      </div>
                     )}
                     {instanceNumbers.map((instanceNum, instanceIdx) => {
-                     const instance = instancesMap[instanceNum];
-                     if (!instance) return null;
-                     const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+                      const instance = instancesMap[instanceNum];
+                      if (!instance) return null;
+                      const isInstanceExpanded = expandedInstances.has(String(instanceNum));
 
-                     // NOTE: Driving packs are handled first using transcript-derived facts
-                     // (drivingFactsFromTranscript). Other packs with packConfig (like PACK_LE_APPS)
-                     // use getInstanceFacts(). When adding new multi-instance packs, prefer
-                     // following this pattern instead of mixing pipelines.
+                      const packIdForFallback = instance.followupPackId;
+                      const packConfigForFallback = packIdForFallback ? getPackConfig(packIdForFallback) : null;
+                      
+                      const deterministicEntriesForFallback = [];
+                      if (instance.details) {
+                        Object.entries(instance.details).forEach(([detailKey, detailValue]) => {
+                          if (detailValue && String(detailValue).trim() !== '' && detailKey !== 'investigator_probing' && detailKey !== 'question_text_snapshot' && detailKey !== 'facts' && detailKey !== 'unresolvedFields' && detailKey !== 'candidate_narrative') {
+                            let questionText = detailKey;
+                            if (packConfigForFallback) {
+                                const fieldConfig = packConfigForFallback.fields?.find(f => f.fieldKey === detailKey || f.semanticKey === detailKey);
+                                questionText = fieldConfig?.factsLabel || fieldConfig?.label || questionText;
+                            }
+                            if (!questionText) {
+                              const matchedQuestion = followUpQuestionEntities.find(q => q.followup_pack_id === packIdForFallback && q.followup_question_id === detailKey);
+                              if (matchedQuestion) { questionText = matchedQuestion.question_text; }
+                            }
+                            
+                            deterministicEntriesForFallback.push({
+                              detailKey,
+                              detailValue: String(detailValue),
+                              questionText: getFieldLabelForPack(packIdForFallback, detailKey, questionText.replace(/_/g, ' '))
+                            });
+                          }
+                        });
 
-                     if (isDrivingPack) {
-                    // PRIMARY SOURCE: Use drivingFactsFromTranscript (built from transcript_snapshot)
-                    const instanceKey = `${response.question_id}::${instanceNum}`;
-                    const transcriptFactsEntry = drivingFactsFromTranscript?.[response.question_id]?.instances?.[instanceKey];
-                    const transcriptFacts = transcriptFactsEntry?.fields || [];
-                    
-                    // Build deterministic follow-ups from transcript facts
-                    let deterministicEntries = transcriptFacts.map((fact, idx) => ({
-                      detailKey: fact.fieldKey || `field_${idx}`,
-                      detailValue: fact.value,
-                      displayOrder: idx,
-                      questionText: getFieldLabelForPack(packId, fact.fieldKey, fact.label || fact.fieldKey)
-                    }));
-                    
-                    // FALLBACK: If no transcript facts, try instance.details
-                    if (deterministicEntries.length === 0 && instance.details) {
-                      const detailEntries = Object.entries(instance.details || {});
-                      deterministicEntries = detailEntries
-                        .filter(([key]) => key !== 'investigator_probing' && key !== 'question_text_snapshot' && key !== 'facts' && key !== 'unresolvedFields')
-                        .map(([detailKey, detailValue], idx) => ({
-                          detailKey,
-                          detailValue,
-                          displayOrder: idx,
-                          questionText: getFieldLabelForPack(packId, detailKey, detailKey.replace(/_/g, ' '))
-                        }));
-                    }
-                    
-                    // Get AI investigator follow-ups from instance
-                    const aiExchanges = instance.aiExchanges || [];
-                    const uniqueExchanges = Array.from(new Map(aiExchanges.map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
-                    const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
-                    
-                    const hasAnyContent = deterministicEntries.length > 0 || sortedAiExchanges.length > 0;
-                    
-                    // Build summary line from first 2-3 deterministic values
-                    const summaryValues = deterministicEntries.map(e => e.detailValue).filter(Boolean);
-                    const summaryLine = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(' • ') : null;
-                    
-                    // Debug log
-                    console.debug('[SESSIONDETAILS] Driving instances for', response.question_id, {
-                      instanceNum,
-                      deterministicCount: deterministicEntries.length,
-                      aiFollowupsCount: sortedAiExchanges.length,
-                      source: transcriptFacts.length > 0 ? 'transcript' : 'additional_details'
-                    });
-
-                    return (
-                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
-                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
-                          <div className="flex flex-col gap-0.5 text-left">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
-                            </div>
-                            {summaryLine && (<div className="text-[11px] text-slate-400">{summaryLine}</div>)}
-                          </div>
-                          <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
-                        </button>
-                        {isInstanceExpanded && (
-                          <div className="px-3 pb-3 pt-1 space-y-2">
-                            {deterministicEntries.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
-                                <div className="divide-y divide-slate-700/60 text-xs">
-                                  {deterministicEntries.map((entry, idx) => (
-                                    <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
-                                      <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
-                                      <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {sortedAiExchanges.length > 0 && (
-                              <div className="pt-2">
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
-                                <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
-                                  {sortedAiExchanges.map((ex, idx) => (
-                                    <div key={idx} className="space-y-1">
-                                      <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
-                                      <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {!hasAnyContent && (
-                              <div className="text-xs text-slate-500 italic">No details recorded</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                    }
-
-                    // 2) All other packs that have packConfig (e.g., PACK_LE_APPS) NEXT
-                    else if (packConfig) {
-                    const packQuestions = followUpQuestionEntities.filter(q => q.followup_pack_id === instance.followupPackId).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                    const detailEntries = Object.entries(instance.details || {});
-                    const deterministicEntries = detailEntries.map(([detailKey, detailValue]) => {
-                      // Try to find a matching field config to get the short factsLabel
-                      const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === detailKey || f.semanticKey === detailKey);
-
-                      let questionText = fieldConfig?.factsLabel || fieldConfig?.label;
-                      let matchedQuestion = null;
-
-                      if (!questionText) {
-                        questionText = instance.questionTextSnapshot?.[detailKey];
+                        // Sort if packConfig provides order
+                        if (packConfigForFallback?.fields) {
+                          const fieldOrderMap = new Map(packConfigForFallback.fields.map((f, i) => [f.fieldKey, i]));
+                          deterministicEntriesForFallback.sort((a, b) => (fieldOrderMap.get(a.detailKey) ?? Infinity) - (fieldOrderMap.get(b.detailKey) ?? Infinity));
+                        }
                       }
-                      if (!questionText) {
-                        matchedQuestion = packQuestions.find(q => q.followup_question_id === detailKey);
-                        if (matchedQuestion) { questionText = matchedQuestion.question_text; }
-                      }
-                      if (!questionText) { questionText = detailKey.replace(/_/g, ' '); }
 
-                      const displayOrder = fieldConfig?.factsOrder ?? matchedQuestion?.display_order ?? 999;
-                      return { detailKey, detailValue, displayOrder, questionText };
-                    });
-                    deterministicEntries.sort((a, b) => a.displayOrder - b.displayOrder);
-                    const uniqueExchanges = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
-                    const sortedAiExchanges = uniqueExchanges.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
-                    const isExpanded = !hasMultipleInstances || expandedInstances.has(String(instanceNum));
-                    const summaryValues = deterministicEntries.map((e) => e.detailValue).filter(Boolean);
-                    const summaryText = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(" • ") : null;
+                      // Add special top-level fields for display if they exist and are not already covered by `additional_details`
+                      const addTopLevelField = (label, value, key) => {
+                        if (value && String(value).trim() !== '' && !deterministicEntriesForFallback.some(e => e.detailKey === key || e.questionText === label)) {
+                          deterministicEntriesForFallback.push({
+                            detailKey: key,
+                            detailValue: String(value),
+                            questionText: label
+                          });
+                        }
+                      };
+                      if (instance.incidentDate) addTopLevelField('Incident Date', instance.incidentDate, 'incident_date');
+                      if (instance.incidentLocation) addTopLevelField('Incident Location', instance.incidentLocation, 'incident_location');
+                      if (instance.substanceName) addTopLevelField('Substance Name', instance.substanceName, 'substance_name');
+                      if (instance.frequency) addTopLevelField('Frequency', instance.frequency, 'frequency');
+                      if (instance.lastOccurrence) addTopLevelField('Last Occurrence', instance.lastOccurrence, 'last_occurrence');
+                      if (instance.legalOutcome) addTopLevelField('Legal Outcome', instance.legalOutcome, 'legal_outcome');
+                      if (instance.accountabilityResponse) addTopLevelField('Accountability', instance.accountabilityResponse, 'accountability_response');
+                      if (instance.candidateNarrative) addTopLevelField('Candidate Narrative', instance.candidateNarrative, 'candidate_narrative');
 
-                    return (
-                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
-                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => hasMultipleInstances && toggleInstance(instanceNum)} disabled={!hasMultipleInstances}>
-                          <div className="flex flex-col gap-0.5 text-left">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
+
+                      const uniqueAiExchangesForFallback = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
+                      const sortedAiExchangesForFallback = uniqueAiExchangesForFallback.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
+                      
+                      const hasAnyContentForFallback = deterministicEntriesForFallback.length > 0 || sortedAiExchangesForFallback.length > 0;
+                      const summaryValuesForFallback = deterministicEntriesForFallback.map(e => e.detailValue).filter(Boolean);
+                      const summaryLineForFallback = summaryValuesForFallback.length > 0 ? summaryValuesForFallback.slice(0, 3).join(' • ') : null;
+
+                      return (
+                        <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
+                          <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)} disabled={!hasMultipleInstances && !hasAnyContentForFallback}>
+                            <div className="flex flex-col gap-0.5 text-left">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                                {!hasTranscriptFollowups && (
+                                  <Badge className="text-[9px] bg-sky-500/20 text-sky-300 border-sky-500/30">legacy db</Badge>
+                                )}
+                              </div>
+                              {summaryLineForFallback && (<div className="text-[11px] text-slate-400">{summaryLineForFallback}</div>)}
                             </div>
-                            {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
-                          </div>
-                          {hasMultipleInstances && (<span className="text-[10px] text-slate-400">{isExpanded ? "Hide" : "Show"}</span>)}
-                        </button>
-                        {isExpanded && (
-                          <div className="px-3 pb-3 pt-1 space-y-2">
-                            {deterministicEntries.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
-                                <div className="divide-y divide-slate-700/60 text-xs">
-                                  {deterministicEntries.map((entry, idx) => (
-                                    <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
-                                      <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
-                                      <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
-                                    </div>
-                                  ))}
+                            {(hasMultipleInstances || hasAnyContentForFallback) && (<span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>)}
+                          </button>
+                          {isInstanceExpanded && (
+                            <div className="px-3 pb-3 pt-1 space-y-2">
+                              {deterministicEntriesForFallback.length > 0 && (
+                                <div>
+                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
+                                  <div className="divide-y divide-slate-700/60 text-xs">
+                                    {deterministicEntriesForFallback.map((entry, idx) => (
+                                      <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
+                                        <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
+                                        <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                            {sortedAiExchanges.length > 0 && (
-                              <div className="pt-2">
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
-                                <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
-                                  {sortedAiExchanges.map((ex, idx) => (
-                                    <div key={idx} className="space-y-1">
-                                      <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
-                                      <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
-                                    </div>
-                                  ))}
+                              )}
+                              {sortedAiExchangesForFallback.length > 0 && (
+                                <div className="pt-2">
+                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
+                                  <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
+                                    {sortedAiExchangesForFallback.map((ex, idx) => (
+                                      <div key={idx} className="space-y-1">
+                                        <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
+                                        <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                    }
-
-                    // 3) Fallback for packs without packConfig - show candidate narrative from FollowUpResponse fields
-                    else {
-                    const candidateNarrative = instance.candidateNarrative || instance.incidentDescription || instance.circumstances;
-                    const hasContent = !!candidateNarrative || instance.incidentDate || instance.legalOutcome;
-                    
-                    if (!hasContent) return null;
-                    
-                    // Build display entries from available fields
-                    const displayEntries = [];
-                    if (instance.incidentDate) displayEntries.push({ label: 'When', value: instance.incidentDate });
-                    if (instance.incidentLocation) displayEntries.push({ label: 'Where', value: instance.incidentLocation });
-                    if (instance.substanceName) displayEntries.push({ label: 'Substance', value: instance.substanceName });
-                    if (instance.frequency) displayEntries.push({ label: 'Frequency', value: instance.frequency });
-                    if (instance.lastOccurrence) displayEntries.push({ label: 'Last Occurrence', value: instance.lastOccurrence });
-                    if (instance.legalOutcome) displayEntries.push({ label: 'Outcome', value: instance.legalOutcome });
-                    
-                    const summaryText = candidateNarrative ? candidateNarrative.substring(0, 80) + (candidateNarrative.length > 80 ? '...' : '') : null;
-                    const isInstanceExpanded = expandedInstances.has(String(instanceNum));
-                    
-                    return (
-                      <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
-                        <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
-                          <div className="flex flex-col gap-0.5 text-left">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                              )}
+                              {!hasAnyContentForFallback && (
+                                <div className="text-xs text-slate-500 italic">No details recorded (legacy db)</div>
+                              )}
                             </div>
-                            {summaryText && (<div className="text-[11px] text-slate-400">{summaryText}</div>)}
-                          </div>
-                          <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
-                        </button>
-                        {isInstanceExpanded && (
-                          <div className="px-3 pb-3 pt-1 space-y-2">
-                            {candidateNarrative && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Candidate Response</div>
-                                <div className="text-xs text-slate-200 leading-relaxed bg-slate-800/30 rounded p-2">
-                                  {candidateNarrative}
-                                </div>
-                              </div>
-                            )}
-                            {displayEntries.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Details</div>
-                                <div className="divide-y divide-slate-700/60 text-xs">
-                                  {displayEntries.map((entry, idx) => (
-                                    <div key={idx} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 py-1.5">
-                                      <div className="text-slate-400">{entry.label}</div>
-                                      <div className="text-slate-50">{entry.value}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {instance.accountabilityResponse && (
-                              <div>
-                                <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Accountability</div>
-                                <div className="text-xs text-slate-300 italic">{instance.accountabilityResponse}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                    }
+                          )}
+                        </div>
+                      );
                     })}
-                    </>
-                    )}
-                    </div>
-                    </div>
-                    </div>
-                    </>
-                    )}
-                    </div>
-                    );
-                    }
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, questions }) {
   // Calculate sequential question numbers based on order in transcript (not global question_number)
@@ -2293,127 +2100,6 @@ function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, que
       })}
     </div>
   );
-}
-
-function TranscriptEntry({ item }) {
-  if (item.type === 'question') {
-    const response = item.data;
-    const displayNum = response.display_number ? `Q${response.display_number.toString().padStart(3, '0')}` : response.question_id;
-    
-    return (
-      <div className="space-y-2">
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">
-              {displayNum}
-            </Badge>
-            <span className="text-xs text-slate-400">{response.section_name || response.category}</span>
-          </div>
-          <p className="text-white text-sm">{response.question_text}</p>
-        </div>
-        <div className="flex justify-end">
-          <div className="bg-blue-600 rounded-lg px-4 py-2 max-w-md">
-            <p className="text-white text-sm font-medium">{response.answer}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (item.type === 'followup') {
-    const followup = item.data;
-    const details = followup.additional_details || {};
-    const followUpQuestionEntities = item.followUpQuestionEntities || [];
-    const packQuestions = followUpQuestionEntities.filter(
-      q => q.followup_pack_id === followup.followup_pack
-    ).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    
-    const instanceNum = item.instanceNumber || 1;
-    const totalInstances = item.totalInstances || 1;
-    const showInstanceLabel = totalInstances > 1;
-
-    return (
-      <div className={cn("ml-4 md:ml-8 space-y-2", showInstanceLabel && "border-l-2 border-cyan-500/30 pl-4")}>
-        {showInstanceLabel && (
-          <div className="text-xs font-semibold text-cyan-400 -ml-4 mb-2">
-            Instance {instanceNum}
-          </div>
-        )}
-        
-        {followup.substance_name && (
-          <>
-            <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-              <p className="text-white text-sm">What substance did you use?</p>
-            </div>
-            <div className="flex justify-end">
-              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                <p className="text-white text-sm font-medium">{followup.substance_name}</p>
-              </div>
-            </div>
-          </>
-        )}
-
-        {Object.entries(details).filter(([key]) => key !== 'investigator_probing').map(([key, value]) => {
-          const requiresReview = needsReview(value);
-          
-          // Helper to resolve question text from followup_question_id
-          const match = packQuestions.find(q => q.followup_question_id === key);
-          const label = match?.question_text || key;
-
-          return (
-            <React.Fragment key={key}>
-              <div className="bg-orange-950/30 border border-orange-800/50 rounded-lg p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-white text-sm">
-                    {label}
-                  </p>
-                  {requiresReview && (
-                    <Badge className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30 flex-shrink-0">
-                      Needs Review
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                  <p className="text-white text-sm break-words">{value}</p>
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (item.type === 'probing') {
-    const probingExchanges = item.data;
-    const instanceNum = item.instanceNumber;
-    const totalInstances = item.totalInstances || 1;
-    const showInstanceLabel = totalInstances > 1 && instanceNum;
-    
-    return (
-      <div className={cn("ml-4 md:ml-8 space-y-2 mt-3 pt-3 border-t border-purple-500/30", showInstanceLabel && "border-l-2 border-cyan-500/30 pl-4")}>
-        <div className="text-xs font-semibold text-purple-400 mb-2">
-          🔍 Investigator Probing{showInstanceLabel && ` - Instance ${instanceNum}`} ({probingExchanges.length} exchanges)
-        </div>
-        {probingExchanges.map((exchange, idx) => (
-          <React.Fragment key={idx}>
-            <div className="bg-purple-950/30 border border-purple-800/50 rounded-lg p-3">
-              <p className="text-white text-sm break-words leading-relaxed">{exchange.probing_question}</p>
-            </div>
-            <div className="flex justify-end">
-              <div className="bg-orange-600 rounded-lg px-4 py-2 max-w-md">
-                <p className="text-white text-sm break-words">{exchange.candidate_response}</p>
-              </div>
-            </div>
-          </React.Fragment>
-        ))}
-      </div>
-    );
-  }
-
-  return null;
 }
 
 /**
