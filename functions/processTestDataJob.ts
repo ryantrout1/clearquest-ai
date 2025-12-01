@@ -1212,7 +1212,18 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   
   await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: finalFollowupsCount });
   
-  return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount } };
+  console.log('[TEST_DATA][SESSION_COMPLETE]', {
+    fileNumber,
+    riskLevel,
+    totalQuestionsAnswered: allQuestions.length,
+    responsesCreated,
+    yesCount,
+    noCount,
+    followupsCreated,
+    transcriptFollowupCount
+  });
+  
+  return { action: sessionId ? "updated" : "created", fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount, totalQuestions: allQuestions.length } };
 }
 
 async function runSeeder(base44, config, jobId) {
