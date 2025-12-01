@@ -719,21 +719,16 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   console.log(`[TEST_DATA][FULL_INTERVIEW] Processing ${fileNumber} (${name}), risk: ${riskLevel}`);
   console.log(`[TEST_DATA][FULL_INTERVIEW] Total questions: ${allQuestions.length}, Yes answers: ${yesSet.size}, useAiFollowups: ${useAiFollowups}`);
   
+  // CRITICAL FIX: Always create a NEW session for test data
+  // Do NOT reuse existing sessions (especially deleted/archived ones)
+  // This ensures Response records are never orphaned
   let session = null;
-  try {
-    const existing = await base44.asServiceRole.entities.InterviewSession.filter({ department_code: deptCode, file_number: fileNumber });
-    if (existing.length > 0) {
-      session = existing[0];
-      try {
-        const oldResponses = await base44.asServiceRole.entities.Response.filter({ session_id: session.id });
-        for (const r of oldResponses) await base44.asServiceRole.entities.Response.delete(r.id);
-      } catch (e) {}
-      try {
-        const oldFollowups = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: session.id });
-        for (const f of oldFollowups) await base44.asServiceRole.entities.FollowUpResponse.delete(f.id);
-      } catch (e) {}
-    }
-  } catch (err) {}
+  
+  // Generate a unique file number with timestamp to avoid collisions
+  const uniqueFileNumber = `${fileNumber}-${Date.now().toString(36).toUpperCase()}`;
+  const uniqueSessionCode = `${deptCode}_${uniqueFileNumber}`;
+  
+  console.log('[TEST_DATA] Creating NEW session with unique file_number:', uniqueFileNumber);
   
   const now = new Date();
   const startTime = new Date(now.getTime() - 7200000);
