@@ -717,6 +717,22 @@ export default function CandidateInterview() {
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
   
+  // QUESTION-LEVEL PROGRESS: Track answered questions vs total
+  const totalQuestionsAllSections = engine?.TotalQuestions || 0;
+  const answeredQuestionsAllSections = useMemo(
+    () => transcript.filter(t => t.type === 'question').length,
+    [transcript]
+  );
+  const questionCompletionPct = totalQuestionsAllSections > 0
+    ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
+    : 0;
+  
+  console.log('[QUESTION-PROGRESS]', {
+    answeredQuestionsAllSections,
+    totalQuestionsAllSections,
+    questionCompletionPct
+  });
+  
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
   const AI_RESPONSE_TIMEOUT_MS = 45000; // 45 seconds - how long we wait for AI to respond
@@ -4237,7 +4253,8 @@ export default function CandidateInterview() {
                 console.log('[HEADER-SECTION-PROGRESS]', {
                   headerCompletedSections,
                   headerTotalSections,
-                  sectionCompletionPct
+                  sectionCompletionPct,
+                  questionCompletionPct
                 });
                 
                 // Build perSection for bar segments
@@ -4267,8 +4284,8 @@ export default function CandidateInterview() {
                       role="progressbar"
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      aria-valuenow={sectionCompletionPct}
-                      aria-label={`Interview progress: ${headerCompletedSections} of ${headerTotalSections} sections complete`}
+                      aria-valuenow={questionCompletionPct}
+                      aria-label={`Interview progress: ${questionCompletionPct}% complete, ${headerCompletedSections} of ${headerTotalSections} sections`}
                     >
                       {perSection.map((s, idx) => {
                         const widthPct = totalQuestionsAllSections > 0 
@@ -4307,8 +4324,8 @@ export default function CandidateInterview() {
                         )}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="sr-only">Progress: {headerCompletedSections} of {headerTotalSections} sections complete</span>
-                        <span className="text-xs font-medium text-green-400">{sectionCompletionPct}%</span>
+                        <span className="sr-only">Progress: {questionCompletionPct}% complete, {headerCompletedSections} of {headerTotalSections} sections</span>
+                        <span className="text-xs font-medium text-green-400">{questionCompletionPct}%</span>
                         <span className="text-xs text-green-400">•</span>
                         <span className="text-xs font-medium text-green-400">{headerCompletedSections} / {headerTotalSections} sections complete</span>
                       </div>
