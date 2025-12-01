@@ -1358,7 +1358,11 @@ async function runSeeder(base44, config, jobId) {
   // CRITICAL: Ensure candidateConfigs is populated
   if (candidateConfigs.length === 0) {
     console.error('[TEST_DATA][ERROR] No candidates configured! Check config:', { lowRiskCount, midRiskCount, highRiskCount, isLegacyMode });
+    // Return early with error info
+    return { created: 0, updated: 0, results: [], questionsUsed: allQuestions.length, cancelled: false, createdSessionIds: [], error: 'No candidates configured' };
   }
+  
+  console.log('[TEST_DATA][CANDIDATE_CONFIGS] Final candidateConfigs array:', candidateConfigs.map(c => ({ fileNumber: c.fileNumber, risk: c.riskLevel, yesCount: c.yesQuestionIds?.length })));
   
   const results = [];
   let created = 0, updated = 0;
