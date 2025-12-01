@@ -1563,12 +1563,121 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
   );
 }
 
+/**
+ * Build deterministic follow-ups grouped by response ID from transcript events
+ * This is the NEW primary source for Structured view (replaces FollowUpResponse entity)
+ * Shape: { [responseId]: { [instanceNumber]: { packId, followups: [{questionText, answerText, followupQuestionId}], aiProbes: [...] } } }
+ */
+function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
+  const followupsByResponseId = {};
+  
+  // First pass: pair up question and answer events
+  const questionEvents = transcriptEvents.filter(e => e.kind === 'deterministic_followup_question');
+  const answerEvents = transcriptEvents.filter(e => e.kind === 'deterministic_followup_answer');
+  const aiQuestionEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_question');
+  const aiAnswerEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_answer');
+  
+  // Group deterministic follow-ups by responseId
+  questionEvents.forEach(qEvent => {
+    const responseId = qEvent.responseId || qEvent.parentResponseId;
+    if (!responseId) return;
+    
+    const instanceNum = qEvent.instanceNumber || 1;
+    const packId = qEvent.followupPackId;
+    const followupQuestionId = qEvent.followupQuestionId || qEvent.fieldKey;
+    
+    // Find matching answer
+    const matchingAnswer = answerEvents.find(aEvent => 
+      (aEvent.responseId === responseId || aEvent.parentResponseId === responseId) &&
+      (aEvent.followupQuestionId === followupQuestionId || aEvent.fieldKey === followupQuestionId) &&
+      aEvent.instanceNumber === qEvent.instanceNumber
+    );
+    
+    // Initialize containers
+    if (!followupsByResponseId[responseId]) {
+      followupsByResponseId[responseId] = {};
+    }
+    if (!followupsByResponseId[responseId][instanceNum]) {
+      followupsByResponseId[responseId][instanceNum] = {
+        packId,
+        followups: [],
+        aiProbes: []
+      };
+    }
+    
+    followupsByResponseId[responseId][instanceNum].followups.push({
+      followupQuestionId,
+      questionText: qEvent.text,
+      answerText: matchingAnswer?.text || '',
+      fieldKey: qEvent.fieldKey
+    });
+  });
+  
+  // Group AI probes by responseId
+  aiQuestionEvents.forEach(qEvent => {
+    const responseId = qEvent.responseId || qEvent.parentResponseId;
+    // For AI probes without responseId, try to find via baseQuestionId
+    const baseQuestionId = qEvent.baseQuestionId;
+    
+    const instanceNum = qEvent.instanceNumber || 1;
+    
+    // Find matching answer
+    const matchingAnswer = aiAnswerEvents.find(aEvent => 
+      aEvent.baseQuestionId === baseQuestionId &&
+      aEvent.instanceNumber === instanceNum &&
+      Math.abs((aEvent.sortKey || 0) - (qEvent.sortKey || 0)) < 20 // Close in sequence
+    );
+    
+    // Try to find the responseId from deterministic follow-ups for same baseQuestionId
+    let targetResponseId = responseId;
+    if (!targetResponseId) {
+      // Look through existing entries to find one with matching baseQuestionId
+      for (const [rid, instances] of Object.entries(followupsByResponseId)) {
+        // Check if any instance has matching packId for this question
+        if (Object.values(instances).some(inst => inst.packId === qEvent.followupPackId)) {
+          targetResponseId = rid;
+          break;
+        }
+      }
+    }
+    
+    if (!targetResponseId) return;
+    
+    if (!followupsByResponseId[targetResponseId]) {
+      followupsByResponseId[targetResponseId] = {};
+    }
+    if (!followupsByResponseId[targetResponseId][instanceNum]) {
+      followupsByResponseId[targetResponseId][instanceNum] = {
+        packId: qEvent.followupPackId,
+        followups: [],
+        aiProbes: []
+      };
+    }
+    
+    followupsByResponseId[targetResponseId][instanceNum].aiProbes.push({
+      probing_question: qEvent.text,
+      candidate_response: matchingAnswer?.text || '',
+      sequence_number: qEvent.probeIndex || followupsByResponseId[targetResponseId][instanceNum].aiProbes.length + 1
+    });
+  });
+  
+  console.log('[SESSIONDETAILS] Built followupsByResponseId from transcript', {
+    responseIdCount: Object.keys(followupsByResponseId).length,
+    sampleEntry: Object.entries(followupsByResponseId)[0]
+  });
+  
+  return followupsByResponseId;
+}
+
 function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId, drivingFactsFromTranscript }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
   // Group events by base question
   const eventsByQuestion = groupEventsByBaseQuestion(transcriptEvents);
+  
+  // BUILD FOLLOW-UPS FROM TRANSCRIPT (not FollowUpResponse entity)
+  const followupsByResponseId = buildFollowupsByResponseIdFromTranscript(transcriptEvents);
   
   // Sort categories by section_order from Section entities
   const sortedCategories = Object.entries(responsesByCategory).sort((a, b) => {
