@@ -41,6 +41,53 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // ============================================================================
 
 /**
+ * CANONICAL PROGRESS COMPUTATION
+ * Single source of truth for section/question progress
+ * Used by both header and section completion cards
+ */
+function computeSectionProgress(sections, transcript, engine, extraAnsweredQuestionId = null) {
+  // Build a set of answered question IDs from transcript
+  const answeredQuestionIdsSet = new Set(
+    transcript
+      .filter(t => t.type === 'question' && t.questionId)
+      .map(t => t.questionId)
+  );
+
+  // Optionally include the just-answered question if provided
+  if (extraAnsweredQuestionId) {
+    answeredQuestionIdsSet.add(extraAnsweredQuestionId);
+  }
+
+  const perSection = sections.map((section, index) => {
+    const sectionQuestionIds = section.questionIds || [];
+    const totalQuestions = sectionQuestionIds.length;
+    const answeredQuestions = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
+    const isComplete = totalQuestions > 0 && answeredQuestions >= totalQuestions;
+    return {
+      id: section.id,
+      name: section.displayName || section.name,
+      index,
+      totalQuestions,
+      answeredQuestions,
+      isComplete
+    };
+  });
+
+  const totalSections = sections.length;
+  const completedSections = perSection.filter(s => s.isComplete).length;
+  const totalQuestionsAllSections =
+    perSection.reduce((sum, s) => sum + s.totalQuestions, 0) ||
+    (engine?.TotalQuestions || 0);
+
+  return {
+    totalSections,
+    completedSections,
+    perSection,
+    totalQuestionsAllSections
+  };
+}
+
+/**
  * Build ordered sections array from engine metadata
  * Derives sections from Section entities already in engine
  */
@@ -724,37 +771,8 @@ export default function CandidateInterview() {
       return { totalSections: 0, completedSections: 0, perSection: [], totalQuestionsAllSections: 0 };
     }
     
-    // Build set of answered question IDs from transcript
-    const answeredQuestionIdsSet = new Set(
-      transcript.filter(t => t.type === 'question').map(t => t.questionId)
-    );
-    
-    const perSection = sections.map((section, idx) => {
-      const sectionQuestionIds = section.questionIds || [];
-      const totalInSection = sectionQuestionIds.length;
-      const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
-      const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
-      
-      return {
-        id: section.id,
-        name: section.displayName,
-        index: idx,
-        totalQuestions: totalInSection,
-        answeredQuestions: answeredInSection,
-        isComplete
-      };
-    });
-    
-    const totalQuestionsAllSections = perSection.reduce((sum, s) => sum + s.totalQuestions, 0);
-    const completedSections = perSection.filter(s => s.isComplete).length;
-    
-    return {
-      totalSections: sections.length,
-      completedSections,
-      perSection,
-      totalQuestionsAllSections
-    };
-  }, [sections, transcript]);
+    return computeSectionProgress(sections, transcript, engine);
+  }, [sections, transcript, engine]);
   
   // CONSTANTS - Separate timeouts for typing vs AI response
   const MAX_PROBE_TURNS = 6; // Safety cap for probing exchanges
@@ -1256,33 +1274,33 @@ export default function CandidateInterview() {
         // Section complete - add enhanced completion message with progress
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
         
-        // CANONICAL PROGRESS CALCULATION: Use same logic as sectionProgress useMemo
-        // to ensure header and card show identical values
-        const answeredQuestionIdsSet = new Set(
-          transcript.filter(t => t.type === 'question').map(t => t.questionId)
+        // CANONICAL PROGRESS: Use shared helper with just-answered question included
+        const progressSnapshot = computeSectionProgress(
+          sections,
+          transcript,
+          engine,
+          baseQuestionId
         );
-        answeredQuestionIdsSet.add(baseQuestionId); // Include the just-answered question
         
-        const progressPerSection = sections.map((section) => {
-          const sectionQuestionIds = section.questionIds || [];
-          const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
-          const totalInSection = sectionQuestionIds.length;
-          const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
-          return { isComplete };
-        });
+        const answeredQuestionsCount = progressSnapshot.perSection
+          .reduce((sum, s) => sum + s.answeredQuestions, 0);
         
-        const completedSectionsCount = progressPerSection.filter(s => s.isComplete).length;
-        const totalSectionsCount = sections.length;
-        const answeredQuestionsCount = answeredQuestionIdsSet.size;
-        
-        console.log('[SECTION-PROGRESS][CARD-CREATION]', {
+        console.log('[SECTION-PROGRESS][AFTER-ADVANCE]', {
+          baseQuestionId,
           completedSectionName: nextResult.completedSection.displayName,
           nextSectionName: nextResult.nextSection.displayName,
-          completedSections: completedSectionsCount,
-          totalSections: totalSectionsCount,
-          answeredQuestions: answeredQuestionsCount,
-          totalQuestions: engine?.TotalQuestions || 0,
-          calculation: 'matches-sectionProgress-useMemo'
+          progressSnapshot,
+          headerProgress: {
+            completedSections: progressSnapshot.completedSections,
+            totalSections: progressSnapshot.totalSections,
+            percent: Math.round((progressSnapshot.completedSections / progressSnapshot.totalSections) * 100)
+          },
+          cardProgress: {
+            completedSections: progressSnapshot.completedSections,
+            totalSections: progressSnapshot.totalSections,
+            answeredQuestions: answeredQuestionsCount,
+            totalQuestions: progressSnapshot.totalQuestionsAllSections
+          }
         });
         
         const completionMessage = {
@@ -1297,10 +1315,10 @@ export default function CandidateInterview() {
           nextSectionName: nextResult.nextSection.displayName,
           whatToExpect: whatToExpect,
           progress: {
-            completedSections: completedSectionsCount,
-            totalSections: totalSectionsCount,
+            completedSections: progressSnapshot.completedSections,
+            totalSections: progressSnapshot.totalSections,
             answeredQuestions: answeredQuestionsCount,
-            totalQuestions: engine?.TotalQuestions || 0
+            totalQuestions: progressSnapshot.totalQuestionsAllSections
           }
         };
         
