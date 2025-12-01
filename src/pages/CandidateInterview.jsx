@@ -4232,37 +4232,11 @@ export default function CandidateInterview() {
             </div>
             
             <div>
-              {/* Segmented Overall Bar - one segment per section, green only when complete */}
+              {/* Segmented Overall Bar - uses memoized sectionProgress */}
               {(() => {
-                // Build set of answered question IDs from transcript
-                const answeredQuestionIdsSet = new Set(
-                  transcript.filter(t => t.type === 'question').map(t => t.questionId)
-                );
-                
-                // Build section progress data - isComplete based ONLY on answered questions
-                const sectionProgressData = sections.map((section, idx) => {
-                  const sectionQuestionIds = section.questionIds || [];
-                  const totalInSection = sectionQuestionIds.length;
-                  // Count how many of this section's questions have been answered
-                  const answeredInSection = sectionQuestionIds.filter(qId => answeredQuestionIdsSet.has(qId)).length;
-                  // Section is complete when ALL questions in it are answered
-                  const isComplete = totalInSection > 0 && answeredInSection >= totalInSection;
-                  
-                  return {
-                    sectionId: section.id,
-                    sectionName: section.displayName,
-                    index: idx,
-                    totalQuestions: totalInSection,
-                    answeredQuestions: answeredInSection,
-                    isComplete
-                  };
-                });
-                
-                const totalQuestionsAllSections = sectionProgressData.reduce((sum, s) => sum + s.totalQuestions, 0);
-                const completedSectionsCount = sectionProgressData.filter(s => s.isComplete).length;
-                const totalSectionsCount = sections.length;
-                const sectionCompletionPct = totalSectionsCount > 0 
-                  ? Math.round((completedSectionsCount / totalSectionsCount) * 100) 
+                const { totalSections, completedSections, perSection, totalQuestionsAllSections } = sectionProgress;
+                const sectionCompletionPct = totalSections > 0 
+                  ? Math.round((completedSections / totalSections) * 100) 
                   : 0;
                 
                 return (
@@ -4273,9 +4247,9 @@ export default function CandidateInterview() {
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={sectionCompletionPct}
-                      aria-label={`Interview progress: ${completedSectionsCount} of ${totalSectionsCount} sections complete`}
+                      aria-label={`Interview progress: ${completedSections} of ${totalSections} sections complete`}
                     >
-                      {sectionProgressData.map((s, idx) => {
+                      {perSection.map((s, idx) => {
                         const widthPct = totalQuestionsAllSections > 0 
                           ? (s.totalQuestions / totalQuestionsAllSections) * 100 
                           : 0;
@@ -4284,11 +4258,11 @@ export default function CandidateInterview() {
                         // Color logic: green ONLY if isComplete, regardless of current section
                         return (
                           <div
-                            key={s.sectionId}
+                            key={s.id}
                             className={`h-full relative transition-all duration-300 ${
                               idx === 0 ? 'rounded-l-full' : ''
                             } ${
-                              idx === sectionProgressData.length - 1 ? 'rounded-r-full' : ''
+                              idx === perSection.length - 1 ? 'rounded-r-full' : ''
                             } ${
                               s.isComplete 
                                 ? 'bg-gradient-to-r from-green-500 to-green-600' 
@@ -4307,15 +4281,15 @@ export default function CandidateInterview() {
                     <div className="flex justify-between items-center mt-1">
                       <span className="text-[10px] text-slate-300">
                         Overall
-                        {activeSection && sections.length > 0 && (
-                          <> • Section {currentSectionIndex + 1} of {totalSectionsCount}: {activeSection.displayName}</>
+                        {activeSection && totalSections > 0 && (
+                          <> • Section {currentSectionIndex + 1} of {totalSections}: {activeSection.displayName}</>
                         )}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="sr-only">Progress: {completedSectionsCount} of {totalSectionsCount} sections complete</span>
+                        <span className="sr-only">Progress: {completedSections} of {totalSections} sections complete</span>
                         <span className="text-xs font-medium text-green-400">{sectionCompletionPct}%</span>
                         <span className="text-xs text-green-400">•</span>
-                        <span className="text-xs font-medium text-green-400">{completedSectionsCount} / {totalSectionsCount} sections complete</span>
+                        <span className="text-xs font-medium text-green-400">{completedSections} / {totalSections} sections complete</span>
                       </div>
                     </div>
                   </>
