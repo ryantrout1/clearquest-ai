@@ -555,7 +555,7 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     }
     try {
       const responseRecord = await base44.asServiceRole.entities.Response.create({
-        session_id: session.id, question_id: q.question_id, question_text: q.question_text, category: sectionName,
+        session_id: sessionId, question_id: q.question_id, question_text: q.question_text, category: sectionName,
         answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, followup_pack: isYes ? q.followup_pack : null,
         is_flagged: isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG')),
         response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString(),
