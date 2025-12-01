@@ -649,10 +649,52 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
           transcriptIndicesToUpdate[questionId] = [];
         }
         
+        // === AI-POWERED ANSWER GENERATION ===
+        let answerByQuestionId = new Map();
+        
+        if (useAiFollowups && packQuestions.length > 0) {
+          // Build AI payload
+          const sectionInfo = getSectionInfoFromPack(packId, sectionName);
+          const incidentStory = buildIncidentStory(packId, riskLevel, baseQ.question_text);
+          
+          const aiPayload = {
+            candidateProfile: {
+              riskBand: riskLevel,
+              deptCode: deptCode,
+              fileNumber: fileNumber,
+              candidateName: name
+            },
+            sectionInfo: sectionInfo,
+            incidentStory: incidentStory,
+            questions: packQuestions.map(q => ({
+              questionId: q.followup_question_id,
+              code: q.followup_question_id,
+              text: q.question_text
+            }))
+          };
+          
+          // Call AI to generate answers
+          const aiResult = await generateAIFollowupAnswers(base44, aiPayload);
+          
+          // Build map from questionId to answer
+          if (aiResult.answers && Array.isArray(aiResult.answers)) {
+            aiResult.answers.forEach(a => {
+              if (a.questionId && a.answer) {
+                answerByQuestionId.set(a.questionId, a.answer);
+              }
+            });
+          }
+        }
+        
         // Add each deterministic follow-up question and answer
         packQuestions.forEach((fuq, idx) => {
           currentTime += 2000 + Math.floor(Math.random() * 1000);
-          const answer = generateFollowUpAnswerForQuestion(fuq, packId, riskLevel, packData, idx);
+          
+          // Use AI-generated answer if available, otherwise fall back to template-based
+          let answer = answerByQuestionId.get(fuq.followup_question_id);
+          if (!answer) {
+            answer = generateFollowUpAnswerForQuestion(fuq, packId, riskLevel, packData, idx);
+          }
           
           const questionEntryIndex = finalTranscript.length;
           
