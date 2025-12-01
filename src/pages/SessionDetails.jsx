@@ -1581,7 +1581,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         key={response.id}
                         response={response}
                         session={session}
-                        followups={followups.filter(f => f.response_id === response.id)}
+                        followups={followups.filter(f => f.response_id === response.id || f.question_id === response.question_id)}
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
@@ -1596,7 +1596,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                         key={response.id}
                         response={response}
                         session={session}
-                        followups={followups.filter(f => f.response_id === response.id)}
+                        followups={followups.filter(f => f.response_id === response.id || f.question_id === response.question_id)}
                         followUpQuestionEntities={followUpQuestionEntities}
                         isExpanded={expandedQuestions.has(response.id)}
                         onToggleExpand={() => toggleQuestionExpanded(response.id)}
