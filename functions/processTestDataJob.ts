@@ -529,11 +529,17 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
     data_version: "v2.5-hybrid"
   };
   
+  let sessionId;
   if (session) {
-    await base44.asServiceRole.entities.InterviewSession.update(session.id, sessionData);
+    sessionId = session.id;
+    await base44.asServiceRole.entities.InterviewSession.update(sessionId, sessionData);
   } else {
-    session = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
+    const created = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
+    sessionId = created.id;
+    session = created;
   }
+  
+  console.log('[PROCESS] Session ID for FollowUpResponse creation:', sessionId);
   
   // Create Response records and track them by question_id for linking FollowUpResponses
   const responsesByQuestionId = {};
