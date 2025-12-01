@@ -640,24 +640,41 @@ async function createMockSession(base44, config, candidateConfig, questions, sec
       // Even if no FollowUpQuestion entities, create at least one generic FollowUpResponse
       const narrativeAnswer = generateFollowUpAnswer(q.followup_pack, riskLevel, packData);
       try {
-        const created = await base44.asServiceRole.entities.FollowUpResponse.create({ 
+        const fallbackPayload = { 
           session_id: sessionId, 
-          response_id: responseId,
           question_id: q.question_id, 
-          question_text_snapshot: q.question_text, 
           followup_pack: q.followup_pack, 
           instance_number: 1, 
+          question_text_snapshot: q.question_text, 
           incident_description: narrativeAnswer,
           circumstances: narrativeAnswer,
           accountability_response: "I take full responsibility for my actions.",
           additional_details: { candidate_narrative: narrativeAnswer }, 
           completed: true, 
           completed_timestamp: endTime.toISOString() 
-        });
-        console.log('[PROCESS] Created fallback FollowUpResponse', created.id, 'for', q.question_id);
-        followupsCreated++;
+        };
+        // Only add response_id if it exists
+        if (responseId) fallbackPayload.response_id = responseId;
+        
+        console.log('[PROCESS] Creating fallback FollowUpResponse with payload:', JSON.stringify({
+          session_id: fallbackPayload.session_id,
+          question_id: fallbackPayload.question_id,
+          followup_pack: fallbackPayload.followup_pack
+        }));
+        
+        const created = await base44.asServiceRole.entities.FollowUpResponse.create(fallbackPayload);
+        const createdId = created?.id || created?.data?.id;
+        
+        if (createdId) {
+          console.log('[PROCESS] SUCCESS: Created fallback FollowUpResponse', createdId, 'for', q.question_id);
+          followupsCreated++;
+        } else {
+          console.error('[PROCESS] WARNING: Fallback create returned but no id. Result:', JSON.stringify(created).substring(0, 300));
+        }
       } catch (e) {
-        console.error('[PROCESS] FAILED to create fallback FollowUpResponse for', q.question_id, ':', e.message);
+        console.error('[PROCESS] FAILED to create fallback FollowUpResponse for', q.question_id);
+        console.error('[PROCESS] Error:', e.message);
+        console.error('[PROCESS] Stack:', e.stack?.substring(0, 500));
       }
       continue;
     }
