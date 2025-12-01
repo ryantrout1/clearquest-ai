@@ -1735,6 +1735,14 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
   const hasTranscriptFollowups = transcriptInstanceNumbers.length > 0 && 
     transcriptInstanceNumbers.some(n => (transcriptFollowups[n]?.followups?.length > 0 || transcriptFollowups[n]?.aiProbes?.length > 0));
   
+  // DIAGNOSTIC LOG: Verify binding for each question
+  console.log('[SESSIONDEBUG] instance followups', {
+    questionId: response.question_id,
+    responseId: response?.id,
+    followupCount: hasTranscriptFollowups ? 
+      transcriptInstanceNumbers.reduce((sum, n) => sum + (transcriptFollowups[n]?.followups?.length || 0), 0) : 0
+  });
+  
   // FALLBACK: Check FollowUpResponse entity (legacy)
   const hasDbFollowups = followups.length > 0 || (response.investigator_probing?.length > 0);
   
