@@ -272,13 +272,26 @@ export function groupEventsByBaseQuestion(events) {
 }
 
 /**
- * Resolve follow-up question text from field key
+ * Resolve follow-up question text from field key or followupQuestionId
  */
-export function resolveFollowupQuestionText(fieldKey, packId, followUpQuestionEntities) {
+export function resolveFollowupQuestionText(fieldKeyOrId, packId, followUpQuestionEntities) {
+  if (!followUpQuestionEntities || !fieldKeyOrId) {
+    return fieldKeyOrId || 'Follow-up Question';
+  }
+  
   const packQuestions = followUpQuestionEntities.filter(
     q => q.followup_pack_id === packId
   );
   
-  const match = packQuestions.find(q => q.followup_question_id === fieldKey);
-  return match?.question_text || fieldKey;
+  // Try exact match on followup_question_id first
+  let match = packQuestions.find(q => q.followup_question_id === fieldKeyOrId);
+  
+  // If no match, try partial match (field key might be stored differently)
+  if (!match && fieldKeyOrId.includes('_')) {
+    match = packQuestions.find(q => 
+      q.followup_question_id?.toLowerCase() === fieldKeyOrId.toLowerCase()
+    );
+  }
+  
+  return match?.question_text || fieldKeyOrId;
 }
