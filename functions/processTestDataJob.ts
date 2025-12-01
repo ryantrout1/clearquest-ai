@@ -199,6 +199,33 @@ const FOLLOWUP_ANSWER_TEMPLATES = {
   }
 };
 
+// Generate a follow-up question text based on pack type
+function getFollowupQuestionText(packId) {
+  const packUpper = (packId || '').toUpperCase();
+  
+  if (packUpper.includes('DUI') || packUpper.includes('DWI')) {
+    return "Please describe the circumstances of this incident, including when it occurred and what happened.";
+  } else if (packUpper.includes('DRIVING') || packUpper.includes('TRAFFIC') || packUpper.includes('COLLISION')) {
+    return "Please provide details about this driving incident, including when it occurred and the outcome.";
+  } else if (packUpper.includes('DRUG') || packUpper.includes('MARIJUANA')) {
+    return "Please describe your experience with this substance, including when you used it, how often, and when you last used it.";
+  } else if (packUpper.includes('FINANCIAL') || packUpper.includes('DEBT') || packUpper.includes('CREDIT')) {
+    return "Please explain the circumstances of this financial issue and its current status.";
+  } else if (packUpper.includes('EMPLOYMENT') || packUpper.includes('TERMINATED') || packUpper.includes('FIRED')) {
+    return "Please describe the circumstances of this employment issue, including what happened and how it was resolved.";
+  } else if (packUpper.includes('CRIME') || packUpper.includes('ARREST') || packUpper.includes('POLICE') || packUpper.includes('CHARGE')) {
+    return "Please provide details about this incident, including what happened and the outcome.";
+  } else if (packUpper.includes('DOMESTIC') || packUpper.includes('FAMILY')) {
+    return "Please describe the circumstances of this incident and how it was resolved.";
+  } else if (packUpper.includes('LE_APP') || packUpper.includes('PRIOR') || packUpper.includes('APPLICATION')) {
+    return "Please provide details about this application, including the agency and outcome.";
+  } else if (packUpper.includes('SOCIAL') || packUpper.includes('MEDIA') || packUpper.includes('DISCLOSURE')) {
+    return "Please describe what information might be found and the circumstances.";
+  } else {
+    return "Please provide additional details about this matter.";
+  }
+}
+
 // Generate realistic follow-up answer based on pack type and risk level
 function generateFollowUpAnswer(packId, riskLevel, followupData) {
   // Map risk levels to template keys
