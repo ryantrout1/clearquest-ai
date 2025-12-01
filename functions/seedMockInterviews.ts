@@ -1,303 +1,244 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * Seed Mock ClearQuest Interviews - Full Version v2
- * Creates 5 complete interview sessions with ALL questions answered
- * Strict persona-based YES/NO patterns with proper follow-up creation
+ * Seed Mock ClearQuest Interviews - Configurable Version
+ * Supports custom config or defaults to legacy 5-persona behavior
  */
 
-const DEPT_CODE = "MPD-12345";
+// Default config for backwards compatibility
+const DEFAULT_CONFIG = {
+  deptCode: "MPD-12345",
+  totalCandidates: 5,
+  lowRiskCount: 2,
+  midRiskCount: 1,
+  highRiskCount: 2,
+  randomizeWithinPersona: false,
+  includeAiProbing: false,
+  enableMultiLoopBackgrounds: true
+};
 
-// Strict YES question IDs per persona - these are the ONLY questions that get YES
-const PERSONA_YES_QUESTIONS = {
+// Legacy fixed personas for deterministic mode
+const LEGACY_PERSONAS = {
   "GREAT-A": {
     name: "TEST – Marcus 'Marc' Delaney",
     riskLevel: "low",
-    // 1-2 mild YES: just a speeding ticket
-    yesQuestionIds: ["Q008"] // traffic citation
+    yesQuestionIds: ["Q008"]
   },
   "GREAT-B": {
-    name: "TEST – Elena Marquez",
+    name: "TEST – Elena Marquez", 
     riskLevel: "low",
-    // 2-3 mild YES: prior LE app (withdrew), minor financial (paid off)
-    yesQuestionIds: ["Q001", "Q091"] // prior LE app, 90 days late on account
+    yesQuestionIds: ["Q001", "Q091"]
   },
   "MID-C": {
     name: "TEST – Daniel 'Danny' Rios",
     riskLevel: "moderate",
-    // 5-7 YES: driving, employment, financial, drugs, police contact
-    yesQuestionIds: [
-      "Q008",  // traffic citation
-      "Q096",  // marijuana use
-      "Q091",  // 90 days late financial
-      "Q125",  // job termination  
-      "Q022",  // questioned/detained by police
-      "Q301"   // detained by police
-    ]
+    yesQuestionIds: ["Q008", "Q096", "Q091", "Q125", "Q022", "Q301"]
   },
   "HIGH-D": {
     name: "TEST – Tyrone 'Ty' Holloway",
     riskLevel: "elevated",
-    // 10-12 YES: marijuana heavy, cocaine once, 2 terminations, domestic, debt, disorderly, social media
-    yesQuestionIds: [
-      "Q096",  // marijuana
-      "Q097",  // other drugs (cocaine)
-      "Q022",  // arrested/questioned
-      "Q301",  // detained
-      "Q024",  // domestic dispute
-      "Q091",  // 90 days late
-      "Q092",  // collections
-      "Q125",  // job termination 1
-      "Q126",  // job termination 2 / resigned to avoid
-      "Q159",  // embarrassment to department
-      "Q160"   // social media issues
-    ]
+    yesQuestionIds: ["Q096", "Q097", "Q022", "Q301", "Q024", "Q091", "Q092", "Q125", "Q126", "Q159", "Q160"]
   },
   "HIGH-E": {
     name: "TEST – Shawn Patrick O'Neill",
     riskLevel: "elevated",
-    // 12-15 YES: DUI, meth, opioids, multiple police, domestic/property, termination, financial, social media
-    yesQuestionIds: [
-      "Q007",  // DUI/DWI
-      "Q008",  // traffic citation
-      "Q096",  // marijuana
-      "Q097",  // other drugs (meth)
-      "Q098",  // prescription misuse (opioids)
-      "Q022",  // arrested/questioned
-      "Q301",  // detained
-      "Q024",  // domestic dispute
-      "Q025",  // property damage
-      "Q091",  // 90 days late
-      "Q092",  // collections
-      "Q093",  // bankruptcy consideration
-      "Q125",  // job termination
-      "Q159",  // embarrassment
-      "Q160"   // social media
-    ]
+    yesQuestionIds: ["Q007", "Q008", "Q096", "Q097", "Q098", "Q022", "Q301", "Q024", "Q025", "Q091", "Q092", "Q093", "Q125", "Q159", "Q160"]
   }
 };
 
-// Follow-up response data per persona per pack
-const FOLLOWUP_DATA = {
-  "GREAT-A": {
+// Question pools for randomized mode by risk level
+const QUESTION_POOLS = {
+  low: {
+    // 1-3 mild YES: traffic citations, minor financial
+    pool: ["Q008", "Q009", "Q091", "Q001"],
+    minYes: 1,
+    maxYes: 3
+  },
+  moderate: {
+    // 5-7 YES: driving, employment, financial, light drugs, non-arrest police contact
+    pool: ["Q008", "Q009", "Q096", "Q091", "Q092", "Q125", "Q022", "Q301", "Q126", "Q159"],
+    minYes: 5,
+    maxYes: 7
+  },
+  high: {
+    // 10-15 YES: DUI, drugs, multiple police, domestic, terminations, financial, social media
+    pool: ["Q007", "Q008", "Q009", "Q096", "Q097", "Q098", "Q022", "Q301", "Q024", "Q025", "Q091", "Q092", "Q093", "Q094", "Q125", "Q126", "Q127", "Q159", "Q160", "Q161"],
+    minYes: 10,
+    maxYes: 15
+  }
+};
+
+// Follow-up data templates
+const FOLLOWUP_TEMPLATES = {
+  low: {
     "PACK_DRIVING_VIOLATIONS_STANDARD": {
       incident_date: "March 2021",
-      incident_location: "I-10, Phoenix, AZ",
-      incident_description: "Minor speeding ticket, 9 mph over the limit",
-      legal_outcome: "Paid fine, attended defensive driving school, no points",
-      circumstances: "Running late to work, wasn't watching speedometer",
-      accountability_response: "Completely my fault. I've been more careful since."
-    }
-  },
-  "GREAT-B": {
+      incident_location: "Highway, local area",
+      incident_description: "Minor speeding ticket, less than 10 mph over limit",
+      legal_outcome: "Paid fine, no points",
+      circumstances: "Was running late, wasn't paying attention to speed",
+      accountability_response: "My fault. I've been more careful since."
+    },
     "PACK_PRIOR_LE_APPS_STANDARD": {
-      incident_date: "January 2022",
-      incident_location: "Glendale, AZ",
-      incident_description: "Applied to Glendale Police Department",
-      legal_outcome: "Withdrew application voluntarily",
-      circumstances: "My mother became seriously ill and I needed to be her caregiver. It wasn't the right time.",
-      accountability_response: "I made the right choice for my family. She has since recovered and I'm ready now."
+      incident_date: "2022",
+      incident_location: "Local area",
+      incident_description: "Applied to nearby agency, withdrew application",
+      legal_outcome: "Withdrew voluntarily",
+      circumstances: "Family circumstances changed, timing wasn't right",
+      accountability_response: "Made the right choice for my family. Ready now."
     },
     "PACK_FINANCIAL_STANDARD": {
       incident_date: "2022",
-      incident_location: "Phoenix, AZ",
-      incident_description: "Medical bill from ER visit went to collections",
-      legal_outcome: "Fully paid off September 2023",
-      circumstances: "Unexpected emergency room visit, about $850. Set up payment plan and completed it.",
-      accountability_response: "I should have addressed it sooner but I paid it in full."
+      incident_description: "Minor bill went to collections",
+      legal_outcome: "Fully paid off",
+      circumstances: "Unexpected expense, set up payment plan and completed it",
+      accountability_response: "Should have addressed it sooner but paid in full."
     }
   },
-  "MID-C": {
+  moderate: {
     "PACK_DRIVING_VIOLATIONS_STANDARD": {
       incident_date: "Around October 2020",
-      incident_location: "Tempe, AZ",
-      incident_description: "Red light violation",
+      incident_location: "Local area",
+      incident_description: "Red light or speeding violation",
       legal_outcome: "Paid the fine",
-      circumstances: "I was distracted, honestly not sure exactly what happened. Right before Halloween I think.",
-      accountability_response: "It was my fault for not paying attention."
+      circumstances: "Was distracted, not sure exactly what happened",
+      accountability_response: "My fault for not paying attention."
     },
     "PACK_DRUG_USE_STANDARD": {
-      incident_date: "First used around 2012 in high school",
+      incident_date: "First used around 2012-2015",
       frequency: "Maybe 10-15 times total",
       last_occurrence: "2018 or early 2019",
       incident_description: "Marijuana experimentation at parties",
-      circumstances: "Social use only at parties in high school and college. Never bought my own.",
-      accountability_response: "It was a phase. I haven't used in over 5 years."
+      circumstances: "Social use only at parties. Never bought my own.",
+      accountability_response: "It was a phase. Haven't used in years."
     },
     "PACK_FINANCIAL_STANDARD": {
       incident_date: "2020",
-      incident_location: "Tempe, AZ",
-      incident_description: "Credit card went 90+ days late during COVID",
+      incident_description: "Credit account went 90+ days late",
       legal_outcome: "Caught up and current now",
-      circumstances: "Hours got cut at work during the pandemic. Once I got back to full time I paid it off.",
-      accountability_response: "I should have communicated with the credit card company sooner."
+      circumstances: "Hours got cut during economic downturn. Paid off once stable.",
+      accountability_response: "Should have communicated with creditor sooner."
     },
     "PACK_EMPLOYMENT_STANDARD": {
-      incident_date: "Summer 2018",
-      incident_location: "Tempe, AZ",
-      incident_description: "Terminated from Target for attendance",
+      incident_date: "2018",
+      incident_description: "Terminated for attendance",
       legal_outcome: "Clean separation",
-      circumstances: "I was calling out sick too much during a rough personal time. Got two write-ups then terminated.",
-      accountability_response: "It was my fault. I should have communicated better with my manager."
+      circumstances: "Calling out too much during rough personal time. Got write-ups then terminated.",
+      accountability_response: "My fault. Should have communicated better."
     },
     "PACK_GENERAL_CRIME_STANDARD": {
-      incident_date: "Summer 2019, maybe July",
-      incident_location: "Tempe, AZ",
-      incident_description: "Roommate argument, neighbors called police",
+      incident_date: "Summer 2019",
+      incident_description: "Noise complaint, roommate argument",
       legal_outcome: "No arrests, no charges. Officers talked to us and left.",
-      circumstances: "We were arguing about bills and chores. It got loud but was never physical.",
-      accountability_response: "We both got too heated. I've learned to walk away now."
+      circumstances: "Arguing about bills and chores. Got loud but never physical.",
+      accountability_response: "We both got too heated. I've learned to walk away."
     }
   },
-  "HIGH-D": {
-    "PACK_DRUG_USE_STANDARD": [{
-      instance_number: 1,
-      substance_name: "Marijuana",
-      incident_date: "Started at 14 or 15, around 2005-2006",
-      frequency: "Every weekend in late teens, then monthly",
-      last_occurrence: "Early 2021, January or February",
-      incident_description: "Regular marijuana use over many years",
-      circumstances: "Social use. In my late teens and early 20s it was like every weekend. Slowed down to once or twice a month. Quit when I started thinking about LE career.",
-      accountability_response: "I know it was wrong. I've been clean for years now."
-    }, {
-      instance_number: 2,
-      substance_name: "Cocaine",
-      incident_date: "Around age 24, so 2015",
-      frequency: "One time only",
-      last_occurrence: "That same night",
-      incident_description: "Tried cocaine once at a party",
-      circumstances: "Someone offered it at a party. I tried it once. Didn't like how it made me feel.",
-      accountability_response: "It was stupid. I never did it again."
-    }],
-    "PACK_GENERAL_CRIME_STANDARD": {
-      incident_date: "Late 2017, October or November",
-      incident_location: "Mesa, AZ",
-      incident_description: "Disorderly conduct at a bar",
-      legal_outcome: "Charges dismissed after community service",
-      circumstances: "Got into an argument at a bar. I pushed somebody. Bouncers called cops. Spent the night in jail.",
-      accountability_response: "I had an anger problem back then. I've worked on it."
-    },
-    "PACK_DOMESTIC_VIOLENCE_STANDARD": {
-      incident_date: "2020",
-      incident_location: "Mesa, AZ",
-      incident_description: "Verbal argument with ex-girlfriend, she called police",
-      legal_outcome: "No arrests. Cops told me to leave for the night.",
-      circumstances: "Big argument, yelling. I might have thrown a pillow. No physical contact with her.",
-      accountability_response: "I should have walked away sooner. We broke up shortly after."
-    },
-    "PACK_FINANCIAL_STANDARD": {
-      incident_date: "Ongoing",
-      incident_location: "Mesa, AZ",
-      incident_description: "About $2,500 in collections",
-      legal_outcome: "On a payment plan",
-      circumstances: "Some old bills I'm working on. Paying $150 a month.",
-      accountability_response: "I'm addressing it. Should be done in about a year."
-    },
-    "PACK_EMPLOYMENT_STANDARD": [{
-      instance_number: 1,
-      incident_date: "2016",
-      incident_location: "Mesa, AZ",
-      incident_description: "Terminated from Home Depot for insubordination",
-      circumstances: "Got into an argument with a supervisor. I had an attitude problem back then.",
-      accountability_response: "I was young and immature. I've grown a lot since then."
-    }, {
-      instance_number: 2,
-      incident_date: "2019",
-      incident_location: "Mesa, AZ",
-      incident_description: "Terminated from UPS for attendance",
-      circumstances: "Going through a breakup, wasn't showing up consistently.",
-      accountability_response: "Personal issues affected my work. I've learned to separate the two."
-    }],
-    "PACK_GENERAL_DISCLOSURE_STANDARD": {
-      incident_date: "Years ago",
-      incident_description: "Inappropriate social media posts",
-      circumstances: "Shared some crude memes, got into arguments online. Nothing racist. Just immature stuff.",
-      accountability_response: "I've deleted most of it. I'm more careful now about what I post."
-    }
-  },
-  "HIGH-E": {
+  high: {
     "PACK_DRIVING_DUIDWI_STANDARD": {
-      incident_date: "February 2019",
-      incident_location: "Casa Grande, AZ",
+      incident_date: "2019",
       incident_description: "DUI arrest",
-      legal_outcome: "Pled to lesser charge, community service, alcohol classes, license suspended 90 days",
-      circumstances: "I was working at the welding shop in Casa Grande. Got pulled over after drinking at a bar.",
-      accountability_response: "It was a wake-up call. I don't drink and drive anymore."
+      legal_outcome: "Pled to lesser charge, community service, classes, license suspended",
+      circumstances: "Got pulled over after drinking at a bar.",
+      accountability_response: "It was a wake-up call. Don't drink and drive anymore."
     },
     "PACK_DRIVING_VIOLATIONS_STANDARD": {
       incident_date: "Multiple over the years",
-      incident_location: "Arizona",
       incident_description: "Various traffic citations",
       legal_outcome: "Fines paid",
       circumstances: "Speeding mostly. A couple over the years.",
-      accountability_response: "I've been more careful lately."
+      accountability_response: "Been more careful lately."
     },
     "PACK_DRUG_USE_STANDARD": [{
       instance_number: 1,
       substance_name: "Marijuana",
       incident_date: "Started as a teenager",
-      frequency: "Occasional",
-      last_occurrence: "2020",
-      incident_description: "Marijuana use",
-      circumstances: "Used on and off over the years.",
-      accountability_response: "Haven't used since 2020."
+      frequency: "Regular in youth, tapered off",
+      last_occurrence: "2020 or 2021",
+      incident_description: "Marijuana use over many years",
+      circumstances: "Social use. Quit when considering LE career.",
+      accountability_response: "Know it was wrong. Been clean for years."
     }, {
       instance_number: 2,
-      substance_name: "Methamphetamine",
-      incident_date: "2006-2007, age 17-18",
-      frequency: "3-4 times",
-      last_occurrence: "Before age 20",
-      incident_description: "Methamphetamine experimentation in late teens",
-      circumstances: "I was hanging with a bad crowd back then. Tried it a few times.",
-      accountability_response: "That was over 15 years ago. I got away from those people."
+      substance_name: "Other controlled substance",
+      incident_date: "Mid-2000s to 2010s",
+      frequency: "A few times",
+      last_occurrence: "Before age 25",
+      incident_description: "Experimented with harder substances",
+      circumstances: "Was hanging with wrong crowd back then.",
+      accountability_response: "That was years ago. Got away from those people."
     }],
     "PACK_PRESCRIPTION_MISUSE": {
       incident_date: "2020",
-      incident_description: "Opioid misuse after back injury",
+      incident_description: "Prescription medication misuse after injury",
       frequency: "4-5 months",
       last_occurrence: "Late 2020",
-      circumstances: "Had a back injury from welding. Doctor prescribed Oxycodone. I took more than prescribed for a few months.",
-      accountability_response: "I realized I had a problem and talked to my doctor. Got proper treatment."
+      circumstances: "Had injury, prescribed pain meds, took more than prescribed for a while.",
+      accountability_response: "Realized I had a problem and got proper treatment."
     },
     "PACK_GENERAL_CRIME_STANDARD": {
       incident_date: "Multiple times over the years",
-      incident_location: "Various, Arizona",
       incident_description: "Multiple police contacts",
       legal_outcome: "No convictions",
-      circumstances: "Different situations. Domestic calls, disturbances. Maybe 3 or 4 times total.",
+      circumstances: "Different situations - domestic calls, disturbances.",
       accountability_response: "Nothing serious. Just circumstances."
     },
     "PACK_DOMESTIC_VIOLENCE_STANDARD": {
-      incident_date: "2021",
-      incident_location: "Yuma, AZ",
-      incident_description: "Argument with ex-wife during divorce, punched a wall",
-      legal_outcome: "No charges filed. I left before cops arrived.",
-      circumstances: "We were arguing about the divorce. I was frustrated and put a hole in the drywall. Never touched her.",
-      accountability_response: "I paid to fix the wall. The divorce was hard on both of us."
+      incident_date: "2020-2021",
+      incident_description: "Argument with ex, property damage",
+      legal_outcome: "No charges filed. Left before cops arrived.",
+      circumstances: "Heated argument during relationship ending. Put hole in wall, never touched anyone.",
+      accountability_response: "Paid for damage. Relationship was hard on both of us."
     },
     "PACK_FINANCIAL_STANDARD": {
       incident_date: "Current",
-      incident_location: "Yuma, AZ",
-      incident_description: "Approximately $8,000 in collections",
+      incident_description: "Several thousand in collections",
       legal_outcome: "Working on it",
-      circumstances: "Credit card from marriage about $4k. Medical bills from back surgery about $3k. Old phone bill $800.",
-      accountability_response: "I'm trying to get back on my feet after the divorce and layoff."
+      circumstances: "Credit card debt, medical bills, old utilities.",
+      accountability_response: "Trying to get back on feet after job loss."
     },
-    "PACK_EMPLOYMENT_STANDARD": {
-      incident_date: "March 2024",
-      incident_location: "Arizona",
-      incident_description: "Terminated from Arizona Steel Works for insubordination",
-      legal_outcome: "Terminated same day",
-      circumstances: "Supervisor accused me of not following safety protocols. I disagreed and raised my voice. We got into it.",
-      accountability_response: "I should have handled it differently. I was frustrated."
-    },
+    "PACK_EMPLOYMENT_STANDARD": [{
+      instance_number: 1,
+      incident_date: "2016-2018",
+      incident_description: "Terminated for insubordination or attitude",
+      circumstances: "Got into argument with supervisor. Had attitude problem back then.",
+      accountability_response: "Was young and immature. Grown a lot since then."
+    }, {
+      instance_number: 2,
+      incident_date: "2019-2020",
+      incident_description: "Terminated for attendance",
+      circumstances: "Going through personal issues, wasn't showing up consistently.",
+      accountability_response: "Personal issues affected work. Learned to separate the two."
+    }],
     "PACK_GENERAL_DISCLOSURE_STANDARD": {
       incident_date: "Over the years",
       incident_description: "Problematic social media posts",
-      circumstances: "Some angry posts when I was going through stuff. Arguments online. Maybe some inappropriate comments.",
-      accountability_response: "I've deleted most of it. I need to be more careful."
+      circumstances: "Angry posts when going through stuff. Arguments online. Some inappropriate comments.",
+      accountability_response: "Deleted most of it. Need to be more careful."
     }
   }
+};
+
+// AI probing templates for high-risk
+const AI_PROBING_TEMPLATES = {
+  "Q096": [
+    { probing_question: "You mentioned drug use. Can you be more specific about when you first tried it?", candidate_response: "It was in high school, probably around 16 or 17." },
+    { probing_question: "And how many times total would you estimate you used?", candidate_response: "Maybe 10-15 times total. It was just at parties." }
+  ],
+  "Q097": [
+    { probing_question: "You mentioned other controlled substances. Can you be specific about what and when?", candidate_response: "It was years ago. Tried something a few times when I was young." },
+    { probing_question: "How many times exactly?", candidate_response: "Maybe 3 or 4 times. I was hanging with a bad crowd." }
+  ],
+  "Q022": [
+    { probing_question: "Can you provide an approximate date for this police contact?", candidate_response: "I think... maybe 2017 or 2018. Around there." },
+    { probing_question: "What were the circumstances?", candidate_response: "Got into a situation, cops were called. Nothing serious came of it." }
+  ],
+  "Q007": [
+    { probing_question: "Regarding the DUI, can you provide more details about the year?", candidate_response: "It was 2019. February I think." }
+  ],
+  "Q159": [
+    { probing_question: "Can you describe what might cause embarrassment?", candidate_response: "Some old social media posts. Arguments online. Maybe some inappropriate comments." }
+  ]
 };
 
 function generateSessionHash() {
@@ -305,83 +246,82 @@ function generateSessionHash() {
   return Array.from({length: 64}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-async function createMockSession(base44, personaKey, questions, sections) {
-  const persona = PERSONA_YES_QUESTIONS[personaKey];
-  const fileNumber = personaKey;
-  const sessionCode = `${DEPT_CODE}_${fileNumber}`;
-  const yesSet = new Set(persona.yesQuestionIds);
+function generateFileNumber(riskLevel, index, randomize) {
+  const prefix = riskLevel === 'low' ? 'LOW' : riskLevel === 'moderate' ? 'MID' : 'HIGH';
+  const suffix = randomize ? Math.random().toString(36).substring(2, 6).toUpperCase() : String(index + 1).padStart(3, '0');
+  return `TEST-${prefix}-${suffix}`;
+}
+
+function selectRandomYesQuestions(pool, min, max) {
+  const count = Math.floor(Math.random() * (max - min + 1)) + min;
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return new Set(shuffled.slice(0, count));
+}
+
+function getFollowupData(packId, riskLevel, templates) {
+  const levelTemplates = templates[riskLevel] || templates.moderate;
+  return levelTemplates[packId] || null;
+}
+
+async function createMockSession(base44, config, candidateConfig, questions, sections) {
+  const { deptCode, includeAiProbing, enableMultiLoopBackgrounds } = config;
+  const { fileNumber, name, riskLevel, yesQuestionIds } = candidateConfig;
+  const sessionCode = `${deptCode}_${fileNumber}`;
+  const yesSet = new Set(yesQuestionIds);
   
-  console.log(`[SEED] Processing ${fileNumber} (${persona.name})...`);
-  console.log(`[SEED] ${fileNumber} will have ${yesSet.size} YES answers`);
+  console.log(`[SEED] Processing ${fileNumber} (${name}), risk: ${riskLevel}, ${yesSet.size} YES answers`);
   
   // Find or create session
   let session = null;
   try {
     const existing = await base44.asServiceRole.entities.InterviewSession.filter({
-      department_code: DEPT_CODE,
+      department_code: deptCode,
       file_number: fileNumber
     });
     if (existing.length > 0) {
       session = existing[0];
       console.log(`[SEED] Found existing session ${session.id}`);
       
-      // Delete old responses
+      // Delete old data
       try {
         const oldResponses = await base44.asServiceRole.entities.Response.filter({ session_id: session.id });
-        for (const r of oldResponses) {
-          await base44.asServiceRole.entities.Response.delete(r.id);
-        }
+        for (const r of oldResponses) await base44.asServiceRole.entities.Response.delete(r.id);
         console.log(`[SEED] Deleted ${oldResponses.length} old responses`);
-      } catch (e) { console.log(`[SEED] Error deleting responses: ${e.message}`); }
+      } catch (e) {}
       
-      // Delete old followups
       try {
         const oldFollowups = await base44.asServiceRole.entities.FollowUpResponse.filter({ session_id: session.id });
-        for (const f of oldFollowups) {
-          await base44.asServiceRole.entities.FollowUpResponse.delete(f.id);
-        }
+        for (const f of oldFollowups) await base44.asServiceRole.entities.FollowUpResponse.delete(f.id);
         console.log(`[SEED] Deleted ${oldFollowups.length} old followups`);
-      } catch (e) { console.log(`[SEED] Error deleting followups: ${e.message}`); }
+      } catch (e) {}
     }
-  } catch (err) {
-    console.log(`[SEED] No existing session: ${err.message}`);
-  }
+  } catch (err) {}
   
   const now = new Date();
-  const startTime = new Date(now.getTime() - 7200000); // 2 hours ago
+  const startTime = new Date(now.getTime() - 7200000);
   let currentTime = startTime.getTime();
   
   // Build section map
   const sectionMap = {};
-  for (const s of sections) {
-    sectionMap[s.section_id] = s.section_name;
-  }
+  for (const s of sections) sectionMap[s.section_id] = s.section_name;
   
   const transcript = [];
-  let yesCount = 0;
-  let noCount = 0;
-  let redFlagsCount = 0;
-  let followupsCreated = 0;
+  let yesCount = 0, noCount = 0, redFlagsCount = 0, followupsCreated = 0;
   
   // Process ALL questions
-  console.log(`[SEED] Processing ${questions.length} questions for ${fileNumber}...`);
-  
   for (const q of questions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
-    const answer = isYes ? "Yes" : "No";
     
     if (isYes) yesCount++;
     else noCount++;
     
-    // Timestamp: 5-10 seconds per question
     currentTime += 5000 + Math.floor(Math.random() * 5000);
     const questionTimestamp = new Date(currentTime).toISOString();
     
     currentTime += 3000 + Math.floor(Math.random() * 4000);
     const answerTimestamp = new Date(currentTime).toISOString();
     
-    // Add to transcript
     transcript.push({
       type: "question",
       section: sectionName,
@@ -393,18 +333,40 @@ async function createMockSession(base44, personaKey, questions, sections) {
     transcript.push({
       type: "answer",
       question_id: q.question_id,
-      answer,
+      answer: isYes ? "Yes" : "No",
       triggered_followup: isYes && !!q.followup_pack,
       timestamp: answerTimestamp
     });
     
-    // Check if flagged
+    // Add AI probing if enabled and applicable
+    if (includeAiProbing && isYes && riskLevel !== 'low') {
+      const probes = AI_PROBING_TEMPLATES[q.question_id];
+      if (probes) {
+        for (const probe of probes) {
+          currentTime += 3000 + Math.floor(Math.random() * 3000);
+          transcript.push({
+            type: "ai_probe",
+            question_id: q.question_id,
+            question_text: probe.probing_question,
+            timestamp: new Date(currentTime).toISOString()
+          });
+          
+          currentTime += 4000 + Math.floor(Math.random() * 4000);
+          transcript.push({
+            type: "ai_probe_answer",
+            question_id: q.question_id,
+            answer: probe.candidate_response,
+            timestamp: new Date(currentTime).toISOString()
+          });
+        }
+      }
+    }
+    
     const isFlagged = isYes && (
       q.followup_pack?.includes('CRIME') ||
       q.followup_pack?.includes('DRUG') ||
       q.followup_pack?.includes('DUI') ||
-      q.followup_pack?.includes('DOMESTIC') ||
-      q.followup_pack?.includes('VIOLENCE')
+      q.followup_pack?.includes('DOMESTIC')
     );
     if (isFlagged) redFlagsCount++;
   }
@@ -414,7 +376,7 @@ async function createMockSession(base44, personaKey, questions, sections) {
   // Create/update session
   const sessionData = {
     session_code: sessionCode,
-    department_code: DEPT_CODE,
+    department_code: deptCode,
     file_number: fileNumber,
     status: "completed",
     is_archived: false,
@@ -422,39 +384,53 @@ async function createMockSession(base44, personaKey, questions, sections) {
     completed_at: endTime.toISOString(),
     last_activity_at: endTime.toISOString(),
     questions_answered_count: questions.length,
-    followups_count: 0, // Will update after
-    ai_probes_count: 0,
+    followups_count: 0,
+    ai_probes_count: includeAiProbing && riskLevel !== 'low' ? Math.floor(yesCount * 0.3) : 0,
     red_flags_count: redFlagsCount,
     completion_percent: 100,
     elapsed_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000),
     active_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000) - 300,
     transcript_snapshot: transcript,
     session_hash: generateSessionHash(),
-    risk_rating: persona.riskLevel,
+    risk_rating: riskLevel,
     metadata: {
       isTestData: true,
       testPersona: fileNumber,
-      candidateName: persona.name,
+      candidateName: name,
       generatedAt: now.toISOString(),
       yesCount,
-      noCount
+      noCount,
+      config: { includeAiProbing, enableMultiLoopBackgrounds, randomized: config.randomizeWithinPersona }
     },
     data_version: "v2.5-hybrid"
   };
   
   if (session) {
     await base44.asServiceRole.entities.InterviewSession.update(session.id, sessionData);
-    console.log(`[SEED] Updated session ${session.id}`);
   } else {
     session = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
-    console.log(`[SEED] Created session ${session.id}`);
   }
   
-  // Create Response records for ALL questions
+  // Create Response records
   let responsesCreated = 0;
   for (const q of questions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
+    
+    const investigatorProbing = [];
+    if (includeAiProbing && isYes && riskLevel !== 'low') {
+      const probes = AI_PROBING_TEMPLATES[q.question_id];
+      if (probes) {
+        probes.forEach((p, i) => {
+          investigatorProbing.push({
+            sequence_number: i + 1,
+            probing_question: p.probing_question,
+            candidate_response: p.candidate_response,
+            timestamp: new Date().toISOString()
+          });
+        });
+      }
+    }
     
     try {
       await base44.asServiceRole.entities.Response.create({
@@ -466,23 +442,19 @@ async function createMockSession(base44, personaKey, questions, sections) {
         triggered_followup: isYes && !!q.followup_pack,
         followup_pack: isYes ? q.followup_pack : null,
         is_flagged: isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG')),
-        response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString()
+        response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString(),
+        investigator_probing: investigatorProbing.length > 0 ? investigatorProbing : undefined
       });
       responsesCreated++;
-    } catch (e) {
-      console.log(`[SEED] Response error for ${q.question_id}: ${e.message}`);
-    }
+    } catch (e) {}
   }
   
-  // Create FollowUpResponse records for YES answers with followup_pack
-  const personaFollowups = FOLLOWUP_DATA[personaKey] || {};
-  
+  // Create FollowUpResponse records
   for (const q of questions) {
     if (!yesSet.has(q.question_id) || !q.followup_pack) continue;
     
-    const packData = personaFollowups[q.followup_pack];
+    const packData = getFollowupData(q.followup_pack, riskLevel, FOLLOWUP_TEMPLATES);
     if (!packData) {
-      // Create generic followup even if no specific data
       try {
         await base44.asServiceRole.entities.FollowUpResponse.create({
           session_id: session.id,
@@ -495,16 +467,14 @@ async function createMockSession(base44, personaKey, questions, sections) {
           completed_timestamp: endTime.toISOString()
         });
         followupsCreated++;
-      } catch (e) {
-        console.log(`[SEED] Generic followup error: ${e.message}`);
-      }
+      } catch (e) {}
       continue;
     }
     
-    // Handle array (multi-instance) or single followup
     const items = Array.isArray(packData) ? packData : [packData];
+    const maxInstances = enableMultiLoopBackgrounds && riskLevel !== 'low' ? items.length : 1;
     
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < Math.min(items.length, maxInstances); i++) {
       const data = items[i];
       try {
         await base44.asServiceRole.entities.FollowUpResponse.create({
@@ -527,56 +497,65 @@ async function createMockSession(base44, personaKey, questions, sections) {
           completed_timestamp: endTime.toISOString()
         });
         followupsCreated++;
-      } catch (e) {
-        console.log(`[SEED] Followup error for ${q.followup_pack}: ${e.message}`);
-      }
+      } catch (e) {}
     }
   }
   
-  // Update session with followup count
-  await base44.asServiceRole.entities.InterviewSession.update(session.id, {
-    followups_count: followupsCreated
-  });
+  await base44.asServiceRole.entities.InterviewSession.update(session.id, { followups_count: followupsCreated });
   
-  console.log(`[SEED] ${fileNumber}: ${responsesCreated} responses, ${followupsCreated} followups, ${yesCount} YES, ${noCount} NO, ${redFlagsCount} flags`);
+  console.log(`[SEED] ${fileNumber}: ${responsesCreated} responses, ${followupsCreated} followups, ${yesCount} YES, ${noCount} NO`);
   
   return {
     action: session ? "updated" : "created",
     fileNumber,
-    sessionId: session.id,
+    riskLevel,
     stats: { responsesCreated, followupsCreated, yesCount, noCount, redFlagsCount }
   };
 }
 
 Deno.serve(async (req) => {
-  console.log('[SEED] Starting full seeder v2...');
+  console.log('[SEED] Starting configurable seeder...');
   
   try {
     const base44 = createClientFromRequest(req);
     
     let user = null;
-    try {
-      user = await base44.auth.me();
-    } catch (e) {
-      console.log('[SEED] Auth error:', e.message);
-    }
+    try { user = await base44.auth.me(); } catch (e) {}
     
     if (!user || (user.role !== 'admin' && user.role !== 'SUPER_ADMIN')) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
     
-    // Fetch ALL active questions
-    const questions = await base44.asServiceRole.entities.Question.filter({ active: true });
-    console.log(`[SEED] Found ${questions.length} active questions`);
+    // Parse config from request body
+    let config = { ...DEFAULT_CONFIG };
+    try {
+      const body = await req.json();
+      if (body && typeof body === 'object') {
+        config = { ...DEFAULT_CONFIG, ...body };
+      }
+    } catch (e) {
+      // No body or invalid JSON - use defaults
+    }
     
-    // Fetch sections
+    console.log('[SEED] Config:', JSON.stringify(config));
+    
+    // Validate config
+    const { deptCode, totalCandidates, lowRiskCount, midRiskCount, highRiskCount, randomizeWithinPersona } = config;
+    
+    if (lowRiskCount + midRiskCount + highRiskCount !== totalCandidates) {
+      return Response.json({ 
+        error: `Risk counts (${lowRiskCount}+${midRiskCount}+${highRiskCount}=${lowRiskCount + midRiskCount + highRiskCount}) must equal totalCandidates (${totalCandidates})` 
+      }, { status: 400 });
+    }
+    
+    // Fetch questions and sections
+    const questions = await base44.asServiceRole.entities.Question.filter({ active: true });
     const sections = await base44.asServiceRole.entities.Section.filter({ active: true });
+    console.log(`[SEED] Found ${questions.length} questions, ${sections.length} sections`);
     
     // Sort questions
     const sectionOrderMap = {};
-    for (const s of sections) {
-      sectionOrderMap[s.section_id] = s.section_order || 999;
-    }
+    for (const s of sections) sectionOrderMap[s.section_id] = s.section_order || 999;
     questions.sort((a, b) => {
       const sA = sectionOrderMap[a.section_id] || 999;
       const sB = sectionOrderMap[b.section_id] || 999;
@@ -584,25 +563,104 @@ Deno.serve(async (req) => {
       return (a.display_order || 0) - (b.display_order || 0);
     });
     
+    // Build candidate configs based on settings
+    const candidateConfigs = [];
+    
+    // Check if using legacy deterministic mode with default counts
+    const isLegacyMode = !randomizeWithinPersona && 
+      deptCode === "MPD-12345" && 
+      totalCandidates === 5 && 
+      lowRiskCount === 2 && 
+      midRiskCount === 1 && 
+      highRiskCount === 2;
+    
+    if (isLegacyMode) {
+      // Use fixed legacy personas
+      Object.entries(LEGACY_PERSONAS).forEach(([key, persona]) => {
+        candidateConfigs.push({
+          fileNumber: key,
+          name: persona.name,
+          riskLevel: persona.riskLevel,
+          yesQuestionIds: persona.yesQuestionIds
+        });
+      });
+    } else {
+      // Generate new candidates based on config
+      let lowIdx = 0, midIdx = 0, highIdx = 0;
+      
+      for (let i = 0; i < lowRiskCount; i++) {
+        const yesIds = randomizeWithinPersona 
+          ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.low.pool, QUESTION_POOLS.low.minYes, QUESTION_POOLS.low.maxYes))
+          : QUESTION_POOLS.low.pool.slice(0, 2);
+        
+        candidateConfigs.push({
+          fileNumber: generateFileNumber('low', lowIdx++, randomizeWithinPersona),
+          name: `TEST – Low Risk Candidate ${lowIdx}`,
+          riskLevel: 'low',
+          yesQuestionIds: yesIds
+        });
+      }
+      
+      for (let i = 0; i < midRiskCount; i++) {
+        const yesIds = randomizeWithinPersona
+          ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.moderate.pool, QUESTION_POOLS.moderate.minYes, QUESTION_POOLS.moderate.maxYes))
+          : QUESTION_POOLS.moderate.pool.slice(0, 6);
+        
+        candidateConfigs.push({
+          fileNumber: generateFileNumber('moderate', midIdx++, randomizeWithinPersona),
+          name: `TEST – Mid Risk Candidate ${midIdx}`,
+          riskLevel: 'moderate',
+          yesQuestionIds: yesIds
+        });
+      }
+      
+      for (let i = 0; i < highRiskCount; i++) {
+        const yesIds = randomizeWithinPersona
+          ? Array.from(selectRandomYesQuestions(QUESTION_POOLS.high.pool, QUESTION_POOLS.high.minYes, QUESTION_POOLS.high.maxYes))
+          : QUESTION_POOLS.high.pool.slice(0, 12);
+        
+        candidateConfigs.push({
+          fileNumber: generateFileNumber('high', highIdx++, randomizeWithinPersona),
+          name: `TEST – High Risk Candidate ${highIdx}`,
+          riskLevel: 'elevated',
+          yesQuestionIds: yesIds
+        });
+      }
+    }
+    
+    console.log(`[SEED] Generating ${candidateConfigs.length} candidates (${lowRiskCount}L/${midRiskCount}M/${highRiskCount}H)`);
+    
+    // Generate sessions
     const results = [];
     let created = 0, updated = 0;
     
-    for (const personaKey of Object.keys(PERSONA_YES_QUESTIONS)) {
+    for (const candidateConfig of candidateConfigs) {
       try {
-        const result = await createMockSession(base44, personaKey, questions, sections);
+        const result = await createMockSession(base44, config, candidateConfig, questions, sections);
         results.push({ ...result, success: true });
         if (result.action === "created") created++;
         else updated++;
       } catch (error) {
-        console.error(`[SEED] Error for ${personaKey}:`, error.message);
-        results.push({ fileNumber: personaKey, success: false, error: error.message });
+        console.error(`[SEED] Error for ${candidateConfig.fileNumber}:`, error.message);
+        results.push({ fileNumber: candidateConfig.fileNumber, success: false, error: error.message });
       }
     }
     
+    console.log(`[SEED] Complete. Created: ${created}, Updated: ${updated}`);
+    
     return Response.json({
       success: true,
-      departmentCode: DEPT_CODE,
+      departmentCode: deptCode,
       questionsUsed: questions.length,
+      config: {
+        totalCandidates,
+        lowRiskCount,
+        midRiskCount,
+        highRiskCount,
+        randomizeWithinPersona,
+        includeAiProbing: config.includeAiProbing,
+        enableMultiLoopBackgrounds: config.enableMultiLoopBackgrounds
+      },
       created,
       updated,
       results
