@@ -1913,6 +1913,86 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
             <span className="flex-shrink-0 w-5 opacity-0 pointer-events-none">{answerLetter}</span>
             <div className="flex-1 bg-slate-800/50 rounded border border-slate-700/50 p-2">
               <div className="space-y-1">
+                {/* USE TRANSCRIPT FOLLOW-UPS AS PRIMARY SOURCE */}
+                {hasTranscriptFollowups ? (
+                  <>
+                    {transcriptInstanceNumbers.length > 1 && (
+                      <div className="text-xs font-semibold text-cyan-400 mb-1">
+                        🔁 {transcriptInstanceNumbers.length} Instances Recorded
+                      </div>
+                    )}
+                    {transcriptInstanceNumbers.map((instanceNum, instanceIdx) => {
+                      const transcriptInstance = transcriptFollowups[instanceNum];
+                      if (!transcriptInstance) return null;
+                      const isInstanceExpanded = expandedInstances.has(String(instanceNum));
+                      
+                      const deterministicEntries = (transcriptInstance.followups || []).map((fu, idx) => ({
+                        detailKey: fu.followupQuestionId || fu.fieldKey || `field_${idx}`,
+                        detailValue: fu.answerText,
+                        displayOrder: idx,
+                        questionText: fu.questionText || fu.followupQuestionId || 'Follow-up question'
+                      }));
+                      
+                      const sortedAiExchanges = (transcriptInstance.aiProbes || []).sort((a, b) => 
+                        (a.sequence_number || 0) - (b.sequence_number || 0)
+                      );
+                      
+                      const hasAnyContent = deterministicEntries.length > 0 || sortedAiExchanges.length > 0;
+                      const summaryValues = deterministicEntries.map(e => e.detailValue).filter(Boolean);
+                      const summaryLine = summaryValues.length > 0 ? summaryValues.slice(0, 3).join(' • ') : null;
+                      
+                      return (
+                        <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
+                          <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
+                            <div className="flex flex-col gap-0.5 text-left">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="font-semibold">Instance {instanceIdx + 1}</span>
+                                <Badge className="text-[9px] bg-emerald-500/20 text-emerald-300 border-emerald-500/30">from transcript</Badge>
+                              </div>
+                              {summaryLine && (<div className="text-[11px] text-slate-400">{summaryLine}</div>)}
+                            </div>
+                            <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
+                          </button>
+                          {isInstanceExpanded && (
+                            <div className="px-3 pb-3 pt-1 space-y-2">
+                              {deterministicEntries.length > 0 && (
+                                <div>
+                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
+                                  <div className="divide-y divide-slate-700/60 text-xs">
+                                    {deterministicEntries.map((entry, idx) => (
+                                      <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
+                                        <div className="text-slate-200"><span className="mr-1 font-medium">{idx + 1}.</span><span className="italic">{entry.questionText}</span></div>
+                                        <div className="text-right text-slate-50 font-semibold">{entry.detailValue}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {sortedAiExchanges.length > 0 && (
+                                <div className="pt-2">
+                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">AI Investigator Follow-Ups</div>
+                                  <div className="border-l border-slate-700/70 pl-3 space-y-2 text-xs">
+                                    {sortedAiExchanges.map((ex, idx) => (
+                                      <div key={idx} className="space-y-1">
+                                        <div className="text-slate-200"><span className="font-semibold">Investigator: </span><span className="italic">{ex.probing_question}</span></div>
+                                        <div className="text-slate-300"><span className="font-semibold">Response: </span><span>{ex.candidate_response}</span></div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {!hasAnyContent && (
+                                <div className="text-xs text-slate-500 italic">No details recorded</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  /* FALLBACK: Use FollowUpResponse entity (legacy path) */
+                  <>
                 {instanceNumbers.length > 1 && (
                   <div className="text-xs font-semibold text-cyan-400 mb-1">
                     🔁 {instanceNumbers.length} Instances Recorded
