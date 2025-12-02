@@ -32,6 +32,7 @@ import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from
 import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/systemConfigHelpers";
 import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
+import V3DebugPanel from "../components/interview/V3DebugPanel";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -474,6 +475,9 @@ export default function CandidateInterview() {
   const [v3ProbingContext, setV3ProbingContext] = useState(null);
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
   const [v3EnabledPacks, setV3EnabledPacks] = useState({});
+  // V3 Debug mode
+  const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   
   const displayNumberMapRef = useRef({});
   
@@ -540,6 +544,18 @@ export default function CandidateInterview() {
       
       const ideActive = effectiveMode === "AI_PROBING" || effectiveMode === "HYBRID";
       setIdeEnabled(ideActive);
+
+      // Check V3 debug mode
+      const v3DebugMode = config.v3?.debug_mode_enabled || false;
+      setV3DebugEnabled(v3DebugMode);
+
+      // Check if current user is admin
+      try {
+        const user = await base44.auth.me();
+        setIsAdminUser(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
+      } catch (e) {
+        setIsAdminUser(false);
+      }
       
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
@@ -2567,6 +2583,14 @@ export default function CandidateInterview() {
           </Button>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+
+      {/* V3 Debug Panel - Admin only */}
+      {v3DebugEnabled && isAdminUser && session?.ide_version === "V3" && (
+        <V3DebugPanel 
+          sessionId={sessionId} 
+          incidentId={v3ProbingContext?.incidentId}
+        />
+      )}
+      </div>
+      );
 }

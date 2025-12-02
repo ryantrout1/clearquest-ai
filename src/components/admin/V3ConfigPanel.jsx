@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Layers, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { Loader2, Save, Layers, AlertTriangle, CheckCircle2, FileText, Bug } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,8 @@ const DEFAULT_V3_CONFIG = {
   max_turns_per_incident: 12,
   non_substantive_threshold_chars: 15,
   logging_level: "BASIC",
-  stop_when_required_complete: true
+  stop_when_required_complete: true,
+  debug_mode_enabled: false
 };
 
 const CONFIG_KEY = "global_config";
@@ -400,6 +401,34 @@ export default function V3ConfigPanel() {
             <p className="text-xs text-slate-500">
               Controls verbosity of V3 DecisionTrace and InterviewTranscript logging
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Debug Mode */}
+      <Card className="bg-amber-950/20 border-amber-700/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-amber-300 flex items-center gap-2">
+            <Bug className="w-5 h-5" />
+            V3 Debug Mode
+            <Badge className="ml-2 bg-amber-600/30 text-amber-200 text-xs">Admin Testing</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-amber-700/40 bg-amber-950/30 p-4">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium text-amber-200">
+                Enable V3 Debug Mode (Admin-only)
+              </Label>
+              <p className="text-xs text-amber-300/70">
+                When enabled, V3 sessions display extra debug panels for admins to inspect 
+                incidents, facts, and transcript messages in real-time. Do not use in production with real candidates.
+              </p>
+            </div>
+            <Switch
+              checked={v3Config.debug_mode_enabled || false}
+              onCheckedChange={(checked) => updateV3Config("debug_mode_enabled", checked)}
+            />
           </div>
         </CardContent>
       </Card>
