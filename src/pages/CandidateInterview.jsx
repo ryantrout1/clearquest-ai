@@ -1609,14 +1609,11 @@ export default function CandidateInterview() {
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
         const answerSummary = value.length > 50 ? value.substring(0, 50) + '...' : value;
-        console.log("[V2_PACK][ANSWER]", { 
-          packId, 
-          fieldKey, 
-          fieldIndex,
-          answer: answerSummary,
-          instanceNumber,
-          baseQuestionId
-        });
+        // EXPLICIT LOGGING: V2 pack answer submission
+        console.log(`[V2_PACK][ANSWER_SUBMIT] ========== V2 PACK ANSWER SUBMITTED ==========`);
+        console.log(`[V2_PACK][ANSWER_SUBMIT] pack=${packId} field=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][ANSWER_SUBMIT] answer="${answerSummary}"`);
+        console.log(`[V2_PACK][ANSWER_SUBMIT] instanceNumber=${instanceNumber}, baseQuestionId=${baseQuestionId}`);
         
         if (!activeV2Pack) {
           console.error("[V2_PACK] No active V2 pack but handling v2_pack_field");
