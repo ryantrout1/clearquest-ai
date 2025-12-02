@@ -310,6 +310,76 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
   }
 };
 
+// Centralized V2 probe runner for both base questions and follow-ups
+const runV2FieldProbeIfNeeded = async ({
+  base44Client,
+  packId,
+  fieldKey,
+  fieldValue,
+  previousProbesCount,
+  incidentContext,
+  sessionId,
+  questionCode,
+  baseQuestionId,
+  aiProbingEnabled,
+  aiProbingDisabledForSession,
+  maxAiFollowups
+}) => {
+  const probeCount = previousProbesCount || 0;
+  
+  if (!ENABLE_LIVE_AI_FOLLOWUPS) {
+    console.log('[V2 FIELD PROBE] skipping – ENABLE_LIVE_AI_FOLLOWUPS is false');
+    return { mode: 'SKIP', reason: 'feature disabled' };
+  }
+  
+  if (!aiProbingEnabled) {
+    console.log('[V2 FIELD PROBE] skipping – aiProbingEnabled is false');
+    return { mode: 'SKIP', reason: 'AI probing disabled globally' };
+  }
+  
+  if (aiProbingDisabledForSession) {
+    console.log('[V2 FIELD PROBE] skipping – AI disabled for this session');
+    return { mode: 'SKIP', reason: 'AI disabled for session' };
+  }
+  
+  if (probeCount >= maxAiFollowups) {
+    console.log('[V2 FIELD PROBE] skipping – max probes reached', { probeCount, maxAiFollowups });
+    return { mode: 'SKIP', reason: 'quota exceeded' };
+  }
+  
+  console.log('[V2 FIELD PROBE] follow-up: calling backend', {
+    packId,
+    fieldKey,
+    questionCode,
+    baseQuestionId,
+    answer: fieldValue?.substring?.(0, 50) || fieldValue
+  });
+  
+  try {
+    const v2Result = await callProbeEngineV2PerField(base44Client, {
+      packId,
+      fieldKey,
+      fieldValue,
+      previousProbesCount: probeCount,
+      incidentContext,
+      sessionId,
+      questionCode,
+      baseQuestionId
+    });
+    
+    console.log('[V2 FIELD PROBE] success', {
+      mode: v2Result?.mode,
+      followups: v2Result?.followups?.length ?? 0,
+      hasQuestion: !!v2Result?.question
+    });
+    
+    return v2Result;
+  } catch (err) {
+    console.error('[V2 FIELD PROBE ERROR]', { packId, fieldKey, error: err?.message });
+    return { mode: 'ERROR', message: err?.message };
+  }
+};
+
 export default function CandidateInterview() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
