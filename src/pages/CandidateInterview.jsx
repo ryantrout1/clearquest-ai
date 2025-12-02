@@ -1704,6 +1704,11 @@ export default function CandidateInterview() {
           base_question_id: baseQuestionId
         });
 
+        // Special log for PACK_PRIOR_LE_APPS_STANDARD before backend call
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND_CALL] Calling backend for ${fieldKey}...`);
+        }
+        
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
@@ -1718,6 +1723,11 @@ export default function CandidateInterview() {
           aiProbingDisabledForSession,
           maxAiFollowups
         });
+
+        // Special log for PACK_PRIOR_LE_APPS_STANDARD after backend call
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}`);
+        }
 
         // EXPLICIT LOGGING: Backend response for V2 pack
         const isLastField = fieldIndex >= activeV2Pack.fields.length - 1;
