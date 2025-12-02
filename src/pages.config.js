@@ -21,9 +21,9 @@ import InterviewStructureManager from './pages/InterviewStructureManager';
 import FollowupPackManager from './pages/FollowupPackManager';
 import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
 import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
-import CandidateInterview from './pages/CandidateInterview';
 import SystemConfiguration from './pages/SystemConfiguration';
 import AiSettings from './pages/AiSettings';
+import CandidateInterview from './pages/CandidateInterview';
 import __Layout from './Layout.jsx';
 
 
@@ -51,9 +51,9 @@ export const PAGES = {
     "FollowupPackManager": FollowupPackManager,
     "FollowUpPackQuickAssign": FollowUpPackQuickAssign,
     "FollowUpPackManagerV2": FollowUpPackManagerV2,
-    "CandidateInterview": CandidateInterview,
     "SystemConfiguration": SystemConfiguration,
     "AiSettings": AiSettings,
+    "CandidateInterview": CandidateInterview,
 }
 
 export const pagesConfig = {
