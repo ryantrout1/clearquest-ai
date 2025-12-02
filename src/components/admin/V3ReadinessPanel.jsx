@@ -424,18 +424,24 @@ export default function V3ReadinessPanel() {
                 
                 {report.selfTest.checks && Object.keys(report.selfTest.checks).length > 0 && (
                   <div className="space-y-2">
-                    {Object.entries(report.selfTest.checks).map(([checkName, passed]) => (
-                      <div key={checkName} className="flex items-center justify-between p-2 rounded bg-slate-800/30">
-                        <span className="text-xs text-slate-300 capitalize">
-                          {checkName.replace(/_/g, ' ')}
-                        </span>
-                        {passed ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-400" />
-                        )}
-                      </div>
-                    ))}
+                    {Object.entries(report.selfTest.checks).map(([checkName, value]) => {
+                      // Handle different value types: true/false booleans, truthy strings, or error messages
+                      const isPassed = value === true || (typeof value === 'string' && !value.toLowerCase().includes('error'));
+                      const isError = typeof value === 'string' && value.toLowerCase().includes('error');
+                      
+                      return (
+                        <div key={checkName} className="flex items-center justify-between p-2 rounded bg-slate-800/30">
+                          <span className="text-xs text-slate-300 capitalize">
+                            {checkName.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                          </span>
+                          {isPassed ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 
