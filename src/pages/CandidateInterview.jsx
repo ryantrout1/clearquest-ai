@@ -1158,15 +1158,18 @@ export default function CandidateInterview() {
         const normalizedAnswer = validation.normalized || value;
 
         const isV2Pack = useProbeEngineV2(packId);
-
-        // Log followup answer for debugging
-        console.log('[FOLLOWUP ANSWER]', {
-          code: step.Field_Key,
-          packId: packId,
+        
+        console.log('[FOLLOWUP ANSWER] V2 pack check', {
+          packId,
+          isV2Pack,
+          fieldKey,
           answer: normalizedAnswer,
-          isV2Pack: isV2Pack,
-          stepIndex: stepIndex,
-          instanceNumber: instanceNumber
+          stepIndex,
+          instanceNumber,
+          baseQuestionId,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          ENABLE_LIVE_AI_FOLLOWUPS
         });
 
         if (isV2Pack) {
