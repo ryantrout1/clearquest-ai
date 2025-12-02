@@ -1565,6 +1565,8 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     }
   });
 
+  // NOTE: UndefinedPacks is populated later after V2 packs are loaded (see bootstrapEngine)
+
   // Build ActiveOrdered for UI display number lookups ONLY (stores database IDs)
   const ActiveOrdered = [];
   Object.values(sectionConfig)
