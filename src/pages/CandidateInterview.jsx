@@ -1665,12 +1665,13 @@ export default function CandidateInterview() {
         
         const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
         
-        // EXPLICIT LOGGING: V2 pack field submission with full payload details
-        console.log(`[V2_PACK][SEND] ========== V2 PACK FIELD ANSWER SUBMISSION ==========`);
-        console.log(`[V2_PACK][SEND] sessionId=${sessionId}, deptCode=${session?.department_code}, candidateCode=${session?.file_number}`);
-        console.log(`[V2_PACK][SEND] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack.fields.length}`);
-        console.log(`[V2_PACK][SEND] answer="${callSummary}", probeCount=${probeCount}/${maxAiFollowups}`);
-        console.log(`[V2_PACK][SEND] Backend payload:`, {
+        // EXPLICIT LOGGING: Backend call preparation
+        console.log(`[V2_PACK][BACKEND_CALL] ========== CALLING V2 PACK ENGINE ==========`);
+        console.log(`[V2_PACK][BACKEND_CALL] Calling backend V2 pack engine for ${packId} / ${fieldKey}`);
+        console.log(`[V2_PACK][BACKEND_CALL] sessionId=${sessionId}, deptCode=${session?.department_code}`);
+        console.log(`[V2_PACK][BACKEND_CALL] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex + 1}/${activeV2Pack.fields.length}`);
+        console.log(`[V2_PACK][BACKEND_CALL] answer="${callSummary}", probeCount=${probeCount}/${maxAiFollowups}`);
+        console.log(`[V2_PACK][BACKEND_CALL] payload:`, {
           pack_id: packId,
           field_key: fieldKey,
           field_value: normalizedAnswer,
@@ -1679,15 +1680,6 @@ export default function CandidateInterview() {
           session_id: sessionId,
           question_code: baseQuestion?.question_id,
           base_question_id: baseQuestionId
-        });
-        
-        console.log("[V2_PACK][CALL]", { 
-          packId, 
-          fieldKey, 
-          answer: callSummary,
-          probeCount,
-          maxAiFollowups,
-          message: `Sending answer to backend for ${packId} ${fieldKey}`
         });
 
         const v2Result = await runV2FieldProbeIfNeeded({
