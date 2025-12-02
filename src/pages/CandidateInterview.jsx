@@ -38,6 +38,8 @@ const DEBUG_MODE = false;
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
+// File revision: 2025-12-02 - Cleaned and validated
+
 // ============================================================================
 // SECTION-BASED HELPER FUNCTIONS (HOISTED)
 // ============================================================================
