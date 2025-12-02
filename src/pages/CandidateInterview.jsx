@@ -2256,6 +2256,7 @@ export default function CandidateInterview() {
         <div className="max-w-5xl mx-auto space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.type}-${entry.id || index}`}>
+              {/* Base questions with answers */}
               {entry.type === 'question' && (
                 <div className="space-y-3">
                   <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5">
@@ -2266,6 +2267,43 @@ export default function CandidateInterview() {
                       <p className="text-white">{entry.answer}</p>
                     </div>
                   </div>
+                </div>
+              )}
+              
+              {/* V2 Pack questions (source: 'V2_PACK' and kind: 'v2_pack_question') */}
+              {entry.type === 'followup_question' && entry.source === 'V2_PACK' && entry.kind === 'v2_pack_question' && (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-purple-400 font-medium">
+                      Follow-up {entry.stepNumber} of {entry.totalSteps}
+                    </span>
+                  </div>
+                  <p className="text-white text-sm">{entry.questionText || entry.text}</p>
+                </div>
+              )}
+              
+              {/* V2 Pack answers (source: 'V2_PACK' and kind: 'v2_pack_answer') */}
+              {entry.type === 'followup_answer' && entry.source === 'V2_PACK' && entry.kind === 'v2_pack_answer' && (
+                <div className="flex justify-end ml-4">
+                  <div className="bg-purple-600 rounded-xl px-4 py-2">
+                    <p className="text-white text-sm">{entry.answer || entry.text}</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Legacy/deterministic followup entries (combined question+answer) */}
+              {entry.type === 'followup' && !entry.source && (
+                <div className="space-y-2 ml-4">
+                  <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                    <p className="text-slate-300 text-sm">{entry.questionText || entry.text}</p>
+                  </div>
+                  {entry.answer && (
+                    <div className="flex justify-end">
+                      <div className="bg-slate-600 rounded-xl px-4 py-2">
+                        <p className="text-white text-sm">{entry.answer}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
