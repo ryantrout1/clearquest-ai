@@ -1789,19 +1789,17 @@ export default function CandidateInterview() {
           console.log(`[V2_PACK][PRIOR_LE_APPS][DECISION] ${decision.action} - ${decision.reason}`);
         }
 
+        // === EXECUTE DECISION ===
+        
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
-          // Case A: Real AI follow-up found - show it
-          console.log(`[V2_PACK][STAY] ========== STAYING ON FIELD FOR AI PROBE ==========`);
-          console.log(`[V2_PACK][STAY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
-          console.log(`[V2_PACK][STAY] AI probe question: "${decision.question?.substring?.(0, 80)}..."`);
-          console.log(`[V2_PACK][STAY] probeCount: ${probeCount + 1}/${maxAiFollowups}`);
+          // AI follow-up: show probe question, stay on current field
+          console.log(`[V2_PACK][AI_PROBE] Showing AI probe for ${fieldKey}: "${decision.question?.substring?.(0, 60)}..."`);
 
           setAiFollowupCounts(prev => ({
             ...prev,
             [fieldCountKey]: probeCount + 1
           }));
 
-          // Show AI probe question
           setIsWaitingForAgent(true);
           setIsInvokeLLMMode(true);
           setCurrentFieldProbe({
@@ -1815,15 +1813,12 @@ export default function CandidateInterview() {
             isV2PackMode: true
           });
 
-          // Update activeV2Pack with collected answers
           setActiveV2Pack(prev => ({
             ...prev,
             collectedAnswers: updatedCollectedAnswers
           }));
 
           await persistStateToDatabase(newTranscript, [], currentItem);
-          setIsCommitting(false);
-          setInput("");
           return;
         }
 
