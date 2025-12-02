@@ -1819,6 +1819,8 @@ export default function CandidateInterview() {
           }));
 
           await persistStateToDatabase(newTranscript, [], currentItem);
+          setIsCommitting(false);
+          setInput("");
           return;
         }
 
