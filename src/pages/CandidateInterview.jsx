@@ -2247,23 +2247,21 @@ export default function CandidateInterview() {
                 </div>
               )}
               
-              {/* V2 Pack questions (source: 'V2_PACK' and kind: 'v2_pack_question') */}
-              {entry.type === 'followup_question' && entry.source === 'V2_PACK' && entry.kind === 'v2_pack_question' && (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">
-                      Follow-up {entry.stepNumber} of {entry.totalSteps}
-                    </span>
+              {/* V2 Pack followups (combined question+answer, logged on answer submission) */}
+              {entry.type === 'followup_question' && entry.source === 'V2_PACK' && entry.answer && (
+                <div className="space-y-2 ml-4">
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-purple-400 font-medium">
+                        Follow-up {entry.stepNumber} of {entry.totalSteps}
+                      </span>
+                    </div>
+                    <p className="text-white text-sm">{entry.questionText || entry.text}</p>
                   </div>
-                  <p className="text-white text-sm">{entry.questionText || entry.text}</p>
-                </div>
-              )}
-              
-              {/* V2 Pack answers (source: 'V2_PACK' and kind: 'v2_pack_answer') */}
-              {entry.type === 'followup_answer' && entry.source === 'V2_PACK' && entry.kind === 'v2_pack_answer' && (
-                <div className="flex justify-end ml-4">
-                  <div className="bg-purple-600 rounded-xl px-4 py-2">
-                    <p className="text-white text-sm">{entry.answer || entry.text}</p>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-4 py-2">
+                      <p className="text-white text-sm">{entry.answer}</p>
+                    </div>
                   </div>
                 </div>
               )}
