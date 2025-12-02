@@ -1009,6 +1009,64 @@ export default function CandidateInterview() {
             
             const categoryId = mapPackIdToCategory(packId);
             
+            // === V2 PACK HANDLING: Enter V2_PACK mode ===
+            if (isV2Pack) {
+              const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+              
+              if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
+                console.warn("[V2_PACK] Missing or invalid pack config for", packId, packConfig);
+              } else {
+                // Build ordered list of fields in this V2 pack
+                const orderedFields = packConfig.fields
+                  .filter(f => f.fieldKey && f.label)
+                  .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
+                
+                console.log("[V2_PACK] Entering V2 pack mode:", packId, "fields:", orderedFields.map(f => f.fieldKey));
+                
+                // Save the base question answer first
+                saveAnswerToDatabase(currentItem.id, value, question);
+                
+                // Set up V2 pack mode
+                setActiveV2Pack({
+                  packId,
+                  fields: orderedFields,
+                  currentIndex: 0,
+                  baseQuestionId: currentItem.id,
+                  instanceNumber: 1,
+                  substanceName: substanceName,
+                  collectedAnswers: {}
+                });
+                setV2PackTriggerQuestionId(currentItem.id);
+                setV2PackMode("V2_PACK");
+                
+                // Set the first V2 pack field as current item
+                const firstField = orderedFields[0];
+                setCurrentItem({
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0,
+                  fieldKey: firstField.fieldKey,
+                  fieldConfig: firstField,
+                  baseQuestionId: currentItem.id,
+                  instanceNumber: 1
+                });
+                setQueue([]);
+                setCurrentFollowUpAnswers({});
+                
+                await persistStateToDatabase(newTranscript, [], {
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0
+                });
+                
+                setIsCommitting(false);
+                setInput("");
+                return;
+              }
+            }
+            
             if (interviewMode === "AI_PROBING") {
               saveAnswerToDatabase(currentItem.id, value, question);
               advanceToNextBaseQuestion(currentItem.id);
