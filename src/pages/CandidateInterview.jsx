@@ -1661,6 +1661,7 @@ export default function CandidateInterview() {
         const finalAnswer = normalizedAnswer || "(No response provided)";
         const questionText = fieldConfig?.label || fieldKey;
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
         
         // Log V2 pack question AND answer to transcript together (on answer submission only)
         const v2CombinedEntry = createChatEvent('followup_question', {
@@ -1676,59 +1677,45 @@ export default function CandidateInterview() {
           baseQuestionId: baseQuestionId,
           source: 'V2_PACK',
           stepNumber: fieldIndex + 1,
-          totalSteps: packConfig?.fields?.length || 0,
-          answer: normalizedAnswer
+          totalSteps: totalFieldsInPack,
+          answer: finalAnswer
         });
         
         const newTranscript = [...transcript, v2CombinedEntry];
         setTranscript(newTranscript);
         
-        console.log("[V2_PACK] Logged Q&A to transcript on answer:", { packId, fieldKey, answer: normalizedAnswer });
+        console.log(`[V2_PACK][TRANSCRIPT] Logged Q&A: field=${fieldKey}, answer="${finalAnswer.substring(0, 30)}..."`);
         
         // Update collected answers
         const updatedCollectedAnswers = {
           ...activeV2Pack.collectedAnswers,
-          [fieldKey]: normalizedAnswer
+          [fieldKey]: finalAnswer
         };
         
         // Save the follow-up answer to database
-        await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
+        await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
         
-        // Run V2 probing - ALWAYS for V2 packs (backend is the decision maker)
+        // === BACKEND CALL: ALWAYS call for V2 packs ===
+        // The backend controls progression - we do NOT gate this on answer quality
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
         const baseQuestion = engine.QById[baseQuestionId];
         
-        const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
-        
-        // EXPLICIT LOGGING: Backend call preparation
         console.log(`[V2_PACK][BACKEND_CALL] ========== CALLING V2 PACK ENGINE ==========`);
-        console.log(`[V2_PACK][BACKEND_CALL] Calling backend V2 pack engine for ${packId} / ${fieldKey}`);
-        console.log(`[V2_PACK][BACKEND_CALL] sessionId=${sessionId}, deptCode=${session?.department_code}`);
-        console.log(`[V2_PACK][BACKEND_CALL] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex + 1}/${activeV2Pack.fields.length}`);
-        console.log(`[V2_PACK][BACKEND_CALL] answer="${callSummary}", probeCount=${probeCount}/${maxAiFollowups}`);
-        console.log(`[V2_PACK][BACKEND_CALL] payload:`, {
-          pack_id: packId,
-          field_key: fieldKey,
-          field_value: normalizedAnswer,
-          previous_probes_count: probeCount,
-          incident_context: updatedCollectedAnswers,
-          session_id: sessionId,
-          question_code: baseQuestion?.question_id,
-          base_question_id: baseQuestionId
-        });
+        console.log(`[V2_PACK][BACKEND_CALL] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex + 1}/${totalFieldsInPack}`);
+        console.log(`[V2_PACK][BACKEND_CALL] answer="${finalAnswer.substring(0, 50)}...", probeCount=${probeCount}/${maxAiFollowups}`);
 
         // Special log for PACK_PRIOR_LE_APPS_STANDARD before backend call
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND_CALL] Calling backend for ${fieldKey}...`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND] Calling probeEngineV2 for ${fieldKey}...`);
         }
         
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
           fieldKey,
-          fieldValue: normalizedAnswer,
+          fieldValue: finalAnswer,
           previousProbesCount: probeCount,
           incidentContext: updatedCollectedAnswers,
           sessionId,
@@ -1739,18 +1726,13 @@ export default function CandidateInterview() {
           maxAiFollowups
         });
 
-        // Special log for PACK_PRIOR_LE_APPS_STANDARD after backend call
+        // Log backend response
+        const isLastField = fieldIndex >= totalFieldsInPack - 1;
+        console.log(`[V2_PACK][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}, isLastField=${isLastField}`);
+        
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][RESPONSE] mode=${v2Result?.mode}, nextAction=${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}`);
         }
-
-        // EXPLICIT LOGGING: Backend response for V2 pack
-        const isLastField = fieldIndex >= activeV2Pack.fields.length - 1;
-        console.log(`[V2_PACK][BACKEND_RESPONSE] ========== BACKEND DECISION RECEIVED ==========`);
-        console.log(`[V2_PACK][BACKEND_RESPONSE] Backend response for ${packId}: status=${v2Result?.mode || 'unknown'}, isComplete=${isLastField && v2Result?.mode === 'NEXT_FIELD'}, nextField=${isLastField ? null : activeV2Pack.fields[fieldIndex + 1]?.fieldKey}`);
-        console.log(`[V2_PACK][BACKEND_RESPONSE] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex + 1}/${activeV2Pack.fields.length}`);
-        console.log(`[V2_PACK][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}, questionPreview="${v2Result?.question?.substring?.(0, 80) || 'none'}"`);
-        console.log(`[V2_PACK][BACKEND_RESPONSE] willStayOnField=${v2Result?.mode === 'QUESTION'}, willAdvanceToNextField=${v2Result?.mode === 'NEXT_FIELD'}, isLastField=${isLastField}`);
 
         // Interpret V2 probe result to determine action
         const interpretV2ProbeResult = (result, currentFieldIndex, totalFields) => {
