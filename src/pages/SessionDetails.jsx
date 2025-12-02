@@ -1533,11 +1533,20 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
     sampleQuestion: questionEvents[0]
   });
 
+  // Track how many times we've warned about missing responseIds to avoid console spam
+  let missingResponseIdWarnCount = 0;
+  const MAX_MISSING_RESPONSEID_WARNINGS = 3;
+  
   // Group deterministic follow-ups by responseId
   questionEvents.forEach(qEvent => {
     const responseId = qEvent.responseId || qEvent.parentResponseId;
     if (!responseId) {
-      console.warn('[BUILD_FOLLOWUPS] Question event missing responseId', qEvent);
+      missingResponseIdWarnCount++;
+      if (missingResponseIdWarnCount <= MAX_MISSING_RESPONSEID_WARNINGS) {
+        console.warn('[BUILD_FOLLOWUPS] Question event missing responseId', qEvent);
+      } else if (missingResponseIdWarnCount === MAX_MISSING_RESPONSEID_WARNINGS + 1) {
+        console.warn('[BUILD_FOLLOWUPS] Suppressing further "missing responseId" warnings...');
+      }
       return;
     }
     
