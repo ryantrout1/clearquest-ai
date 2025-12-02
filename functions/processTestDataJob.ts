@@ -739,37 +739,111 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   // Also map by database ID for questions that use section DB ID
   for (const s of sections) sectionMap[s.id] = s.section_name;
   
-  const transcript = [];
+  // PHASE 1: Create all Response records FIRST so we have responseIds
+  // This ensures transcript events can be wired with proper responseIds
+  const responsesByQuestionId = {};
+  let responsesCreated = 0;
   let yesCount = 0, noCount = 0, redFlagsCount = 0, followupsCreated = 0;
   
-  // FULL INTERVIEW: Iterate through ALL questions (not filtered by yesSet)
+  console.log('[TEST_DATA][PHASE1] Creating Response records for all', allQuestions.length, 'questions');
+  
   for (const q of allQuestions) {
     const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
     const isYes = yesSet.has(q.question_id);
     if (isYes) yesCount++; else noCount++;
     
+    const investigatorProbing = [];
+    if (includeAiProbing && isYes && riskLevel !== 'low') {
+      const probes = AI_PROBING_TEMPLATES[q.question_id];
+      if (probes) probes.forEach((p, i) => investigatorProbing.push({ sequence_number: i + 1, probing_question: p.probing_question, candidate_response: p.candidate_response, timestamp: new Date().toISOString() }));
+    }
+    
+    const isFlagged = isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG') || q.followup_pack?.includes('DUI') || q.followup_pack?.includes('DOMESTIC'));
+    if (isFlagged) redFlagsCount++;
+    
+    try {
+      const responseRecord = await base44.asServiceRole.entities.Response.create({
+        session_id: sessionId, question_id: q.question_id, question_text: q.question_text, category: sectionName,
+        answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, followup_pack: isYes ? q.followup_pack : null,
+        is_flagged: isFlagged,
+        response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString(),
+        investigator_probing: investigatorProbing.length > 0 ? investigatorProbing : undefined
+      });
+      const createdResponseId = responseRecord?.id || responseRecord?.data?.id;
+      if (createdResponseId) {
+        responsesByQuestionId[q.question_id] = createdResponseId;
+        responsesCreated++;
+      } else {
+        console.error('[TEST_DATA][PHASE1] Response.create returned no ID for', q.question_id);
+      }
+    } catch (e) {
+      console.error('[TEST_DATA][PHASE1] Failed to create Response for', q.question_id, e.message);
+    }
+  }
+  
+  console.log('[TEST_DATA][PHASE1] Created', responsesCreated, 'Response records. Expected:', allQuestions.length);
+  
+  // PHASE 2: Build transcript with responseIds already available
+  const transcript = [];
+  
+  for (const q of allQuestions) {
+    const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
+    const isYes = yesSet.has(q.question_id);
+    const responseId = responsesByQuestionId[q.question_id]; // Now available from Phase 1
+    
+    if (!responseId) {
+      console.warn('[TEST_DATA][PHASE2] Missing responseId for question', q.question_id, '- transcript events will have null responseId');
+    }
+    
     currentTime += 5000 + Math.floor(Math.random() * 5000);
-    transcript.push({ type: "question", section: sectionName, question_id: q.question_id, question_text: q.question_text, timestamp: new Date(currentTime).toISOString() });
+    transcript.push({ 
+      type: "question", 
+      section: sectionName, 
+      question_id: q.question_id, 
+      question_text: q.question_text, 
+      responseId: responseId || null, // Wire responseId to question event
+      timestamp: new Date(currentTime).toISOString() 
+    });
     currentTime += 3000 + Math.floor(Math.random() * 4000);
-    transcript.push({ type: "answer", question_id: q.question_id, answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, timestamp: new Date(currentTime).toISOString() });
+    transcript.push({ 
+      type: "answer", 
+      question_id: q.question_id, 
+      answer: isYes ? "Yes" : "No", 
+      triggered_followup: isYes && !!q.followup_pack, 
+      responseId: responseId || null, // Wire responseId to answer event
+      timestamp: new Date(currentTime).toISOString() 
+    });
     
-    // Add deterministic follow-up Q&A to transcript for Yes answers with follow-up packs
-    // This will be populated with actual FollowUpQuestion entities after the loop
-    
+    // Add AI probing to transcript (if enabled)
     if (includeAiProbing && isYes && riskLevel !== 'low') {
       const probes = AI_PROBING_TEMPLATES[q.question_id];
       if (probes) {
         for (const probe of probes) {
           currentTime += 3000 + Math.floor(Math.random() * 3000);
-          transcript.push({ type: "ai_probe", kind: "ai_probe_question", question_id: q.question_id, baseQuestionId: q.question_id, question_text: probe.probing_question, text: probe.probing_question, timestamp: new Date(currentTime).toISOString() });
+          transcript.push({ 
+            type: "ai_probe", 
+            kind: "ai_probe_question", 
+            question_id: q.question_id, 
+            baseQuestionId: q.question_id, 
+            responseId: responseId || null,
+            question_text: probe.probing_question, 
+            text: probe.probing_question, 
+            timestamp: new Date(currentTime).toISOString() 
+          });
           currentTime += 4000 + Math.floor(Math.random() * 4000);
-          transcript.push({ type: "ai_probe_answer", kind: "ai_probe_answer", question_id: q.question_id, baseQuestionId: q.question_id, answer: probe.candidate_response, text: probe.candidate_response, timestamp: new Date(currentTime).toISOString() });
+          transcript.push({ 
+            type: "ai_probe_answer", 
+            kind: "ai_probe_answer", 
+            question_id: q.question_id, 
+            baseQuestionId: q.question_id, 
+            responseId: responseId || null,
+            answer: probe.candidate_response, 
+            text: probe.candidate_response, 
+            timestamp: new Date(currentTime).toISOString() 
+          });
         }
       }
     }
-    
-    const isFlagged = isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG') || q.followup_pack?.includes('DUI') || q.followup_pack?.includes('DOMESTIC'));
-    if (isFlagged) redFlagsCount++;
   }
   
   const endTime = new Date(currentTime + 60000);
