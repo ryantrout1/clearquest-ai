@@ -1871,9 +1871,9 @@ export default function CandidateInterview() {
         }
 
         // Case C: NEXT_FIELD - advance to next field in pack
-        const nextFieldIndex = fieldIndex + 1;
+        const nextFieldIdx = fieldIndex + 1;
 
-        if (nextFieldIndex >= activeV2Pack.fields.length) {
+        if (nextFieldIdx >= activeV2Pack.fields.length) {
           // Failsafe: should have been caught by COMPLETE_PACK
           console.log("[V2_PACK][ERROR]", { 
             packId,
@@ -1900,7 +1900,7 @@ export default function CandidateInterview() {
         }
 
         // Move to next field
-        const nextFieldDef = activeV2Pack.fields[nextFieldIndex];
+        const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
 
         console.log("[V2_PACK][NEXT]", { 
           packId, 
