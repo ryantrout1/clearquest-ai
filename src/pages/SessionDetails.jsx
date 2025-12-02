@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SectionHeader from "../components/sessionDetails/SectionHeader";
 import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
+import IdeIncidentsPanel from "../components/sessionDetails/IdeIncidentsPanel";
 import { Clock } from "lucide-react";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
