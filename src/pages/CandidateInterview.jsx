@@ -1870,8 +1870,8 @@ export default function CandidateInterview() {
           return;
         }
 
-        // Case B: NEXT_FIELD - advance to next field in pack
-        const nextIndex = fieldIndex + 1;
+        // Case C: NEXT_FIELD - advance to next field in pack
+        const nextFieldIndex = fieldIndex + 1;
 
         if (nextIndex >= activeV2Pack.fields.length) {
           // Failsafe: should have been caught by COMPLETE_PACK
