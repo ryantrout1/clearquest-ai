@@ -2333,20 +2333,10 @@ export default function CandidateInterview() {
               // ============================================================================
               // END IDE v1 INTEGRATION
               // ============================================================================
-            
-            // If we reach here in AI_PROBING mode, IDE check passed but no probing was triggered
-            // Just advance to next question without deterministic follow-ups
-            if (interviewMode === "AI_PROBING") {
-              advanceToNextBaseQuestion(currentItem.id);
-              setIsCommitting(false);
-              setInput("");
-              saveAnswerToDatabase(currentItem.id, value, question);
-              return;
-            }
-            
-            // IDEMPOTENCY: Check if this pack was already triggered for this base question
-            const triggerKey = `${currentItem.id}:${packId}`;
-            if (triggeredPacksRef.current.has(triggerKey)) {
+              
+              // IDEMPOTENCY: Check if this pack was already triggered for this base question
+              const triggerKey = `${currentItem.id}:${packId}`;
+              if (triggeredPacksRef.current.has(triggerKey)) {
             if (DEBUG_MODE) console.log(`[SKIP] Duplicate pack trigger for ${packId}`);
               // Still advance to next question since the pack is already being handled
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
