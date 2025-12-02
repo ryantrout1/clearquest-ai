@@ -1734,91 +1734,60 @@ export default function CandidateInterview() {
           console.log(`[V2_PACK][PRIOR_LE_APPS][RESPONSE] mode=${v2Result?.mode}, nextAction=${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}`);
         }
 
-        // Interpret V2 probe result to determine action
+        // === INTERPRET BACKEND RESPONSE AND DECIDE NEXT ACTION ===
+        // For V2 packs, backend controls progression via mode: NEXT_FIELD, QUESTION, or implicit complete
         const interpretV2ProbeResult = (result, currentFieldIndex, totalFields) => {
           const isLastField = currentFieldIndex >= totalFields - 1;
           
+          // No result = advance (fail-safe)
           if (!result) {
-            console.warn("[V2_PACK] No probe result - advancing");
-            if (isLastField) {
-              return { action: 'COMPLETE_PACK', reason: 'no result on last field' };
-            }
-            return { action: 'NEXT_FIELD', reason: 'no result' };
+            console.log(`[V2_PACK][INTERPRET] No result - ${isLastField ? 'completing pack' : 'advancing'}`);
+            return isLastField 
+              ? { action: 'COMPLETE_PACK', reason: 'no result on last field' }
+              : { action: 'NEXT_FIELD', reason: 'no result - default advance' };
           }
 
-          // Check for error or skip - both should advance to next field
-          if (result.mode === 'ERROR') {
-            console.warn("[V2_PACK] Probe error - advancing", result.message);
-            if (isLastField) {
-              return { action: 'COMPLETE_PACK', reason: 'error on last field' };
-            }
-            return { action: 'NEXT_FIELD', reason: 'error' };
+          // Handle errors gracefully - don't block progression
+          if (result.mode === 'ERROR' || result.mode === 'NONE') {
+            console.log(`[V2_PACK][INTERPRET] Backend returned ${result.mode} - advancing`);
+            return isLastField 
+              ? { action: 'COMPLETE_PACK', reason: `${result.mode} on last field` }
+              : { action: 'NEXT_FIELD', reason: `${result.mode} - advancing` };
           }
 
-          if (result.mode === 'SKIP') {
-            console.log("[V2_PACK] Backend SKIP - advancing (AI disabled or quota)");
-            if (isLastField) {
-              return { action: 'COMPLETE_PACK', reason: 'skip on last field' };
-            }
-            return { action: 'NEXT_FIELD', reason: 'skip' };
-          }
-
-          // Check for real AI follow-up (mode=QUESTION with question text)
-          const hasQuestion = !!result.question;
-
-          // SIMPLIFIED LOGIC: If backend says QUESTION and provides question text, stay on field
-          if (result.mode === 'QUESTION' && hasQuestion) {
-            console.log("[V2_PACK] Backend returned QUESTION mode - staying on field for AI probe");
+          // AI probing: backend wants to ask a follow-up question
+          if (result.mode === 'QUESTION' && result.question) {
+            console.log(`[V2_PACK][INTERPRET] Backend wants AI probe: "${result.question.substring(0, 50)}..."`);
             return { 
               action: 'STAY_ON_FIELD_SHOW_AI', 
-              probes: [result.question],
               question: result.question
             };
           }
 
-          // If backend says NEXT_FIELD, advance to next field
+          // NEXT_FIELD: backend approved advancing to next field
           if (result.mode === 'NEXT_FIELD') {
             if (isLastField) {
-              console.log("[V2_PACK] NEXT_FIELD on last field - completing pack");
+              console.log(`[V2_PACK][INTERPRET] NEXT_FIELD on last field - completing pack`);
               return { action: 'COMPLETE_PACK', reason: 'last field completed' };
             }
-            console.log("[V2_PACK] NEXT_FIELD - advancing to next field");
-            return { action: 'NEXT_FIELD', reason: 'backend approved advance' };
+            console.log(`[V2_PACK][INTERPRET] NEXT_FIELD - advancing to next`);
+            return { action: 'NEXT_FIELD', reason: 'backend approved' };
           }
 
-          // Fallback: if mode is unclear, advance
-          if (isLastField) {
-            return { action: 'COMPLETE_PACK', reason: 'last field, unknown mode' };
-          }
-
-          return { action: 'NEXT_FIELD', reason: 'default advance' };
+          // Default: advance to next field (fail-safe for unknown modes)
+          console.log(`[V2_PACK][INTERPRET] Unknown mode "${result.mode}" - defaulting to ${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}`);
+          return isLastField 
+            ? { action: 'COMPLETE_PACK', reason: 'unknown mode on last field' }
+            : { action: 'NEXT_FIELD', reason: 'unknown mode - default advance' };
         };
 
-        const decision = interpretV2ProbeResult(v2Result, fieldIndex, activeV2Pack.fields.length);
+        const decision = interpretV2ProbeResult(v2Result, fieldIndex, totalFieldsInPack);
 
-        console.log("[V2_PACK][ACTION]", { 
-          packId, 
-          fieldKey, 
-          action: decision.action,
-          reason: decision.reason,
-          currentIndex: fieldIndex,
-          nextIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
-          totalFields: activeV2Pack.fields.length
-        });
+        console.log(`[V2_PACK][DECISION] action=${decision.action}, reason=${decision.reason}, fieldIndex=${fieldIndex}/${totalFieldsInPack}`);
         
-        // EXPLICIT LOGGING: Frontend decision for V2 pack progression
-        console.log(`[V2_PACK][DECISION] ========== FRONTEND DECISION: ${decision.action} ==========`);
-        console.log(`[V2_PACK][DECISION] packId=${packId}, fieldKey=${fieldKey}, action=${decision.action}, reason=${decision.reason}`);
-        console.log(`[V2_PACK][DECISION] Details:`, {
-          currentFieldIndex: fieldIndex,
-          totalFields: activeV2Pack.fields.length,
-          nextFieldIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
-          nextFieldKey: decision.action === 'NEXT_FIELD' && fieldIndex + 1 < activeV2Pack.fields.length 
-            ? activeV2Pack.fields[fieldIndex + 1].fieldKey 
-            : null,
-          willShowAIProbe: decision.action === 'STAY_ON_FIELD_SHOW_AI',
-          willComplete: decision.action === 'COMPLETE_PACK'
-        });
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][DECISION] ${decision.action} - ${decision.reason}`);
+        }
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
