@@ -31,9 +31,13 @@ import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/fo
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
 import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/systemConfigHelpers";
 import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
+import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
+
+// V3 Probing feature flag
+const ENABLE_V3_PROBING = true;
 
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
@@ -464,6 +468,12 @@ export default function CandidateInterview() {
   const [activeV2Pack, setActiveV2Pack] = useState(null);
   // Track the base question ID that triggered the V2 pack so we can resume after
   const [v2PackTriggerQuestionId, setV2PackTriggerQuestionId] = useState(null);
+  
+  // V3 Probing state
+  const [v3ProbingActive, setV3ProbingActive] = useState(false);
+  const [v3ProbingContext, setV3ProbingContext] = useState(null);
+  // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
+  const [v3EnabledPacks, setV3EnabledPacks] = useState({});
   
   const displayNumberMapRef = useRef({});
   
@@ -1012,11 +1022,56 @@ export default function CandidateInterview() {
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
             
-            console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking if V2 pack...`);
+            console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
             const isV2Pack = useProbeEngineV2(packId);
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV2Pack=${isV2Pack}`);
             
             const categoryId = mapPackIdToCategory(packId);
+            
+            // === V3 PROBING CHECK ===
+            if (ENABLE_V3_PROBING && categoryId) {
+              try {
+                // Check if pack has ide_version = "V3"
+                const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
+                const pack = packs[0];
+                
+                if (pack?.ide_version === "V3") {
+                  // Check if FactModel is ready
+                  const factModel = await getFactModelForCategory(categoryId);
+                  
+                  if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
+                    console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
+                    
+                    // Save base question answer
+                    saveAnswerToDatabase(currentItem.id, value, question);
+                    
+                    // Enter V3 probing mode
+                    setV3ProbingActive(true);
+                    setV3ProbingContext({
+                      packId,
+                      categoryId,
+                      baseQuestionId: currentItem.id,
+                      questionCode: question.question_id,
+                      incidentId: null // Will be created by decisionEngineV3
+                    });
+                    
+                    await persistStateToDatabase(newTranscript, [], {
+                      id: `v3-probing-${packId}`,
+                      type: 'v3_probing',
+                      packId,
+                      categoryId,
+                      baseQuestionId: currentItem.id
+                    });
+                    
+                    setIsCommitting(false);
+                    setInput("");
+                    return;
+                  }
+                }
+              } catch (v3Err) {
+                console.warn("[V3 PROBING] Error checking V3 status, falling back:", v3Err);
+              }
+            }
             
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
             if (isV2Pack) {
@@ -1930,7 +1985,53 @@ export default function CandidateInterview() {
     return '';
   }, [engine]);
 
+  // V3 probing completion handler
+  const handleV3ProbingComplete = useCallback(async (result) => {
+    console.log("[V3 PROBING] Complete", result);
+    
+    const { incidentId, categoryId, completionReason, messages } = result;
+    const baseQuestionId = v3ProbingContext?.baseQuestionId;
+    
+    // Add V3 completion to transcript
+    const v3CompleteEntry = {
+      id: `v3-complete-${Date.now()}`,
+      type: 'v3_probing_complete',
+      categoryId,
+      incidentId,
+      completionReason,
+      messageCount: messages?.length || 0,
+      timestamp: new Date().toISOString()
+    };
+    
+    const newTranscript = [...transcript, v3CompleteEntry];
+    setTranscript(newTranscript);
+    
+    // Exit V3 probing mode
+    setV3ProbingActive(false);
+    setV3ProbingContext(null);
+    
+    // Advance to next base question
+    if (baseQuestionId) {
+      await advanceToNextBaseQuestion(baseQuestionId);
+    }
+    
+    await persistStateToDatabase(newTranscript, [], null);
+  }, [v3ProbingContext, transcript, advanceToNextBaseQuestion, persistStateToDatabase]);
+  
+  // V3 transcript update handler
+  const handleV3TranscriptUpdate = useCallback((entry) => {
+    setTranscript(prev => [...prev, {
+      ...entry,
+      id: `v3-${entry.type}-${Date.now()}`
+    }]);
+  }, []);
+
   const getCurrentPrompt = () => {
+    // V3 probing mode - no prompt, V3ProbingLoop handles it
+    if (v3ProbingActive) {
+      return null;
+    }
+    
     if (inIdeProbingLoop && currentIdeQuestion) {
       return {
         type: 'ide_probe',
@@ -2284,7 +2385,19 @@ export default function CandidateInterview() {
             </div>
           ))}
           
-          {currentPrompt && (
+          {/* V3 Probing Loop */}
+          {v3ProbingActive && v3ProbingContext && (
+            <V3ProbingLoop
+              sessionId={sessionId}
+              categoryId={v3ProbingContext.categoryId}
+              incidentId={v3ProbingContext.incidentId}
+              baseQuestionId={v3ProbingContext.baseQuestionId}
+              onComplete={handleV3ProbingComplete}
+              onTranscriptUpdate={handleV3TranscriptUpdate}
+            />
+          )}
+          
+          {currentPrompt && !v3ProbingActive && (
             <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${isV2PackField ? 'border-purple-500/50' : 'border-blue-500/50'}`}>
               <div className="flex items-center gap-2 mb-3">
                 {isV2PackField ? (
@@ -2321,7 +2434,12 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {isYesNoQuestion && !isV2PackField ? (
+          {/* Hide footer input when V3 probing is active - V3ProbingLoop has its own input */}
+          {v3ProbingActive ? (
+            <p className="text-xs text-emerald-400 text-center">
+              Please respond to the AI follow-up questions above.
+            </p>
+          ) : isYesNoQuestion && !isV2PackField ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -2398,9 +2516,11 @@ export default function CandidateInterview() {
             </form>
           )}
           
-          <p className="text-xs text-slate-400 text-center mt-3">
-            Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
-          </p>
+          {!v3ProbingActive && (
+            <p className="text-xs text-slate-400 text-center mt-3">
+              Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
+            </p>
+          )}
         </div>
       </footer>
 
