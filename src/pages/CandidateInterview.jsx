@@ -1620,38 +1620,45 @@ export default function CandidateInterview() {
       } else if (currentItem.type === 'v2_pack_field') {
         // === V2 PACK FIELD ANSWER HANDLING ===
         // CRITICAL: This is the dedicated V2 pack field answer branch - ALWAYS calls backend
-        console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
+        console.log(`[V2_PACK][ANSWER_ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
+        console.log(`[V2_PACK][ANSWER_ENTRY] currentItem:`, JSON.stringify(currentItem));
+        console.log(`[V2_PACK][ANSWER_ENTRY] activeV2Pack:`, activeV2Pack ? JSON.stringify({
+          packId: activeV2Pack.packId,
+          currentIndex: activeV2Pack.currentIndex,
+          fieldsCount: activeV2Pack.fields?.length,
+          collectedAnswersKeys: Object.keys(activeV2Pack.collectedAnswers || {})
+        }) : 'null');
         
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
         // Special log for PACK_PRIOR_LE_APPS_STANDARD
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] ========== PRIOR LE APPS ANSWER ==========`);
-          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
-          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
-          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] activeV2Pack exists: ${!!activeV2Pack}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER] ========== PRIOR LE APPS FIELD ANSWER ==========`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER] fieldKey=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack?.fields?.length || 0}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER] answer="${value?.substring?.(0, 50) || value}"`);
         }
         
         const answerSummary = value.length > 50 ? value.substring(0, 50) + '...' : value;
-        // EXPLICIT LOGGING: V2 pack answer submission
-        console.log(`[V2_PACK][ANSWER_SUBMIT] ========== V2 PACK ANSWER SUBMITTED ==========`);
-        console.log(`[V2_PACK][ANSWER_SUBMIT] pack=${packId} field=${fieldKey} (${fieldIndex + 1}/${activeV2Pack?.fields?.length || 0})`);
-        console.log(`[V2_PACK][ANSWER_SUBMIT] answer="${answerSummary}"`);
-        console.log(`[V2_PACK][ANSWER_SUBMIT] instanceNumber=${instanceNumber}, baseQuestionId=${baseQuestionId}`);
+        console.log(`[V2_PACK][ANSWER_SUBMIT] pack=${packId} field=${fieldKey} (${fieldIndex + 1}/${activeV2Pack?.fields?.length || 0}) answer="${answerSummary}"`);
         
         if (!activeV2Pack) {
-          console.error("[V2_PACK] No active V2 pack but handling v2_pack_field - this is a bug");
+          console.error("[V2_PACK][ERROR] No active V2 pack but handling v2_pack_field - recovering by exiting pack mode");
+          setV2PackMode("BASE");
           setIsCommitting(false);
+          setInput("");
           return;
         }
         
-        // Validate answer is not empty
+        // Validate answer is not empty for required fields
         const normalizedAnswer = value.trim();
         if (!normalizedAnswer && fieldConfig?.required) {
           setValidationHint('This field is required. Please provide an answer.');
           setIsCommitting(false);
           return;
         }
+        
+        // Accept empty answers for optional fields
+        const finalAnswer = normalizedAnswer || "(No response provided)";
         const questionText = fieldConfig?.label || fieldKey;
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         
