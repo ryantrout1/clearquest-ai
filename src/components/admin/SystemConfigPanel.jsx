@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Settings, Zap, Shield, FileText, AlertTriangle } from "lucide-react";
+import { Loader2, Save, Settings, Zap, Shield, FileText, AlertTriangle, Database, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -61,10 +61,39 @@ export default function SystemConfigPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [factModels, setFactModels] = useState([]);
+  const [factModelsLoading, setFactModelsLoading] = useState(true);
 
   useEffect(() => {
     loadConfig();
+    loadFactModels();
   }, []);
+
+  const loadFactModels = async () => {
+    setFactModelsLoading(true);
+    try {
+      const models = await base44.entities.FactModel.list();
+      // Normalize the data
+      const normalized = models.map(m => {
+        const data = m.data || m;
+        return {
+          id: m.id,
+          categoryId: data.category_id,
+          categoryLabel: data.category_label,
+          mandatoryFacts: data.mandatory_facts || [],
+          optionalFacts: data.optional_facts || [],
+          severityFacts: data.severity_facts || [],
+          isReadyForAiProbing: data.is_ready_for_ai_probing || false
+        };
+      });
+      setFactModels(normalized);
+    } catch (err) {
+      console.error("Error loading fact models:", err);
+      setFactModels([]);
+    } finally {
+      setFactModelsLoading(false);
+    }
+  };
 
   const loadConfig = async () => {
     setIsLoading(true);
@@ -477,6 +506,97 @@ export default function SystemConfigPanel() {
               </SelectContent>
             </Select>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Section D: Fact Model Readiness */}
+      <Card className="bg-[#0f1629] border-slate-800/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
+            <Database className="w-5 h-5 text-cyan-400" />
+            Fact Model Readiness
+            <Badge className="bg-slate-700 text-slate-300 border-slate-600 text-xs ml-2">Read-Only</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {factModelsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+            </div>
+          ) : factModels.length === 0 ? (
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-950/20 border border-amber-800/50">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-200">
+                <p className="font-medium">No Fact Models Defined</p>
+                <p className="text-amber-300/80 mt-1">
+                  AI Probing will not be available until fact models are configured for each incident category.
+                  Fact models define what information needs to be collected for each type of disclosure.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400 mb-4">
+                Fact models define the required and optional facts for each incident category.
+                Categories marked as "Ready" can be used with AI Probing.
+              </p>
+              <div className="rounded-lg border border-slate-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800/50">
+                    <tr>
+                      <th className="text-left px-4 py-2 text-slate-300 font-medium">Category</th>
+                      <th className="text-center px-3 py-2 text-slate-300 font-medium">Mandatory</th>
+                      <th className="text-center px-3 py-2 text-slate-300 font-medium">Optional</th>
+                      <th className="text-center px-3 py-2 text-slate-300 font-medium">Severity</th>
+                      <th className="text-center px-3 py-2 text-slate-300 font-medium">AI Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/50">
+                    {factModels.map(model => (
+                      <tr key={model.id} className="hover:bg-slate-800/30">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-white">{model.categoryLabel}</div>
+                          <div className="text-xs text-slate-500">{model.categoryId}</div>
+                        </td>
+                        <td className="text-center px-3 py-3">
+                          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">
+                            {model.mandatoryFacts.length}
+                          </Badge>
+                        </td>
+                        <td className="text-center px-3 py-3">
+                          <Badge className="bg-slate-600/50 text-slate-300 border-slate-500/30">
+                            {model.optionalFacts.length}
+                          </Badge>
+                        </td>
+                        <td className="text-center px-3 py-3">
+                          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30">
+                            {model.severityFacts.length}
+                          </Badge>
+                        </td>
+                        <td className="text-center px-3 py-3">
+                          {model.isReadyForAiProbing ? (
+                            <div className="flex items-center justify-center gap-1 text-green-400">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span className="text-xs">Yes</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1 text-slate-500">
+                              <XCircle className="w-4 h-4" />
+                              <span className="text-xs">No</span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
+                <span>{factModels.length} category model(s) defined</span>
+                <span>{factModels.filter(m => m.isReadyForAiProbing).length} ready for AI Probing</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
