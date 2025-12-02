@@ -1244,7 +1244,29 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     console.error('[PROCESS] VERIFICATION failed:', verifyErr.message);
   }
   
-  await base44.asServiceRole.entities.InterviewSession.update(sessionId, { followups_count: finalFollowupsCount });
+  // ========== COVERAGE GUARDRAIL ==========
+  // CRITICAL: Never mark session as completed unless we have Response coverage for all questions
+  const activeQuestionsCount = allQuestions.length;
+  const coverageCheck = {
+    ok: responsesCreated === activeQuestionsCount,
+    activeQuestionsCount,
+    responseCount: responsesCreated,
+    mismatch: responsesCreated !== activeQuestionsCount ? activeQuestionsCount - responsesCreated : 0
+  };
+  
+  let finalStatus = 'completed';
+  if (!coverageCheck.ok) {
+    console.error('[TEST_DATA][COVERAGE_MISMATCH] Session', sessionId, 'has incomplete coverage:', coverageCheck);
+    finalStatus = 'incomplete';
+  } else {
+    console.log('[TEST_DATA][COVERAGE_OK] Session', sessionId, 'has full coverage:', coverageCheck);
+  }
+  
+  // Final session update with status and followups_count
+  await base44.asServiceRole.entities.InterviewSession.update(sessionId, { 
+    status: finalStatus,
+    followups_count: finalFollowupsCount 
+  });
   
   console.log('[TEST_DATA][SESSION_COMPLETE]', {
     fileNumber,
@@ -1254,10 +1276,27 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     yesCount,
     noCount,
     followupsCreated,
-    transcriptFollowupCount
+    transcriptFollowupCount,
+    finalStatus,
+    coverageCheck
   });
   
-  return { action: "created", sessionId, fileNumber, riskLevel, stats: { responsesCreated, followupsCreated, transcriptFollowupCount, yesCount, noCount, redFlagsCount, totalQuestions: allQuestions.length } };
+  return { 
+    action: "created", 
+    sessionId, 
+    fileNumber, 
+    riskLevel, 
+    stats: { 
+      responsesCreated, 
+      followupsCreated, 
+      transcriptFollowupCount, 
+      yesCount, 
+      noCount, 
+      redFlagsCount, 
+      totalQuestions: allQuestions.length 
+    },
+    coverageCheck // Include in result for TestDataJob.result_summary
+  };
 }
 
 async function runSeeder(base44, config, jobId) {
