@@ -2053,7 +2053,9 @@ export default function CandidateInterview() {
   }
 
   const currentPrompt = getCurrentPrompt();
-  const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop;
+  const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
+                          (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
+  const isV2PackField = currentPrompt?.type === 'v2_pack_field';
 
   if (screenMode === "WELCOME") {
     return (
