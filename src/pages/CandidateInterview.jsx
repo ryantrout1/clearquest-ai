@@ -1031,16 +1031,24 @@ export default function CandidateInterview() {
             // === V3 PROBING CHECK ===
             if (ENABLE_V3_PROBING && categoryId) {
               try {
-                // Check if pack has ide_version = "V3"
-                const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
-                const pack = packs[0];
+                // Check system config V3 enabled categories
+                const { config } = await getSystemConfig();
+                const v3EnabledCategories = config.v3?.enabled_categories || [];
+                const isV3EnabledForCategory = v3EnabledCategories.includes(categoryId);
                 
-                if (pack?.ide_version === "V3") {
-                  // Check if FactModel is ready
-                  const factModel = await getFactModelForCategory(categoryId);
+                if (!isV3EnabledForCategory) {
+                  console.log("[V3 PROBING] Category not enabled in system config", { categoryId, enabled: v3EnabledCategories });
+                } else {
+                  // Check if pack has ide_version = "V3"
+                  const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
+                  const pack = packs[0];
                   
-                  if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
-                    console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
+                  if (pack?.ide_version === "V3") {
+                    // Check if FactModel is ready
+                    const factModel = await getFactModelForCategory(categoryId);
+                    
+                    if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
+                      console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
                     
                     // Save base question answer
                     saveAnswerToDatabase(currentItem.id, value, question);
@@ -1064,8 +1072,9 @@ export default function CandidateInterview() {
                     });
                     
                     setIsCommitting(false);
-                    setInput("");
-                    return;
+                      setInput("");
+                      return;
+                    }
                   }
                 }
               } catch (v3Err) {

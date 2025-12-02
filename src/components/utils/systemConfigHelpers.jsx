@@ -29,7 +29,14 @@ const DEFAULT_CONFIG = {
     decisionLoggingEnabled: true,
     decisionLoggingLevel: "STANDARD"
   },
-  interviewModeOverridesByDepartment: {}
+  interviewModeOverridesByDepartment: {},
+  v3: {
+    enabled_categories: [],
+    max_turns_per_incident: 12,
+    non_substantive_threshold_chars: 15,
+    logging_level: "BASIC",
+    stop_when_required_complete: true
+  }
 };
 
 /**
@@ -53,7 +60,11 @@ function mergeWithDefaults(existingData) {
       ...DEFAULT_CONFIG.logging,
       ...(existingData.logging || {})
     },
-    interviewModeOverridesByDepartment: existingData.interviewModeOverridesByDepartment || {}
+    interviewModeOverridesByDepartment: existingData.interviewModeOverridesByDepartment || {},
+    v3: {
+      ...DEFAULT_CONFIG.v3,
+      ...(existingData.v3 || {})
+    }
   };
 }
 
@@ -115,6 +126,10 @@ export async function updateSystemConfig(partialConfig) {
       logging: {
         ...existingConfig.logging,
         ...(partialConfig.logging || {})
+      },
+      v3: {
+        ...existingConfig.v3,
+        ...(partialConfig.v3 || {})
       }
     };
     
