@@ -1014,14 +1014,20 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   // The responsesByQuestionId map is already populated
   console.log('[TEST_DATA] Responses already created in Phase 1. Count:', responsesCreated);
   
-  // Update all Response records with the correct session_id (they were created with sessionId already)
-  // No update needed - we pass sessionId to Response.create in Phase 1
-  
   // Transcript already has responseIds wired from Phase 1
   console.log('[TEST_DATA] Transcript already has responseIds wired. Saving to session...');
   try {
     await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
-      transcript_snapshot: finalTranscript
+      transcript_snapshot: finalTranscript,
+      questions_answered_count: allQuestions.length,
+      completed_at: actualEndTime.toISOString(),
+      last_activity_at: actualEndTime.toISOString(),
+      ai_probes_count: includeAiProbing && riskLevel !== 'low' ? Math.floor(yesCount * 0.3) : 0,
+      red_flags_count: redFlagsCount,
+      completion_percent: 100,
+      elapsed_seconds: Math.floor((actualEndTime.getTime() - startTime.getTime()) / 1000),
+      active_seconds: Math.floor((actualEndTime.getTime() - startTime.getTime()) / 1000) - 300,
+      metadata: { isTestData: true, testPersona: fileNumber, candidateName: name, generatedAt: now.toISOString(), yesCount, noCount, config: { includeAiProbing, enableMultiLoopBackgrounds, randomized: config.randomizeWithinPersona } }
     });
     console.log('[TEST_DATA] Session transcript saved with responseIds');
   } catch (e) {
