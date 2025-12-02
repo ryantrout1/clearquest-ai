@@ -1877,6 +1877,11 @@ export default function CandidateInterview() {
           console.log(`[V2_PACK][EXIT] Pack ${packId} completed. Returning to section flow.`);
           console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}, totalFieldsAnswered=${activeV2Pack.fields.length}`);
           console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId} (${baseQuestion?.question_id}), returningToSection=${triggerSection?.section_name || 'unknown'}`);
+          
+          // Special log for PACK_PRIOR_LE_APPS_STANDARD
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+            console.log(`[V2_PACK][PRIOR_LE_APPS][COMPLETE_PACK] Pack complete after field ${fieldKey}`);
+          }
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
