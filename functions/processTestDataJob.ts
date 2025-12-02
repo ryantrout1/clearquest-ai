@@ -998,62 +998,30 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   };
   
   // Always create a NEW session (never update existing)
+  // NOTE: Session is created AFTER Responses in the new two-phase approach
+  // We need the sessionId first, so create session with initial status
   let sessionId;
   const created = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
   sessionId = created.id;
   session = created;
   console.log('[TEST_DATA] Created NEW session:', sessionId, 'with status: completed, is_archived: false');
   
-  console.log('[PROCESS] Session ID for FollowUpResponse creation:', sessionId);
+  // NOTE: Response records were already created in Phase 1 (before transcript building)
+  // The responsesByQuestionId map is already populated
+  console.log('[TEST_DATA] Responses already created in Phase 1. Count:', responsesCreated);
   
-  // Create Response records for ALL questions and track them by question_id for linking FollowUpResponses
-  const responsesByQuestionId = {};
-  let responsesCreated = 0;
+  // Update all Response records with the correct session_id (they were created with sessionId already)
+  // No update needed - we pass sessionId to Response.create in Phase 1
   
-  // FULL INTERVIEW: Create Response for every question
-  for (const q of allQuestions) {
-    const sectionName = sectionMap[q.section_id] || q.category || 'Unknown';
-    const isYes = yesSet.has(q.question_id);
-    const investigatorProbing = [];
-    if (includeAiProbing && isYes && riskLevel !== 'low') {
-      const probes = AI_PROBING_TEMPLATES[q.question_id];
-      if (probes) probes.forEach((p, i) => investigatorProbing.push({ sequence_number: i + 1, probing_question: p.probing_question, candidate_response: p.candidate_response, timestamp: new Date().toISOString() }));
-    }
-    try {
-      const responseRecord = await base44.asServiceRole.entities.Response.create({
-        session_id: sessionId, question_id: q.question_id, question_text: q.question_text, category: sectionName,
-        answer: isYes ? "Yes" : "No", triggered_followup: isYes && !!q.followup_pack, followup_pack: isYes ? q.followup_pack : null,
-        is_flagged: isYes && (q.followup_pack?.includes('CRIME') || q.followup_pack?.includes('DRUG')),
-        response_timestamp: new Date(startTime.getTime() + responsesCreated * 7000).toISOString(),
-        investigator_probing: investigatorProbing.length > 0 ? investigatorProbing : undefined
-      });
-      // Store for linking FollowUpResponses
-      const createdResponseId = responseRecord?.id || responseRecord?.data?.id;
-      responsesByQuestionId[q.question_id] = createdResponseId;
-      responsesCreated++;
-      
-      // Update transcript entries with responseId for this question's follow-ups
-      const indicesToUpdate = transcriptIndicesToUpdate[q.question_id] || [];
-      for (const idx of indicesToUpdate) {
-        if (finalTranscript[idx]) {
-          finalTranscript[idx].responseId = createdResponseId;
-          finalTranscript[idx].parentResponseId = createdResponseId;
-        }
-      }
-    } catch (e) {
-      console.log('[PROCESS] Failed to create Response for', q.question_id, e.message);
-    }
-  }
-  
-  // After all Responses created, update the session's transcript_snapshot with responseIds
-  console.log('[PROCESS] Updating session transcript with responseIds...');
+  // Transcript already has responseIds wired from Phase 1
+  console.log('[TEST_DATA] Transcript already has responseIds wired. Saving to session...');
   try {
     await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: finalTranscript
     });
-    console.log('[PROCESS] Session transcript updated with responseIds');
+    console.log('[TEST_DATA] Session transcript saved with responseIds');
   } catch (e) {
-    console.error('[PROCESS] Failed to update session transcript:', e.message);
+    console.error('[TEST_DATA] Failed to save session transcript:', e.message);
   }
   
   // Use pre-fetched FollowUpQuestions (passed from runSeeder)
