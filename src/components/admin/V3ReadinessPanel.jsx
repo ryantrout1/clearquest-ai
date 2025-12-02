@@ -99,22 +99,24 @@ export default function V3ReadinessPanel() {
         };
       }
 
-      // 4. Decision Engine V3 Backend
+      // 4. Decision Engine V3 Backend (using healthcheck mode)
       try {
-        // Test if the function exists by checking metadata (don't invoke yet)
         const testCall = await base44.functions.invoke('decisionEngineV3', {
-          _test_ping: true
+          mode: "healthcheck"
         });
         
+        const data = testCall.data || testCall;
+        const isOk = data.ok === true && data.mode === "healthcheck";
+        
         results.structural.decisionEngineV3 = {
-          status: "PASSED",
-          details: "Backend function decisionEngineV3 is callable."
+          status: isOk ? "PASSED" : "FAILED",
+          details: isOk ? "Backend function decisionEngineV3 is callable (healthcheck passed)." : "Function responded but healthcheck failed."
         };
       } catch (err) {
         const is404 = err?.response?.status === 404 || err?.message?.includes('not found');
         results.structural.decisionEngineV3 = {
-          status: is404 ? "FAILED" : "PASSED",
-          details: is404 ? "Function decisionEngineV3 not found." : "Function exists (test call made)."
+          status: "FAILED",
+          details: is404 ? "Function decisionEngineV3 not found." : `Function call failed: ${err.message}`
         };
       }
 
@@ -425,9 +427,8 @@ export default function V3ReadinessPanel() {
                 {report.selfTest.checks && Object.keys(report.selfTest.checks).length > 0 && (
                   <div className="space-y-2">
                     {Object.entries(report.selfTest.checks).map(([checkName, value]) => {
-                      // Handle different value types: true/false booleans, truthy strings, or error messages
-                      const isPassed = value === true || (typeof value === 'string' && !value.toLowerCase().includes('error'));
-                      const isError = typeof value === 'string' && value.toLowerCase().includes('error');
+                      // Strictly check: only true is passed, everything else (false, strings, errors) is failed
+                      const isPassed = value === true;
                       
                       return (
                         <div key={checkName} className="flex items-center justify-between p-2 rounded bg-slate-800/30">
@@ -446,6 +447,21 @@ export default function V3ReadinessPanel() {
                 )}
                 
                 <p className="text-xs text-slate-400 mt-3">{report.selfTest.details}</p>
+                
+                {/* Summary line - only show "all passed" if truly all checks are true */}
+                {report.selfTest.checks && Object.keys(report.selfTest.checks).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-700">
+                    {Object.values(report.selfTest.checks).every(v => v === true) ? (
+                      <p className="text-xs text-emerald-400 font-medium">
+                        ✅ All {Object.keys(report.selfTest.checks).length} checks passed. V3 is ready for testing.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-amber-400 font-medium">
+                        ⚠ {Object.values(report.selfTest.checks).filter(v => v === true).length}/{Object.keys(report.selfTest.checks).length} checks passed. Review failed items above.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

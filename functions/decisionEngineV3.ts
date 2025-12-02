@@ -588,6 +588,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Invalid JSON' }, { status: 400 });
     }
     
+    // ========== HEALTHCHECK MODE ==========
+    // For readiness checks - no actual probing, just validate function is callable
+    if (body.mode === "healthcheck" || body.isReadinessCheck === true) {
+      console.log("[IDE-V3] Healthcheck mode - returning OK");
+      return Response.json({ 
+        ok: true, 
+        mode: "healthcheck",
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     const { sessionId, categoryId, incidentId, latestAnswerText, config } = body;
     
     if (!sessionId || !categoryId) {
