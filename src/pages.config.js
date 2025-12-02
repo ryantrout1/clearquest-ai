@@ -24,6 +24,7 @@ import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import SystemConfiguration from './pages/SystemConfiguration';
 import AiSettings from './pages/AiSettings';
 import CandidateInterview from './pages/CandidateInterview';
+import FactModelAdmin from './pages/FactModelAdmin';
 import __Layout from './Layout.jsx';
 
 
@@ -54,6 +55,7 @@ export const PAGES = {
     "SystemConfiguration": SystemConfiguration,
     "AiSettings": AiSettings,
     "CandidateInterview": CandidateInterview,
+    "FactModelAdmin": FactModelAdmin,
 }
 
 export const pagesConfig = {
