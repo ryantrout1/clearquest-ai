@@ -1536,29 +1536,25 @@ export default function CandidateInterview() {
         
         const normalizedAnswer = value.trim();
         
-        // Add to transcript
-        const v2FieldEntry = createChatEvent('followup_question', {
+        // Log V2 pack answer to transcript (question was already logged via useEffect)
+        const v2AnswerEntry = createChatEvent('followup_answer', {
           questionId: `v2pack-${packId}-${fieldIndex}`,
-          questionText: fieldConfig.label,
           packId: packId,
-          kind: 'v2_pack_followup',
-          text: fieldConfig.label,
-          content: fieldConfig.label,
+          kind: 'v2_pack_answer',
+          text: normalizedAnswer,
+          content: normalizedAnswer,
+          answer: normalizedAnswer,
           fieldKey: fieldKey,
           followupPackId: packId,
           instanceNumber: instanceNumber,
-          baseQuestionId: baseQuestionId
+          baseQuestionId: baseQuestionId,
+          source: 'V2_PACK'
         });
         
-        const v2FieldTranscriptEntry = {
-          ...v2FieldEntry,
-          type: 'followup',
-          answer: normalizedAnswer,
-          text: normalizedAnswer
-        };
-        
-        const newTranscript = [...transcript, v2FieldTranscriptEntry];
+        const newTranscript = [...transcript, v2AnswerEntry];
         setTranscript(newTranscript);
+        
+        console.log("[V2_PACK CHAT] Logged answer to transcript:", { packId, fieldKey, answer: normalizedAnswer });
         
         // Update collected answers
         const updatedCollectedAnswers = {
