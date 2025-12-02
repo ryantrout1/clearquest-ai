@@ -1753,53 +1753,111 @@ export default function CandidateInterview() {
 
   if (screenMode === "WELCOME") {
     return (
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full">
-          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                <Shield className="w-6 h-6 text-blue-400" />
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
+        {/* Header - same as question view */}
+        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
+                {department && (
+                  <>
+                    <span className="text-slate-600 hidden sm:inline">•</span>
+                    <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
+                  </>
+                )}
               </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-white mb-3">
-                  Welcome to your ClearQuest Interview
-                </h2>
-                <p className="text-slate-300 text-base leading-relaxed mb-4">
-                  This interview is part of your application process. Here's what to expect:
-                </p>
-
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-slate-300">One question at a time, at your own pace</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-slate-300">Clear, complete, and honest answers help investigators understand the full picture</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-slate-300">You can pause and come back — we'll pick up where you left off</p>
-                  </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPauseModal(true)}
+                className="bg-slate-700/50 border-slate-600 text-slate-200"
+              >
+                <Pause className="w-4 h-4 mr-1" />
+                Pause
+              </Button>
+            </div>
+            
+            {sections.length > 0 && activeSection && (
+              <div>
+                <div className="text-sm font-medium text-blue-400 mb-1">
+                  {activeSection.displayName}
                 </div>
-
-                <div className="flex justify-center">
-                  <Button
-                    onClick={() => {
-                      console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
-                      setScreenMode("QUESTION");
-                      setTimeout(() => autoScrollToBottom(), 100);
+                <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                    style={{ 
+                      width: `${questionCompletionPct}%`,
+                      boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
                     }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg font-semibold"
-                    size="lg"
-                  >
-                    Start Interview
-                  </Button>
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-slate-400">
+                    Section {currentSectionIndex + 1} of {sections.length}
+                  </span>
+                  <span className="text-xs font-medium text-blue-400">{questionCompletionPct}% complete</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Main content - flex-1 with flex-end to dock card at bottom */}
+        <main className="flex-1 flex flex-col justify-end items-center px-4 py-6">
+          <div className="w-full max-w-4xl mb-6">
+            <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                  <Shield className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    Welcome to your ClearQuest Interview
+                  </h2>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                    This interview is part of your application process. Here's what to expect:
+                  </p>
+
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-slate-300 text-sm">One question at a time, at your own pace</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-slate-300 text-sm">Clear, complete, and honest answers help investigators understand the full picture</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </main>
+
+        {/* Footer - same pattern as question view */}
+        <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+          <div className="max-w-5xl mx-auto flex flex-col items-center">
+            <Button
+              onClick={() => {
+                console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
+                setScreenMode("QUESTION");
+                setTimeout(() => autoScrollToBottom(), 100);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 text-base font-semibold"
+              size="lg"
+            >
+              Next
+            </Button>
+            <p className="text-xs text-blue-400 text-center mt-3">
+              Click Next to begin your interview
+            </p>
+          </div>
+        </footer>
       </div>
     );
   }
