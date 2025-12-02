@@ -1004,27 +1004,11 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     followupCount: transcriptFollowupCount
   });
   
-  const sessionData = {
-    session_code: uniqueSessionCode, department_code: deptCode, file_number: uniqueFileNumber, status: "completed", is_archived: false,
-    started_at: startTime.toISOString(), completed_at: endTime.toISOString(), last_activity_at: endTime.toISOString(),
-    questions_answered_count: allQuestions.length, followups_count: 0,
-    ai_probes_count: includeAiProbing && riskLevel !== 'low' ? Math.floor(yesCount * 0.3) : 0,
-    red_flags_count: redFlagsCount, completion_percent: 100,
-    elapsed_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000),
-    active_seconds: Math.floor((endTime.getTime() - startTime.getTime()) / 1000) - 300,
-    transcript_snapshot: finalTranscript, session_hash: generateSessionHash(), risk_rating: riskLevel,
-    metadata: { isTestData: true, testPersona: fileNumber, candidateName: name, generatedAt: now.toISOString(), yesCount, noCount, config: { includeAiProbing, enableMultiLoopBackgrounds, randomized: config.randomizeWithinPersona } },
-    data_version: "v2.5-hybrid"
-  };
+  // Calculate actual end time based on transcript
+  const actualEndTime = new Date(currentTime + 60000);
   
-  // Always create a NEW session (never update existing)
-  // NOTE: Session is created AFTER Responses in the new two-phase approach
-  // We need the sessionId first, so create session with initial status
-  let sessionId;
-  const created = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
-  sessionId = created.id;
-  session = created;
-  console.log('[TEST_DATA] Created NEW session:', sessionId, 'with status: completed, is_archived: false');
+  // Session was already created in Phase 0, now we just update it
+  console.log('[TEST_DATA] Session', sessionId, 'already exists, will update with final data');
   
   // NOTE: Response records were already created in Phase 1 (before transcript building)
   // The responsesByQuestionId map is already populated
