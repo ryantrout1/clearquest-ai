@@ -2349,13 +2349,14 @@ export default function CandidateInterview() {
                   // Continue to deterministic flow below
                 }
               }
-              // ============================================================================
-              // END IDE v1 INTEGRATION
-              // ============================================================================
-              
-              // IDEMPOTENCY: Check if this pack was already triggered for this base question
-              const triggerKey = `${currentItem.id}:${packId}`;
-              if (triggeredPacksRef.current.has(triggerKey)) {
+            }
+            // ============================================================================
+            // END IDE v1 INTEGRATION
+            // ============================================================================
+            
+            // IDEMPOTENCY: Check if this pack was already triggered for this base question
+            const triggerKey = `${currentItem.id}:${packId}`;
+            if (triggeredPacksRef.current.has(triggerKey)) {
             if (DEBUG_MODE) console.log(`[SKIP] Duplicate pack trigger for ${packId}`);
               // Still advance to next question since the pack is already being handled
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
