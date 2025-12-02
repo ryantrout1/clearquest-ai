@@ -429,6 +429,7 @@ export default function CandidateInterview() {
   const [isCommitting, setIsCommitting] = useState(false);
   
   const triggeredPacksRef = useRef(new Set());
+  const lastLoggedV2PackFieldRef = useRef(null);
   
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
