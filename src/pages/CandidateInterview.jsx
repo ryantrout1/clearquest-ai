@@ -2353,11 +2353,11 @@ export default function CandidateInterview() {
               setIsCommitting(false);
               setInput("");
               saveAnswerToDatabase(currentItem.id, value, question);
-              return;
-            }
-            
-            // Mark this pack as triggered
-            triggeredPacksRef.current.add(triggerKey);
+                return;
+              }
+              
+              // Mark this pack as triggered
+              triggeredPacksRef.current.add(triggerKey);
             if (DEBUG_MODE) console.log(`[FOLLOWUP] Triggered: ${packId}`);
             
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
