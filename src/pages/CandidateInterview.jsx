@@ -1873,7 +1873,7 @@ export default function CandidateInterview() {
         // Case C: NEXT_FIELD - advance to next field in pack
         const nextFieldIndex = fieldIndex + 1;
 
-        if (nextIndex >= activeV2Pack.fields.length) {
+        if (nextFieldIndex >= activeV2Pack.fields.length) {
           // Failsafe: should have been caught by COMPLETE_PACK
           console.log("[V2_PACK][ERROR]", { 
             packId,
@@ -1905,25 +1905,39 @@ export default function CandidateInterview() {
         console.log("[V2_PACK][NEXT]", { 
           packId, 
           fromField: fieldKey,
-          nextFieldId: nextField.fieldKey,
+          nextFieldId: nextFieldDef.fieldKey,
           fromIndex: fieldIndex,
-          nextIndex: nextIndex,
+          nextIndex: nextFieldIndex,
           totalFields: activeV2Pack.fields.length,
-          message: `Advancing to next field: ${nextField.fieldKey}`
+          message: `Advancing to next field: ${nextFieldDef.fieldKey}`
         });
         
         // EXPLICIT LOGGING: State update for V2 pack progression
         console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
         console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Now rendering: ${nextField.fieldKey} (${nextIndex + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Label: "${nextField.label}"`);
-        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextIndex - 1}`);
+        console.log(`[V2_PACK][STATE] Now rendering: ${nextFieldDef.fieldKey} (${nextFieldIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Label: "${nextFieldDef.label}"`);
+        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextFieldIndex - 1}`);
 
         setActiveV2Pack(prev => ({
           ...prev,
-          currentIndex: nextIndex,
+          currentIndex: nextFieldIndex,
           collectedAnswers: updatedCollectedAnswers
         }));
+
+        const nextItemForV2 = {
+          id: `v2pack-${packId}-${nextFieldIndex}`,
+          type: 'v2_pack_field',
+          packId: packId,
+          fieldIndex: nextFieldIndex,
+          fieldKey: nextFieldDef.fieldKey,
+          fieldConfig: nextFieldDef,
+          baseQuestionId: baseQuestionId,
+          instanceNumber: instanceNumber
+        };
+
+        setCurrentItem(nextItemForV2);
+        setQueue([]);
 
         await persistStateToDatabase(newTranscript, [], nextItemForV2);
         setIsCommitting(false);
