@@ -1150,6 +1150,16 @@ export default function CandidateInterview() {
 
         const isV2Pack = useProbeEngineV2(packId);
 
+        // Log followup answer for debugging
+        console.log('[FOLLOWUP ANSWER]', {
+          code: step.Field_Key,
+          packId: packId,
+          answer: normalizedAnswer,
+          isV2Pack: isV2Pack,
+          stepIndex: stepIndex,
+          instanceNumber: instanceNumber
+        });
+
         if (isV2Pack) {
           const probeKey = getFieldProbeKey(packId, instanceNumber, fieldKey);
 
@@ -1170,8 +1180,102 @@ export default function CandidateInterview() {
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
 
-          const completeV2FieldWithoutProbe = async () => {
-            console.log('[V2 PROBE] completing field without probe', { packId, fieldKey, reason: 'skipped or quota reached' });
+          // Helper to advance to next followup step after V2 field is complete
+          const advanceToNextFollowupStep = async (finalAnswer) => {
+            // Add to transcript
+            const followupQuestionEvent = createChatEvent('followup_question', {
+              questionId: currentItem.id,
+              questionText: step.Prompt,
+              packId: packId,
+              substanceName: substanceName,
+              kind: 'deterministic_followup',
+              text: step.Prompt,
+              content: step.Prompt,
+              fieldKey: step.Field_Key,
+              followupPackId: packId,
+              instanceNumber: instanceNumber,
+              baseQuestionId: currentItem.baseQuestionId
+            });
+
+            const followupEntry = {
+              ...followupQuestionEvent,
+              type: 'followup',
+              answer: finalAnswer,
+              text: finalAnswer
+            };
+
+            const newTranscript = [...transcript, followupEntry];
+            setTranscript(newTranscript);
+
+            const updatedFollowUpAnswers = {
+              ...currentFollowUpAnswers,
+              [step.Field_Key]: finalAnswer
+            };
+            setCurrentFollowUpAnswers(updatedFollowUpAnswers);
+
+            // Get next item
+            let updatedQueue = [...queue];
+            let nextItem = updatedQueue.shift() || null;
+            
+            while (nextItem && nextItem.type === 'followup') {
+              const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
+              const nextStep = nextPackSteps?.[nextItem.stepIndex];
+              
+              if (nextStep && shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+                nextItem = updatedQueue.shift() || null;
+              } else {
+                break;
+              }
+            }
+            
+            const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
+            
+            if (isLastFollowUp) {
+              if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
+                const triggeringQuestion = [...newTranscript].reverse().find(t => 
+                  t.type === 'question' && 
+                  engine.QById[t.questionId]?.followup_pack === packId &&
+                  t.answer === 'Yes'
+                );
+                
+                if (triggeringQuestion) {
+                  const nextQuestionId = computeNextQuestionId(engine, triggeringQuestion.questionId, 'Yes');
+                  
+                  setCurrentFollowUpAnswers({});
+                  
+                  if (nextQuestionId && engine.QById[nextQuestionId]) {
+                    setQueue([]);
+                    setCurrentItem({ id: nextQuestionId, type: 'question' });
+                    await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+                  } else {
+                    setCurrentItem(null);
+                    setQueue([]);
+                    await persistStateToDatabase(newTranscript, [], null);
+                    setShowCompletionModal(true);
+                  }
+                } else {
+                  setCurrentItem(null);
+                  setQueue([]);
+                  await persistStateToDatabase(newTranscript, [], null);
+                  setShowCompletionModal(true);
+                }
+              } else {
+                setCurrentFollowUpAnswers({});
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                onFollowupPackComplete(currentItem.baseQuestionId, packId);
+              }
+            } else {
+              setQueue(updatedQueue);
+              setCurrentItem(nextItem);
+              
+              await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+            }
+          };
+
+          const completeV2FieldWithoutProbe = async (reason) => {
+            console.log('[V2 FIELD PROBE] skipping backend call', { packId, fieldKey, reason });
             
             await saveFollowUpAnswer(
               packId,
@@ -1206,33 +1310,47 @@ export default function CandidateInterview() {
               ...prev,
               [fieldKey]: semanticResult?.normalizedValue ?? normalizedAnswer
             }));
+
+            // Now advance to next step
+            await advanceToNextFollowupStep(semanticResult?.normalizedValue ?? normalizedAnswer);
           };
 
-          // V2 PROBE: Call backend for ALL answers when AI is enabled (not just vague answers)
-          const canCallBackend =
-            ENABLE_LIVE_AI_FOLLOWUPS &&
-            aiProbingEnabled &&
-            !aiProbingDisabledForSession &&
-            probeCount < maxAiFollowups;
-
+          // V2 PROBE: Call backend for ALL answers when AI is enabled
           if (!ENABLE_LIVE_AI_FOLLOWUPS) {
-            console.log('[V2 PROBE] skipping – ENABLE_LIVE_AI_FOLLOWUPS is false');
-            await completeV2FieldWithoutProbe();
+            await completeV2FieldWithoutProbe('ENABLE_LIVE_AI_FOLLOWUPS is false');
+            setIsCommitting(false);
+            setInput("");
+            return;
           } else if (!aiProbingEnabled) {
-            console.log('[V2 PROBE] skipping – aiProbingEnabled is false');
-            await completeV2FieldWithoutProbe();
+            await completeV2FieldWithoutProbe('aiProbingEnabled is false');
+            setIsCommitting(false);
+            setInput("");
+            return;
           } else if (aiProbingDisabledForSession) {
-            console.log('[V2 PROBE] skipping – AI disabled for this session');
-            await completeV2FieldWithoutProbe();
+            await completeV2FieldWithoutProbe('AI disabled for this session');
+            setIsCommitting(false);
+            setInput("");
+            return;
           } else if (probeCount >= maxAiFollowups) {
-            console.log('[V2 PROBE] skipping – max probes reached', { probeCount, maxAiFollowups });
-            await completeV2FieldWithoutProbe();
+            await completeV2FieldWithoutProbe(`max probes reached (${probeCount}/${maxAiFollowups})`);
+            setIsCommitting(false);
+            setInput("");
+            return;
           } else {
+            // CALL V2 PROBE BACKEND
             try {
               v2ProbingInProgressRef.current.add(probeKey);
               
               const question = engine.QById[currentItem.baseQuestionId];
               const sectionEntity = engine.Sections?.find(s => s.id === question?.section_id);
+              
+              console.log('[V2 FIELD PROBE] follow-up: calling backend', {
+                packId,
+                questionCode: step.Field_Key,
+                dbId: currentItem.baseQuestionId,
+                fieldKey,
+                answer: normalizedAnswer
+              });
               
               const v2Result = await callProbeEngineV2PerField(base44, {
                 packId,
@@ -1250,7 +1368,23 @@ export default function CandidateInterview() {
               
               const { mode } = v2Result || {};
               
+              console.log('[V2 FIELD PROBE] success', {
+                mode,
+                followups: v2Result?.followups?.length ?? 0,
+                hasQuestion: !!v2Result?.question
+              });
+              
               if (mode === 'QUESTION' && v2Result.question) {
+                // Save the current answer first
+                await saveFollowUpAnswer(
+                  packId,
+                  fieldKey,
+                  semanticResult?.normalizedValue ?? normalizedAnswer,
+                  substanceName,
+                  instanceNumber,
+                  'user'
+                );
+                
                 setAiFollowupCounts(prev => ({
                   ...prev,
                   [fieldCountKey]: probeCount + 1
@@ -1294,17 +1428,25 @@ export default function CandidateInterview() {
                 return;
               }
               
+              // No probe needed, complete field and advance
               v2ProbingInProgressRef.current.delete(probeKey);
-              await completeV2FieldWithoutProbe();
+              await completeV2FieldWithoutProbe('backend returned no probe');
+              setIsCommitting(false);
+              setInput("");
+              return;
 
             } catch (err) {
-              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, error: err?.message });
+              console.error('[V2 FIELD PROBE ERROR] Falling back to deterministic flow', { packId, fieldKey, error: err?.message });
               v2ProbingInProgressRef.current.delete(probeKey);
-              await completeV2FieldWithoutProbe();
+              await completeV2FieldWithoutProbe('backend error');
+              setIsCommitting(false);
+              setInput("");
+              return;
             }
           }
         }
 
+        // NON-V2 PACK: Use original deterministic flow
         const followupQuestionEvent = createChatEvent('followup_question', {
           questionId: currentItem.id,
           questionText: step.Prompt,
