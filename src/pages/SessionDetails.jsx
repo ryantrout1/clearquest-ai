@@ -121,6 +121,11 @@ export default function SessionDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   
+  // IDE v1 data
+  const [systemConfig, setSystemConfig] = useState(null);
+  const [decisionTraces, setDecisionTraces] = useState([]);
+  const [factModels, setFactModels] = useState({});
+  
   const [totalQuestions, setTotalQuestions] = useState(null);
   const [expandedQuestions, setExpandedQuestions] = useState(new Set());
   
@@ -1274,6 +1279,19 @@ export default function SessionDetails() {
           </div>
         </div>
 
+        {/* IDE v1 Panel */}
+        {session?.incidents && session.incidents.length > 0 && (
+          <div className="mb-4">
+            <IdeIncidentsPanel 
+              incidents={session.incidents}
+              decisionTraces={decisionTraces}
+              systemConfig={systemConfig}
+              factModels={factModels}
+              setFactModels={setFactModels}
+            />
+          </div>
+        )}
+        
         {/* IDE v1 Panel */}
         {session?.incidents && session.incidents.length > 0 && (
           <div className="mb-4">
