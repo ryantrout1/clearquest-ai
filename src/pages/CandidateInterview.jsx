@@ -1063,7 +1063,7 @@ export default function CandidateInterview() {
         saveAnswerToDatabase(currentItem.id, value, question);
 
       } else if (currentItem.type === 'followup') {
-        const { packId, stepIndex, substanceName } = currentItem;
+        const { packId, stepIndex, substanceName, baseQuestionId } = currentItem;
         
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
         
@@ -1074,6 +1074,15 @@ export default function CandidateInterview() {
         
         const instanceNumber = currentItem.instanceNumber || 1;
         const fieldKey = step.Field_Key;
+
+        console.log('[FOLLOWUP ANSWER]', {
+          packId,
+          fieldKey,
+          answer: value,
+          stepIndex,
+          instanceNumber,
+          baseQuestionId
+        });
 
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
           const prefilledEntry = {
