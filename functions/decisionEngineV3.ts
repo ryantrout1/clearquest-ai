@@ -9,34 +9,144 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * This is separate from decisionEngineProbe.js which handles V1/V2.
  */
 
-// ========== V3 FIELD PROMPT TEMPLATES ==========
+// ========== V3 PROMPT TEMPLATES ==========
 
-const V3_FIELD_PROMPTS = {
-  // Generic field types
-  date: (label) => `${label}? Please provide the date or approximate timeframe.`,
-  month_year: (label) => `${label}? Please provide the month and year, or an approximate timeframe.`,
-  text: (label) => `${label}?`,
-  textarea: (label) => `Please describe: ${label}`,
-  number: (label) => `${label}? Please provide a number.`,
-  yes_no: (label) => `${label}? Please answer yes or no.`,
-  select_single: (label, options) => options?.length 
-    ? `${label}? Options: ${options.join(', ')}.`
-    : `${label}?`
+/**
+ * V3 Probing Prompt Templates (Backend version)
+ * Mirrors components/utils/v3ProbingPrompts.js for backend use
+ */
+
+const FIELD_QUESTION_TEMPLATES = {
+  date: "When did this occur? Please provide the date or approximate timeframe.",
+  incident_date: "When did this incident happen?",
+  month_year: "What month and year did this take place?",
+  location: "Where did this occur?",
+  outcome: "What was the outcome of this situation?",
+  legal_outcome: "What was the legal outcome, if any?",
+  description: "Can you describe what happened in more detail?",
+  circumstances: "What were the circumstances surrounding this?",
+  injuries: "Were there any injuries involved?",
+  agency: "Which agency or organization was involved?",
+  agency_name: "What is the name of the agency?",
+  position: "What position were you applying for or held?"
 };
+
+const OPENING_PROMPTS_BY_CATEGORY = {
+  DUI: "Thanks for disclosing that. I'd like to understand the circumstances. Can you start by telling me when this incident occurred?",
+  DRIVING: "I appreciate you sharing this. Let's go through the details. When did this driving incident take place?",
+  THEFT: "Thank you for being upfront about this. To understand the situation fully, can you tell me when this occurred?",
+  DRUG_USE: "I appreciate your honesty. Let's discuss this further. When did you first use this substance?",
+  DOMESTIC_VIOLENCE: "Thank you for disclosing this. I need to understand what happened. Can you tell me when this incident occurred?",
+  CRIMINAL: "Thanks for sharing this information. Let's go through the details. When did this incident take place?",
+  EMPLOYMENT: "I appreciate you mentioning this. Can you tell me when this employment situation occurred?",
+  FINANCIAL: "Thank you for disclosing this. Let's discuss the circumstances. When did this financial issue arise?",
+  PRIOR_LE_APPS: "Thanks for letting me know about your prior applications. Can you tell me about the first agency you applied to?"
+};
+
+const COMPLETION_MESSAGES = {
+  RECAP: "Thank you for providing those details. I have all the information I need for this incident.",
+  STOP_COMPLETE: "Thank you. We've covered the key points for this incident.",
+  STOP_MAX_PROBES: "Thank you for your responses. Let's move on to the next topic.",
+  STOP_NON_SUBSTANTIVE: "I understand. Let's continue with the interview."
+};
+
+/**
+ * Get opening prompt for a category
+ */
+function getOpeningPrompt(categoryId, categoryLabel) {
+  const categoryKey = categoryId?.toUpperCase();
+  if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
+    return OPENING_PROMPTS_BY_CATEGORY[categoryKey];
+  }
+  if (categoryLabel) {
+    return `Thanks for letting me know about this ${categoryLabel.toLowerCase()} matter. Walk me through what happened, starting with when this occurred.`;
+  }
+  return "Thanks for letting me know. Walk me through what happened, starting with when this occurred.";
+}
 
 /**
  * Generate a BI-style probe question for a missing V3 field.
  */
-function generateV3ProbeQuestion(field) {
-  const type = field.type || 'text';
-  const label = field.label || field.field_id;
-  const promptFn = V3_FIELD_PROMPTS[type] || V3_FIELD_PROMPTS.text;
+function generateV3ProbeQuestion(field, collectedFacts = {}) {
+  const fieldId = field.field_id?.toLowerCase();
+  const label = field.label;
+  const type = field.type;
   
-  if (type === 'select_single' && field.enum_options?.length) {
-    return promptFn(label, field.enum_options);
+  // Check for specific field template
+  if (FIELD_QUESTION_TEMPLATES[fieldId]) {
+    return FIELD_QUESTION_TEMPLATES[fieldId];
   }
   
-  return promptFn(label);
+  // Generate based on type
+  switch (type) {
+    case 'date':
+    case 'month_year':
+      return `When did this occur? Please provide ${label?.toLowerCase() || 'the date'}.`;
+    case 'boolean':
+    case 'yes_no':
+      return `${label}?`;
+    case 'select_single':
+      if (field.enum_options?.length) {
+        return `${label}? The options are: ${field.enum_options.join(', ')}.`;
+      }
+      return `${label}?`;
+    default:
+      if (label) {
+        const labelLower = label.toLowerCase();
+        if (labelLower.startsWith('what') || labelLower.startsWith('when') || 
+            labelLower.startsWith('where') || labelLower.startsWith('who') ||
+            labelLower.startsWith('how') || labelLower.startsWith('why')) {
+          return `${label}?`;
+        }
+        return `What was the ${labelLower}?`;
+      }
+      return `Can you provide more information about ${fieldId?.replace(/_/g, ' ') || 'this'}?`;
+  }
+}
+
+/**
+ * Build recap prompt for AI summary generation
+ */
+function buildRecapPrompt(incident, categoryLabel) {
+  const facts = incident?.facts || {};
+  const factsText = Object.entries(facts)
+    .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`)
+    .join('\n');
+  
+  return `You are summarizing an incident for a law enforcement background investigator.
+
+Based on the collected facts below, write a concise, factual narrative summary. Include:
+- When it happened
+- Where it occurred  
+- Who was involved (if applicable)
+- What happened
+- Whether police were involved
+- What the outcome was
+- Any key risk indicators
+
+Use neutral, professional language. Do not make hiring recommendations or legal conclusions.
+
+COLLECTED FACTS:
+${factsText || '(No facts collected)'}
+
+Write a 2-4 sentence narrative summary:`;
+}
+
+/**
+ * Get completion message based on action/reason
+ */
+function getCompletionMessage(nextAction, stopReason) {
+  if (nextAction === "RECAP") {
+    return COMPLETION_MESSAGES.RECAP;
+  }
+  if (stopReason === "MAX_PROBES_REACHED") {
+    return COMPLETION_MESSAGES.STOP_MAX_PROBES;
+  }
+  if (stopReason === "NON_SUBSTANTIVE_LIMIT") {
+    return COMPLETION_MESSAGES.STOP_NON_SUBSTANTIVE;
+  }
+  return COMPLETION_MESSAGES.STOP_COMPLETE;
 }
 
 // ========== NON-SUBSTANTIVE DETECTION ==========
@@ -364,23 +474,27 @@ async function decisionEngineV3Probe(base44, {
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
     legacyFactState.completion_status = "complete";
+    nextPrompt = getCompletionMessage("RECAP", null);
   } else if (legacyFactState.probe_count >= mergedConfig.maxProbesPerIncident) {
     nextAction = "STOP";
     stopReason = "MAX_PROBES_REACHED";
     legacyFactState.completion_status = "incomplete";
+    nextPrompt = getCompletionMessage("STOP", stopReason);
   } else if (legacyFactState.non_substantive_count >= mergedConfig.maxNonSubstantiveResponses) {
     nextAction = "STOP";
     stopReason = "NON_SUBSTANTIVE_LIMIT";
     legacyFactState.completion_status = "blocked";
+    nextPrompt = getCompletionMessage("STOP", stopReason);
   } else if (missingFieldsAfter.length > 0) {
-    // Ask about the first missing field
+    // Ask about the first missing field using BI-style template
     const nextField = missingFieldsAfter[0];
-    nextPrompt = generateV3ProbeQuestion(nextField);
+    nextPrompt = generateV3ProbeQuestion(nextField, incident.facts);
     nextAction = "ASK";
   } else {
     // No more missing fields
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
+    nextPrompt = getCompletionMessage("RECAP", null);
   }
   
   legacyFactState.stop_reason = stopReason;
@@ -433,14 +547,22 @@ async function decisionEngineV3Probe(base44, {
     probeCount: legacyFactState.probe_count
   });
   
+  // Generate opening prompt for new incidents
+  let openingPrompt = null;
+  if (isNewIncident) {
+    openingPrompt = getOpeningPrompt(categoryId, factModel.category_label);
+  }
+
   return {
     updatedSession,
     incidentId,
     nextAction,
     nextPrompt,
+    openingPrompt,
     newFacts: extractedFacts,
     decisionTraceEntry,
     // Additional context for caller
+    categoryLabel: factModel.category_label,
     missingFields: missingFieldsAfter,
     completionPercent: factModel.required_fields?.length > 0
       ? Math.round(((factModel.required_fields.length - missingFieldsAfter.length) / factModel.required_fields.length) * 100)

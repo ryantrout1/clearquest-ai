@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
+import { getOpeningPrompt, getCompletionMessage } from "../utils/v3ProbingPrompts";
 
 /**
  * V3 Probing Loop Component
@@ -13,6 +14,7 @@ import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
 export default function V3ProbingLoop({
   sessionId,
   categoryId,
+  categoryLabel,
   incidentId: initialIncidentId,
   baseQuestionId,
   onComplete,
@@ -26,12 +28,13 @@ export default function V3ProbingLoop({
   const [completionReason, setCompletionReason] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Initial prompt on mount
+  // Initial prompt on mount - use centralized template
   useEffect(() => {
+    const openingText = getOpeningPrompt(categoryId, categoryLabel);
     const initialMessage = {
       id: `v3-ai-${Date.now()}`,
       role: "ai",
-      content: "Thanks for letting me know. Walk me through what happened, starting with when this occurred.",
+      content: openingText,
       timestamp: new Date().toISOString()
     };
     setMessages([initialMessage]);
@@ -118,10 +121,8 @@ export default function V3ProbingLoop({
           });
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
-        // Probing complete
-        const completionMessage = data.nextAction === "RECAP"
-          ? "Thank you for providing those details. I have all the information I need for this incident."
-          : "Thank you. We've covered the key points for this incident.";
+        // Probing complete - use centralized completion message
+        const completionMessage = data.nextPrompt || getCompletionMessage(data.nextAction, data.stopReason);
 
         const aiMessage = {
           id: `v3-ai-complete-${Date.now()}`,
