@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -1679,14 +1680,14 @@ export default function CandidateInterview() {
         });
         
         if (DEBUG_MODE) {
-          console.log('[AI-FOLLOWUP][RESPONSE]', {
+          console.log('[AI-FOLLOWUP][INVOKE-RESPONSE]', {
             packId,
             status: aiResult?.status,
             hasFollowupQuestion: !!aiResult?.followupQuestion
           });
         }
       } catch (aiErr) {
-        console.error('[AI-FOLLOWUP][ERROR]', {
+        console.error('[AI-FOLLOWUP][INVOKE-ERROR]', {
           packId,
           questionId,
           message: aiErr?.message
@@ -2604,16 +2605,6 @@ export default function CandidateInterview() {
             maxAiFollowups
           });
 
-          if (DEBUG_MODE) {
-            console.log('[AI-FOLLOWUP][V2-FIELD-ENTRY]', {
-              packId,
-              fieldKey,
-              instanceNumber,
-              probeCount,
-              maxAiFollowups
-            });
-          }
-
           logAiProbeDebug('semanticResult', {
             packId,
             fieldKey,
@@ -2822,22 +2813,6 @@ export default function CandidateInterview() {
             }
           }
         }
-...
-              // Backend says: no probe needed, field is complete
-              v2ProbingInProgressRef.current.delete(probeKey);
-              console.log('[V2 PROBING][COMPLETE-NO-PROBE]', { packId, fieldKey, instanceNumber, mode });
-              await completeV2FieldWithoutProbe();
-              // Do NOT return – let normal follow-up flow advance below
-
-            } catch (err) {
-              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, error: err?.message });
-              v2ProbingInProgressRef.current.delete(probeKey);
-
-              // Fail open: save and move on
-              await completeV2FieldWithoutProbe();
-              // Do NOT return – let normal follow-up flow advance below
-            }
-          }
         // ============================================================================
         // END V2 PER-FIELD PROBING
         // ============================================================================
@@ -4283,8 +4258,8 @@ export default function CandidateInterview() {
     if (!lastAssistantMessage?.content) return null;
     
     // Filter out base questions and system messages
-    if (lastAssistantMessage.content?.includes('Follow-up pack completed')) return null;
-    if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return null;
+    if (lastAssistantMessage.content?.includes('Follow-up pack completed')) return false;
+    if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return false;
 
     // Check if already answered (has user message after it)
     const lastIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
