@@ -2238,15 +2238,30 @@ export default function CandidateInterview() {
           ))}
           
           {currentPrompt && (
-            <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6">
+            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${isV2PackField ? 'border-purple-500/50' : 'border-blue-500/50'}`}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg font-bold text-blue-400">
-                  Question {getQuestionDisplayNumber(currentItem.id)}
-                </span>
-                <span className="text-sm text-slate-500">•</span>
-                <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                {isV2PackField ? (
+                  <>
+                    <span className="text-lg font-bold text-purple-400">
+                      Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg font-bold text-blue-400">
+                      Question {getQuestionDisplayNumber(currentItem.id)}
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                  </>
+                )}
               </div>
               <p className="text-white text-lg font-semibold">{currentPrompt.text}</p>
+              {currentPrompt.placeholder && (
+                <p className="text-slate-400 text-sm mt-1">{currentPrompt.placeholder}</p>
+              )}
               {validationHint && (
                 <div className="mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
                   <p className="text-yellow-200 text-sm">{validationHint}</p>
