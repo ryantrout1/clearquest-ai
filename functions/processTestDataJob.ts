@@ -739,7 +739,27 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   // Also map by database ID for questions that use section DB ID
   for (const s of sections) sectionMap[s.id] = s.section_name;
   
-  // PHASE 1: Create all Response records FIRST so we have responseIds
+  // PHASE 0: Create the session FIRST so we have a sessionId for Response records
+  const endTime = new Date(currentTime + 60000 + allQuestions.length * 8000); // Estimate
+  
+  const sessionData = {
+    session_code: uniqueSessionCode, department_code: deptCode, file_number: uniqueFileNumber, status: "in_progress", is_archived: false,
+    started_at: startTime.toISOString(), last_activity_at: new Date().toISOString(),
+    questions_answered_count: 0, followups_count: 0,
+    ai_probes_count: 0,
+    red_flags_count: 0, completion_percent: 0,
+    elapsed_seconds: 0,
+    active_seconds: 0,
+    transcript_snapshot: [], session_hash: generateSessionHash(), risk_rating: riskLevel,
+    metadata: { isTestData: true, testPersona: fileNumber, candidateName: name, generatedAt: now.toISOString(), config: { includeAiProbing, enableMultiLoopBackgrounds, randomized: config.randomizeWithinPersona } },
+    data_version: "v2.5-hybrid"
+  };
+  
+  const createdSession = await base44.asServiceRole.entities.InterviewSession.create(sessionData);
+  const sessionId = createdSession.id;
+  console.log('[TEST_DATA][PHASE0] Created session:', sessionId);
+  
+  // PHASE 1: Create all Response records so we have responseIds
   // This ensures transcript events can be wired with proper responseIds
   const responsesByQuestionId = {};
   let responsesCreated = 0;
