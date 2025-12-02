@@ -1100,66 +1100,69 @@ export default function CandidateInterview() {
             }
             
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
-            // NOTE: For V3 packs, deterministic follow-ups are HIDDEN from candidates.
-            // V3 packs use conversational AI probing (V3ProbingLoop) instead.
-            // The V3 check above already handles routing to V3ProbingLoop.
-            // If we reach here for a V3 pack, it means V3 is not enabled for this category
-            // or the FactModel isn't ready - fall back to V2 if available.
+            // All V2 packs are AI-driven: backend decides whether to probe or advance
             if (isV2Pack && !isV3Pack) {
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
                 console.warn("[V2_PACK] Missing or invalid pack config for", packId, packConfig);
-              } else {
-                // Build ordered list of fields in this V2 pack
-                const orderedFields = packConfig.fields
-                  .filter(f => f.fieldKey && f.label)
-                  .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
-                
-                console.log("[V2_PACK] Entering V2 pack mode:", packId, "fields:", orderedFields.map(f => f.fieldKey));
-                
-                // Save the base question answer first
+                // Fallback: advance to next question
                 saveAnswerToDatabase(currentItem.id, value, question);
-                
-                // Set up V2 pack mode
-                setActiveV2Pack({
-                  packId,
-                  fields: orderedFields,
-                  currentIndex: 0,
-                  baseQuestionId: currentItem.id,
-                  instanceNumber: 1,
-                  substanceName: substanceName,
-                  collectedAnswers: {}
-                });
-                setV2PackTriggerQuestionId(currentItem.id);
-                setV2PackMode("V2_PACK");
-                
-                // Set the first V2 pack field as current item
-                const firstField = orderedFields[0];
-                setCurrentItem({
-                  id: `v2pack-${packId}-0`,
-                  type: 'v2_pack_field',
-                  packId: packId,
-                  fieldIndex: 0,
-                  fieldKey: firstField.fieldKey,
-                  fieldConfig: firstField,
-                  baseQuestionId: currentItem.id,
-                  instanceNumber: 1
-                });
-                setQueue([]);
-                setCurrentFollowUpAnswers({});
-                
-                await persistStateToDatabase(newTranscript, [], {
-                  id: `v2pack-${packId}-0`,
-                  type: 'v2_pack_field',
-                  packId: packId,
-                  fieldIndex: 0
-                });
-                
+                advanceToNextBaseQuestion(currentItem.id);
                 setIsCommitting(false);
                 setInput("");
                 return;
               }
+              
+              // Build ordered list of fields in this V2 pack
+              const orderedFields = packConfig.fields
+                .filter(f => f.fieldKey && f.label)
+                .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
+              
+              console.log("[V2_PACK] Entering V2 pack mode:", packId, "fields:", orderedFields.map(f => f.fieldKey));
+              console.log("[V2_PACK] AI-driven mode - backend will control progression");
+              
+              // Save the base question answer first
+              saveAnswerToDatabase(currentItem.id, value, question);
+              
+              // Set up V2 pack mode
+              setActiveV2Pack({
+                packId,
+                fields: orderedFields,
+                currentIndex: 0,
+                baseQuestionId: currentItem.id,
+                instanceNumber: 1,
+                substanceName: substanceName,
+                collectedAnswers: {}
+              });
+              setV2PackTriggerQuestionId(currentItem.id);
+              setV2PackMode("V2_PACK");
+              
+              // Set the first V2 pack field as current item
+              const firstField = orderedFields[0];
+              setCurrentItem({
+                id: `v2pack-${packId}-0`,
+                type: 'v2_pack_field',
+                packId: packId,
+                fieldIndex: 0,
+                fieldKey: firstField.fieldKey,
+                fieldConfig: firstField,
+                baseQuestionId: currentItem.id,
+                instanceNumber: 1
+              });
+              setQueue([]);
+              setCurrentFollowUpAnswers({});
+              
+              await persistStateToDatabase(newTranscript, [], {
+                id: `v2pack-${packId}-0`,
+                type: 'v2_pack_field',
+                packId: packId,
+                fieldIndex: 0
+              });
+              
+              setIsCommitting(false);
+              setInput("");
+              return;
             }
             
             if (interviewMode === "AI_PROBING") {
@@ -1628,13 +1631,19 @@ export default function CandidateInterview() {
         // Save the follow-up answer to database
         await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
         
-        // Run V2 probing if enabled
+        // Run V2 probing - ALWAYS for V2 packs (backend is the decision maker)
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
         const baseQuestion = engine.QById[baseQuestionId];
         
-        console.log("[V2_PACK] Calling V2 field probe for follow-up question", { packId, fieldKey });
+        console.log("[V2_PACK][PROBE_CALL]", { 
+          packId, 
+          fieldKey, 
+          answer: normalizedAnswer.substring(0, 50),
+          probeCount,
+          maxAiFollowups
+        });
 
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
@@ -1662,20 +1671,27 @@ export default function CandidateInterview() {
         });
 
         // Interpret V2 probe result to determine action
-        const interpretV2ProbeResult = (result) => {
+        const interpretV2ProbeResult = (result, currentFieldIndex, totalFields) => {
           if (!result) {
+            console.warn("[V2_PACK] No probe result - advancing");
             return { action: 'NEXT_FIELD', reason: 'no result' };
           }
 
           // Check for error or skip
-          if (result.mode === 'ERROR' || result.mode === 'SKIP') {
-            return { action: 'NEXT_FIELD', reason: result.mode };
+          if (result.mode === 'ERROR') {
+            console.warn("[V2_PACK] Probe error - advancing", result.message);
+            return { action: 'NEXT_FIELD', reason: 'error' };
           }
 
-          // Check for real AI follow-up: mode is PROBE or QUESTION, has a question, and has probes
+          if (result.mode === 'SKIP') {
+            return { action: 'NEXT_FIELD', reason: 'skip' };
+          }
+
+          // Check for real AI follow-up
           const hasQuestion = !!result.question;
           const hasProbes = (result.followups?.length > 0) || (result.followupsCount > 0) || (result.probes?.length > 0);
 
+          // CRITICAL: Only stay on field if we have BOTH a question AND probes/followups
           if ((result.mode === 'PROBE' || result.mode === 'QUESTION') && hasQuestion && hasProbes) {
             return { 
               action: 'STAY_ON_FIELD_SHOW_AI', 
@@ -1684,22 +1700,29 @@ export default function CandidateInterview() {
             };
           }
 
-          // No AI follow-up needed - advance to next field
+          // No AI follow-up - check if there are more fields
+          const isLastField = currentFieldIndex >= totalFields - 1;
+          if (isLastField) {
+            return { action: 'COMPLETE_PACK', reason: 'last field, no followups' };
+          }
+
           return { action: 'NEXT_FIELD', reason: 'no followups' };
         };
 
-        const decision = interpretV2ProbeResult(v2Result);
+        const decision = interpretV2ProbeResult(v2Result, fieldIndex, activeV2Pack.fields.length);
 
         console.log("[V2_PACK][DECISION]", { 
           packId, 
           fieldKey, 
           action: decision.action,
-          reason: decision.reason
+          reason: decision.reason,
+          currentIndex: fieldIndex,
+          totalFields: activeV2Pack.fields.length
         });
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
-          console.log('[V2_PACK] Staying on field for AI follow-ups', { packId, fieldKey });
+          console.log('[V2_PACK][ACTION] STAY_ON_FIELD_SHOW_AI', { packId, fieldKey, aiFollowups: decision.probes?.length || 1 });
 
           setAiFollowupCounts(prev => ({
             ...prev,
@@ -1732,61 +1755,9 @@ export default function CandidateInterview() {
           return;
         }
 
-        // Case B/C: No AI follow-up - advance to next field or end pack
-        console.log('[V2_PACK] No AI follow-up, advancing to next field or ending pack', { 
-          packId, 
-          fieldKey,
-          currentIndex: fieldIndex,
-          totalFields: activeV2Pack.fields.length
-        });
-
-        // Update collected answers
-        setActiveV2Pack(prev => ({
-          ...prev,
-          collectedAnswers: updatedCollectedAnswers
-        }));
-
-        // Determine next step
-        const nextIndex = fieldIndex + 1;
-
-        if (nextIndex < activeV2Pack.fields.length) {
-          // Move to next field
-          const nextField = activeV2Pack.fields[nextIndex];
-
-          console.log("[V2_PACK] Advancing to next field in pack", { 
-            packId, 
-            currentIndex: fieldIndex,
-            nextIndex, 
-            nextFieldKey: nextField.fieldKey 
-          });
-
-          setActiveV2Pack(prev => ({
-            ...prev,
-            currentIndex: nextIndex,
-            collectedAnswers: updatedCollectedAnswers
-          }));
-
-          const nextItem = {
-            id: `v2pack-${packId}-${nextIndex}`,
-            type: 'v2_pack_field',
-            packId: packId,
-            fieldIndex: nextIndex,
-            fieldKey: nextField.fieldKey,
-            fieldConfig: nextField,
-            baseQuestionId: baseQuestionId,
-            instanceNumber: instanceNumber
-          };
-
-          setCurrentItem(nextItem);
-          setQueue([]);
-
-          await persistStateToDatabase(newTranscript, [], nextItem);
-          setIsCommitting(false);
-          setInput("");
-          return;
-        } else {
+        if (decision.action === 'COMPLETE_PACK') {
           // Pack complete - return to BASE mode
-          console.log("[V2_PACK] Pack complete, returning to BASE mode", { packId });
+          console.log("[V2_PACK][ACTION] COMPLETE_PACK", { packId, fieldKey, reason: decision.reason });
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
@@ -1806,6 +1777,67 @@ export default function CandidateInterview() {
           setInput("");
           return;
         }
+
+        // Case B: NEXT_FIELD - advance to next field in pack
+        const nextIndex = fieldIndex + 1;
+
+        if (nextIndex >= activeV2Pack.fields.length) {
+          // Failsafe: should have been caught by COMPLETE_PACK
+          console.log("[V2_PACK][FAILSAFE] Last field reached, completing pack", { packId });
+
+          setActiveV2Pack(null);
+          setV2PackMode("BASE");
+          setCurrentFollowUpAnswers({});
+          lastLoggedV2PackFieldRef.current = null;
+
+          const baseQuestion = engine.QById[baseQuestionId];
+          if (baseQuestion?.followup_multi_instance) {
+            onFollowupPackComplete(baseQuestionId, packId);
+          } else {
+            advanceToNextBaseQuestion(baseQuestionId);
+          }
+
+          await persistStateToDatabase(newTranscript, [], null);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        // Move to next field
+        const nextField = activeV2Pack.fields[nextIndex];
+
+        console.log("[V2_PACK][ACTION] NEXT_FIELD", { 
+          packId, 
+          fromField: fieldKey,
+          toField: nextField.fieldKey,
+          fromIndex: fieldIndex,
+          toIndex: nextIndex
+        });
+
+        setActiveV2Pack(prev => ({
+          ...prev,
+          currentIndex: nextIndex,
+          collectedAnswers: updatedCollectedAnswers
+        }));
+
+        const nextItem = {
+          id: `v2pack-${packId}-${nextIndex}`,
+          type: 'v2_pack_field',
+          packId: packId,
+          fieldIndex: nextIndex,
+          fieldKey: nextField.fieldKey,
+          fieldConfig: nextField,
+          baseQuestionId: baseQuestionId,
+          instanceNumber: instanceNumber
+        };
+
+        setCurrentItem(nextItem);
+        setQueue([]);
+
+        await persistStateToDatabase(newTranscript, [], nextItem);
+        setIsCommitting(false);
+        setInput("");
+        return;
         
       } else if (currentItem.type === 'multi_instance') {
         const { questionId, packId, instanceNumber } = currentItem;
