@@ -859,8 +859,8 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   const finalTranscript = [];
   let transcriptFollowupCount = 0;
   
-  // Store mapping of question_id to transcript indices that need response_id
-  const transcriptIndicesToUpdate = {}; // question_id -> [indices]
+  // Now responsesByQuestionId is ALREADY populated from Phase 1
+  // We can wire responseIds directly into transcript entries
   
   for (let i = 0; i < transcript.length; i++) {
     const entry = transcript[i];
@@ -871,6 +871,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
       const questionId = entry.question_id;
       const baseQ = allQuestions.find(q => q.question_id === questionId);
       const packId = baseQ?.followup_pack;
+      const responseId = responsesByQuestionId[questionId]; // Already available!
       
       if (packId) {
         const packQuestions = allFollowUpQuestionsForTranscript
@@ -879,11 +880,6 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
         
         const sectionName = sectionMap[baseQ.section_id] || baseQ.category || 'Unknown';
         const packData = getFollowupData(packId, riskLevel, FOLLOWUP_TEMPLATES);
-        
-        // Track indices for this question's follow-ups
-        if (!transcriptIndicesToUpdate[questionId]) {
-          transcriptIndicesToUpdate[questionId] = [];
-        }
         
         // === AI-POWERED ANSWER GENERATION ===
         let answerByQuestionId = new Map();
@@ -922,7 +918,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
           }
         }
         
-        // Add each deterministic follow-up question and answer
+        // Add each deterministic follow-up question and answer WITH responseId
         packQuestions.forEach((fuq, idx) => {
           currentTime += 2000 + Math.floor(Math.random() * 1000);
           
@@ -932,15 +928,14 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
             answer = generateFollowUpAnswerForQuestion(fuq, packId, riskLevel, packData, idx);
           }
           
-          const questionEntryIndex = finalTranscript.length;
-          
-          // Add follow-up question entry (responseId will be added later)
+          // Add follow-up question entry WITH responseId (no longer null!)
           finalTranscript.push({
             type: "followup_question",
             kind: "deterministic_followup_question",
             questionId: questionId,
             baseQuestionId: questionId,
-            // responseId: null - will be populated after Response creation
+            responseId: responseId || null, // Wired from Phase 1
+            parentResponseId: responseId || null,
             packId: packId,
             followupPackId: packId,
             followupQuestionId: fuq.followup_question_id,
@@ -953,19 +948,16 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
             timestamp: new Date(currentTime).toISOString()
           });
           
-          transcriptIndicesToUpdate[questionId].push(questionEntryIndex);
-          
           currentTime += 3000 + Math.floor(Math.random() * 2000);
           
-          const answerEntryIndex = finalTranscript.length;
-          
-          // Add follow-up answer entry (responseId will be added later)
+          // Add follow-up answer entry WITH responseId (no longer null!)
           finalTranscript.push({
             type: "followup_answer",
             kind: "deterministic_followup_answer",
             questionId: questionId,
             baseQuestionId: questionId,
-            // responseId: null - will be populated after Response creation
+            responseId: responseId || null, // Wired from Phase 1
+            parentResponseId: responseId || null,
             packId: packId,
             followupPackId: packId,
             followupQuestionId: fuq.followup_question_id,
@@ -977,8 +969,6 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
             sectionName: sectionName,
             timestamp: new Date(currentTime).toISOString()
           });
-          
-          transcriptIndicesToUpdate[questionId].push(answerEntryIndex);
           
           transcriptFollowupCount++;
         });
