@@ -1685,6 +1685,15 @@ export function parseFollowUpPacks() {
 /**
  * NEW: Parse V2 Follow-Up Packs from database
  * Converts FollowUpQuestion entities into the same format as legacy FOLLOWUP_PACK_STEPS
+ * 
+ * IMPORTANT V3 VISIBILITY RULES:
+ * - For V3 packs (ide_version === "V3"), deterministic follow-up questions are NOT shown to candidates.
+ * - Instead, V3 uses the conversational AI probing loop (V3ProbingLoop component).
+ * - Follow-up questions with visibility === "SCHEMA_ONLY" are used only as schema backing for FactModel.
+ * - Only questions with visibility === "VISIBLE" (or undefined for legacy) are included in deterministic flow.
+ * 
+ * For non-V3 packs (ide_version !== "V3" or null):
+ * - Existing deterministic behavior is preserved unchanged.
  */
 export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
   const V2PackStepsById = {};
@@ -1696,6 +1705,17 @@ export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
       return;
     }
     
+    // V3 VISIBILITY: For V3 packs, do NOT include any deterministic follow-up questions.
+    // V3 uses conversational AI probing via FactModel, not deterministic question lists.
+    if (pack.ide_version === "V3") {
+      console.log(`   ℹ️ V3 Pack ${packId}: Deterministic follow-ups hidden (using V3 conversational probing)`);
+      // Store empty array - V3 packs use FactModel-based probing, not deterministic steps
+      V2PackStepsById[packId] = [];
+      V2PackStepsById[packId]._isV3 = true; // Mark for reference
+      V2PackStepsById[packId]._factModelId = pack.fact_model_id;
+      return;
+    }
+    
     // Fetch questions for this pack from the FollowUpQuestion entity
     const followUpQuestions = allFollowUpQuestions.filter(q => q.followup_pack_id === pack.followup_pack_id);
     
@@ -1704,7 +1724,19 @@ export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
       return;
     }
     
-    V2PackStepsById[packId] = followUpQuestions
+    // Filter out SCHEMA_ONLY questions - they are not shown to candidates
+    // SCHEMA_ONLY questions exist only to map data into FactModel fields
+    const visibleQuestions = followUpQuestions.filter(q => {
+      const visibility = q.visibility || 'VISIBLE'; // Default to VISIBLE for legacy
+      return visibility === 'VISIBLE';
+    });
+    
+    const schemaOnlyCount = followUpQuestions.length - visibleQuestions.length;
+    if (schemaOnlyCount > 0) {
+      console.log(`   ℹ️ Pack ${packId}: ${schemaOnlyCount} SCHEMA_ONLY questions excluded from candidate UI`);
+    }
+    
+    V2PackStepsById[packId] = visibleQuestions
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
       .map((question, idx) => ({
         Field_Key: question.followup_question_id || `field_${idx}`,
@@ -1716,7 +1748,7 @@ export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
         IsV2: true // Mark as V2 pack question
       }));
     
-    console.log(`   ✅ V2 Pack ${packId}: ${V2PackStepsById[packId].length} questions loaded from database`);
+    console.log(`   ✅ V2 Pack ${packId}: ${V2PackStepsById[packId].length} VISIBLE questions loaded (${schemaOnlyCount} SCHEMA_ONLY excluded)`);
   });
   
   console.log(`📦 Loaded ${Object.keys(V2PackStepsById).length} V2 follow-up packs from database`);
@@ -2466,8 +2498,18 @@ function normalizeToYesNo(answer) {
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
 
+/**
+ * Check if a follow-up pack should be triggered for a question
+ * 
+ * V3 VISIBILITY RULES:
+ * - For V3 packs (ide_version === "V3"), this function still returns the packId,
+ *   but the CandidateInterview page will route to V3ProbingLoop instead of deterministic follow-ups.
+ * - The actual V3 check happens in CandidateInterview.handleAnswer(), which checks system config
+ *   and pack.ide_version before deciding whether to use V3 conversational probing.
+ * - This function remains unchanged for backward compatibility with V1/V2 packs.
+ */
 export function checkFollowUpTrigger(engine, questionDbId, answer, effectiveMode = null) {
-  const { MatrixYesByQ, PackStepsById, QById, QuestionCodeById } = engine;
+  const { MatrixYesByQ, PackStepsById, QById, QuestionCodeById, V2Packs } = engine;
   
   const questionCode = QuestionCodeById[questionDbId] || `db_${questionDbId}`;
   console.log(`🔍 Entity-driven follow-up check for db_id=${questionDbId} (code: ${questionCode}), answer="${answer}"`);
@@ -2488,22 +2530,33 @@ export function checkFollowUpTrigger(engine, questionDbId, answer, effectiveMode
   if (answer === 'Yes' && MatrixYesByQ[questionDbId]) {
     const packId = MatrixYesByQ[questionDbId];
     
-    // ROBUSTNESS: If pack is undefined, log warning and return null
-    if (!PackStepsById[packId]) {
-      console.warn(`⚠️ Pack ${packId} referenced by db_id=${questionDbId} is not defined - treating as no follow-up`);
-      return null;
+    // Check if this is a V3 pack - if so, return packId but note it for V3 routing
+    // The actual V3 handling happens in CandidateInterview.handleAnswer()
+    const v2Pack = V2Packs?.find(p => p.followup_pack_id === packId);
+    const isV3Pack = v2Pack?.ide_version === "V3";
+    
+    if (isV3Pack) {
+      console.log(`   ℹ️ V3 Pack detected: ${packId} - will route to V3 conversational probing`);
+      // Still return the packId - CandidateInterview will check for V3 and route appropriately
+    }
+    
+    // ROBUSTNESS: For non-V3 packs, if pack is undefined or empty, log warning
+    if (!isV3Pack && (!PackStepsById[packId] || PackStepsById[packId].length === 0)) {
+      console.warn(`⚠️ Pack ${packId} referenced by db_id=${questionDbId} has no visible steps - treating as no deterministic follow-up`);
+      // Note: For V3 packs, empty PackStepsById is expected (they use conversational probing)
     }
     
     // NEW: Extract substance_name from Question entity if it exists
     const question = QById[questionDbId];
     const substanceName = question?.substance_name || null;
     
-    console.log(`   ✅ Follow-up triggered: ${packId} (${PackStepsById[packId].length} steps)`);
+    const stepCount = PackStepsById[packId]?.length || 0;
+    console.log(`   ✅ Follow-up triggered: ${packId} (${stepCount} deterministic steps${isV3Pack ? ', V3 probing will be used' : ''})`);
     if (substanceName) {
       console.log(`   💊 Substance detected: ${substanceName} - will inject into PACK_DRUG_USE prompts`);
     }
     
-    return { packId, substanceName };
+    return { packId, substanceName, isV3Pack };
   }
 
   console.log(`   ℹ️ No follow-up for this question`);
