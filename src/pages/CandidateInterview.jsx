@@ -2244,6 +2244,10 @@ export default function CandidateInterview() {
             // ============================================================================
             const categoryId = mapPackIdToCategory(packId);
             
+            // Block deterministic follow-ups entirely when AI Probing is the active mode
+            if (interviewMode !== "AI_PROBING") {
+              // Continue with normal deterministic follow-up logic only if NOT in AI_PROBING mode
+            
             if (ideEnabled && categoryId) {
               console.log("[IDE] Checking fact model for category", { categoryId, packId });
               
