@@ -926,6 +926,10 @@ export default function CandidateInterview() {
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
             
+            console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking if V2 pack...`);
+            const isV2Pack = useProbeEngineV2(packId);
+            console.log(`[FOLLOWUP-TRIGGER] ${packId} isV2Pack=${isV2Pack}`);
+            
             const categoryId = mapPackIdToCategory(packId);
             
             if (interviewMode === "AI_PROBING") {
