@@ -457,6 +457,13 @@ export default function CandidateInterview() {
   const [currentIdeQuestion, setCurrentIdeQuestion] = useState(null);
   const [currentIdeCategoryId, setCurrentIdeCategoryId] = useState(null);
   
+  // V2_PACK mode state: 'BASE' = normal flow, 'V2_PACK' = running a V2 follow-up pack
+  const [v2PackMode, setV2PackMode] = useState("BASE");
+  // activeV2Pack: { packId, fields, currentIndex, baseQuestionId, instanceNumber, substanceName } | null
+  const [activeV2Pack, setActiveV2Pack] = useState(null);
+  // Track the base question ID that triggered the V2 pack so we can resume after
+  const [v2PackTriggerQuestionId, setV2PackTriggerQuestionId] = useState(null);
+  
   const displayNumberMapRef = useRef({});
   
   const totalQuestionsAllSections = engine?.TotalQuestions || 0;
