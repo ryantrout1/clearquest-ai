@@ -22,6 +22,7 @@ import IdeIncidentsPanel from "../components/sessionDetails/IdeIncidentsPanel";
 import V3IncidentsTab from "../components/sessionDetails/V3IncidentsTab";
 import V3TranscriptTab from "../components/sessionDetails/V3TranscriptTab";
 import V3NotesTab from "../components/sessionDetails/V3NotesTab";
+import V3DebugSessionPanel from "../components/sessionDetails/V3DebugSessionPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock } from "lucide-react";
 import { formatDateAZ } from "../components/utils/dateFormatters";
@@ -157,6 +158,11 @@ export default function SessionDetails() {
   
   // Determine if this is a V3 session
   const isV3Session = session?.ide_version === "V3";
+  
+  // V3 Debug mode state
+  const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [v3Transcripts, setV3Transcripts] = useState([]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -173,11 +179,29 @@ export default function SessionDetails() {
       const cfg = await getSystemConfig();
       setSystemConfig(cfg.config);
       
+      // Check V3 debug mode
+      const v3DebugMode = cfg.config?.v3?.debug_mode_enabled || false;
+      setV3DebugEnabled(v3DebugMode);
+      
+      // Check if current user is admin
+      try {
+        const user = await base44.auth.me();
+        setIsAdminUser(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
+      } catch (e) {
+        setIsAdminUser(false);
+      }
+      
       // Load decision traces for this session
       const traces = await base44.entities.DecisionTrace.filter({ session_id: sessionId });
       setDecisionTraces(traces.sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       ));
+      
+      // Load V3 transcripts for debug panel
+      if (v3DebugMode) {
+        const transcripts = await base44.entities.InterviewTranscript.filter({ session_id: sessionId });
+        setV3Transcripts(transcripts);
+      }
       
       console.log("[IDE] Loaded", traces.length, "decision traces");
     } catch (err) {
@@ -1418,6 +1442,14 @@ export default function SessionDetails() {
                 FactModel-based probing with {session.incidents.length} incident(s)
               </span>
             </div>
+            
+            {/* V3 Debug Panel - Admin only */}
+            {v3DebugEnabled && isAdminUser && (
+              <V3DebugSessionPanel 
+                session={session} 
+                transcripts={v3Transcripts}
+              />
+            )}
             
             <Tabs value={v3ActiveTab} onValueChange={setV3ActiveTab} className="w-full">
               <TabsList className="bg-slate-800 border-slate-700">
