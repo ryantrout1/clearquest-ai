@@ -1020,9 +1020,10 @@ export default function CandidateInterview() {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
 
           if (followUpResult) {
-            const { packId, substanceName } = followUpResult;
-            
+            const { packId, substanceName, isV3Pack } = followUpResult;
+
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
+            console.log(`[FOLLOWUP-TRIGGER] isV3Pack from checkFollowUpTrigger=${isV3Pack}`);
             const isV2Pack = useProbeEngineV2(packId);
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV2Pack=${isV2Pack}`);
             
@@ -1083,9 +1084,14 @@ export default function CandidateInterview() {
             }
             
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
-            if (isV2Pack) {
+            // NOTE: For V3 packs, deterministic follow-ups are HIDDEN from candidates.
+            // V3 packs use conversational AI probing (V3ProbingLoop) instead.
+            // The V3 check above already handles routing to V3ProbingLoop.
+            // If we reach here for a V3 pack, it means V3 is not enabled for this category
+            // or the FactModel isn't ready - fall back to V2 if available.
+            if (isV2Pack && !isV3Pack) {
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
-              
+
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
                 console.warn("[V2_PACK] Missing or invalid pack config for", packId, packConfig);
               } else {
