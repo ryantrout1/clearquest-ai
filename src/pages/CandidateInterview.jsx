@@ -1851,59 +1851,40 @@ export default function CandidateInterview() {
           return;
         }
 
-        // Case C: NEXT_FIELD - advance to next field in pack
+        // NEXT_FIELD: Advance to next field in pack
         const nextFieldIdx = fieldIndex + 1;
 
-        if (nextFieldIdx >= activeV2Pack.fields.length) {
-          // Failsafe: should have been caught by COMPLETE_PACK
-          console.log("[V2_PACK][ERROR]", { 
-            packId,
-            error: "Failsafe triggered - last field reached unexpectedly",
-            message: "Completing pack via failsafe"
-          });
-
+        // Failsafe: if we've somehow gone past the end, complete the pack
+        if (nextFieldIdx >= totalFieldsInPack) {
+          console.log(`[V2_PACK][FAILSAFE] nextFieldIdx=${nextFieldIdx} >= totalFields=${totalFieldsInPack} - completing pack`);
+          
           setActiveV2Pack(null);
           setV2PackMode("BASE");
           setCurrentFollowUpAnswers({});
           lastLoggedV2PackFieldRef.current = null;
-
-          const baseQuestionForFallback = engine.QById[baseQuestionId];
-          if (baseQuestionForFallback?.followup_multi_instance) {
-            onFollowupPackComplete(baseQuestionId, packId);
-          } else {
-            advanceToNextBaseQuestion(baseQuestionId);
-          }
-
+          
+          advanceToNextBaseQuestion(baseQuestionId);
           await persistStateToDatabase(newTranscript, [], null);
-          setIsCommitting(false);
-          setInput("");
           return;
         }
 
-        // Move to next field
+        // Get next field config
         const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
-
-        // EXPLICIT LOGGING: Advancing pack to next field
-        console.log(`[V2_PACK][ADVANCING] Advancing pack ${packId} to field ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${activeV2Pack.fields.length})`);
         
-        // Special log for PACK_PRIOR_LE_APPS_STANDARD
+        console.log(`[V2_PACK][NEXT_FIELD] Advancing: ${fieldKey} -> ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${totalFieldsInPack})`);
+        
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log(`[V2_PACK][PRIOR_LE_APPS][NEXT_FIELD] ${fieldKey} -> ${nextFieldConfig.fieldKey}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][NEXT] ${fieldKey} -> ${nextFieldConfig.fieldKey}`);
         }
-        
-        // EXPLICIT LOGGING: State update for V2 pack progression
-        console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
-        console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Now rendering: ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Label: "${nextFieldConfig.label}"`);
-        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextFieldIdx - 1}`);
 
+        // Update active pack state with new index and collected answers
         setActiveV2Pack(prev => ({
           ...prev,
           currentIndex: nextFieldIdx,
           collectedAnswers: updatedCollectedAnswers
         }));
 
+        // Create next item for the pack field
         const nextItemForV2 = {
           id: `v2pack-${packId}-${nextFieldIdx}`,
           type: 'v2_pack_field',
@@ -1919,8 +1900,8 @@ export default function CandidateInterview() {
         setQueue([]);
 
         await persistStateToDatabase(newTranscript, [], nextItemForV2);
-        setIsCommitting(false);
-        setInput("");
+        
+        console.log(`[V2_PACK][RENDER_NEXT] Now showing: ${nextFieldConfig.fieldKey} - "${nextFieldConfig.label}"`);
         return;
         
       } else if (currentItem.type === 'multi_instance') {
