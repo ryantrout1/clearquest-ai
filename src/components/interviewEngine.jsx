@@ -1508,12 +1508,9 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     });
 
     // Legacy: Track follow-up packs (using database ID as key)
+    // NOTE: Undefined pack check moved to after V2 pack loading for accuracy
     if (q.followup_pack && q.response_type === 'yes_no') {
       MatrixYesByQ[dbQuestionId] = q.followup_pack;
-      
-      if (!FOLLOWUP_PACK_STEPS[q.followup_pack]) {
-        UndefinedPacks.add(q.followup_pack);
-      }
     }
   });
 
