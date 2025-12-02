@@ -317,40 +317,40 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 
 // Centralized V2 probe runner for both base questions and follow-ups
 const runV2FieldProbeIfNeeded = async ({
-  base44Client,
-  packId,
-  fieldKey,
-  fieldValue,
-  previousProbesCount,
-  incidentContext,
-  sessionId,
-  questionCode,
-  baseQuestionId,
-  aiProbingEnabled,
-  aiProbingDisabledForSession,
-  maxAiFollowups
+base44Client,
+packId,
+fieldKey,
+fieldValue,
+previousProbesCount,
+incidentContext,
+sessionId,
+questionCode,
+baseQuestionId,
+aiProbingEnabled,
+aiProbingDisabledForSession,
+maxAiFollowups
 }) => {
-  const probeCount = previousProbesCount || 0;
-  
-  if (!ENABLE_LIVE_AI_FOLLOWUPS) {
-    console.log('[V2 FIELD PROBE] skipping – ENABLE_LIVE_AI_FOLLOWUPS is false');
-    return { mode: 'SKIP', reason: 'feature disabled' };
-  }
-  
-  if (!aiProbingEnabled) {
-    console.log('[V2 FIELD PROBE] skipping – aiProbingEnabled is false');
-    return { mode: 'SKIP', reason: 'AI probing disabled globally' };
-  }
-  
-  if (aiProbingDisabledForSession) {
-    console.log('[V2 FIELD PROBE] skipping – AI disabled for this session');
-    return { mode: 'SKIP', reason: 'AI disabled for session' };
-  }
-  
-  if (probeCount >= maxAiFollowups) {
-    console.log('[V2 FIELD PROBE] skipping – max probes reached', { probeCount, maxAiFollowups });
-    return { mode: 'SKIP', reason: 'quota exceeded' };
-  }
+const probeCount = previousProbesCount || 0;
+
+if (!ENABLE_LIVE_AI_FOLLOWUPS) {
+  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=FEATURE_DISABLED (ENABLE_LIVE_AI_FOLLOWUPS=false)`);
+  return { mode: 'SKIP', reason: 'feature disabled' };
+}
+
+if (!aiProbingEnabled) {
+  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=AI_DISABLED_GLOBALLY`);
+  return { mode: 'SKIP', reason: 'AI probing disabled globally' };
+}
+
+if (aiProbingDisabledForSession) {
+  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=AI_DISABLED_FOR_SESSION`);
+  return { mode: 'SKIP', reason: 'AI disabled for session' };
+}
+
+if (probeCount >= maxAiFollowups) {
+  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=QUOTA_EXCEEDED (${probeCount}/${maxAiFollowups})`);
+  return { mode: 'SKIP', reason: 'quota exceeded' };
+}
   
   console.log('[V2 FIELD PROBE] follow-up: calling backend', {
     packId,
@@ -1645,25 +1645,19 @@ export default function CandidateInterview() {
         const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
         
         // EXPLICIT LOGGING: V2 pack field submission with full payload details
-        console.log("[V2_PACK_SUBMIT] Submitting V2 field answer", {
-          packId,
-          fieldKey,
-          fieldIndex,
-          answer: callSummary,
-          probeCount,
-          maxAiFollowups,
-          baseQuestionId,
-          instanceNumber,
-          sessionId,
-          backendPayload: {
-            pack_id: packId,
-            field_key: fieldKey,
-            field_value: normalizedAnswer,
-            previous_probes_count: probeCount,
-            incident_context: Object.keys(updatedCollectedAnswers),
-            session_id: sessionId,
-            question_code: baseQuestion?.question_id
-          }
+        console.log(`[V2_PACK][SEND] ========== V2 PACK FIELD ANSWER SUBMISSION ==========`);
+        console.log(`[V2_PACK][SEND] sessionId=${sessionId}, deptCode=${session?.department_code}, candidateCode=${session?.file_number}`);
+        console.log(`[V2_PACK][SEND] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack.fields.length}`);
+        console.log(`[V2_PACK][SEND] answer="${callSummary}", probeCount=${probeCount}/${maxAiFollowups}`);
+        console.log(`[V2_PACK][SEND] Backend payload:`, {
+          pack_id: packId,
+          field_key: fieldKey,
+          field_value: normalizedAnswer,
+          previous_probes_count: probeCount,
+          incident_context: updatedCollectedAnswers,
+          session_id: sessionId,
+          question_code: baseQuestion?.question_id,
+          base_question_id: baseQuestionId
         });
         
         console.log("[V2_PACK][CALL]", { 
@@ -1700,21 +1694,19 @@ export default function CandidateInterview() {
         });
         
         // EXPLICIT LOGGING: Backend response for V2 pack with full details
-        console.log("[V2_PACK_RESPONSE]", {
-          packId,
-          currentFieldKey: fieldKey,
-          currentFieldIndex: fieldIndex,
-          totalFields: activeV2Pack.fields.length,
-          backendResponse: {
-            mode: v2Result?.mode,
-            nextFieldKey: v2Result?.field_key || v2Result?.semanticField || null,
-            validationResult: v2Result?.validationResult,
-            hasQuestion: !!v2Result?.question,
-            question: v2Result?.question?.substring?.(0, 80),
-            previousProbeCount: v2Result?.previousProbeCount,
-            maxProbesPerField: v2Result?.maxProbesPerField,
-            errors: v2Result?.error || v2Result?.message || null
-          },
+        console.log(`[V2_PACK][RECV] ========== V2 PACK BACKEND RESPONSE ==========`);
+        console.log(`[V2_PACK][RECV] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack.fields.length}`);
+        console.log(`[V2_PACK][RECV] Backend decision:`, {
+          mode: v2Result?.mode,
+          validationResult: v2Result?.validationResult,
+          semanticField: v2Result?.semanticField,
+          hasQuestion: !!v2Result?.question,
+          questionPreview: v2Result?.question?.substring?.(0, 80),
+          previousProbeCount: v2Result?.previousProbeCount,
+          maxProbesPerField: v2Result?.maxProbesPerField,
+          errors: v2Result?.error || v2Result?.message || null
+        });
+        console.log(`[V2_PACK][RECV] Interpretation:`, {
           willStayOnField: v2Result?.mode === 'QUESTION',
           willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
           isLastField: fieldIndex >= activeV2Pack.fields.length - 1
@@ -1782,31 +1774,26 @@ export default function CandidateInterview() {
           totalFields: activeV2Pack.fields.length
         });
         
-        // EXPLICIT LOGGING: Decision tree for PACK_PRIOR_LE_APPS_STANDARD
-        if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
-          console.log(`[V2-FRONTEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD ACTION: ${decision.action} ==========`, {
-            currentFieldKey: fieldKey,
-            currentFieldIndex: fieldIndex,
-            totalFields: activeV2Pack.fields.length,
-            action: decision.action,
-            reason: decision.reason,
-            nextFieldIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
-            nextFieldKey: decision.action === 'NEXT_FIELD' && fieldIndex + 1 < activeV2Pack.fields.length 
-              ? activeV2Pack.fields[fieldIndex + 1].fieldKey 
-              : null,
-            willShowAIProbe: decision.action === 'STAY_ON_FIELD_SHOW_AI',
-            willComplete: decision.action === 'COMPLETE_PACK'
-          });
-        }
+        // EXPLICIT LOGGING: Frontend decision for V2 pack progression
+        console.log(`[V2_PACK][DECISION] ========== FRONTEND DECISION: ${decision.action} ==========`);
+        console.log(`[V2_PACK][DECISION] packId=${packId}, fieldKey=${fieldKey}, action=${decision.action}, reason=${decision.reason}`);
+        console.log(`[V2_PACK][DECISION] Details:`, {
+          currentFieldIndex: fieldIndex,
+          totalFields: activeV2Pack.fields.length,
+          nextFieldIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
+          nextFieldKey: decision.action === 'NEXT_FIELD' && fieldIndex + 1 < activeV2Pack.fields.length 
+            ? activeV2Pack.fields[fieldIndex + 1].fieldKey 
+            : null,
+          willShowAIProbe: decision.action === 'STAY_ON_FIELD_SHOW_AI',
+          willComplete: decision.action === 'COMPLETE_PACK'
+        });
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
-          console.log('[V2_PACK][PROBE]', { 
-            packId, 
-            fieldKey, 
-            aiFollowups: decision.probes?.length || 1,
-            message: 'AI probe question will be shown'
-          });
+          console.log(`[V2_PACK][STAY] ========== STAYING ON FIELD FOR AI PROBE ==========`);
+          console.log(`[V2_PACK][STAY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
+          console.log(`[V2_PACK][STAY] AI probe question: "${decision.question?.substring?.(0, 80)}..."`);
+          console.log(`[V2_PACK][STAY] probeCount: ${probeCount + 1}/${maxAiFollowups}`);
 
           setAiFollowupCounts(prev => ({
             ...prev,
@@ -1849,12 +1836,10 @@ export default function CandidateInterview() {
           });
           
           // EXPLICIT LOGGING: Pack completion and return to flow
-          console.log("[V2_PACK_COMPLETE]", {
-            packId,
-            lastFieldKey: fieldKey,
-            baseQuestionId,
-            message: `${packId} finished, returning to main flow after question ${baseQuestionId}`
-          });
+          console.log(`[V2_PACK][EXIT] ========== V2 PACK COMPLETE - RETURNING TO MAIN FLOW ==========`);
+          console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}`);
+          console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId}, baseQuestionCode=${baseQuestion?.question_id}`);
+          console.log(`[V2_PACK][EXIT] totalFieldsAnswered=${activeV2Pack.fields.length}, returning to section flow`);
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
@@ -1917,17 +1902,12 @@ export default function CandidateInterview() {
           message: `Advancing to next field: ${nextField.fieldKey}`
         });
         
-        // EXPLICIT LOGGING: Field progression for PACK_PRIOR_LE_APPS_STANDARD
-        if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
-          console.log(`[V2-FRONTEND-ADVANCE] ========== PACK_PRIOR_LE_APPS_STANDARD ADVANCING ==========`, {
-            completedField: fieldKey,
-            completedFieldIndex: fieldIndex,
-            nextField: nextField.fieldKey,
-            nextFieldIndex: nextIndex,
-            nextFieldLabel: nextField.label,
-            remainingFields: activeV2Pack.fields.length - nextIndex - 1
-          });
-        }
+        // EXPLICIT LOGGING: State update for V2 pack progression
+        console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
+        console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Now rendering: ${nextField.fieldKey} (${nextIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Label: "${nextField.label}"`);
+        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextIndex - 1}`);
 
         setActiveV2Pack(prev => ({
           ...prev,

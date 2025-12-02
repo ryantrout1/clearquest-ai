@@ -2438,6 +2438,12 @@ async function probeEngineV2(input, base44Client) {
   // Check max probes FIRST - if we've already probed enough, stop probing
   if (previous_probes_count >= maxProbesPerField) {
     console.log(`[V2-PER-FIELD] Max probes (${maxProbesPerField}) reached for ${semanticField} → accepting and advancing`);
+    
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD (MAX PROBES) ==========`);
+      console.log(`[V2-BACKEND-DECISION] Max probes reached for ${semanticField} - accepting answer and advancing`);
+    }
+    
     return {
       mode: "NEXT_FIELD",
       pack_id,
@@ -2501,6 +2507,12 @@ async function probeEngineV2(input, base44Client) {
   // If LLM explicitly said no probe needed, advance to next field
   if (!probeResult.question) {
     console.log(`[V2-PER-FIELD] LLM determined no probe needed for ${semanticField} → advancing`);
+    
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD (LLM NO PROBE) ==========`);
+      console.log(`[V2-BACKEND-DECISION] LLM determined ${semanticField} is acceptable - advancing`);
+    }
+    
     return {
       mode: "NEXT_FIELD",
       pack_id,
