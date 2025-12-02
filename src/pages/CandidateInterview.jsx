@@ -1651,13 +1651,18 @@ export default function CandidateInterview() {
           maxAiFollowups
         });
         
-        // If probe returned a question, show it (AI probe UI)
-        if (v2Result?.mode === 'QUESTION' && v2Result.question) {
+        // Check probe result and decide: show AI follow-up OR advance to next field
+        const hasRealAiFollowup = v2Result?.mode === 'QUESTION' && 
+                                   v2Result.question && 
+                                   (v2Result.followups?.length > 0 || v2Result.followupsCount > 0);
+
+        if (hasRealAiFollowup) {
+          // Case A: Real AI follow-up found - show it
           setAiFollowupCounts(prev => ({
             ...prev,
             [fieldCountKey]: probeCount + 1
           }));
-          
+
           // Show AI probe question - update state for AI probing
           setIsWaitingForAgent(true);
           setIsInvokeLLMMode(true);
@@ -1671,19 +1676,28 @@ export default function CandidateInterview() {
             question: v2Result.question,
             isV2PackMode: true
           });
-          
+
           // Update activeV2Pack with collected answers
           setActiveV2Pack(prev => ({
             ...prev,
             collectedAnswers: updatedCollectedAnswers
           }));
-          
+
           await persistStateToDatabase(newTranscript, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
+        } else {
+          // Case B: No AI follow-up returned - advance to next field immediately
+          console.log('[V2 FIELD PROBE] no AI follow-up, advancing to next field', { packId, fieldKey });
+
+          // Update collected answers
+          setActiveV2Pack(prev => ({
+            ...prev,
+            collectedAnswers: updatedCollectedAnswers
+          }));
         }
-        
+
         // Advance to next field in V2 pack or exit
         const nextIndex = fieldIndex + 1;
         
