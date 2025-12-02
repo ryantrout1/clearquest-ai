@@ -1458,9 +1458,14 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     }
 
     // Find section object to get section string ID
-    const sectionEntity = sections.find(s => s.id === sectionIdOnRecord);
+    // Support EITHER: Section.id (database ID) OR Section.section_id (string code like "CAT_CRIMINAL")
+    let sectionEntity = sections.find(s => s.id === sectionIdOnRecord);
     if (!sectionEntity) {
-      console.warn(`⚠️ Question ${dbQuestionId} (code: ${questionCode}) has section_id ${sectionIdOnRecord} but no matching Section entity found - skipping`);
+      // Fallback: Try matching by section_id string code
+      sectionEntity = sections.find(s => s.section_id === sectionIdOnRecord);
+    }
+    if (!sectionEntity) {
+      console.warn(`⚠️ Question ${dbQuestionId} (code: ${questionCode}) has section_id ${sectionIdOnRecord} but no matching Section entity found (checked both id and section_id) - skipping`);
       validationErrors.push(
         `Question ${dbQuestionId} references section_id ${sectionIdOnRecord} which does not exist.`
       );
