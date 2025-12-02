@@ -866,8 +866,6 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
     }
   }
   
-  const endTime = new Date(currentTime + 60000);
-  
   // Use pre-fetched FollowUpQuestions (passed from runSeeder to avoid duplicate fetches)
   const allFollowUpQuestionsForTranscript = allFollowUpQuestions || [];
   console.log('[PROCESS] Using', allFollowUpQuestionsForTranscript.length, 'FollowUpQuestions for transcript');
