@@ -29,6 +29,8 @@ import StartResumeMessage from "../components/interview/StartResumeMessage";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/followups/semanticValidator";
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
+import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/systemConfigHelpers";
+import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -714,6 +716,14 @@ export default function CandidateInterview() {
   const typingTimeoutRef = useRef(null); // Typing timeout (4 min)
   const aiResponseTimeoutRef = useRef(null); // AI response timeout (45s)
   
+  // IDE v1 state
+  const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
+  const [ideEnabled, setIdeEnabled] = useState(false);
+  const [currentIncidentId, setCurrentIncidentId] = useState(null);
+  const [inIdeProbingLoop, setInIdeProbingLoop] = useState(false);
+  const [currentIdeQuestion, setCurrentIdeQuestion] = useState(null);
+  const [currentIdeCategoryId, setCurrentIdeCategoryId] = useState(null);
+  
   // NEW: Track global display numbers for questions
   const displayNumberMapRef = useRef({}); // Map question_id -> display number
   
@@ -836,6 +846,25 @@ export default function CandidateInterview() {
 
   const initializeInterview = async () => {
     try {
+      // Step 0: Load system config and determine interview mode
+      const { config } = await getSystemConfig();
+      const effectiveMode = await getEffectiveInterviewMode({ 
+        isSandbox: false, // Set to true if you have sandbox detection logic
+        departmentCode: null // Will be set after loading session
+      });
+      
+      setInterviewMode(effectiveMode);
+      
+      // Determine if IDE v1 is enabled for this session
+      const ideActive = effectiveMode === "AI_PROBING" || effectiveMode === "HYBRID";
+      setIdeEnabled(ideActive);
+      
+      console.log("[IDE] Interview mode initialized", { 
+        effectiveMode, 
+        ideActive,
+        sandboxOnly: config.sandboxAiProbingOnly 
+      });
+      
       // Step 1: Load session with validation
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
@@ -2202,6 +2231,97 @@ export default function CandidateInterview() {
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
             
+            // ============================================================================
+            // IDE v1 INTEGRATION: Check if this category should use AI probing
+            // ============================================================================
+            const categoryId = mapPackIdToCategory(packId);
+            
+            if (ideEnabled && categoryId) {
+              console.log("[IDE] Checking fact model for category", { categoryId, packId });
+              
+              const factModel = await getFactModelForCategory(categoryId);
+              
+              if (factModel && factModel.isReadyForAiProbing) {
+                console.log("[IDE] Category ready for AI probing - initiating IDE v1 flow", { 
+                  categoryId, 
+                  packId,
+                  mode: interviewMode 
+                });
+                
+                // Start IDE v1 probing loop instead of deterministic follow-ups
+                try {
+                  const ideResult = await base44.functions.invoke('decisionEngineProbe', {
+                    sessionId: sessionId,
+                    categoryId: categoryId,
+                    incidentId: null, // First probe - let backend create incident
+                    latestAnswer: value, // "Yes" - the base answer
+                    questionContext: {
+                      questionId: currentItem.id,
+                      questionCode: question.question_id,
+                      sectionId: question.section_id
+                    }
+                  });
+                  
+                  console.log("[IDE] Initial probe result", { 
+                    continue: ideResult.continue,
+                    incidentId: ideResult.incidentId,
+                    hasNextQuestion: !!ideResult.nextQuestion
+                  });
+                  
+                  if (ideResult.continue && ideResult.nextQuestion) {
+                    // Set IDE probing state
+                    setCurrentIncidentId(ideResult.incidentId);
+                    setCurrentIdeCategoryId(categoryId);
+                    setCurrentIdeQuestion(ideResult.nextQuestion);
+                    setInIdeProbingLoop(true);
+                    
+                    // Keep current item active (don't advance base question yet)
+                    // The next prompt will be from currentIdeQuestion
+                    await persistStateToDatabase(newTranscript, [], currentItem);
+                    setIsCommitting(false);
+                    setInput("");
+                    
+                    // Don't save base answer to DB yet - IDE will handle it
+                    return;
+                  } else if (ideResult.reason === "FACT_MODEL_NOT_READY" && interviewMode === "HYBRID") {
+                    // Hybrid mode fallback to deterministic
+                    console.log("[IDE] Falling back to deterministic for", categoryId);
+                    // Continue to normal deterministic flow below
+                  } else {
+                    // IDE probing complete or not needed - advance normally
+                    console.log("[IDE] No probing needed, advancing");
+                    advanceToNextBaseQuestion(currentItem.id);
+                    setIsCommitting(false);
+                    setInput("");
+                    saveAnswerToDatabase(currentItem.id, value, question);
+                    return;
+                  }
+                } catch (ideError) {
+                  console.error("[IDE] Error calling decision engine", ideError);
+                  
+                  if (interviewMode === "HYBRID") {
+                    // Hybrid mode fallback to deterministic
+                    console.log("[IDE] Error - falling back to deterministic");
+                    // Continue to normal deterministic flow below
+                  } else {
+                    // AI_PROBING mode - skip this incident and move on
+                    console.log("[IDE] Error in AI_PROBING mode - skipping incident");
+                    advanceToNextBaseQuestion(currentItem.id);
+                    setIsCommitting(false);
+                    setInput("");
+                    saveAnswerToDatabase(currentItem.id, value, question);
+                    return;
+                  }
+                }
+              } else if (ideEnabled && interviewMode === "HYBRID") {
+                console.log("[IDE] Fact model not ready - using deterministic fallback", { categoryId, packId });
+                // Continue to deterministic flow below
+              }
+            }
+            // ============================================================================
+            // END IDE v1 INTEGRATION
+            // ============================================================================
+            
             // IDEMPOTENCY: Check if this pack was already triggered for this base question
             const triggerKey = `${currentItem.id}:${packId}`;
             if (triggeredPacksRef.current.has(triggerKey)) {
@@ -3059,6 +3179,101 @@ export default function CandidateInterview() {
     }
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, startAiProbingForPackInstance, sectionCompletionMessage]);
 
+  // NEW: Handle IDE v1 probing answers
+  const handleIdeAnswer = useCallback(async (value) => {
+    if (isCommitting || !inIdeProbingLoop) return;
+    
+    setIsCommitting(true);
+    
+    try {
+      console.log("[IDE] Submitting probe answer", { 
+        incidentId: currentIncidentId,
+        categoryId: currentIdeCategoryId,
+        answerLength: value.length 
+      });
+      
+      // Call decision engine with the probe answer
+      const ideResult = await base44.functions.invoke('decisionEngineProbe', {
+        sessionId: sessionId,
+        categoryId: currentIdeCategoryId,
+        incidentId: currentIncidentId,
+        latestAnswer: value,
+        questionContext: {}
+      });
+      
+      // Add probe Q&A to transcript
+      const probeQuestionEntry = createChatEvent('ai_probe_question', {
+        content: currentIdeQuestion,
+        text: currentIdeQuestion,
+        kind: 'ai_probe_question',
+        categoryId: currentIdeCategoryId,
+        incidentId: currentIncidentId,
+        baseQuestionId: currentItem?.id,
+        isProbe: true
+      });
+      
+      const probeAnswerEntry = createChatEvent('ai_probe_answer', {
+        content: value,
+        text: value,
+        kind: 'ai_probe_answer',
+        categoryId: currentIdeCategoryId,
+        incidentId: currentIncidentId,
+        baseQuestionId: currentItem?.id,
+        isProbe: true
+      });
+      
+      const newTranscript = [...transcript, probeQuestionEntry, probeAnswerEntry];
+      setTranscript(newTranscript);
+      
+      console.log("[IDE] Probe result", {
+        continue: ideResult.continue,
+        stopReason: ideResult.stopReason,
+        hasNextQuestion: !!ideResult.nextQuestion,
+        completionPercent: ideResult.completionPercent
+      });
+      
+      if (ideResult.continue && ideResult.nextQuestion) {
+        // Continue probing - show next question
+        setCurrentIdeQuestion(ideResult.nextQuestion);
+        await persistStateToDatabase(newTranscript, [], currentItem);
+      } else {
+        // Probing complete - exit IDE loop and advance
+        console.log("[IDE] Probing complete for incident", { 
+          incidentId: currentIncidentId,
+          stopReason: ideResult.stopReason 
+        });
+        
+        setInIdeProbingLoop(false);
+        setCurrentIdeQuestion(null);
+        setCurrentIncidentId(null);
+        setCurrentIdeCategoryId(null);
+        
+        await persistStateToDatabase(newTranscript, [], null);
+        
+        // Advance to next base question
+        if (currentItem?.id) {
+          advanceToNextBaseQuestion(currentItem.id);
+        }
+      }
+      
+    } catch (err) {
+      console.error("[IDE] Error in probe answer handling", err);
+      
+      // On error, exit IDE loop and continue interview
+      setInIdeProbingLoop(false);
+      setCurrentIdeQuestion(null);
+      setCurrentIncidentId(null);
+      setCurrentIdeCategoryId(null);
+      
+      if (currentItem?.id) {
+        advanceToNextBaseQuestion(currentItem.id);
+      }
+    } finally {
+      setIsCommitting(false);
+      setInput("");
+    }
+  }, [isCommitting, inIdeProbingLoop, currentIncidentId, currentIdeCategoryId, currentIdeQuestion, sessionId, transcript, currentItem, advanceToNextBaseQuestion]);
+
   // NEW: Handle agent probing questions (FAIL-SAFE)
   const handleAgentAnswer = useCallback(async (value) => {
     if (isCommitting || !isWaitingForAgent) return;
@@ -3543,12 +3758,14 @@ export default function CandidateInterview() {
     const answer = input.trim();
     if (!answer) return;
     
-    if (isWaitingForAgent) {
+    if (inIdeProbingLoop) {
+      handleIdeAnswer(answer);
+    } else if (isWaitingForAgent) {
       handleAgentAnswer(answer);
     } else {
       handleAnswer(answer);
     }
-  }, [input, isWaitingForAgent, handleAnswer, handleAgentAnswer]);
+  }, [input, inIdeProbingLoop, isWaitingForAgent, handleIdeAnswer, handleAgentAnswer, handleAnswer]);
 
   // ============================================================================
   // DATABASE PERSISTENCE
@@ -3977,6 +4194,16 @@ export default function CandidateInterview() {
   };
 
   const getCurrentPrompt = () => {
+    // IDE v1 probing takes precedence
+    if (inIdeProbingLoop && currentIdeQuestion) {
+      return {
+        type: 'ide_probe',
+        text: currentIdeQuestion,
+        responseType: 'text',
+        category: currentIdeCategoryId || 'Follow-up'
+      };
+    }
+    
     if (isWaitingForAgent) {
       // Show last agent message
       return null; // Agent messages will be rendered separately
@@ -4053,6 +4280,10 @@ export default function CandidateInterview() {
   };
 
   const getPlaceholder = () => {
+    if (inIdeProbingLoop) {
+      return "Provide your answer to the investigator's question...";
+    }
+    
     if (isWaitingForAgent) {
       return "Respond to investigator's question...";
     }
@@ -4087,6 +4318,11 @@ export default function CandidateInterview() {
   
   // SIMPLIFIED: Get last unanswered agent question (for active question box only)
   const getLastAgentQuestion = useCallback(() => {
+    // IDE v1 probe question takes priority
+    if (inIdeProbingLoop && currentIdeQuestion) {
+      return currentIdeQuestion;
+    }
+    
     // V2 per-field probe question
     if (currentFieldProbe?.question) {
       return currentFieldProbe.question;
@@ -4175,11 +4411,12 @@ export default function CandidateInterview() {
   // 1. Current item exists
   // 2. Current prompt exists AND is of type 'question' OR 'multi_instance'
   // 3. Question response_type is 'yes_no'
-  // 4. NOT in agent mode
-  const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent) ||
-                          (currentPrompt?.type === 'multi_instance' && !isWaitingForAgent);
+  // 4. NOT in agent mode OR IDE probing mode
+  const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
+                          (currentPrompt?.type === 'multi_instance' && !isWaitingForAgent && !inIdeProbingLoop);
   const isFollowUpMode = currentPrompt?.type === 'followup';
   const isMultiInstanceMode = currentPrompt?.type === 'multi_instance';
+  const isIdeProbingMode = currentPrompt?.type === 'ide_probe';
   const requiresClarification = validationHint !== null;
 
   // DEBUG-ONLY: Sanity check for virtualization (no side effects)
@@ -4467,9 +4704,38 @@ export default function CandidateInterview() {
             </div>
           )}
 
-          {/* Active Question (Deterministic) or Agent Probing or Intro or Section Transition */}
+          {/* Active Question (Deterministic) or IDE Probing or Agent Probing or Intro or Section Transition */}
           {/* When pending section transition, the card is already in transcript - no duplicate card here */}
-          {isPendingSectionTransition ? null : lastAgentQuestion && isWaitingForAgent ? (
+          {isPendingSectionTransition ? null : inIdeProbingLoop && currentIdeQuestion ? (
+            <div className="flex-shrink-0 px-4 pb-4">
+              <div className="max-w-5xl mx-auto">
+                <div 
+                  className="bg-cyan-950/95 border-2 border-cyan-500/50 rounded-xl p-6 shadow-2xl"
+                  style={{
+                    boxShadow: '0 12px 36px rgba(0,0,0,0.55), 0 0 0 3px rgba(34,211,238,0.30) inset'
+                  }}
+                  role="region"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border bg-cyan-600/30 border-cyan-500/50">
+                      <AlertCircle className="w-4 h-4 text-cyan-400" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-cyan-400">AI Investigator</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-sm text-cyan-300">Fact Collection</span>
+                      </div>
+                      <p className="text-white text-lg font-semibold leading-relaxed">
+                        {currentIdeQuestion}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : lastAgentQuestion && isWaitingForAgent ? (
             <div className="flex-shrink-0 px-4 pb-4">
               <div className="max-w-5xl mx-auto">
                 <div 
@@ -4647,6 +4913,12 @@ export default function CandidateInterview() {
                            <span className="text-sm text-purple-300">
                              {getFollowUpPackName(currentPrompt.packId)}
                            </span>
+                         </>
+                       ) : isIdeProbingMode ? (
+                         <>
+                           <span className="text-sm font-semibold text-cyan-400">AI Investigator</span>
+                           <span className="text-xs text-slate-500">•</span>
+                           <span className="text-sm text-cyan-300">Fact Collection</span>
                          </>
                        ) : isMultiInstanceMode ? (
                          <>
@@ -4856,9 +5128,11 @@ export default function CandidateInterview() {
                       ? "Click Next to continue where you left off"
                       : isSectionTransitionMode
                         ? "Click Next to continue to the next section"
-                        : isWaitingForAgent 
-                          ? "Responding to investigator's probing questions..." 
-                          : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
+                        : inIdeProbingLoop
+                          ? "Responding to AI investigator's fact collection questions..."
+                          : isWaitingForAgent 
+                            ? "Responding to investigator's probing questions..." 
+                            : "Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed."}
               </p>
               </div>
               </footer>
