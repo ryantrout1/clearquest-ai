@@ -1711,21 +1711,52 @@ export default function CandidateInterview() {
           willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
           isLastField: fieldIndex >= activeV2Pack.fields.length - 1
         });
+        
+        // EXPLICIT LOGGING: Backend response for V2 pack with full details
+        console.log(`[V2_PACK][RECV] ========== V2 PACK BACKEND RESPONSE ==========`);
+        console.log(`[V2_PACK][RECV] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack.fields.length}`);
+        console.log(`[V2_PACK][RECV] Backend decision:`, {
+          mode: v2Result?.mode,
+          validationResult: v2Result?.validationResult,
+          semanticField: v2Result?.semanticField,
+          hasQuestion: !!v2Result?.question,
+          questionPreview: v2Result?.question?.substring?.(0, 80),
+          previousProbeCount: v2Result?.previousProbeCount,
+          maxProbesPerField: v2Result?.maxProbesPerField,
+          errors: v2Result?.error || v2Result?.message || null
+        });
+        console.log(`[V2_PACK][RECV] Interpretation:`, {
+          willStayOnField: v2Result?.mode === 'QUESTION',
+          willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
+          isLastField: fieldIndex >= activeV2Pack.fields.length - 1
+        });
 
         // Interpret V2 probe result to determine action
         const interpretV2ProbeResult = (result, currentFieldIndex, totalFields) => {
+          const isLastField = currentFieldIndex >= totalFields - 1;
+          
           if (!result) {
             console.warn("[V2_PACK] No probe result - advancing");
+            if (isLastField) {
+              return { action: 'COMPLETE_PACK', reason: 'no result on last field' };
+            }
             return { action: 'NEXT_FIELD', reason: 'no result' };
           }
 
-          // Check for error or skip
+          // Check for error or skip - both should advance to next field
           if (result.mode === 'ERROR') {
             console.warn("[V2_PACK] Probe error - advancing", result.message);
+            if (isLastField) {
+              return { action: 'COMPLETE_PACK', reason: 'error on last field' };
+            }
             return { action: 'NEXT_FIELD', reason: 'error' };
           }
 
           if (result.mode === 'SKIP') {
+            console.log("[V2_PACK] Backend SKIP - advancing (AI disabled or quota)");
+            if (isLastField) {
+              return { action: 'COMPLETE_PACK', reason: 'skip on last field' };
+            }
             return { action: 'NEXT_FIELD', reason: 'skip' };
           }
 
@@ -1744,7 +1775,6 @@ export default function CandidateInterview() {
 
           // If backend says NEXT_FIELD, advance to next field
           if (result.mode === 'NEXT_FIELD') {
-            const isLastField = currentFieldIndex >= totalFields - 1;
             if (isLastField) {
               console.log("[V2_PACK] NEXT_FIELD on last field - completing pack");
               return { action: 'COMPLETE_PACK', reason: 'last field completed' };
@@ -1753,8 +1783,7 @@ export default function CandidateInterview() {
             return { action: 'NEXT_FIELD', reason: 'backend approved advance' };
           }
 
-          // Fallback: if mode is unclear, check if last field
-          const isLastField = currentFieldIndex >= totalFields - 1;
+          // Fallback: if mode is unclear, advance
           if (isLastField) {
             return { action: 'COMPLETE_PACK', reason: 'last field, unknown mode' };
           }
@@ -1787,6 +1816,152 @@ export default function CandidateInterview() {
           willShowAIProbe: decision.action === 'STAY_ON_FIELD_SHOW_AI',
           willComplete: decision.action === 'COMPLETE_PACK'
         });
+
+        if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
+          // Case A: Real AI follow-up found - show it
+          console.log(`[V2_PACK][STAY] ========== STAYING ON FIELD FOR AI PROBE ==========`);
+          console.log(`[V2_PACK][STAY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
+          console.log(`[V2_PACK][STAY] AI probe question: "${decision.question?.substring?.(0, 80)}..."`);
+          console.log(`[V2_PACK][STAY] probeCount: ${probeCount + 1}/${maxAiFollowups}`);
+
+          setAiFollowupCounts(prev => ({
+            ...prev,
+            [fieldCountKey]: probeCount + 1
+          }));
+
+          // Show AI probe question
+          setIsWaitingForAgent(true);
+          setIsInvokeLLMMode(true);
+          setCurrentFieldProbe({
+            packId,
+            instanceNumber,
+            fieldKey,
+            baseQuestionId,
+            substanceName: activeV2Pack.substanceName,
+            currentItem,
+            question: decision.question,
+            isV2PackMode: true
+          });
+
+          // Update activeV2Pack with collected answers
+          setActiveV2Pack(prev => ({
+            ...prev,
+            collectedAnswers: updatedCollectedAnswers
+          }));
+
+          await persistStateToDatabase(newTranscript, [], currentItem);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        if (decision.action === 'COMPLETE_PACK') {
+          // Pack complete - return to BASE mode
+          console.log("[V2_PACK][COMPLETE]", { 
+            packId, 
+            fieldKey, 
+            reason: decision.reason,
+            message: `Pack ${packId} complete - returning to main questionnaire`
+          });
+          
+          // EXPLICIT LOGGING: Pack completion and return to flow
+          console.log(`[V2_PACK][EXIT] ========== V2 PACK COMPLETE - RETURNING TO MAIN FLOW ==========`);
+          console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}`);
+          console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId}, baseQuestionCode=${baseQuestion?.question_id}`);
+          console.log(`[V2_PACK][EXIT] totalFieldsAnswered=${activeV2Pack.fields.length}, returning to section flow`);
+
+          setActiveV2Pack(null);
+          setV2PackMode("BASE");
+          setCurrentFollowUpAnswers({});
+          lastLoggedV2PackFieldRef.current = null;
+
+          // Check for multi-instance
+          const baseQuestionForExit = engine.QById[baseQuestionId];
+          if (baseQuestionForExit?.followup_multi_instance) {
+            onFollowupPackComplete(baseQuestionId, packId);
+          } else {
+            advanceToNextBaseQuestion(baseQuestionId);
+          }
+
+          await persistStateToDatabase(newTranscript, [], null);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        // Case B: NEXT_FIELD - advance to next field in pack
+        const nextIndex = fieldIndex + 1;
+
+        if (nextIndex >= activeV2Pack.fields.length) {
+          // Failsafe: should have been caught by COMPLETE_PACK
+          console.log("[V2_PACK][ERROR]", { 
+            packId,
+            error: "Failsafe triggered - last field reached unexpectedly",
+            message: "Completing pack via failsafe"
+          });
+
+          setActiveV2Pack(null);
+          setV2PackMode("BASE");
+          setCurrentFollowUpAnswers({});
+          lastLoggedV2PackFieldRef.current = null;
+
+          const baseQuestionForFallback = engine.QById[baseQuestionId];
+          if (baseQuestionForFallback?.followup_multi_instance) {
+            onFollowupPackComplete(baseQuestionId, packId);
+          } else {
+            advanceToNextBaseQuestion(baseQuestionId);
+          }
+
+          await persistStateToDatabase(newTranscript, [], null);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+
+        // Move to next field
+        const nextField = activeV2Pack.fields[nextIndex];
+
+        console.log("[V2_PACK][NEXT]", { 
+          packId, 
+          fromField: fieldKey,
+          nextFieldId: nextField.fieldKey,
+          fromIndex: fieldIndex,
+          nextIndex: nextIndex,
+          totalFields: activeV2Pack.fields.length,
+          message: `Advancing to next field: ${nextField.fieldKey}`
+        });
+        
+        // EXPLICIT LOGGING: State update for V2 pack progression
+        console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
+        console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Now rendering: ${nextField.fieldKey} (${nextIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Label: "${nextField.label}"`);
+        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextIndex - 1}`);
+
+        setActiveV2Pack(prev => ({
+          ...prev,
+          currentIndex: nextIndex,
+          collectedAnswers: updatedCollectedAnswers
+        }));
+
+        const nextItemForV2 = {
+          id: `v2pack-${packId}-${nextIndex}`,
+          type: 'v2_pack_field',
+          packId: packId,
+          fieldIndex: nextIndex,
+          fieldKey: nextField.fieldKey,
+          fieldConfig: nextField,
+          baseQuestionId: baseQuestionId,
+          instanceNumber: instanceNumber
+        };
+
+        setCurrentItem(nextItemForV2);
+        setQueue([]);
+
+        await persistStateToDatabase(newTranscript, [], nextItemForV2);
+        setIsCommitting(false);
+        setInput("");
+        return;
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
