@@ -1082,8 +1082,12 @@ export default function CandidateInterview() {
                 .filter(f => f.fieldKey && f.label)
                 .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
               
-              console.log("[V2_PACK] Entering V2 pack mode:", packId, "fields:", orderedFields.map(f => f.fieldKey));
-              console.log("[V2_PACK] AI-driven mode - backend will control progression");
+              // EXPLICIT LOGGING: Entering V2 pack mode
+              console.log(`[V2_PACK][ENTER] ========== ENTERING V2 PACK MODE ==========`);
+              console.log(`[V2_PACK][ENTER] pack=${packId} firstField=${orderedFields[0].fieldKey}`);
+              console.log(`[V2_PACK][ENTER] totalFields=${orderedFields.length}, fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
+              console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem.id} (${question.question_id}), instanceNumber=1`);
+              console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
               
               // Save the base question answer first
               saveAnswerToDatabase(currentItem.id, value, question);
