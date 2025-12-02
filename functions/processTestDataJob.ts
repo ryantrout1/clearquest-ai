@@ -1584,13 +1584,27 @@ Deno.serve(async (req) => {
       
       // Mark as completed only if still in running state
       if (finalJob?.status === 'running') {
+        // Aggregate coverageCheck from all results
+        const allCoverageChecks = result.results
+          .filter(r => r.success && r.coverageCheck)
+          .map(r => r.coverageCheck);
+        
+        const aggregateCoverage = {
+          ok: allCoverageChecks.every(c => c.ok),
+          totalSessions: allCoverageChecks.length,
+          sessionsWithFullCoverage: allCoverageChecks.filter(c => c.ok).length,
+          sessionsWithMismatch: allCoverageChecks.filter(c => !c.ok).length,
+          details: allCoverageChecks
+        };
+        
         await base44.asServiceRole.entities.TestDataJob.update(job.id, {
           status: 'completed',
           finished_at: new Date().toISOString(),
           result_summary: {
             created: result.created,
             updated: result.updated,
-            questionsUsed: result.questionsUsed
+            questionsUsed: result.questionsUsed,
+            coverageCheck: aggregateCoverage
           }
         });
       }
