@@ -1895,15 +1895,8 @@ export default function CandidateInterview() {
         // Move to next field
         const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
 
-        console.log("[V2_PACK][NEXT]", { 
-          packId, 
-          fromField: fieldKey,
-          nextFieldId: nextFieldConfig.fieldKey,
-          fromIndex: fieldIndex,
-          nextIndex: nextFieldIdx,
-          totalFields: activeV2Pack.fields.length,
-          message: `Advancing to next field: ${nextFieldConfig.fieldKey}`
-        });
+        // EXPLICIT LOGGING: Advancing pack to next field
+        console.log(`[V2_PACK][ADVANCING] Advancing pack ${packId} to field ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${activeV2Pack.fields.length})`);
         
         // EXPLICIT LOGGING: State update for V2 pack progression
         console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
