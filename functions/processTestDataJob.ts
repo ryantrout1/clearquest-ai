@@ -740,7 +740,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
   for (const s of sections) sectionMap[s.id] = s.section_name;
   
   // PHASE 0: Create the session FIRST so we have a sessionId for Response records
-  const endTime = new Date(currentTime + 60000 + allQuestions.length * 8000); // Estimate
+  const estimatedEndTime = new Date(currentTime + 60000 + allQuestions.length * 8000); // Estimate
   
   const sessionData = {
     session_code: uniqueSessionCode, department_code: deptCode, file_number: uniqueFileNumber, status: "in_progress", is_archived: false,
