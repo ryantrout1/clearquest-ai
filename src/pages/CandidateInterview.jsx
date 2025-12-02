@@ -489,6 +489,42 @@ export default function CandidateInterview() {
     });
   }, []);
 
+  // Log V2 pack question when field changes (prevents duplicate logging on re-renders)
+  useEffect(() => {
+    if (v2PackMode !== "V2_PACK") return;
+    if (!activeV2Pack || !currentItem || currentItem.type !== 'v2_pack_field') return;
+
+    const { packId, fieldKey, fieldConfig, fieldIndex, baseQuestionId, instanceNumber } = currentItem;
+    const key = `${packId}:${fieldKey}:${instanceNumber}`;
+    
+    if (lastLoggedV2PackFieldRef.current === key) return;
+    lastLoggedV2PackFieldRef.current = key;
+
+    const questionText = fieldConfig?.label || fieldKey;
+    const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+
+    // Log V2 pack question to transcript
+    const v2QuestionEntry = createChatEvent('followup_question', {
+      questionId: `v2pack-${packId}-${fieldIndex}`,
+      questionText: questionText,
+      packId: packId,
+      kind: 'v2_pack_question',
+      text: questionText,
+      content: questionText,
+      fieldKey: fieldKey,
+      followupPackId: packId,
+      instanceNumber: instanceNumber,
+      baseQuestionId: baseQuestionId,
+      source: 'V2_PACK',
+      stepNumber: fieldIndex + 1,
+      totalSteps: packConfig?.fields?.length || 0
+    });
+
+    setTranscript(prev => [...prev, v2QuestionEntry]);
+    
+    console.log("[V2_PACK CHAT] Logged question to transcript:", { packId, fieldKey, questionText });
+  }, [v2PackMode, activeV2Pack, currentItem]);
+
   useEffect(() => {
     if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
