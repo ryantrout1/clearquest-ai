@@ -2274,7 +2274,7 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {isYesNoQuestion ? (
+          {isYesNoQuestion && !isV2PackField ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -2287,6 +2287,38 @@ export default function CandidateInterview() {
               </Button>
               <Button
                 ref={noButtonRef}
+                onClick={() => handleAnswer("No")}
+                disabled={isCommitting}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+              >
+                <X className="w-5 h-5 mr-2" />
+                No
+              </Button>
+            </div>
+          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options ? (
+            <div className="flex flex-wrap gap-2">
+              {currentPrompt.options.map((option) => (
+                <Button
+                  key={option}
+                  onClick={() => handleAnswer(option)}
+                  disabled={isCommitting}
+                  className="bg-purple-600 hover:bg-purple-700 text-sm"
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' ? (
+            <div className="flex gap-3">
+              <Button
+                onClick={() => handleAnswer("Yes")}
+                disabled={isCommitting}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                <Check className="w-5 h-5 mr-2" />
+                Yes
+              </Button>
+              <Button
                 onClick={() => handleAnswer("No")}
                 disabled={isCommitting}
                 className="flex-1 bg-red-600 hover:bg-red-700"
