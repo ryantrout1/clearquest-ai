@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Rocket, Clock, AlertTriangle, CheckCircle, Shield, Zap, Database, Loader2, XCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { formatShortDateTimeAZ } from "../utils/dateFormatters";
 
 export default function TestDataGenerator() {
   const queryClient = useQueryClient();
@@ -554,21 +554,21 @@ export default function TestDataGenerator() {
 
                 <div className="text-[10px] text-slate-500 space-y-0.5">
                   <div>
-                    Queued: {latestJob.created_date ? format(new Date(latestJob.created_date), "MMM d, h:mm a") : 'N/A'}
+                    Queued: {formatShortDateTimeAZ(latestJob.created_date)}
                   </div>
                   {latestJob.started_at && (
                     <div>
-                      Started: {format(new Date(latestJob.started_at), "MMM d, h:mm a")}
+                      Started: {formatShortDateTimeAZ(latestJob.started_at)}
                     </div>
                   )}
                   {latestJob.finished_at && (
                     <div>
-                      Finished: {format(new Date(latestJob.finished_at), "MMM d, h:mm a")}
+                      Finished: {formatShortDateTimeAZ(latestJob.finished_at)}
                     </div>
                   )}
                   {latestJob.cancelled_at && (
                     <div className="text-slate-400">
-                      Cancelled: {format(new Date(latestJob.cancelled_at), "MMM d, h:mm a")}
+                      Cancelled: {formatShortDateTimeAZ(latestJob.cancelled_at)}
                     </div>
                   )}
                   {latestJob.status === 'completed' && latestJob.result_summary && (

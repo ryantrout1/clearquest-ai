@@ -20,6 +20,7 @@ import SectionHeader from "../components/sessionDetails/SectionHeader";
 import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
 import IdeIncidentsPanel from "../components/sessionDetails/IdeIncidentsPanel";
 import { Clock } from "lucide-react";
+import { formatDateAZ } from "../components/utils/dateFormatters";
 import { getSystemConfig } from "../components/utils/systemConfigHelpers";
 import { getFactModelForCategory } from "../components/utils/factModelHelpers";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
@@ -1092,9 +1093,7 @@ export default function SessionDetails() {
               </span>
               <span>•</span>
               <span>
-                {session.started_at ? new Date(session.started_at).toLocaleDateString('en-US', { 
-                  year: 'numeric', month: 'short', day: 'numeric' 
-                }) : 'N/A'}
+                {formatDateAZ(session.started_at || session.created_date)}
               </span>
               {totalTime > 0 && (
                 <>

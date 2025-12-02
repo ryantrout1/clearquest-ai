@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Search, ArrowLeft, X, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatDateTimeAZ } from "@/components/utils/dateFormatters";
 import { toast } from "sonner";
 
 export default function InterviewDashboard() {
@@ -594,11 +594,11 @@ function InterviewSessionCard({ session, departments, actualCounts, isSelected, 
                 </span>
                 <span>•</span>
                 <span>
-                  Started: <span className="font-medium text-slate-200">{new Date(session.created_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}</span>
+                  Started: <span className="font-medium text-slate-200">{formatDateTimeAZ(session.created_date)}</span>
                 </span>
                 <span>•</span>
                 <span>
-                  Updated: <span className="font-medium text-slate-200">{new Date(session.updated_date || session.last_activity_at || session.created_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}</span>
+                  Updated: <span className="font-medium text-slate-200">{formatDateTimeAZ(session.updated_date || session.last_activity_at || session.created_date)}</span>
                 </span>
               </div>
 

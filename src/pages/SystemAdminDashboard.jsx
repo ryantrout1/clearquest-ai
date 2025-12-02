@@ -12,8 +12,9 @@ import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock
 import TestDataGenerator from "../components/admin/TestDataGenerator";
 import SystemConfigPanel from "../components/admin/SystemConfigPanel";
 import { Link } from "react-router-dom";
-import { format, differenceInDays } from "date-fns";
+import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
+import { formatDateAZ } from "../components/utils/dateFormatters";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 
@@ -595,9 +596,7 @@ export default function SystemAdminDashboard() {
                           )}
                           <span>•</span>
                           <span>
-                            {dept.date_joined 
-                              ? format(new Date(dept.date_joined), "MMM d, yyyy") 
-                              : 'N/A'}
+                            {formatDateAZ(dept.date_joined)}
                           </span>
                         </div>
 
@@ -793,9 +792,7 @@ function InfoRequestsTable({ infoRequests, isLoading, queryClient }) {
                       )}
                       <span>•</span>
                       <span>
-                        {request.created_at 
-                          ? format(new Date(request.created_at), "MMM d, yyyy 'at' h:mm a")
-                          : 'No date'}
+                        {formatDateAZ(request.created_at)}
                       </span>
                     </div>
                   </div>
