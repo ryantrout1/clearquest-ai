@@ -1997,6 +1997,31 @@ export default function CandidateInterview() {
       };
     }
 
+    // V2 Pack field question
+    if (currentItem.type === 'v2_pack_field') {
+      const { packId, fieldIndex, fieldConfig, instanceNumber } = currentItem;
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const totalFields = packConfig?.fields?.length || 0;
+      
+      console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId);
+      
+      return {
+        type: 'v2_pack_field',
+        id: currentItem.id,
+        text: fieldConfig.label,
+        responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
+        inputType: fieldConfig.inputType,
+        placeholder: fieldConfig.placeholder,
+        options: fieldConfig.options,
+        packId: packId,
+        fieldKey: currentItem.fieldKey,
+        stepNumber: fieldIndex + 1,
+        totalSteps: totalFields,
+        instanceNumber: instanceNumber,
+        category: packConfig?.instancesLabel || 'Follow-up'
+      };
+    }
+
     return null;
   };
 
