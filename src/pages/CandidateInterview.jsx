@@ -1110,7 +1110,6 @@ export default function CandidateInterview() {
             
             // === V3 PROBING CHECK (only for non-V2 packs) ===
             const categoryId = mapPackIdToCategory(packId);
-            const isV3Pack = isV3Pack; // From checkFollowUpTrigger
             
             if (ENABLE_V3_PROBING && categoryId && !isV2Pack) {
               try {
