@@ -1246,6 +1246,26 @@ const FOLLOWUP_PACK_STEPS = {
     { Field_Key: 'accountability', Prompt: 'How do you take accountability for this?', Response_Type: 'text', Expected_Type: 'TEXT' }
   ],
 
+  // ========== Standard Cluster Packs (Fallbacks) ==========
+  // These are fallback definitions for V2 standard cluster packs
+  // V2 definitions from database take precedence at runtime
+  
+  'PACK_LAW_ENFORCEMENT_STANDARD': [
+    { Field_Key: 'agency_name', Prompt: 'Which law enforcement agency?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'position', Prompt: 'What position did you apply for or hold?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'dates', Prompt: 'What were the dates of employment or application?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'circumstances', Prompt: 'Describe any relevant circumstances.', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+  
+  'PACK_DRIVING_CITATIONS_STANDARD': [
+    { Field_Key: 'citation_date', Prompt: 'When did you receive the citation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'location', Prompt: 'Where did it occur?', Response_Type: 'text', Expected_Type: 'LOCATION' },
+    { Field_Key: 'violation_type', Prompt: 'What was the violation?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'outcome', Prompt: 'What was the outcome?', Response_Type: 'text', Expected_Type: 'TEXT' },
+    { Field_Key: 'fine_amount', Prompt: 'What was the fine amount, if any?', Response_Type: 'text', Expected_Type: 'TEXT' }
+  ],
+
   // DEPRECATED: PACK_PRIOR_LE migrated to V2 FollowUpPack (see database)
   // Legacy definition kept as fallback only - V2 takes precedence at runtime
 };
