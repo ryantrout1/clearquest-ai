@@ -346,8 +346,7 @@ export default function CandidateInterview() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   
-  const [showStartMessage, setShowStartMessage] = useState(false);
-  const [showResumeMessage, setShowResumeMessage] = useState(false);
+  const [screenMode, setScreenMode] = useState("LOADING");
   const introLoggedRef = useRef(false);
   
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
@@ -494,15 +493,15 @@ export default function CandidateInterview() {
       }
 
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+      const isNewSession = !hasAnyResponses;
 
-      if (!hasAnyResponses) {
-        setShowStartMessage(true);
-        setShowResumeMessage(false);
-      } else {
-        setShowStartMessage(false);
-        setShowResumeMessage(true);
-      }
+      console.log("[CandidateInterview] init", {
+        isNewSession,
+        screenMode: isNewSession ? "WELCOME" : "QUESTION",
+        layoutVersion: "section-first"
+      });
 
+      setScreenMode(isNewSession ? "WELCOME" : "QUESTION");
       setIsLoading(false);
 
     } catch (err) {
@@ -1750,15 +1749,75 @@ export default function CandidateInterview() {
   }
 
   const currentPrompt = getCurrentPrompt();
-  const isIntroPhase = showStartMessage && transcript.filter(t => t.type === 'question').length === 0 && currentItem?.type === 'question';
   const isYesNoQuestion = currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop;
+
+  if (screenMode === "WELCOME") {
+    return (
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full">
+          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                <Shield className="w-6 h-6 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-3">
+                  Welcome to your ClearQuest Interview
+                </h2>
+                <p className="text-slate-300 text-base leading-relaxed mb-4">
+                  This interview is part of your application process. Here's what to expect:
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-300">One question at a time, at your own pace</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-300">Clear, complete, and honest answers help investigators understand the full picture</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-300">You can pause and come back — we'll pick up where you left off</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <Button
+                    onClick={() => {
+                      console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
+                      setScreenMode("QUESTION");
+                      setTimeout(() => autoScrollToBottom(), 100);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg font-semibold"
+                    size="lg"
+                  >
+                    Start Interview
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold text-white">ClearQuest Interview</h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
+              {department && (
+                <>
+                  <span className="text-slate-600 hidden sm:inline">•</span>
+                  <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
+                </>
+              )}
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -1769,6 +1828,29 @@ export default function CandidateInterview() {
               Pause
             </Button>
           </div>
+          
+          {sections.length > 0 && activeSection && (
+            <div>
+              <div className="text-sm font-medium text-blue-400 mb-1">
+                {activeSection.displayName}
+              </div>
+              <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                  style={{ 
+                    width: `${questionCompletionPct}%`,
+                    boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
+                  }}
+                />
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs text-slate-400">
+                  Section {currentSectionIndex + 1} of {sections.length}
+                </span>
+                <span className="text-xs font-medium text-blue-400">{questionCompletionPct}% complete</span>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1793,7 +1875,19 @@ export default function CandidateInterview() {
           
           {currentPrompt && (
             <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6">
-              <p className="text-white text-lg">{currentPrompt.text}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg font-bold text-blue-400">
+                  Question {getQuestionDisplayNumber(currentItem.id)}
+                </span>
+                <span className="text-sm text-slate-500">•</span>
+                <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+              </div>
+              <p className="text-white text-lg font-semibold">{currentPrompt.text}</p>
+              {validationHint && (
+                <div className="mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+                  <p className="text-yellow-200 text-sm">{validationHint}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1801,16 +1895,7 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {isIntroPhase ? (
-            <div className="flex justify-center">
-              <Button
-                onClick={() => setShowStartMessage(false)}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Next
-              </Button>
-            </div>
-          ) : isYesNoQuestion ? (
+          {isYesNoQuestion ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -1854,6 +1939,10 @@ export default function CandidateInterview() {
               </Button>
             </form>
           )}
+          
+          <p className="text-xs text-slate-400 text-center mt-3">
+            Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
+          </p>
         </div>
       </footer>
 
