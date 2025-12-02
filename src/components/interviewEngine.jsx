@@ -1914,7 +1914,10 @@ export function debugPrintQuestionSectionMap(sections, questions) {
     .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
   
   sortedSections.forEach(section => {
-    const allSectionQuestions = questions.filter(q => q.section_id === section.id);
+    // Match questions by EITHER section.id (db ID) OR section.section_id (string identifier)
+    const allSectionQuestions = questions.filter(q => 
+      q.section_id === section.id || q.section_id === section.section_id
+    );
     const activeSectionQuestions = allSectionQuestions
       .filter(q => q.active !== false)
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
@@ -1958,9 +1961,10 @@ export function debugPrintQuestionSectionMap(sections, questions) {
         return; // Skip this question
       }
 
-      // Log valid question
+      // Log valid question with resolved section name
       const shortText = text.substring(0, 80);
-      console.log(`  - dbId=${dbId} | code=${code || 'MISSING'} | fromDbSection=${sectionIdOnRecord || 'MISSING'}`);
+      const resolvedSectionName = section.section_name || 'unknown';
+      console.log(`  - dbId=${dbId} | code=${code || 'MISSING'} | fromDbSection=${resolvedSectionName}`);
       if (text.length > 80) {
         console.log(`    text: ${shortText}...`);
       }
