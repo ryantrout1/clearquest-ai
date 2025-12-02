@@ -2051,6 +2051,8 @@ export default function CandidateInterview() {
     } catch (err) {
       console.error('❌ Error processing answer:', err);
       setError(`Error: ${err.message}`);
+    } finally {
+      // CRITICAL: Always reset isCommitting to allow next answer
       setIsCommitting(false);
       setInput("");
     }
