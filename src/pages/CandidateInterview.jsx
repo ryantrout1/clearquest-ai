@@ -2244,9 +2244,29 @@ export default function CandidateInterview() {
             // ============================================================================
             const categoryId = mapPackIdToCategory(packId);
             
-            // Block deterministic follow-ups entirely when AI Probing is the active mode
-            if (interviewMode !== "AI_PROBING") {
-              // Continue with normal deterministic follow-up logic only if NOT in AI_PROBING mode
+            // ============================================================================
+            // BLOCK DETERMINISTIC FOLLOW-UPS IN AI_PROBING MODE
+            // When effectiveMode is AI_PROBING (e.g., in Preview/Sandbox), skip all
+            // deterministic PACK_* follow-ups and let IDE v1 AI probing handle it.
+            // ============================================================================
+            if (interviewMode === "AI_PROBING") {
+              console.log("[IDE] AI_PROBING mode - skipping deterministic follow-up pack", { 
+                packId, 
+                categoryId,
+                questionId: currentItem.id 
+              });
+              
+              // Save the base answer to database
+              saveAnswerToDatabase(currentItem.id, value, question);
+              
+              // Advance to next question without triggering deterministic pack
+              advanceToNextBaseQuestion(currentItem.id);
+              setIsCommitting(false);
+              setInput("");
+              return;
+            }
+            
+            // Continue with normal deterministic follow-up logic only if NOT in AI_PROBING mode
               
               if (ideEnabled && categoryId) {
               console.log("[IDE] Checking fact model for category", { categoryId, packId });
