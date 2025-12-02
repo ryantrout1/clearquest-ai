@@ -613,7 +613,7 @@ export default function SessionDetails() {
         console.log('[SESSIONDETAILS] AI summaries mapped', {
           sessionId,
           questionSummaryKeys: Object.keys(qMap),
-          sectionSummaryKeys: Object.keys(sMap),
+          sectionSummaryKeys: Object.keys(sMapByName),
           instanceSummaryKeys: Object.keys(instMap),
           sampleResponseQuestionIds,
           keysMatch: sampleResponseQuestionIds.some(id => qMap[id]),
