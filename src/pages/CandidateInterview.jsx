@@ -1619,15 +1619,17 @@ export default function CandidateInterview() {
         }
       } else if (currentItem.type === 'v2_pack_field') {
         // === V2 PACK FIELD ANSWER HANDLING ===
-        // CRITICAL: This is the dedicated V2 pack field answer branch
+        // CRITICAL: This is the dedicated V2 pack field answer branch - ALWAYS calls backend
         console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
         
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
         // Special log for PACK_PRIOR_LE_APPS_STANDARD
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] ========== PRIOR LE APPS ANSWER ==========`);
           console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
           console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] activeV2Pack exists: ${!!activeV2Pack}`);
         }
         
         const answerSummary = value.length > 50 ? value.substring(0, 50) + '...' : value;
@@ -1638,12 +1640,18 @@ export default function CandidateInterview() {
         console.log(`[V2_PACK][ANSWER_SUBMIT] instanceNumber=${instanceNumber}, baseQuestionId=${baseQuestionId}`);
         
         if (!activeV2Pack) {
-          console.error("[V2_PACK] No active V2 pack but handling v2_pack_field");
+          console.error("[V2_PACK] No active V2 pack but handling v2_pack_field - this is a bug");
           setIsCommitting(false);
           return;
         }
         
+        // Validate answer is not empty
         const normalizedAnswer = value.trim();
+        if (!normalizedAnswer && fieldConfig?.required) {
+          setValidationHint('This field is required. Please provide an answer.');
+          setIsCommitting(false);
+          return;
+        }
         const questionText = fieldConfig?.label || fieldKey;
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         
