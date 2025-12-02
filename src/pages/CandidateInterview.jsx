@@ -2325,19 +2325,14 @@ export default function CandidateInterview() {
                     return;
                   }
                 }
-              } else if (ideEnabled && interviewMode === "HYBRID") {
-                console.log("[IDE] Fact model not ready - using deterministic fallback", { categoryId, packId });
-                // Continue to deterministic flow below
+                } else if (ideEnabled && interviewMode === "HYBRID") {
+                  console.log("[IDE] Fact model not ready - using deterministic fallback", { categoryId, packId });
+                  // Continue to deterministic flow below
+                }
               }
-            }
-            // ============================================================================
-            // END IDE v1 INTEGRATION
-            // ============================================================================
-            
-            }
-            // ============================================================================
-            // END DETERMINISTIC FOLLOW-UP BLOCK
-            // ============================================================================
+              // ============================================================================
+              // END IDE v1 INTEGRATION
+              // ============================================================================
             
             // If we reach here in AI_PROBING mode, IDE check passed but no probing was triggered
             // Just advance to next question without deterministic follow-ups
