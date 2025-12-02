@@ -2311,12 +2311,18 @@ async function probeEngineV2(input, base44Client) {
   
   // EXPLICIT LOGGING: Entry point for PACK_PRIOR_LE_APPS_STANDARD
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2-BACKEND-ENTRY] PACK_PRIOR_LE_APPS_STANDARD field validation`, {
+    console.log(`[V2-BACKEND-ENTRY] ========== PACK_PRIOR_LE_APPS_STANDARD BACKEND CALLED ==========`);
+    console.log(`[V2-BACKEND-ENTRY] Full request payload:`, {
+      pack_id,
       field_key,
       field_value: field_value?.substring?.(0, 50) || field_value,
       previous_probes_count,
       incident_context_keys: Object.keys(incident_context),
-      questionCode
+      incident_context_values: incident_context,
+      questionCode,
+      questionDbId,
+      sectionName,
+      mode: requestMode
     });
   }
 
@@ -2384,7 +2390,9 @@ async function probeEngineV2(input, base44Client) {
       raw_field_key: field_key,
       mapped_semantic_field: semanticField,
       pack_config_exists: !!packConfig,
-      has_field_key_map: !!packConfig?.fieldKeyMap
+      has_field_key_map: !!packConfig?.fieldKeyMap,
+      all_field_keys_in_map: Object.keys(packConfig?.fieldKeyMap || {}),
+      mapping_found: !!packConfig?.fieldKeyMap?.[field_key]
     });
   }
 
@@ -2449,11 +2457,13 @@ async function probeEngineV2(input, base44Client) {
     
     // EXPLICIT LOGGING: NEXT_FIELD decision for PACK_PRIOR_LE_APPS_STANDARD
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log(`[V2-BACKEND-DECISION] PACK_PRIOR_LE_APPS_STANDARD field complete`, {
+      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD ==========`);
+      console.log(`[V2-BACKEND-DECISION] Field ${semanticField} is complete - advancing`, {
         field_key,
         semanticField,
         decision: "NEXT_FIELD",
-        validationResult: "complete"
+        validationResult: "complete",
+        will_advance_to_next_field: true
       });
     }
     
@@ -2509,12 +2519,16 @@ async function probeEngineV2(input, base44Client) {
   
   // EXPLICIT LOGGING: QUESTION decision for PACK_PRIOR_LE_APPS_STANDARD
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2-BACKEND-DECISION] PACK_PRIOR_LE_APPS_STANDARD field needs probe`, {
+    console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: QUESTION ==========`);
+    console.log(`[V2-BACKEND-DECISION] Field ${semanticField} needs probe - staying on field`, {
       field_key,
       semanticField,
       decision: "QUESTION",
       probe_source: probeResult.source,
-      is_fallback: probeResult.isFallback
+      is_fallback: probeResult.isFallback,
+      probe_count: previous_probes_count,
+      max_probes: maxProbesPerField,
+      question_preview: probeResult.question?.substring?.(0, 80)
     });
   }
 
@@ -2530,7 +2544,9 @@ async function probeEngineV2(input, base44Client) {
     isFallback: probeResult.isFallback,
     probeSource: probeResult.source,
     semanticInfo,
-    message: `Probing for more information about ${semanticField}`
+    message: `Probing for more information about ${semanticField}`,
+    followups: [probeResult.question],
+    followupsCount: 1
   };
 }
 

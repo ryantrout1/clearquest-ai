@@ -1644,7 +1644,7 @@ export default function CandidateInterview() {
         
         const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
         
-        // EXPLICIT LOGGING: V2 pack field submission
+        // EXPLICIT LOGGING: V2 pack field submission with full payload details
         console.log("[V2_PACK_SUBMIT] Submitting V2 field answer", {
           packId,
           fieldKey,
@@ -1654,7 +1654,16 @@ export default function CandidateInterview() {
           maxAiFollowups,
           baseQuestionId,
           instanceNumber,
-          sessionId
+          sessionId,
+          backendPayload: {
+            pack_id: packId,
+            field_key: fieldKey,
+            field_value: normalizedAnswer,
+            previous_probes_count: probeCount,
+            incident_context: Object.keys(updatedCollectedAnswers),
+            session_id: sessionId,
+            question_code: baseQuestion?.question_id
+          }
         });
         
         console.log("[V2_PACK][CALL]", { 
@@ -1690,15 +1699,25 @@ export default function CandidateInterview() {
           followupsCount: v2Result?.followups?.length || v2Result?.followupsCount || 0
         });
         
-        // EXPLICIT LOGGING: Backend response for V2 pack
+        // EXPLICIT LOGGING: Backend response for V2 pack with full details
         console.log("[V2_PACK_RESPONSE]", {
           packId,
-          fieldKey,
-          nextFieldKey: v2Result?.field_key || v2Result?.semanticField || null,
-          mode: v2Result?.mode,
-          validationResult: v2Result?.validationResult,
-          hasQuestion: !!v2Result?.question,
-          errors: v2Result?.error || v2Result?.message || null
+          currentFieldKey: fieldKey,
+          currentFieldIndex: fieldIndex,
+          totalFields: activeV2Pack.fields.length,
+          backendResponse: {
+            mode: v2Result?.mode,
+            nextFieldKey: v2Result?.field_key || v2Result?.semanticField || null,
+            validationResult: v2Result?.validationResult,
+            hasQuestion: !!v2Result?.question,
+            question: v2Result?.question?.substring?.(0, 80),
+            previousProbeCount: v2Result?.previousProbeCount,
+            maxProbesPerField: v2Result?.maxProbesPerField,
+            errors: v2Result?.error || v2Result?.message || null
+          },
+          willStayOnField: v2Result?.mode === 'QUESTION',
+          willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
+          isLastField: fieldIndex >= activeV2Pack.fields.length - 1
         });
 
         // Interpret V2 probe result to determine action
@@ -1718,26 +1737,37 @@ export default function CandidateInterview() {
             return { action: 'NEXT_FIELD', reason: 'skip' };
           }
 
-          // Check for real AI follow-up
+          // Check for real AI follow-up (mode=QUESTION with question text)
           const hasQuestion = !!result.question;
-          const hasProbes = (result.followups?.length > 0) || (result.followupsCount > 0) || (result.probes?.length > 0);
 
-          // CRITICAL: Only stay on field if we have BOTH a question AND probes/followups
-          if ((result.mode === 'PROBE' || result.mode === 'QUESTION') && hasQuestion && hasProbes) {
+          // SIMPLIFIED LOGIC: If backend says QUESTION and provides question text, stay on field
+          if (result.mode === 'QUESTION' && hasQuestion) {
+            console.log("[V2_PACK] Backend returned QUESTION mode - staying on field for AI probe");
             return { 
               action: 'STAY_ON_FIELD_SHOW_AI', 
-              probes: result.followups || result.probes || [result.question],
+              probes: [result.question],
               question: result.question
             };
           }
 
-          // No AI follow-up - check if there are more fields
-          const isLastField = currentFieldIndex >= totalFields - 1;
-          if (isLastField) {
-            return { action: 'COMPLETE_PACK', reason: 'last field, no followups' };
+          // If backend says NEXT_FIELD, advance to next field
+          if (result.mode === 'NEXT_FIELD') {
+            const isLastField = currentFieldIndex >= totalFields - 1;
+            if (isLastField) {
+              console.log("[V2_PACK] NEXT_FIELD on last field - completing pack");
+              return { action: 'COMPLETE_PACK', reason: 'last field completed' };
+            }
+            console.log("[V2_PACK] NEXT_FIELD - advancing to next field");
+            return { action: 'NEXT_FIELD', reason: 'backend approved advance' };
           }
 
-          return { action: 'NEXT_FIELD', reason: 'no followups' };
+          // Fallback: if mode is unclear, check if last field
+          const isLastField = currentFieldIndex >= totalFields - 1;
+          if (isLastField) {
+            return { action: 'COMPLETE_PACK', reason: 'last field, unknown mode' };
+          }
+
+          return { action: 'NEXT_FIELD', reason: 'default advance' };
         };
 
         const decision = interpretV2ProbeResult(v2Result, fieldIndex, activeV2Pack.fields.length);
@@ -1751,6 +1781,23 @@ export default function CandidateInterview() {
           nextIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
           totalFields: activeV2Pack.fields.length
         });
+        
+        // EXPLICIT LOGGING: Decision tree for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
+          console.log(`[V2-FRONTEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD ACTION: ${decision.action} ==========`, {
+            currentFieldKey: fieldKey,
+            currentFieldIndex: fieldIndex,
+            totalFields: activeV2Pack.fields.length,
+            action: decision.action,
+            reason: decision.reason,
+            nextFieldIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
+            nextFieldKey: decision.action === 'NEXT_FIELD' && fieldIndex + 1 < activeV2Pack.fields.length 
+              ? activeV2Pack.fields[fieldIndex + 1].fieldKey 
+              : null,
+            willShowAIProbe: decision.action === 'STAY_ON_FIELD_SHOW_AI',
+            willComplete: decision.action === 'COMPLETE_PACK'
+          });
+        }
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
@@ -1869,6 +1916,18 @@ export default function CandidateInterview() {
           totalFields: activeV2Pack.fields.length,
           message: `Advancing to next field: ${nextField.fieldKey}`
         });
+        
+        // EXPLICIT LOGGING: Field progression for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
+          console.log(`[V2-FRONTEND-ADVANCE] ========== PACK_PRIOR_LE_APPS_STANDARD ADVANCING ==========`, {
+            completedField: fieldKey,
+            completedFieldIndex: fieldIndex,
+            nextField: nextField.fieldKey,
+            nextFieldIndex: nextIndex,
+            nextFieldLabel: nextField.label,
+            remainingFields: activeV2Pack.fields.length - nextIndex - 1
+          });
+        }
 
         setActiveV2Pack(prev => ({
           ...prev,
