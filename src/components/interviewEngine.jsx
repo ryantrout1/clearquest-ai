@@ -1608,10 +1608,6 @@ export function parseQuestionsToMaps(questions, sections, categories) {
       console.log(`   ${cfg.section_order}. ${cfg.section_name} (id="${cfg.id}"): ${qCount} questions - ${status}`);
     });
 
-  if (UndefinedPacks.size > 0) {
-    console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs:`, Array.from(UndefinedPacks));
-  }
-
   if (validationErrors.length > 0) {
     console.error(`❌ Found ${validationErrors.length} question validation errors:`, validationErrors);
   }
@@ -1620,7 +1616,6 @@ export function parseQuestionsToMaps(questions, sections, categories) {
     QById, // database question.id -> question object
     QuestionCodeById, // database question.id -> question_code (display only)
     MatrixYesByQ, // database question.id -> followup_pack
-    UndefinedPacks,
     sectionOrder,
     sectionConfig,
     questionsBySection, // section_id -> [database question.id]
