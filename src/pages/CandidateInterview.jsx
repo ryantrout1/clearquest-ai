@@ -1228,7 +1228,9 @@ export default function CandidateInterview() {
                 sectionName: sectionEntity?.section_name || null,
                 baseQuestionText: question?.question_text || null,
                 questionDbId: question?.id || null,
-                questionCode: question?.question_id || null
+                questionCode: question?.question_id || null,
+                sessionId: sessionId,
+                baseQuestionId: currentItem.baseQuestionId
               });
               
               const { mode } = v2Result || {};
