@@ -1932,6 +1932,11 @@ export default function CandidateInterview() {
         // EXPLICIT LOGGING: Advancing pack to next field
         console.log(`[V2_PACK][ADVANCING] Advancing pack ${packId} to field ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${activeV2Pack.fields.length})`);
         
+        // Special log for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][NEXT_FIELD] ${fieldKey} -> ${nextFieldConfig.fieldKey}`);
+        }
+        
         // EXPLICIT LOGGING: State update for V2 pack progression
         console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
         console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
