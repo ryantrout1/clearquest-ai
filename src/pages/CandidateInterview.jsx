@@ -2358,9 +2358,9 @@ export default function CandidateInterview() {
               
               // Mark this pack as triggered
               triggeredPacksRef.current.add(triggerKey);
-            if (DEBUG_MODE) console.log(`[FOLLOWUP] Triggered: ${packId}`);
-            
-            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+              if (DEBUG_MODE) console.log(`[FOLLOWUP] Triggered: ${packId}`);
+              
+              const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
             
             if (packSteps && packSteps.length > 0) {
               // Reset follow-up answers tracker for new pack
