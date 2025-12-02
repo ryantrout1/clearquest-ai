@@ -1587,7 +1587,14 @@ export default function CandidateInterview() {
         // === V2 PACK FIELD ANSWER HANDLING ===
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
-        console.log("[V2_PACK] Handling answer for field", { packId, fieldIndex, fieldKey, answer: value });
+        console.log("[V2_PACK][ANSWER]", { 
+          packId, 
+          fieldKey, 
+          fieldIndex,
+          answer: value.substring(0, 50),
+          instanceNumber,
+          baseQuestionId
+        });
         
         if (!activeV2Pack) {
           console.error("[V2_PACK] No active V2 pack but handling v2_pack_field");
