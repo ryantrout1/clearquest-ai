@@ -1839,10 +1839,12 @@ export default function CandidateInterview() {
           });
           
           // EXPLICIT LOGGING: Pack completion and return to flow
-          console.log(`[V2_PACK][EXIT] ========== V2 PACK COMPLETE - RETURNING TO MAIN FLOW ==========`);
-          console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}`);
-          console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId}, baseQuestionCode=${baseQuestion?.question_id}`);
-          console.log(`[V2_PACK][EXIT] totalFieldsAnswered=${activeV2Pack.fields.length}, returning to section flow`);
+          const triggerQuestion = engine.QById[baseQuestionId];
+          const triggerSection = engine.Sections.find(s => s.id === triggerQuestion?.section_id);
+          console.log(`[V2_PACK][EXIT] ========== PACK COMPLETED - RETURNING TO MAIN FLOW ==========`);
+          console.log(`[V2_PACK][EXIT] Pack ${packId} completed. Returning to section flow.`);
+          console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}, totalFieldsAnswered=${activeV2Pack.fields.length}`);
+          console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId} (${baseQuestion?.question_id}), returningToSection=${triggerSection?.section_name || 'unknown'}`);
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
