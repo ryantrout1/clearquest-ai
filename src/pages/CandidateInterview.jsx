@@ -1096,6 +1096,12 @@ export default function CandidateInterview() {
               console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem.id} (${question.question_id}), instanceNumber=1`);
               console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
               
+              // Special log for PACK_PRIOR_LE_APPS_STANDARD
+              if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+                console.log(`[V2_PACK][PRIOR_LE_APPS][ENTER] ========== ENTERING PRIOR LE APPS PACK ==========`);
+                console.log(`[V2_PACK][PRIOR_LE_APPS][ENTER] fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
+              }
+              
               // Save the base question answer first
               saveAnswerToDatabase(currentItem.id, value, question);
               
