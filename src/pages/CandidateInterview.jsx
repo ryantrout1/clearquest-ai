@@ -1823,43 +1823,31 @@ export default function CandidateInterview() {
         }
 
         if (decision.action === 'COMPLETE_PACK') {
-          // Pack complete - return to BASE mode
-          console.log("[V2_PACK][COMPLETE]", { 
-            packId, 
-            fieldKey, 
-            reason: decision.reason,
-            message: `Pack ${packId} complete - returning to main questionnaire`
-          });
+          // Pack complete - exit V2 pack mode and return to main flow
+          console.log(`[V2_PACK][COMPLETE] ========== PACK COMPLETE ==========`);
+          console.log(`[V2_PACK][COMPLETE] packId=${packId}, lastField=${fieldKey}, totalAnswered=${totalFieldsInPack}`);
           
-          // EXPLICIT LOGGING: Pack completion and return to flow
-          const triggerQuestion = engine.QById[baseQuestionId];
-          const triggerSection = engine.Sections.find(s => s.id === triggerQuestion?.section_id);
-          console.log(`[V2_PACK][EXIT] ========== PACK COMPLETED - RETURNING TO MAIN FLOW ==========`);
-          console.log(`[V2_PACK][EXIT] Pack ${packId} completed. Returning to section flow.`);
-          console.log(`[V2_PACK][EXIT] packId=${packId}, lastFieldCompleted=${fieldKey}, totalFieldsAnswered=${activeV2Pack.fields.length}`);
-          console.log(`[V2_PACK][EXIT] baseQuestionId=${baseQuestionId} (${baseQuestion?.question_id}), returningToSection=${triggerSection?.section_name || 'unknown'}`);
-          
-          // Special log for PACK_PRIOR_LE_APPS_STANDARD
           if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-            console.log(`[V2_PACK][PRIOR_LE_APPS][COMPLETE_PACK] Pack complete after field ${fieldKey}`);
+            console.log(`[V2_PACK][PRIOR_LE_APPS][COMPLETE] Pack finished - returning to section flow`);
           }
 
+          // Clear V2 pack state
           setActiveV2Pack(null);
           setV2PackMode("BASE");
           setCurrentFollowUpAnswers({});
           lastLoggedV2PackFieldRef.current = null;
 
-          // Check for multi-instance
+          // Check for multi-instance packs
           const baseQuestionForExit = engine.QById[baseQuestionId];
           if (baseQuestionForExit?.followup_multi_instance) {
+            console.log(`[V2_PACK][COMPLETE] Multi-instance pack - checking for more instances`);
             onFollowupPackComplete(baseQuestionId, packId);
           } else {
+            console.log(`[V2_PACK][COMPLETE] Single instance - advancing to next base question`);
             advanceToNextBaseQuestion(baseQuestionId);
           }
 
           await persistStateToDatabase(newTranscript, [], null);
-          setIsCommitting(false);
-          setInput("");
           return;
         }
 
