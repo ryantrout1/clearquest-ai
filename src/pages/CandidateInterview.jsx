@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -2823,7 +2822,7 @@ export default function CandidateInterview() {
           questionText: step.Prompt,
           packId: packId,
           substanceName: substanceName,
-          kind: 'deterministic_followup_question',
+          kind: 'deterministic_followup',
           text: step.Prompt,
           content: step.Prompt,
           fieldKey: step.Field_Key,
@@ -2876,9 +2875,9 @@ export default function CandidateInterview() {
         // NEW: Skip conditional follow-ups based on previous answers
         while (nextItem && nextItem.type === 'followup') {
           const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
-          const nextStep = nextPackSteps[nextItem.stepIndex];
+          const nextStep = nextPackSteps?.[nextItem.stepIndex];
           
-          if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
+          if (nextStep && shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
             console.log(`⏭️ Skipping conditional step: ${nextStep.Field_Key}`);
             // Skip this step and move to next
             nextItem = updatedQueue.shift() || null;
@@ -4258,8 +4257,8 @@ export default function CandidateInterview() {
     if (!lastAssistantMessage?.content) return null;
     
     // Filter out base questions and system messages
-    if (lastAssistantMessage.content?.includes('Follow-up pack completed')) return false;
-    if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return false;
+    if (lastAssistantMessage.content?.includes('Follow-up pack completed')) return null;
+    if (lastAssistantMessage.content?.match(/\b(Q\d{1,3})\b/i)) return null;
 
     // Check if already answered (has user message after it)
     const lastIndex = agentMessages.findIndex(m => m === lastAssistantMessage);
@@ -4383,7 +4382,7 @@ export default function CandidateInterview() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <img 
-                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c5_IMG_2762.PNG" 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/690e1cd45172f1b62aa6dbb0/271f2b6c1_IMG_2762.PNG" 
                   alt="ClearQuest" 
                   className="w-8 h-8 object-contain drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"
                 />
