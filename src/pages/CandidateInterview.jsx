@@ -270,7 +270,17 @@ const useProbeEngineV2 = usePerFieldProbing;
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
 const callProbeEngineV2PerField = async (base44Client, params) => {
-  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext } = params;
+  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId } = params;
+
+  console.log('[V2 PROBE] calling per-field probe', { 
+    packId, 
+    fieldKey, 
+    fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
+    previousProbesCount,
+    sessionId,
+    questionCode,
+    baseQuestionId
+  });
 
   try {
     const response = await base44Client.functions.invoke('probeEngineV2', {
@@ -279,12 +289,20 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       field_value: fieldValue,
       previous_probes_count: previousProbesCount || 0,
       incident_context: incidentContext || {},
+      session_id: sessionId,
+      question_code: questionCode,
       mode: 'VALIDATE_FIELD'
+    });
+    
+    console.log('[V2 PROBE] success', { 
+      mode: response.data?.mode,
+      hasQuestion: !!response.data?.question,
+      followupsCount: response.data?.followups?.length || 0
     });
     
     return response.data;
   } catch (err) {
-    console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, message: err?.message });
+    console.error('[V2 PROBE] error', { packId, fieldKey, message: err?.message });
     return {
       mode: 'ERROR',
       message: err.message || 'Failed to call probeEngineV2'
