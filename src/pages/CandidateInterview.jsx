@@ -1905,33 +1905,33 @@ export default function CandidateInterview() {
         console.log("[V2_PACK][NEXT]", { 
           packId, 
           fromField: fieldKey,
-          nextFieldId: nextFieldDef.fieldKey,
+          nextFieldId: nextFieldConfig.fieldKey,
           fromIndex: fieldIndex,
-          nextIndex: nextFieldIndex,
+          nextIndex: nextFieldIdx,
           totalFields: activeV2Pack.fields.length,
-          message: `Advancing to next field: ${nextFieldDef.fieldKey}`
+          message: `Advancing to next field: ${nextFieldConfig.fieldKey}`
         });
         
         // EXPLICIT LOGGING: State update for V2 pack progression
         console.log(`[V2_PACK][STATE] ========== V2 PACK STATE UPDATE ==========`);
         console.log(`[V2_PACK][STATE] packId=${packId}, completedField=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Now rendering: ${nextFieldDef.fieldKey} (${nextFieldIndex + 1}/${activeV2Pack.fields.length})`);
-        console.log(`[V2_PACK][STATE] Label: "${nextFieldDef.label}"`);
-        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextFieldIndex - 1}`);
+        console.log(`[V2_PACK][STATE] Now rendering: ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][STATE] Label: "${nextFieldConfig.label}"`);
+        console.log(`[V2_PACK][STATE] Remaining fields: ${activeV2Pack.fields.length - nextFieldIdx - 1}`);
 
         setActiveV2Pack(prev => ({
           ...prev,
-          currentIndex: nextFieldIndex,
+          currentIndex: nextFieldIdx,
           collectedAnswers: updatedCollectedAnswers
         }));
 
         const nextItemForV2 = {
-          id: `v2pack-${packId}-${nextFieldIndex}`,
+          id: `v2pack-${packId}-${nextFieldIdx}`,
           type: 'v2_pack_field',
           packId: packId,
-          fieldIndex: nextFieldIndex,
-          fieldKey: nextFieldDef.fieldKey,
-          fieldConfig: nextFieldDef,
+          fieldIndex: nextFieldIdx,
+          fieldKey: nextFieldConfig.fieldKey,
+          fieldConfig: nextFieldConfig,
           baseQuestionId: baseQuestionId,
           instanceNumber: instanceNumber
         };
