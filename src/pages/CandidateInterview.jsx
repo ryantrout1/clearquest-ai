@@ -2234,7 +2234,7 @@ export default function CandidateInterview() {
 
         // CRITICAL FIX: Handle "Yes" and "No" answers distinctly for follow-up triggering
         if (value === 'Yes') {
-          const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value);
+          const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
 
           if (followUpResult) {
             const { packId, substanceName } = followUpResult;
