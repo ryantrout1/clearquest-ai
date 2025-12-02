@@ -1906,6 +1906,8 @@ export default function CandidateInterview() {
         await persistStateToDatabase(newTranscript, [], nextItemForV2);
         
         console.log(`[V2_PACK][RENDER_NEXT] Now showing: ${nextFieldConfig.fieldKey} - "${nextFieldConfig.label}"`);
+        setIsCommitting(false);
+        setInput("");
         return;
         
       } else if (currentItem.type === 'multi_instance') {
