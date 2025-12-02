@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, CheckCircle2, XCircle, AlertTriangle, Shield } from "lucide-react";
+import { Loader2, Play, CheckCircle2, XCircle, AlertTriangle, Shield, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -443,6 +443,45 @@ export default function V3ReadinessPanel() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Next Steps - Only shown when V3 is ready */}
+          {report.overall.ready && (
+            <Card className="bg-emerald-950/20 border-emerald-700/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  Next Steps for V3 Testing
+                  <Badge className="ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                    Sandbox Ready
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ol className="space-y-3 text-sm text-slate-300">
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600/30 text-emerald-400 text-xs flex items-center justify-center font-medium">1</span>
+                    <span>Go to the <strong className="text-white">V3 Config</strong> tab and enable V3 probing for at least one category you want to test.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600/30 text-emerald-400 text-xs flex items-center justify-center font-medium">2</span>
+                    <span>Create or select a <strong className="text-white">test department</strong> and <strong className="text-white">test candidate</strong> (non-production).</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600/30 text-emerald-400 text-xs flex items-center justify-center font-medium">3</span>
+                    <span>Start a new interview and answer "Yes" to a V3-enabled question to trigger the conversational follow-up.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600/30 text-emerald-400 text-xs flex items-center justify-center font-medium">4</span>
+                    <span>After completing the interview, open <strong className="text-white">Session Details</strong> to review the Incidents (V3), Transcript, and BI Notes tabs.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600/30 text-emerald-400 text-xs flex items-center justify-center font-medium">5</span>
+                    <span>If anything looks wrong, re-run the <strong className="text-white">V3 Self-Test</strong> above and capture the readiness report for debugging.</span>
+                  </li>
+                </ol>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
