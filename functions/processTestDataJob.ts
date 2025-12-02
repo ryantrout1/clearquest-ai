@@ -1601,10 +1601,12 @@ Deno.serve(async (req) => {
           status: 'completed',
           finished_at: new Date().toISOString(),
           result_summary: {
+            generatorVersion: 'v1.1.0-phase-fix',
             created: result.created,
             updated: result.updated,
             questionsUsed: result.questionsUsed,
-            coverageCheck: aggregateCoverage
+            coverageCheck: aggregateCoverage,
+            createdSessionIds: result.createdSessionIds || []
           }
         });
       }
