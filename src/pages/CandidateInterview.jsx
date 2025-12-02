@@ -2267,8 +2267,7 @@ export default function CandidateInterview() {
             }
             
             // Continue with normal deterministic follow-up logic only if NOT in AI_PROBING mode
-              
-              if (ideEnabled && categoryId) {
+            if (ideEnabled && categoryId) {
               console.log("[IDE] Checking fact model for category", { categoryId, packId });
               
               const factModel = await getFactModelForCategory(categoryId);
