@@ -2381,52 +2381,49 @@ export default function CandidateInterview() {
             if (DEBUG_MODE) console.log(`[FOLLOWUP] Triggered: ${packId}`);
             
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+            
+            if (packSteps && packSteps.length > 0) {
+              // Reset follow-up answers tracker for new pack
+              setCurrentFollowUpAnswers({});
               
-              if (packSteps && packSteps.length > 0) {
-                // Reset follow-up answers tracker for new pack
-                setCurrentFollowUpAnswers({});
-                
-                // Queue all follow-up steps (include baseQuestionId for AI handoff later)
-                const followupQueue = [];
-                for (let i = 0; i < packSteps.length; i++) {
-                  followupQueue.push({
-                    id: `${packId}:${i}`,
-                    type: 'followup',
-                    packId: packId,
-                    stepIndex: i,
-                    substanceName: substanceName,
-                    totalSteps: packSteps.length,
-                    baseQuestionId: currentItem.id // Store for AI handoff
-                  });
-                }
-                
-                // Set current to first item, queue to rest
-                const firstItem = followupQueue[0];
-                const remainingQueue = followupQueue.slice(1);
-                
-                setQueue(remainingQueue);
-                setCurrentItem(firstItem);
-                
-                await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
-              } else {
-                // Empty or invalid pack - advance to next question
-                console.error(`Invalid pack ${packId} - advancing to next question`);
-                const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
-                if (nextQuestionId && engine.QById[nextQuestionId]) {
-                  setQueue([]);
-                  setCurrentItem({ id: nextQuestionId, type: 'question' });
-                  await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
-                } else {
-                  // No next question - interview complete
-                  setCurrentItem(null);
-                  setQueue([]);
-                  await persistStateToDatabase(newTranscript, [], null);
-                  setShowCompletionModal(true);
-                }
+              // Queue all follow-up steps (include baseQuestionId for AI handoff later)
+              const followupQueue = [];
+              for (let i = 0; i < packSteps.length; i++) {
+                followupQueue.push({
+                  id: `${packId}:${i}`,
+                  type: 'followup',
+                  packId: packId,
+                  stepIndex: i,
+                  substanceName: substanceName,
+                  totalSteps: packSteps.length,
+                  baseQuestionId: currentItem.id // Store for AI handoff
+                });
               }
               
-            } // END deterministic follow-up block
-            
+              // Set current to first item, queue to rest
+              const firstItem = followupQueue[0];
+              const remainingQueue = followupQueue.slice(1);
+              
+              setQueue(remainingQueue);
+              setCurrentItem(firstItem);
+              
+              await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+            } else {
+              // Empty or invalid pack - advance to next question
+              console.error(`Invalid pack ${packId} - advancing to next question`);
+              const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
+              if (nextQuestionId && engine.QById[nextQuestionId]) {
+                setQueue([]);
+                setCurrentItem({ id: nextQuestionId, type: 'question' });
+                await persistStateToDatabase(newTranscript, [], { id: nextQuestionId, type: 'question' });
+              } else {
+                // No next question - interview complete
+                setCurrentItem(null);
+                setQueue([]);
+                await persistStateToDatabase(newTranscript, [], null);
+                setShowCompletionModal(true);
+              }
+            }
           } else {
             // No follow-up triggered - advance within section or to next section
             advanceToNextBaseQuestion(currentItem.id);
