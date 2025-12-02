@@ -1869,6 +1869,8 @@ export default function CandidateInterview() {
           
           advanceToNextBaseQuestion(baseQuestionId);
           await persistStateToDatabase(newTranscript, [], null);
+          setIsCommitting(false);
+          setInput("");
           return;
         }
 
