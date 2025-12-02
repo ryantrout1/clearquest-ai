@@ -35,7 +35,8 @@ const DEFAULT_CONFIG = {
     max_turns_per_incident: 12,
     non_substantive_threshold_chars: 15,
     logging_level: "BASIC",
-    stop_when_required_complete: true
+    stop_when_required_complete: true,
+    debug_mode_enabled: false
   }
 };
 
@@ -63,7 +64,8 @@ function mergeWithDefaults(existingData) {
     interviewModeOverridesByDepartment: existingData.interviewModeOverridesByDepartment || {},
     v3: {
       ...DEFAULT_CONFIG.v3,
-      ...(existingData.v3 || {})
+      ...(existingData.v3 || {}),
+      debug_mode_enabled: existingData.v3?.debug_mode_enabled || false
     }
   };
 }
