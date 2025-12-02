@@ -1167,6 +1167,8 @@ export default function CandidateInterview() {
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
 
           const completeV2FieldWithoutProbe = async () => {
+            console.log('[V2 PROBE] completing field without probe', { packId, fieldKey, reason: 'skipped or quota reached' });
+            
             await saveFollowUpAnswer(
               packId,
               fieldKey,
@@ -1202,15 +1204,24 @@ export default function CandidateInterview() {
             }));
           };
 
+          // V2 PROBE: Call backend for ALL answers when AI is enabled (not just vague answers)
           const canCallBackend =
             ENABLE_LIVE_AI_FOLLOWUPS &&
             aiProbingEnabled &&
             !aiProbingDisabledForSession &&
             probeCount < maxAiFollowups;
 
-          if (!ENABLE_LIVE_AI_FOLLOWUPS || !aiProbingEnabled || aiProbingDisabledForSession) {
+          if (!ENABLE_LIVE_AI_FOLLOWUPS) {
+            console.log('[V2 PROBE] skipping – ENABLE_LIVE_AI_FOLLOWUPS is false');
+            await completeV2FieldWithoutProbe();
+          } else if (!aiProbingEnabled) {
+            console.log('[V2 PROBE] skipping – aiProbingEnabled is false');
+            await completeV2FieldWithoutProbe();
+          } else if (aiProbingDisabledForSession) {
+            console.log('[V2 PROBE] skipping – AI disabled for this session');
             await completeV2FieldWithoutProbe();
           } else if (probeCount >= maxAiFollowups) {
+            console.log('[V2 PROBE] skipping – max probes reached', { probeCount, maxAiFollowups });
             await completeV2FieldWithoutProbe();
           } else {
             try {
