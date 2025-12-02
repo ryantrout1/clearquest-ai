@@ -2334,6 +2334,21 @@ export default function CandidateInterview() {
             // END IDE v1 INTEGRATION
             // ============================================================================
             
+            }
+            // ============================================================================
+            // END DETERMINISTIC FOLLOW-UP BLOCK
+            // ============================================================================
+            
+            // If we reach here in AI_PROBING mode, IDE check passed but no probing was triggered
+            // Just advance to next question without deterministic follow-ups
+            if (interviewMode === "AI_PROBING") {
+              advanceToNextBaseQuestion(currentItem.id);
+              setIsCommitting(false);
+              setInput("");
+              saveAnswerToDatabase(currentItem.id, value, question);
+              return;
+            }
+            
             // IDEMPOTENCY: Check if this pack was already triggered for this base question
             const triggerKey = `${currentItem.id}:${packId}`;
             if (triggeredPacksRef.current.has(triggerKey)) {
