@@ -1900,7 +1900,7 @@ export default function CandidateInterview() {
         }
 
         // Move to next field
-        const nextField = activeV2Pack.fields[nextIndex];
+        const nextFieldDef = activeV2Pack.fields[nextFieldIndex];
 
         console.log("[V2_PACK][NEXT]", { 
           packId, 
