@@ -2436,11 +2436,17 @@ function normalizeToYesNo(answer) {
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
 
-export function checkFollowUpTrigger(engine, questionDbId, answer) {
+export function checkFollowUpTrigger(engine, questionDbId, answer, effectiveMode = null) {
   const { MatrixYesByQ, PackStepsById, QById, QuestionCodeById } = engine;
   
   const questionCode = QuestionCodeById[questionDbId] || `db_${questionDbId}`;
   console.log(`🔍 Entity-driven follow-up check for db_id=${questionDbId} (code: ${questionCode}), answer="${answer}"`);
+
+  // GUARD: Block all deterministic PACK_* follow-ups in AI_PROBING mode
+  if (effectiveMode === "AI_PROBING") {
+    console.log(`   🚫 AI_PROBING mode active - skipping all deterministic PACK_* follow-ups`);
+    return null;
+  }
 
   // DEFENSIVE: Check exemption list (using code for backward compatibility)
   if (NO_FOLLOWUP_QUESTIONS.has(questionCode)) {
