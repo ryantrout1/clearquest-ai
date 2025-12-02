@@ -1735,7 +1735,6 @@ export async function bootstrapEngine(base44) {
       QById,
       QuestionCodeById,
       MatrixYesByQ, 
-      UndefinedPacks,
       sectionOrder,
       sectionConfig,
       questionsBySection,
@@ -1753,6 +1752,18 @@ export async function bootstrapEngine(base44) {
     
     // Merge V2 packs into PackStepsById (V2 takes precedence over legacy)
     Object.assign(PackStepsById, V2PackStepsById);
+    
+    // NOW check for undefined packs after V2 packs are loaded
+    const UndefinedPacks = new Set();
+    Object.entries(MatrixYesByQ).forEach(([questionDbId, packId]) => {
+      if (!PackStepsById[packId]) {
+        UndefinedPacks.add(packId);
+      }
+    });
+    
+    if (UndefinedPacks.size > 0) {
+      console.warn(`⚠️ Found ${UndefinedPacks.size} undefined packs after V2 loading:`, Array.from(UndefinedPacks));
+    }
     
     const configValidation = validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById);
     if (!configValidation.valid) {
