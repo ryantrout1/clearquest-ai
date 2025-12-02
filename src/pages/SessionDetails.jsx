@@ -20,6 +20,8 @@ import SectionHeader from "../components/sessionDetails/SectionHeader";
 import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
 import IdeIncidentsPanel from "../components/sessionDetails/IdeIncidentsPanel";
 import { Clock } from "lucide-react";
+import { getSystemConfig } from "../components/utils/systemConfigHelpers";
+import { getFactModelForCategory } from "../components/utils/factModelHelpers";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
@@ -148,7 +150,27 @@ export default function SessionDetails() {
       return;
     }
     loadSessionData();
+    loadIdeData();
   }, [sessionId]);
+  
+  const loadIdeData = async () => {
+    try {
+      // Load system config
+      const cfg = await getSystemConfig();
+      setSystemConfig(cfg.config);
+      
+      // Load decision traces for this session
+      const traces = await base44.entities.DecisionTrace.filter({ session_id: sessionId });
+      setDecisionTraces(traces.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      ));
+      
+      console.log("[IDE] Loaded", traces.length, "decision traces");
+    } catch (err) {
+      console.error("[IDE] Error loading IDE data:", err);
+      // Non-fatal - session details should still work
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1252,6 +1274,19 @@ export default function SessionDetails() {
           </div>
         </div>
 
+        {/* IDE v1 Panel */}
+        {session?.incidents && session.incidents.length > 0 && (
+          <div className="mb-4">
+            <IdeIncidentsPanel 
+              incidents={session.incidents}
+              decisionTraces={decisionTraces}
+              systemConfig={systemConfig}
+              factModels={factModels}
+              setFactModels={setFactModels}
+            />
+          </div>
+        )}
+        
         {/* Global AI Investigator Assist */}
         <div className="mb-4 rounded-xl bg-slate-900/50 border border-slate-700 overflow-hidden">
           <div className="p-4">
