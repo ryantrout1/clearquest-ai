@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
 import { getOpeningPrompt, getCompletionMessage } from "../utils/v3ProbingPrompts";
+import { 
+  logAIOpening, 
+  logAIFollowUp, 
+  logCandidateAnswer, 
+  logIncidentCreated,
+  logIncidentCompleted,
+  logProbingStopped 
+} from "../utils/v3TranscriptLogger";
 
 /**
  * V3 Probing Loop Component
@@ -21,12 +29,14 @@ export default function V3ProbingLoop({
   onTranscriptUpdate
 }) {
   const [incidentId, setIncidentId] = useState(initialIncidentId);
+  const [probeCount, setProbeCount] = useState(0);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
   const messagesEndRef = useRef(null);
+  const hasLoggedOpening = useRef(false);
 
   // Initial prompt on mount - use centralized template
   useEffect(() => {
@@ -39,7 +49,16 @@ export default function V3ProbingLoop({
     };
     setMessages([initialMessage]);
     
-    // Persist to transcript
+    // Log to InterviewTranscript entity
+    if (!hasLoggedOpening.current) {
+      hasLoggedOpening.current = true;
+      logAIOpening(sessionId, initialIncidentId, categoryId, openingText);
+      if (initialIncidentId) {
+        logIncidentCreated(sessionId, initialIncidentId, categoryId);
+      }
+    }
+    
+    // Persist to local transcript
     if (onTranscriptUpdate) {
       onTranscriptUpdate({
         type: 'v3_probe_question',
@@ -73,7 +92,10 @@ export default function V3ProbingLoop({
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Persist user message
+    // Log candidate answer to InterviewTranscript
+    logCandidateAnswer(sessionId, incidentId, categoryId, answer, probeCount);
+
+    // Persist user message to local transcript
     if (onTranscriptUpdate) {
       onTranscriptUpdate({
         type: 'v3_probe_answer',
@@ -96,9 +118,16 @@ export default function V3ProbingLoop({
       const data = result.data || result;
 
       // Update incident ID if new one was created
+      const currentIncidentId = data.incidentId || incidentId;
       if (data.incidentId && data.incidentId !== incidentId) {
         setIncidentId(data.incidentId);
+        // Log new incident creation
+        logIncidentCreated(sessionId, data.incidentId, categoryId);
       }
+      
+      // Update probe count
+      const newProbeCount = probeCount + 1;
+      setProbeCount(newProbeCount);
 
       // Handle next action
       if (data.nextAction === "ASK" && data.nextPrompt) {
@@ -109,14 +138,18 @@ export default function V3ProbingLoop({
           timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, aiMessage]);
+        
+        // Log AI follow-up to InterviewTranscript
+        const targetFieldId = data.missingFields?.[0]?.field_id || null;
+        logAIFollowUp(sessionId, currentIncidentId, categoryId, data.nextPrompt, newProbeCount, targetFieldId);
 
-        // Persist AI message
+        // Persist AI message to local transcript
         if (onTranscriptUpdate) {
           onTranscriptUpdate({
             type: 'v3_probe_question',
             content: data.nextPrompt,
             categoryId,
-            incidentId: data.incidentId || incidentId,
+            incidentId: currentIncidentId,
             timestamp: aiMessage.timestamp
           });
         }
@@ -134,14 +167,21 @@ export default function V3ProbingLoop({
         setMessages(prev => [...prev, aiMessage]);
         setIsComplete(true);
         setCompletionReason(data.nextAction);
+        
+        // Log completion to InterviewTranscript
+        if (data.nextAction === "RECAP") {
+          logIncidentCompleted(sessionId, currentIncidentId, categoryId, "RECAP");
+        } else {
+          logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
+        }
 
-        // Persist completion
+        // Persist completion to local transcript
         if (onTranscriptUpdate) {
           onTranscriptUpdate({
             type: 'v3_probe_complete',
             content: completionMessage,
             categoryId,
-            incidentId: data.incidentId || incidentId,
+            incidentId: currentIncidentId,
             nextAction: data.nextAction,
             timestamp: aiMessage.timestamp
           });
