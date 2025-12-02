@@ -317,9 +317,12 @@ export default function Home() {
         transitionLine="Here's what the applicant experience looks like from start to finish."
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-10 sm:mb-14 px-4">
-            How It Works
+          <AnimatedHeading className="text-2xl sm:text-3xl md:text-4xl font-bold text-white text-center mb-4 sm:mb-6 px-4">
+            How ClearQuest Works
           </AnimatedHeading>
+          <p className="text-slate-400 text-sm sm:text-base text-center mb-10 sm:mb-14 max-w-2xl mx-auto px-4">
+            Powered by the C.L.E.A.R. Workflow — Connect · Learn · Evaluate · Assist · Ready
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <AnimatedCard delay={0}>
               <StepCard 
