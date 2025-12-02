@@ -1658,6 +1658,7 @@ export default function CandidateInterview() {
           setActiveV2Pack(null);
           setV2PackMode("BASE");
           setCurrentFollowUpAnswers({});
+          lastLoggedV2PackFieldRef.current = null; // Reset for next V2 pack
           
           // Check for multi-instance
           const baseQuestion = engine.QById[baseQuestionId];
