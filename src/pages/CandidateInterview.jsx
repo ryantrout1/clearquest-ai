@@ -1643,6 +1643,20 @@ export default function CandidateInterview() {
         const baseQuestion = engine.QById[baseQuestionId];
         
         const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
+        
+        // EXPLICIT LOGGING: V2 pack field submission
+        console.log("[V2_PACK_SUBMIT] Submitting V2 field answer", {
+          packId,
+          fieldKey,
+          fieldIndex,
+          answer: callSummary,
+          probeCount,
+          maxAiFollowups,
+          baseQuestionId,
+          instanceNumber,
+          sessionId
+        });
+        
         console.log("[V2_PACK][CALL]", { 
           packId, 
           fieldKey, 
@@ -1674,6 +1688,17 @@ export default function CandidateInterview() {
           mode: v2Result?.mode,
           hasQuestion: !!v2Result?.question,
           followupsCount: v2Result?.followups?.length || v2Result?.followupsCount || 0
+        });
+        
+        // EXPLICIT LOGGING: Backend response for V2 pack
+        console.log("[V2_PACK_RESPONSE]", {
+          packId,
+          fieldKey,
+          nextFieldKey: v2Result?.field_key || v2Result?.semanticField || null,
+          mode: v2Result?.mode,
+          validationResult: v2Result?.validationResult,
+          hasQuestion: !!v2Result?.question,
+          errors: v2Result?.error || v2Result?.message || null
         });
 
         // Interpret V2 probe result to determine action
@@ -1774,6 +1799,14 @@ export default function CandidateInterview() {
             fieldKey, 
             reason: decision.reason,
             message: `Pack ${packId} complete - returning to main questionnaire`
+          });
+          
+          // EXPLICIT LOGGING: Pack completion and return to flow
+          console.log("[V2_PACK_COMPLETE]", {
+            packId,
+            lastFieldKey: fieldKey,
+            baseQuestionId,
+            message: `${packId} finished, returning to main flow after question ${baseQuestionId}`
           });
 
           setActiveV2Pack(null);

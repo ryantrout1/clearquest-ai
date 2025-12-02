@@ -448,18 +448,7 @@ Object.assign(FALLBACK_PROBES, {
   "PACK_PRLE_Q06": "Did you withdraw your application at any point? If so, why?",
   "PACK_PRLE_Q07": "Have you disclosed this prior application on other law enforcement applications?",
   "PACK_PRLE_Q08": "What changes or improvements have you made since this application?",
-  "PACK_PRLE_Q09": "What city and state was this agency located in?",
-  
-  // === PACK_PRIOR_LE_APPS_STANDARD (uppercase semantic keys) ===
-  "AGENCY_TYPE": "What type of law enforcement agency did you apply to? For example, was it a municipal police department, county sheriff's office, state police, or federal agency?",
-  "TIMELINE": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
-  "LOCATION": "What city and state was this agency located in?",
-  "STAGE": "How far did you get in the hiring process? For example, written test, physical, interview, background investigation, polygraph, or psychological evaluation?",
-  "OUTCOME": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
-  "BACKGROUND_ISSUES": "Were any background concerns or issues identified during the hiring process? Please describe.",
-  "WITHDRAW_REASON": "Did you withdraw your application at any point? If so, why?",
-  "PRIOR_DISCLOSURE": "Have you disclosed this prior application on other law enforcement applications?",
-  "IMPROVEMENTS": "What changes or improvements have you made since this application?"
+  "PACK_PRLE_Q09": "What city and state was this agency located in?"
 });
 
 /**
@@ -1885,14 +1874,14 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       }
       return "Have you made any changes since then?";
     
-    // === PACK_PRIOR_LE_APPS_STANDARD uppercase semantic fields ===
-    case "AGENCY_TYPE":
+    // === PACK_PRIOR_LE_APPS_STANDARD lowercase semantic fields ===
+    case "agency_type":
       if (isFirstProbe) {
         return "What type of law enforcement agency did you apply to? For example, was it a municipal police department, county sheriff's office, state police, or federal agency?";
       }
       return "Even if you don't remember the exact agency name, do you recall what type of agency it was — city police, sheriff, state, or federal?";
     
-    case "TIMELINE":
+    case "time_period":
       if (isFirstProbe) {
         return "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?";
       }
@@ -1901,43 +1890,37 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
       }
       return "If you still can't pinpoint a specific year, please give your best estimate as a range, like 'sometime between 2015 and 2018'.";
     
-    case "LOCATION":
+    case "location_general":
       if (isFirstProbe) {
         return "What city and state was this agency located in?";
       }
       return "Can you provide any details about where this agency was located?";
     
-    case "STAGE":
+    case "stage_reached":
       if (isFirstProbe) {
         return "How far did you get in the hiring process? For example, written test, physical, interview, background investigation, polygraph, or psychological evaluation?";
       }
       return "What was the last step you completed in their hiring process?";
     
-    case "OUTCOME":
-      if (isFirstProbe) {
-        return "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?";
-      }
-      return "Please clarify: did the process end with you being hired, rejected, withdrawing your application, or are you still waiting to hear back?";
-    
-    case "BACKGROUND_ISSUES":
+    case "background_concerns":
       if (isFirstProbe) {
         return "Were any background concerns or issues identified during the hiring process? Please describe.";
       }
       return "Can you provide more detail about what background issues came up, if any?";
     
-    case "WITHDRAW_REASON":
+    case "withdrew":
       if (isFirstProbe) {
-        return "You mentioned you withdrew your application. What led you to withdraw?";
+        return "Did you withdraw your application at any point? If so, why?";
       }
       return "Can you help us understand the circumstances that led to your withdrawal?";
     
-    case "PRIOR_DISCLOSURE":
+    case "prior_disclosure":
       if (isFirstProbe) {
         return "Have you disclosed this prior application on other law enforcement applications?";
       }
       return "Has this application been mentioned on any other background questionnaires you've completed?";
     
-    case "IMPROVEMENTS":
+    case "preventive_steps":
       if (isFirstProbe) {
         return "What changes or improvements have you made since this application?";
       }
@@ -2143,7 +2126,7 @@ const FIELD_LABELS = {
   "recurrence": "Recurrence",
   "prevention_steps": "Prevention Steps",
   
-  // PACK_PRIOR_LE_APPS_STANDARD (lowercase aliases)
+  // PACK_PRIOR_LE_APPS_STANDARD (lowercase semantic keys - aligned with config)
   "agency_type": "Type of Agency",
   "time_period": "Application Time Period",
   "stage_reached": "Stage Reached",
@@ -2152,18 +2135,7 @@ const FIELD_LABELS = {
   "withdrew": "Withdrew Application",
   "prior_disclosure": "Prior Disclosure",
   "preventive_steps": "Changes/Improvements Since",
-  "location_general": "Agency Location",
-  
-  // PACK_PRIOR_LE_APPS_STANDARD (uppercase semantic keys - MUST have human-friendly labels)
-  "AGENCY_TYPE": "Type of Agency",
-  "TIMELINE": "Approximate Time Period",
-  "LOCATION": "Agency Location",
-  "STAGE": "Stage Reached in Hiring Process",
-  "OUTCOME": "Application Outcome",
-  "BACKGROUND_ISSUES": "Background Concerns Identified",
-  "WITHDRAW_REASON": "Reason for Withdrawing",
-  "PRIOR_DISCLOSURE": "Disclosed on Other Applications",
-  "IMPROVEMENTS": "Changes or Improvements Since"
+  "location_general": "Agency Location"
 };
 
 /**
@@ -2336,6 +2308,17 @@ async function probeEngineV2(input, base44Client) {
   } = input;
 
   console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
+  
+  // EXPLICIT LOGGING: Entry point for PACK_PRIOR_LE_APPS_STANDARD
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[V2-BACKEND-ENTRY] PACK_PRIOR_LE_APPS_STANDARD field validation`, {
+      field_key,
+      field_value: field_value?.substring?.(0, 50) || field_value,
+      previous_probes_count,
+      incident_context_keys: Object.keys(incident_context),
+      questionCode
+    });
+  }
 
   const packConfig = PACK_CONFIG[pack_id];
   
@@ -2394,6 +2377,16 @@ async function probeEngineV2(input, base44Client) {
   // Map raw field key to semantic name
   const semanticField = mapFieldKey(packConfig, field_key);
   console.log(`[V2-PER-FIELD] Mapped ${field_key} → ${semanticField}`);
+  
+  // EXPLICIT LOGGING: Field mapping for PACK_PRIOR_LE_APPS_STANDARD
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[V2-BACKEND-MAPPING] PACK_PRIOR_LE_APPS_STANDARD field mapping`, {
+      raw_field_key: field_key,
+      mapped_semantic_field: semanticField,
+      pack_config_exists: !!packConfig,
+      has_field_key_map: !!packConfig?.fieldKeyMap
+    });
+  }
 
   // Global v2-semantic evaluation (pack-agnostic)
   const semanticInfo = semanticV2EvaluateAnswer(semanticField, field_value, incident_context);
@@ -2453,6 +2446,17 @@ async function probeEngineV2(input, base44Client) {
   // If field is complete (valid answer), move to next field
   if (validationResult === "complete") {
     console.log(`[V2-PER-FIELD] Field ${semanticField} is complete → advancing`);
+    
+    // EXPLICIT LOGGING: NEXT_FIELD decision for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+      console.log(`[V2-BACKEND-DECISION] PACK_PRIOR_LE_APPS_STANDARD field complete`, {
+        field_key,
+        semanticField,
+        decision: "NEXT_FIELD",
+        validationResult: "complete"
+      });
+    }
+    
     return {
       mode: "NEXT_FIELD",
       pack_id,
@@ -2502,6 +2506,17 @@ async function probeEngineV2(input, base44Client) {
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
   console.log(`[V2-PER-FIELD] Question: "${probeResult.question.substring(0, 80)}..."`);
+  
+  // EXPLICIT LOGGING: QUESTION decision for PACK_PRIOR_LE_APPS_STANDARD
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[V2-BACKEND-DECISION] PACK_PRIOR_LE_APPS_STANDARD field needs probe`, {
+      field_key,
+      semanticField,
+      decision: "QUESTION",
+      probe_source: probeResult.source,
+      is_fallback: probeResult.isFallback
+    });
+  }
 
   return {
     mode: "QUESTION",
