@@ -12,6 +12,7 @@ import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock
 import TestDataGenerator from "../components/admin/TestDataGenerator";
 import SystemConfigPanel from "../components/admin/SystemConfigPanel";
 import V3ConfigPanel from "../components/admin/V3ConfigPanel";
+import V3ReadinessPanel from "../components/admin/V3ReadinessPanel";
 import { Link } from "react-router-dom";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -428,6 +429,18 @@ export default function SystemAdminDashboard() {
             V3 Config
           </button>
           <button
+            onClick={() => setActiveTab("v3-readiness")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
+              activeTab === "v3-readiness"
+                ? "text-emerald-400 border-emerald-400"
+                : "text-slate-400 border-transparent hover:text-slate-300"
+            )}
+          >
+            <Shield className="w-4 h-4" />
+            V3 Test
+          </button>
+          <button
             onClick={() => setActiveTab("test-data")}
             className={cn(
               "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
@@ -688,6 +701,10 @@ export default function SystemAdminDashboard() {
 
         {activeTab === "v3-config" && (
           <V3ConfigPanel />
+        )}
+
+        {activeTab === "v3-readiness" && (
+          <V3ReadinessPanel />
         )}
 
         {activeTab === "test-data" && (
