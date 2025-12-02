@@ -2730,7 +2730,98 @@ export default function CandidateInterview() {
           // Case 3: Call backend and let it decide
           else {
             try {
-              console.debug('[V2 PROBING][CALL]', {
+              console.debug('[V2 PROBING][CALL]', { packId, fieldKey, instanceNumber });
+              
+              v2ProbingInProgressRef.current.add(probeKey);
+              
+              const t0 = performance.now();
+              
+              // Get section context for topic-anchored probing
+              const question = engine.QById[currentItem.baseQuestionId];
+              const sectionEntity = engine.Sections?.find(s => s.id === question?.section_id);
+              
+              const v2Result = await callProbeEngineV2PerField(base44, {
+                packId,
+                fieldKey,
+                fieldValue: normalizedAnswer,
+                previousProbesCount: probeCount,
+                incidentContext,
+                sectionName: sectionEntity?.section_name || null,
+                baseQuestionText: question?.question_text || null,
+                questionDbId: question?.id || null,
+                questionCode: question?.question_id || null
+              });
+              
+              const t1 = performance.now();
+              console.log('[V2 PROBING][FRONTEND] Per-field probe latency (ms):', (t1 - t0).toFixed(0));
+              
+              const { mode } = v2Result || {};
+              
+              if (mode === 'QUESTION' && v2Result.question) {
+                // Backend wants us to probe - store pending probe and wait for answer
+                console.log('[V2 PROBING][QUESTION]', { packId, fieldKey, question: v2Result.question?.substring(0, 50) });
+                
+                // Increment probe count
+                setAiFollowupCounts(prev => ({
+                  ...prev,
+                  [fieldCountKey]: probeCount + 1
+                }));
+                
+                // Store pending probe - question will be added to transcript when candidate answers
+                const newPendingProbe = {
+                  packId,
+                  fieldKey,
+                  instanceNumber,
+                  probeIndex: probeCount,
+                  questionText: v2Result.question,
+                  baseQuestionId: currentItem.baseQuestionId,
+                  probeEngineVersion: 'v2-per-field'
+                };
+                setPendingProbe(newPendingProbe);
+                
+                setFieldProbingState(prev => ({
+                  ...prev,
+                  [probeKey]: {
+                    probeCount: probeCount + 1,
+                    lastQuestion: v2Result.question,
+                    isProbing: true
+                  }
+                }));
+                
+                setCurrentFieldProbe({
+                  packId,
+                  instanceNumber,
+                  fieldKey,
+                  semanticField: fieldKey,
+                  baseQuestionId: currentItem.baseQuestionId,
+                  substanceName: currentItem.substanceName,
+                  currentItem: currentItem,
+                  question: v2Result.question
+                });
+                
+                setIsWaitingForAgent(true);
+                setIsInvokeLLMMode(true);
+                setIsCommitting(false);
+                v2ProbingInProgressRef.current.delete(probeKey);
+                return;
+              }
+              
+              // Backend says: no probe needed, field is complete
+              v2ProbingInProgressRef.current.delete(probeKey);
+              console.log('[V2 PROBING][COMPLETE-NO-PROBE]', { packId, fieldKey, instanceNumber, mode });
+              await completeV2FieldWithoutProbe();
+              // Do NOT return – let normal follow-up flow advance below
+
+            } catch (err) {
+              console.error('[AI-FOLLOWUP][V2-ERROR]', { packId, fieldKey, error: err?.message });
+              v2ProbingInProgressRef.current.delete(probeKey);
+
+              // Fail open: save and move on
+              await completeV2FieldWithoutProbe();
+              // Do NOT return – let normal follow-up flow advance below
+            }
+          }
+        }
 ...
               // Backend says: no probe needed, field is complete
               v2ProbingInProgressRef.current.delete(probeKey);
