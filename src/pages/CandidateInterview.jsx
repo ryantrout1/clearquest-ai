@@ -1000,7 +1000,14 @@ export default function CandidateInterview() {
   }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
 
   const handleAnswer = useCallback(async (value) => {
+    // EXPLICIT ENTRY LOG: Log which branch we're entering
+    console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
+    console.log(`[HANDLE_ANSWER][ENTRY] currentItem.type=${currentItem?.type}, currentItem.id=${currentItem?.id}`);
+    console.log(`[HANDLE_ANSWER][ENTRY] v2PackMode=${v2PackMode}, isCommitting=${isCommitting}, hasEngine=${!!engine}`);
+    console.log(`[HANDLE_ANSWER][ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
+    
     if (isCommitting || !currentItem || !engine) {
+      console.log(`[HANDLE_ANSWER][SKIP] Skipping - isCommitting=${isCommitting}, hasCurrentItem=${!!currentItem}, hasEngine=${!!engine}`);
       return;
     }
 
