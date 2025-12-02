@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle, TrendingUp, Activity, Target, Settings, Mail, Phone, MessageSquare, Database, Sliders } from "lucide-react";
 import TestDataGenerator from "../components/admin/TestDataGenerator";
 import SystemConfigPanel from "../components/admin/SystemConfigPanel";
+import V3ConfigPanel from "../components/admin/V3ConfigPanel";
 import { Link } from "react-router-dom";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
