@@ -1085,7 +1085,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
             generic_response: narrativeAnswer
           }, 
           completed: true, 
-          completed_timestamp: endTime.toISOString() 
+          completed_timestamp: new Date().toISOString() 
         };
         
         if (!responseId) {
@@ -1169,7 +1169,7 @@ async function createMockSession(base44, config, candidateConfig, allQuestions, 
             [followupQuestionId]: answer
           }, 
           completed: true, 
-          completed_timestamp: endTime.toISOString() 
+          completed_timestamp: new Date().toISOString() 
         };
         
         // Log if response_id is missing (this would be a bug)
