@@ -1613,12 +1613,21 @@ export default function CandidateInterview() {
         }
       } else if (currentItem.type === 'v2_pack_field') {
         // === V2 PACK FIELD ANSWER HANDLING ===
+        // CRITICAL: This is the dedicated V2 pack field answer branch
+        console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
+        
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
+        
+        // Special log for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] packId=${packId}, fieldKey=${fieldKey}, fieldIndex=${fieldIndex}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][ANSWER_ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
+        }
         
         const answerSummary = value.length > 50 ? value.substring(0, 50) + '...' : value;
         // EXPLICIT LOGGING: V2 pack answer submission
         console.log(`[V2_PACK][ANSWER_SUBMIT] ========== V2 PACK ANSWER SUBMITTED ==========`);
-        console.log(`[V2_PACK][ANSWER_SUBMIT] pack=${packId} field=${fieldKey} (${fieldIndex + 1}/${activeV2Pack.fields.length})`);
+        console.log(`[V2_PACK][ANSWER_SUBMIT] pack=${packId} field=${fieldKey} (${fieldIndex + 1}/${activeV2Pack?.fields?.length || 0})`);
         console.log(`[V2_PACK][ANSWER_SUBMIT] answer="${answerSummary}"`);
         console.log(`[V2_PACK][ANSWER_SUBMIT] instanceNumber=${instanceNumber}, baseQuestionId=${baseQuestionId}`);
         
