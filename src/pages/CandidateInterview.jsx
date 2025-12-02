@@ -2385,6 +2385,14 @@ export default function CandidateInterview() {
       
       console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId);
       
+      // Special log for PACK_PRIOR_LE_APPS_STANDARD rendering
+      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+        console.log(`[V2_PACK][PRIOR_LE_APPS][RENDER] Rendering ${currentItem.fieldKey} (${fieldIndex + 1}/${totalFields})`, {
+          label: fieldConfig?.label,
+          inputType: fieldConfig?.inputType
+        });
+      }
+      
       return {
         type: 'v2_pack_field',
         id: currentItem.id,
