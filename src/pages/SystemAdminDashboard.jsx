@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle, TrendingUp, Activity, Target, Settings, Mail, Phone, MessageSquare, Database } from "lucide-react";
+import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle, TrendingUp, Activity, Target, Settings, Mail, Phone, MessageSquare, Database, Sliders } from "lucide-react";
 import TestDataGenerator from "../components/admin/TestDataGenerator";
+import SystemConfigPanel from "../components/admin/SystemConfigPanel";
 import { Link } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -401,6 +402,18 @@ export default function SystemAdminDashboard() {
             AI Settings
           </button>
           <button
+            onClick={() => setActiveTab("config")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
+              activeTab === "config"
+                ? "text-cyan-400 border-cyan-400"
+                : "text-slate-400 border-transparent hover:text-slate-300"
+            )}
+          >
+            <Sliders className="w-4 h-4" />
+            Config
+          </button>
+          <button
             onClick={() => setActiveTab("test-data")}
             className={cn(
               "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
@@ -655,6 +668,10 @@ export default function SystemAdminDashboard() {
             isLoading={infoRequestsLoading}
             queryClient={queryClient}
           />
+        )}
+
+        {activeTab === "config" && (
+          <SystemConfigPanel />
         )}
 
         {activeTab === "test-data" && (
