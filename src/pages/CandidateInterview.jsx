@@ -1039,69 +1039,12 @@ export default function CandidateInterview() {
             const { packId, substanceName, isV3Pack } = followUpResult;
 
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
-            console.log(`[FOLLOWUP-TRIGGER] isV3Pack from checkFollowUpTrigger=${isV3Pack}`);
             const isV2Pack = useProbeEngineV2(packId);
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV2Pack=${isV2Pack}`);
             
-            const categoryId = mapPackIdToCategory(packId);
-            
-            // === V3 PROBING CHECK ===
-            if (ENABLE_V3_PROBING && categoryId) {
-              try {
-                // Check system config V3 enabled categories
-                const { config } = await getSystemConfig();
-                const v3EnabledCategories = config.v3?.enabled_categories || [];
-                const isV3EnabledForCategory = v3EnabledCategories.includes(categoryId);
-                
-                if (!isV3EnabledForCategory) {
-                  console.log("[V3 PROBING] Category not enabled in system config", { categoryId, enabled: v3EnabledCategories });
-                } else {
-                  // Check if pack has ide_version = "V3"
-                  const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
-                  const pack = packs[0];
-                  
-                  if (pack?.ide_version === "V3") {
-                    // Check if FactModel is ready
-                    const factModel = await getFactModelForCategory(categoryId);
-                    
-                    if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
-                      console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
-                    
-                    // Save base question answer
-                    saveAnswerToDatabase(currentItem.id, value, question);
-                    
-                    // Enter V3 probing mode
-                    setV3ProbingActive(true);
-                    setV3ProbingContext({
-                      packId,
-                      categoryId,
-                      baseQuestionId: currentItem.id,
-                      questionCode: question.question_id,
-                      incidentId: null // Will be created by decisionEngineV3
-                    });
-                    
-                    await persistStateToDatabase(newTranscript, [], {
-                      id: `v3-probing-${packId}`,
-                      type: 'v3_probing',
-                      packId,
-                      categoryId,
-                      baseQuestionId: currentItem.id
-                    });
-                    
-                    setIsCommitting(false);
-                      setInput("");
-                      return;
-                    }
-                  }
-                }
-              } catch (v3Err) {
-                console.warn("[V3 PROBING] Error checking V3 status, falling back:", v3Err);
-              }
-            }
-            
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
-            // All V2 packs are AI-driven: backend decides whether to probe or advance
-            if (isV2Pack && !isV3Pack) {
+            // V2 packs take priority - check V2 first before any V3 logic
+            if (isV2Pack) {
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
@@ -1163,6 +1106,61 @@ export default function CandidateInterview() {
               setIsCommitting(false);
               setInput("");
               return;
+            }
+            
+            // === V3 PROBING CHECK (only for non-V2 packs) ===
+            const categoryId = mapPackIdToCategory(packId);
+            const isV3Pack = isV3Pack; // From checkFollowUpTrigger
+            
+            if (ENABLE_V3_PROBING && categoryId && !isV2Pack) {
+              try {
+                // Check system config V3 enabled categories
+                const { config } = await getSystemConfig();
+                const v3EnabledCategories = config.v3?.enabled_categories || [];
+                const isV3EnabledForCategory = v3EnabledCategories.includes(categoryId);
+                
+                if (isV3EnabledForCategory) {
+                  // Check if pack has ide_version = "V3"
+                  const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
+                  const pack = packs[0];
+                  
+                  if (pack?.ide_version === "V3") {
+                    // Check if FactModel is ready
+                    const factModel = await getFactModelForCategory(categoryId);
+                    
+                    if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
+                      console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
+                    
+                    // Save base question answer
+                    saveAnswerToDatabase(currentItem.id, value, question);
+                    
+                    // Enter V3 probing mode
+                    setV3ProbingActive(true);
+                    setV3ProbingContext({
+                      packId,
+                      categoryId,
+                      baseQuestionId: currentItem.id,
+                      questionCode: question.question_id,
+                      incidentId: null // Will be created by decisionEngineV3
+                    });
+                    
+                    await persistStateToDatabase(newTranscript, [], {
+                      id: `v3-probing-${packId}`,
+                      type: 'v3_probing',
+                      packId,
+                      categoryId,
+                      baseQuestionId: currentItem.id
+                    });
+                    
+                    setIsCommitting(false);
+                      setInput("");
+                      return;
+                    }
+                  }
+                }
+              } catch (v3Err) {
+                console.warn("[V3 PROBING] Error checking V3 status, falling back:", v3Err);
+              }
             }
             
             if (interviewMode === "AI_PROBING") {
@@ -1587,11 +1585,12 @@ export default function CandidateInterview() {
         // === V2 PACK FIELD ANSWER HANDLING ===
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
+        const answerSummary = value.length > 50 ? value.substring(0, 50) + '...' : value;
         console.log("[V2_PACK][ANSWER]", { 
           packId, 
           fieldKey, 
           fieldIndex,
-          answer: value.substring(0, 50),
+          answer: answerSummary,
           instanceNumber,
           baseQuestionId
         });
@@ -1644,12 +1643,14 @@ export default function CandidateInterview() {
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
         const baseQuestion = engine.QById[baseQuestionId];
         
-        console.log("[V2_PACK][PROBE_CALL]", { 
+        const callSummary = normalizedAnswer.length > 50 ? normalizedAnswer.substring(0, 50) + '...' : normalizedAnswer;
+        console.log("[V2_PACK][CALL]", { 
           packId, 
           fieldKey, 
-          answer: normalizedAnswer.substring(0, 50),
+          answer: callSummary,
           probeCount,
-          maxAiFollowups
+          maxAiFollowups,
+          message: `Sending answer to backend for ${packId} ${fieldKey}`
         });
 
         const v2Result = await runV2FieldProbeIfNeeded({
@@ -1668,10 +1669,9 @@ export default function CandidateInterview() {
         });
 
         // Log the raw probe result for diagnostics
-        console.log("[V2_PACK][PROBE-RESULT]", { 
+        console.log("[V2_PACK][RESULT]", { 
           packId, 
           fieldKey, 
-          result: v2Result,
           mode: v2Result?.mode,
           hasQuestion: !!v2Result?.question,
           followupsCount: v2Result?.followups?.length || v2Result?.followupsCount || 0
@@ -1718,18 +1718,24 @@ export default function CandidateInterview() {
 
         const decision = interpretV2ProbeResult(v2Result, fieldIndex, activeV2Pack.fields.length);
 
-        console.log("[V2_PACK][DECISION]", { 
+        console.log("[V2_PACK][ACTION]", { 
           packId, 
           fieldKey, 
           action: decision.action,
           reason: decision.reason,
           currentIndex: fieldIndex,
+          nextIndex: decision.action === 'NEXT_FIELD' ? fieldIndex + 1 : null,
           totalFields: activeV2Pack.fields.length
         });
 
         if (decision.action === 'STAY_ON_FIELD_SHOW_AI') {
           // Case A: Real AI follow-up found - show it
-          console.log('[V2_PACK][ACTION] STAY_ON_FIELD_SHOW_AI', { packId, fieldKey, aiFollowups: decision.probes?.length || 1 });
+          console.log('[V2_PACK][PROBE]', { 
+            packId, 
+            fieldKey, 
+            aiFollowups: decision.probes?.length || 1,
+            message: 'AI probe question will be shown'
+          });
 
           setAiFollowupCounts(prev => ({
             ...prev,
@@ -1764,7 +1770,12 @@ export default function CandidateInterview() {
 
         if (decision.action === 'COMPLETE_PACK') {
           // Pack complete - return to BASE mode
-          console.log("[V2_PACK][ACTION] COMPLETE_PACK", { packId, fieldKey, reason: decision.reason });
+          console.log("[V2_PACK][COMPLETE]", { 
+            packId, 
+            fieldKey, 
+            reason: decision.reason,
+            message: `Pack ${packId} complete - returning to main questionnaire`
+          });
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
@@ -1790,7 +1801,11 @@ export default function CandidateInterview() {
 
         if (nextIndex >= activeV2Pack.fields.length) {
           // Failsafe: should have been caught by COMPLETE_PACK
-          console.log("[V2_PACK][FAILSAFE] Last field reached, completing pack", { packId });
+          console.log("[V2_PACK][ERROR]", { 
+            packId,
+            error: "Failsafe triggered - last field reached unexpectedly",
+            message: "Completing pack via failsafe"
+          });
 
           setActiveV2Pack(null);
           setV2PackMode("BASE");
@@ -1813,12 +1828,14 @@ export default function CandidateInterview() {
         // Move to next field
         const nextField = activeV2Pack.fields[nextIndex];
 
-        console.log("[V2_PACK][ACTION] NEXT_FIELD", { 
+        console.log("[V2_PACK][NEXT]", { 
           packId, 
           fromField: fieldKey,
-          toField: nextField.fieldKey,
+          nextFieldId: nextField.fieldKey,
           fromIndex: fieldIndex,
-          toIndex: nextIndex
+          nextIndex: nextIndex,
+          totalFields: activeV2Pack.fields.length,
+          message: `Advancing to next field: ${nextField.fieldKey}`
         });
 
         setActiveV2Pack(prev => ({
