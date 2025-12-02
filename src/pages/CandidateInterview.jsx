@@ -1711,25 +1711,6 @@ export default function CandidateInterview() {
           willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
           isLastField: fieldIndex >= activeV2Pack.fields.length - 1
         });
-        
-        // EXPLICIT LOGGING: Backend response for V2 pack with full details
-        console.log(`[V2_PACK][RECV] ========== V2 PACK BACKEND RESPONSE ==========`);
-        console.log(`[V2_PACK][RECV] packId=${packId}, fieldId=${fieldKey}, fieldIndex=${fieldIndex}/${activeV2Pack.fields.length}`);
-        console.log(`[V2_PACK][RECV] Backend decision:`, {
-          mode: v2Result?.mode,
-          validationResult: v2Result?.validationResult,
-          semanticField: v2Result?.semanticField,
-          hasQuestion: !!v2Result?.question,
-          questionPreview: v2Result?.question?.substring?.(0, 80),
-          previousProbeCount: v2Result?.previousProbeCount,
-          maxProbesPerField: v2Result?.maxProbesPerField,
-          errors: v2Result?.error || v2Result?.message || null
-        });
-        console.log(`[V2_PACK][RECV] Interpretation:`, {
-          willStayOnField: v2Result?.mode === 'QUESTION',
-          willAdvanceToNextField: v2Result?.mode === 'NEXT_FIELD',
-          isLastField: fieldIndex >= activeV2Pack.fields.length - 1
-        });
 
         // Interpret V2 probe result to determine action
         const interpretV2ProbeResult = (result, currentFieldIndex, totalFields) => {
