@@ -1229,29 +1229,29 @@ const PACK_CONFIG = {
   // Prior Law Enforcement Applications pack (v2.5)
   PACK_PRIOR_LE_APPS_STANDARD: {
     id: "PACK_PRIOR_LE_APPS_STANDARD",
-    requiredFields: ["AGENCY_TYPE", "TIMELINE", "STAGE", "OUTCOME"],
-    priorityOrder: ["AGENCY_TYPE", "TIMELINE", "LOCATION", "STAGE", "OUTCOME", "BACKGROUND_ISSUES", "WITHDRAW_REASON", "PRIOR_DISCLOSURE", "IMPROVEMENTS"],
+    requiredFields: ["agency_type", "time_period", "stage_reached", "outcome"],
+    priorityOrder: ["agency_type", "time_period", "location_general", "stage_reached", "outcome", "background_concerns", "withdrew", "prior_disclosure", "preventive_steps"],
     fieldKeyMap: {
-      // Question code → semantic role mappings (corrected)
-      "PACK_PRLE_Q01": "AGENCY_TYPE",
-      "PACK_PRLE_Q02": "TIMELINE",
-      "PACK_PRLE_Q03": "LOCATION",
-      "PACK_PRLE_Q04": "STAGE",
-      "PACK_PRLE_Q05": "OUTCOME",
-      "PACK_PRLE_Q06": "BACKGROUND_ISSUES",
-      "PACK_PRLE_Q07": "WITHDRAW_REASON",
-      "PACK_PRLE_Q08": "PRIOR_DISCLOSURE",
-      "PACK_PRLE_Q09": "IMPROVEMENTS",
+      // Question code → semantic role mappings (aligned with followupPackConfig.js)
+      "PACK_PRLE_Q01": "agency_type",
+      "PACK_PRLE_Q02": "time_period",
+      "PACK_PRLE_Q03": "stage_reached",
+      "PACK_PRLE_Q04": "outcome",
+      "PACK_PRLE_Q05": "background_concerns",
+      "PACK_PRLE_Q06": "withdrew",
+      "PACK_PRLE_Q07": "prior_disclosure",
+      "PACK_PRLE_Q08": "preventive_steps",
+      "PACK_PRLE_Q09": "location_general",
       // Semantic field self-mappings (for direct semantic lookups)
-      "AGENCY_TYPE": "AGENCY_TYPE",
-      "TIMELINE": "TIMELINE",
-      "LOCATION": "LOCATION",
-      "STAGE": "STAGE",
-      "OUTCOME": "OUTCOME",
-      "BACKGROUND_ISSUES": "BACKGROUND_ISSUES",
-      "WITHDRAW_REASON": "WITHDRAW_REASON",
-      "PRIOR_DISCLOSURE": "PRIOR_DISCLOSURE",
-      "IMPROVEMENTS": "IMPROVEMENTS",
+      "agency_type": "agency_type",
+      "time_period": "time_period",
+      "location_general": "location_general",
+      "stage_reached": "stage_reached",
+      "outcome": "outcome",
+      "background_concerns": "background_concerns",
+      "withdrew": "withdrew",
+      "prior_disclosure": "prior_disclosure",
+      "preventive_steps": "preventive_steps",
     },
   },
 };
@@ -1462,12 +1462,19 @@ function validateField(fieldName, value, incidentContext = {}) {
     
     case "stageReached":
     case "stage_reached":
-      // Optional field - accept any non-empty answer
+    case "agency_type":
+    case "time_period":
+    case "background_concerns":
+    case "withdrew":
+    case "prior_disclosure":
+    case "preventive_steps":
+    case "location_general":
+      // PACK_PRIOR_LE_APPS_STANDARD fields - accept any non-empty answer
       if (normalized.length > 0) {
-        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (stageReached has value)`);
+        console.log(`[V2-PER-FIELD] Validation result: COMPLETE (${fieldName} has value)`);
         return "complete";
       }
-      // Empty is acceptable for optional field
+      // Empty is acceptable for optional fields
       console.log(`[V2-PER-FIELD] Validation result: COMPLETE (optional field)`);
       return "complete";
     
