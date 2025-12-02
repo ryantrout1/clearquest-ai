@@ -848,10 +848,17 @@ export default function CandidateInterview() {
     try {
       // Step 0: Load system config and determine interview mode
       const { config } = await getSystemConfig();
-      const effectiveMode = await getEffectiveInterviewMode({ 
+      let effectiveMode = await getEffectiveInterviewMode({ 
         isSandbox: false, // Set to true if you have sandbox detection logic
         departmentCode: null // Will be set after loading session
       });
+      
+      // Force AI Probing in Preview/Sandbox when enabled in config
+      const isSandboxLike = window?.location?.href?.includes('/preview');
+      if (isSandboxLike && config.sandboxAiProbingOnly) {
+        effectiveMode = "AI_PROBING";
+        console.log("[IDE] Forcing AI_PROBING mode in sandbox/preview");
+      }
       
       setInterviewMode(effectiveMode);
       
@@ -862,6 +869,7 @@ export default function CandidateInterview() {
       console.log("[IDE] Interview mode initialized", { 
         effectiveMode, 
         ideActive,
+        isSandboxLike,
         sandboxOnly: config.sandboxAiProbingOnly 
       });
       
