@@ -19,6 +19,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import SectionHeader from "../components/sessionDetails/SectionHeader";
 import GlobalAIAssist from "../components/sessionDetails/GlobalAIAssist";
 import IdeIncidentsPanel from "../components/sessionDetails/IdeIncidentsPanel";
+import V3IncidentsTab from "../components/sessionDetails/V3IncidentsTab";
+import V3TranscriptTab from "../components/sessionDetails/V3TranscriptTab";
+import V3NotesTab from "../components/sessionDetails/V3NotesTab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock } from "lucide-react";
 import { formatDateAZ } from "../components/utils/dateFormatters";
 import { getSystemConfig } from "../components/utils/systemConfigHelpers";
@@ -147,8 +151,12 @@ export default function SessionDetails() {
   const [sectionSummariesBySectionId, setSectionSummariesBySectionId] = useState({});
   const [instanceSummariesByKey, setInstanceSummariesByKey] = useState({});
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [v3ActiveTab, setV3ActiveTab] = useState("incidents");
 
   const categoryRefs = useRef({});
+  
+  // Determine if this is a V3 session
+  const isV3Session = session?.ide_version === "V3";
 
   useEffect(() => {
     if (!sessionId) {
@@ -1399,7 +1407,66 @@ export default function SessionDetails() {
           </Card>
         )}
 
-{responses.length === 0 ? (
+{/* V3 Session Tabs */}
+        {isV3Session && session?.incidents?.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                V3 Session
+              </Badge>
+              <span className="text-xs text-slate-400">
+                FactModel-based probing with {session.incidents.length} incident(s)
+              </span>
+            </div>
+            
+            <Tabs value={v3ActiveTab} onValueChange={setV3ActiveTab} className="w-full">
+              <TabsList className="bg-slate-800 border-slate-700">
+                <TabsTrigger 
+                  value="incidents" 
+                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                >
+                  Incidents ({session.incidents.length})
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="transcript"
+                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                >
+                  Transcript
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="notes"
+                  className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                >
+                  BI Notes
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="incidents" className="mt-4">
+                <V3IncidentsTab 
+                  incidents={session.incidents} 
+                  factState={session.fact_state}
+                />
+              </TabsContent>
+              
+              <TabsContent value="transcript" className="mt-4">
+                <V3TranscriptTab 
+                  sessionId={sessionId}
+                  incidents={session.incidents}
+                />
+              </TabsContent>
+              
+              <TabsContent value="notes" className="mt-4">
+                <V3NotesTab 
+                  session={session}
+                  incidents={session.incidents}
+                  onSessionUpdate={(updated) => setSession(updated)}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+
+        {responses.length === 0 ? (
           <div className="rounded-xl bg-slate-900/50 border border-slate-700 p-12">
             <div className="text-center space-y-3">
               <p className="text-slate-300 text-sm">No interview data recorded yet for this session.</p>
