@@ -316,6 +316,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 };
 
 // Centralized V2 probe runner for both base questions and follow-ups
+// CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 const runV2FieldProbeIfNeeded = async ({
 base44Client,
 packId,
@@ -332,57 +333,76 @@ maxAiFollowups
 }) => {
 const probeCount = previousProbesCount || 0;
 
+// Log the request before any checks
+console.log("[V2_PACK][REQUEST]", {
+  packId,
+  fieldCode: fieldKey,
+  answer: fieldValue?.substring?.(0, 50) || fieldValue,
+  sessionId,
+  questionCode,
+  baseQuestionId,
+  probeCount,
+  maxAiFollowups
+});
+
+// Check if feature is globally disabled
 if (!ENABLE_LIVE_AI_FOLLOWUPS) {
   console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=FEATURE_DISABLED (ENABLE_LIVE_AI_FOLLOWUPS=false)`);
-  return { mode: 'SKIP', reason: 'feature disabled' };
+  // Return NEXT_FIELD to allow deterministic progression when AI is disabled
+  return { mode: 'NEXT_FIELD', reason: 'feature disabled - deterministic fallback' };
 }
 
-if (!aiProbingEnabled) {
-  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=AI_DISABLED_GLOBALLY`);
-  return { mode: 'SKIP', reason: 'AI probing disabled globally' };
-}
+// For V2 packs, we ALWAYS call the backend regardless of AI probing settings
+// The backend decides whether to probe or advance - AI settings only affect probing behavior
+// This is different from the old approach where we skipped backend calls entirely
 
-if (aiProbingDisabledForSession) {
-  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=AI_DISABLED_FOR_SESSION`);
-  return { mode: 'SKIP', reason: 'AI disabled for session' };
-}
+console.log('[V2_PACK][CALLING_BACKEND]', {
+  packId,
+  fieldKey,
+  questionCode,
+  baseQuestionId,
+  answer: fieldValue?.substring?.(0, 50) || fieldValue,
+  aiProbingEnabled,
+  probeCount,
+  maxAiFollowups
+});
 
-if (probeCount >= maxAiFollowups) {
-  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=QUOTA_EXCEEDED (${probeCount}/${maxAiFollowups})`);
-  return { mode: 'SKIP', reason: 'quota exceeded' };
-}
-  
-  console.log('[V2 FIELD PROBE] follow-up: calling backend', {
+try {
+  const v2Result = await callProbeEngineV2PerField(base44Client, {
     packId,
     fieldKey,
+    fieldValue,
+    previousProbesCount: probeCount,
+    incidentContext,
+    sessionId,
     questionCode,
-    baseQuestionId,
-    answer: fieldValue?.substring?.(0, 50) || fieldValue
+    baseQuestionId
   });
   
-  try {
-    const v2Result = await callProbeEngineV2PerField(base44Client, {
-      packId,
-      fieldKey,
-      fieldValue,
-      previousProbesCount: probeCount,
-      incidentContext,
-      sessionId,
-      questionCode,
-      baseQuestionId
-    });
-    
-    console.log('[V2 FIELD PROBE] success', {
-      mode: v2Result?.mode,
-      followups: v2Result?.followups?.length ?? 0,
-      hasQuestion: !!v2Result?.question
-    });
-    
-    return v2Result;
-  } catch (err) {
-    console.error('[V2 FIELD PROBE ERROR]', { packId, fieldKey, error: err?.message });
-    return { mode: 'ERROR', message: err?.message };
+  console.log("[V2_PACK][RESPONSE]", {
+    packId,
+    fieldCode: fieldKey,
+    mode: v2Result?.mode,
+    hasQuestion: !!v2Result?.question,
+    questionPreview: v2Result?.question?.substring?.(0, 60),
+    isComplete: v2Result?.mode === 'COMPLETE' || v2Result?.isComplete,
+    nextField: v2Result?.nextField || null
+  });
+  
+  // If AI probing is disabled but backend returned a probe question, convert to NEXT_FIELD
+  if (!aiProbingEnabled || aiProbingDisabledForSession || probeCount >= maxAiFollowups) {
+    if (v2Result?.mode === 'QUESTION') {
+      console.log(`[V2_PACK][AI_DISABLED] Converting QUESTION to NEXT_FIELD (aiEnabled=${aiProbingEnabled}, sessionDisabled=${aiProbingDisabledForSession}, probeCount=${probeCount}/${maxAiFollowups})`);
+      return { mode: 'NEXT_FIELD', reason: 'AI disabled - skipping probe' };
+    }
   }
+  
+  return v2Result;
+} catch (err) {
+  console.error('[V2_PACK][ERROR] Backend pack engine failed', { packId, fieldKey, error: err?.message });
+  // On error, return NEXT_FIELD to allow deterministic progression
+  return { mode: 'NEXT_FIELD', reason: 'backend error - deterministic fallback', error: err?.message };
+}
 };
 
 export default function CandidateInterview() {
