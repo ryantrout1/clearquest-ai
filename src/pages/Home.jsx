@@ -85,13 +85,10 @@ export default function Home() {
                 ClearQuest
               </h1>
               <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto leading-relaxed px-4">
-                CJIS-Aware Background Interview System for Law Enforcement Applicant Screening
+                AI-Guided Background Interview System for Public-Safety Hiring
               </p>
-              <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto px-4">
-                Powered by the C.L.E.A.R. Workflow — Connect · Learn · Evaluate · Assist · Ready
-              </p>
-              <p className="text-sm sm:text-base text-blue-300/80 max-w-2xl mx-auto px-4">
-                A modern, consistent, and defensible way to conduct applicant interviews.
+              <p className="text-sm sm:text-base text-blue-300/80 max-w-3xl mx-auto px-4 leading-relaxed">
+                A structured-autonomy engine that conducts anonymous interviews, triggers rule-based follow-ups, and generates investigator-ready reports — all with full auditability and safety controls.
               </p>
             </div>
 
