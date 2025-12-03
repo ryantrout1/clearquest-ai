@@ -329,9 +329,13 @@ questionCode,
 baseQuestionId,
 aiProbingEnabled,
 aiProbingDisabledForSession,
-maxAiFollowups
+maxAiFollowups,
+instanceNumber
 }) => {
 const probeCount = previousProbesCount || 0;
+
+// EXPLICIT ENTRY LOG
+console.log(`[V2_PACK][CALL] packId=${packId} fieldId=${fieldKey} instanceNumber=${instanceNumber || 1} answerPreview="${String(fieldValue).slice(0, 80)}"`);
 
 // Log the request before any checks
 console.log("[V2_PACK][REQUEST]", {
@@ -342,12 +346,13 @@ console.log("[V2_PACK][REQUEST]", {
   questionCode,
   baseQuestionId,
   probeCount,
-  maxAiFollowups
+  maxAiFollowups,
+  instanceNumber: instanceNumber || 1
 });
 
 // Check if feature is globally disabled
 if (!ENABLE_LIVE_AI_FOLLOWUPS) {
-  console.log(`[V2_PACK][SKIP_BACKEND] packId=${packId}, fieldKey=${fieldKey}, reason=FEATURE_DISABLED (ENABLE_LIVE_AI_FOLLOWUPS=false)`);
+  console.log(`[V2_PACK][SKIP_BACKEND] reason=FEATURE_DISABLED packId=${packId} fieldId=${fieldKey}`);
   // Return NEXT_FIELD to allow deterministic progression when AI is disabled
   return { mode: 'NEXT_FIELD', reason: 'feature disabled - deterministic fallback' };
 }
@@ -379,6 +384,11 @@ try {
     baseQuestionId
   });
   
+  // EXPLICIT RESPONSE LOG
+  const decisionType = v2Result?.mode || 'UNKNOWN';
+  const nextFieldId = v2Result?.nextField || (v2Result?.mode === 'NEXT_FIELD' ? 'next' : 'none');
+  console.log(`[V2_PACK][RESPONSE] packId=${packId} fieldId=${fieldKey} decision=${decisionType} nextField=${nextFieldId}`);
+  
   console.log("[V2_PACK][RESPONSE]", {
     packId,
     fieldCode: fieldKey,
@@ -392,13 +402,14 @@ try {
   // If AI probing is disabled but backend returned a probe question, convert to NEXT_FIELD
   if (!aiProbingEnabled || aiProbingDisabledForSession || probeCount >= maxAiFollowups) {
     if (v2Result?.mode === 'QUESTION') {
-      console.log(`[V2_PACK][AI_DISABLED] Converting QUESTION to NEXT_FIELD (aiEnabled=${aiProbingEnabled}, sessionDisabled=${aiProbingDisabledForSession}, probeCount=${probeCount}/${maxAiFollowups})`);
+      console.log(`[V2_PACK][SKIP_BACKEND] reason=AI_DISABLED packId=${packId} fieldId=${fieldKey} (aiEnabled=${aiProbingEnabled}, sessionDisabled=${aiProbingDisabledForSession}, probeCount=${probeCount}/${maxAiFollowups})`);
       return { mode: 'NEXT_FIELD', reason: 'AI disabled - skipping probe' };
     }
   }
   
   return v2Result;
 } catch (err) {
+  console.log(`[V2_PACK][SKIP_BACKEND] reason=BACKEND_ERROR packId=${packId} fieldId=${fieldKey} error="${err?.message}"`);
   console.error('[V2_PACK][ERROR] Backend pack engine failed', { packId, fieldKey, error: err?.message });
   // On error, return NEXT_FIELD to allow deterministic progression
   return { mode: 'NEXT_FIELD', reason: 'backend error - deterministic fallback', error: err?.message };
@@ -1620,7 +1631,8 @@ export default function CandidateInterview() {
       } else if (currentItem.type === 'v2_pack_field') {
         // === V2 PACK FIELD ANSWER HANDLING ===
         // CRITICAL: This is the dedicated V2 pack field answer branch - ALWAYS calls backend
-        console.log(`[V2_PACK][ANSWER_ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][ENTRY] ========== V2 PACK FIELD ANSWER BRANCH ENTERED ==========`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][ENTRY] v2PackMode=${v2PackMode} packId=${currentItem?.packId} fieldId=${currentItem?.fieldKey} answer="${String(value).slice(0, 80)}"`);
         console.log(`[V2_PACK][ANSWER_ENTRY] currentItem:`, JSON.stringify(currentItem));
         console.log(`[V2_PACK][ANSWER_ENTRY] activeV2Pack:`, activeV2Pack ? JSON.stringify({
           packId: activeV2Pack.packId,
@@ -1711,6 +1723,8 @@ export default function CandidateInterview() {
           console.log(`[V2_PACK][PRIOR_LE_APPS][BACKEND] Calling probeEngineV2 for ${fieldKey}...`);
         }
         
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][CALL_HELPER] packId=${packId} fieldId=${fieldKey}`);
+        
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
@@ -1723,7 +1737,8 @@ export default function CandidateInterview() {
           baseQuestionId,
           aiProbingEnabled,
           aiProbingDisabledForSession,
-          maxAiFollowups
+          maxAiFollowups,
+          instanceNumber
         });
 
         // Log backend response
