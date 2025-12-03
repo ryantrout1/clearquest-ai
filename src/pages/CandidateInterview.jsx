@@ -2317,18 +2317,24 @@ export default function CandidateInterview() {
 
   const currentPrompt = getCurrentPrompt();
 
+  // Treat v2_pack_field the same as a normal question for bottom-bar input
+  const isAnswerableItem = (item) => {
+    if (!item) return false;
+    return item.type === "question" || item.type === "v2_pack_field" || item.type === "followup";
+  };
+
   // Normalize bottom-bar mode flags
   const currentItemType = currentItem?.type || null;
   const isQuestion = currentItemType === "question";
   const isV2PackField = currentItemType === "v2_pack_field";
   const isFollowup = currentItemType === "followup";
-  const isTextQuestionOrV2 = isQuestion || isV2PackField || isFollowup;
+  const answerable = isAnswerableItem(currentItem);
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
 
   // Show text input for question, v2_pack_field, or followup types (unless yes/no)
-  const showTextInput = isTextQuestionOrV2 && !isYesNoQuestion;
+  const showTextInput = answerable && !isYesNoQuestion;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -2338,11 +2344,12 @@ export default function CandidateInterview() {
     fieldKey: currentItem?.fieldKey,
     isQuestion,
     isV2PackField,
-    isTextQuestionOrV2,
+    answerable,
     isYesNoQuestion,
     showTextInput,
     v2PackMode,
-    screenMode
+    screenMode,
+    inputSnapshot: input
   });
 
   // Shared submit helper for bottom bar - handles question, v2_pack_field, and followup
