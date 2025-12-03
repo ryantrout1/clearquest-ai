@@ -1159,7 +1159,17 @@ export default function CandidateInterview() {
           instanceNumber
         });
         
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}`);
+        console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
+        console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          mode: v2Result?.mode,
+          hasQuestion: !!v2Result?.question,
+          questionPreview: v2Result?.question?.substring?.(0, 60),
+          nextField: v2Result?.nextField || null,
+          isComplete: v2Result?.isComplete || false
+        });
         
         // Handle backend errors gracefully
         if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
