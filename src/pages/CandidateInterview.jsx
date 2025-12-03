@@ -1171,10 +1171,15 @@ export default function CandidateInterview() {
           isComplete: v2Result?.isComplete || false
         });
         
-        // Handle backend errors gracefully
+        // Handle backend errors gracefully - fallback to deterministic advancement
         if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
-          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Backend returned ${v2Result?.mode || 'null'} - using deterministic fallback`);
-          v2Result.mode = 'NEXT_FIELD';
+          console.log(`[V2_PACK_FIELD][FALLBACK] Backend returned ${v2Result?.mode || 'null'} - using deterministic fallback`);
+          if (v2Result) {
+            v2Result.mode = 'NEXT_FIELD';
+          } else {
+            // Create a fallback result object
+            v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null' };
+          }
         }
         
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
