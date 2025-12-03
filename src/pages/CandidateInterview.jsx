@@ -1259,14 +1259,22 @@ export default function CandidateInterview() {
           setQueue([]);
           
           await persistStateToDatabase(newTranscript, [], nextItemForV2);
-          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][EXIT] Now showing: ${nextFieldConfig.fieldKey}`);
+          console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
           setIsCommitting(false);
           setInput("");
           return;
         }
         
-        // Pack complete - exit V2 pack mode
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][COMPLETE] Pack ${packId} finished - returning to section flow`);
+        // Pack complete - exit V2 pack mode (either isLastField or backend said COMPLETE)
+        console.log(`[V2_PACK_FIELD][PACK_COMPLETE] ========== PACK FINISHED ==========`);
+        console.log(`[V2_PACK_FIELD][PACK_COMPLETE]`, {
+          packId,
+          lastField: fieldKey,
+          instanceNumber,
+          v2ResultMode: v2Result?.mode,
+          isLastField,
+          returningToSectionFlow: true
+        });
         
         setActiveV2Pack(null);
         setV2PackMode("BASE");
