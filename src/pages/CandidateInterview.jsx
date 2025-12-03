@@ -2745,51 +2745,38 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : (
-            <form 
-              onSubmit={(e) => {
-                console.log("[BOTTOM_BAR_FORM_SUBMIT]", {
+          ) : showTextInput ? (
+          <form 
+            onSubmit={handleBottomBarSubmit} 
+            className="flex gap-3"
+          >
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleBottomBarKeyDown}
+              placeholder="Type your answer..."
+              className="flex-1 bg-slate-900/50 border-slate-600 text-white"
+              disabled={isCommitting}
+            />
+            <Button
+              type="submit"
+              onClick={(e) => {
+                console.log("[BOTTOM_BAR][CLICK_SEND]", {
                   currentItemType: currentItem?.type,
                   currentItemId: currentItem?.id,
                   packId: currentItem?.packId,
                   fieldKey: currentItem?.fieldKey,
                   inputSnapshot: input,
                 });
-                handleBottomBarSubmit(e);
-              }} 
-              className="flex gap-3"
+              }}
+              disabled={isBottomBarSubmitDisabled}
+              className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
             >
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleBottomBarKeyDown}
-                placeholder="Type your answer..."
-                className="flex-1 bg-slate-900/50 border-slate-600 text-white"
-                disabled={isCommitting}
-              />
-              <Button
-                type="submit"
-                onClick={(e) => {
-                  console.log("[BOTTOM_BAR_BUTTON_CLICK]", {
-                    currentItemType: currentItem?.type,
-                    currentItemId: currentItem?.id,
-                    packId: currentItem?.packId,
-                    fieldKey: currentItem?.fieldKey,
-                    inputSnapshot: input,
-                    isBottomBarSubmitDisabled,
-                  });
-                  if (!isBottomBarSubmitDisabled) {
-                    handleBottomBarSubmit(e);
-                  }
-                }}
-                disabled={isBottomBarSubmitDisabled}
-                className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
-              >
-                <Send className="w-5 h-5" />
-              </Button>
-            </form>
-          )}
+              <Send className="w-5 h-5" />
+            </Button>
+          </form>
+          ) : null}
           
           {!v3ProbingActive && (
             <p className="text-xs text-slate-400 text-center mt-3">
