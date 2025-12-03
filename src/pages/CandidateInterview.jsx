@@ -1725,6 +1725,14 @@ export default function CandidateInterview() {
         
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][CALL_HELPER] packId=${packId} fieldId=${fieldKey}`);
         
+        console.log(`[V2_PACK][FIELD][ENTRY] Calling backend for pack field`, {
+          packId,
+          fieldId: fieldKey,
+          instanceNumber,
+          triggerQuestionId: baseQuestionId,
+          answer: finalAnswer.substring(0, 80)
+        });
+
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
@@ -2339,6 +2347,15 @@ export default function CandidateInterview() {
       
       console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId);
       
+      // Log currentItem structure for debugging
+      console.log("[V2_PACK][CURRENT_ITEM]", {
+        type: currentItem.type,
+        id: currentItem.id,
+        v2PackId: packId,
+        fieldKey: currentItem.fieldKey,
+        v2InstanceNumber: instanceNumber
+      });
+      
       // Special log for PACK_PRIOR_LE_APPS_STANDARD rendering
       if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
         console.log(`[V2_PACK][PRIOR_LE_APPS][RENDER] Rendering ${currentItem.fieldKey} (${fieldIndex + 1}/${totalFields})`, {
@@ -2726,7 +2743,17 @@ export default function CandidateInterview() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const answer = input.trim();
-              if (answer) handleAnswer(answer);
+              if (answer) {
+                // Log V2 pack field submission
+                if (currentItem?.type === 'v2_pack_field') {
+                  console.log("[V2_PACK][CLICK] Submitting V2 field answer", {
+                    packId: currentItem.packId,
+                    fieldId: currentItem.fieldKey,
+                    answer: answer.substring(0, 80)
+                  });
+                }
+                handleAnswer(answer);
+              }
             }} className="flex gap-3">
               <Input
                 ref={inputRef}
