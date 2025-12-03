@@ -2664,32 +2664,26 @@ export default function CandidateInterview() {
             />
           )}
           
-          {/* Section Completion Card - shown when a section is complete and waiting to begin next */}
+          {/* Section Completion Card - compact inline card in history when section is complete */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive && (
-            <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+            <div className="bg-emerald-900/40 border border-emerald-600/50 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-white mb-2">
-                    Section Complete: {activeSection?.displayName || 'Current Section'}
-                  </h2>
-                  <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                    Nice work — you've finished this section. Ready for the next one?
+                  <p className="text-sm font-semibold text-emerald-300 mb-1">
+                    Section complete: {activeSection?.displayName || 'Current Section'}
                   </p>
-                  
-                  <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
-                    <p className="text-emerald-300 text-sm font-medium">
-                      Next up: {pendingSectionTransition.nextSectionName}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-xs text-emerald-300/80">
-                    <span>{completedSectionsCount + 1} of {sections.length} sections complete</span>
-                    <span>•</span>
-                    <span>{answeredQuestionsAllSections} of {totalQuestionsAllSections} questions answered</span>
-                  </div>
+                  <p className="text-emerald-200/80 text-xs leading-relaxed mb-2">
+                    Nice work — you've finished this section.
+                  </p>
+                  <p className="text-emerald-300/90 text-xs mb-2">
+                    Next up: <span className="font-medium">{pendingSectionTransition.nextSectionName}</span>
+                  </p>
+                  <p className="text-emerald-400/60 text-xs">
+                    Progress: {completedSectionsCount + 1} of {sections.length} sections • {answeredQuestionsAllSections} of {totalQuestionsAllSections} questions answered
+                  </p>
                 </div>
               </div>
             </div>
