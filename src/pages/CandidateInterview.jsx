@@ -2757,21 +2757,26 @@ export default function CandidateInterview() {
             </div>
           ) : showTextInput ? (
           <form 
-            onSubmit={handleBottomBarSubmit} 
+            onSubmit={handleSubmit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                handleInputKeyDown(e);
+              }
+            }}
             className="flex gap-3"
           >
             <Input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleBottomBarKeyDown}
+              onKeyDown={handleInputKeyDown}
               placeholder="Type your answer..."
               className="flex-1 bg-slate-900/50 border-slate-600 text-white"
               disabled={isCommitting}
             />
             <Button
               type="submit"
-              onClick={(e) => {
+              onClick={() => {
                 console.log("[BOTTOM_BAR][CLICK_SEND]", {
                   currentItemType: currentItem?.type,
                   currentItemId: currentItem?.id,
