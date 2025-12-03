@@ -2707,58 +2707,20 @@ export default function CandidateInterview() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const answer = input.trim();
-              console.log("[SUBMIT_CLICK] ========== FORM SUBMIT EVENT ==========");
-              console.log("[SUBMIT_CLICK]", { 
-                type: currentItem?.type,
-                id: currentItem?.id,
-                packId: currentItem?.packId,
-                fieldKey: currentItem?.fieldKey,
-                answerDraft: answer,
-                isCommitting,
-                v2PackMode
-              });
-              if (!answer) {
-                console.log("[SUBMIT_CLICK] blocked: empty answer");
-                return;
-              }
-              if (isCommitting) {
-                console.log("[SUBMIT_CLICK] blocked: isCommitting=true");
-                return;
-              }
-              // Log V2 pack field submission
-              if (currentItem?.type === 'v2_pack_field') {
-                console.log("[SUBMIT_CLICK][V2_PACK_FIELD] ========== V2 PACK FIELD SUBMIT ==========");
-                console.log("[SUBMIT_CLICK][V2_PACK_FIELD] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "instanceNumber=", currentItem.instanceNumber, "answer=", answer.substring(0, 80));
-              }
-              handleAnswer(answer);
-              setInput("");
-            }} className="flex gap-3">
+            <form onSubmit={handleBottomBarSubmit} className="flex gap-3">
               <Input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    const answer = input.trim();
-                    console.log("[SUBMIT_KEYDOWN] Enter pressed", { type: currentItem?.type, answer: answer?.substring(0, 50), isCommitting });
-                    if (answer && !isCommitting) {
-                      handleAnswer(answer);
-                      setInput("");
-                    }
-                  }
-                }}
+                onKeyDown={handleBottomBarKeyDown}
                 placeholder="Type your answer..."
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white"
                 disabled={isCommitting}
               />
               <Button
                 type="submit"
-                disabled={!input.trim() || isCommitting}
+                onClick={handleBottomBarSubmit}
+                disabled={isBottomBarSubmitDisabled}
                 className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
               >
                 <Send className="w-5 h-5" />
