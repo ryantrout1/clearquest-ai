@@ -2428,7 +2428,7 @@ export default function CandidateInterview() {
 
   // Unified bottom bar submit handler for question, v2_pack_field, and followup
   const handleBottomBarSubmit = async () => {
-    console.log("[BOTTOM_BAR_SUBMIT]", {
+    console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
       hasCurrentItem: !!currentItem,
       currentItemType: currentItem?.type,
       currentItemId: currentItem?.id,
@@ -2465,6 +2465,7 @@ export default function CandidateInterview() {
       isV2PackField: currentItem.type === 'v2_pack_field'
     });
 
+    // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
     await handleAnswer(trimmed);
     setInput("");
   };
