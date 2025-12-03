@@ -275,16 +275,19 @@ const useProbeEngineV2 = usePerFieldProbing;
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
 const callProbeEngineV2PerField = async (base44Client, params) => {
-  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId } = params;
+  const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber } = params;
 
-  console.log('[V2 PROBE] calling per-field probe', { 
+  console.log('[V2_PER_FIELD][SEND] ========== CALLING BACKEND PER-FIELD PROBE ==========');
+  console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1}`);
+  console.log('[V2_PER_FIELD][SEND] params:', { 
     packId, 
     fieldKey, 
     fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
     previousProbesCount,
     sessionId,
     questionCode,
-    baseQuestionId
+    baseQuestionId,
+    instanceNumber: instanceNumber || 1
   });
 
   try {
@@ -296,18 +299,21 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       incident_context: incidentContext || {},
       session_id: sessionId,
       question_code: questionCode,
+      instance_number: instanceNumber || 1,
       mode: 'VALIDATE_FIELD'
     });
     
-    console.log('[V2 PROBE] success', { 
+    console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
+    console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, { 
       mode: response.data?.mode,
       hasQuestion: !!response.data?.question,
+      questionPreview: response.data?.question?.substring?.(0, 60),
       followupsCount: response.data?.followups?.length || 0
     });
     
     return response.data;
   } catch (err) {
-    console.error('[V2 PROBE] error', { packId, fieldKey, message: err?.message });
+    console.error('[V2_PER_FIELD][ERROR] Backend call failed:', { packId, fieldKey, message: err?.message });
     return {
       mode: 'ERROR',
       message: err.message || 'Failed to call probeEngineV2'
