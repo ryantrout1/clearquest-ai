@@ -2755,16 +2755,14 @@ export default function CandidateInterview() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const answer = input.trim();
-              if (answer) {
+              if (answer && !isCommitting) {
                 // Log V2 pack field submission
                 if (currentItem?.type === 'v2_pack_field') {
-                  console.log("[V2_PACK][CLICK] Submitting V2 field answer", {
-                    packId: currentItem.packId,
-                    fieldId: currentItem.fieldKey,
-                    answer: answer.substring(0, 80)
-                  });
+                  console.log("[V2_PACK][FORM_SUBMIT] ========== V2 PACK FIELD FORM SUBMIT ==========");
+                  console.log("[V2_PACK][FORM_SUBMIT] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "answer=", answer.substring(0, 80));
                 }
                 handleAnswer(answer);
+                setInput("");
               }
             }} className="flex gap-3">
               <Input
