@@ -1020,17 +1020,29 @@ export default function CandidateInterview() {
   const handleAnswer = useCallback(async (value) => {
     // EXPLICIT ENTRY LOG: Log which branch we're entering
     console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
-    console.log(`[HANDLE_ANSWER][ENTRY] currentItem.type=${currentItem?.type}, currentItem.id=${currentItem?.id}`);
-    console.log(`[HANDLE_ANSWER][ENTRY] v2PackMode=${v2PackMode}, isCommitting=${isCommitting}, hasEngine=${!!engine}`);
-    console.log(`[HANDLE_ANSWER][ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
+    console.log(`[HANDLE_ANSWER][ENTRY]`, {
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      fieldKey: currentItem?.fieldKey,
+      instanceNumber: currentItem?.instanceNumber,
+      v2PackMode,
+      isCommitting,
+      hasEngine: !!engine,
+      answerPreview: value?.substring?.(0, 50) || value
+    });
 
-    // EXPLICIT V2 PACK FIELD ENTRY LOG
+    // EXPLICIT V2 PACK FIELD ENTRY LOG - confirm we're hitting this branch
     if (currentItem?.type === 'v2_pack_field') {
-      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][ENTRY]`, {
+      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] >>>>>>>>>> V2 PACK FIELD DETECTED <<<<<<<<<<`);
+      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD]`, {
         packId: currentItem.packId,
         fieldKey: currentItem.fieldKey,
-        v2InstanceNumber: currentItem.instanceNumber,
-        answer: value?.substring?.(0, 80) || value
+        fieldIndex: currentItem.fieldIndex,
+        instanceNumber: currentItem.instanceNumber,
+        baseQuestionId: currentItem.baseQuestionId,
+        answer: value?.substring?.(0, 80) || value,
+        hasActiveV2Pack: !!activeV2Pack
       });
     }
     
