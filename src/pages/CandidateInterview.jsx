@@ -2332,65 +2332,70 @@ export default function CandidateInterview() {
     screenMode
   });
 
-  // Shared submit helper for bottom bar - uses `input` state
+  // Shared submit helper for bottom bar - handles both question and v2_pack_field
   const handleBottomBarSubmit = async (event) => {
-    console.log("[BOTTOM_BAR_SUBMIT_CALLED]", { eventType: event?.type, hasEvent: !!event });
-    
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
 
-    if (!currentItem) {
-      console.log("[SUBMIT_CLICK] blocked: no currentItem");
+    if (!currentItem || (currentItem.type !== "question" && currentItem.type !== "v2_pack_field" && currentItem.type !== "followup")) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: unsupported item type", {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+      });
       return;
     }
 
     const answer = (input ?? "").trim();
 
-    console.log("[SUBMIT_CLICK]", {
-      currentItemType: currentItem.type,
-      currentItemId: currentItem.id,
-      packId: currentItem.packId,
-      fieldKey: currentItem.fieldKey,
-      screenMode,
-      answer,
-      isCommitting,
-    });
-
     if (isCommitting) {
-      console.log("[SUBMIT_CLICK] blocked: isCommitting");
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: isCommitting");
       return;
     }
 
     if (!answer) {
-      console.log("[SUBMIT_CLICK] blocked: empty answer");
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: empty answer");
       return;
     }
 
-    // IMPORTANT: do NOT gate by type here.
-    // v2_pack_field MUST be allowed through.
+    console.log("[BOTTOM_BAR][SUBMIT]", {
+      currentItemType: currentItem.type,
+      currentItemId: currentItem.id,
+      packId: currentItem.packId,
+      fieldKey: currentItem.fieldKey,
+      answer,
+    });
+
     await handleAnswer(answer);
     setInput("");
   };
 
   // Keydown handler for Enter key on bottom bar input
   const handleBottomBarKeyDown = (e) => {
-    console.log("[BOTTOM_BAR_KEYDOWN]", { key: e.key, shiftKey: e.shiftKey, currentItemType: currentItem?.type });
     if (e.key === "Enter" && !e.shiftKey) {
-      console.log("[BOTTOM_BAR_KEYDOWN_ENTER]", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        fieldKey: currentItem?.fieldKey,
+      if (!currentItem || (currentItem.type !== "question" && currentItem.type !== "v2_pack_field" && currentItem.type !== "followup")) {
+        console.log("[BOTTOM_BAR][KEYDOWN_ENTER] blocked: unsupported item type", {
+          currentItemType: currentItem?.type,
+          currentItemId: currentItem?.id,
+        });
+        return;
+      }
+
+      console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
+        currentItemType: currentItem.type,
+        currentItemId: currentItem.id,
+        packId: currentItem.packId,
+        fieldKey: currentItem.fieldKey,
         inputSnapshot: input,
       });
+
       e.preventDefault();
       handleBottomBarSubmit(e);
     }
   };
 
-  // Submit disabled logic - allows v2_pack_field
+  // Submit disabled logic - allows question, v2_pack_field, followup
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   if (screenMode === "WELCOME") {
