@@ -2711,11 +2711,105 @@ export default function CandidateInterview() {
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Hide footer input when V3 probing is active - V3ProbingLoop has its own input */}
-          {v3ProbingActive ? (
-            <p className="text-xs text-emerald-400 text-center">
-              Please respond to the AI follow-up questions above.
-            </p>
-          ) : isYesNoQuestion && !isV2PackField ? (
+              {v3ProbingActive ? (
+                <p className="text-xs text-emerald-400 text-center">
+                  Please respond to the AI follow-up questions above.
+                </p>
+              ) : currentItem && currentItem.type === "v2_pack_field" ? (
+                /* DEDICATED V2 PACK FIELD BOTTOM BAR */
+                (() => {
+                  const isV2SubmitDisabled = !v2PackInput || !v2PackInput.trim() || isCommitting;
+
+                  console.log("[BOTTOM_BAR_RENDER][V2_PACK_MODE]", {
+                    currentItemId: currentItem.id,
+                    packId: currentItem.packId,
+                    fieldKey: currentItem.fieldKey,
+                    instanceNumber: currentItem.instanceNumber,
+                    v2PackInputSnapshot: v2PackInput,
+                    isV2SubmitDisabled,
+                  });
+
+                  // Handle yes/no input type for V2 pack fields
+                  if (currentPrompt?.inputType === 'yes_no') {
+                    return (
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => handleAnswer("Yes")}
+                          disabled={isCommitting}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="w-5 h-5 mr-2" />
+                          Yes
+                        </Button>
+                        <Button
+                          onClick={() => handleAnswer("No")}
+                          disabled={isCommitting}
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                        >
+                          <X className="w-5 h-5 mr-2" />
+                          No
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  // Handle select_single input type for V2 pack fields
+                  if (currentPrompt?.inputType === 'select_single' && currentPrompt?.options) {
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {currentPrompt.options.map((option) => (
+                          <Button
+                            key={option}
+                            onClick={() => handleAnswer(option)}
+                            disabled={isCommitting}
+                            className="bg-purple-600 hover:bg-purple-700 text-sm"
+                          >
+                            {option}
+                          </Button>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  // Default: text input for V2 pack fields
+                  return (
+                    <form 
+                      onSubmit={handleV2PackFieldSubmit}
+                      className="flex gap-3"
+                    >
+                      <Input
+                        value={v2PackInput}
+                        onChange={(e) => setV2PackInput(e.target.value)}
+                        onKeyDown={handleV2PackInputKeyDown}
+                        placeholder="Type your answer and press Enter..."
+                        className="flex-1 bg-slate-900/50 border-slate-600 text-white"
+                        disabled={isCommitting}
+                      />
+                      <Button
+                        type="submit"
+                        onClick={(e) => {
+                          console.log("[V2_PACK][BUTTON_CLICK]", {
+                            currentItemType: currentItem?.type,
+                            currentItemId: currentItem?.id,
+                            packId: currentItem?.packId,
+                            fieldKey: currentItem?.fieldKey,
+                            instanceNumber: currentItem?.instanceNumber,
+                            v2PackInputSnapshot: v2PackInput,
+                            isV2SubmitDisabled,
+                          });
+                          if (!isV2SubmitDisabled) {
+                            handleV2PackFieldSubmit(e);
+                          }
+                        }}
+                        disabled={isV2SubmitDisabled}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
+                    </form>
+                  );
+                })()
+              ) : isYesNoQuestion ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
