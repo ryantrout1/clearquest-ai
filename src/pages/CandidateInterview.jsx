@@ -2810,7 +2810,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : showTextInput ? (
+          ) : showTextInput && !pendingSectionTransition ? (
           <form 
             onSubmit={handleSubmit}
             onKeyDown={(e) => {
