@@ -1733,6 +1733,9 @@ export default function CandidateInterview() {
           answer: finalAnswer.substring(0, 80)
         });
 
+        // V2 AI probing call log
+        console.log("[V2_PACK][AI][CALL]", "packId=", packId, "fieldKey=", fieldKey, "instance=", instanceNumber, "answer=", finalAnswer.substring(0, 80));
+
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
@@ -1752,6 +1755,9 @@ export default function CandidateInterview() {
         // Log backend response
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
         console.log(`[V2_PACK][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}, isLastField=${isLastField}`);
+        
+        // V2 AI probing result log
+        console.log("[V2_PACK][AI][RESULT]", "packId=", packId, "fieldKey=", fieldKey, "decision=", v2Result?.mode || 'NONE', "hasProbe=", !!v2Result?.question);
         
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
           console.log(`[V2_PACK][PRIOR_LE_APPS][RESPONSE] mode=${v2Result?.mode}, nextAction=${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}`);
