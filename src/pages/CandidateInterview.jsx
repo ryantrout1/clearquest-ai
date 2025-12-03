@@ -2646,32 +2646,49 @@ export default function CandidateInterview() {
           ) : (
             <form onSubmit={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               const answer = input.trim();
-              console.log("[FORM_SUBMIT] ========== FORM SUBMIT EVENT ==========");
-              console.log("[FORM_SUBMIT] Form submitted", { 
-                hasAnswer: !!answer, 
-                isCommitting, 
-                currentItemType: currentItem?.type,
-                currentItemId: currentItem?.id,
-                inputLength: input.length,
+              console.log("[SUBMIT_CLICK] ========== FORM SUBMIT EVENT ==========");
+              console.log("[SUBMIT_CLICK]", { 
+                type: currentItem?.type,
+                id: currentItem?.id,
+                packId: currentItem?.packId,
+                fieldKey: currentItem?.fieldKey,
+                answerDraft: answer,
+                isCommitting,
                 v2PackMode
               });
-              if (answer && !isCommitting) {
-                // Log V2 pack field submission
-                if (currentItem?.type === 'v2_pack_field') {
-                  console.log("[V2_PACK][FORM_SUBMIT] ========== V2 PACK FIELD FORM SUBMIT ==========");
-                  console.log("[V2_PACK][FORM_SUBMIT] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "instanceNumber=", currentItem.instanceNumber, "answer=", answer.substring(0, 80));
-                }
-                handleAnswer(answer);
-                setInput("");
-              } else {
-                console.log("[FORM_SUBMIT] Blocked - not calling handleAnswer", { hasAnswer: !!answer, isCommitting, reason: !answer ? 'empty answer' : 'isCommitting=true' });
+              if (!answer) {
+                console.log("[SUBMIT_CLICK] blocked: empty answer");
+                return;
               }
+              if (isCommitting) {
+                console.log("[SUBMIT_CLICK] blocked: isCommitting=true");
+                return;
+              }
+              // Log V2 pack field submission
+              if (currentItem?.type === 'v2_pack_field') {
+                console.log("[SUBMIT_CLICK][V2_PACK_FIELD] ========== V2 PACK FIELD SUBMIT ==========");
+                console.log("[SUBMIT_CLICK][V2_PACK_FIELD] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "instanceNumber=", currentItem.instanceNumber, "answer=", answer.substring(0, 80));
+              }
+              handleAnswer(answer);
+              setInput("");
             }} className="flex gap-3">
               <Input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const answer = input.trim();
+                    console.log("[SUBMIT_KEYDOWN] Enter pressed", { type: currentItem?.type, answer: answer?.substring(0, 50), isCommitting });
+                    if (answer && !isCommitting) {
+                      handleAnswer(answer);
+                      setInput("");
+                    }
+                  }
+                }}
                 placeholder="Type your answer..."
                 className="flex-1 bg-slate-900/50 border-slate-600 text-white"
                 disabled={isCommitting}
