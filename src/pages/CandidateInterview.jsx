@@ -1754,13 +1754,20 @@ export default function CandidateInterview() {
 
         // Log backend response
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
-        console.log(`[V2_PACK][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}, isLastField=${isLastField}`);
+        console.log(`[V2_PACK][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}, isLastField=${isLastField}, fieldIndex=${fieldIndex}, totalFields=${totalFieldsInPack}`);
         
         // V2 AI probing result log
         console.log("[V2_PACK][AI][RESULT]", "packId=", packId, "fieldKey=", fieldKey, "decision=", v2Result?.mode || 'NONE', "hasProbe=", !!v2Result?.question);
         
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log(`[V2_PACK][PRIOR_LE_APPS][RESPONSE] mode=${v2Result?.mode}, nextAction=${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}`);
+          console.log(`[V2_PACK][PRIOR_LE_APPS][RESPONSE] mode=${v2Result?.mode}, nextAction=${isLastField ? 'COMPLETE' : 'NEXT_FIELD'}, fieldIndex=${fieldIndex}/${totalFieldsInPack}`);
+        }
+        
+        // CRITICAL: Handle backend mode=NONE as NEXT_FIELD (accept answer and advance)
+        // This prevents getting stuck when backend returns NONE due to unsupported pack or errors
+        if (v2Result?.mode === 'NONE' || v2Result?.reason === 'BACKEND_ERROR') {
+          console.log(`[V2_PACK][BACKEND_FALLBACK] Backend returned NONE/ERROR - treating as NEXT_FIELD`);
+          v2Result.mode = 'NEXT_FIELD';
         }
 
         // === INTERPRET BACKEND RESPONSE AND DECIDE NEXT ACTION ===
