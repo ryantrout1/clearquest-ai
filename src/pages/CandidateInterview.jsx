@@ -2487,7 +2487,8 @@ export default function CandidateInterview() {
   };
 
   // Submit disabled logic - allows question, v2_pack_field, followup
-  const isBottomBarSubmitDisabled = !answerable || isCommitting || !(input ?? "").trim();
+  // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
+  const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   if (screenMode === "WELCOME") {
     return (
