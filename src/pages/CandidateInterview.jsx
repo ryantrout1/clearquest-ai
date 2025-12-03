@@ -2865,19 +2865,9 @@ export default function CandidateInterview() {
             </div>
           ) : showTextInput && !pendingSectionTransition ? (
           <form 
-            onSubmit={handleSubmit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                console.log("[BOTTOM_BAR][FORM_KEYDOWN]", {
-                  key: e.key,
-                  shiftKey: e.shiftKey,
-                  currentItemType: currentItem?.type,
-                  currentItemId: currentItem?.id,
-                  packId: currentItem?.packId,
-                  fieldKey: currentItem?.fieldKey,
-                });
-                handleInputKeyDown(e);
-              }
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleBottomBarSubmit();
             }}
             className="flex gap-3"
           >
