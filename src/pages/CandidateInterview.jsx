@@ -2867,12 +2867,22 @@ export default function CandidateInterview() {
           )}
 
           {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${isV2PackField ? 'border-purple-500/50' : 'border-blue-500/50'}`}>
+            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${
+              isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/50' : 'border-blue-500/50'
+            }`}>
               <div className="flex items-center gap-2 mb-3">
                 {isV2PackField ? (
                   <>
                     <span className="text-lg font-bold text-purple-400">
                       Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+                  </>
+                ) : currentPrompt.type === 'ai_probe' ? (
+                  <>
+                    <span className="text-lg font-bold text-purple-400">
+                      AI Clarification
                     </span>
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
