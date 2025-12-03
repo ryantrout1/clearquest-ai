@@ -2679,7 +2679,7 @@ export default function CandidateInterview() {
               <Button
                 type="submit"
                 disabled={!input.trim() || isCommitting}
-                className="bg-blue-600 hover:bg-blue-700"
+                className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
               >
                 <Send className="w-5 h-5" />
               </Button>
