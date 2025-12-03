@@ -2332,7 +2332,7 @@ export default function CandidateInterview() {
   const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field";
   const isV2PackField = currentItemType === "v2_pack_field";
   const isFollowup = currentItemType === "followup";
-  const answerable = isAnswerableItem(currentItem);
+  const answerable = isAnswerableItem(currentItem) || isV2PackField;
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
