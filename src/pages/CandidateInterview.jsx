@@ -2426,6 +2426,90 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
+  // Keydown handler for Enter key on bottom bar input
+  const handleInputKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      const isAnswerable = isAnswerableItem(currentItem);
+
+      console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
+        key: e.key,
+        shiftKey: e.shiftKey,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        fieldKey: currentItem?.fieldKey,
+        answerable: isAnswerable,
+        inputSnapshot: input,
+      });
+
+      if (!isAnswerable) {
+        console.log("[BOTTOM_BAR][KEYDOWN_ENTER] blocked: non-answerable item", {
+          currentItemType: currentItem?.type,
+          currentItemId: currentItem?.id,
+        });
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      handleSubmit(e);
+    }
+  };
+
+  // Shared submit helper for bottom bar - handles question, v2_pack_field, and followup
+  const handleSubmit = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    const isAnswerable = isAnswerableItem(currentItem);
+
+    if (!isAnswerable) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: non-answerable item", {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+      });
+      return;
+    }
+
+    const trimmed = (input ?? "").trim();
+
+    if (isCommitting) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: isCommitting", {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+      });
+      return;
+    }
+
+    if (!trimmed) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: empty input", {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+      });
+      return;
+    }
+
+    // EXPLICIT LOG: Confirm bottom bar is submitting for v2_pack_field
+    console.log("[BOTTOM_BAR][SUBMIT] ========== SUBMITTING ANSWER ==========");
+    console.log("[BOTTOM_BAR][SUBMIT]", {
+      currentItemType: currentItem.type,
+      currentItemId: currentItem.id,
+      packId: currentItem.packId,
+      fieldKey: currentItem.fieldKey,
+      instanceNumber: currentItem.instanceNumber,
+      answer: trimmed.substring(0, 60),
+      isV2PackField: currentItem.type === 'v2_pack_field'
+    });
+
+    await handleAnswer(trimmed);
+    setInput("");
+  };
+
+  // Submit disabled logic - allows question, v2_pack_field, followup
+  const isBottomBarSubmitDisabled = !answerable || isCommitting || !(input ?? "").trim();
+
   if (screenMode === "WELCOME") {
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
