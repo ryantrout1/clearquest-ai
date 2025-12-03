@@ -2345,58 +2345,68 @@ export default function CandidateInterview() {
     screenMode
   });
 
-  // Shared submit helper for bottom bar - handles both question and v2_pack_field
+  // Shared submit helper for bottom bar - handles question, v2_pack_field, and followup
   const handleBottomBarSubmit = async (event) => {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
 
-    if (!currentItem || (currentItem.type !== "question" && currentItem.type !== "v2_pack_field" && currentItem.type !== "followup")) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: unsupported item type", {
-        currentItemType: currentItem?.type,
+    const itemType = currentItem?.type;
+    
+    if (!currentItem || (itemType !== "question" && itemType !== "v2_pack_field" && itemType !== "followup")) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: non-question/non-v2", {
+        currentItemType: itemType,
         currentItemId: currentItem?.id,
       });
       return;
     }
 
-    const answer = (input ?? "").trim();
+    const trimmed = (input ?? "").trim();
 
     if (isCommitting) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: isCommitting");
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: isCommitting", {
+        currentItemType: itemType,
+        currentItemId: currentItem?.id,
+      });
       return;
     }
 
-    if (!answer) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: empty answer");
+    if (!trimmed) {
+      console.log("[BOTTOM_BAR][SUBMIT] blocked: empty input", {
+        currentItemType: itemType,
+        currentItemId: currentItem?.id,
+      });
       return;
     }
 
     console.log("[BOTTOM_BAR][SUBMIT]", {
-      currentItemType: currentItem.type,
+      currentItemType: itemType,
       currentItemId: currentItem.id,
       packId: currentItem.packId,
       fieldKey: currentItem.fieldKey,
-      answer,
+      answer: trimmed,
     });
 
-    await handleAnswer(answer);
+    await handleAnswer(trimmed);
     setInput("");
   };
 
   // Keydown handler for Enter key on bottom bar input
   const handleBottomBarKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      if (!currentItem || (currentItem.type !== "question" && currentItem.type !== "v2_pack_field" && currentItem.type !== "followup")) {
-        console.log("[BOTTOM_BAR][KEYDOWN_ENTER] blocked: unsupported item type", {
-          currentItemType: currentItem?.type,
+      const itemType = currentItem?.type;
+      
+      if (!currentItem || (itemType !== "question" && itemType !== "v2_pack_field" && itemType !== "followup")) {
+        console.log("[BOTTOM_BAR][KEYDOWN_ENTER] blocked", {
+          currentItemType: itemType,
           currentItemId: currentItem?.id,
         });
         return;
       }
 
       console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
-        currentItemType: currentItem.type,
+        currentItemType: itemType,
         currentItemId: currentItem.id,
         packId: currentItem.packId,
         fieldKey: currentItem.fieldKey,
@@ -2404,6 +2414,7 @@ export default function CandidateInterview() {
       });
 
       e.preventDefault();
+      e.stopPropagation();
       handleBottomBarSubmit(e);
     }
   };
