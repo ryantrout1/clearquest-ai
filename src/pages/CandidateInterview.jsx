@@ -2320,6 +2320,18 @@ export default function CandidateInterview() {
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
   const isV2PackField = currentPrompt?.type === 'v2_pack_field';
 
+  // Debug log: confirm which bottom bar path is rendering
+  console.log("[BOTTOM_BAR_RENDER]", {
+    currentItemType: currentItem?.type,
+    currentItemId: currentItem?.id,
+    packId: currentItem?.packId,
+    fieldKey: currentItem?.fieldKey,
+    isYesNoQuestion,
+    isV2PackField,
+    v2PackMode,
+    screenMode
+  });
+
   if (screenMode === "WELCOME") {
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
