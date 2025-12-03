@@ -1224,12 +1224,19 @@ export default function CandidateInterview() {
           return;
         }
         
-        // Advance to next field or complete pack
+        // Advance to next field or complete pack (only after backend says NEXT_FIELD)
         if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
           const nextFieldIdx = fieldIndex + 1;
           const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
           
-          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][NEXT] Advancing: ${fieldKey} -> ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${totalFieldsInPack})`);
+          console.log(`[V2_PACK_FIELD][NEXT_FIELD] ========== ADVANCING TO NEXT FIELD ==========`);
+          console.log(`[V2_PACK_FIELD][NEXT_FIELD]`, {
+            packId,
+            currentField: fieldKey,
+            nextField: nextFieldConfig.fieldKey,
+            fieldProgress: `${nextFieldIdx + 1}/${totalFieldsInPack}`,
+            instanceNumber
+          });
           
           setActiveV2Pack(prev => ({
             ...prev,
