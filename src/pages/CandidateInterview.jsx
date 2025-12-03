@@ -468,7 +468,6 @@ export default function CandidateInterview() {
   const [handoffProcessed, setHandoffProcessed] = useState(false);
   
   const [input, setInput] = useState("");
-  const [v2PackInput, setV2PackInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
   const [isCommitting, setIsCommitting] = useState(false);
   
