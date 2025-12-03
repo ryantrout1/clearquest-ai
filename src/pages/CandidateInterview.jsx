@@ -387,7 +387,8 @@ try {
     incidentContext,
     sessionId,
     questionCode,
-    baseQuestionId
+    baseQuestionId,
+    instanceNumber
   });
   
   // EXPLICIT RESPONSE LOG
