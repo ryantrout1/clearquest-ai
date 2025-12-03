@@ -2764,6 +2764,14 @@ export default function CandidateInterview() {
             onSubmit={handleSubmit}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
+                console.log("[BOTTOM_BAR][FORM_KEYDOWN]", {
+                  key: e.key,
+                  shiftKey: e.shiftKey,
+                  currentItemType: currentItem?.type,
+                  currentItemId: currentItem?.id,
+                  packId: currentItem?.packId,
+                  fieldKey: currentItem?.fieldKey,
+                });
                 handleInputKeyDown(e);
               }
             }}
