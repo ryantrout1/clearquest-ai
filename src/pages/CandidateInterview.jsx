@@ -2013,6 +2013,12 @@ export default function CandidateInterview() {
       // Reset state on error
       setIsCommitting(false);
       setInput("");
+    } finally {
+      // SAFETY: Always reset isCommitting after the handler completes
+      // This prevents the interview from getting stuck if any path forgets to reset
+      setTimeout(() => {
+        setIsCommitting(false);
+      }, 100);
     }
   }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession]);
 
