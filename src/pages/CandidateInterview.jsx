@@ -2664,7 +2664,38 @@ export default function CandidateInterview() {
             />
           )}
           
-          {currentPrompt && !v3ProbingActive && (
+          {/* Section Completion Card - shown when a section is complete and waiting to begin next */}
+          {pendingSectionTransition && !currentItem && !v3ProbingActive && (
+            <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    Section Complete: {activeSection?.displayName || 'Current Section'}
+                  </h2>
+                  <p className="text-emerald-200 text-sm leading-relaxed mb-4">
+                    Nice work — you've finished this section. Ready for the next one?
+                  </p>
+                  
+                  <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
+                    <p className="text-emerald-300 text-sm font-medium">
+                      Next up: {pendingSectionTransition.nextSectionName}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-xs text-emerald-300/80">
+                    <span>{completedSectionsCount + 1} of {sections.length} sections complete</span>
+                    <span>•</span>
+                    <span>{answeredQuestionsAllSections} of {totalQuestionsAllSections} questions answered</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
             <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${isV2PackField ? 'border-purple-500/50' : 'border-blue-500/50'}`}>
               <div className="flex items-center gap-2 mb-3">
                 {isV2PackField ? (
