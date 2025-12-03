@@ -2619,8 +2619,8 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2-PER-FIELD] LLM determined no probe needed for ${semanticField} → advancing`);
     
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD (LLM NO PROBE) ==========`);
-      console.log(`[V2-BACKEND-DECISION] LLM determined ${semanticField} is acceptable - advancing`);
+      console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] LLM determined ${semanticField} is acceptable - advancing`);
+      console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=false, probed=false, coverage=complete`);
     }
     
     return {
@@ -2632,6 +2632,7 @@ async function probeEngineV2(input, base44Client) {
       previousProbeCount: previous_probes_count,
       maxProbesPerField,
       semanticInfo,
+      instanceNumber: instance_number,
       message: `LLM determined field ${semanticField} is acceptable`
     };
   }
@@ -2641,8 +2642,8 @@ async function probeEngineV2(input, base44Client) {
   
   // EXPLICIT LOGGING: QUESTION decision for PACK_PRIOR_LE_APPS_STANDARD
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: QUESTION ==========`);
-    console.log(`[V2-BACKEND-DECISION] Field ${semanticField} needs probe - staying on field`, {
+    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] Field ${semanticField} needs probe - staying on field`);
+    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=true, probed=true, coverage=incomplete`, {
       field_key,
       semanticField,
       decision: "QUESTION",
@@ -2666,6 +2667,7 @@ async function probeEngineV2(input, base44Client) {
     isFallback: probeResult.isFallback,
     probeSource: probeResult.source,
     semanticInfo,
+    instanceNumber: instance_number,
     message: `Probing for more information about ${semanticField}`,
     followups: [probeResult.question],
     followupsCount: 1
