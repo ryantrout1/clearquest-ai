@@ -2762,6 +2762,12 @@ export default function CandidateInterview() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const answer = input.trim();
+              console.log("[FORM_SUBMIT] Form submitted", { 
+                hasAnswer: !!answer, 
+                isCommitting, 
+                currentItemType: currentItem?.type,
+                inputLength: input.length 
+              });
               if (answer && !isCommitting) {
                 // Log V2 pack field submission
                 if (currentItem?.type === 'v2_pack_field') {
@@ -2770,6 +2776,8 @@ export default function CandidateInterview() {
                 }
                 handleAnswer(answer);
                 setInput("");
+              } else {
+                console.log("[FORM_SUBMIT] Blocked", { answer: !!answer, isCommitting });
               }
             }} className="flex gap-3">
               <Input
