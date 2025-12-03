@@ -2426,74 +2426,36 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
-  // Keydown handler for Enter key on bottom bar input
-  const handleInputKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      const isAnswerable = isAnswerableItem(currentItem);
+  // Unified bottom bar submit handler for question, v2_pack_field, and followup
+  const handleBottomBarSubmit = async () => {
+    console.log("[BOTTOM_BAR_SUBMIT]", {
+      hasCurrentItem: !!currentItem,
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      fieldKey: currentItem?.fieldKey,
+      instanceNumber: currentItem?.instanceNumber,
+      inputSnapshot: input?.substring?.(0, 50) || input,
+    });
 
-      console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
-        key: e.key,
-        shiftKey: e.shiftKey,
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        fieldKey: currentItem?.fieldKey,
-        answerable: isAnswerable,
-        inputSnapshot: input,
-      });
-
-      if (!isAnswerable) {
-        console.log("[BOTTOM_BAR][KEYDOWN_ENTER] blocked: non-answerable item", {
-          currentItemType: currentItem?.type,
-          currentItemId: currentItem?.id,
-        });
-        return;
-      }
-
-      e.preventDefault();
-      e.stopPropagation();
-      handleSubmit(e);
-    }
-  };
-
-  // Shared submit helper for bottom bar - handles question, v2_pack_field, and followup
-  const handleSubmit = async (e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
+    if (!currentItem) {
+      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
+      return;
     }
 
-    const isAnswerable = isAnswerableItem(currentItem);
-
-    if (!isAnswerable) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: non-answerable item", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-      });
+    if (isCommitting) {
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: isCommitting");
       return;
     }
 
     const trimmed = (input ?? "").trim();
-
-    if (isCommitting) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: isCommitting", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-      });
-      return;
-    }
-
     if (!trimmed) {
-      console.log("[BOTTOM_BAR][SUBMIT] blocked: empty input", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-      });
+      console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input");
       return;
     }
 
-    // EXPLICIT LOG: Confirm bottom bar is submitting for v2_pack_field
-    console.log("[BOTTOM_BAR][SUBMIT] ========== SUBMITTING ANSWER ==========");
-    console.log("[BOTTOM_BAR][SUBMIT]", {
+    console.log("[BOTTOM_BAR_SUBMIT] ========== CALLING handleAnswer ==========");
+    console.log("[BOTTOM_BAR_SUBMIT]", {
       currentItemType: currentItem.type,
       currentItemId: currentItem.id,
       packId: currentItem.packId,
@@ -2505,6 +2467,23 @@ export default function CandidateInterview() {
 
     await handleAnswer(trimmed);
     setInput("");
+  };
+
+  // Keydown handler for Enter key on bottom bar input
+  const handleInputKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
+        key: e.key,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        fieldKey: currentItem?.fieldKey,
+      });
+
+      e.preventDefault();
+      e.stopPropagation();
+      handleBottomBarSubmit();
+    }
   };
 
   // Submit disabled logic - allows question, v2_pack_field, followup
