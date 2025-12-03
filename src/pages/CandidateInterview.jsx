@@ -1184,9 +1184,16 @@ export default function CandidateInterview() {
         
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
         
-        // Handle AI probe question
+        // Handle AI probe question from backend
         if (v2Result?.mode === 'QUESTION' && v2Result.question) {
-          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][AI_PROBE] Showing AI follow-up for ${fieldKey}`);
+          console.log(`[V2_PACK_FIELD][AI_PROBE] ========== SHOWING AI FOLLOW-UP QUESTION ==========`);
+          console.log(`[V2_PACK_FIELD][AI_PROBE]`, {
+            packId,
+            fieldKey,
+            instanceNumber,
+            question: v2Result.question?.substring?.(0, 80),
+            newProbeCount: probeCount + 1
+          });
           
           setAiFollowupCounts(prev => ({
             ...prev,
