@@ -1050,14 +1050,25 @@ export default function CandidateInterview() {
       // ========================================================================
       // V2 PACK FIELD HANDLER - MUST BE CHECKED FIRST
       // This handles answers for v2_pack_field items (PACK_PRIOR_LE_APPS_STANDARD, etc.)
+      // CRITICAL: Every V2 pack field answer MUST go through the backend probe engine
       // ========================================================================
       if (currentItem.type === 'v2_pack_field') {
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] ========== V2 PACK FIELD BRANCH ENTERED ==========`);
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] packId=${currentItem.packId}, fieldKey=${currentItem.fieldKey}, instanceNumber=${currentItem.instanceNumber}`);
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] answer="${value?.substring?.(0, 80) || value}"`);
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] activeV2Pack:`, activeV2Pack ? { packId: activeV2Pack.packId, currentIndex: activeV2Pack.currentIndex, fieldsCount: activeV2Pack.fields?.length } : 'null');
-        
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
+        
+        // EXPLICIT ENTRY LOG for V2 pack field answers
+        console.log(`[V2_PACK_FIELD][ENTRY] ========== V2 PACK FIELD ANSWER RECEIVED ==========`);
+        console.log(`[V2_PACK_FIELD][ENTRY]`, {
+          packId,
+          fieldKey,
+          fieldIndex,
+          instanceNumber,
+          answer: value?.substring?.(0, 80) || value,
+          isCommitting,
+          v2PackMode,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          hasActiveV2Pack: !!activeV2Pack
+        });
         
         // Validate we have an active V2 pack
         if (!activeV2Pack) {
