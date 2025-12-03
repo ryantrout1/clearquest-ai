@@ -2882,15 +2882,6 @@ export default function CandidateInterview() {
             />
             <Button
               type="submit"
-              onClick={() => {
-                console.log("[BOTTOM_BAR][CLICK_SEND]", {
-                  currentItemType: currentItem?.type,
-                  currentItemId: currentItem?.id,
-                  packId: currentItem?.packId,
-                  fieldKey: currentItem?.fieldKey,
-                  inputSnapshot: input,
-                });
-              }}
               disabled={isBottomBarSubmitDisabled}
               className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
             >
