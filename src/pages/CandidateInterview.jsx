@@ -1023,11 +1023,15 @@ export default function CandidateInterview() {
     console.log(`[HANDLE_ANSWER][ENTRY] currentItem.type=${currentItem?.type}, currentItem.id=${currentItem?.id}`);
     console.log(`[HANDLE_ANSWER][ENTRY] v2PackMode=${v2PackMode}, isCommitting=${isCommitting}, hasEngine=${!!engine}`);
     console.log(`[HANDLE_ANSWER][ENTRY] answer="${value?.substring?.(0, 50) || value}"`);
-    
+
     // EXPLICIT V2 PACK FIELD ENTRY LOG
     if (currentItem?.type === 'v2_pack_field') {
-      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] ========== V2 PACK FIELD DETECTED ==========`);
-      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] v2PackId=${currentItem.packId}, fieldKey=${currentItem.fieldKey}, instance=${currentItem.instanceNumber}, answer="${value?.substring?.(0, 80) || value}"`);
+      console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][ENTRY]`, {
+        packId: currentItem.packId,
+        fieldKey: currentItem.fieldKey,
+        v2InstanceNumber: currentItem.instanceNumber,
+        answer: value?.substring?.(0, 80) || value
+      });
     }
     
     if (isCommitting || !currentItem || !engine) {
