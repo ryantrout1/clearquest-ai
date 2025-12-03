@@ -1218,6 +1218,16 @@ const PACK_CONFIG = {
   // Prior Law Enforcement Applications pack (v2.5)
   PACK_PRIOR_LE_APPS_STANDARD: {
     id: "PACK_PRIOR_LE_APPS_STANDARD",
+    packName: "Prior Law Enforcement Applications",
+    standardClusterId: "PRIOR_LE_APPS",
+    isStandardCluster: true,
+    active: true,
+    enablePerFieldProbing: true,
+    enableCoverageGuardrail: true,
+    riskDomain: "PRIOR_LE",
+    supportsMultipleInstances: true,
+    instanceLabelSingular: "application",
+    instanceLabelPlural: "applications",
     requiredFields: ["agency_type", "time_period", "stage_reached", "outcome"],
     priorityOrder: ["agency_type", "time_period", "location_general", "stage_reached", "outcome", "background_concerns", "withdrew", "prior_disclosure", "preventive_steps"],
     fieldKeyMap: {
@@ -1242,6 +1252,99 @@ const PACK_CONFIG = {
       "prior_disclosure": "prior_disclosure",
       "preventive_steps": "preventive_steps",
     },
+    // Field schemas for per-field probing
+    fieldSchemas: {
+      "PACK_PRLE_Q01": {
+        fieldKey: "PACK_PRLE_Q01",
+        semanticKey: "agency_type",
+        label: "Type of Agency",
+        dataType: "short_text",
+        category: "context",
+        descriptionForLLM: "Type of law enforcement agency (e.g., municipal police, county sheriff, state police, federal, tribal).",
+        isRequired: true,
+        riskDimensions: ["DISCLOSURE"]
+      },
+      "PACK_PRLE_Q02": {
+        fieldKey: "PACK_PRLE_Q02",
+        semanticKey: "time_period",
+        label: "Application Time Period",
+        dataType: "date_approximate",
+        category: "timeline",
+        descriptionForLLM: "When the application was submitted or the hiring process occurred (month/year or approximate timeframe).",
+        isRequired: true,
+        riskDimensions: ["DISCLOSURE"]
+      },
+      "PACK_PRLE_Q03": {
+        fieldKey: "PACK_PRLE_Q03",
+        semanticKey: "stage_reached",
+        label: "Stage Reached",
+        dataType: "categorical",
+        category: "outcome",
+        descriptionForLLM: "How far the candidate progressed in the hiring process (written test, physical, interview, background, polygraph, psychological, academy, etc.).",
+        isRequired: true,
+        riskDimensions: ["PERFORMANCE"]
+      },
+      "PACK_PRLE_Q04": {
+        fieldKey: "PACK_PRLE_Q04",
+        semanticKey: "outcome",
+        label: "Outcome",
+        dataType: "categorical",
+        category: "outcome",
+        descriptionForLLM: "Final result of the application (hired, not selected, withdrew, disqualified, still in process).",
+        isRequired: true,
+        riskDimensions: ["PERFORMANCE", "INTEGRITY"]
+      },
+      "PACK_PRLE_Q05": {
+        fieldKey: "PACK_PRLE_Q05",
+        semanticKey: "background_concerns",
+        label: "Background Concerns Identified",
+        dataType: "long_text",
+        category: "risk",
+        descriptionForLLM: "Any concerns or issues identified during the background investigation phase.",
+        isRequired: false,
+        riskDimensions: ["INTEGRITY", "CONDUCT"]
+      },
+      "PACK_PRLE_Q06": {
+        fieldKey: "PACK_PRLE_Q06",
+        semanticKey: "withdrew",
+        label: "Withdrew Application",
+        dataType: "boolean",
+        category: "outcome",
+        descriptionForLLM: "Whether the candidate withdrew their application and the reason why.",
+        isRequired: false,
+        riskDimensions: ["DISCLOSURE"]
+      },
+      "PACK_PRLE_Q07": {
+        fieldKey: "PACK_PRLE_Q07",
+        semanticKey: "prior_disclosure",
+        label: "Prior Disclosure",
+        dataType: "boolean",
+        category: "integrity",
+        descriptionForLLM: "Whether this prior application has been disclosed on other law enforcement applications.",
+        isRequired: false,
+        riskDimensions: ["INTEGRITY", "DISCLOSURE"]
+      },
+      "PACK_PRLE_Q08": {
+        fieldKey: "PACK_PRLE_Q08",
+        semanticKey: "preventive_steps",
+        label: "Changes/Improvements Since",
+        dataType: "long_text",
+        category: "mitigation",
+        descriptionForLLM: "What changes or improvements the candidate has made since this application.",
+        isRequired: false,
+        riskDimensions: ["CONDUCT"]
+      },
+      "PACK_PRLE_Q09": {
+        fieldKey: "PACK_PRLE_Q09",
+        semanticKey: "location_general",
+        label: "Agency Location (city/state)",
+        dataType: "short_text",
+        category: "context",
+        descriptionForLLM: "The city and state where this law enforcement agency is located.",
+        isRequired: false,
+        riskDimensions: []
+      }
+    }
   },
 };
 
