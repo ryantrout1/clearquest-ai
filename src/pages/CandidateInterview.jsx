@@ -2473,8 +2473,7 @@ export default function CandidateInterview() {
   // Keydown handler for Enter key on bottom bar input
   const handleInputKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      console.log("[BOTTOM_BAR][KEYDOWN_ENTER]", {
-        key: e.key,
+      console.log("[BOTTOM_BAR_INPUT][ENTER_KEY]", {
         currentItemType: currentItem?.type,
         currentItemId: currentItem?.id,
         packId: currentItem?.packId,
