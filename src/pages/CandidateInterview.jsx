@@ -2332,57 +2332,6 @@ export default function CandidateInterview() {
     screenMode
   });
 
-  // Dedicated V2 pack field submit handler
-  const handleV2PackFieldSubmit = async (event) => {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    if (!currentItem || currentItem.type !== "v2_pack_field") {
-      console.log("[V2_PACK][SUBMIT] blocked: currentItem not v2_pack_field", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-      });
-      return;
-    }
-
-    const answer = (v2PackInput ?? "").trim();
-
-    console.log("[V2_PACK][SUBMIT]", {
-      currentItemType: currentItem.type,
-      currentItemId: currentItem.id,
-      packId: currentItem.packId,
-      fieldKey: currentItem.fieldKey,
-      instanceNumber: currentItem.instanceNumber,
-      answer,
-    });
-
-    if (!answer) {
-      console.log("[V2_PACK][SUBMIT] blocked: empty answer");
-      return;
-    }
-
-    await handleAnswer(answer);
-    setV2PackInput("");
-  };
-
-  // Keydown handler for V2 pack input
-  const handleV2PackInputKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      console.log("[V2_PACK][KEYDOWN_ENTER]", {
-        currentItemType: currentItem?.type,
-        currentItemId: currentItem?.id,
-        packId: currentItem?.packId,
-        fieldKey: currentItem?.fieldKey,
-        instanceNumber: currentItem?.instanceNumber,
-        inputSnapshot: v2PackInput,
-      });
-      e.preventDefault();
-      handleV2PackFieldSubmit(e);
-    }
-  };
-
   // Shared submit helper for bottom bar - uses `input` state
   const handleBottomBarSubmit = async (event) => {
     console.log("[BOTTOM_BAR_SUBMIT_CALLED]", { eventType: event?.type, hasEvent: !!event });
