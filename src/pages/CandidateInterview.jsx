@@ -2717,7 +2717,19 @@ export default function CandidateInterview() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleBottomBarSubmit} className="flex gap-3">
+            <form 
+              onSubmit={(e) => {
+                console.log("[BOTTOM_BAR_FORM_SUBMIT]", {
+                  currentItemType: currentItem?.type,
+                  currentItemId: currentItem?.id,
+                  packId: currentItem?.packId,
+                  fieldKey: currentItem?.fieldKey,
+                  inputSnapshot: input,
+                });
+                handleBottomBarSubmit(e);
+              }} 
+              className="flex gap-3"
+            >
               <Input
                 ref={inputRef}
                 value={input}
@@ -2729,7 +2741,19 @@ export default function CandidateInterview() {
               />
               <Button
                 type="submit"
-                onClick={handleBottomBarSubmit}
+                onClick={(e) => {
+                  console.log("[BOTTOM_BAR_BUTTON_CLICK]", {
+                    currentItemType: currentItem?.type,
+                    currentItemId: currentItem?.id,
+                    packId: currentItem?.packId,
+                    fieldKey: currentItem?.fieldKey,
+                    inputSnapshot: input,
+                    isBottomBarSubmitDisabled,
+                  });
+                  if (!isBottomBarSubmitDisabled) {
+                    handleBottomBarSubmit(e);
+                  }
+                }}
                 disabled={isBottomBarSubmitDisabled}
                 className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
               >
