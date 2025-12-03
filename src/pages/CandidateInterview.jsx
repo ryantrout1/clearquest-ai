@@ -2316,18 +2316,31 @@ export default function CandidateInterview() {
   }
 
   const currentPrompt = getCurrentPrompt();
+
+  // Normalize bottom-bar mode flags
+  const currentItemType = currentItem?.type || null;
+  const isQuestion = currentItemType === "question";
+  const isV2PackField = currentItemType === "v2_pack_field";
+  const isFollowup = currentItemType === "followup";
+  const isTextQuestionOrV2 = isQuestion || isV2PackField || isFollowup;
+
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
-  const isV2PackField = currentPrompt?.type === 'v2_pack_field';
+
+  // Show text input for question, v2_pack_field, or followup types (unless yes/no)
+  const showTextInput = isTextQuestionOrV2 && !isYesNoQuestion;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
-    currentItemType: currentItem?.type,
+    currentItemType,
     currentItemId: currentItem?.id,
     packId: currentItem?.packId,
     fieldKey: currentItem?.fieldKey,
-    isYesNoQuestion,
+    isQuestion,
     isV2PackField,
+    isTextQuestionOrV2,
+    isYesNoQuestion,
+    showTextInput,
     v2PackMode,
     screenMode
   });
