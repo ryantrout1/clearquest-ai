@@ -2334,6 +2334,8 @@ export default function CandidateInterview() {
 
   // Shared submit helper for bottom bar - uses `input` state
   const handleBottomBarSubmit = async (event) => {
+    console.log("[BOTTOM_BAR_SUBMIT_CALLED]", { eventType: event?.type, hasEvent: !!event });
+    
     if (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -2374,7 +2376,15 @@ export default function CandidateInterview() {
 
   // Keydown handler for Enter key on bottom bar input
   const handleBottomBarKeyDown = (e) => {
+    console.log("[BOTTOM_BAR_KEYDOWN]", { key: e.key, shiftKey: e.shiftKey, currentItemType: currentItem?.type });
     if (e.key === "Enter" && !e.shiftKey) {
+      console.log("[BOTTOM_BAR_KEYDOWN_ENTER]", {
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId,
+        fieldKey: currentItem?.fieldKey,
+        inputSnapshot: input,
+      });
       e.preventDefault();
       handleBottomBarSubmit(e);
     }
