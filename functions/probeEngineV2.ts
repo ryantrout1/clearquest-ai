@@ -2407,10 +2407,17 @@ async function probeEngineV2(input, base44Client) {
     sectionName = null,           // Section context for topic anchoring
     baseQuestionText = null,      // Full base question text for context
     questionDbId = null,          // Database ID (unique identifier)
-    questionCode = null           // Display code (may not be unique)
+    questionCode = null,          // Display code (may not be unique)
+    instance_number = 1           // Instance number for multi-instance packs
   } = input;
 
-  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}`);
+  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}, instance=${instance_number}`);
+  
+  // EXPLICIT LOGGING: Entry point for PRIOR_LE_APPS standard cluster
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] ========== PRIOR LE APPS PER-FIELD HANDLER ==========`);
+    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] packId=${pack_id}, fieldKey=${field_key}, instanceNumber=${instance_number}, answer="${field_value?.substring?.(0, 80) || field_value}"`);
+  }
   
   // EXPLICIT LOGGING: Entry point for PACK_PRIOR_LE_APPS_STANDARD
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
