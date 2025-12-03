@@ -2329,7 +2329,7 @@ export default function CandidateInterview() {
 
   // Normalize bottom-bar mode flags
   const currentItemType = currentItem?.type || null;
-  const isQuestion = currentItemType === "question";
+  const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field";
   const isV2PackField = currentItemType === "v2_pack_field";
   const isFollowup = currentItemType === "followup";
   const answerable = isAnswerableItem(currentItem);
