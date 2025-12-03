@@ -2332,6 +2332,57 @@ export default function CandidateInterview() {
     screenMode
   });
 
+  // Shared submit helper for bottom bar - uses `input` state
+  const handleBottomBarSubmit = async (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    if (!currentItem) {
+      console.log("[SUBMIT_CLICK] blocked: no currentItem");
+      return;
+    }
+
+    const answer = (input ?? "").trim();
+
+    console.log("[SUBMIT_CLICK]", {
+      currentItemType: currentItem.type,
+      currentItemId: currentItem.id,
+      packId: currentItem.packId,
+      fieldKey: currentItem.fieldKey,
+      screenMode,
+      answer,
+      isCommitting,
+    });
+
+    if (isCommitting) {
+      console.log("[SUBMIT_CLICK] blocked: isCommitting");
+      return;
+    }
+
+    if (!answer) {
+      console.log("[SUBMIT_CLICK] blocked: empty answer");
+      return;
+    }
+
+    // IMPORTANT: do NOT gate by type here.
+    // v2_pack_field MUST be allowed through.
+    await handleAnswer(answer);
+    setInput("");
+  };
+
+  // Keydown handler for Enter key on bottom bar input
+  const handleBottomBarKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleBottomBarSubmit(e);
+    }
+  };
+
+  // Submit disabled logic - allows v2_pack_field
+  const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
+
   if (screenMode === "WELCOME") {
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
