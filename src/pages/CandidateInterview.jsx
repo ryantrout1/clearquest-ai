@@ -1435,10 +1435,29 @@ export default function CandidateInterview() {
                 hasQuestion: !!initialCallResult?.question
               });
               
-              // If backend returned an opening question/message, show it
+              // If backend returned an opening question/message, show it as AI probe
               if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question) {
                 console.log(`[V2_PACK][CLUSTER_INIT] Showing AI opening message before fields`);
                 
+                // Add AI opening question to transcript
+                const aiOpeningEntry = createChatEvent('ai_probe_question', {
+                  questionId: `v2pack-opening-${packId}`,
+                  questionText: initialCallResult.question,
+                  packId: packId,
+                  kind: 'v2_pack_opening',
+                  text: initialCallResult.question,
+                  content: initialCallResult.question,
+                  fieldKey: firstField.fieldKey,
+                  followupPackId: packId,
+                  instanceNumber: 1,
+                  baseQuestionId: currentItem.id,
+                  source: 'V2_PACK_CLUSTER_OPENING'
+                });
+                
+                const updatedTranscript = [...newTranscript, aiOpeningEntry];
+                setTranscript(updatedTranscript);
+                
+                // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
                 setIsInvokeLLMMode(true);
                 setCurrentFieldProbe({
@@ -1458,10 +1477,24 @@ export default function CandidateInterview() {
                   isClusterOpening: true
                 });
                 
-                await persistStateToDatabase(newTranscript, [], {
-                  id: `v2pack-${packId}-opening`,
-                  type: 'v2_pack_opening',
-                  packId
+                // Keep currentItem as the first field - but it won't be shown until after AI probe
+                setCurrentItem({
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0,
+                  fieldKey: firstField.fieldKey,
+                  fieldConfig: firstField,
+                  baseQuestionId: currentItem.id,
+                  instanceNumber: 1
+                });
+                setQueue([]);
+                
+                await persistStateToDatabase(updatedTranscript, [], {
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0
                 });
               } else {
                 // No opening message - go directly to first field
