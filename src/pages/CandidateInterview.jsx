@@ -2732,8 +2732,28 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Hide footer input when V3 probing is active - V3ProbingLoop has its own input */}
-              {v3ProbingActive ? (
+          {/* Section transition: show "Begin Next Section" button */}
+          {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
+            <div className="flex flex-col items-center">
+              <Button
+                onClick={() => {
+                  console.log("[CandidateInterview] Beginning next section", pendingSectionTransition);
+                  setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
+                  setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                  setPendingSectionTransition(null);
+                  persistStateToDatabase(transcript, [], { id: pendingSectionTransition.nextQuestionId, type: 'question' });
+                  setTimeout(() => autoScrollToBottom(), 100);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
+                size="lg"
+              >
+                Begin Next Section →
+              </Button>
+              <p className="text-xs text-emerald-400 text-center mt-3">
+                Click to continue to {pendingSectionTransition.nextSectionName}
+              </p>
+            </div>
+          ) : v3ProbingActive ? (
                 <p className="text-xs text-emerald-400 text-center">
                   Please respond to the AI follow-up questions above.
                 </p>
