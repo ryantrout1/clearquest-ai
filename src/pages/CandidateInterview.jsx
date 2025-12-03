@@ -2479,12 +2479,16 @@ export default function CandidateInterview() {
       return;
     }
 
+    // EXPLICIT LOG: Confirm bottom bar is submitting for v2_pack_field
+    console.log("[BOTTOM_BAR][SUBMIT] ========== SUBMITTING ANSWER ==========");
     console.log("[BOTTOM_BAR][SUBMIT]", {
       currentItemType: currentItem.type,
       currentItemId: currentItem.id,
       packId: currentItem.packId,
       fieldKey: currentItem.fieldKey,
-      answer: trimmed,
+      instanceNumber: currentItem.instanceNumber,
+      answer: trimmed.substring(0, 60),
+      isV2PackField: currentItem.type === 'v2_pack_field'
     });
 
     await handleAnswer(trimmed);
