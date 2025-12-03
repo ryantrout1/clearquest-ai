@@ -1043,6 +1043,198 @@ export default function CandidateInterview() {
     }
 
     try {
+      // ========================================================================
+      // V2 PACK FIELD HANDLER - MUST BE CHECKED FIRST
+      // This handles answers for v2_pack_field items (PACK_PRIOR_LE_APPS_STANDARD, etc.)
+      // ========================================================================
+      if (currentItem.type === 'v2_pack_field') {
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] ========== V2 PACK FIELD BRANCH ENTERED ==========`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] packId=${currentItem.packId}, fieldKey=${currentItem.fieldKey}, instanceNumber=${currentItem.instanceNumber}`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] answer="${value?.substring?.(0, 80) || value}"`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] activeV2Pack:`, activeV2Pack ? { packId: activeV2Pack.packId, currentIndex: activeV2Pack.currentIndex, fieldsCount: activeV2Pack.fields?.length } : 'null');
+        
+        const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
+        
+        // Validate we have an active V2 pack
+        if (!activeV2Pack) {
+          console.error("[HANDLE_ANSWER][V2_PACK_FIELD][ERROR] No active V2 pack - recovering by exiting pack mode");
+          setV2PackMode("BASE");
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+        
+        // Validate answer for required fields
+        const normalizedAnswer = value.trim();
+        if (!normalizedAnswer && fieldConfig?.required) {
+          setValidationHint('This field is required. Please provide an answer.');
+          setIsCommitting(false);
+          return;
+        }
+        
+        const finalAnswer = normalizedAnswer || "(No response provided)";
+        const questionText = fieldConfig?.label || fieldKey;
+        const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+        const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
+        
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
+        
+        // Log Q&A to transcript
+        const v2CombinedEntry = createChatEvent('followup_question', {
+          questionId: `v2pack-${packId}-${fieldIndex}`,
+          questionText: questionText,
+          packId: packId,
+          kind: 'v2_pack_followup',
+          text: questionText,
+          content: questionText,
+          fieldKey: fieldKey,
+          followupPackId: packId,
+          instanceNumber: instanceNumber,
+          baseQuestionId: baseQuestionId,
+          source: 'V2_PACK',
+          stepNumber: fieldIndex + 1,
+          totalSteps: totalFieldsInPack,
+          answer: finalAnswer
+        });
+        
+        const newTranscript = [...transcript, v2CombinedEntry];
+        setTranscript(newTranscript);
+        
+        // Update collected answers
+        const updatedCollectedAnswers = {
+          ...activeV2Pack.collectedAnswers,
+          [fieldKey]: finalAnswer
+        };
+        
+        // Save to database
+        await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
+        
+        // Call V2 backend engine
+        const maxAiFollowups = getPackMaxAiFollowups(packId);
+        const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
+        const probeCount = aiFollowupCounts[fieldCountKey] || 0;
+        const baseQuestion = engine.QById[baseQuestionId];
+        
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_CALL] Calling probeEngineV2...`);
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_CALL] packId=${packId}, fieldKey=${fieldKey}, probeCount=${probeCount}/${maxAiFollowups}`);
+        
+        const v2Result = await runV2FieldProbeIfNeeded({
+          base44Client: base44,
+          packId,
+          fieldKey,
+          fieldValue: finalAnswer,
+          previousProbesCount: probeCount,
+          incidentContext: updatedCollectedAnswers,
+          sessionId,
+          questionCode: baseQuestion?.question_id,
+          baseQuestionId,
+          aiProbingEnabled,
+          aiProbingDisabledForSession,
+          maxAiFollowups,
+          instanceNumber
+        });
+        
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_RESPONSE] mode=${v2Result?.mode}, hasQuestion=${!!v2Result?.question}`);
+        
+        // Handle backend errors gracefully
+        if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
+          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Backend returned ${v2Result?.mode || 'null'} - using deterministic fallback`);
+          v2Result.mode = 'NEXT_FIELD';
+        }
+        
+        const isLastField = fieldIndex >= totalFieldsInPack - 1;
+        
+        // Handle AI probe question
+        if (v2Result?.mode === 'QUESTION' && v2Result.question) {
+          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][AI_PROBE] Showing AI follow-up for ${fieldKey}`);
+          
+          setAiFollowupCounts(prev => ({
+            ...prev,
+            [fieldCountKey]: probeCount + 1
+          }));
+          
+          setIsWaitingForAgent(true);
+          setIsInvokeLLMMode(true);
+          setCurrentFieldProbe({
+            packId,
+            instanceNumber,
+            fieldKey,
+            baseQuestionId,
+            substanceName: activeV2Pack.substanceName,
+            currentItem,
+            question: v2Result.question,
+            isV2PackMode: true
+          });
+          
+          setActiveV2Pack(prev => ({
+            ...prev,
+            collectedAnswers: updatedCollectedAnswers
+          }));
+          
+          await persistStateToDatabase(newTranscript, [], currentItem);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+        
+        // Advance to next field or complete pack
+        if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
+          const nextFieldIdx = fieldIndex + 1;
+          const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+          
+          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][NEXT] Advancing: ${fieldKey} -> ${nextFieldConfig.fieldKey} (${nextFieldIdx + 1}/${totalFieldsInPack})`);
+          
+          setActiveV2Pack(prev => ({
+            ...prev,
+            currentIndex: nextFieldIdx,
+            collectedAnswers: updatedCollectedAnswers
+          }));
+          
+          const nextItemForV2 = {
+            id: `v2pack-${packId}-${nextFieldIdx}`,
+            type: 'v2_pack_field',
+            packId: packId,
+            fieldIndex: nextFieldIdx,
+            fieldKey: nextFieldConfig.fieldKey,
+            fieldConfig: nextFieldConfig,
+            baseQuestionId: baseQuestionId,
+            instanceNumber: instanceNumber
+          };
+          
+          setCurrentItem(nextItemForV2);
+          setQueue([]);
+          
+          await persistStateToDatabase(newTranscript, [], nextItemForV2);
+          console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][EXIT] Now showing: ${nextFieldConfig.fieldKey}`);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
+        
+        // Pack complete - exit V2 pack mode
+        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][COMPLETE] Pack ${packId} finished - returning to section flow`);
+        
+        setActiveV2Pack(null);
+        setV2PackMode("BASE");
+        setCurrentFollowUpAnswers({});
+        lastLoggedV2PackFieldRef.current = null;
+        
+        const baseQuestionForExit = engine.QById[baseQuestionId];
+        if (baseQuestionForExit?.followup_multi_instance) {
+          onFollowupPackComplete(baseQuestionId, packId);
+        } else {
+          advanceToNextBaseQuestion(baseQuestionId);
+        }
+        
+        await persistStateToDatabase(newTranscript, [], null);
+        setIsCommitting(false);
+        setInput("");
+        return;
+      }
+      
+      // ========================================================================
+      // REGULAR QUESTION HANDLER
+      // ========================================================================
       if (currentItem.type === 'question') {
         const question = engine.QById[currentItem.id];
         if (!question) {
