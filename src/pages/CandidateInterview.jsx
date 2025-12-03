@@ -1130,8 +1130,18 @@ export default function CandidateInterview() {
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
         const baseQuestion = engine.QById[baseQuestionId];
         
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_CALL] Calling probeEngineV2...`);
-        console.log(`[HANDLE_ANSWER][V2_PACK_FIELD][BACKEND_CALL] packId=${packId}, fieldKey=${fieldKey}, probeCount=${probeCount}/${maxAiFollowups}`);
+        // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine (same as regular V2 follow-ups)
+        console.log(`[V2_PACK_FIELD][PROBE_CALL] ========== CALLING BACKEND PROBE ENGINE ==========`);
+        console.log(`[V2_PACK_FIELD][PROBE_CALL]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          answerPreview: finalAnswer?.substring?.(0, 60),
+          probeCount,
+          maxAiFollowups,
+          aiProbingEnabled,
+          aiProbingDisabledForSession
+        });
         
         const v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
