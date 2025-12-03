@@ -2337,6 +2337,21 @@ export default function CandidateInterview() {
       };
     }
     
+    // If waiting for agent and we have a field probe question, show it
+    if (isWaitingForAgent && currentFieldProbe) {
+      const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
+      return {
+        type: 'ai_probe',
+        id: `ai-probe-${currentFieldProbe.packId}-${currentFieldProbe.fieldKey}`,
+        text: currentFieldProbe.question,
+        responseType: 'text',
+        packId: currentFieldProbe.packId,
+        fieldKey: currentFieldProbe.fieldKey,
+        instanceNumber: currentFieldProbe.instanceNumber,
+        category: packConfig?.instancesLabel || 'Follow-up'
+      };
+    }
+    
     if (isWaitingForAgent) {
       return null;
     }
