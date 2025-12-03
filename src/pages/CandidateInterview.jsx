@@ -2775,22 +2775,25 @@ export default function CandidateInterview() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const answer = input.trim();
+              console.log("[FORM_SUBMIT] ========== FORM SUBMIT EVENT ==========");
               console.log("[FORM_SUBMIT] Form submitted", { 
                 hasAnswer: !!answer, 
                 isCommitting, 
                 currentItemType: currentItem?.type,
-                inputLength: input.length 
+                currentItemId: currentItem?.id,
+                inputLength: input.length,
+                v2PackMode
               });
               if (answer && !isCommitting) {
                 // Log V2 pack field submission
                 if (currentItem?.type === 'v2_pack_field') {
                   console.log("[V2_PACK][FORM_SUBMIT] ========== V2 PACK FIELD FORM SUBMIT ==========");
-                  console.log("[V2_PACK][FORM_SUBMIT] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "answer=", answer.substring(0, 80));
+                  console.log("[V2_PACK][FORM_SUBMIT] packId=", currentItem.packId, "fieldKey=", currentItem.fieldKey, "instanceNumber=", currentItem.instanceNumber, "answer=", answer.substring(0, 80));
                 }
                 handleAnswer(answer);
                 setInput("");
               } else {
-                console.log("[FORM_SUBMIT] Blocked", { answer: !!answer, isCommitting });
+                console.log("[FORM_SUBMIT] Blocked - not calling handleAnswer", { hasAnswer: !!answer, isCommitting, reason: !answer ? 'empty answer' : 'isCommitting=true' });
               }
             }} className="flex gap-3">
               <Input
