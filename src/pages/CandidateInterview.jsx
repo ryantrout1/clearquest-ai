@@ -2865,13 +2865,7 @@ export default function CandidateInterview() {
               </Button>
             </div>
           ) : showTextInput && !pendingSectionTransition ? (
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleBottomBarSubmit();
-            }}
-            className="flex gap-3"
-          >
+          <div className="flex gap-3">
             <Input
               ref={inputRef}
               value={input}
@@ -2884,7 +2878,7 @@ export default function CandidateInterview() {
             <Button
               type="button"
               onClick={() => {
-                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { currentItemType: currentItem?.type });
+                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { currentItemType: currentItem?.type, packId: currentItem?.packId, fieldKey: currentItem?.fieldKey });
                 handleBottomBarSubmit();
               }}
               disabled={isBottomBarSubmitDisabled}
@@ -2892,7 +2886,7 @@ export default function CandidateInterview() {
             >
               <Send className="w-5 h-5" />
             </Button>
-          </form>
+          </div>
           ) : null}
           
           {!v3ProbingActive && (
