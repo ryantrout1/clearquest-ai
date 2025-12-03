@@ -1407,28 +1407,83 @@ export default function CandidateInterview() {
               });
               setV2PackTriggerQuestionId(currentItem.id);
               setV2PackMode("V2_PACK");
-              
-              // Set the first V2 pack field as current item
-              const firstField = orderedFields[0];
-              setCurrentItem({
-                id: `v2pack-${packId}-0`,
-                type: 'v2_pack_field',
-                packId: packId,
-                fieldIndex: 0,
-                fieldKey: firstField.fieldKey,
-                fieldConfig: firstField,
-                baseQuestionId: currentItem.id,
-                instanceNumber: 1
-              });
-              setQueue([]);
               setCurrentFollowUpAnswers({});
               
-              await persistStateToDatabase(newTranscript, [], {
-                id: `v2pack-${packId}-0`,
-                type: 'v2_pack_field',
-                packId: packId,
-                fieldIndex: 0
+              // For V2 standard cluster packs: Make initial backend call to get AI opening
+              // This allows the AI to acknowledge the "yes" and set context before asking fields
+              console.log(`[V2_PACK][CLUSTER_INIT] Making initial backend call for pack opening...`);
+              
+              const firstField = orderedFields[0];
+              const initialCallResult = await runV2FieldProbeIfNeeded({
+                base44Client: base44,
+                packId,
+                fieldKey: firstField.fieldKey,
+                fieldValue: "", // Empty initial value to trigger opening
+                previousProbesCount: 0,
+                incidentContext: {},
+                sessionId,
+                questionCode: question?.question_id,
+                baseQuestionId: currentItem.id,
+                aiProbingEnabled,
+                aiProbingDisabledForSession,
+                maxAiFollowups: getPackMaxAiFollowups(packId),
+                instanceNumber: 1
               });
+              
+              console.log(`[V2_PACK][CLUSTER_INIT] Backend response:`, {
+                mode: initialCallResult?.mode,
+                hasQuestion: !!initialCallResult?.question
+              });
+              
+              // If backend returned an opening question/message, show it
+              if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question) {
+                console.log(`[V2_PACK][CLUSTER_INIT] Showing AI opening message before fields`);
+                
+                setIsWaitingForAgent(true);
+                setIsInvokeLLMMode(true);
+                setCurrentFieldProbe({
+                  packId,
+                  instanceNumber: 1,
+                  fieldKey: firstField.fieldKey,
+                  baseQuestionId: currentItem.id,
+                  substanceName: substanceName,
+                  currentItem: {
+                    id: `v2pack-${packId}-0`,
+                    type: 'v2_pack_field',
+                    packId,
+                    fieldIndex: 0
+                  },
+                  question: initialCallResult.question,
+                  isV2PackMode: true,
+                  isClusterOpening: true
+                });
+                
+                await persistStateToDatabase(newTranscript, [], {
+                  id: `v2pack-${packId}-opening`,
+                  type: 'v2_pack_opening',
+                  packId
+                });
+              } else {
+                // No opening message - go directly to first field
+                setCurrentItem({
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0,
+                  fieldKey: firstField.fieldKey,
+                  fieldConfig: firstField,
+                  baseQuestionId: currentItem.id,
+                  instanceNumber: 1
+                });
+                setQueue([]);
+                
+                await persistStateToDatabase(newTranscript, [], {
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0
+                });
+              }
               
               setIsCommitting(false);
               setInput("");
