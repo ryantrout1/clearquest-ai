@@ -3,7 +3,198 @@
  * 
  * This module defines the structure and behavior of follow-up packs,
  * including field definitions, skip logic, AI probing controls, and display settings.
+ * 
+ * V2 Universal MVP: All V2 packs now use the Discretion Engine for AI-driven probing.
+ * No deterministic follow-up questions surface to candidates.
  */
+
+// ============================================================================
+// FACT ANCHOR SCHEMAS - What facts must be collected for each pack
+// These are used by the Discretion Engine to decide when to probe and when to stop
+// ============================================================================
+
+export const PACK_FACT_ANCHORS = {
+  // Prior Law Enforcement Applications
+  "PACK_PRIOR_LE_APPS_STANDARD": {
+    required: ["agency_type", "position", "month_year", "outcome"],
+    optional: ["agency_name", "location", "reason_not_hired"],
+    severity: "standard",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_LE_APPS": {
+    required: ["agency_type", "position", "month_year", "outcome"],
+    optional: ["agency_name", "location", "reason_not_hired"],
+    severity: "standard",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  
+  // Driving Packs
+  "PACK_DRIVING_COLLISION_STANDARD": {
+    required: ["month_year", "location", "what_happened", "at_fault"],
+    optional: ["injuries", "citations", "property_damage"],
+    severity: "standard",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_DRIVING_VIOLATIONS_STANDARD": {
+    required: ["violation_type", "location", "month_year", "disposition"],
+    optional: ["fine_amount", "points"],
+    severity: "laxed",
+    maxProbes: 3,
+    multiInstance: true
+  },
+  "PACK_DRIVING_DUIDWI_STANDARD": {
+    required: ["substance", "approx_level", "location", "month_year", "outcome"],
+    optional: ["arrest_status", "court_outcome", "license_impact"],
+    severity: "strict",
+    maxProbes: 5,
+    multiInstance: true
+  },
+  "PACK_DRIVING_STANDARD": {
+    required: ["incident_type", "month_year", "location", "outcome"],
+    optional: ["description"],
+    severity: "standard",
+    maxProbes: 3,
+    multiInstance: true
+  },
+  
+  // Criminal / Violence Packs
+  "PACK_DOMESTIC_VIOLENCE_STANDARD": {
+    required: ["relationship", "behavior_type", "month_year", "outcome"],
+    optional: ["injury_or_damage", "location", "protective_order"],
+    severity: "strict",
+    maxProbes: 5,
+    multiInstance: true
+  },
+  "PACK_ASSAULT_STANDARD": {
+    required: ["month_year", "location", "circumstances", "outcome"],
+    optional: ["injuries", "weapons_involved"],
+    severity: "strict",
+    maxProbes: 5,
+    multiInstance: true
+  },
+  "PACK_GENERAL_CRIME_STANDARD": {
+    required: ["month_year", "location", "what_happened", "legal_outcome"],
+    optional: ["charges", "arrest_status"],
+    severity: "strict",
+    maxProbes: 5,
+    multiInstance: true
+  },
+  "PACK_THEFT_STANDARD": {
+    required: ["month_year", "location", "what_stolen", "legal_outcome"],
+    optional: ["value", "circumstances"],
+    severity: "strict",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_PROPERTY_CRIME_STANDARD": {
+    required: ["month_year", "location", "property_type", "legal_outcome"],
+    optional: ["damage_amount", "circumstances"],
+    severity: "standard",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_FRAUD_STANDARD": {
+    required: ["fraud_type", "month_year", "circumstances", "legal_outcome"],
+    optional: ["amount_involved"],
+    severity: "strict",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  
+  // Drug / Alcohol Packs
+  "PACK_DRUG_USE_STANDARD": {
+    required: ["substance_type", "first_use", "last_use", "frequency"],
+    optional: ["total_uses", "consequences"],
+    severity: "standard",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_ALCOHOL_STANDARD": {
+    required: ["frequency", "binge_episodes", "misconduct"],
+    optional: ["blackouts", "work_impact", "treatment_history"],
+    severity: "standard",
+    maxProbes: 3,
+    multiInstance: false
+  },
+  
+  // Employment / Integrity Packs
+  "PACK_EMPLOYMENT_STANDARD": {
+    required: ["employer", "month_year", "incident_type", "outcome"],
+    optional: ["position", "circumstances"],
+    severity: "standard",
+    maxProbes: 3,
+    multiInstance: true
+  },
+  "PACK_INTEGRITY_APPS": {
+    required: ["agency", "issue_type", "month_year", "consequences"],
+    optional: ["what_omitted", "reason_omitted"],
+    severity: "strict",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  
+  // Financial Packs
+  "PACK_FINANCIAL_STANDARD": {
+    required: ["financial_issue_type", "amount_owed", "resolution_status"],
+    optional: ["creditor", "legal_actions"],
+    severity: "standard",
+    maxProbes: 3,
+    multiInstance: true
+  },
+  
+  // Other Packs
+  "PACK_GENERAL_DISCLOSURE_STANDARD": {
+    required: ["disclosure_type", "circumstances", "time_period"],
+    optional: [],
+    severity: "laxed",
+    maxProbes: 2,
+    multiInstance: true
+  },
+  "PACK_STALKING_HARASSMENT_STANDARD": {
+    required: ["behavior_type", "month_year", "circumstances", "legal_outcome"],
+    optional: ["duration", "victim_relationship"],
+    severity: "strict",
+    maxProbes: 4,
+    multiInstance: true
+  },
+  "PACK_CHILD_ABUSE_STANDARD": {
+    required: ["month_year", "allegation_type", "investigation_outcome"],
+    optional: ["child_age", "location"],
+    severity: "strict",
+    maxProbes: 5,
+    multiInstance: true
+  }
+};
+
+/**
+ * Get fact anchor schema for a pack
+ * @param {string} packId 
+ * @returns {object|null}
+ */
+export function getPackFactAnchors(packId) {
+  return PACK_FACT_ANCHORS[packId] || null;
+}
+
+/**
+ * Get severity level for a pack
+ * @param {string} packId 
+ * @returns {"laxed"|"standard"|"strict"}
+ */
+export function getPackSeverity(packId) {
+  return PACK_FACT_ANCHORS[packId]?.severity || "standard";
+}
+
+/**
+ * Check if pack supports multiple instances
+ * @param {string} packId 
+ * @returns {boolean}
+ */
+export function isMultiInstancePack(packId) {
+  return PACK_FACT_ANCHORS[packId]?.multiInstance !== false;
+}
 
 /**
  * @typedef {Object} SkipRule
