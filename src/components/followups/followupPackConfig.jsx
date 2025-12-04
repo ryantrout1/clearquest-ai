@@ -833,8 +833,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
-    packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
+    packDescription: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
+    multiInstanceDescription: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
     maxAiFollowups: 3,
     factAnchors: [
       { key: "agency_type", label: "Type of agency", answerType: "single_choice", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
@@ -850,10 +850,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "agency_type",
-        label: "First, tell me briefly about this prior application. What type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), and about what month and year did you apply?",
+        label: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
         factsLabel: "Agency type and timing",
         inputType: "text",
-        placeholder: "Example: Sheriff's office – applied around March 2022",
+        placeholder: "Example: City police department, police officer, March 2022",
         required: true,
         aiProbingEnabled: true,
         includeInFacts: true,

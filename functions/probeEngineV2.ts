@@ -23,6 +23,11 @@ const PACK_OPENING_MESSAGES = {
   multi: "Got it. I'll take these one at a time so everything stays clear."
 };
 
+// Pack-specific compound opening questions (replaces generic opening)
+const PACK_COMPOUND_OPENING_QUESTIONS = {
+  "PACK_PRIOR_LE_APPS_STANDARD": "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?"
+};
+
 /**
  * Helper to detect "I don't recall / remember / know" style answers
  * Used to force probing even if field-specific validation might accept the value
@@ -2542,21 +2547,22 @@ async function probeEngineV2(input, base44Client) {
     
     // Special handling for cluster opening (empty field_value on first field)
     if (field_key === "PACK_PRLE_Q01" && (!field_value || field_value.trim() === "")) {
-      const packConfig = PACK_CONFIG[pack_id];
-      if (packConfig?.clusterOpeningMessage) {
-        console.log(`[V2-BACKEND-CLUSTER-INIT] Returning cluster opening message for PACK_PRIOR_LE_APPS_STANDARD`);
+      // Use compound opening question instead of generic message
+      const compoundQuestion = PACK_COMPOUND_OPENING_QUESTIONS[pack_id];
+      if (compoundQuestion) {
+        console.log(`[V2-BACKEND-CLUSTER-INIT] Returning compound opening question for PACK_PRIOR_LE_APPS_STANDARD`);
         return {
           mode: "QUESTION",
           pack_id,
           field_key,
           semanticField: "agency_type",
-          question: packConfig.clusterOpeningMessage,
+          question: compoundQuestion,
           validationResult: "cluster_opening",
           previousProbeCount: 0,
           maxProbesPerField: 3,
           isFallback: false,
-          probeSource: 'cluster_opening',
-          message: "Cluster opening message for pack initialization"
+          probeSource: 'compound_opening',
+          message: "Compound opening question for pack initialization"
         };
       }
     }
