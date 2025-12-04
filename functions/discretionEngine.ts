@@ -510,15 +510,15 @@ function evaluateDiscretion({
     tone = "firm";
   }
   
-  // Rule 1: Max probes reached → STOP
-  if (probeCount >= schema.maxProbes) {
-    console.log(`[DISCRETION] STOP: Max probes reached (${probeCount}/${schema.maxProbes})`);
+  // Rule 1: Max probes reached → STOP (prevents infinite loops)
+  if (normalizedProbeCount >= schema.maxProbes) {
+    console.log(`[DISCRETION] STOP: Max probes reached (${normalizedProbeCount}/${schema.maxProbes})`);
     return {
       action: "stop",
       question: null,
       targetAnchors: [],
       tone,
-      reason: `Max probes reached (${probeCount}/${schema.maxProbes})`
+      reason: `Max probes reached (${normalizedProbeCount}/${schema.maxProbes})`
     };
   }
   
