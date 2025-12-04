@@ -491,35 +491,40 @@ function evaluateDiscretion({
   
   const schema = getPackSchema(packId);
   
-  // HARDENING: Validate schema
+  // HARDENING: Validate schema - use DEFAULT_SCHEMA if pack not found
   if (!schema || !schema.required) {
-    console.warn(`[DISCRETION] Invalid schema for pack=${packId}`);
-    return { action: 'stop', question: null, targetAnchors: [], tone: 'neutral', reason: 'Invalid pack schema' };
+    console.warn(`[DISCRETION] No schema for pack=${packId} - using DEFAULT_SCHEMA`);
   }
   
-  // HARDENING: Normalize probeCount (never negative)
-  const normalizedProbeCount = Math.max(0, probeCount || 0);
+  // HARDENING: Use safe defaults from schema
+  const safeSchema = schema || DEFAULT_SCHEMA;
+  const safeMaxProbes = safeSchema.maxProbes || 3;
   
-  const { requiredMissing, allMissing, requiredComplete } = computeMissingAnchors(schema, collectedAnchors);
-  const isMultiInstance = schema.multiInstance && instanceNumber > 1;
+  // HARDENING: Normalize probeCount (never negative, cap at maxProbes + 1 safety margin)
+  const normalizedProbeCount = Math.min(Math.max(0, probeCount || 0), safeMaxProbes + 1);
   
-  console.log(`[DISCRETION] Pack=${packId} probeCount=${normalizedProbeCount}/${schema.maxProbes} requiredMissing=[${requiredMissing.join(',')}] collected=[${Object.keys(collectedAnchors).join(',')}]`);
+  const { requiredMissing, allMissing, requiredComplete } = computeMissingAnchors(safeSchema, collectedAnchors);
+  const isMultiInstance = safeSchema.multiInstance && instanceNumber > 1;
+  
+  // HARDENED: Compact logging (keys only, no PII)
+  console.log(`[DISCRETION] pack=${packId} probe=${normalizedProbeCount}/${safeMaxProbes} missing=[${requiredMissing.join(',')}]`);
   
   // Determine tone
   let tone = "neutral";
-  if (FIRM_TONE_TOPICS.includes(schema.topic)) {
+  if (FIRM_TONE_TOPICS.includes(safeSchema.topic)) {
     tone = "firm";
   }
   
   // Rule 1: Max probes reached → STOP (prevents infinite loops)
-  if (normalizedProbeCount >= schema.maxProbes) {
-    console.log(`[DISCRETION] STOP: Max probes reached (${normalizedProbeCount}/${schema.maxProbes})`);
+  // HARDENED: Hard ceiling at maxProbes - never exceed
+  if (normalizedProbeCount >= safeMaxProbes) {
+    console.log(`[DISCRETION] STOP: Max probes reached (${normalizedProbeCount}/${safeMaxProbes})`);
     return {
       action: "stop",
       question: null,
       targetAnchors: [],
       tone,
-      reason: `Max probes reached (${normalizedProbeCount}/${schema.maxProbes})`
+      reason: `Max probes reached (${normalizedProbeCount}/${safeMaxProbes})`
     };
   }
   
@@ -537,7 +542,7 @@ function evaluateDiscretion({
   
   // Rule 3: First probe (probeCount=0) → Opening combined question
   if (normalizedProbeCount === 0) {
-    const question = buildOpeningQuestion(packId, schema.multiInstance, instanceNumber);
+    const question = buildOpeningQuestion(packId, safeSchema.multiInstance, instanceNumber);
     if (!question) {
       console.error('[DISCRETION] Failed to build opening question');
       return { action: 'stop', question: null, targetAnchors: [], tone, reason: 'Could not generate opening' };
@@ -546,7 +551,7 @@ function evaluateDiscretion({
     return {
       action: "ask_combined",
       question,
-      targetAnchors: schema.required.slice(0, 4),
+      targetAnchors: safeSchema.required.slice(0, 4),
       tone,
       reason: "Opening question for new incident"
     };
