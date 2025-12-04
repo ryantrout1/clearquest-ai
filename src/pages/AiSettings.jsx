@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Settings, Save, Loader2, ArrowLeft, FileText, ListChecks, MessageSquare, Check, X, Cpu } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import AIClarifierDiscretionPanel from "../components/admin/AIClarifierDiscretionPanel";
 
 const SETTINGS_TABS = [
   {
@@ -236,6 +237,9 @@ export default function AiSettings() {
                 </button>
               );
             })}
+
+            {/* AI Clarifier & Discretion Panel */}
+            <AIClarifierDiscretionPanel />
 
             {/* Info Card */}
             <Card className="bg-slate-800/30 border-slate-700/50 mt-6">
