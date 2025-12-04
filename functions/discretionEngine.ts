@@ -572,9 +572,21 @@ function evaluateDiscretion({
   }
   
   // Rule 3: First probe (probeCount=0) → Opening combined question
+  // EXCEPTION: PACK_PRIOR_LE_APPS_STANDARD has no AI opening - all fields are deterministic
   if (normalizedProbeCount === 0) {
     const question = buildOpeningQuestion(packId, safeSchema.multiInstance, instanceNumber);
     if (!question) {
+      // For PACK_PRIOR_LE_APPS_STANDARD, this is expected - no AI opening needed
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" || packId === "PACK_LE_APPS") {
+        console.log(`[DISCRETION] STOP: ${packId} has no AI opening - fields are deterministic`);
+        return { 
+          action: 'stop', 
+          question: null, 
+          targetAnchors: [], 
+          tone, 
+          reason: `${packId} uses deterministic fields only - no AI opening` 
+        };
+      }
       console.error('[DISCRETION] Failed to build opening question');
       return { action: 'stop', question: null, targetAnchors: [], tone, reason: 'Could not generate opening' };
     }
