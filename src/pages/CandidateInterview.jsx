@@ -2772,13 +2772,13 @@ export default function CandidateInterview() {
                 </div>
               )}
               
-              {/* V2 Pack followups (combined question+answer, logged on answer submission) */}
+              {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && entry.source === 'V2_PACK' && entry.answer && (
                 <div className="space-y-2 ml-4">
                   <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-purple-400 font-medium">
-                        Follow-up {entry.stepNumber} of {entry.totalSteps}
+                        Follow-up Pack
                       </span>
                     </div>
                     <p className="text-white text-sm">{entry.questionText || entry.text}</p>
