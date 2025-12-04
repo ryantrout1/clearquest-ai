@@ -2549,8 +2549,21 @@ async function probeEngineV2(input, base44Client) {
     // We'll extract specific anchors from it below
   }
   
-  // For pack opening (probeCount=0, empty field value), call Discretion Engine for opening question
+  // HARDENED: For pack opening (probeCount=0, empty field value), call Discretion Engine
+  // Validate pack_id before calling to prevent errors
   if (previous_probes_count === 0 && (!field_value || field_value.trim() === "")) {
+    if (!pack_id || typeof pack_id !== 'string') {
+      console.error(`[V2-UNIVERSAL][OPENING] Invalid pack_id: ${pack_id}`);
+      return {
+        mode: "NEXT_FIELD",
+        pack_id,
+        field_key,
+        semanticField: field_key,
+        validationResult: "invalid_pack_id",
+        message: 'Invalid pack_id - cannot open pack'
+      };
+    }
+    
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
     
     try {
@@ -2562,28 +2575,32 @@ async function probeEngineV2(input, base44Client) {
         lastAnswer: ""
       });
       
-      if (discretionResult.data?.success && discretionResult.data?.question) {
-        console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${discretionResult.data.question.substring(0, 60)}..."`);
+      // HARDENED: Validate response structure
+      if (discretionResult.data?.success && discretionResult.data?.question && discretionResult.data.question.trim()) {
+        const question = discretionResult.data.question.trim();
+        console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${question.substring(0, 60)}..."`);
         return {
           mode: "QUESTION",
           pack_id,
           field_key,
           semanticField: field_key,
-          question: discretionResult.data.question,
+          question,
           validationResult: "opening_question",
           previousProbeCount: 0,
           maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
           isFallback: false,
           probeSource: 'discretion_opening',
-          targetAnchors: discretionResult.data.targetAnchors,
-          tone: discretionResult.data.tone,
+          targetAnchors: discretionResult.data.targetAnchors || [],
+          tone: discretionResult.data.tone || 'neutral',
           instanceNumber: instance_number,
           message: "Opening question from Discretion Engine"
         };
+      } else {
+        console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
       }
     } catch (err) {
-      console.error(`[V2-UNIVERSAL][OPENING] Discretion Engine error:`, err.message);
-      // Fall through to legacy handling
+      console.error(`[V2-UNIVERSAL][OPENING] Discretion Engine error: ${err.message}`);
+      // HARDENED: Fall through to legacy handling instead of failing
     }
   }
 
