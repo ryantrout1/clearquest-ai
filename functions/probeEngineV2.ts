@@ -1228,7 +1228,8 @@ const PACK_CONFIG = {
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
-    clusterOpeningMessage: "Thanks, I'll walk through your prior law enforcement applications one at a time so your investigator has a clear record. For each one, a short 1–2 sentence description and about what month and year you applied is perfect.",
+    clusterOpeningMessage: "Thanks. I'll ask a few quick factual questions to keep things clear.",
+    multiInstanceOpeningMessage: "Got it. I'll take these one at a time so everything stays clear.",
     requiredFields: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome"],
     priorityOrder: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
