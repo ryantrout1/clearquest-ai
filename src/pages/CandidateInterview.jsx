@@ -2870,33 +2870,31 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+      <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Current question card - shown above input */}
+          {/* Floating question card - shown above input */}
           {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 mb-4 ${
-              isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/50' : 'border-blue-500/50'
-            }`}>
-              <div className="flex items-center gap-2 mb-3">
+            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 mb-5 shadow-lg shadow-black/30">
+              <div className="flex items-center gap-2 mb-2">
                 {isV2PackField ? (
                   <>
-                    <span className="text-lg font-bold text-purple-400">
-                      Follow-up {currentPrompt.stepNumber} of {currentPrompt.totalSteps}
+                    <span className="text-base font-semibold text-purple-400">
+                      Follow-up of
                     </span>
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
                   </>
                 ) : currentPrompt.type === 'ai_probe' ? (
                   <>
-                    <span className="text-lg font-bold text-purple-400">
-                      AI Clarification
+                    <span className="text-base font-semibold text-purple-400">
+                      Follow-up of
                     </span>
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-lg font-bold text-blue-400">
+                    <span className="text-base font-semibold text-blue-400">
                       Question {getQuestionDisplayNumber(currentItem.id)}
                     </span>
                     <span className="text-sm text-slate-500">•</span>
@@ -2904,7 +2902,7 @@ export default function CandidateInterview() {
                   </>
                 )}
               </div>
-              <p className="text-white text-lg font-semibold">{currentPrompt.text}</p>
+              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
               {currentPrompt.placeholder && (
                 <p className="text-slate-400 text-sm mt-1">{currentPrompt.placeholder}</p>
               )}
@@ -3002,7 +3000,7 @@ export default function CandidateInterview() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder="Type your answer..."
-              className="flex-1 bg-slate-900/50 border-2 border-green-500/60 focus:border-green-400 text-white"
+              className="flex-1 h-12 bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400"
               disabled={isCommitting}
               autoFocus
             />
@@ -3013,7 +3011,7 @@ export default function CandidateInterview() {
                 handleBottomBarSubmit();
               }}
               disabled={isBottomBarSubmitDisabled}
-              className="bg-purple-600 hover:bg-purple-700 px-6"
+              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
             >
               <Send className="w-4 h-4 mr-2" />
               Send
