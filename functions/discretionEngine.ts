@@ -535,8 +535,12 @@ function evaluateDiscretion({
   }
   
   // Rule 3: First probe (probeCount=0) → Opening combined question
-  if (probeCount === 0) {
+  if (normalizedProbeCount === 0) {
     const question = buildOpeningQuestion(packId, schema.multiInstance, instanceNumber);
+    if (!question) {
+      console.error('[DISCRETION] Failed to build opening question');
+      return { action: 'stop', question: null, targetAnchors: [], tone, reason: 'Could not generate opening' };
+    }
     console.log(`[DISCRETION] ASK_COMBINED (opening): "${question.substring(0, 60)}..."`);
     return {
       action: "ask_combined",
