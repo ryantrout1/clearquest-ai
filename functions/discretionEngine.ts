@@ -29,10 +29,10 @@ const PACK_FACT_SCHEMAS = {
     topic: "prior_apps"
   },
   "PACK_LE_APPS": {
-    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the department name
-    optional: ["agency_type", "location", "reason_not_hired"],
+    required: ["outcome"], // Only outcome - other fields handled by follow-up card
+    optional: ["reason_not_hired"],
     severity: "standard",
-    maxProbes: 4,
+    maxProbes: 1, // Hard cap: single micro-question for outcome only
     multiInstance: true,
     topic: "prior_apps"
   },
@@ -210,7 +210,13 @@ const DEFAULT_SCHEMA = {
 // ============================================================================
 
 const QUESTION_TEMPLATES = {
-  // Agency name - the actual department name (not type)
+  // Outcome - primary anchor for PACK_PRIOR_LE_APPS_STANDARD V2 probing
+  outcome: {
+    micro: "What was the outcome of this application?",
+    combined: "the outcome"
+  },
+
+  // Agency name - NOT used for PACK_PRIOR_LE_APPS_STANDARD V2 probing (handled by follow-up card)
   agency_name: {
     micro: "What was the name of the law enforcement department or agency?",
     combined: "the name of the law enforcement department or agency"
@@ -442,8 +448,9 @@ function buildOpeningQuestion(packId, isMultiInstance = false, instanceNumber = 
   
   // Special opening for specific packs
   const PACK_OPENING_OVERRIDES = {
-        "PACK_PRIOR_LE_APPS_STANDARD": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-        "PACK_LE_APPS": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+        // PACK_PRIOR_LE_APPS_STANDARD: Only ask about outcome - agency/position/month_year handled by follow-up card
+        "PACK_PRIOR_LE_APPS_STANDARD": "What was the outcome of this application?",
+        "PACK_LE_APPS": "What was the outcome of this application?",
     "PACK_DRIVING_COLLISION_STANDARD": "For this collision, about when did it occur, where did it happen, and what happened?",
     "PACK_DRIVING_DUIDWI_STANDARD": "For this incident, what substance was involved, about when did it occur, and what was the outcome?",
     "PACK_DOMESTIC_VIOLENCE_STANDARD": "For this incident, what was your relationship to the other person, about when did it occur, and what happened?",
