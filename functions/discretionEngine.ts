@@ -19,17 +19,18 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 // HARDENED: Synced with followupPackConfig.js - SINGLE SOURCE OF TRUTH for critical anchors
 const PACK_FACT_SCHEMAS = {
   // Prior Law Enforcement Applications - CRITICAL ANCHORS (MVP)
+  // agency_name = the actual name of the department (e.g., "Phoenix Police Department")
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_type", "position", "month_year", "outcome"], // Critical 4
-    optional: ["agency_name", "location", "reason_not_hired"],
+    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the department name
+    optional: ["agency_type", "location", "reason_not_hired"],
     severity: "standard",
     maxProbes: 4, // Enforced ceiling - never exceed this
     multiInstance: true,
     topic: "prior_apps"
   },
   "PACK_LE_APPS": {
-    required: ["agency_type", "position", "month_year", "outcome"],
-    optional: ["agency_name", "location", "reason_not_hired"],
+    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the department name
+    optional: ["agency_type", "location", "reason_not_hired"],
     severity: "standard",
     maxProbes: 4,
     multiInstance: true,
