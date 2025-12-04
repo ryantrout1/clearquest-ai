@@ -2821,18 +2821,18 @@ export default function CandidateInterview() {
               )}
               
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
-              {entry.type === 'followup_question' && entry.source === 'V2_PACK' && entry.answer && (
+              {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
                 <div className="space-y-2 ml-4">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  <div className={`${entry.source === 'AI_FOLLOWUP' ? 'bg-indigo-900/30 border-indigo-700/50' : 'bg-purple-900/30 border-purple-700/50'} border rounded-xl p-4`}>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-purple-400 font-medium">
-                        Follow-up Pack
+                      <span className={`text-xs font-medium ${entry.source === 'AI_FOLLOWUP' ? 'text-indigo-400' : 'text-purple-400'}`}>
+                        {entry.source === 'AI_FOLLOWUP' ? 'AI Clarification' : 'Follow-up Pack'}
                       </span>
                     </div>
                     <p className="text-white text-sm">{entry.questionText || entry.text}</p>
                   </div>
                   <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-4 py-2">
+                    <div className={`${entry.source === 'AI_FOLLOWUP' ? 'bg-indigo-600' : 'bg-purple-600'} rounded-xl px-4 py-2`}>
                       <p className="text-white text-sm">{entry.answer}</p>
                     </div>
                   </div>
