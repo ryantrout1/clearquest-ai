@@ -1022,18 +1022,17 @@ export const FOLLOWUP_PACK_CONFIGS = {
   },
 
   // Prior Law Enforcement Applications pack (v2.5)
+  // IMPORTANT: Agency name, position, and month/year are captured by the main follow-up card.
+  // The V2 engine only probes for "outcome" - that is the ONLY fact anchor for this pack.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
     multiInstanceDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-    maxAiFollowups: 3,
+    maxAiFollowups: 1, // Hard cap: single micro-question for outcome only
     factAnchors: [
-      { key: "agency_name", label: "Name of department/agency", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "month_year", label: "Approx month and year", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "outcome", label: "Outcome of application", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true }
     ],
     requiresCompletion: true,
     flagOnUnresolved: "warning",
