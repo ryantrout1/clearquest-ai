@@ -503,42 +503,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
     usePerFieldProbing: true,
     multiInstance: true,
     factAnchors: [
-      {
-        key: "approx_date",
-        label: "Approximate date (month/year)",
-        answerType: "month_year",
-        priority: 1,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "location",
-        label: "Location of incident",
-        answerType: "text",
-        priority: 2,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "what_happened",
-        label: "Brief description of what happened",
-        answerType: "text",
-        priority: 3,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "consequences",
-        label: "Consequences (citation/arrest/none)",
-        answerType: "text",
-        priority: 4,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: false
-      }
+      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
     ],
     fields: [
       {
@@ -622,6 +590,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "bac_or_level", label: "BAC or level (if known)", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q01",
@@ -721,6 +695,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_STANDARD_Q01",
@@ -780,6 +760,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_VIOLATIONS_Q01",
@@ -851,42 +837,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
     multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
     maxAiFollowups: 3,
     factAnchors: [
-      {
-        key: "agency_type",
-        label: "Type of agency (city PD / sheriff / state / federal)",
-        answerType: "single_choice",
-        priority: 1,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "position",
-        label: "Position applied for",
-        answerType: "text",
-        priority: 2,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "month_year",
-        label: "Approximate month and year",
-        answerType: "month_year",
-        priority: 3,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: true
-      },
-      {
-        key: "outcome",
-        label: "Outcome of the application",
-        answerType: "text",
-        priority: 4,
-        multiInstanceAware: true,
-        clarifierStyle: "micro",
-        required: false
-      }
+      { key: "agency_type", label: "Type of agency", answerType: "single_choice", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "month_year", label: "Approx month and year", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
     ],
     requiresCompletion: true,
     flagOnUnresolved: "warning",
@@ -1134,6 +1088,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "substance_type", label: "Substance type", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "frequency", label: "Frequency / amount", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "last_use", label: "Last use month/year", answerType: "month_year", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "frequency", semanticKey: "frequency", label: "Frequency of Alcohol Use", inputType: "select_single", required: true, options: ["Daily", "Several times per week", "Weekly", "Monthly", "Occasionally", "Rarely", "No longer drink"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "binge_episodes", semanticKey: "binge_episodes", label: "Binge Drinking Episodes", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1156,6 +1116,11 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "topic_short", label: "Short topic label", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: false },
+      { key: "context", label: "Context or location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "disclosure_type", semanticKey: "disclosure_type", label: "Nature of Disclosure", inputType: "select_single", required: true, options: ["Integrity concern", "Policy violation", "Personal conduct", "Eligibility issue", "Undisclosed information", "Background concern", "Character issue", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "circumstances", semanticKey: "circumstances", label: "Circumstances", inputType: "textarea", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1174,6 +1139,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: false },
+      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_type", semanticKey: "incident_type", label: "Type of Incident", inputType: "select_single", required: true, options: ["Arrest", "Detention", "Charge", "Investigation", "Accusation", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
@@ -1194,6 +1165,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "relationship", label: "Relationship to other person", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "injury_or_harm", label: "Injury or harm", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1214,6 +1191,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "relationship", label: "Relationship to other person", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "injury_or_harm", label: "Injury or harm", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1235,6 +1218,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "relationship", label: "Relationship to other person", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "injury_or_harm", label: "Injury or harm", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1256,6 +1245,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: false },
+      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1277,6 +1272,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: false },
+      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "location", semanticKey: "location", label: "Location", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2 },
@@ -1297,6 +1298,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "what_happened", label: "Short description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: false },
+      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "fraud_type", semanticKey: "fraud_type", label: "Type of Fraud", inputType: "select_single", required: true, options: ["Identity theft", "Credit card fraud", "Check fraud", "Insurance fraud", "Forgery", "Embezzlement", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
@@ -1317,6 +1324,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "employer_type", label: "Employer name or type", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "issue_type", label: "What was the issue", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "employer", semanticKey: "employer", label: "Employer Name", inputType: "text", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
@@ -1337,6 +1350,12 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      { key: "approx_month_year", label: "Approx month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "relationship", label: "Relationship to other person", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "injury_or_harm", label: "Injury or harm", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+    ],
     fields: [
       { fieldKey: "incident_date", semanticKey: "incident_date", label: "Incident Date", inputType: "month_year", required: true, aiProbingEnabled: true, includeInFacts: true, factsOrder: 1, includeInInstanceHeader: true, headerOrder: 1 },
       { fieldKey: "behavior_type", semanticKey: "behavior_type", label: "Type of Behavior", inputType: "select_single", required: true, options: ["Stalking", "Harassment", "Threats", "Unwanted contact", "Other"], aiProbingEnabled: false, includeInFacts: true, factsOrder: 2, includeInInstanceHeader: true, headerOrder: 2 },
