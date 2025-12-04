@@ -106,64 +106,64 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   
-  // Drug / Alcohol Packs
+  // Drug / Alcohol Packs - CRITICAL ANCHORS
   "PACK_DRUG_USE_STANDARD": {
-    required: ["substance_type", "first_use", "last_use", "frequency"],
-    optional: ["total_uses", "consequences"],
+    required: ["substance_type", "first_use", "last_use"], // Critical 3 (removed frequency - often vague)
+    optional: ["frequency", "total_uses", "consequences"],
     severity: "standard",
     maxProbes: 4,
     multiInstance: true
   },
   "PACK_ALCOHOL_STANDARD": {
-    required: ["frequency", "binge_episodes", "misconduct"],
-    optional: ["blackouts", "work_impact", "treatment_history"],
+    required: ["frequency", "binge_episodes"], // Critical 2 (not multi-instance)
+    optional: ["misconduct", "blackouts", "work_impact", "treatment_history"],
     severity: "standard",
     maxProbes: 3,
     multiInstance: false
   },
   
-  // Employment / Integrity Packs
+  // Employment / Integrity Packs - CRITICAL ANCHORS
   "PACK_EMPLOYMENT_STANDARD": {
-    required: ["employer", "month_year", "incident_type", "outcome"],
-    optional: ["position", "circumstances"],
+    required: ["employer", "month_year", "incident_type"], // Critical 3
+    optional: ["outcome", "position", "circumstances"],
     severity: "standard",
     maxProbes: 3,
     multiInstance: true
   },
   "PACK_INTEGRITY_APPS": {
-    required: ["agency", "issue_type", "month_year", "consequences"],
-    optional: ["what_omitted", "reason_omitted"],
+    required: ["agency", "issue_type", "month_year"], // Critical 3 (strict severity)
+    optional: ["consequences", "what_omitted", "reason_omitted"],
     severity: "strict",
     maxProbes: 4,
     multiInstance: true
   },
   
-  // Financial Packs
+  // Financial Packs - CRITICAL ANCHORS
   "PACK_FINANCIAL_STANDARD": {
-    required: ["financial_issue_type", "amount_owed", "resolution_status"],
-    optional: ["creditor", "legal_actions"],
+    required: ["financial_issue_type", "resolution_status"], // Critical 2
+    optional: ["amount_owed", "creditor", "legal_actions"],
     severity: "standard",
     maxProbes: 3,
     multiInstance: true
   },
   
-  // Other Packs
+  // Other Packs - CRITICAL ANCHORS
   "PACK_GENERAL_DISCLOSURE_STANDARD": {
-    required: ["disclosure_type", "circumstances", "time_period"],
-    optional: [],
+    required: ["disclosure_type", "circumstances"], // Critical 2 (laxed severity)
+    optional: ["time_period"],
     severity: "laxed",
     maxProbes: 2,
     multiInstance: true
   },
   "PACK_STALKING_HARASSMENT_STANDARD": {
-    required: ["behavior_type", "month_year", "circumstances", "legal_outcome"],
-    optional: ["duration", "victim_relationship"],
+    required: ["behavior_type", "month_year", "circumstances"], // Critical 3
+    optional: ["legal_outcome", "duration", "victim_relationship"],
     severity: "strict",
     maxProbes: 4,
     multiInstance: true
   },
   "PACK_CHILD_ABUSE_STANDARD": {
-    required: ["month_year", "allegation_type", "investigation_outcome"],
+    required: ["month_year", "allegation_type", "investigation_outcome"], // Critical 3
     optional: ["child_age", "location"],
     severity: "strict",
     maxProbes: 5,
