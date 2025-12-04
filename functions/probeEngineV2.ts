@@ -1,17 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * ProbeEngineV2 - Per-Field Probing for PACK_LE_APPS (MVP v0.2)
+ * ProbeEngineV2 - Universal MVP Probing Engine
  * 
- * Features:
- * - Validates each field immediately after deterministic answer
- * - Probes until valid answer or max probes reached
- * - Returns NEXT_FIELD when field is complete
- * - NOW USES: GlobalSettings.ai_default_probing_instructions
- * - NOW USES: GlobalSettings AI runtime config (model, temperature, max_tokens, top_p)
- * - NOW USES: FollowUpPack.ai_probe_instructions via InvokeLLM
- * - Falls back to static probes if LLM fails
- * - V2.5 MVP: Whitelisted packs only, topic-anchored prompts, max 1 probe per field by default
+ * V2.6 Universal MVP:
+ * - ALL V2 packs use Discretion Engine for AI-driven probing
+ * - NO deterministic follow-up questions surface to candidates
+ * - Per-instance state tracking with fact anchors
+ * - Minimal questions to collect critical BI facts
+ * 
+ * Flow:
+ * 1. Extract anchors from candidate answer
+ * 2. Call Discretion Engine to decide: STOP / ASK_COMBINED / ASK_MICRO
+ * 3. Return question from Discretion Engine or advance
  */
 
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
