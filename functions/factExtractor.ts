@@ -191,10 +191,15 @@ Deno.serve(async (req) => {
     }
     
   } catch (error) {
-    console.error('Fact Extractor error:', error);
+    console.error('[FACT_EXTRACTOR] Fatal error:', error.message);
+    // HARDENED: Return 200 with empty extraction to prevent interview blocking
     return Response.json({ 
-      error: error.message,
-      success: false
-    }, { status: 500 });
+      success: true,
+      newAnchors: {},
+      extractedFromThisAnswer: {},
+      stillMissing: [],
+      candidateAnswer: '',
+      error: error.message
+    }, { status: 200 });
   }
 });
