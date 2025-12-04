@@ -2598,11 +2598,16 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2-UNIVERSAL][ANSWER] Calling Discretion Engine after answer`);
     
     try {
-      // Merge incident_context with current field value as collected anchors
-      const currentAnchors = { ...incident_context };
-      // Add field_value to anchors (simplified - full extraction would parse the answer)
-      if (field_key) {
-        currentAnchors[field_key] = field_value;
+      // HARDENED: Merge extracted anchors with incident context
+      const currentAnchors = { 
+        ...incident_context,
+        ...extractedAnchors // Use extracted anchors if available
+      };
+      
+      // HARDENED: Validate anchor count to prevent malformed state
+      const anchorCount = Object.keys(currentAnchors).length;
+      if (anchorCount > 20) {
+        console.warn(`[V2-UNIVERSAL] Excessive anchor count (${anchorCount}) - possible data issue`);
       }
       
       const discretionResult = await base44Client.functions.invoke('discretionEngine', {
