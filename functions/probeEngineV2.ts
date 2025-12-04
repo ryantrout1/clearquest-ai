@@ -2733,118 +2733,32 @@ async function probeEngineV2(input, base44Client) {
   } catch (err) {
     console.warn(`[V2-PER-FIELD] Error fetching FollowUpPack entity, using fallback: ${maxProbesPerField}`, err.message);
   }
+  // ============================================================================
+  // V2.6 UNIVERSAL: After answer received, extract facts and call Discretion
+  // This replaces the old fact_anchors integration block
+  // ============================================================================
   
-  // === FACT ANCHORS INTEGRATION ===
-  // If pack has fact_anchors, use discretion engine for clarifier decisions
-  if (packEntity?.fact_anchors?.length > 0) {
-    const { collectedAnchors, missingAnchors, requiredMissing } = computeAnchorState(packEntity, instance_anchors);
-    
-    console.log(`[V2-ANCHORS] Anchor state for ${pack_id} instance ${instance_number}:`, {
-      collected: Object.keys(collectedAnchors),
-      missing: missingAnchors,
-      requiredMissing
-    });
-    
-    // If no missing anchors, field is complete
-    if (missingAnchors.length === 0) {
-      console.log(`[V2-ANCHORS] All anchors collected for ${pack_id} - advancing`);
-      return {
-        mode: "NEXT_FIELD",
-        pack_id,
-        field_key,
-        semanticField,
-        validationResult: "anchors_complete",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField,
-        anchorState: { collectedAnchors, missingAnchors },
-        message: `All fact anchors collected for ${pack_id}`
-      };
-    }
-    
-    // Check if we've hit max probes
-    if (previous_probes_count >= maxProbesPerField) {
-      console.log(`[V2-ANCHORS] Max probes reached for ${pack_id} - stopping despite missing anchors`);
-      return {
-        mode: "NEXT_FIELD",
-        pack_id,
-        field_key,
-        semanticField,
-        validationResult: "max_probes_reached",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField,
-        anchorState: { collectedAnchors, missingAnchors },
-        message: `Max probes reached, ${missingAnchors.length} anchors still missing`
-      };
-    }
-    
-    // Call discretion engine to decide clarifier approach
-    let discretionDecision = { action: "ask_micro", tone: "neutral", targetAnchors: missingAnchors.slice(0, 1) };
+  if (field_value && field_value.trim()) {
+    console.log(`[V2-UNIVERSAL][EXTRACT] Extracting facts from answer`);
     
     try {
-      const discretionResult = await base44Client.functions.invoke('discretionEngine', {
-        collectedAnchors,
-        stillMissingAnchors: missingAnchors,
-        requiredAnchors: requiredMissing,
-        probeCount: previous_probes_count,
-        maxProbes: maxProbesPerField,
-        severity: "standard",
-        topic: getPackTopicForDiscretion(pack_id),
-        nonSubstantiveCount: 0
+      // Call fact extractor to parse the answer
+      const extractionResult = await base44Client.functions.invoke('factExtractor', {
+        packId: pack_id,
+        candidateAnswer: field_value,
+        previousAnchors: incident_context
       });
       
-      if (discretionResult.data?.success) {
-        discretionDecision = discretionResult.data;
-        console.log(`[V2-ANCHORS] Discretion decision:`, discretionDecision);
+      if (extractionResult.data?.success) {
+        const updatedAnchors = extractionResult.data.newAnchors || {};
+        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted anchors:`, Object.keys(updatedAnchors));
+        
+        // Now call Discretion Engine with updated anchors
+        // (This is already done at the top of the function, but we update the context here)
       }
-    } catch (err) {
-      console.warn(`[V2-ANCHORS] Discretion engine error, using default:`, err.message);
-    }
-    
-    // If discretion says stop, advance
-    if (discretionDecision.action === "stop") {
-      console.log(`[V2-ANCHORS] Discretion engine says stop - advancing`);
-      return {
-        mode: "NEXT_FIELD",
-        pack_id,
-        field_key,
-        semanticField,
-        validationResult: "discretion_stop",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField,
-        anchorState: { collectedAnchors, missingAnchors },
-        message: `Discretion engine stopped probing: ${discretionDecision.reason}`
-      };
-    }
-    
-    // Build clarifier question from anchors
-    const targetAnchors = discretionDecision.targetAnchors || missingAnchors.slice(0, discretionDecision.action === "ask_combined" ? 3 : 1);
-    const clarifierMode = discretionDecision.action === "ask_combined" ? "combined" : "micro";
-    const clarifierQuestion = buildClarifierFromAnchors(
-      packEntity, 
-      targetAnchors, 
-      clarifierMode, 
-      { multiInstance: instance_number > 1 }
-    );
-    
-    if (clarifierQuestion) {
-      console.log(`[V2-ANCHORS] Generated ${clarifierMode} clarifier for anchors [${targetAnchors.join(', ')}]: "${clarifierQuestion}"`);
-      
-      return {
-        mode: "QUESTION",
-        pack_id,
-        field_key,
-        semanticField,
-        question: clarifierQuestion,
-        validationResult: "anchor_clarifier",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField,
-        isFallback: false,
-        probeSource: `anchor_${clarifierMode}`,
-        anchorState: { collectedAnchors, missingAnchors, targetAnchors },
-        tone: discretionDecision.tone,
-        instanceNumber: instance_number,
-        message: `Asking for anchors: ${targetAnchors.join(', ')}`
-      };
+    } catch (extractErr) {
+      console.warn(`[V2-UNIVERSAL][EXTRACT] Fact extraction error:`, extractErr.message);
+      // Continue without extraction
     }
   }
 
