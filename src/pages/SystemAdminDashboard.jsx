@@ -8,11 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle, TrendingUp, Activity, Target, Settings, Mail, Phone, MessageSquare, Database, Sliders, Layers } from "lucide-react";
+import { Shield, Building2, Users, CheckCircle, XCircle, Rocket, FileText, Clock, ArrowUpCircle, Search, ArrowLeft, Plus, Trash2, AlertTriangle, TrendingUp, Activity, Target, Settings, Mail, Phone, MessageSquare, Database, Sliders, Layers, Zap } from "lucide-react";
 import TestDataGenerator from "../components/admin/TestDataGenerator";
 import SystemConfigPanel from "../components/admin/SystemConfigPanel";
 import V3ConfigPanel from "../components/admin/V3ConfigPanel";
 import V3ReadinessPanel from "../components/admin/V3ReadinessPanel";
+import AIProbingConfigPanel from "../components/admin/AIProbingConfigPanel";
 import { Link } from "react-router-dom";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -452,6 +453,18 @@ export default function SystemAdminDashboard() {
             <Database className="w-4 h-4" />
             Test Data
           </button>
+          <button
+            onClick={() => setActiveTab("ai-probing")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2",
+              activeTab === "ai-probing"
+                ? "text-amber-400 border-amber-400"
+                : "text-slate-400 border-transparent hover:text-slate-300"
+            )}
+          >
+            <Zap className="w-4 h-4" />
+            AI Probing
+          </button>
         </div>
 
         {activeTab === "departments" && (
@@ -709,6 +722,10 @@ export default function SystemAdminDashboard() {
 
         {activeTab === "test-data" && (
           <TestDataGenerator />
+        )}
+
+        {activeTab === "ai-probing" && (
+          <AIProbingConfigPanel />
         )}
 
         <div className="mt-8 text-center">
