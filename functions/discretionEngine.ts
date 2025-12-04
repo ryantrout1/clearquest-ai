@@ -713,14 +713,16 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Discretion Engine error:', error);
+    console.error('[DISCRETION_ENGINE] Fatal error:', error.message);
+    // HARDENED: Return 200 with safe stop decision to prevent interview blocking
     return Response.json({ 
-      error: error.message,
-      success: false,
+      success: true,
       action: 'stop',
+      question: null,
       targetAnchors: [],
       tone: 'neutral',
-      reason: 'Error occurred'
-    }, { status: 500 });
+      reason: 'Engine error - safe stop',
+      error: error.message
+    }, { status: 200 });
   }
 });
