@@ -32,31 +32,31 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   
-  // Driving Packs
+  // Driving Packs - CRITICAL ANCHORS
   "PACK_DRIVING_COLLISION_STANDARD": {
-    required: ["month_year", "location", "what_happened", "at_fault"],
-    optional: ["injuries", "citations", "property_damage"],
+    required: ["month_year", "location", "what_happened"], // Critical 3 (removed at_fault to keep essential only)
+    optional: ["at_fault", "injuries", "citations", "property_damage"],
     severity: "standard",
     maxProbes: 4,
     multiInstance: true
   },
   "PACK_DRIVING_VIOLATIONS_STANDARD": {
-    required: ["violation_type", "location", "month_year", "disposition"],
-    optional: ["fine_amount", "points"],
+    required: ["violation_type", "month_year", "disposition"], // Critical 3
+    optional: ["location", "fine_amount", "points"], // location moved to optional (laxed severity)
     severity: "laxed",
     maxProbes: 3,
     multiInstance: true
   },
   "PACK_DRIVING_DUIDWI_STANDARD": {
-    required: ["substance", "approx_level", "location", "month_year", "outcome"],
-    optional: ["arrest_status", "court_outcome", "license_impact"],
+    required: ["substance", "month_year", "location", "outcome"], // Critical 4 (removed approx_level - hard to get)
+    optional: ["approx_level", "arrest_status", "court_outcome", "license_impact"],
     severity: "strict",
     maxProbes: 5,
     multiInstance: true
   },
   "PACK_DRIVING_STANDARD": {
-    required: ["incident_type", "month_year", "location", "outcome"],
-    optional: ["description"],
+    required: ["incident_type", "month_year", "location"], // Critical 3
+    optional: ["outcome", "description"],
     severity: "standard",
     maxProbes: 3,
     multiInstance: true
