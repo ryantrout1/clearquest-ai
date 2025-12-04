@@ -2589,41 +2589,85 @@ async function probeEngineV2(input, base44Client) {
 
   const packConfig = PACK_CONFIG[pack_id];
   
-  // DETERMINISTIC RULE: Force probe for required date fields with no-recall answers
-  // This runs BEFORE LLM to guarantee probing when frontend flags no-recall
-  if (packConfig) {
-    const semanticFieldEarly = mapFieldKey(packConfig, field_key);
-    const isReqDate = isRequiredDateField(packConfig, semanticFieldEarly);
-    const backendNoRecall = answerLooksLikeNoRecall(field_value);
+  // ============================================================================
+  // V2.6 UNIVERSAL: Call Discretion Engine for EVERY answer
+  // The Discretion Engine decides whether to probe or advance
+  // ============================================================================
+  
+  if (field_value && field_value.trim()) {
+    console.log(`[V2-UNIVERSAL][ANSWER] Calling Discretion Engine after answer`);
     
-    if (isReqDate && (frontendNoRecallFlag || backendNoRecall)) {
-      console.log(`[V2-PER-FIELD] Backend forced QUESTION due to no-recall on required date field`, {
-        pack_id,
-        field_key,
-        semanticField: semanticFieldEarly,
-        frontendNoRecallFlag,
-        backendNoRecall
+    try {
+      // Merge incident_context with current field value as collected anchors
+      const currentAnchors = { ...incident_context };
+      // Add field_value to anchors (simplified - full extraction would parse the answer)
+      if (field_key) {
+        currentAnchors[field_key] = field_value;
+      }
+      
+      const discretionResult = await base44Client.functions.invoke('discretionEngine', {
+        packId: pack_id,
+        collectedAnchors: currentAnchors,
+        probeCount: previous_probes_count + 1, // This answer counts as a probe turn
+        instanceNumber: instance_number,
+        lastAnswer: field_value
       });
       
-      return {
-        mode: "QUESTION",
-        pack_id,
-        field_key,
-        semanticField: semanticFieldEarly,
-        question: "About what month and year did this incident occur?",
-        validationResult: "incomplete",
-        previousProbeCount: previous_probes_count,
-        maxProbesPerField: 3,
-        isFallback: false,
-        probeSource: 'deterministic_no_recall_date',
-        reasoning: 'Required date field answered with no-recall phrase',
-        message: `Forced probe for required date field ${semanticFieldEarly}`
-      };
+      console.log(`[V2-UNIVERSAL][DISCRETION] Result:`, {
+        action: discretionResult.data?.action,
+        hasQuestion: !!discretionResult.data?.question,
+        reason: discretionResult.data?.reason
+      });
+      
+      if (discretionResult.data?.success) {
+        if (discretionResult.data.action === "stop") {
+          // Discretion says we have enough - advance
+          console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
+          return {
+            mode: "NEXT_FIELD",
+            pack_id,
+            field_key,
+            semanticField: field_key,
+            validationResult: "discretion_stop",
+            previousProbeCount: previous_probes_count + 1,
+            maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
+            reason: discretionResult.data.reason,
+            instanceNumber: instance_number,
+            message: `Discretion Engine stopped: ${discretionResult.data.reason}`
+          };
+        } else if (discretionResult.data.question) {
+          // Discretion wants to ask another question
+          console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${discretionResult.data.question.substring(0, 60)}..."`);
+          return {
+            mode: "QUESTION",
+            pack_id,
+            field_key,
+            semanticField: field_key,
+            question: discretionResult.data.question,
+            validationResult: "discretion_probe",
+            previousProbeCount: previous_probes_count + 1,
+            maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
+            isFallback: false,
+            probeSource: `discretion_${discretionResult.data.action}`,
+            targetAnchors: discretionResult.data.targetAnchors,
+            tone: discretionResult.data.tone,
+            instanceNumber: instance_number,
+            message: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`
+          };
+        }
+      }
+    } catch (err) {
+      console.error(`[V2-UNIVERSAL][DISCRETION_ERROR]`, err.message);
+      // Fall through to legacy validation if Discretion Engine fails
     }
   }
   
+  // ============================================================================
+  // LEGACY FALLBACK: Only used if Discretion Engine fails
+  // ============================================================================
+  
   if (!packConfig) {
-    console.log(`[V2-PER-FIELD] No pack config found for ${pack_id} - failing closed (no generic probe)`);
+    console.log(`[V2-UNIVERSAL] No pack config found for ${pack_id} - using discretion fallback`);
     
     // For unsupported packs, fail closed - do NOT generate generic probes
     // This prevents confusing "be more specific" questions when pack-specific behavior was expected
