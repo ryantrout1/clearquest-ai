@@ -505,7 +505,28 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     }
   }
   
-  // 5) Process INTERVIEW SUMMARY (only if all sections complete)
+  // 5) Build fact graph and run Contradiction Engine
+  const factGraph = buildFactGraph(responses, followUps, responsesByQuestionCode);
+  let contradictions = [];
+  
+  try {
+    const contradictionResult = await base44.functions.invoke('contradictionEngine', {
+      sessionId,
+      baseAnswers: factGraph.baseAnswers,
+      incidents: factGraph.incidents,
+      anchorsByTopic: {}
+    });
+    
+    if (contradictionResult.data?.success) {
+      contradictions = contradictionResult.data.contradictions || [];
+      console.log('[SUMMARIES] CONTRADICTIONS', { sessionId, count: contradictions.length });
+    }
+  } catch (contradictionErr) {
+    console.warn('[SUMMARIES] CONTRADICTION_ENGINE_ERROR', { sessionId, error: contradictionErr.message });
+    // Continue without contradictions
+  }
+  
+  // 6) Process INTERVIEW SUMMARY (only if all sections complete)
   const hasExistingGlobalSummary = session?.global_ai_summary?.text && 
     session.global_ai_summary.text.length > 0 &&
     !session.global_ai_summary.text.includes('lack of disclosures');
