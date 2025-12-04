@@ -2611,6 +2611,24 @@ async function probeEngineV2(input, base44Client) {
   // The Discretion Engine decides whether to probe or advance
   // ============================================================================
   
+  // HARDENED: Extract anchors BEFORE calling Discretion Engine
+  let extractedAnchors = {};
+  if (field_value && field_value.trim()) {
+    try {
+      const extractionResult = await base44Client.functions.invoke('factExtractor', {
+        packId: pack_id,
+        candidateAnswer: field_value,
+        previousAnchors: incident_context
+      });
+      if (extractionResult.data?.success && extractionResult.data.newAnchors) {
+        extractedAnchors = extractionResult.data.newAnchors;
+        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted keys: ${Object.keys(extractedAnchors).join(', ')}`);
+      }
+    } catch (extractErr) {
+      console.warn(`[V2-UNIVERSAL][EXTRACT] Extraction failed - continuing:`, extractErr.message);
+    }
+  }
+  
   if (field_value && field_value.trim()) {
     console.log(`[V2-UNIVERSAL][ANSWER] Calling Discretion Engine after answer`);
     
@@ -2618,7 +2636,7 @@ async function probeEngineV2(input, base44Client) {
       // HARDENED: Merge extracted anchors with incident context
       const currentAnchors = { 
         ...incident_context,
-        ...extractedAnchors // Use extracted anchors if available
+        ...extractedAnchors
       };
       
       // HARDENED: Validate anchor count to prevent malformed state
@@ -2787,28 +2805,13 @@ async function probeEngineV2(input, base44Client) {
   // ============================================================================
   // V2.6 UNIVERSAL: After answer received, extract facts and call Discretion
   // HARDENED: Extract facts but continue even if extraction fails
+  // NOTE: extractedAnchors is declared here and used by Discretion call above
   // ============================================================================
   
-  let extractedAnchors = {};
-  if (field_value && field_value.trim()) {
-    console.log(`[V2-UNIVERSAL][EXTRACT] Extracting facts from answer`);
-    
-    try {
-      // Call fact extractor to parse the answer
-      const extractionResult = await base44Client.functions.invoke('factExtractor', {
-        packId: pack_id,
-        candidateAnswer: field_value,
-        previousAnchors: incident_context
-      });
-      
-      if (extractionResult.data?.success && extractionResult.data.newAnchors) {
-        extractedAnchors = extractionResult.data.newAnchors;
-        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted anchors:`, Object.keys(extractedAnchors));
-      }
-    } catch (extractErr) {
-      console.warn(`[V2-UNIVERSAL][EXTRACT] Fact extraction failed - continuing without extraction:`, extractErr.message);
-      // HARDENED: Continue without extraction - don't block interview
-    }
+  // MOVED: extractedAnchors declaration is now BEFORE the Discretion call
+  // This section is now only for logging/debugging purposes
+  if (field_value && field_value.trim() && Object.keys(extractedAnchors || {}).length > 0) {
+    console.log(`[V2-UNIVERSAL][EXTRACT_SUMMARY] Anchors extracted: ${Object.keys(extractedAnchors).join(', ')}`);
   }
 
   // Validate the current field value with pack-specific rules
