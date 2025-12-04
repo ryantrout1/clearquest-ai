@@ -2612,17 +2612,38 @@ async function probeEngineV2(input, base44Client) {
   // ============================================================================
   
   // HARDENED: Extract anchors BEFORE calling Discretion Engine
+  // For PACK_PRIOR_LE_APPS_STANDARD: aggregate ALL answers from this instance
   let extractedAnchors = {};
   if (field_value && field_value.trim()) {
     try {
+      // Special handling for PACK_PRIOR_LE_APPS_STANDARD - aggregate answers
+      let answerToExtract = field_value;
+      
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+        // Aggregate all previous answers for this instance to improve extraction
+        const allAnswers = Object.values(incident_context || {}).filter(Boolean);
+        if (allAnswers.length > 0) {
+          answerToExtract = [...allAnswers, field_value].join(' ');
+          console.log(`[PACK_PRIOR_LE_APPS][AGGREGATE] Aggregating ${allAnswers.length + 1} answers for extraction`);
+        }
+      }
+      
       const extractionResult = await base44Client.functions.invoke('factExtractor', {
         packId: pack_id,
-        candidateAnswer: field_value,
+        candidateAnswer: answerToExtract,
         previousAnchors: incident_context
       });
       if (extractionResult.data?.success && extractionResult.data.newAnchors) {
         extractedAnchors = extractionResult.data.newAnchors;
-        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted keys: ${Object.keys(extractedAnchors).join(', ')}`);
+        
+        // Log extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
+        if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+          console.log(`[PACK_PRIOR_LE_APPS][EXTRACT] ========== ANCHOR EXTRACTION ==========`);
+          console.log(`[PACK_PRIOR_LE_APPS][EXTRACT] Extracted: ${JSON.stringify(extractedAnchors, null, 2)}`);
+          console.log(`[PACK_PRIOR_LE_APPS][EXTRACT] Keys: [${Object.keys(extractedAnchors).join(', ')}]`);
+        } else {
+          console.log(`[V2-UNIVERSAL][EXTRACT] Extracted keys: ${Object.keys(extractedAnchors).join(', ')}`);
+        }
       }
     } catch (extractErr) {
       console.warn(`[V2-UNIVERSAL][EXTRACT] Extraction failed - continuing:`, extractErr.message);
@@ -2638,6 +2659,17 @@ async function probeEngineV2(input, base44Client) {
         ...incident_context,
         ...extractedAnchors
       };
+      
+      // PACK_PRIOR_LE_APPS_STANDARD: Log anchor state before discretion call
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+        console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE] ========== ANCHORS BEFORE DISCRETION ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE]`, {
+          incident_context_keys: Object.keys(incident_context || {}),
+          extracted_keys: Object.keys(extractedAnchors || {}),
+          merged_keys: Object.keys(currentAnchors),
+          current_anchors: JSON.stringify(currentAnchors, null, 2)
+        });
+      }
       
       // HARDENED: Validate anchor count to prevent malformed state
       const anchorCount = Object.keys(currentAnchors).length;
@@ -2658,6 +2690,21 @@ async function probeEngineV2(input, base44Client) {
         hasQuestion: !!discretionResult.data?.question,
         reason: discretionResult.data?.reason
       });
+      
+      // PACK_PRIOR_LE_APPS_STANDARD: Log discretion decision with anchor details
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+        console.log(`[PACK_PRIOR_LE_APPS][DISCRETION] ========== DISCRETION DECISION ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][DISCRETION]`, {
+          action: discretionResult.data?.action,
+          question_type: discretionResult.data?.action === "ask_combined" ? "COMPOUND" : 
+                         discretionResult.data?.action === "ask_micro" ? "CLARIFIER" : "NONE",
+          target_anchors: discretionResult.data?.targetAnchors || [],
+          collected_anchor_count: Object.keys(currentAnchors).length,
+          probe_count: previous_probes_count + 1,
+          will_ask_question: discretionResult.data?.action !== "stop",
+          question_preview: discretionResult.data?.question?.substring?.(0, 80)
+        });
+      }
       
       // HARDENED: Validate discretion result structure
       if (discretionResult.data?.success && discretionResult.data.action) {

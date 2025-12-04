@@ -512,6 +512,18 @@ function evaluateDiscretion({
   // HARDENED: Compact logging (keys only, no PII)
   console.log(`[DISCRETION] pack=${packId} probe=${normalizedProbeCount}/${safeMaxProbes} missing=[${requiredMissing.join(',')}]`);
   
+  // PACK_PRIOR_LE_APPS_STANDARD: Enhanced logging
+  if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[PACK_PRIOR_LE_APPS][DISCRETION_STATE]`, {
+      packId,
+      probeCount: normalizedProbeCount,
+      maxProbes: safeMaxProbes,
+      collected_keys: Object.keys(collectedAnchors || {}),
+      required_missing: requiredMissing,
+      all_missing: allMissing
+    });
+  }
+  
   // Determine tone
   let tone = "neutral";
   if (FIRM_TONE_TOPICS.includes(safeSchema.topic)) {

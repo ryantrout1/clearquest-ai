@@ -17,14 +17,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // Pack schemas - defines what facts to extract for each pack
+// PACK_PRIOR_LE_APPS_STANDARD: agency_name is the actual department name (primary anchor)
 const PACK_SCHEMAS = {
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_type", "position", "month_year", "outcome"],
-    optional: ["agency_name", "location", "reason_not_hired"]
+    required: ["agency_name", "position", "month_year", "outcome"],
+    optional: ["agency_type", "location", "reason_not_hired"]
   },
   "PACK_LE_APPS": {
-    required: ["agency_type", "position", "month_year", "outcome"],
-    optional: ["agency_name", "location", "reason_not_hired"]
+    required: ["agency_name", "position", "month_year", "outcome"],
+    optional: ["agency_type", "location", "reason_not_hired"]
   },
   "PACK_DRIVING_COLLISION_STANDARD": {
     required: ["month_year", "location", "what_happened", "at_fault"],
@@ -62,9 +63,16 @@ function getPackSchema(packId) {
 
 /**
  * Build LLM prompt for fact extraction
+ * PACK_PRIOR_LE_APPS_STANDARD: Always extract the ACTUAL NAME of the department/agency
  */
 function buildExtractionPrompt(packId, candidateAnswer, schema) {
   const allAnchors = [...schema.required, ...schema.optional];
+  
+  // Special instructions for PACK_PRIOR_LE_APPS_STANDARD
+  const agencyInstructions = (packId === "PACK_PRIOR_LE_APPS_STANDARD" || packId === "PACK_LE_APPS")
+    ? `6. For agency_name: Extract the ACTUAL NAME of the law enforcement department or agency (e.g., "Phoenix Police Department", "Maricopa County Sheriff's Office", "Arizona DPS"). This is the MOST IMPORTANT anchor.
+7. For agency_type: Only extract if explicitly mentioned (city police, sheriff, state, federal) - this is optional.`
+    : `6. For agencies: Extract agency type (city police, sheriff, state, federal) and name if mentioned`;
   
   return `You are a FACT EXTRACTOR for background investigation questionnaires.
 
@@ -75,9 +83,10 @@ CRITICAL RULES:
 2. DO NOT infer, guess, or add narrative
 3. Only extract facts explicitly stated in the answer
 4. Return "not found" for anchors not mentioned
-5. For dates: Extract month/year format (e.g., "June 2020", "early 2019", "around 2018")
-6. For agencies: Extract agency type (city police, sheriff, state, federal) and name if mentioned
-7. For outcomes: Extract result (hired, not selected, withdrew, disqualified, etc.)
+5. For dates: Extract month/year format (e.g., "June 2020", "early 2019", "around 2018", "March 2010")
+${agencyInstructions}
+8. For position: Extract the job title (e.g., "Police Officer", "Deputy Sheriff", "Corrections Officer")
+9. For outcomes: Extract result (hired, not selected, withdrew, disqualified, etc.)
 
 Candidate's answer:
 "${candidateAnswer}"
