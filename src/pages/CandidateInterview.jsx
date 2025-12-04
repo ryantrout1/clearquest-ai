@@ -2758,8 +2758,8 @@ export default function CandidateInterview() {
         <div className="max-w-5xl mx-auto space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.type}-${entry.id || index}`}>
-              {/* Base questions with answers */}
-              {entry.type === 'question' && (
+              {/* Base questions with answers - only show if answered */}
+              {entry.type === 'question' && entry.answer && (
                 <div className="space-y-3">
                   <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5">
                     <p className="text-white">{entry.questionText}</p>
