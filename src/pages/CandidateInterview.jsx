@@ -482,6 +482,9 @@ export default function CandidateInterview() {
   const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
   const [pendingProbe, setPendingProbe] = useState(null);
   const v2ProbingInProgressRef = useRef(new Set());
+  
+  // Track the last AI follow-up question text per field so we can show it on history cards
+  const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
 
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
   const [aiFailureReason, setAiFailureReason] = useState(null);
