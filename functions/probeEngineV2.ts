@@ -440,15 +440,15 @@ Object.assign(FALLBACK_PROBES, {
   "prevention_steps": "What steps have you taken to ensure this will not happen again?",
   
   // === PACK_PRIOR_LE_APPS_STANDARD (question codes) ===
-  "PACK_PRLE_Q01": "What type of law enforcement agency did you apply to? (e.g., municipal police, county sheriff, state police, federal)",
-  "PACK_PRLE_Q02": "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?",
-  "PACK_PRLE_Q03": "How far did you get in the hiring process? (e.g., written test, physical, interview, background, polygraph, psychological)",
-  "PACK_PRLE_Q04": "What was the final result of your application? Were you hired, not selected, did you withdraw, or is it still pending?",
-  "PACK_PRLE_Q05": "Were any background concerns or issues identified during the hiring process? Please describe.",
-  "PACK_PRLE_Q06": "Did you withdraw your application at any point? If so, why?",
-  "PACK_PRLE_Q07": "Have you disclosed this prior application on other law enforcement applications?",
-  "PACK_PRLE_Q08": "What changes or improvements have you made since this application?",
-  "PACK_PRLE_Q09": "What city and state was this agency located in?"
+  "PACK_PRLE_Q01": "Was it a city police department, a sheriff's office, a state agency, or a federal agency?",
+  "PACK_PRLE_Q02": "What was the name of that agency?",
+  "PACK_PRLE_Q03": "Which city and state was that agency in?",
+  "PACK_PRLE_Q04": "About when did you apply there? Month and year is fine.",
+  "PACK_PRLE_Q05": "What position or job title did you apply for with that agency?",
+  "PACK_PRLE_Q06": "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process, or something else.)",
+  "PACK_PRLE_Q07": "If you were not hired, what reason were you given, or what do you believe was the main reason?",
+  "PACK_PRLE_Q08": "Did you appeal that decision or reapply with that agency? If yes, what happened?",
+  "PACK_PRLE_Q09": "Is there anything else about that application that you think your background investigator should know?"
 });
 
 /**
@@ -1228,29 +1228,30 @@ const PACK_CONFIG = {
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
-    requiredFields: ["agency_type", "time_period", "stage_reached", "outcome"],
-    priorityOrder: ["agency_type", "time_period", "location_general", "stage_reached", "outcome", "background_concerns", "withdrew", "prior_disclosure", "preventive_steps"],
+    clusterOpeningMessage: "Thanks, I'll walk through your prior applications one at a time so your investigator has a clear record. To start, was it a city police department, a sheriff's office, a state agency, or a federal agency?",
+    requiredFields: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome"],
+    priorityOrder: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
-      // Question code → semantic role mappings (aligned with followupPackConfig.js)
+      // Question code → semantic role mappings (aligned with new field order)
       "PACK_PRLE_Q01": "agency_type",
-      "PACK_PRLE_Q02": "time_period",
-      "PACK_PRLE_Q03": "stage_reached",
-      "PACK_PRLE_Q04": "outcome",
-      "PACK_PRLE_Q05": "background_concerns",
-      "PACK_PRLE_Q06": "withdrew",
-      "PACK_PRLE_Q07": "prior_disclosure",
-      "PACK_PRLE_Q08": "preventive_steps",
-      "PACK_PRLE_Q09": "location_general",
+      "PACK_PRLE_Q02": "agency_name",
+      "PACK_PRLE_Q03": "location_general",
+      "PACK_PRLE_Q04": "time_period",
+      "PACK_PRLE_Q05": "position",
+      "PACK_PRLE_Q06": "outcome",
+      "PACK_PRLE_Q07": "reason_not_hired",
+      "PACK_PRLE_Q08": "appeal_or_reapply",
+      "PACK_PRLE_Q09": "anything_else",
       // Semantic field self-mappings (for direct semantic lookups)
       "agency_type": "agency_type",
-      "time_period": "time_period",
+      "agency_name": "agency_name",
       "location_general": "location_general",
-      "stage_reached": "stage_reached",
+      "time_period": "time_period",
+      "position": "position",
       "outcome": "outcome",
-      "background_concerns": "background_concerns",
-      "withdrew": "withdrew",
-      "prior_disclosure": "prior_disclosure",
-      "preventive_steps": "preventive_steps",
+      "reason_not_hired": "reason_not_hired",
+      "appeal_or_reapply": "appeal_or_reapply",
+      "anything_else": "anything_else",
     },
     // Field schemas for per-field probing
     fieldSchemas: {
@@ -1336,11 +1337,11 @@ const PACK_CONFIG = {
       },
       "PACK_PRLE_Q09": {
         fieldKey: "PACK_PRLE_Q09",
-        semanticKey: "location_general",
-        label: "Agency Location (city/state)",
-        dataType: "short_text",
-        category: "context",
-        descriptionForLLM: "The city and state where this law enforcement agency is located.",
+        semanticKey: "anything_else",
+        label: "Anything Else",
+        dataType: "long_text",
+        category: "disclosure",
+        descriptionForLLM: "Any additional information about this application that the investigator should know.",
         isRequired: false,
         riskDimensions: []
       }
@@ -1553,14 +1554,15 @@ function validateField(fieldName, value, incidentContext = {}) {
       return "incomplete";
     
     case "stageReached":
-    case "stage_reached":
     case "agency_type":
+    case "agency_name":
     case "time_period":
-    case "background_concerns":
-    case "withdrew":
-    case "prior_disclosure":
-    case "preventive_steps":
+    case "position":
     case "location_general":
+    case "outcome":
+    case "reason_not_hired":
+    case "appeal_or_reapply":
+    case "anything_else":
       // PACK_PRIOR_LE_APPS_STANDARD fields - accept any non-empty answer
       if (normalized.length > 0) {
         console.log(`[V2-PER-FIELD] Validation result: COMPLETE (${fieldName} has value)`);
@@ -1980,54 +1982,60 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
     // === PACK_PRIOR_LE_APPS_STANDARD lowercase semantic fields ===
     case "agency_type":
       if (isFirstProbe) {
-        return "What type of law enforcement agency did you apply to? For example, was it a municipal police department, county sheriff's office, state police, or federal agency?";
+        return "Was it a city police department, a sheriff's office, a state agency, or a federal agency?";
       }
       return "Even if you don't remember the exact agency name, do you recall what type of agency it was — city police, sheriff, state, or federal?";
     
+    case "agency_name":
+      if (isFirstProbe) {
+        return "What was the name of that agency?";
+      }
+      return "Even if you're not sure of the exact name, can you recall any part of the agency name or identifying details?";
+    
+    case "location_general":
+      if (isFirstProbe) {
+        return "Which city and state was that agency in?";
+      }
+      return "Can you provide any details about where this agency was located?";
+    
     case "time_period":
       if (isFirstProbe) {
-        return "We need at least an approximate timeframe for this application. Can you give us an estimate, like 'around 2020' or 'early 2019'?";
+        return "About when did you apply there? Month and year is fine.";
       }
       if (isSecondProbe) {
         return "Think about what else was happening in your life at that time — where you were living, what job you had. Can you estimate even the year you applied?";
       }
       return "If you still can't pinpoint a specific year, please give your best estimate as a range, like 'sometime between 2015 and 2018'.";
     
-    case "location_general":
+    case "position":
       if (isFirstProbe) {
-        return "What city and state was this agency located in?";
+        return "What position or job title did you apply for with that agency?";
       }
-      return "Can you provide any details about where this agency was located?";
+      return "Even a general description of the role would help. Was it a sworn position, civilian role, or something else?";
     
-    case "stage_reached":
+    case "outcome":
       if (isFirstProbe) {
-        return "How far did you get in the hiring process? For example, written test, physical, interview, background investigation, polygraph, or psychological evaluation?";
+        return "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process, or something else.)";
       }
-      return "What was the last step you completed in their hiring process?";
+      return "Please clarify: did the process end with you being hired, rejected, withdrawing your application, or are you still waiting to hear back?";
     
-    case "background_concerns":
+    case "reason_not_hired":
       if (isFirstProbe) {
-        return "Were any background concerns or issues identified during the hiring process? Please describe.";
+        return "If you were not hired, what reason were you given, or what do you believe was the main reason?";
       }
-      return "Can you provide more detail about what background issues came up, if any?";
+      return "Even if you weren't given an official reason, do you have any understanding of why the process ended the way it did?";
     
-    case "withdrew":
+    case "appeal_or_reapply":
       if (isFirstProbe) {
-        return "Did you withdraw your application at any point? If so, why?";
+        return "Did you appeal that decision or reapply with that agency? If yes, what happened?";
       }
-      return "Can you help us understand the circumstances that led to your withdrawal?";
+      return "Can you provide more details about any appeal or reapplication process?";
     
-    case "prior_disclosure":
+    case "anything_else":
       if (isFirstProbe) {
-        return "Have you disclosed this prior application on other law enforcement applications?";
+        return "Is there anything else about that application that you think your background investigator should know?";
       }
-      return "Has this application been mentioned on any other background questionnaires you've completed?";
-    
-    case "preventive_steps":
-      if (isFirstProbe) {
-        return "What changes or improvements have you made since this application?";
-      }
-      return "Is there anything you've done differently or any steps you've taken since then?";
+      return "Are there any other details about this application that would be helpful for your investigator to know?";
 
     default:
       // Safe fallback that doesn't expose internal keys
@@ -2231,14 +2239,14 @@ const FIELD_LABELS = {
   
   // PACK_PRIOR_LE_APPS_STANDARD (lowercase semantic keys - aligned with config)
   "agency_type": "Type of Agency",
+  "agency_name": "Agency Name",
+  "location_general": "Agency Location",
   "time_period": "Application Time Period",
-  "stage_reached": "Stage Reached",
+  "position": "Position Applied For",
   "outcome": "Outcome",
-  "background_concerns": "Background Concerns Identified",
-  "withdrew": "Withdrew Application",
-  "prior_disclosure": "Prior Disclosure",
-  "preventive_steps": "Changes/Improvements Since",
-  "location_general": "Agency Location"
+  "reason_not_hired": "Reason for Not Being Hired",
+  "appeal_or_reapply": "Appeal or Reapplication",
+  "anything_else": "Additional Information"
 };
 
 /**
@@ -2417,11 +2425,28 @@ async function probeEngineV2(input, base44Client) {
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
     console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] ========== PRIOR LE APPS PER-FIELD HANDLER ==========`);
     console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] packId=${pack_id}, fieldKey=${field_key}, instanceNumber=${instance_number}, answer="${field_value?.substring?.(0, 80) || field_value}"`);
-  }
-  
-  // EXPLICIT LOGGING: Entry point for PACK_PRIOR_LE_APPS_STANDARD
-  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2-BACKEND-ENTRY] ========== PACK_PRIOR_LE_APPS_STANDARD BACKEND CALLED ==========`);
+    
+    // Special handling for cluster opening (empty field_value on first field)
+    if (field_key === "PACK_PRLE_Q01" && (!field_value || field_value.trim() === "")) {
+      const packConfig = PACK_CONFIG[pack_id];
+      if (packConfig?.clusterOpeningMessage) {
+        console.log(`[V2-BACKEND-CLUSTER-INIT] Returning cluster opening message for PACK_PRIOR_LE_APPS_STANDARD`);
+        return {
+          mode: "QUESTION",
+          pack_id,
+          field_key,
+          semanticField: "agency_type",
+          question: packConfig.clusterOpeningMessage,
+          validationResult: "cluster_opening",
+          previousProbeCount: 0,
+          maxProbesPerField: 3,
+          isFallback: false,
+          probeSource: 'cluster_opening',
+          message: "Cluster opening message for pack initialization"
+        };
+      }
+    }
+    
     console.log(`[V2-BACKEND-ENTRY] Full request payload:`, {
       pack_id,
       field_key,
