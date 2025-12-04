@@ -209,6 +209,12 @@ const DEFAULT_SCHEMA = {
 // ============================================================================
 
 const QUESTION_TEMPLATES = {
+  // Agency name - the actual department name (not type)
+  agency_name: {
+    micro: "What was the name of the law enforcement department or agency?",
+    combined: "the name of the law enforcement department or agency"
+  },
+  
   // Time-related
   month_year: {
     micro: "About what month and year did this occur?",
@@ -233,14 +239,10 @@ const QUESTION_TEMPLATES = {
     combined: "where it happened"
   },
   
-  // Agency/employer
+  // Agency/employer - agency_name is the primary anchor for LE apps
   agency_type: {
     micro: "What type of agency was this (city police, sheriff's office, state, or federal)?",
     combined: "what type of agency it was"
-  },
-  agency_name: {
-    micro: "What was the name of that agency?",
-    combined: "the agency name"
   },
   employer: {
     micro: "What company or organization was this with?",
@@ -439,8 +441,8 @@ function buildOpeningQuestion(packId, isMultiInstance = false, instanceNumber = 
   
   // Special opening for specific packs
   const PACK_OPENING_OVERRIDES = {
-    "PACK_PRIOR_LE_APPS_STANDARD": "For this application, what type of agency was it (city police department, sheriff's office, state agency, or federal agency), what position you applied for, and about what month and year did you apply?",
-    "PACK_LE_APPS": "For this application, what type of agency was it, what position you applied for, and about what month and year did you apply?",
+        "PACK_PRIOR_LE_APPS_STANDARD": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+        "PACK_LE_APPS": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
     "PACK_DRIVING_COLLISION_STANDARD": "For this collision, about when did it occur, where did it happen, and what happened?",
     "PACK_DRIVING_DUIDWI_STANDARD": "For this incident, what substance was involved, about when did it occur, and what was the outcome?",
     "PACK_DOMESTIC_VIOLENCE_STANDARD": "For this incident, what was your relationship to the other person, about when did it occur, and what happened?",

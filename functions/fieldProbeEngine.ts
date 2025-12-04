@@ -26,7 +26,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 const FIELD_ANCHOR_CONFIG = {
   "PACK_PRLE_Q01": {
-    targetAnchors: ["agency_type", "agency_name", "position", "month_year", "outcome"],
+    targetAnchors: ["agency_name", "position", "month_year", "outcome"],
     maxProbes: 2
   }
   // Add more fields as needed
@@ -38,26 +38,22 @@ const FIELD_ANCHOR_CONFIG = {
 
 /**
  * Generate combined question for PACK_PRLE_Q01 missing anchors
+ * Always asks for the NAME of the law enforcement department/agency (not type)
  */
 function buildPRLE_Q01_CombinedQuestion(missingAnchors) {
-  const needsAgencyType = missingAnchors.includes("agency_type");
   const needsAgencyName = missingAnchors.includes("agency_name");
   const needsPosition = missingAnchors.includes("position");
   const needsMonthYear = missingAnchors.includes("month_year");
   
   const parts = [];
   
-  // Always ask for agency name when missing
+  // Always ask for the NAME of the agency when missing
   if (needsAgencyName) {
-    parts.push("what was the name of the agency or department");
-  }
-  
-  if (needsAgencyType) {
-    parts.push("what type of agency was it (city police department, sheriff's office, state agency, or federal agency)");
+    parts.push("what was the name of the law enforcement department or agency");
   }
   
   if (needsPosition) {
-    parts.push("what position you applied for");
+    parts.push("what position did you apply for");
   }
   
   if (needsMonthYear) {
@@ -73,11 +69,9 @@ function buildPRLE_Q01_CombinedQuestion(missingAnchors) {
     question += parts[0] + "?";
   } else if (parts.length === 2) {
     question += parts[0] + " and " + parts[1] + "?";
-  } else if (parts.length === 3) {
-    question += parts[0] + ", " + parts[1] + ", and " + parts[2] + "?";
   } else {
-    // 4 parts
-    question += parts.slice(0, -1).join(", ") + ", and " + parts[parts.length - 1] + "?";
+    // 3 parts
+    question += parts[0] + ", " + parts[1] + ", and " + parts[2] + "?";
   }
   
   return question;
@@ -138,7 +132,7 @@ function evaluateFieldProbe({
   // ============================================================================
   
   if (fieldKey === "PACK_PRLE_Q01") {
-    const coreAnchors = ["agency_type", "agency_name", "position", "month_year"];
+    const coreAnchors = ["agency_name", "position", "month_year"];
     const missingCore = remainingAnchors.filter(a => coreAnchors.includes(a));
     const missingOutcome = remainingAnchors.includes("outcome");
     

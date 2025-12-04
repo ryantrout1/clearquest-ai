@@ -18,15 +18,15 @@
 export const PACK_FACT_ANCHORS = {
   // Prior Law Enforcement Applications - CRITICAL ANCHORS
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_type", "position", "month_year", "outcome"], // Critical 4
-    optional: ["agency_name", "location", "reason_not_hired"], // Nice-to-have
+    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the actual department name
+    optional: ["agency_type", "location", "reason_not_hired"], // Nice-to-have
     severity: "standard",
     maxProbes: 4, // Enforced limit - prevents over-probing
     multiInstance: true
   },
   "PACK_LE_APPS": {
-    required: ["agency_type", "position", "month_year", "outcome"], // Critical 4
-    optional: ["agency_name", "location", "reason_not_hired"],
+    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the actual department name
+    optional: ["agency_type", "location", "reason_not_hired"],
     severity: "standard",
     maxProbes: 4,
     multiInstance: true
@@ -1026,11 +1026,11 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
-    packDescription: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
-    multiInstanceDescription: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
+    packDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+    multiInstanceDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
     maxAiFollowups: 3,
     factAnchors: [
-      { key: "agency_type", label: "Type of agency", answerType: "single_choice", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
+      { key: "agency_name", label: "Name of department/agency", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
       { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
       { key: "month_year", label: "Approx month and year", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "combined", required: true },
       { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
@@ -1042,11 +1042,11 @@ export const FOLLOWUP_PACK_CONFIGS = {
     fields: [
       {
         fieldKey: "PACK_PRLE_Q01",
-        semanticKey: "agency_type",
-        label: "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?",
-        factsLabel: "Agency type and timing",
+        semanticKey: "agency_name",
+        label: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+        factsLabel: "Agency name and timing",
         inputType: "text",
-        placeholder: "Example: City police department, police officer, March 2022",
+        placeholder: "Example: Phoenix Police Department, police officer, March 2022",
         required: true,
         aiProbingEnabled: true,
         includeInFacts: true,
