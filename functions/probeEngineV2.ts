@@ -2564,6 +2564,24 @@ async function probeEngineV2(input, base44Client) {
       };
     }
     
+    // SPECIAL CASE: PACK_PRIOR_LE_APPS_STANDARD - NO opening probe
+    // Agency/position/month-year are captured by the deterministic PACK_PRLE_Q01 card.
+    // Only probe for "outcome" AFTER the first field has a real answer.
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" || pack_id === "PACK_LE_APPS") {
+      console.log(`[PACK_PRIOR_LE_APPS][OPENING] Skipping opening probe - wait for PACK_PRLE_Q01 answer first`);
+      return {
+        mode: "NONE",
+        pack_id,
+        field_key,
+        semanticField: field_key,
+        validationResult: "prior_le_apps_no_opening",
+        hasQuestion: false,
+        targetAnchors: [],
+        reason: "prior_le_apps: no opening probe; wait for first field",
+        message: "PACK_PRIOR_LE_APPS_STANDARD skips opening probe - deterministic card handles agency/position/month-year"
+      };
+    }
+    
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
     
     try {
