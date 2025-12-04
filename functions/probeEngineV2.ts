@@ -2707,6 +2707,21 @@ async function probeEngineV2(input, base44Client) {
         lastAnswer: field_value
       });
       
+      // V2_LIFECYCLE LOG: Probe counting - only questions consume probes
+      const hasAiQuestion = discretionResult.data?.success && 
+                            (discretionResult.data.action === 'ask_combined' || discretionResult.data.action === 'ask_micro') &&
+                            discretionResult.data.question && 
+                            discretionResult.data.question.trim();
+      
+      console.log(`[V2_LIFECYCLE][PROBE_COUNT]`, {
+        packId: pack_id,
+        previousProbeCount: previous_probes_count,
+        hasAiQuestion,
+        nextProbeCount: hasAiQuestion ? previous_probes_count + 1 : previous_probes_count,
+        mode: discretionResult.data?.action,
+        reason: discretionResult.data?.reason
+      });
+      
       console.log(`[V2-UNIVERSAL][DISCRETION] Result:`, {
         action: discretionResult.data?.action,
         hasQuestion: !!discretionResult.data?.question,
