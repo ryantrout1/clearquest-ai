@@ -2870,11 +2870,11 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
-          {/* Floating question card - shown above input */}
-          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 mb-5 shadow-lg shadow-black/30">
+      {/* Floating question card - positioned above footer */}
+      {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
+        <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
+          <div className="max-w-5xl mx-auto">
+            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
                 {isV2PackField ? (
                   <>
@@ -2912,8 +2912,12 @@ export default function CandidateInterview() {
                 </div>
               )}
             </div>
-          )}
-          
+          </div>
+        </div>
+      )}
+
+      <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
+        <div className="max-w-5xl mx-auto">
           {/* Section transition: show "Begin Next Section" button */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
