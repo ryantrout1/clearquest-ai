@@ -502,6 +502,44 @@ export const FOLLOWUP_PACK_CONFIGS = {
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
     multiInstance: true,
+    factAnchors: [
+      {
+        key: "approx_date",
+        label: "Approximate date (month/year)",
+        answerType: "month_year",
+        priority: 1,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "location",
+        label: "Location of incident",
+        answerType: "text",
+        priority: 2,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "what_happened",
+        label: "Brief description of what happened",
+        answerType: "text",
+        priority: 3,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "consequences",
+        label: "Consequences (citation/arrest/none)",
+        answerType: "text",
+        priority: 4,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: false
+      }
+    ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_COLLISION_Q01",
@@ -812,6 +850,44 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
     multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
     maxAiFollowups: 3,
+    factAnchors: [
+      {
+        key: "agency_type",
+        label: "Type of agency (city PD / sheriff / state / federal)",
+        answerType: "single_choice",
+        priority: 1,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "position",
+        label: "Position applied for",
+        answerType: "text",
+        priority: 2,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "month_year",
+        label: "Approximate month and year",
+        answerType: "month_year",
+        priority: 3,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: true
+      },
+      {
+        key: "outcome",
+        label: "Outcome of the application",
+        answerType: "text",
+        priority: 4,
+        multiInstanceAware: true,
+        clarifierStyle: "micro",
+        required: false
+      }
+    ],
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
