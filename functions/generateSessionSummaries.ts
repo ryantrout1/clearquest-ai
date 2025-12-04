@@ -675,7 +675,10 @@ Generate a brief interview-level summary (2-3 sentences) focusing on what was di
     }
   }
   
-  console.log('[SUMMARIES] DONE', { sessionId, result });
+  // Add contradictions to result for caller visibility
+  result.contradictions = contradictions;
+  
+  console.log('[SUMMARIES] DONE', { sessionId, result: { ...result, contradictionCount: contradictions.length } });
   return result;
 }
 
