@@ -1027,18 +1027,25 @@ export const FOLLOWUP_PACK_CONFIGS = {
   },
 
   // Prior Law Enforcement Applications pack (v2.5)
-  // IMPORTANT: Agency name, position, and month/year are captured by the main follow-up card.
-  // The V2 engine only probes for "outcome" - that is the ONLY fact anchor for this pack.
+  // IMPORTANT: All fields are deterministic - captured by PACK_PRLE_Q01 through Q09.
+  // Agency/position/month_year = PACK_PRLE_Q01 (deterministic)
+  // Outcome = PACK_PRLE_Q02 (deterministic)
+  // AI clarifiers should ONLY clarify vague agency/position/date info from Q01, NOT ask about outcome.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
     multiInstanceDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-    maxAiFollowups: 1, // Hard cap: single micro-question for outcome only
+    maxAiFollowups: 1, // Hard cap: single clarifier only for vague agency/position/date
     factAnchors: [
-      { key: "outcome", label: "Outcome of application", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true }
+      // Only optional clarifiers for vague agency/position/date info - outcome is NEVER probed
+      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      // NOTE: outcome is NOT here - it's handled by deterministic PACK_PRLE_Q02
     ],
+    excludeFromProbing: ["outcome", "reason_not_hired"], // NEVER probe for these
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
