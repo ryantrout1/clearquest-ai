@@ -2807,8 +2807,8 @@ export default function CandidateInterview() {
                 </div>
               )}
               
-              {/* AI Probe Questions (including V2 pack cluster opening) */}
-              {entry.type === 'ai_probe_question' && (
+              {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
+              {entry.type === 'ai_probe_question' && entry.answer && (
                 <div className="space-y-2 ml-4">
                   <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
@@ -2817,6 +2817,11 @@ export default function CandidateInterview() {
                       </span>
                     </div>
                     <p className="text-white text-sm">{entry.questionText || entry.text || entry.content}</p>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-4 py-2">
+                      <p className="text-white text-sm">{entry.answer}</p>
+                    </div>
                   </div>
                 </div>
               )}
