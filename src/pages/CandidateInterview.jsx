@@ -327,6 +327,8 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
  * V2.6 Universal MVP: All V2 packs use Discretion Engine
  * NO deterministic follow-up questions surface to candidates
  * Backend controls all probing decisions through Discretion Engine
+ * 
+ * HARDENED: Comprehensive incident lifecycle logging (structural data only, no PII)
  */
 const runV2FieldProbeIfNeeded = async ({
   base44Client,
@@ -345,9 +347,18 @@ const runV2FieldProbeIfNeeded = async ({
 }) => {
   const probeCount = previousProbesCount || 0;
 
+  // LIFECYCLE LOG: Incident started
+  if (probeCount === 0 && (!fieldValue || !fieldValue.trim())) {
+    console.log(`[V2_LIFECYCLE][INCIDENT_START]`, {
+      packId,
+      baseQuestionCode: questionCode,
+      instanceNumber: instanceNumber || 1,
+      sessionId
+    });
+  }
+
   // EXPLICIT ENTRY LOG
   console.log(`[V2_UNIVERSAL][CALL] packId=${packId} fieldKey=${fieldKey} instance=${instanceNumber || 1} probeCount=${probeCount}`);
-  console.log(`[V2_UNIVERSAL][CALL] answer="${String(fieldValue).slice(0, 80)}"`);
 
   // Check if AI probing is globally disabled
   if (!ENABLE_LIVE_AI_FOLLOWUPS) {
@@ -361,7 +372,7 @@ const runV2FieldProbeIfNeeded = async ({
     fieldKey,
     instanceNumber: instanceNumber || 1,
     probeCount,
-    collectedAnchors: Object.keys(incidentContext || {})
+    collectedAnchorsKeys: Object.keys(incidentContext || {}) // Keys only, no PII values
   });
 
   try {
@@ -376,6 +387,39 @@ const runV2FieldProbeIfNeeded = async ({
       baseQuestionId,
       instanceNumber
     });
+    
+    // LIFECYCLE LOG: Anchors updated (structural only)
+    if (v2Result?.mode === 'QUESTION' || v2Result?.mode === 'NEXT_FIELD') {
+      console.log(`[V2_LIFECYCLE][ANCHORS_UPDATED]`, {
+        packId,
+        instanceNumber: instanceNumber || 1,
+        collectedAnchorKeys: Object.keys(incidentContext || {}), // Keys only
+        targetAnchors: v2Result?.targetAnchors || []
+      });
+    }
+    
+    // LIFECYCLE LOG: Discretion decision
+    if (v2Result?.probeSource?.includes('discretion')) {
+      console.log(`[V2_LIFECYCLE][DISCRETION_DECISION]`, {
+        packId,
+        instanceNumber: instanceNumber || 1,
+        action: v2Result.mode === 'QUESTION' ? 'ask' : 'stop',
+        targetAnchors: v2Result?.targetAnchors || [],
+        probeCount: probeCount + 1,
+        maxProbes: v2Result?.maxProbesPerField || maxAiFollowups
+      });
+    }
+    
+    // LIFECYCLE LOG: Probing stopped
+    if (v2Result?.mode === 'NEXT_FIELD' || v2Result?.mode === 'COMPLETE') {
+      const stopReason = v2Result?.reason || v2Result?.validationResult || 'unknown';
+      console.log(`[V2_LIFECYCLE][PROBING_STOPPED]`, {
+        packId,
+        instanceNumber: instanceNumber || 1,
+        reason: stopReason,
+        finalProbeCount: probeCount + 1
+      });
+    }
     
     console.log(`[V2_UNIVERSAL][RESPONSE]`, {
       packId,
@@ -394,7 +438,7 @@ const runV2FieldProbeIfNeeded = async ({
     return v2Result;
   } catch (err) {
     console.error('[V2_UNIVERSAL][ERROR]', { packId, fieldKey, error: err?.message });
-    // On error, advance to prevent interview from getting stuck
+    // HARDENED: On error, advance to prevent interview blocking
     return { mode: 'NEXT_FIELD', reason: 'Backend error - advancing', error: err?.message };
   }
 };
