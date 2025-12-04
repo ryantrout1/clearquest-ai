@@ -569,7 +569,7 @@ function evaluateDiscretion({
 }
 
 // ============================================================================
-// MAIN HANDLER
+// MAIN HANDLER - Hardened for reliability
 // ============================================================================
 
 Deno.serve(async (req) => {
@@ -578,7 +578,16 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      console.warn('[DISCRETION_ENGINE] Unauthorized request');
+      // Return safe stop decision instead of 401 to prevent interview blocking
+      return Response.json({ 
+        success: true,
+        action: 'stop',
+        question: null,
+        targetAnchors: [],
+        tone: 'neutral',
+        reason: 'Auth failed - safe stop'
+      }, { status: 200 });
     }
 
     const input = await req.json();
