@@ -2754,7 +2754,7 @@ export default function CandidateInterview() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-6 pb-[180px]" ref={historyRef}>
+      <main className="flex-1 overflow-y-auto px-4 py-6" ref={historyRef}>
         <div className="max-w-5xl mx-auto space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.type}-${entry.id || index}`}>
@@ -2870,12 +2870,12 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      {/* Floating question card - positioned above footer */}
-      {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-        <div className="fixed bottom-[100px] left-0 right-0 px-4 z-10 pointer-events-none">
-          <div className="max-w-5xl mx-auto pointer-events-auto">
-            <div className={`bg-slate-800/98 backdrop-blur-md border-2 rounded-xl p-6 shadow-2xl shadow-black/40 ${
-              isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/60' : 'border-blue-500/60'
+      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+        <div className="max-w-5xl mx-auto">
+          {/* Current question card - shown above input */}
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
+            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 mb-4 ${
+              isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/50' : 'border-blue-500/50'
             }`}>
               <div className="flex items-center gap-2 mb-3">
                 {isV2PackField ? (
@@ -2914,13 +2914,8 @@ export default function CandidateInterview() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fixed purple footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-purple-900/95 backdrop-blur-sm border-t border-purple-700/50 px-4 py-4 z-20">
-        <div className="max-w-5xl mx-auto">
+          )}
+          
           {/* Section transition: show "Begin Next Section" button */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
@@ -3000,14 +2995,14 @@ export default function CandidateInterview() {
               </Button>
             </div>
           ) : showTextInput && !pendingSectionTransition ? (
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3">
             <Input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder="Type your answer..."
-              className="flex-1 h-14 bg-slate-900/70 border-2 border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 text-white text-base px-4"
+              className="flex-1 bg-slate-900/50 border-2 border-green-500/60 focus:border-green-400 text-white"
               disabled={isCommitting}
               autoFocus
             />
@@ -3018,7 +3013,7 @@ export default function CandidateInterview() {
                 handleBottomBarSubmit();
               }}
               disabled={isBottomBarSubmitDisabled}
-              className="bg-purple-600 hover:bg-purple-500 h-14 px-6 text-base font-medium"
+              className="bg-purple-600 hover:bg-purple-700 px-6"
             >
               <Send className="w-4 h-4 mr-2" />
               Send
