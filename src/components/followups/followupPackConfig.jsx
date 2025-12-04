@@ -16,20 +16,25 @@
 // HARDENED: Critical 3-5 fact anchors per pack (MVP anchor-based probing pipeline)
 // These are the SINGLE SOURCE OF TRUTH for what facts must be collected per incident
 export const PACK_FACT_ANCHORS = {
-  // Prior Law Enforcement Applications - CRITICAL ANCHORS
+  // Prior Law Enforcement Applications - NO AI PROBING FOR OUTCOME
+  // Agency/position/month_year are captured by deterministic PACK_PRLE_Q01
+  // Outcome is captured by deterministic PACK_PRLE_Q02
+  // AI clarifiers should ONLY clarify vague agency/position/date info
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the actual department name
-    optional: ["agency_type", "location", "reason_not_hired"], // Nice-to-have
+    required: [], // No required AI anchors - all fields are deterministic
+    optional: ["agency_name", "position", "month_year"], // Can clarify these if vague
     severity: "standard",
-    maxProbes: 4, // Enforced limit - prevents over-probing
-    multiInstance: true
+    maxProbes: 1, // Single clarifier only if needed
+    multiInstance: true,
+    excludeFromProbing: ["outcome", "reason_not_hired"] // NEVER probe for these - they're deterministic fields
   },
   "PACK_LE_APPS": {
-    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the actual department name
-    optional: ["agency_type", "location", "reason_not_hired"],
+    required: [], // No required AI anchors
+    optional: ["agency_name", "position", "month_year"],
     severity: "standard",
-    maxProbes: 4,
-    multiInstance: true
+    maxProbes: 1,
+    multiInstance: true,
+    excludeFromProbing: ["outcome", "reason_not_hired"]
   },
   
   // Driving Packs - CRITICAL ANCHORS
