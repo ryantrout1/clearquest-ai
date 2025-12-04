@@ -2509,29 +2509,32 @@ function getPackTopicForDiscretion(packId) {
 }
 
 /**
- * Main probe engine function - Per-Field Mode
- * NOW USES: GlobalSettings + FollowUpPack.ai_probe_instructions via InvokeLLM
- * V2.5 MVP: Whitelist check, topic-anchored prompts, max 1 probe per field by default
- * V2.6: Fact Anchors + Discretion Engine integration
+ * Main probe engine function - Universal MVP Mode
+ * V2.6 Universal MVP: ALL V2 packs use Discretion Engine
+ * 
+ * Flow:
+ * 1. On pack entry (probeCount=0): Call Discretion Engine for opening question
+ * 2. On each answer: Extract anchors, call Discretion Engine to decide next step
+ * 3. Return QUESTION with AI-generated text, or NEXT_FIELD/COMPLETE when done
  */
 async function probeEngineV2(input, base44Client) {
   const {
     pack_id,
     field_key,                    // The specific field being validated
     field_value,                  // The value provided for this field
-    previous_probes_count = 0,    // How many times we've probed this field
-    incident_context = {},        // Other field values for context
-    mode: requestMode = "VALIDATE_FIELD",  // VALIDATE_FIELD or LEGACY
-    answerLooksLikeNoRecall: frontendNoRecallFlag = false,  // Frontend hint
-    sectionName = null,           // Section context for topic anchoring
-    baseQuestionText = null,      // Full base question text for context
-    questionDbId = null,          // Database ID (unique identifier)
-    questionCode = null,          // Display code (may not be unique)
-    instance_number = 1,          // Instance number for multi-instance packs
+    previous_probes_count = 0,    // How many times we've probed this incident
+    incident_context = {},        // Other field values for context (= collectedAnchors)
+    mode: requestMode = "VALIDATE_FIELD",
+    answerLooksLikeNoRecall: frontendNoRecallFlag = false,
+    sectionName = null,
+    baseQuestionText = null,
+    questionDbId = null,
+    questionCode = null,
+    instance_number = 1,
     instance_anchors = {}         // Current anchor values for this instance
   } = input;
 
-  console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}, instance=${instance_number}`);
+  console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // EXPLICIT LOGGING: Entry point for PRIOR_LE_APPS standard cluster
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
