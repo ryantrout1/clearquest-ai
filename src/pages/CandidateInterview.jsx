@@ -2881,21 +2881,15 @@ export default function CandidateInterview() {
           <div className="max-w-5xl mx-auto">
             <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
-                {isV2PackField ? (
+                {isV2PackField || currentPrompt.type === 'ai_probe' ? (
                   <>
                     <span className="text-base font-semibold text-purple-400">
                       Follow-up of
                     </span>
                     <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
-                  </>
-                ) : currentPrompt.type === 'ai_probe' ? (
-                  <>
-                    <span className="text-base font-semibold text-purple-400">
-                      Follow-up of
+                    <span className="text-sm font-medium text-purple-400">
+                      {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
                     </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
                   </>
                 ) : (
                   <>
