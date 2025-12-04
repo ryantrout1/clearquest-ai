@@ -2735,9 +2735,10 @@ async function probeEngineV2(input, base44Client) {
   }
   // ============================================================================
   // V2.6 UNIVERSAL: After answer received, extract facts and call Discretion
-  // This replaces the old fact_anchors integration block
+  // HARDENED: Extract facts but continue even if extraction fails
   // ============================================================================
   
+  let extractedAnchors = {};
   if (field_value && field_value.trim()) {
     console.log(`[V2-UNIVERSAL][EXTRACT] Extracting facts from answer`);
     
@@ -2749,16 +2750,13 @@ async function probeEngineV2(input, base44Client) {
         previousAnchors: incident_context
       });
       
-      if (extractionResult.data?.success) {
-        const updatedAnchors = extractionResult.data.newAnchors || {};
-        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted anchors:`, Object.keys(updatedAnchors));
-        
-        // Now call Discretion Engine with updated anchors
-        // (This is already done at the top of the function, but we update the context here)
+      if (extractionResult.data?.success && extractionResult.data.newAnchors) {
+        extractedAnchors = extractionResult.data.newAnchors;
+        console.log(`[V2-UNIVERSAL][EXTRACT] Extracted anchors:`, Object.keys(extractedAnchors));
       }
     } catch (extractErr) {
-      console.warn(`[V2-UNIVERSAL][EXTRACT] Fact extraction error:`, extractErr.message);
-      // Continue without extraction
+      console.warn(`[V2-UNIVERSAL][EXTRACT] Fact extraction failed - continuing without extraction:`, extractErr.message);
+      // HARDENED: Continue without extraction - don't block interview
     }
   }
 
