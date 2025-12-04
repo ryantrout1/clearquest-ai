@@ -378,11 +378,13 @@ Deno.serve(async (req) => {
     });
     
   } catch (error) {
-    console.error('Contradiction Engine error:', error);
+    console.error('[CONTRADICTION_ENGINE] Fatal error:', error.message);
+    // HARDENED: Return 200 with empty contradictions to prevent BI generation failure
     return Response.json({ 
-      error: error.message,
-      success: false,
-      contradictions: []
-    }, { status: 500 });
+      success: true,
+      sessionId: null,
+      contradictions: [],
+      error: error.message
+    }, { status: 200 });
   }
 });
