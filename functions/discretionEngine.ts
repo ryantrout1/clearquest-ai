@@ -472,7 +472,8 @@ function computeMissingAnchors(schema, collectedAnchors) {
 }
 
 /**
- * Main discretion logic
+ * Main discretion logic - MVP anchor-based probing pipeline
+ * HARDENED: Enforces limits, prevents infinite loops, handles malformed data
  */
 function evaluateDiscretion({
   packId,
@@ -481,11 +482,27 @@ function evaluateDiscretion({
   instanceNumber = 1,
   lastAnswer = ""
 }) {
+  // HARDENING: Validate inputs
+  if (!packId) {
+    console.error('[DISCRETION] Missing packId');
+    return { action: 'stop', question: null, targetAnchors: [], tone: 'neutral', reason: 'Missing packId' };
+  }
+  
   const schema = getPackSchema(packId);
+  
+  // HARDENING: Validate schema
+  if (!schema || !schema.required) {
+    console.warn(`[DISCRETION] Invalid schema for pack=${packId}`);
+    return { action: 'stop', question: null, targetAnchors: [], tone: 'neutral', reason: 'Invalid pack schema' };
+  }
+  
+  // HARDENING: Normalize probeCount (never negative)
+  const normalizedProbeCount = Math.max(0, probeCount || 0);
+  
   const { requiredMissing, allMissing, requiredComplete } = computeMissingAnchors(schema, collectedAnchors);
   const isMultiInstance = schema.multiInstance && instanceNumber > 1;
   
-  console.log(`[DISCRETION] Pack=${packId} probeCount=${probeCount}/${schema.maxProbes} requiredMissing=[${requiredMissing.join(',')}] collected=[${Object.keys(collectedAnchors).join(',')}]`);
+  console.log(`[DISCRETION] Pack=${packId} probeCount=${normalizedProbeCount}/${schema.maxProbes} requiredMissing=[${requiredMissing.join(',')}] collected=[${Object.keys(collectedAnchors).join(',')}]`);
   
   // Determine tone
   let tone = "neutral";
