@@ -440,7 +440,7 @@ Object.assign(FALLBACK_PROBES, {
   "prevention_steps": "What steps have you taken to ensure this will not happen again?",
   
   // === PACK_PRIOR_LE_APPS_STANDARD (question codes) ===
-  "PACK_PRLE_Q01": "Was it a city police department, a sheriff's office, a state agency, or a federal agency?",
+  "PACK_PRLE_Q01": "To start, was it a city police department, a sheriff's office, a state agency, or a federal agency?",
   "PACK_PRLE_Q02": "What was the name of that agency?",
   "PACK_PRLE_Q03": "Which city and state was that agency in?",
   "PACK_PRLE_Q04": "About when did you apply there? Month and year is fine.",
@@ -1228,7 +1228,7 @@ const PACK_CONFIG = {
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
-    clusterOpeningMessage: "Thanks, I'll walk through your prior applications one at a time so your investigator has a clear record. To start, was it a city police department, a sheriff's office, a state agency, or a federal agency?",
+    clusterOpeningMessage: "Thanks, I'll walk through your prior law enforcement applications one at a time so your investigator has a clear record. I'll start with a couple of quick questions about each agency.",
     requiredFields: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome"],
     priorityOrder: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
@@ -1982,7 +1982,7 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
     // === PACK_PRIOR_LE_APPS_STANDARD lowercase semantic fields ===
     case "agency_type":
       if (isFirstProbe) {
-        return "Was it a city police department, a sheriff's office, a state agency, or a federal agency?";
+        return "To start, was it a city police department, a sheriff's office, a state agency, or a federal agency?";
       }
       return "Even if you don't remember the exact agency name, do you recall what type of agency it was — city police, sheriff, state, or federal?";
     

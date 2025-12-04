@@ -797,7 +797,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
-    packDescription: "We'll walk through this prior application step by step so your investigator has a clear record.",
+    packDescription: "Thanks, I'll walk through your prior law enforcement applications one at a time so your investigator has a clear record. I'll start with a couple of quick questions about each agency.",
     maxAiFollowups: 3,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
@@ -807,7 +807,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "agency_type",
-        label: "Was it a city police department, a sheriff's office, a state agency, or a federal agency?",
+        label: "To start, was it a city police department, a sheriff's office, a state agency, or a federal agency?",
         factsLabel: "Type of Agency",
         inputType: "text",
         placeholder: "e.g., Municipal Police, County Sheriff, State Police",
