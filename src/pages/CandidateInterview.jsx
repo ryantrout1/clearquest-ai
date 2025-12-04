@@ -2866,8 +2866,15 @@ export default function CandidateInterview() {
             </div>
           )}
 
+          {/* Current question card removed from here - now shown above input in footer */}
+        </div>
+      </main>
+
+      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+        <div className="max-w-5xl mx-auto">
+          {/* Current question card - shown above input */}
           {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 ${
+            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 mb-4 ${
               isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/50' : 'border-blue-500/50'
             }`}>
               <div className="flex items-center gap-2 mb-3">
@@ -2908,11 +2915,7 @@ export default function CandidateInterview() {
               )}
             </div>
           )}
-        </div>
-      </main>
-
-      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
+          
           {/* Section transition: show "Begin Next Section" button */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
@@ -2999,8 +3002,9 @@ export default function CandidateInterview() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder="Type your answer..."
-              className="flex-1 bg-slate-900/50 border-slate-600 text-white"
+              className="flex-1 bg-slate-900/50 border-2 border-green-500/60 focus:border-green-400 text-white"
               disabled={isCommitting}
+              autoFocus
             />
             <Button
               type="button"
@@ -3009,9 +3013,10 @@ export default function CandidateInterview() {
                 handleBottomBarSubmit();
               }}
               disabled={isBottomBarSubmitDisabled}
-              className={isV2PackField ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
+              className="bg-purple-600 hover:bg-purple-700 px-6"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 mr-2" />
+              Send
             </Button>
           </div>
           ) : null}
