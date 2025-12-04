@@ -2747,6 +2747,7 @@ async function probeEngineV2(input, base44Client) {
       if (discretionResult.data?.success && discretionResult.data.action) {
         if (discretionResult.data.action === "stop") {
           // Discretion says we have enough - advance
+          // No probe was asked, so probeCount stays the same
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
           return {
             mode: "NEXT_FIELD",
@@ -2754,7 +2755,7 @@ async function probeEngineV2(input, base44Client) {
             field_key,
             semanticField: field_key,
             validationResult: "discretion_stop",
-            previousProbeCount: previous_probes_count + 1,
+            previousProbeCount: previous_probes_count, // No increment - no question asked
             maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
             reason: discretionResult.data.reason,
             instanceNumber: instance_number,
