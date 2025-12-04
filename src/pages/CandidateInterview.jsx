@@ -1129,19 +1129,37 @@ export default function CandidateInterview() {
         
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
         
+        // Determine if this is an AI follow-up answer or the first field answer
+        const aiFollowupKey = `${packId}:${fieldKey}:${instanceNumber}`;
+        const pendingAiQuestion = lastAiFollowupQuestionByField[aiFollowupKey];
+        const isAiFollowupAnswer = !!pendingAiQuestion;
+        
+        // Use the AI follow-up question text if this is answering a follow-up, else use the base field label
+        const displayQuestionText = isAiFollowupAnswer ? pendingAiQuestion : questionText;
+        const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
+        
+        // Clear the pending AI question after using it
+        if (isAiFollowupAnswer) {
+          setLastAiFollowupQuestionByField(prev => {
+            const updated = { ...prev };
+            delete updated[aiFollowupKey];
+            return updated;
+          });
+        }
+        
         // Log Q&A to transcript
         const v2CombinedEntry = createChatEvent('followup_question', {
-          questionId: `v2pack-${packId}-${fieldIndex}`,
-          questionText: questionText,
+          questionId: `v2pack-${packId}-${fieldIndex}-${isAiFollowupAnswer ? 'ai' : 'field'}-${Date.now()}`,
+          questionText: displayQuestionText,
           packId: packId,
-          kind: 'v2_pack_followup',
-          text: questionText,
-          content: questionText,
+          kind: isAiFollowupAnswer ? 'v2_pack_ai_followup' : 'v2_pack_followup',
+          text: displayQuestionText,
+          content: displayQuestionText,
           fieldKey: fieldKey,
           followupPackId: packId,
           instanceNumber: instanceNumber,
           baseQuestionId: baseQuestionId,
-          source: 'V2_PACK',
+          source: entrySource,
           stepNumber: fieldIndex + 1,
           totalSteps: totalFieldsInPack,
           answer: finalAnswer
