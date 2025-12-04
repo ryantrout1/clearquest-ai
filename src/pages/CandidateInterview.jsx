@@ -2870,11 +2870,11 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+      <footer className="flex-shrink-0 bg-transparent px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Current question card - shown above input */}
+          {/* Current question card - floating above input */}
           {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 mb-4 ${
+            <div className={`bg-slate-800/95 backdrop-blur-sm border-2 rounded-xl p-6 mb-4 -mt-20 ${
               isV2PackField || currentPrompt.type === 'ai_probe' ? 'border-purple-500/50' : 'border-blue-500/50'
             }`}>
               <div className="flex items-center gap-2 mb-3">
