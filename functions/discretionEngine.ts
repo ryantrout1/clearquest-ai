@@ -454,17 +454,20 @@ function buildOpeningQuestion(packId, isMultiInstance = false, instanceNumber = 
   
   // Special opening for specific packs
   const PACK_OPENING_OVERRIDES = {
-        // PACK_PRIOR_LE_APPS_STANDARD: Only ask about outcome - agency/position/month_year handled by follow-up card
-        "PACK_PRIOR_LE_APPS_STANDARD": "What was the outcome of this application?",
-        "PACK_LE_APPS": "What was the outcome of this application?",
+    // PACK_PRIOR_LE_APPS_STANDARD: NO opening probe - deterministic cards handle all fields
+    // Agency/position/month_year = PACK_PRLE_Q01, Outcome = PACK_PRLE_Q02
+    // Return null to signal no AI opening is needed
+    "PACK_PRIOR_LE_APPS_STANDARD": null, // No AI opening - fields are deterministic
+    "PACK_LE_APPS": null, // No AI opening - fields are deterministic
     "PACK_DRIVING_COLLISION_STANDARD": "For this collision, about when did it occur, where did it happen, and what happened?",
     "PACK_DRIVING_DUIDWI_STANDARD": "For this incident, what substance was involved, about when did it occur, and what was the outcome?",
     "PACK_DOMESTIC_VIOLENCE_STANDARD": "For this incident, what was your relationship to the other person, about when did it occur, and what happened?",
     "PACK_DRUG_USE_STANDARD": "What substance was involved, when did you first use it, and when was the last time you used it?"
   };
   
-  if (PACK_OPENING_OVERRIDES[packId]) {
-    return PACK_OPENING_OVERRIDES[packId];
+  // Check if pack has an override (including null)
+  if (packId in PACK_OPENING_OVERRIDES) {
+    return PACK_OPENING_OVERRIDES[packId]; // May be null for packs that don't need AI opening
   }
   
   return buildCombinedQuestion(requiredAnchors, isMultiInstance && instanceNumber > 1);
