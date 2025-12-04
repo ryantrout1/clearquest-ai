@@ -18,24 +18,29 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // HARDENED: Synced with followupPackConfig.js - SINGLE SOURCE OF TRUTH for critical anchors
 const PACK_FACT_SCHEMAS = {
-  // Prior Law Enforcement Applications - OUTCOME ONLY
-  // Agency name, position, and month/year are captured by the main follow-up card (purple card).
-  // The V2 engine only needs to probe for the outcome.
+  // Prior Law Enforcement Applications - NO AI PROBING ON Q01
+  // Agency name, position, and month/year are captured by deterministic PACK_PRLE_Q01.
+  // Outcome is captured by deterministic PACK_PRLE_Q02.
+  // The V2 engine should NOT probe for outcome - it's handled by the deterministic card.
+  // AI clarifiers should ONLY ask for missing agency/position/date info if vague.
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["outcome"], // Only outcome - other fields handled by follow-up card
-    optional: ["reason_not_hired"],
+    required: [], // No required anchors - all fields are deterministic
+    optional: ["agency_name", "position", "month_year"], // Can clarify these if vague
     severity: "standard",
-    maxProbes: 1, // Hard cap: single micro-question for outcome only
+    maxProbes: 1, // Hard cap: single clarifier only if agency/position/date is vague
     multiInstance: true,
-    topic: "prior_apps"
+    topic: "prior_apps",
+    // CRITICAL: outcome is NOT in this schema - it's handled by PACK_PRLE_Q02 deterministically
+    excludeFromProbing: ["outcome", "reason_not_hired"] // Never probe for these
   },
   "PACK_LE_APPS": {
-    required: ["outcome"], // Only outcome - other fields handled by follow-up card
-    optional: ["reason_not_hired"],
+    required: [], // No required anchors - all fields are deterministic
+    optional: ["agency_name", "position", "month_year"],
     severity: "standard",
-    maxProbes: 1, // Hard cap: single micro-question for outcome only
+    maxProbes: 1,
     multiInstance: true,
-    topic: "prior_apps"
+    topic: "prior_apps",
+    excludeFromProbing: ["outcome", "reason_not_hired"]
   },
   
   // Driving Packs
