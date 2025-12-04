@@ -323,104 +323,80 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
+/**
+ * V2.6 Universal MVP: All V2 packs use Discretion Engine
+ * NO deterministic follow-up questions surface to candidates
+ * Backend controls all probing decisions through Discretion Engine
+ */
 const runV2FieldProbeIfNeeded = async ({
-base44Client,
-packId,
-fieldKey,
-fieldValue,
-previousProbesCount,
-incidentContext,
-sessionId,
-questionCode,
-baseQuestionId,
-aiProbingEnabled,
-aiProbingDisabledForSession,
-maxAiFollowups,
-instanceNumber
-}) => {
-const probeCount = previousProbesCount || 0;
-
-// EXPLICIT ENTRY LOG
-console.log(`[V2_PACK][CALL] packId=${packId} fieldId=${fieldKey} instanceNumber=${instanceNumber || 1} answerPreview="${String(fieldValue).slice(0, 80)}"`);
-
-// Log the request before any checks
-console.log("[V2_PACK][REQUEST]", {
+  base44Client,
   packId,
-  fieldCode: fieldKey,
-  answer: fieldValue?.substring?.(0, 50) || fieldValue,
+  fieldKey,
+  fieldValue,
+  previousProbesCount,
+  incidentContext,
   sessionId,
   questionCode,
   baseQuestionId,
-  probeCount,
-  maxAiFollowups,
-  instanceNumber: instanceNumber || 1
-});
-
-// Check if feature is globally disabled
-if (!ENABLE_LIVE_AI_FOLLOWUPS) {
-  console.log(`[V2_PACK][SKIP_BACKEND] reason=FEATURE_DISABLED packId=${packId} fieldId=${fieldKey}`);
-  // Return NEXT_FIELD to allow deterministic progression when AI is disabled
-  return { mode: 'NEXT_FIELD', reason: 'feature disabled - deterministic fallback' };
-}
-
-// For V2 packs, we ALWAYS call the backend regardless of AI probing settings
-// The backend decides whether to probe or advance - AI settings only affect probing behavior
-// This is different from the old approach where we skipped backend calls entirely
-
-console.log('[V2_PACK][CALLING_BACKEND]', {
-  packId,
-  fieldKey,
-  questionCode,
-  baseQuestionId,
-  answer: fieldValue?.substring?.(0, 50) || fieldValue,
   aiProbingEnabled,
-  probeCount,
-  maxAiFollowups
-});
+  aiProbingDisabledForSession,
+  maxAiFollowups,
+  instanceNumber
+}) => {
+  const probeCount = previousProbesCount || 0;
 
-try {
-  const v2Result = await callProbeEngineV2PerField(base44Client, {
+  // EXPLICIT ENTRY LOG
+  console.log(`[V2_UNIVERSAL][CALL] packId=${packId} fieldKey=${fieldKey} instance=${instanceNumber || 1} probeCount=${probeCount}`);
+  console.log(`[V2_UNIVERSAL][CALL] answer="${String(fieldValue).slice(0, 80)}"`);
+
+  // Check if AI probing is globally disabled
+  if (!ENABLE_LIVE_AI_FOLLOWUPS) {
+    console.log(`[V2_UNIVERSAL][SKIP] AI probing disabled globally`);
+    return { mode: 'NEXT_FIELD', reason: 'AI probing disabled globally' };
+  }
+
+  // V2.6 Universal MVP: ALWAYS call backend - Discretion Engine controls everything
+  console.log('[V2_UNIVERSAL][CALLING_BACKEND]', {
     packId,
     fieldKey,
-    fieldValue,
-    previousProbesCount: probeCount,
-    incidentContext,
-    sessionId,
-    questionCode,
-    baseQuestionId,
-    instanceNumber
+    instanceNumber: instanceNumber || 1,
+    probeCount,
+    collectedAnchors: Object.keys(incidentContext || {})
   });
-  
-  // EXPLICIT RESPONSE LOG
-  const decisionType = v2Result?.mode || 'UNKNOWN';
-  const nextFieldId = v2Result?.nextField || (v2Result?.mode === 'NEXT_FIELD' ? 'next' : 'none');
-  console.log(`[V2_PACK][RESPONSE] packId=${packId} fieldId=${fieldKey} decision=${decisionType} nextField=${nextFieldId}`);
-  
-  console.log("[V2_PACK][RESPONSE]", {
-    packId,
-    fieldCode: fieldKey,
-    mode: v2Result?.mode,
-    hasQuestion: !!v2Result?.question,
-    questionPreview: v2Result?.question?.substring?.(0, 60),
-    isComplete: v2Result?.mode === 'COMPLETE' || v2Result?.isComplete,
-    nextField: v2Result?.nextField || null
-  });
-  
-  // If AI probing is disabled but backend returned a probe question, convert to NEXT_FIELD
-  if (!aiProbingEnabled || aiProbingDisabledForSession || probeCount >= maxAiFollowups) {
-    if (v2Result?.mode === 'QUESTION') {
-      console.log(`[V2_PACK][SKIP_BACKEND] reason=AI_DISABLED packId=${packId} fieldId=${fieldKey} (aiEnabled=${aiProbingEnabled}, sessionDisabled=${aiProbingDisabledForSession}, probeCount=${probeCount}/${maxAiFollowups})`);
-      return { mode: 'NEXT_FIELD', reason: 'AI disabled - skipping probe' };
+
+  try {
+    const v2Result = await callProbeEngineV2PerField(base44Client, {
+      packId,
+      fieldKey,
+      fieldValue,
+      previousProbesCount: probeCount,
+      incidentContext,
+      sessionId,
+      questionCode,
+      baseQuestionId,
+      instanceNumber
+    });
+    
+    console.log(`[V2_UNIVERSAL][RESPONSE]`, {
+      packId,
+      mode: v2Result?.mode,
+      hasQuestion: !!v2Result?.question,
+      probeSource: v2Result?.probeSource,
+      reason: v2Result?.reason || v2Result?.message
+    });
+    
+    // If AI is disabled at session level, skip any probe questions
+    if (aiProbingDisabledForSession && v2Result?.mode === 'QUESTION') {
+      console.log(`[V2_UNIVERSAL][SKIP] Session has AI probing disabled`);
+      return { mode: 'NEXT_FIELD', reason: 'Session AI probing disabled' };
     }
+    
+    return v2Result;
+  } catch (err) {
+    console.error('[V2_UNIVERSAL][ERROR]', { packId, fieldKey, error: err?.message });
+    // On error, advance to prevent interview from getting stuck
+    return { mode: 'NEXT_FIELD', reason: 'Backend error - advancing', error: err?.message };
   }
-  
-  return v2Result;
-} catch (err) {
-  console.log(`[V2_PACK][SKIP_BACKEND] reason=BACKEND_ERROR packId=${packId} fieldId=${fieldKey} error="${err?.message}"`);
-  console.error('[V2_PACK][ERROR] Backend pack engine failed', { packId, fieldKey, error: err?.message });
-  // On error, return NEXT_FIELD to allow deterministic progression
-  return { mode: 'NEXT_FIELD', reason: 'backend error - deterministic fallback', error: err?.message };
-}
 };
 
 export default function CandidateInterview() {
