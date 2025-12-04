@@ -18,16 +18,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
-// System-locked opening messages
-const PACK_OPENING_MESSAGES = {
-  single: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-  multi: "Got it. I'll take these one at a time so everything stays clear."
-};
-
-// Pack-specific compound opening questions (replaces generic opening)
-const PACK_COMPOUND_OPENING_QUESTIONS = {
-  "PACK_PRIOR_LE_APPS_STANDARD": "For this application, what type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), what position you applied for, and about what month and year did you apply?"
-};
+// V2.6 Universal MVP: Use Discretion Engine for ALL pack openings and probing
+// No more static opening messages - Discretion Engine generates context-aware questions
 
 /**
  * Helper to detect "I don't recall / remember / know" style answers
