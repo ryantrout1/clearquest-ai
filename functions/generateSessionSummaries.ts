@@ -13,6 +13,80 @@ function getAiRuntimeConfig(globalSettings) {
 }
 
 /**
+ * Build fact graph for Contradiction Engine
+ * Collects base answers and incident anchors from session data
+ */
+function buildFactGraph(responses, followUps, responsesByQuestionCode) {
+  const baseAnswers = {};
+  const incidents = {};
+  
+  // Collect base answers (normalized by question code)
+  for (const response of responses) {
+    const questionCode = response.question_id;
+    if (questionCode) {
+      baseAnswers[questionCode] = {
+        raw: response.answer,
+        normalized: response.answer?.toLowerCase?.() || response.answer,
+        questionText: response.question_text
+      };
+    }
+  }
+  
+  // Collect incidents from follow-up responses
+  for (const fu of followUps) {
+    const packId = fu.followup_pack;
+    if (!packId) continue;
+    
+    if (!incidents[packId]) {
+      incidents[packId] = [];
+    }
+    
+    // Extract anchors from additional_details
+    const anchors = {};
+    const details = fu.additional_details || {};
+    
+    for (const [key, value] of Object.entries(details)) {
+      // Skip internal fields
+      if (['investigator_probing', 'question_text_snapshot', 'facts', 'unresolvedFields'].includes(key)) continue;
+      if (typeof value === 'object') continue;
+      if (!value || String(value).trim() === '') continue;
+      
+      // Normalize key to semantic anchor name
+      const semanticKey = key
+        .replace(/PACK_[A-Z_]+_/g, '')
+        .replace(/Q\d+/g, '')
+        .toLowerCase()
+        .replace(/_/g, '');
+      
+      anchors[semanticKey] = value;
+    }
+    
+    // Also include standard fields
+    if (fu.incident_date) anchors['month_year'] = fu.incident_date;
+    if (fu.incident_location) anchors['location'] = fu.incident_location;
+    if (fu.incident_description) anchors['what_happened'] = fu.incident_description;
+    if (fu.substance_name) anchors['substance_type'] = fu.substance_name;
+    
+    incidents[packId].push({
+      instanceNumber: fu.instance_number || 1,
+      anchors,
+      responseId: fu.response_id,
+      completed: fu.completed
+    });
+  }
+  
+  console.log('[FACT_GRAPH] Built', {
+    baseAnswerCount: Object.keys(baseAnswers).length,
+    incidentPacks: Object.keys(incidents),
+    incidentCounts: Object.fromEntries(
+      Object.entries(incidents).map(([k, v]) => [k, v.length])
+    )
+  });
+  
+  return { baseAnswers, incidents };
+}
+
+/**
  * Check if a question is complete for this session.
  * A question is complete when:
  * 1. It has a response (any answer - Yes/No/other)
