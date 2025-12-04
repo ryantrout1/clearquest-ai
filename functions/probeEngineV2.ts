@@ -2777,7 +2777,7 @@ async function probeEngineV2(input, base44Client) {
             };
           }
           
-          // Discretion wants to ask another question
+          // Discretion wants to ask another question - THIS is where we increment probeCount
           console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${question.substring(0, 60)}..."`);
           return {
             mode: "QUESTION",
@@ -2786,7 +2786,7 @@ async function probeEngineV2(input, base44Client) {
             semanticField: field_key,
             question,
             validationResult: "discretion_probe",
-            previousProbeCount: previous_probes_count + 1,
+            previousProbeCount: previous_probes_count + 1, // INCREMENT: a question is actually being asked
             maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
             isFallback: false,
             probeSource: `discretion_${discretionResult.data.action}`,
@@ -2796,6 +2796,7 @@ async function probeEngineV2(input, base44Client) {
             message: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`
           };
         } else {
+          // No valid question returned - don't increment probe count
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
           return {
             mode: "NEXT_FIELD",
@@ -2803,7 +2804,7 @@ async function probeEngineV2(input, base44Client) {
             field_key,
             semanticField: field_key,
             validationResult: "discretion_no_question",
-            previousProbeCount: previous_probes_count + 1,
+            previousProbeCount: previous_probes_count, // No increment - no question asked
             message: 'No question from Discretion - advancing'
           };
         }
