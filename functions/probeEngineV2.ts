@@ -2536,45 +2536,55 @@ async function probeEngineV2(input, base44Client) {
 
   console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
-  // EXPLICIT LOGGING: Entry point for PRIOR_LE_APPS standard cluster
-  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] ========== PRIOR LE APPS PER-FIELD HANDLER ==========`);
-    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][ENTRY] packId=${pack_id}, fieldKey=${field_key}, instanceNumber=${instance_number}, answer="${field_value?.substring?.(0, 80) || field_value}"`);
+  // ============================================================================
+  // V2.6 UNIVERSAL MVP: Use Discretion Engine for ALL V2 packs
+  // ============================================================================
+  
+  console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id} field=${field_key} instance=${instance_number} probeCount=${previous_probes_count}`);
+  
+  // Build collected anchors from incident_context
+  const collectedAnchors = { ...incident_context };
+  if (field_value && field_value.trim()) {
+    // The current answer contributes to collected anchors
+    // We'll extract specific anchors from it below
+  }
+  
+  // For pack opening (probeCount=0, empty field value), call Discretion Engine for opening question
+  if (previous_probes_count === 0 && (!field_value || field_value.trim() === "")) {
+    console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
     
-    // Special handling for cluster opening (empty field_value on first field)
-    if (field_key === "PACK_PRLE_Q01" && (!field_value || field_value.trim() === "")) {
-      // Use compound opening question instead of generic message
-      const compoundQuestion = PACK_COMPOUND_OPENING_QUESTIONS[pack_id];
-      if (compoundQuestion) {
-        console.log(`[V2-BACKEND-CLUSTER-INIT] Returning compound opening question for PACK_PRIOR_LE_APPS_STANDARD`);
+    try {
+      const discretionResult = await base44Client.functions.invoke('discretionEngine', {
+        packId: pack_id,
+        collectedAnchors: {},
+        probeCount: 0,
+        instanceNumber: instance_number,
+        lastAnswer: ""
+      });
+      
+      if (discretionResult.data?.success && discretionResult.data?.question) {
+        console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${discretionResult.data.question.substring(0, 60)}..."`);
         return {
           mode: "QUESTION",
           pack_id,
           field_key,
-          semanticField: "agency_type",
-          question: compoundQuestion,
-          validationResult: "cluster_opening",
+          semanticField: field_key,
+          question: discretionResult.data.question,
+          validationResult: "opening_question",
           previousProbeCount: 0,
-          maxProbesPerField: 3,
+          maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
           isFallback: false,
-          probeSource: 'compound_opening',
-          message: "Compound opening question for pack initialization"
+          probeSource: 'discretion_opening',
+          targetAnchors: discretionResult.data.targetAnchors,
+          tone: discretionResult.data.tone,
+          instanceNumber: instance_number,
+          message: "Opening question from Discretion Engine"
         };
       }
+    } catch (err) {
+      console.error(`[V2-UNIVERSAL][OPENING] Discretion Engine error:`, err.message);
+      // Fall through to legacy handling
     }
-    
-    console.log(`[V2-BACKEND-ENTRY] Full request payload:`, {
-      pack_id,
-      field_key,
-      field_value: field_value?.substring?.(0, 50) || field_value,
-      previous_probes_count,
-      incident_context_keys: Object.keys(incident_context),
-      incident_context_values: incident_context,
-      questionCode,
-      questionDbId,
-      sectionName,
-      mode: requestMode
-    });
   }
 
   const packConfig = PACK_CONFIG[pack_id];
