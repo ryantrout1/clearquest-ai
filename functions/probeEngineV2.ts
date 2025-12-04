@@ -2624,7 +2624,8 @@ async function probeEngineV2(input, base44Client) {
         reason: discretionResult.data?.reason
       });
       
-      if (discretionResult.data?.success) {
+      // HARDENED: Validate discretion result structure
+      if (discretionResult.data?.success && discretionResult.data.action) {
         if (discretionResult.data.action === "stop") {
           // Discretion says we have enough - advance
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
@@ -2640,15 +2641,30 @@ async function probeEngineV2(input, base44Client) {
             instanceNumber: instance_number,
             message: `Discretion Engine stopped: ${discretionResult.data.reason}`
           };
-        } else if (discretionResult.data.question) {
+        } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
+          // HARDENED: Validate question text before returning
+          const question = discretionResult.data.question.trim();
+          if (question.length < 10 || question.length > 500) {
+            console.warn(`[V2-UNIVERSAL] Invalid question length (${question.length}) - advancing instead`);
+            return {
+              mode: "NEXT_FIELD",
+              pack_id,
+              field_key,
+              semanticField: field_key,
+              validationResult: "invalid_question",
+              previousProbeCount: previous_probes_count + 1,
+              message: 'Invalid question from Discretion - advancing'
+            };
+          }
+          
           // Discretion wants to ask another question
-          console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${discretionResult.data.question.substring(0, 60)}..."`);
+          console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${question.substring(0, 60)}..."`);
           return {
             mode: "QUESTION",
             pack_id,
             field_key,
             semanticField: field_key,
-            question: discretionResult.data.question,
+            question,
             validationResult: "discretion_probe",
             previousProbeCount: previous_probes_count + 1,
             maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
@@ -2659,11 +2675,24 @@ async function probeEngineV2(input, base44Client) {
             instanceNumber: instance_number,
             message: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`
           };
+        } else {
+          console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
+          return {
+            mode: "NEXT_FIELD",
+            pack_id,
+            field_key,
+            semanticField: field_key,
+            validationResult: "discretion_no_question",
+            previousProbeCount: previous_probes_count + 1,
+            message: 'No question from Discretion - advancing'
+          };
         }
+      } else {
+        console.warn(`[V2-UNIVERSAL] Invalid discretion result - advancing`);
       }
     } catch (err) {
       console.error(`[V2-UNIVERSAL][DISCRETION_ERROR]`, err.message);
-      // Fall through to legacy validation if Discretion Engine fails
+      // HARDENED: Fall through to legacy validation instead of failing
     }
   }
   
