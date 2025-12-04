@@ -1248,6 +1248,13 @@ export default function CandidateInterview() {
             newProbeCount: probeCount + 1
           });
           
+          // Store the AI follow-up question text so the next answer uses it as the card label
+          const aiFollowupKey = `${packId}:${fieldKey}:${instanceNumber}`;
+          setLastAiFollowupQuestionByField(prev => ({
+            ...prev,
+            [aiFollowupKey]: v2Result.question
+          }));
+          
           setAiFollowupCounts(prev => ({
             ...prev,
             [fieldCountKey]: probeCount + 1
