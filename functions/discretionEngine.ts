@@ -592,6 +592,19 @@ Deno.serve(async (req) => {
 
     const input = await req.json();
     
+    // Validate input
+    if (!input || typeof input !== 'object') {
+      console.error('[DISCRETION_ENGINE] Invalid input');
+      return Response.json({ 
+        success: true,
+        action: 'stop',
+        question: null,
+        targetAnchors: [],
+        tone: 'neutral',
+        reason: 'Invalid input - safe stop'
+      }, { status: 200 });
+    }
+    
     // Support both old and new input formats
     const {
       // New universal format
@@ -609,6 +622,19 @@ Deno.serve(async (req) => {
       topic,
       nonSubstantiveCount = 0
     } = input;
+    
+    // Validate packId for new format
+    if (!packId && !stillMissingAnchors.length) {
+      console.error('[DISCRETION_ENGINE] Missing packId and no legacy params');
+      return Response.json({ 
+        success: true,
+        action: 'stop',
+        question: null,
+        targetAnchors: [],
+        tone: 'neutral',
+        reason: 'No pack specified - safe stop'
+      }, { status: 200 });
+    }
     
     console.log(`[DISCRETION_ENGINE] Request:`, {
       packId,
