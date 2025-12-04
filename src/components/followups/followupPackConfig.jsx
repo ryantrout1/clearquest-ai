@@ -1079,13 +1079,13 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q02",
-        semanticKey: "agency_name",
-        label: "What was the name of that agency?",
-        factsLabel: "Agency Name",
+        semanticKey: "outcome",
+        label: "What was the outcome of that application? (For example: hired, disqualified, withdrew, or still in process.)",
+        factsLabel: "Outcome",
         inputType: "text",
-        placeholder: "Enter agency name",
+        placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
         required: true,
-        aiProbingEnabled: true,
+        aiProbingEnabled: false, // Outcome is deterministic - no AI probing
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
@@ -1095,7 +1095,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled after probing",
         validation: {
-          type: "agency_name",
+          type: "outcome",
           allowUnknown: true,
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           rejectTokens: DEFAULT_REJECT_TOKENS,
