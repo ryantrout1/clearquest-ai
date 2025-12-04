@@ -343,16 +343,38 @@ function summarizeAnchors(anchors) {
 // ============================================================================
 
 Deno.serve(async (req) => {
+  let sessionId = null;
+  
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
     
     // HARDENED: Non-blocking auth - run analysis even if auth fails
+    let user = null;
+    try {
+      user = await base44.auth.me();
+    } catch (authErr) {
+      console.warn('[CONTRADICTION_ENGINE] Auth failed - continuing without user:', authErr.message);
+    }
+    
     if (!user) {
       console.warn('[CONTRADICTION_ENGINE] Running without auth (service role context)');
     }
 
-    const { sessionId, baseAnswers, incidents, anchorsByTopic } = await req.json();
+    let body = {};
+    try {
+      body = await req.json();
+    } catch (parseErr) {
+      console.warn('[CONTRADICTION_ENGINE] Failed to parse request body:', parseErr.message);
+      return Response.json({ 
+        success: true,
+        sessionId: null,
+        contradictions: [],
+        warning: 'Invalid request body'
+      }, { status: 200 });
+    }
+    
+    sessionId = body.sessionId;
+    const { baseAnswers, incidents, anchorsByTopic } = body;
     
     // HARDENED: Validate sessionId but continue with empty result if missing
     if (!sessionId) {
@@ -364,12 +386,18 @@ Deno.serve(async (req) => {
       }, { status: 200 });
     }
     
+    // HARDENED: Log structural info only (no PII)
+    console.log(`[CONTRADICTION_ENGINE] Starting analysis for session=${sessionId} baseQ=${Object.keys(baseAnswers || {}).length} packs=${Object.keys(incidents || {}).length}`);
+    
     const result = evaluateContradictions({ 
       sessionId, 
       baseAnswers: baseAnswers || {}, 
       incidents: incidents || {}, 
       anchorsByTopic: anchorsByTopic || {} 
     });
+    
+    // HARDENED: Log result count only
+    console.log(`[CONTRADICTION_ENGINE] Complete: ${result.contradictions?.length || 0} contradictions found`);
     
     return Response.json({
       success: true,
@@ -382,7 +410,7 @@ Deno.serve(async (req) => {
     // HARDENED: Return 200 with empty contradictions to prevent BI generation failure
     return Response.json({ 
       success: true,
-      sessionId: null,
+      sessionId,
       contradictions: [],
       error: error.message
     }, { status: 200 });
