@@ -645,10 +645,20 @@ Deno.serve(async (req) => {
     
     // If packId provided, use new universal logic
     if (packId) {
+      // Validate pack exists in schema
+      const schema = getPackSchema(packId);
+      if (!schema && packId !== 'test') {
+        console.warn(`[DISCRETION_ENGINE] Unknown pack: ${packId} - using default schema`);
+      }
+      
+      // Enforce max probes ceiling (never exceed schema limit)
+      const effectiveMaxProbes = schema?.maxProbes || 3;
+      const effectiveProbeCount = Math.min(probeCount, effectiveMaxProbes);
+      
       const result = evaluateDiscretion({
         packId,
         collectedAnchors,
-        probeCount,
+        probeCount: effectiveProbeCount,
         instanceNumber,
         lastAnswer
       });
@@ -660,13 +670,27 @@ Deno.serve(async (req) => {
         reason: result.reason
       });
       
+      // Validate result before returning
+      if (!result || !result.action) {
+        console.error('[DISCRETION_ENGINE] Invalid result from evaluateDiscretion');
+        return Response.json({
+          success: true,
+          action: 'stop',
+          question: null,
+          targetAnchors: [],
+          tone: 'neutral',
+          reason: 'Invalid discretion result - safe stop'
+        });
+      }
+      
       return Response.json({
         success: true,
         ...result,
         debug: {
           packId,
           collectedCount: Object.keys(collectedAnchors).length,
-          probeCount,
+          probeCount: effectiveProbeCount,
+          maxProbes: effectiveMaxProbes,
           instanceNumber
         }
       });
