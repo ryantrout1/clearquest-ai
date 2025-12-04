@@ -62,45 +62,45 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   
-  // Criminal / Violence Packs
+  // Criminal / Violence Packs - CRITICAL ANCHORS (strict severity topics)
   "PACK_DOMESTIC_VIOLENCE_STANDARD": {
-    required: ["relationship", "behavior_type", "month_year", "outcome"],
-    optional: ["injury_or_damage", "location", "protective_order"],
+    required: ["relationship", "month_year", "behavior_type"], // Critical 3
+    optional: ["outcome", "injury_or_damage", "location", "protective_order"],
     severity: "strict",
-    maxProbes: 5,
+    maxProbes: 5, // Higher limit for serious topics
     multiInstance: true
   },
   "PACK_ASSAULT_STANDARD": {
-    required: ["month_year", "location", "circumstances", "outcome"],
-    optional: ["injuries", "weapons_involved"],
+    required: ["month_year", "location", "circumstances"], // Critical 3
+    optional: ["outcome", "injuries", "weapons_involved"],
     severity: "strict",
     maxProbes: 5,
     multiInstance: true
   },
   "PACK_GENERAL_CRIME_STANDARD": {
-    required: ["month_year", "location", "what_happened", "legal_outcome"],
-    optional: ["charges", "arrest_status"],
+    required: ["month_year", "location", "what_happened"], // Critical 3
+    optional: ["legal_outcome", "charges", "arrest_status"],
     severity: "strict",
     maxProbes: 5,
     multiInstance: true
   },
   "PACK_THEFT_STANDARD": {
-    required: ["month_year", "location", "what_stolen", "legal_outcome"],
-    optional: ["value", "circumstances"],
+    required: ["month_year", "location", "what_stolen"], // Critical 3
+    optional: ["legal_outcome", "value", "circumstances"],
     severity: "strict",
     maxProbes: 4,
     multiInstance: true
   },
   "PACK_PROPERTY_CRIME_STANDARD": {
-    required: ["month_year", "location", "property_type", "legal_outcome"],
-    optional: ["damage_amount", "circumstances"],
+    required: ["month_year", "location", "property_type"], // Critical 3
+    optional: ["legal_outcome", "damage_amount", "circumstances"],
     severity: "standard",
     maxProbes: 4,
     multiInstance: true
   },
   "PACK_FRAUD_STANDARD": {
-    required: ["fraud_type", "month_year", "circumstances", "legal_outcome"],
-    optional: ["amount_involved"],
+    required: ["fraud_type", "month_year", "circumstances"], // Critical 3
+    optional: ["legal_outcome", "amount_involved"],
     severity: "strict",
     maxProbes: 4,
     multiInstance: true
