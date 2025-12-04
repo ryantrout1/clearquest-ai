@@ -475,12 +475,17 @@ function buildOpeningQuestion(packId, isMultiInstance = false, instanceNumber = 
 
 /**
  * Determine which anchors are still missing based on collected data
+ * Respects excludeFromProbing list for packs like PACK_PRIOR_LE_APPS_STANDARD
  */
 function computeMissingAnchors(schema, collectedAnchors) {
   const collected = new Set(Object.keys(collectedAnchors || {}));
+  const excluded = new Set(schema.excludeFromProbing || []);
   
-  const requiredMissing = schema.required.filter(a => !collected.has(a));
-  const optionalMissing = schema.optional.filter(a => !collected.has(a));
+  // Filter out excluded anchors from required/optional
+  const requiredMissing = schema.required
+    .filter(a => !collected.has(a) && !excluded.has(a));
+  const optionalMissing = schema.optional
+    .filter(a => !collected.has(a) && !excluded.has(a));
   
   return {
     requiredMissing,
