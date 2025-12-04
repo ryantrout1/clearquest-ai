@@ -13,17 +13,19 @@
 // These are used by the Discretion Engine to decide when to probe and when to stop
 // ============================================================================
 
+// HARDENED: Critical 3-5 fact anchors per pack (MVP anchor-based probing pipeline)
+// These are the SINGLE SOURCE OF TRUTH for what facts must be collected per incident
 export const PACK_FACT_ANCHORS = {
-  // Prior Law Enforcement Applications
+  // Prior Law Enforcement Applications - CRITICAL ANCHORS
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_type", "position", "month_year", "outcome"],
-    optional: ["agency_name", "location", "reason_not_hired"],
+    required: ["agency_type", "position", "month_year", "outcome"], // Critical 4
+    optional: ["agency_name", "location", "reason_not_hired"], // Nice-to-have
     severity: "standard",
-    maxProbes: 4,
+    maxProbes: 4, // Enforced limit - prevents over-probing
     multiInstance: true
   },
   "PACK_LE_APPS": {
-    required: ["agency_type", "position", "month_year", "outcome"],
+    required: ["agency_type", "position", "month_year", "outcome"], // Critical 4
     optional: ["agency_name", "location", "reason_not_hired"],
     severity: "standard",
     maxProbes: 4,
