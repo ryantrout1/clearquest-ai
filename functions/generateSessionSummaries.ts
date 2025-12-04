@@ -579,7 +579,8 @@ Generate a brief interview-level summary (2-3 sentences) focusing on what was di
               text: globalResult.summary,
               riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
               keyObservations: [],
-              patterns: []
+              patterns: [],
+              contradictions: contradictions // Attach contradictions to BI output
             },
             ai_summaries_last_generated_at: new Date().toISOString()
           });
