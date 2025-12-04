@@ -18,13 +18,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // HARDENED: Synced with followupPackConfig.js - SINGLE SOURCE OF TRUTH for critical anchors
 const PACK_FACT_SCHEMAS = {
-  // Prior Law Enforcement Applications - CRITICAL ANCHORS (MVP)
-  // agency_name = the actual name of the department (e.g., "Phoenix Police Department")
+  // Prior Law Enforcement Applications - OUTCOME ONLY
+  // Agency name, position, and month/year are captured by the main follow-up card (purple card).
+  // The V2 engine only needs to probe for the outcome.
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: ["agency_name", "position", "month_year", "outcome"], // Critical 4 - agency_name is the department name
-    optional: ["agency_type", "location", "reason_not_hired"],
+    required: ["outcome"], // Only outcome - other fields handled by follow-up card
+    optional: ["reason_not_hired"],
     severity: "standard",
-    maxProbes: 4, // Enforced ceiling - never exceed this
+    maxProbes: 1, // Hard cap: single micro-question for outcome only
     multiInstance: true,
     topic: "prior_apps"
   },
