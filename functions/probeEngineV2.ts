@@ -17,6 +17,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
+// System-locked opening messages
+const PACK_OPENING_MESSAGES = {
+  single: "Thanks. I'll ask a few quick factual questions to keep things clear.",
+  multi: "Got it. I'll take these one at a time so everything stays clear."
+};
+
 /**
  * Helper to detect "I don't recall / remember / know" style answers
  * Used to force probing even if field-specific validation might accept the value
@@ -2401,9 +2407,114 @@ function isRequiredDateField(packConfig, semanticField) {
 }
 
 /**
+ * Build BI-style clarifier question from fact anchors
+ * NO narrative framing, NO "for your investigator" language
+ */
+function buildClarifierFromAnchors(packEntity, anchorKeys, mode, context = {}) {
+  const factAnchors = packEntity?.fact_anchors || [];
+  if (!factAnchors.length || !anchorKeys?.length) return null;
+  
+  // Get anchor definitions for requested keys
+  const anchors = anchorKeys
+    .map(key => factAnchors.find(a => a.key === key))
+    .filter(Boolean);
+  
+  if (!anchors.length) return null;
+  
+  // Question templates
+  const templates = {
+    agency_type: { micro: "What type of agency was it (city police, sheriff's office, state agency, or federal agency)?", combined: "what type of agency was it" },
+    agency_name: { micro: "What was the name of that agency?", combined: "what was the agency name" },
+    position: { micro: "What position did you apply for?", combined: "what position did you apply for" },
+    month_year: { micro: "About what month and year was that?", combined: "about what month and year" },
+    approx_date: { micro: "About what month and year did that happen?", combined: "about what month and year" },
+    location: { micro: "Where did that happen?", combined: "where it happened" },
+    location_general: { micro: "What city and state was that in?", combined: "what city and state" },
+    outcome: { micro: "What was the outcome?", combined: "what was the outcome" },
+    consequences: { micro: "What were the consequences?", combined: "what were the consequences" },
+    what_happened: { micro: "What happened?", combined: "what happened" },
+    description: { micro: "Can you briefly describe what occurred?", combined: "what occurred" }
+  };
+  
+  const getTemplate = (key, m) => (templates[key] || { micro: "Can you provide that information?", combined: "that information" })[m];
+  
+  if (mode === "micro") {
+    const q = getTemplate(anchors[0].key, "micro");
+    if (context.multiInstance && anchors[0].multiInstanceAware) {
+      return "For this incident, " + q.charAt(0).toLowerCase() + q.slice(1);
+    }
+    return q;
+  }
+  
+  // Combined mode - take up to 3
+  const toAsk = anchors.slice(0, 3);
+  const fragments = toAsk.map(a => getTemplate(a.key, "combined"));
+  
+  let question;
+  if (fragments.length === 2) {
+    question = `${fragments[0].charAt(0).toUpperCase() + fragments[0].slice(1)} and ${fragments[1]}?`;
+  } else if (fragments.length === 3) {
+    question = `${fragments[0].charAt(0).toUpperCase() + fragments[0].slice(1)}, ${fragments[1]}, and ${fragments[2]}?`;
+  } else {
+    question = fragments[0].charAt(0).toUpperCase() + fragments[0].slice(1) + "?";
+  }
+  
+  if (context.multiInstance && toAsk.some(a => a.multiInstanceAware)) {
+    return "For this incident, " + question.charAt(0).toLowerCase() + question.slice(1);
+  }
+  
+  return question;
+}
+
+/**
+ * Compute collected and missing anchors for an instance
+ */
+function computeAnchorState(packEntity, instanceAnchors = {}) {
+  const factAnchors = packEntity?.fact_anchors || [];
+  if (!factAnchors.length) return { collectedAnchors: {}, missingAnchors: [], requiredMissing: [] };
+  
+  const collectedAnchors = {};
+  const missingAnchors = [];
+  const requiredMissing = [];
+  
+  const sorted = [...factAnchors].sort((a, b) => a.priority - b.priority);
+  
+  for (const anchor of sorted) {
+    const val = instanceAnchors[anchor.key];
+    if (val !== undefined && val !== null && val !== "") {
+      collectedAnchors[anchor.key] = val;
+    } else {
+      missingAnchors.push(anchor.key);
+      if (anchor.required) requiredMissing.push(anchor.key);
+    }
+  }
+  
+  return { collectedAnchors, missingAnchors, requiredMissing };
+}
+
+/**
+ * Get topic for discretion engine
+ */
+function getPackTopicForDiscretion(packId) {
+  const map = {
+    "PACK_PRIOR_LE_APPS_STANDARD": "prior_apps",
+    "PACK_LE_APPS": "prior_apps",
+    "PACK_INTEGRITY_APPS": "honesty_integrity",
+    "PACK_DOMESTIC_VIOLENCE_STANDARD": "violence_dv",
+    "PACK_ASSAULT_STANDARD": "violence_dv",
+    "PACK_DRIVING_DUIDWI_STANDARD": "dui_drugs",
+    "PACK_DRUG_USE_STANDARD": "dui_drugs",
+    "PACK_DRIVING_COLLISION_STANDARD": "driving",
+    "PACK_DRIVING_STANDARD": "driving"
+  };
+  return map[packId] || "general";
+}
+
+/**
  * Main probe engine function - Per-Field Mode
  * NOW USES: GlobalSettings + FollowUpPack.ai_probe_instructions via InvokeLLM
  * V2.5 MVP: Whitelist check, topic-anchored prompts, max 1 probe per field by default
+ * V2.6: Fact Anchors + Discretion Engine integration
  */
 async function probeEngineV2(input, base44Client) {
   const {
@@ -2418,7 +2529,8 @@ async function probeEngineV2(input, base44Client) {
     baseQuestionText = null,      // Full base question text for context
     questionDbId = null,          // Database ID (unique identifier)
     questionCode = null,          // Display code (may not be unique)
-    instance_number = 1           // Instance number for multi-instance packs
+    instance_number = 1,          // Instance number for multi-instance packs
+    instance_anchors = {}         // Current anchor values for this instance
   } = input;
 
   console.log(`[V2-PER-FIELD] Starting validation for pack=${pack_id}, field=${field_key}, value="${field_value}", probes=${previous_probes_count}, mode=${requestMode}, frontendNoRecall=${frontendNoRecallFlag}, instance=${instance_number}`);
