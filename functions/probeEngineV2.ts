@@ -2695,10 +2695,14 @@ async function probeEngineV2(input, base44Client) {
         console.warn(`[V2-UNIVERSAL] Excessive anchor count (${anchorCount}) - possible data issue`);
       }
       
+      // CRITICAL: Only increment probeCount when we're actually asking a question
+      // The opening call with mode='NONE' should NOT consume a probe
+      // We pass the raw count here; the discretion engine will decide if this answer
+      // justifies asking another question
       const discretionResult = await base44Client.functions.invoke('discretionEngine', {
         packId: pack_id,
         collectedAnchors: currentAnchors,
-        probeCount: previous_probes_count + 1, // This answer counts as a probe turn
+        probeCount: previous_probes_count, // Raw count - increment happens ONLY when a question is actually asked
         instanceNumber: instance_number,
         lastAnswer: field_value
       });
