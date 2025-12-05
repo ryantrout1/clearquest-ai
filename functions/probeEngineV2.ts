@@ -3315,9 +3315,9 @@ async function probeEngineV2(input, base44Client) {
       };
       
       // =====================================================================
-      // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE NARRATIVE FIELD ENFORCEMENT
+      // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE NARRATIVE FIELD (PACK_PRLE_Q01)
       // Uses the SAME pattern as PACK_DRIVING_COLLISION_STANDARD
-      // CRITICAL: ALWAYS returns anchors in response, regardless of completeness
+      // CRITICAL: ALWAYS returns anchors in response
       // =====================================================================
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
         console.log(`[PACK_PRIOR_LE_APPS][Q01][HANDLER] ========== PACK_PRLE_Q01 HANDLER INVOKED ==========`);
@@ -3330,8 +3330,11 @@ async function probeEngineV2(input, base44Client) {
         // Log incident_context BEFORE extraction
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsBefore=`, incident_context);
         
-        // currentAnchors already includes extractedAnchors merged above
-        // Log the merged anchors
+        // Compute missing anchors from currentAnchors (which already includes extractedAnchors from above)
+        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
+        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
+        
+        // Log AFTER extraction
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter=`, currentAnchors);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter (detailed)=`, {
           agency_name: currentAnchors.agency_name || '(MISSING)',
@@ -3339,11 +3342,6 @@ async function probeEngineV2(input, base44Client) {
           month_year: currentAnchors.month_year || '(MISSING)',
           application_outcome: currentAnchors.application_outcome || '(MISSING)'
         });
-        
-        // Compute missing anchors
-        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
-        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
-        
         console.log(`[PACK_PRIOR_LE_APPS][Q01] collectedKeys=[${collectedKeys.join(', ')}]`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] missingAnchors=[${missingAnchors.join(', ')}]`);
         
@@ -3361,31 +3359,8 @@ async function probeEngineV2(input, base44Client) {
           console.warn(`[PACK_PRIOR_LE_APPS][Q01] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
         }
         
-        // CRITICAL: If ANY required anchor is missing, return QUESTION with micro clarifier
-        if (missingAnchors.length > 0) {
-          // Check if we've exceeded max probes
-          if (previous_probes_count >= maxProbesForPrimary) {
-            console.log(`[PACK_PRIOR_LE_APPS][Q01] Max probes reached (${previous_probes_count}/${maxProbesForPrimary}) - returning anchors and advancing`);
-            console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
-            console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted:`, currentAnchors);
-            
-            return {
-              mode: "NEXT_FIELD",
-              pack_id,
-              field_key,
-              semanticField: field_key,
-              validationResult: "max_probes_reached_with_missing_anchors",
-              previousProbeCount: previous_probes_count,
-              maxProbesPerField: maxProbesForPrimary,
-              anchors: currentAnchors, // CRITICAL: Return anchors using same property as other V2 packs
-              missingAnchors,
-              reason: `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
-              instanceNumber: instance_number,
-              message: "Max probes reached - advancing to backup fields"
-            };
-          }
-          
-          // Generate micro clarifier for the first missing anchor
+        // CRITICAL: If ANY required anchor is missing, ask micro clarifier
+        if (missingAnchors.length > 0 && previous_probes_count < maxProbesForPrimary) {
           const firstMissing = missingAnchors[0];
           const clarifierTemplates = prlePackConfig?.anchorClarifiers || {
             agency_name: "What was the name of the law enforcement agency for this application?",
@@ -3395,8 +3370,9 @@ async function probeEngineV2(input, base44Client) {
           };
           const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
           
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, hasQuestion=true, targeting anchor="${firstMissing}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, targeting anchor="${firstMissing}"`);
           console.log(`[PACK_PRIOR_LE_APPS][Q01] clarifier="${clarifierQuestion}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted:`, currentAnchors);
           
           return {
             mode: "QUESTION",
@@ -3411,15 +3387,15 @@ async function probeEngineV2(input, base44Client) {
             probeSource: "anchor_clarifier",
             targetAnchors: [firstMissing],
             missingAnchors,
-            anchors: currentAnchors, // CRITICAL: Return current anchors even when asking for more
+            anchors: currentAnchors, // CRITICAL: Return anchors using same property as other V2 packs
             instanceNumber: instance_number,
             message: `Probing for missing anchor: ${firstMissing}`
           };
         }
         
-        // ALL REQUIRED ANCHORS COLLECTED - return NEXT_FIELD with anchors payload
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== ALL ANCHORS COLLECTED ==========`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD (all anchors collected)`);
+        // ALL REQUIRED ANCHORS COLLECTED OR MAX PROBES REACHED - return NEXT_FIELD with anchors
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== RETURNING NEXT_FIELD ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted:`, currentAnchors);
         
@@ -3428,14 +3404,14 @@ async function probeEngineV2(input, base44Client) {
           pack_id,
           field_key,
           semanticField: field_key,
-          validationResult: "all_required_anchors_collected",
+          validationResult: missingAnchors.length === 0 ? "all_required_anchors_collected" : "max_probes_reached",
           previousProbeCount: previous_probes_count,
           maxProbesPerField: maxProbesForPrimary,
           anchors: currentAnchors, // CRITICAL: Return anchors using same property as PACK_DRIVING_COLLISION_STANDARD
           targetAnchors: prlePackConfig?.targetAnchors || [],
-          reason: "All required anchors collected from narrative",
+          reason: missingAnchors.length === 0 ? "All required anchors collected from narrative" : `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
           instanceNumber: instance_number,
-          message: "Primary narrative field complete - all required anchors captured"
+          message: "PACK_PRLE_Q01 complete - anchors returned"
         };
       }
       
