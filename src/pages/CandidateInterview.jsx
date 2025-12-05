@@ -1326,7 +1326,8 @@ export default function CandidateInterview() {
           if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
             console.log(`[V2_PACK_FIELD][GATE_CHECK] ========== CHECKING FIELD GATING ==========`);
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Starting at field ${nextFieldIdx + 1}/${totalFieldsInPack}: ${nextFieldConfig.fieldKey}`);
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors:`, Object.keys(updatedCollectedAnswers));
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors:`, updatedCollectedAnswers);
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchor keys:`, Object.keys(updatedCollectedAnswers));
             
             // Skip fields whose requiresMissing anchors are already present
             while (nextFieldIdx < totalFieldsInPack) {
