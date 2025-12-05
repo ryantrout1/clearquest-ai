@@ -2786,7 +2786,7 @@ async function probeEngineV2(input, base44Client) {
         ...extractedAnchors
       };
       
-      // PACK_PRIOR_LE_APPS_STANDARD: Log anchor state before discretion call
+      // PACK_PRIOR_LE_APPS_STANDARD: Log anchor state and check field gating
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
         console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE] ========== ANCHORS BEFORE DISCRETION ==========`);
         console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE]`, {
@@ -2795,6 +2795,14 @@ async function probeEngineV2(input, base44Client) {
           merged_keys: Object.keys(currentAnchors),
           current_anchors: JSON.stringify(currentAnchors, null, 2)
         });
+        
+        // Check if application_month_year is already collected (for Q04 gating)
+        if (currentAnchors.application_month_year) {
+          console.log(`[V2_PACK][ANCHOR_GATING] pack=PACK_PRIOR_LE_APPS_STANDARD application_month_year="${currentAnchors.application_month_year}" - Q04 will be skipped`);
+        }
+        if (currentAnchors.position_title) {
+          console.log(`[V2_PACK][ANCHOR_GATING] pack=PACK_PRIOR_LE_APPS_STANDARD position_title="${currentAnchors.position_title}" - Q05 will be skipped`);
+        }
       }
       
       // HARDENED: Validate anchor count to prevent malformed state
