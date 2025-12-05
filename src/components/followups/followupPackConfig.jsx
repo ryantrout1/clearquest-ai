@@ -1226,8 +1226,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
         required: true,
         aiProbingEnabled: false,
+        alwaysAsk: true, // ALWAYS ask Q02 - it's the canonical source of application_outcome
         capturesAnchor: "application_outcome", // This field persists the application_outcome anchor
-        requiresMissing: ["application_outcome"], // Only ask if application_outcome anchor is missing
+        // REMOVED: requiresMissing: ["application_outcome"] - we always ask Q02
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
