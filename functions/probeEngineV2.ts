@@ -3362,6 +3362,45 @@ async function probeEngineV2(input, base44Client) {
   console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
+  // EARLY ROUTER: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
+  // CRITICAL: This MUST execute FIRST before any generic logic
+  // ============================================================================
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
+    console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
+    
+    // Extract anchors from narrative first
+    let extractedAnchors = {};
+    try {
+      const currentPackConfig = PACK_CONFIG[pack_id];
+      if (currentPackConfig?.anchorExtractionRules) {
+        const centrallyExtracted = extractAnchorsFromNarrative(
+          field_value,
+          currentPackConfig.anchorExtractionRules,
+          incident_context
+        );
+        Object.assign(extractedAnchors, centrallyExtracted);
+        console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Centralized extraction: [${Object.keys(centrallyExtracted).join(', ')}]`);
+      }
+    } catch (err) {
+      console.warn(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Extraction error (continuing):`, err.message);
+    }
+    
+    // Call dedicated handler and return immediately
+    const result = handlePriorLeAppsQ01({
+      pack_id,
+      field_key,
+      field_value,
+      incident_context,
+      extractedAnchors,
+      previous_probes_count,
+      instance_number
+    });
+    
+    console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== RETURNING FROM DEDICATED HANDLER ==========");
+    return result;
+  }
+  
+  // ============================================================================
   // V2.6 UNIVERSAL MVP: Use Discretion Engine for ALL V2 packs
   // ============================================================================
   
