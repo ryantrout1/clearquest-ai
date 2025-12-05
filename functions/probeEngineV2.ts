@@ -2871,98 +2871,102 @@ async function probeEngineV2(input, base44Client) {
         // =====================================================================
         // OUTCOME EXTRACTION - Robust phrase-based matching for application_outcome
         // This enables Q02 to be SKIPPED when outcome is clearly stated in narrative
+        // Only extracts if application_outcome is NOT already set
         // =====================================================================
         
-        // Check for HIRED outcome
-        const hiredPhrases = [
-          'hired', 'they hired me', 'got hired', 'offered me the job',
-          'offered me the position', 'they brought me on', 'was hired',
-          'i was hired', 'got the job', 'was offered'
-        ];
-        
-        // Check for DISQUALIFIED / NOT SELECTED outcome
-        const disqualifiedPhrases = [
-          'disqualified', 'not selected', 'they did not select me',
-          'was removed from the process', 'failed the background',
-          'did not pass the background', 'was dropped from the process',
-          'denied after background', 'rejected', 'they rejected me',
-          'was not selected', 'wasn\'t selected', 'did not get',
-          'didn\'t get', 'was denied', 'not hired', 'wasn\'t hired',
-          'did not hire', 'didn\'t hire', 'dq\'d', 'dq', 'was dq',
-          'got disqualified', 'was disqualified', 'they disqualified me',
-          'removed from consideration', 'no longer in the running',
-          'did not make it', 'didn\'t make it', 'failed'
-        ];
-        
-        // Check for WITHDREW outcome
-        const withdrewPhrases = [
-          'withdrew', 'withdrew my application', 'pulled my application',
-          'pulled out of the process', 'decided not to continue',
-          'removed myself from consideration', 'chose not to continue',
-          'i withdrew', 'i pulled out', 'decided to withdraw',
-          'chose to withdraw', 'dropped out', 'backed out'
-        ];
-        
-        // Check for STILL IN PROCESS outcome
-        const stillInProcessPhrases = [
-          'still in process', 'still pending', 'process is ongoing',
-          'have not heard back yet', 'waiting to hear back',
-          'still under consideration', 'still being processed',
-          'haven\'t heard back', 'awaiting decision', 'in progress',
-          'currently in process', 'application is pending'
-        ];
-        
-        // Match outcome - order matters (check specific phrases first)
-        let outcomeFound = false;
-        
-        // Check DISQUALIFIED first (most common negative outcome)
-        for (const phrase of disqualifiedPhrases) {
-          if (narrativeLower.includes(phrase)) {
-            extractedAnchors.application_outcome = 'disqualified / not selected';
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="disqualified / not selected" (matched: "${phrase}")`);
-            outcomeFound = true;
-            break;
-          }
-        }
-        
-        // Check HIRED
-        if (!outcomeFound) {
-          for (const phrase of hiredPhrases) {
+        if (!incident_context.application_outcome || !incident_context.application_outcome.trim()) {
+          // Check for DISQUALIFIED / NOT SELECTED outcome (check first - most common)
+          const disqualifiedPhrases = [
+            'disqualified', 'dq\'d', 'failed background', 'failed the background',
+            'background investigation disqualified', 'not selected', 'wasn\'t selected',
+            'was not selected', 'they did not select me', 'was removed from the process',
+            'did not pass the background', 'was dropped from the process',
+            'denied after background', 'rejected', 'they rejected me',
+            'did not get', 'didn\'t get', 'was denied', 'not hired', 'wasn\'t hired',
+            'did not hire', 'didn\'t hire', 'dq', 'was dq', 'got disqualified',
+            'was disqualified', 'they disqualified me', 'removed from consideration',
+            'no longer in the running', 'did not make it', 'didn\'t make it'
+          ];
+          
+          // Check for WITHDREW outcome
+          const withdrewPhrases = [
+            'withdrew', 'withdrew my application', 'pulled my application',
+            'pulled out of the process', 'decided not to continue',
+            'removed myself from consideration', 'chose not to continue',
+            'i withdrew', 'i pulled out', 'decided to withdraw',
+            'chose to withdraw', 'dropped out', 'backed out'
+          ];
+          
+          // Check for HIRED outcome
+          const hiredPhrases = [
+            'hired', 'they hired me', 'got hired', 'offered me the job',
+            'offered me the position', 'they brought me on', 'was hired',
+            'i was hired', 'got the job', 'was offered', 'offered a job'
+          ];
+          
+          // Check for STILL IN PROCESS outcome
+          const stillInProcessPhrases = [
+            'still in process', 'still pending', 'process is ongoing',
+            'have not heard back yet', 'waiting to hear back',
+            'still under consideration', 'still being processed',
+            'haven\'t heard back', 'awaiting decision', 'in progress',
+            'currently in process', 'application is pending', 'background in progress',
+            'still processing'
+          ];
+          
+          let outcomeFound = false;
+          
+          // Check DISQUALIFIED first
+          for (const phrase of disqualifiedPhrases) {
             if (narrativeLower.includes(phrase)) {
-              extractedAnchors.application_outcome = 'hired';
-              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="hired" (matched: "${phrase}")`);
+              extractedAnchors.application_outcome = 'disqualified';
+              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="disqualified" (matched: "${phrase}")`);
               outcomeFound = true;
               break;
             }
           }
-        }
-        
-        // Check WITHDREW
-        if (!outcomeFound) {
-          for (const phrase of withdrewPhrases) {
-            if (narrativeLower.includes(phrase)) {
-              extractedAnchors.application_outcome = 'withdrew';
-              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="withdrew" (matched: "${phrase}")`);
-              outcomeFound = true;
-              break;
+          
+          // Check WITHDREW
+          if (!outcomeFound) {
+            for (const phrase of withdrewPhrases) {
+              if (narrativeLower.includes(phrase)) {
+                extractedAnchors.application_outcome = 'withdrew';
+                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="withdrew" (matched: "${phrase}")`);
+                outcomeFound = true;
+                break;
+              }
             }
           }
-        }
-        
-        // Check STILL IN PROCESS
-        if (!outcomeFound) {
-          for (const phrase of stillInProcessPhrases) {
-            if (narrativeLower.includes(phrase)) {
-              extractedAnchors.application_outcome = 'still in process';
-              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="still in process" (matched: "${phrase}")`);
-              outcomeFound = true;
-              break;
+          
+          // Check HIRED
+          if (!outcomeFound) {
+            for (const phrase of hiredPhrases) {
+              if (narrativeLower.includes(phrase)) {
+                extractedAnchors.application_outcome = 'hired';
+                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="hired" (matched: "${phrase}")`);
+                outcomeFound = true;
+                break;
+              }
             }
           }
-        }
-        
-        if (!outcomeFound) {
-          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome NOT FOUND - Q02 will be asked`);
+          
+          // Check STILL IN PROCESS
+          if (!outcomeFound) {
+            for (const phrase of stillInProcessPhrases) {
+              if (narrativeLower.includes(phrase)) {
+                extractedAnchors.application_outcome = 'still in process';
+                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="still in process" (matched: "${phrase}")`);
+                outcomeFound = true;
+                break;
+              }
+            }
+          }
+          
+          if (!outcomeFound) {
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome NOT FOUND - Q02 will be asked`);
+          }
+        } else {
+          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome already set to "${incident_context.application_outcome}" - not overwriting`);
         }
         
         // Extract city/state from narrative
