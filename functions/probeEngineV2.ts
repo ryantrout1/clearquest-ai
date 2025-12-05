@@ -3317,21 +3317,21 @@ async function probeEngineV2(input, base44Client) {
       // =====================================================================
       // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE NARRATIVE FIELD ENFORCEMENT
       // Uses the SAME pattern as PACK_DRIVING_COLLISION_STANDARD
+      // CRITICAL: ALWAYS returns anchors in response, regardless of completeness
       // =====================================================================
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
         console.log(`[PACK_PRIOR_LE_APPS][Q01][HANDLER] ========== PACK_PRLE_Q01 HANDLER INVOKED ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] fieldValue length: ${field_value?.length || 0}`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] fieldValue preview: "${field_value?.substring?.(0, 120)}..."`);
         
         const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
         const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
         
-        // Log BEFORE extraction
+        // Log incident_context BEFORE extraction
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsBefore=`, incident_context);
         
-        // Compute missing anchors from currentAnchors (which includes extractedAnchors)
-        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
-        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
-        
-        // Log AFTER extraction
+        // currentAnchors already includes extractedAnchors merged above
+        // Log the merged anchors
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter=`, currentAnchors);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter (detailed)=`, {
           agency_name: currentAnchors.agency_name || '(MISSING)',
@@ -3339,6 +3339,11 @@ async function probeEngineV2(input, base44Client) {
           month_year: currentAnchors.month_year || '(MISSING)',
           application_outcome: currentAnchors.application_outcome || '(MISSING)'
         });
+        
+        // Compute missing anchors
+        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
+        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
+        
         console.log(`[PACK_PRIOR_LE_APPS][Q01] collectedKeys=[${collectedKeys.join(', ')}]`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] missingAnchors=[${missingAnchors.join(', ')}]`);
         
@@ -3362,7 +3367,7 @@ async function probeEngineV2(input, base44Client) {
           if (previous_probes_count >= maxProbesForPrimary) {
             console.log(`[PACK_PRIOR_LE_APPS][Q01] Max probes reached (${previous_probes_count}/${maxProbesForPrimary}) - returning anchors and advancing`);
             console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
-            console.log(`[PACK_PRIOR_LE_APPS][Q01] returning anchors for instance ${instance_number}:`, currentAnchors);
+            console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted:`, currentAnchors);
             
             return {
               mode: "NEXT_FIELD",
@@ -3390,7 +3395,7 @@ async function probeEngineV2(input, base44Client) {
           };
           const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
           
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, targeting anchor="${firstMissing}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, hasQuestion=true, targeting anchor="${firstMissing}"`);
           console.log(`[PACK_PRIOR_LE_APPS][Q01] clarifier="${clarifierQuestion}"`);
           
           return {
@@ -3416,7 +3421,7 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== ALL ANCHORS COLLECTED ==========`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD (all anchors collected)`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] returning anchors for instance ${instance_number}:`, currentAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted:`, currentAnchors);
         
         return {
           mode: "NEXT_FIELD",
