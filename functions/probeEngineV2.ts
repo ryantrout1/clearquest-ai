@@ -3711,12 +3711,100 @@ Return ONLY the outcome value, nothing else.`;
         console.warn(`[V2-UNIVERSAL] Excessive anchor count (${anchorCount}) - possible data issue`);
       }
       
-      // ===================================================================== 
-      // PACK_PRIOR_LE_APPS_STANDARD: SECOND HANDLER (LEGACY - UNREACHABLE)
-      // NOTE: This code is unreachable because first handler returns early
-      // Keeping for reference but should be cleaned up
       // =====================================================================
-      // Lines 3731-3819 are DEAD CODE for PACK_PRLE_Q01 due to early return at line 3675
+      // PACK_PRIOR_LE_APPS_STANDARD: CRITICAL ANCHOR-AWARE HANDLER
+      // MUST be checked BEFORE Discretion Engine call
+      // Ensures application_outcome is extracted and returned to frontend
+      // =====================================================================
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+        console.log(`[PACK_PRIOR_LE_APPS][Q01][HANDLER] ========== PACK_PRLE_Q01 ANCHOR-AWARE HANDLER ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Field value length: ${field_value?.length || 0}`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Extracted anchors from narrative:`, extractedAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Incident context (previous):`, incident_context);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Current anchors (merged):`, currentAnchors);
+        
+        const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
+        const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
+        
+        // Compute which required anchors are missing
+        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
+        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
+        
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Required anchors: [${requiredAnchors.join(', ')}]`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Collected: [${collectedKeys.join(', ')}]`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] Missing: [${missingAnchors.join(', ')}]`);
+        
+        // Fetch max probes from FollowUpPack entity
+        let maxProbesForPrimary = 4;
+        try {
+          const followUpPacks = await base44Client.entities.FollowUpPack.filter({
+            followup_pack_id: pack_id,
+            active: true
+          });
+          if (followUpPacks.length > 0 && typeof followUpPacks[0].max_ai_followups === 'number') {
+            maxProbesForPrimary = followUpPacks[0].max_ai_followups;
+          }
+        } catch (err) {
+          console.warn(`[PACK_PRIOR_LE_APPS][Q01] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
+        }
+        
+        // If missing required anchors and haven't reached max probes, ask clarifier
+        if (missingAnchors.length > 0 && previous_probes_count < maxProbesForPrimary) {
+          const firstMissing = missingAnchors[0];
+          const clarifierTemplates = prlePackConfig?.anchorClarifiers || {
+            agency_name: "What was the name of the law enforcement agency for this application?",
+            position: "What position did you apply for with that agency?",
+            month_year: "About what month and year did you apply?",
+            application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
+          };
+          const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
+          
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, targeting missing anchor: ${firstMissing}`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Clarifier: "${clarifierQuestion}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted (returning with question):`, currentAnchors);
+          
+          return {
+            mode: "QUESTION",
+            pack_id,
+            field_key,
+            semanticField: field_key,
+            question: clarifierQuestion,
+            validationResult: "missing_required_anchors",
+            previousProbeCount: previous_probes_count + 1,
+            maxProbesPerField: maxProbesForPrimary,
+            isFallback: false,
+            probeSource: "anchor_clarifier",
+            targetAnchors: [firstMissing],
+            missingAnchors,
+            anchors: currentAnchors, // CRITICAL: Return anchors even when asking for more
+            instanceNumber: instance_number,
+            message: `Clarifying missing anchor: ${firstMissing}`
+          };
+        }
+        
+        // All required anchors collected OR max probes reached - advance with anchors
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== RETURNING NEXT_FIELD WITH ANCHORS ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD, hasQuestion=false, followupsCount=0`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsFromQ1:`, currentAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorKeys: [${Object.keys(currentAnchors).join(', ')}]`);
+        
+        return {
+          mode: "NEXT_FIELD",
+          pack_id,
+          field_key,
+          semanticField: field_key,
+          validationResult: missingAnchors.length === 0 ? "all_required_anchors_collected" : "max_probes_reached",
+          previousProbeCount: previous_probes_count,
+          maxProbesPerField: maxProbesForPrimary,
+          hasQuestion: false,
+          followupsCount: 0,
+          anchors: currentAnchors,
+          targetAnchors: prlePackConfig?.targetAnchors || [],
+          reason: missingAnchors.length === 0 ? "All required anchors collected from narrative" : `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
+          instanceNumber: instance_number,
+          message: "PACK_PRLE_Q01 complete - anchors returned to frontend"
+        };
+      }
       
       // CRITICAL: Only increment probeCount when we're actually asking a question
       // The opening call with mode='NONE' should NOT consume a probe
