@@ -18,20 +18,17 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // HARDENED: Synced with followupPackConfig.js - SINGLE SOURCE OF TRUTH for critical anchors
 const PACK_FACT_SCHEMAS = {
-  // Prior Law Enforcement Applications - NO AI PROBING ON Q01
-  // Agency name, position, and month/year are captured by deterministic PACK_PRLE_Q01.
-  // Outcome is captured by deterministic PACK_PRLE_Q02.
-  // The V2 engine should NOT probe for outcome - it's handled by the deterministic card.
-  // AI clarifiers should ONLY ask for missing agency/position/date info if vague.
+  // Prior Law Enforcement Applications - NARRATIVE-FIRST with ALL 4 required anchors
+  // Q01 is a rich narrative field that must capture ALL 4 anchors before advancing.
+  // AI clarifiers probe for any missing anchors (agency_name, position, month_year, application_outcome).
   "PACK_PRIOR_LE_APPS_STANDARD": {
-    required: [], // No required anchors - all fields are deterministic
-    optional: ["agency_name", "position", "month_year"], // Can clarify these if vague
+    required: ["agency_name", "position", "month_year", "application_outcome"], // All 4 must be captured from Q01
+    optional: ["application_city", "application_state"], // Optional geo anchors
     severity: "standard",
-    maxProbes: 1, // Hard cap: single clarifier only if agency/position/date is vague
+    maxProbes: 4, // Allow up to 4 clarifiers (one per required anchor if needed)
     multiInstance: true,
     topic: "prior_apps",
-    // CRITICAL: outcome is NOT in this schema - it's handled by PACK_PRLE_Q02 deterministically
-    excludeFromProbing: ["outcome", "reason_not_hired"] // Never probe for these
+    excludeFromProbing: ["reason_not_hired", "appeal_or_reapply", "anything_else"] // These are handled by later fields
   },
   "PACK_LE_APPS": {
     required: [], // No required anchors - all fields are deterministic

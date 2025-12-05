@@ -1028,22 +1028,31 @@ export const FOLLOWUP_PACK_CONFIGS = {
 
   // Prior Law Enforcement Applications pack (v2.5)
   // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
-  // The system extracts anchors from the narrative and only asks follow-ups for missing info.
+  // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
-    maxAiFollowups: 1, // Hard cap: single clarifier only for vague info
-    // TARGET ANCHORS - semantic keys extracted from Q01 narrative
+    maxAiFollowups: 4, // Allows clarifiers for all 4 required anchors if needed
+    // Required anchors that MUST be collected from Q01 before advancing
+    requiredAnchors: [
+      "agency_name",
+      "position",
+      "month_year",
+      "application_outcome"
+    ],
+    // All target anchors - extracted from Q01 narrative
     targetAnchors: [
       "agency_name",
-      "position_title",
-      "application_month_year"
+      "position",
+      "month_year",
+      "application_outcome",
+      "application_city",
+      "application_state"
     ],
-    // Anchors extracted from narrative - used for field gating
-    // NOTE: application_outcome is collected by PACK_PRLE_Q02 deterministically, not from narrative
+    // Fact anchors for AI clarifier generation
     factAnchors: [
       { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
       { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
@@ -1141,14 +1150,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q04",
-        semanticKey: "application_month_year",
+        semanticKey: "month_year",
         label: "About when did you apply there? Month and year is fine.",
         factsLabel: "Application Date",
         inputType: "month_year",
         placeholder: "e.g., June 2020 or around 2019",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["application_month_year"], // ONLY ask if date NOT extracted from narrative
+        requiresMissing: ["month_year"], // ONLY ask if date NOT extracted from narrative
         probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
         includeInFacts: true,
         factsOrder: 4,
@@ -1167,14 +1176,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q05",
-        semanticKey: "position_title",
+        semanticKey: "position",
         label: "What position or job title did you apply for with that agency?",
         factsLabel: "Position",
         inputType: "text",
         placeholder: "Enter position title",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["position_title"], // Only ask if not extracted from narrative
+        requiresMissing: ["position"], // Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,

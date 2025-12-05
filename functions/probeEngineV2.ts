@@ -1008,11 +1008,19 @@ const V2_PACK_CONFIGS = {
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     useNarrativeFirst: true,
-    // Target anchors that can be extracted from the Q01 narrative
+    primaryField: "PACK_PRLE_Q01", // Primary narrative field
+    // Target anchors that MUST be extracted from Q01 narrative before advancing
+    requiredAnchors: [
+      "agency_name",
+      "position",
+      "month_year",
+      "application_outcome"
+    ],
+    // Optional anchors that can be extracted but aren't required
     targetAnchors: [
       "agency_name",
-      "position_title", 
-      "application_month_year",
+      "position", 
+      "month_year",
       "application_outcome",
       "application_city",
       "application_state"
@@ -1020,10 +1028,11 @@ const V2_PACK_CONFIGS = {
     // Field gating config - which fields require which anchors to be missing
     fieldGating: {
       "PACK_PRLE_Q01": { 
-        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"], 
+        captures: ["agency_name", "position", "month_year", "application_outcome", "application_city", "application_state"], 
         alwaysAsk: true, 
         isOpener: true,
-        isNarrativeOpener: true
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true // Must capture ALL required anchors before advancing
       },
       "PACK_PRLE_Q02": { 
         captures: ["application_outcome"], 
@@ -1036,13 +1045,13 @@ const V2_PACK_CONFIGS = {
         alwaysAsk: false 
       },
       "PACK_PRLE_Q04": { 
-        captures: ["application_month_year"], 
-        requiresMissing: ["application_month_year"], 
+        captures: ["month_year"], 
+        requiresMissing: ["month_year"], 
         alwaysAsk: false 
       },
       "PACK_PRLE_Q05": { 
-        captures: ["position_title"], 
-        requiresMissing: ["position_title"], 
+        captures: ["position"], 
+        requiresMissing: ["position"], 
         alwaysAsk: false 
       },
       "PACK_PRLE_Q06": { 
@@ -1305,17 +1314,25 @@ Object.assign(PACK_CONFIG, {
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
     useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story
+    primaryField: "PACK_PRLE_Q01", // Primary narrative field that must collect all required anchors
     riskDomain: "PRIOR_LE",
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
     clusterOpeningMessage: "Please describe this prior law enforcement application in your own words.",
     multiInstanceOpeningMessage: "Please describe this prior law enforcement application in your own words.",
-    // Anchors for conversational gating - extracted from narrative
+    // Required anchors that MUST be collected from Q01 before advancing
+    requiredAnchors: [
+      "agency_name",
+      "position",
+      "month_year",
+      "application_outcome"
+    ],
+    // All possible anchors - extracted from narrative
     anchors: [
       "agency_name",
-      "position_title",
-      "application_month_year",
+      "position",
+      "month_year",
       "application_outcome",
       "application_city",
       "application_state",
@@ -1323,24 +1340,24 @@ Object.assign(PACK_CONFIG, {
       "appeal_or_reapply",
       "anything_else"
     ],
-    requiredFields: ["agency_name", "application_month_year", "position_title", "application_outcome"],
+    requiredFields: ["agency_name", "month_year", "position", "application_outcome"],
     // Priority order for gap-filling after narrative
-    priorityOrder: ["application_outcome", "agency_name", "position_title", "application_month_year", "application_city", "application_state", "reason_not_hired", "appeal_or_reapply", "anything_else"],
+    priorityOrder: ["application_outcome", "agency_name", "position", "month_year", "application_city", "application_state", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
       // Question code → semantic role mappings
       "PACK_PRLE_Q01": "narrative", // NARRATIVE OPENER - extracts all anchors
       "PACK_PRLE_Q02": "application_outcome",
       "PACK_PRLE_Q03": "application_location", // Captures city + state
-      "PACK_PRLE_Q04": "application_month_year",
-      "PACK_PRLE_Q05": "position_title",
+      "PACK_PRLE_Q04": "month_year",
+      "PACK_PRLE_Q05": "position",
       "PACK_PRLE_Q06": "agency_name",
       "PACK_PRLE_Q07": "reason_not_hired",
       "PACK_PRLE_Q08": "appeal_or_reapply",
       "PACK_PRLE_Q09": "anything_else",
       // Semantic field self-mappings
       "agency_name": "agency_name",
-      "position_title": "position_title",
-      "application_month_year": "application_month_year",
+      "position": "position",
+      "month_year": "month_year",
       "application_outcome": "application_outcome",
       "application_city": "application_city",
       "application_state": "application_state",
@@ -1353,17 +1370,18 @@ Object.assign(PACK_CONFIG, {
     // Q01 is narrative opener that captures everything; Q02-Q09 only ask if anchors missing
     fieldGating: {
       "PACK_PRLE_Q01": { 
-        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"], 
+        captures: ["agency_name", "position", "month_year", "application_outcome", "application_city", "application_state"], 
         alwaysAsk: true, 
         isOpener: true,
-        isNarrativeOpener: true // Special flag for narrative extraction
+        isNarrativeOpener: true, // Special flag for narrative extraction
+        isPrimaryNarrativeField: true // Must capture ALL required anchors before advancing
       },
       "PACK_PRLE_Q02": { captures: ["application_outcome"], requiresMissing: ["application_outcome"], alwaysAsk: false },
       "PACK_PRLE_Q03": { captures: ["application_city", "application_state"], requiresMissing: ["application_city", "application_state"], alwaysAsk: false },
-      "PACK_PRLE_Q04": { captures: ["application_month_year"], requiresMissing: ["application_month_year"], alwaysAsk: false },
-      "PACK_PRLE_Q05": { captures: ["position_title"], requiresMissing: ["position_title"], alwaysAsk: false },
+      "PACK_PRLE_Q04": { captures: ["month_year"], requiresMissing: ["month_year"], alwaysAsk: false },
+      "PACK_PRLE_Q05": { captures: ["position"], requiresMissing: ["position"], alwaysAsk: false },
       "PACK_PRLE_Q06": { captures: ["agency_name"], requiresMissing: ["agency_name"], alwaysAsk: false },
-      "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd"] }, alwaysAsk: false },
+      "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd", "disqualified / not selected"] }, alwaysAsk: false },
       "PACK_PRLE_Q08": { captures: ["appeal_or_reapply"], requiresMissing: [], alwaysAsk: false },
       "PACK_PRLE_Q09": { captures: ["anything_else"], alwaysAsk: true, isCloser: true }
     },
@@ -2734,11 +2752,11 @@ async function probeEngineV2(input, base44Client) {
       };
     }
     
-    // SPECIAL CASE: PACK_PRIOR_LE_APPS_STANDARD - NO opening probe
-    // Agency/position/month-year are captured by the deterministic PACK_PRLE_Q01 card.
-    // Only probe for "outcome" AFTER the first field has a real answer.
+    // SPECIAL CASE: PACK_PRIOR_LE_APPS_STANDARD and PACK_LE_APPS - NO opening probe
+    // These packs show PACK_PRLE_Q01 (narrative question) as the first field.
+    // No AI opening message needed - go straight to showing Q01.
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" || pack_id === "PACK_LE_APPS") {
-      console.log(`[PACK_PRIOR_LE_APPS][OPENING] Skipping opening probe - wait for PACK_PRLE_Q01 answer first`);
+      console.log(`[PACK_PRIOR_LE_APPS][OPENING] No opening probe - showing PACK_PRLE_Q01 narrative field directly`);
       return {
         mode: "NONE",
         pack_id,
@@ -2747,8 +2765,8 @@ async function probeEngineV2(input, base44Client) {
         validationResult: "prior_le_apps_no_opening",
         hasQuestion: false,
         targetAnchors: [],
-        reason: "prior_le_apps: no opening probe; wait for first field",
-        message: "PACK_PRIOR_LE_APPS_STANDARD skips opening probe - deterministic card handles agency/position/month-year"
+        reason: "prior_le_apps: no opening probe; Q01 is the opener",
+        message: "PACK_PRIOR_LE_APPS_STANDARD shows Q01 narrative field directly - no opening message"
       };
     }
     
@@ -2806,18 +2824,18 @@ async function probeEngineV2(input, base44Client) {
     try {
       // Special handling for PACK_PRIOR_LE_APPS_STANDARD - use local extraction first
       let answerToExtract = field_value;
-      
-      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
         console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] ========== EXTRACTING FROM NARRATIVE ==========`);
         console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Raw answer: "${field_value.substring(0, 200)}..."`);
-        
+
         const narrativeLower = field_value.toLowerCase();
         
         // LOCAL EXTRACTION: Extract month/year from narrative
         const dateExtracted = extractMonthYearFromText(field_value);
         if (dateExtracted.value) {
-          extractedAnchors.application_month_year = dateExtracted.value;
-          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
+          extractedAnchors.month_year = dateExtracted.value;
+          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
         }
         
         // Extract position (expanded patterns for narrative)
@@ -2829,8 +2847,8 @@ async function probeEngineV2(input, base44Client) {
         for (const pattern of positionPatterns) {
           const positionMatch = field_value.match(pattern);
           if (positionMatch) {
-            extractedAnchors.position_title = positionMatch[1];
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] position_title="${positionMatch[1]}"`);
+            extractedAnchors.position = positionMatch[1];
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] position="${positionMatch[1]}"`);
             break;
           }
         }
@@ -3005,6 +3023,47 @@ async function probeEngineV2(input, base44Client) {
         ...incident_context,
         ...extractedAnchors
       };
+      
+      // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST primary field enforcement
+      // If this is the primary narrative field (PACK_PRLE_Q01), check if all required anchors are collected
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+        const packConfig = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
+        const requiredAnchors = packConfig?.requiredAnchors || [];
+        const missingRequired = requiredAnchors.filter(anchor => !currentAnchors[anchor] || !currentAnchors[anchor].trim());
+        
+        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ========== CHECKING PRIMARY NARRATIVE FIELD ==========`);
+        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Required anchors: [${requiredAnchors.join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Missing anchors: [${missingRequired.join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Collected anchors:`, {
+          agency_name: currentAnchors.agency_name || '(missing)',
+          position: currentAnchors.position || '(missing)',
+          month_year: currentAnchors.month_year || '(missing)',
+          application_outcome: currentAnchors.application_outcome || '(missing)'
+        });
+        
+        // If any required anchors are missing, we MUST stay on this field and probe
+        if (missingRequired.length > 0 && previous_probes_count < maxProbesPerField) {
+          console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ${missingRequired.length} required anchors missing - will probe`);
+          // Force Discretion Engine to generate clarifier - fall through to discretion call below
+        } else if (missingRequired.length === 0) {
+          console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] All required anchors collected - advancing to next field`);
+          // All required anchors collected - advance
+          return {
+            mode: "NEXT_FIELD",
+            pack_id,
+            field_key,
+            semanticField: field_key,
+            validationResult: "all_required_anchors_collected",
+            previousProbeCount: previous_probes_count,
+            maxProbesPerField,
+            anchors: extractedAnchors,
+            targetAnchors: packConfig?.targetAnchors || [],
+            reason: "All required anchors collected from narrative",
+            instanceNumber: instance_number,
+            message: "Primary narrative field complete - all required anchors captured"
+          };
+        }
+      }
       
       // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST field gating
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
