@@ -2795,22 +2795,44 @@ async function probeEngineV2(input, base44Client) {
         ...extractedAnchors
       };
       
-      // PACK_PRIOR_LE_APPS_STANDARD: Log anchor state and check field gating
+      // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST field gating
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-        console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE] ========== ANCHORS BEFORE DISCRETION ==========`);
-        console.log(`[PACK_PRIOR_LE_APPS][ANCHORS_BEFORE]`, {
-          incident_context_keys: Object.keys(incident_context || {}),
-          extracted_keys: Object.keys(extractedAnchors || {}),
-          merged_keys: Object.keys(currentAnchors),
-          current_anchors: JSON.stringify(currentAnchors, null, 2)
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] ========== ANCHOR EXTRACTION & GATING ==========`);
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Extracted anchors:`, {
+          agency_name: currentAnchors.agency_name || '(missing)',
+          position_title: currentAnchors.position_title || '(missing)',
+          application_month_year: currentAnchors.application_month_year || '(missing)',
+          application_outcome: currentAnchors.application_outcome || '(missing)',
+          application_city: currentAnchors.application_city || '(missing)',
+          application_state: currentAnchors.application_state || '(missing)'
         });
         
-        // Check if application_month_year is already collected (for Q04 gating)
-        if (currentAnchors.application_month_year) {
-          console.log(`[V2_PACK][ANCHOR_GATING] pack=PACK_PRIOR_LE_APPS_STANDARD application_month_year="${currentAnchors.application_month_year}" - Q04 will be skipped`);
-        }
-        if (currentAnchors.position_title) {
-          console.log(`[V2_PACK][ANCHOR_GATING] pack=PACK_PRIOR_LE_APPS_STANDARD position_title="${currentAnchors.position_title}" - Q05 will be skipped`);
+        // Log which fields will be skipped vs asked
+        const packConfig = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
+        if (packConfig?.fieldGating) {
+          const fieldsToSkip = [];
+          const fieldsToAsk = [];
+          
+          for (const [fieldKey, gating] of Object.entries(packConfig.fieldGating)) {
+            if (fieldKey === "PACK_PRLE_Q01") continue; // Skip opener
+            
+            const requiresMissing = gating.requiresMissing || [];
+            const allAnchorsPresent = requiresMissing.length === 0 || 
+              requiresMissing.every(anchor => currentAnchors[anchor] && currentAnchors[anchor].trim());
+            
+            if (allAnchorsPresent && !gating.alwaysAsk) {
+              fieldsToSkip.push(fieldKey);
+              console.log(`[PRIOR_LE_APPS][SKIP_FIELD] field=${fieldKey} reason="anchors already captured: ${requiresMissing.join(', ')}"`);
+            } else if (!gating.alwaysAsk && requiresMissing.length > 0) {
+              const missing = requiresMissing.filter(a => !currentAnchors[a] || !currentAnchors[a].trim());
+              if (missing.length > 0) {
+                fieldsToAsk.push(fieldKey);
+                console.log(`[PRIOR_LE_APPS][ASK_FIELD] field=${fieldKey} reason="missing anchors: ${missing.join(', ')}"`);
+              }
+            }
+          }
+          
+          console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Summary: skipping=${fieldsToSkip.length} fields, asking=${fieldsToAsk.length} fields`);
         }
       }
       
