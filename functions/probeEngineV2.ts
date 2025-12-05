@@ -3027,8 +3027,8 @@ async function probeEngineV2(input, base44Client) {
       // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST primary field enforcement
       // If this is the primary narrative field (PACK_PRLE_Q01), check if all required anchors are collected
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        const packConfig = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
-        const requiredAnchors = packConfig?.requiredAnchors || [];
+        const packConfigV2 = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
+        const requiredAnchors = packConfigV2?.requiredAnchors || [];
         const missingRequired = requiredAnchors.filter(anchor => !currentAnchors[anchor] || !currentAnchors[anchor].trim());
         
         console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ========== CHECKING PRIMARY NARRATIVE FIELD ==========`);
@@ -3041,8 +3041,22 @@ async function probeEngineV2(input, base44Client) {
           application_outcome: currentAnchors.application_outcome || '(missing)'
         });
         
+        // Fetch max probes from FollowUpPack entity
+        let maxProbesForPrimary = 4;
+        try {
+          const followUpPacks = await base44Client.entities.FollowUpPack.filter({
+            followup_pack_id: pack_id,
+            active: true
+          });
+          if (followUpPacks.length > 0 && typeof followUpPacks[0].max_ai_followups === 'number') {
+            maxProbesForPrimary = followUpPacks[0].max_ai_followups;
+          }
+        } catch (err) {
+          console.warn(`[PRIOR_LE_APPS][PRIMARY_FIELD] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
+        }
+        
         // If any required anchors are missing, we MUST stay on this field and probe
-        if (missingRequired.length > 0 && previous_probes_count < maxProbesPerField) {
+        if (missingRequired.length > 0 && previous_probes_count < maxProbesForPrimary) {
           console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ${missingRequired.length} required anchors missing - will probe`);
           // Force Discretion Engine to generate clarifier - fall through to discretion call below
         } else if (missingRequired.length === 0) {
@@ -3055,9 +3069,9 @@ async function probeEngineV2(input, base44Client) {
             semanticField: field_key,
             validationResult: "all_required_anchors_collected",
             previousProbeCount: previous_probes_count,
-            maxProbesPerField,
+            maxProbesPerField: maxProbesForPrimary,
             anchors: extractedAnchors,
-            targetAnchors: packConfig?.targetAnchors || [],
+            targetAnchors: packConfigV2?.targetAnchors || [],
             reason: "All required anchors collected from narrative",
             instanceNumber: instance_number,
             message: "Primary narrative field complete - all required anchors captured"
