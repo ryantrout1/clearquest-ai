@@ -997,6 +997,81 @@ const PACK_CONFIG = {
   // ADDITIONAL V2 STANDARD CLUSTER PACKS (Added for full V2 probing support)
   // ============================================================
 
+};
+
+// ============================================================================
+// V2 PACK TARGET ANCHORS - Define what anchors each V2 pack extracts
+// These are used by the Discretion Engine and field gating logic
+// ============================================================================
+
+const V2_PACK_CONFIGS = {
+  "PACK_PRIOR_LE_APPS_STANDARD": {
+    packId: "PACK_PRIOR_LE_APPS_STANDARD",
+    useNarrativeFirst: true,
+    // Target anchors that can be extracted from the Q01 narrative
+    targetAnchors: [
+      "agency_name",
+      "position_title", 
+      "application_month_year",
+      "application_outcome",
+      "application_city",
+      "application_state"
+    ],
+    // Field gating config - which fields require which anchors to be missing
+    fieldGating: {
+      "PACK_PRLE_Q01": { 
+        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"], 
+        alwaysAsk: true, 
+        isOpener: true,
+        isNarrativeOpener: true
+      },
+      "PACK_PRLE_Q02": { 
+        captures: ["application_outcome"], 
+        requiresMissing: ["application_outcome"], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q03": { 
+        captures: ["application_city", "application_state"], 
+        requiresMissing: ["application_city", "application_state"], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q04": { 
+        captures: ["application_month_year"], 
+        requiresMissing: ["application_month_year"], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q05": { 
+        captures: ["position_title"], 
+        requiresMissing: ["position_title"], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q06": { 
+        captures: ["agency_name"], 
+        requiresMissing: ["agency_name"], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q07": { 
+        captures: ["reason_not_hired"], 
+        requiresMissing: [], 
+        skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd", "disqualified / not selected"] }, 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q08": { 
+        captures: ["appeal_or_reapply"], 
+        requiresMissing: [], 
+        alwaysAsk: false 
+      },
+      "PACK_PRLE_Q09": { 
+        captures: ["anything_else"], 
+        alwaysAsk: true, 
+        isCloser: true 
+      }
+    }
+  }
+};
+
+// Merge V2_PACK_CONFIGS back into PACK_CONFIG for backward compatibility
+Object.assign(PACK_CONFIG, {
   // Alcohol Misuse pack (v2.4)
   PACK_ALCOHOL_STANDARD: {
     id: "PACK_ALCOHOL_STANDARD",
