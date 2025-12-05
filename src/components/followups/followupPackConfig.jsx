@@ -1063,7 +1063,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         label: "In your own words, describe this prior law enforcement application. Include the name of the agency, the position you applied for, and roughly when you applied. Please provide as much detail as you can.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022...",
+        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022.",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
