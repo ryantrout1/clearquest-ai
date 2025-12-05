@@ -1697,6 +1697,7 @@ Object.assign(PACK_CONFIG, {
     standardClusterId: "PRIOR_LE_APPS",
     isStandardCluster: true,
     active: true,
+    usesAnchors: true, // FLAG: This pack uses anchor-aware probing
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
     useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story
@@ -1714,13 +1715,27 @@ Object.assign(PACK_CONFIG, {
       "month_year",
       "application_outcome"
     ],
+    // Anchor definitions with labels and required flags
+    anchors: {
+      agency_name: { label: "Agency name", required: true },
+      position: { label: "Position applied for", required: true },
+      month_year: { label: "Application date", required: true },
+      application_outcome: { label: "Outcome of application", required: true }
+    },
+    // Micro clarifier templates for missing anchors
+    anchorClarifiers: {
+      agency_name: "What was the name of the law enforcement agency for this application?",
+      position: "What position did you apply for with that agency?",
+      month_year: "About what month and year did you apply?",
+      application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
+    },
     // CENTRALIZED ANCHOR EXTRACTION RULES - used by extractAnchorsFromNarrative()
     anchorExtractionRules: {
       application_outcome: {
-        disqualified: ["disqualified", "dq'd", "dq", "failed background", "failed the background", "background investigation disqualified", "not selected", "wasn't selected", "was not selected", "rejected", "not hired", "wasn't hired", "did not get", "didn't get", "was denied", "removed from consideration", "did not make it", "didn't make it"],
-        withdrew: ["withdrew", "withdraw", "pulled my application", "decided not to continue", "dropped out", "backed out", "chose to withdraw", "removed myself"],
-        hired: ["hired", "offered the job", "offered a job", "got the job", "was offered", "they brought me on"],
-        "still in process": ["still in process", "still pending", "waiting to hear back", "background in progress", "still processing", "currently in process", "awaiting decision"]
+        disqualified: ["disqualified", "dq'd", "dq", "failed background", "failed the background", "background investigation disqualified", "not selected", "wasn't selected", "was not selected", "rejected", "not hired", "wasn't hired", "did not get", "didn't get", "was denied", "removed from consideration", "removed from the process", "did not make it", "didn't make it"],
+        withdrew: ["withdrew", "withdraw", "pulled my application", "decided not to continue", "dropped out", "backed out", "chose to withdraw", "removed myself", "pulled out"],
+        hired: ["hired", "offered the job", "offered a job", "got the job", "was offered", "they brought me on", "got hired", "was hired"],
+        still_in_process: ["still in process", "still pending", "waiting to hear back", "background in progress", "still processing", "currently in process", "awaiting decision", "haven't heard back"]
       },
       month_year: "month_year",
       agency_name: "agency_name",
