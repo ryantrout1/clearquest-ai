@@ -283,13 +283,19 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
   console.log('[V2_PER_FIELD][SEND] params:', { 
     packId, 
     fieldKey, 
-    fieldValue: fieldValue?.substring?.(0, 50) || fieldValue,
+    fieldValueLength: fieldValue?.length || 0,
+    fieldValuePreview: fieldValue?.substring?.(0, 50) || fieldValue,
     previousProbesCount,
     sessionId,
     questionCode,
     baseQuestionId,
     instanceNumber: instanceNumber || 1
   });
+  
+  // CRITICAL: Log full field value for PACK_PRIOR_LE_APPS_STANDARD to verify we're sending the complete narrative
+  if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+    console.log('[DIAG_PRIOR_LE_APPS][SEND] Full narrative being sent to backend:', fieldValue);
+  }
 
   try {
     const response = await base44Client.functions.invoke('probeEngineV2', {
