@@ -1294,6 +1294,56 @@ export default function CandidateInterview() {
           }
         }
 
+        // ========================================================================
+        // CLIENT-SIDE ANCHOR INJECTION: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q02
+        // CRITICAL: Q02 is the canonical source of application_outcome
+        // Normalize the answer and inject into anchors for downstream gating
+        // ========================================================================
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q02') {
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== NORMALIZING APPLICATION OUTCOME ==========');
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Raw answer:', finalAnswer);
+
+          const rawOutcome = (finalAnswer || '').toLowerCase().trim();
+          let normalizedOutcome = 'unknown';
+
+          if (rawOutcome.includes('disqual')) {
+            normalizedOutcome = 'disqualified';
+          } else if (rawOutcome.includes('withdrew') || rawOutcome.includes('withdraw')) {
+            normalizedOutcome = 'withdrew';
+          } else if (
+            rawOutcome.includes('still in process') ||
+            rawOutcome.includes('still pending') ||
+            rawOutcome.includes('in process') ||
+            rawOutcome.includes('pending')
+          ) {
+            normalizedOutcome = 'still_in_process';
+          } else if (
+            rawOutcome.includes('hired') ||
+            rawOutcome.includes('offer') ||
+            rawOutcome.includes('offered the job') ||
+            rawOutcome.includes('sworn in') ||
+            rawOutcome.includes('onboarding') ||
+            rawOutcome.includes('background cleared')
+          ) {
+            normalizedOutcome = 'hired';
+          } else if (
+            rawOutcome.includes('not selected') ||
+            rawOutcome.includes('not hired') ||
+            rawOutcome.includes('rejected')
+          ) {
+            normalizedOutcome = 'disqualified';
+          }
+
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Normalized outcome:', normalizedOutcome);
+
+          // Inject application_outcome into anchors used by gating
+          updatedCollectedAnswers.application_outcome = normalizedOutcome;
+
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== ANCHOR INJECTED ==========');
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Updated anchors:', updatedCollectedAnswers);
+          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] application_outcome:', normalizedOutcome);
+        }
+
         // ALWAYS update activeV2Pack state with merged anchors (even if no new anchors)
         setActiveV2Pack(prev => ({
           ...prev,
