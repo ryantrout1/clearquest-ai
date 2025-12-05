@@ -1202,6 +1202,18 @@ export default function CandidateInterview() {
         });
         
         console.log("[DIAG_PRIOR_LE_APPS][LIFECYCLE][BEFORE_MERGE]", { packId, result: v2Result });
+        
+        // DIAGNOSTIC: Log raw anchors from backend for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] ========== RAW ANCHORS FROM BACKEND ==========');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.anchors:', v2Result?.anchors || '(none)');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Has application_outcome in anchors?', 
+            !!(v2Result?.anchors?.application_outcome));
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Has application_outcome in collectedAnchors?', 
+            !!(v2Result?.collectedAnchors?.application_outcome));
+        }
+        
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
           packId,
@@ -1261,6 +1273,15 @@ export default function CandidateInterview() {
             packId, 
             anchorsAfterMerge: updatedCollectedAnswers 
           });
+          
+          // DIAGNOSTIC: Extra detail for PACK_PRIOR_LE_APPS_STANDARD
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
+            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
+            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] application_outcome value:', 
+              updatedCollectedAnswers.application_outcome || '(MISSING)');
+            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Full anchor map:', updatedCollectedAnswers);
+          }
         }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
@@ -1335,6 +1356,14 @@ export default function CandidateInterview() {
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Starting at field ${nextFieldIdx + 1}/${totalFieldsInPack}: ${nextFieldConfig.fieldKey}`);
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors:`, updatedCollectedAnswers);
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchor keys:`, Object.keys(updatedCollectedAnswers));
+            
+            // DIAGNOSTIC: Extra logging for PACK_PRIOR_LE_APPS_STANDARD gating
+            console.log('[DIAG_PRIOR_LE_APPS][GATING] ========== FIELD GATING CHECK ==========');
+            console.log('[DIAG_PRIOR_LE_APPS][GATING] updatedCollectedAnswers:', updatedCollectedAnswers);
+            console.log('[DIAG_PRIOR_LE_APPS][GATING] application_outcome present?', 
+              !!(updatedCollectedAnswers.application_outcome));
+            console.log('[DIAG_PRIOR_LE_APPS][GATING] application_outcome value:', 
+              updatedCollectedAnswers.application_outcome || '(MISSING)');
             
             // Skip fields whose requiresMissing anchors are already present
             while (nextFieldIdx < totalFieldsInPack) {

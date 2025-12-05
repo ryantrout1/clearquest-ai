@@ -4090,6 +4090,16 @@ Deno.serve(async (req) => {
     const result = await probeEngineV2(input, base44);
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
+    // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== FINAL RESULT FROM BACKEND ==========');
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(result, null, 2));
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] anchors:', result.anchors || result.collectedAnchors || '(none)');
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] collectedAnchors:', result.collectedAnchors || '(none)');
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome?', 
+        !!(result.anchors?.application_outcome || result.collectedAnchors?.application_outcome));
+    }
+    
     return Response.json(result);
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
