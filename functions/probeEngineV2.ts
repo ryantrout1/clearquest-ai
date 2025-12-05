@@ -3480,19 +3480,15 @@ async function probeEngineV2(input, base44Client) {
       };
       
       // =====================================================================
-      // PACK_PRIOR_LE_APPS_STANDARD: DIAGNOSTIC ANCHOR-AWARE HANDLER
-      // DIAGNOSTIC MODE: Force-returns test anchor to prove flow
+      // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE HANDLER FOR PACK_PRLE_Q01
+      // Extracts application_outcome from narrative using deterministic + LLM approach
       // =====================================================================
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        console.log("[DIAG_PRIOR_LE_APPS][Q01] ENTER", { 
-          packId: pack_id, 
-          fieldKey: field_key, 
-          fieldValuePreview: (field_value || "").slice(0, 120) 
-        });
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== HANDLER START ==========`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] narrative length: ${field_value?.length || 0}`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] extractedAnchors:`, extractedAnchors);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
+        console.log("[PRIOR_LE_APPS][Q01][ENTRY] ========== PACK_PRLE_Q01 HANDLER START ==========");
+        console.log(`[PRIOR_LE_APPS][Q01] Narrative length: ${field_value?.length || 0}`);
+        console.log(`[PRIOR_LE_APPS][Q01] Narrative preview: "${(field_value || "").substring(0, 150)}..."`);
+        console.log(`[PRIOR_LE_APPS][Q01] extractedAnchors from centralized extraction:`, extractedAnchors);
+        console.log(`[PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
         
         // Build anchorUpdates: merge incident_context and extractedAnchors
         const anchorUpdates = { 
@@ -3500,13 +3496,18 @@ async function probeEngineV2(input, base44Client) {
           ...extractedAnchors 
         };
         
-        // Extract application_outcome from narrative using LLM analysis
-        // This MUST happen for PACK_PRLE_Q01 to enable field gating for PACK_PRLE_Q02
-        let narrativeAnalysis = null;
-        try {
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] Calling LLM to analyze narrative for outcome...`);
+        // STEP 1: Try deterministic keyword-based extraction FIRST (fastest and most reliable)
+        const deterministicOutcome = inferPriorLEApplicationOutcome(field_value || "");
+        
+        if (deterministicOutcome) {
+          anchorUpdates.application_outcome = deterministicOutcome;
+          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ Extracted application_outcome="${deterministicOutcome}" via keyword matching`);
+        } else {
+          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match - trying LLM extraction...`);
           
-          const analysisPrompt = `Read the following narrative from a law enforcement job application background interview.
+          // STEP 2: Fallback to LLM analysis if deterministic extraction failed
+          try {
+            const analysisPrompt = `Read the following narrative from a law enforcement job application background interview.
 
 Narrative: "${field_value}"
 
@@ -3521,55 +3522,44 @@ Rules:
 
 Return ONLY the outcome value, nothing else.`;
 
-          const llmResult = await base44Client.integrations.Core.InvokeLLM({
-            prompt: analysisPrompt,
-            add_context_from_internet: false,
-            response_json_schema: {
-              type: "object",
-              properties: {
-                applicationOutcome: {
-                  type: "string",
-                  enum: ["hired", "disqualified", "withdrew", "still_in_process", "unknown"],
-                  description: "The outcome of the application"
-                }
-              },
-              required: ["applicationOutcome"]
+            const llmResult = await base44Client.integrations.Core.InvokeLLM({
+              prompt: analysisPrompt,
+              add_context_from_internet: false,
+              response_json_schema: {
+                type: "object",
+                properties: {
+                  applicationOutcome: {
+                    type: "string",
+                    enum: ["hired", "disqualified", "withdrew", "still_in_process", "unknown"],
+                    description: "The outcome of the application"
+                  }
+                },
+                required: ["applicationOutcome"]
+              }
+            });
+            
+            const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
+            const rawOutcome = String(llmResult?.applicationOutcome || "").trim().toLowerCase();
+            
+            if (allowedOutcomes.includes(rawOutcome)) {
+              anchorUpdates.application_outcome = rawOutcome;
+              console.log(`[PRIOR_LE_APPS][Q01][LLM] ✓ Extracted application_outcome="${rawOutcome}" via LLM`);
+            } else {
+              console.log(`[PRIOR_LE_APPS][Q01][LLM] ✗ LLM returned invalid/unknown outcome: "${rawOutcome}"`);
             }
-          });
-          
-          narrativeAnalysis = llmResult;
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] LLM analysis result:`, narrativeAnalysis);
-        } catch (llmErr) {
-          console.warn(`[PACK_PRIOR_LE_APPS][Q01] LLM analysis failed, will use keyword extraction:`, llmErr.message);
-        }
-        
-        // Map LLM outcome analysis to application_outcome anchor
-        // CRITICAL: Use the EXACT string value (not an object) for gating compatibility
-        const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
-        let normalizedOutcome = null;
-        
-        if (narrativeAnalysis?.applicationOutcome) {
-          const rawOutcome = String(narrativeAnalysis.applicationOutcome).trim().toLowerCase();
-          if (allowedOutcomes.includes(rawOutcome)) {
-            normalizedOutcome = rawOutcome;
+          } catch (llmErr) {
+            console.warn(`[PRIOR_LE_APPS][Q01][LLM] LLM analysis failed:`, llmErr.message);
           }
         }
         
-        // Fallback to keyword extraction if LLM didn't find it
-        if (!normalizedOutcome && extractedAnchors.application_outcome) {
+        // STEP 3: Also use centralized extraction if it found application_outcome
+        if (!anchorUpdates.application_outcome && extractedAnchors.application_outcome) {
           const rawExtracted = String(extractedAnchors.application_outcome).trim().toLowerCase();
+          const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
           if (allowedOutcomes.includes(rawExtracted)) {
-            normalizedOutcome = rawExtracted;
+            anchorUpdates.application_outcome = rawExtracted;
+            console.log(`[PRIOR_LE_APPS][Q01][CENTRALIZED] ✓ Used centralized extraction result: "${rawExtracted}"`);
           }
-        }
-        
-        if (normalizedOutcome) {
-          // Set as simple string value for frontend gating compatibility
-          anchorUpdates.application_outcome = normalizedOutcome;
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] Set application_outcome anchor: "${normalizedOutcome}"`);
-          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][ANCHOR_DEBUG] field=PACK_PRLE_Q01 application_outcome="${normalizedOutcome}"`);
-        } else {
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] No valid application_outcome detected - will ask PACK_PRLE_Q02`);
         }
         
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (final):`, anchorUpdates);
