@@ -3046,7 +3046,7 @@ export default function CandidateInterview() {
       )}
 
       <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
-        <div className="max-w-5xl mx-auto">
+        <div className="w-full max-w-[900px] mx-auto px-4">
           {/* Section transition: show "Begin Next Section" button */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
