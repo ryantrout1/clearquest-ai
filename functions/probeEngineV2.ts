@@ -693,8 +693,25 @@ const PACK_CONFIG = {
   // Application Integrity Issues pack (v2.4 consolidated)
   PACK_INTEGRITY_APPS: {
     id: "PACK_INTEGRITY_APPS",
+    useNarrativeFirst: true,
+    primaryField: "PACK_INTEGRITY_APPS_NARRATIVE",
+    requiredAnchors: ["agency", "month_year", "issue_type", "outcome"],
     requiredFields: ["agency_name", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences"],
     priorityOrder: ["agency_name", "position_applied_for", "incident_date", "issue_type", "what_omitted", "reason_omitted", "discovery_method", "consequences", "corrected", "remediation_steps"],
+    anchorExtractionRules: {
+      agency: "agency_name",
+      month_year: "month_year",
+      issue_type: {
+        "omission": ["omitted", "left off", "forgot to include", "didn't mention", "failed to disclose"],
+        "false statement": ["false statement", "lied", "misrepresented", "falsified"],
+        "cheating": ["cheating", "cheated", "copied"]
+      },
+      outcome: {
+        "disqualified": ["disqualified", "removed from process", "dq'd"],
+        "allowed to continue": ["allowed to continue", "continued", "let me explain"],
+        "no action": ["no action", "nothing happened"]
+      }
+    },
     fieldKeyMap: {
       // Semantic field self-mappings
       "agency_name": "agency_name",
@@ -752,8 +769,25 @@ const PACK_CONFIG = {
   // Driving collision pack
   PACK_DRIVING_COLLISION_STANDARD: {
     id: "PACK_DRIVING_COLLISION_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_DRIVING_COLLISION_Q01",
+    requiredAnchors: ["month_year", "location", "what_happened", "outcome"],
     requiredFields: ["collisionDate", "collisionLocation", "collisionDescription", "atFault", "injuries", "propertyDamage", "citations", "alcoholInvolved"],
     priorityOrder: ["collisionDate", "collisionLocation", "collisionDescription", "atFault", "injuries", "propertyDamage", "citations", "alcoholInvolved"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      location: "location",
+      outcome: {
+        "at fault": ["at fault", "my fault", "i was at fault", "i caused", "determined to be at fault"],
+        "not at fault": ["not at fault", "other driver's fault", "they were at fault", "hit by", "rear-ended by"],
+        "citation issued": ["got a ticket", "received a citation", "was cited", "citation for"],
+        "no citation": ["no citation", "no ticket", "warning only"]
+      },
+      injuries: {
+        "yes": ["injured", "injury", "injuries", "hurt", "hospital", "ambulance", "ER", "emergency room", "doctor", "whiplash", "broken", "fracture"],
+        "no": ["no injuries", "no one was hurt", "nobody was injured", "minor damage only"]
+      }
+    },
     fieldKeyMap: {
       "PACK_DRIVING_COLLISION_Q01": "collisionDate",
       "PACK_DRIVING_COLLISION_Q02": "collisionLocation",
@@ -778,8 +812,28 @@ const PACK_CONFIG = {
   // Driving violations pack
   PACK_DRIVING_VIOLATIONS_STANDARD: {
     id: "PACK_DRIVING_VIOLATIONS_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_DRIVING_VIOLATIONS_Q01",
+    requiredAnchors: ["month_year", "violation_type", "location", "outcome"],
     requiredFields: ["violationDate", "violationType", "violationLocation", "outcome", "fines", "points"],
     priorityOrder: ["violationDate", "violationType", "violationLocation", "outcome", "fines", "points"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      location: "location",
+      violation_type: {
+        "speeding": ["speeding", "speed", "going too fast", "over the limit", "mph over"],
+        "red light": ["red light", "ran a red", "running a red"],
+        "stop sign": ["stop sign", "ran a stop", "rolling stop"],
+        "lane violation": ["lane violation", "improper lane", "lane change"],
+        "equipment": ["equipment violation", "broken light", "tail light", "headlight"]
+      },
+      outcome: {
+        "paid": ["paid", "paid the fine", "paid it"],
+        "dismissed": ["dismissed", "dropped", "thrown out"],
+        "reduced": ["reduced", "lesser charge", "reduced to"],
+        "contested": ["contested", "fought it", "went to court"]
+      }
+    },
     fieldKeyMap: {
       "PACK_DRIVING_VIOLATIONS_Q01": "violationDate",
       "PACK_DRIVING_VIOLATIONS_Q02": "violationType",
@@ -800,8 +854,27 @@ const PACK_CONFIG = {
   // General driving pack
   PACK_DRIVING_STANDARD: {
     id: "PACK_DRIVING_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_DRIVING_STANDARD_Q01",
+    requiredAnchors: ["month_year", "incident_type", "what_happened", "outcome"],
     requiredFields: ["incidentDate", "incidentType", "incidentDescription", "outcome"],
     priorityOrder: ["incidentDate", "incidentType", "incidentDescription", "outcome"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      incident_type: {
+        "speeding": ["speeding", "speed", "going too fast", "mph over"],
+        "collision": ["collision", "accident", "crash", "hit", "rear-ended"],
+        "dui": ["dui", "dwi", "drunk driving", "under the influence"],
+        "reckless": ["reckless", "reckless driving", "careless driving"],
+        "suspended license": ["suspended license", "driving on suspended", "no valid license"]
+      },
+      outcome: {
+        "citation": ["citation", "ticket", "cited", "fine", "paid the fine"],
+        "warning": ["warning", "verbal warning", "written warning"],
+        "arrest": ["arrested", "arrest", "taken into custody"],
+        "dismissed": ["dismissed", "dropped", "case dismissed"]
+      }
+    },
     fieldKeyMap: {
       "PACK_DRIVING_STANDARD_Q01": "incidentDate",
       "PACK_DRIVING_STANDARD_Q02": "incidentType",
@@ -818,8 +891,22 @@ const PACK_CONFIG = {
   // DUI/DWI pack
   PACK_DRIVING_DUIDWI_STANDARD: {
     id: "PACK_DRIVING_DUIDWI_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_DRIVING_DUIDWI_Q01",
+    requiredAnchors: ["month_year", "substance_type", "location", "outcome"],
     requiredFields: ["incidentDate", "location", "substanceType", "stopReason", "testType", "testResult", "arrestStatus", "courtOutcome", "licenseImpact"],
     priorityOrder: ["incidentDate", "location", "substanceType", "stopReason", "testType", "testResult", "arrestStatus", "courtOutcome", "licenseImpact"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      location: "location",
+      substance_type: "substance",
+      outcome: {
+        "convicted": ["convicted", "guilty", "pled guilty", "found guilty", "dui conviction"],
+        "dismissed": ["dismissed", "dropped", "case dismissed", "charges dropped"],
+        "reduced": ["reduced", "wet reckless", "lesser charge"],
+        "pending": ["pending", "still in court", "awaiting trial"]
+      }
+    },
     fieldKeyMap: {
       "PACK_DRIVING_DUIDWI_Q01": "incidentDate",
       "PACK_DRIVING_DUIDWI_Q02": "location",
@@ -876,8 +963,25 @@ const PACK_CONFIG = {
   // Financial Misconduct pack (v2.4)
   PACK_FINANCIAL_STANDARD: {
     id: "PACK_FINANCIAL_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_FINANCIAL_Q01",
+    requiredAnchors: ["financial_issue_type", "resolution_status"],
     requiredFields: ["financial_issue_type", "start_date", "amount_owed", "resolution_steps", "resolution_status"],
     priorityOrder: ["financial_issue_type", "start_date", "most_recent_date", "amount_owed", "creditor", "legal_actions", "employment_impact", "resolution_steps", "resolution_status", "remaining_obligations", "prevention_steps"],
+    anchorExtractionRules: {
+      financial_issue_type: {
+        "bankruptcy": ["bankruptcy", "filed bankruptcy", "chapter 7", "chapter 13"],
+        "collections": ["collections", "sent to collections", "collection agency"],
+        "repossession": ["repossession", "repo", "repossessed"],
+        "foreclosure": ["foreclosure", "foreclosed"],
+        "tax debt": ["tax debt", "owe taxes", "irs debt", "back taxes"]
+      },
+      resolution_status: {
+        "resolved": ["resolved", "paid off", "settled", "paid in full"],
+        "in payment": ["payment plan", "paying it off", "monthly payments"],
+        "outstanding": ["still owe", "outstanding", "unpaid"]
+      }
+    },
     fieldKeyMap: {
       "financial_issue_type": "financial_issue_type",
       "start_date": "start_date",
@@ -933,8 +1037,27 @@ const PACK_CONFIG = {
   // Military Misconduct / Discipline pack (v2.4)
   PACK_MILITARY_STANDARD: {
     id: "PACK_MILITARY_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_MILITARY_Q01",
+    requiredAnchors: ["branch", "month_year", "outcome"],
     requiredFields: ["branch", "rank_role", "incident_date", "description", "disciplinary_action"],
     priorityOrder: ["branch", "rank_role", "incident_date", "location", "description", "orders_violation", "alcohol_drugs", "disciplinary_action", "career_impact", "law_enforcement_contact", "remediation_steps"],
+    anchorExtractionRules: {
+      branch: {
+        "army": ["army", "soldier"],
+        "navy": ["navy", "sailor"],
+        "air force": ["air force", "airman"],
+        "marines": ["marines", "marine corps", "marine"],
+        "coast guard": ["coast guard"]
+      },
+      month_year: "month_year",
+      outcome: {
+        "article 15": ["article 15", "nonjudicial", "njp"],
+        "court martial": ["court martial", "courts martial"],
+        "discharge": ["discharge", "discharged", "other than honorable", "general discharge"],
+        "no action": ["no action", "cleared"]
+      }
+    },
     fieldKeyMap: {
       "branch": "branch",
       "rank_role": "rank_role",
@@ -962,8 +1085,24 @@ const PACK_CONFIG = {
   // Weapons Misconduct pack (v2.4)
   PACK_WEAPONS_STANDARD: {
     id: "PACK_WEAPONS_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_WEAPONS_Q01",
+    requiredAnchors: ["weapon_type", "month_year", "outcome"],
     requiredFields: ["weapon_type", "incident_date", "description", "weapon_use", "actions_taken"],
     priorityOrder: ["weapon_type", "weapon_ownership", "incident_date", "location", "description", "weapon_use", "threats", "discharge", "impairment", "actions_taken"],
+    anchorExtractionRules: {
+      weapon_type: {
+        "firearm": ["firearm", "gun", "pistol", "rifle", "shotgun", "handgun"],
+        "knife": ["knife", "blade"],
+        "other": ["weapon", "bat", "club"]
+      },
+      month_year: "month_year",
+      outcome: {
+        "charges": ["charged", "arrested", "citation"],
+        "confiscated": ["confiscated", "taken", "seized"],
+        "no action": ["no action", "warning", "let go"]
+      }
+    },
     fieldKeyMap: {
       "weapon_type": "weapon_type",
       "weapon_ownership": "weapon_ownership",
@@ -1083,8 +1222,16 @@ const PACK_CONFIG = {
   // Illegal Drug Use / Experimentation pack (v2.4)
   PACK_DRUG_USE_STANDARD: {
     id: "PACK_DRUG_USE_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_DRUG_USE_Q01",
+    requiredAnchors: ["substance_type", "first_use", "last_use"],
     requiredFields: ["substance_type", "first_use_date", "last_use_date", "total_uses"],
     priorityOrder: ["substance_type", "first_use_date", "last_use_date", "total_uses", "use_context", "use_location", "obtain_method", "under_influence_in_prohibited_setting", "consequences", "law_enforcement_involved", "prior_disclosure", "other_substances_used", "behavior_stopped", "mitigation_steps"],
+    anchorExtractionRules: {
+      substance_type: "substance",
+      first_use: "month_year",
+      last_use: "month_year"
+    },
     fieldKeyMap: {
       "substance_type": "substance_type",
       "first_use_date": "first_use_date",
@@ -1272,8 +1419,18 @@ Object.assign(PACK_CONFIG, {
   // General Disclosure pack (v2.4)
   PACK_GENERAL_DISCLOSURE_STANDARD: {
     id: "PACK_GENERAL_DISCLOSURE_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_GENERAL_DISCLOSURE_Q01",
+    requiredAnchors: ["disclosure_type", "circumstances"],
     requiredFields: ["disclosure_type", "circumstances", "time_period"],
     priorityOrder: ["disclosure_type", "circumstances", "time_period", "integrity_issues", "policy_violations", "harm_risk", "employer_school_consequences", "le_consequences", "prior_disclosure", "preventive_steps"],
+    anchorExtractionRules: {
+      disclosure_type: {
+        "integrity": ["integrity", "honesty", "lied", "false statement"],
+        "policy": ["policy violation", "violated policy", "broke rules"],
+        "conduct": ["conduct", "behavior", "misconduct"]
+      }
+    },
     fieldKeyMap: {
       "disclosure_type": "disclosure_type",
       "circumstances": "circumstances",
@@ -1291,8 +1448,22 @@ Object.assign(PACK_CONFIG, {
   // General Crime pack (v2.4)
   PACK_GENERAL_CRIME_STANDARD: {
     id: "PACK_GENERAL_CRIME_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_GENERAL_CRIME_Q01",
+    requiredAnchors: ["month_year", "location", "what_happened", "outcome"],
     requiredFields: ["incident_type", "incident_date", "location", "description", "legal_outcome"],
     priorityOrder: ["incident_type", "incident_date", "location", "description", "arrest_status", "charges", "legal_outcome", "sentence", "probation", "restitution", "prior_disclosure", "preventive_steps"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      location: "location",
+      outcome: {
+        "convicted": ["convicted", "guilty", "pled guilty", "found guilty"],
+        "dismissed": ["dismissed", "dropped", "charges dropped", "case dismissed"],
+        "acquitted": ["acquitted", "not guilty", "found not guilty"],
+        "deferred": ["deferred", "deferred adjudication", "probation before judgment"],
+        "pending": ["pending", "awaiting trial", "still in court"]
+      }
+    },
     fieldKeyMap: {
       "incident_type": "incident_type",
       "incident_date": "incident_date",
@@ -1372,8 +1543,21 @@ Object.assign(PACK_CONFIG, {
   // Theft pack (v2.4)
   PACK_THEFT_STANDARD: {
     id: "PACK_THEFT_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_THEFT_Q01",
+    requiredAnchors: ["month_year", "location", "what_stolen", "outcome"],
     requiredFields: ["incident_date", "location", "what_stolen", "circumstances", "legal_outcome"],
     priorityOrder: ["incident_date", "location", "what_stolen", "value", "circumstances", "arrest_status", "charges", "legal_outcome", "restitution", "prior_disclosure", "preventive_steps"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      location: "location",
+      outcome: {
+        "convicted": ["convicted", "guilty", "pled guilty"],
+        "dismissed": ["dismissed", "dropped", "charges dropped"],
+        "restitution": ["paid restitution", "restitution", "paid back"],
+        "diversion": ["diversion", "diversion program", "community service"]
+      }
+    },
     fieldKeyMap: {
       "incident_date": "incident_date",
       "location": "location",
@@ -1412,8 +1596,26 @@ Object.assign(PACK_CONFIG, {
   // Fraud pack (v2.4)
   PACK_FRAUD_STANDARD: {
     id: "PACK_FRAUD_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_FRAUD_Q01",
+    requiredAnchors: ["month_year", "fraud_type", "outcome"],
     requiredFields: ["incident_date", "fraud_type", "circumstances", "legal_outcome"],
     priorityOrder: ["incident_date", "fraud_type", "circumstances", "amount_involved", "victim_type", "arrest_status", "charges", "legal_outcome", "restitution", "prior_disclosure", "preventive_steps"],
+    anchorExtractionRules: {
+      month_year: "month_year",
+      fraud_type: {
+        "identity theft": ["identity theft", "identity fraud", "stole identity"],
+        "credit card": ["credit card fraud", "unauthorized charges", "stolen card"],
+        "check fraud": ["check fraud", "bad check", "forged check"],
+        "insurance": ["insurance fraud", "false claim"],
+        "forgery": ["forgery", "forged", "falsified"]
+      },
+      outcome: {
+        "convicted": ["convicted", "guilty", "pled guilty"],
+        "dismissed": ["dismissed", "dropped"],
+        "restitution": ["paid restitution", "restitution"]
+      }
+    },
     fieldKeyMap: {
       "incident_date": "incident_date",
       "fraud_type": "fraud_type",
@@ -1432,8 +1634,27 @@ Object.assign(PACK_CONFIG, {
   // Employment Misconduct pack (v2.4)
   PACK_EMPLOYMENT_STANDARD: {
     id: "PACK_EMPLOYMENT_STANDARD",
+    useNarrativeFirst: true,
+    primaryField: "PACK_EMPLOYMENT_Q01",
+    requiredAnchors: ["employer", "month_year", "incident_type", "outcome"],
     requiredFields: ["employer", "incident_date", "incident_type", "circumstances", "outcome"],
     priorityOrder: ["employer", "position", "incident_date", "incident_type", "circumstances", "corrective_action", "outcome", "separation_type", "prior_disclosure", "preventive_steps"],
+    anchorExtractionRules: {
+      employer: "employer",
+      month_year: "month_year",
+      incident_type: {
+        "termination": ["terminated", "fired", "let go", "dismissed", "termination"],
+        "resignation": ["resigned", "quit", "left voluntarily", "gave notice"],
+        "discipline": ["written up", "warning", "disciplinary action", "suspended"],
+        "investigation": ["investigated", "investigation", "HR investigation"]
+      },
+      outcome: {
+        "terminated": ["terminated", "fired", "let go", "dismissed"],
+        "resigned": ["resigned", "quit", "left"],
+        "warning": ["warning", "written warning", "verbal warning"],
+        "no action": ["no action", "cleared", "unfounded"]
+      }
+    },
     fieldKeyMap: {
       "employer": "employer",
       "position": "position",
