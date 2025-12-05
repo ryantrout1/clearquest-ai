@@ -3589,8 +3589,9 @@ async function probeEngineV2(input, base44Client) {
         
         // All required anchors collected OR max probes reached - advance with anchors
         console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== RETURNING NEXT_FIELD WITH ANCHORS ==========`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD, hasQuestion=false`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] Anchors extracted (final):`, currentAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD, hasQuestion=false, followupsCount=0`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsFromQ1:`, currentAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorKeys: [${Object.keys(currentAnchors).join(', ')}]`);
         
         return {
           mode: "NEXT_FIELD",
@@ -3600,7 +3601,9 @@ async function probeEngineV2(input, base44Client) {
           validationResult: missingAnchors.length === 0 ? "all_required_anchors_collected" : "max_probes_reached",
           previousProbeCount: previous_probes_count,
           maxProbesPerField: maxProbesForPrimary,
-          anchors: currentAnchors, // CRITICAL: Return anchors using same property as PACK_DRIVING_COLLISION_STANDARD
+          hasQuestion: false,
+          followupsCount: 0,
+          anchors: currentAnchors,
           targetAnchors: prlePackConfig?.targetAnchors || [],
           reason: missingAnchors.length === 0 ? "All required anchors collected from narrative" : `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
           instanceNumber: instance_number,
