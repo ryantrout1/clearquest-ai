@@ -3308,6 +3308,18 @@ async function probeEngineV2(input, base44Client) {
               break;
             }
           }
+          
+          // CRITICAL DEBUG LOG: Show all extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
+          console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] ========== ANCHOR EXTRACTION COMPLETE ==========`);
+          console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] narrative preview: "${field_value?.substring?.(0, 100)}..."`);
+          console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] anchors inferred:`, {
+            application_outcome: extractedAnchors.application_outcome || '(NOT FOUND)',
+            agency_name: extractedAnchors.agency_name || '(NOT FOUND)',
+            position: extractedAnchors.position || '(NOT FOUND)',
+            month_year: extractedAnchors.month_year || '(NOT FOUND)',
+            application_city: extractedAnchors.application_city || '(NOT FOUND)',
+            application_state: extractedAnchors.application_state || '(NOT FOUND)'
+          });
         }
       } else {
         console.log(`[ANCHOR_EXTRACT][${pack_id}] No anchorExtractionRules defined - skipping centralized extraction`);
