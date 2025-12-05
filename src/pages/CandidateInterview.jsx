@@ -1216,19 +1216,30 @@ export default function CandidateInterview() {
         });
         
         // CRITICAL: Merge backend-returned anchors into collectedAnswers for field gating
-        // This is the KEY fix - backend extracts semantic anchors and frontend uses them for gating
+        // This is the universal anchor merge path used by ALL V2 anchor-aware packs
         let updatedCollectedAnswers = { ...activeV2Pack.collectedAnswers };
         
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
+        // Universal anchor merge: if backend returns v2Result.anchors, merge them
+        if (v2Result?.anchors && Object.keys(v2Result.anchors).length > 0) {
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] ========== MERGING BACKEND ANCHORS ==========`);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Pack: ${packId}, Instance: ${instanceNumber}`);
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Before merge:`, Object.keys(updatedCollectedAnswers));
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, v2Result.anchors);
           
-          // Merge backend-extracted anchors (semantic keys like 'application_outcome')
+          // Merge backend-extracted anchors (semantic keys like 'application_outcome', 'month_year', etc.)
           Object.assign(updatedCollectedAnswers, v2Result.anchors);
           
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Has application_outcome: ${!!updatedCollectedAnswers.application_outcome}`);
+          
+          // Log specific anchors for PACK_PRIOR_LE_APPS_STANDARD
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+            console.log(`[V2_PACK_FIELD][MERGE_ANCHORS][PRIOR_LE_APPS] Merged anchors:`, {
+              agency_name: updatedCollectedAnswers.agency_name || '(missing)',
+              position: updatedCollectedAnswers.position || '(missing)',
+              month_year: updatedCollectedAnswers.month_year || '(missing)',
+              application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
+            });
+          }
           
           // Update activeV2Pack state with merged anchors
           setActiveV2Pack(prev => ({

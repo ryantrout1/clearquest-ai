@@ -3314,26 +3314,33 @@ async function probeEngineV2(input, base44Client) {
         ...extractedAnchors
       };
       
+      // =====================================================================
       // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE NARRATIVE FIELD ENFORCEMENT
-      // CRITICAL: Do NOT return NEXT_FIELD unless ALL required anchors are populated
+      // Uses the SAME pattern as PACK_DRIVING_COLLISION_STANDARD
+      // =====================================================================
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+        console.log(`[PACK_PRIOR_LE_APPS][Q01][HANDLER] ========== PACK_PRLE_Q01 HANDLER INVOKED ==========`);
+        
         const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
         const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
+        
+        // Log BEFORE extraction
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsBefore=`, incident_context);
         
         // Compute missing anchors from currentAnchors (which includes extractedAnchors)
         const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
         const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
         
-        // DEBUG LOGGING - CRITICAL for diagnosing anchor issues
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] ========== ANCHOR CHECK ==========`);
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] anchorsAfterExtraction=`, {
+        // Log AFTER extraction
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter=`, currentAnchors);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsAfter (detailed)=`, {
           agency_name: currentAnchors.agency_name || '(MISSING)',
           position: currentAnchors.position || '(MISSING)',
           month_year: currentAnchors.month_year || '(MISSING)',
           application_outcome: currentAnchors.application_outcome || '(MISSING)'
         });
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] collectedKeys=[${collectedKeys.join(', ')}]`);
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] missingAnchors=[${missingAnchors.join(', ')}]`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] collectedKeys=[${collectedKeys.join(', ')}]`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] missingAnchors=[${missingAnchors.join(', ')}]`);
         
         // Fetch max probes from FollowUpPack entity
         let maxProbesForPrimary = 4;
@@ -3346,15 +3353,17 @@ async function probeEngineV2(input, base44Client) {
             maxProbesForPrimary = followUpPacks[0].max_ai_followups;
           }
         } catch (err) {
-          console.warn(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
+          console.warn(`[PACK_PRIOR_LE_APPS][Q01] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
         }
         
         // CRITICAL: If ANY required anchor is missing, return QUESTION with micro clarifier
         if (missingAnchors.length > 0) {
           // Check if we've exceeded max probes
           if (previous_probes_count >= maxProbesForPrimary) {
-            console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Max probes reached (${previous_probes_count}/${maxProbesForPrimary}) - advancing despite missing anchors`);
-            console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=NEXT_FIELD (max probes exceeded)`);
+            console.log(`[PACK_PRIOR_LE_APPS][Q01] Max probes reached (${previous_probes_count}/${maxProbesForPrimary}) - returning anchors and advancing`);
+            console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
+            console.log(`[PACK_PRIOR_LE_APPS][Q01] returning anchors for instance ${instance_number}:`, currentAnchors);
+            
             return {
               mode: "NEXT_FIELD",
               pack_id,
@@ -3363,7 +3372,7 @@ async function probeEngineV2(input, base44Client) {
               validationResult: "max_probes_reached_with_missing_anchors",
               previousProbeCount: previous_probes_count,
               maxProbesPerField: maxProbesForPrimary,
-              anchors: currentAnchors,
+              anchors: currentAnchors, // CRITICAL: Return anchors using same property as other V2 packs
               missingAnchors,
               reason: `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
               instanceNumber: instance_number,
@@ -3381,8 +3390,8 @@ async function probeEngineV2(input, base44Client) {
           };
           const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
           
-          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=QUESTION, targeting anchor="${firstMissing}"`);
-          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] clarifier="${clarifierQuestion}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, targeting anchor="${firstMissing}"`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] clarifier="${clarifierQuestion}"`);
           
           return {
             mode: "QUESTION",
@@ -3397,15 +3406,17 @@ async function probeEngineV2(input, base44Client) {
             probeSource: "anchor_clarifier",
             targetAnchors: [firstMissing],
             missingAnchors,
-            anchors: currentAnchors,
+            anchors: currentAnchors, // CRITICAL: Return current anchors even when asking for more
             instanceNumber: instance_number,
             message: `Probing for missing anchor: ${firstMissing}`
           };
         }
         
-        // ALL REQUIRED ANCHORS COLLECTED - safe to return NEXT_FIELD
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=NEXT_FIELD (all anchors collected)`);
-        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Final anchors:`, currentAnchors);
+        // ALL REQUIRED ANCHORS COLLECTED - return NEXT_FIELD with anchors payload
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== ALL ANCHORS COLLECTED ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=NEXT_FIELD (all anchors collected)`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] responseMode=NEXT_FIELD, hasQuestion=false`);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] returning anchors for instance ${instance_number}:`, currentAnchors);
         
         return {
           mode: "NEXT_FIELD",
@@ -3415,7 +3426,8 @@ async function probeEngineV2(input, base44Client) {
           validationResult: "all_required_anchors_collected",
           previousProbeCount: previous_probes_count,
           maxProbesPerField: maxProbesForPrimary,
-          anchors: currentAnchors,
+          anchors: currentAnchors, // CRITICAL: Return anchors using same property as PACK_DRIVING_COLLISION_STANDARD
+          targetAnchors: prlePackConfig?.targetAnchors || [],
           reason: "All required anchors collected from narrative",
           instanceNumber: instance_number,
           message: "Primary narrative field complete - all required anchors captured"
@@ -3757,13 +3769,14 @@ async function probeEngineV2(input, base44Client) {
       message: `Field ${semanticField} validated successfully`
     };
     
-    // CRITICAL: Return extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+    // CRITICAL: Return extracted anchors for anchor-aware V2 packs
+    // PACK_PRIOR_LE_APPS_STANDARD follows the SAME pattern as PACK_DRIVING_COLLISION_STANDARD
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors).length > 0) {
       // Merge extracted anchors with incident_context for complete anchor state
       const allAnchors = { ...incident_context, ...extractedAnchors };
       result.anchors = allAnchors;
       result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
-      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(allAnchors).length} total anchors:`, allAnchors);
+      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Discretion STOP: Returning ${Object.keys(allAnchors).length} total anchors:`, allAnchors);
     }
     
     return result;
