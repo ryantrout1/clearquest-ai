@@ -3223,174 +3223,54 @@ async function probeEngineV2(input, base44Client) {
       // Special handling for PACK_PRIOR_LE_APPS_STANDARD - use local extraction first
       let answerToExtract = field_value;
 
-      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] ========== EXTRACTING FROM NARRATIVE ==========`);
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Raw answer: "${field_value.substring(0, 200)}..."`);
-
-        const narrativeLower = field_value.toLowerCase();
+      // =====================================================================
+      // CENTRALIZED ANCHOR EXTRACTION - Uses anchorExtractionRules from PACK_CONFIG
+      // Automatically extracts outcomes, dates, agencies, roles from narrative
+      // NO per-pack hand-coded rules needed - all defined declaratively in PACK_CONFIG
+      // =====================================================================
+      
+      const currentPackConfig = PACK_CONFIG[pack_id];
+      if (currentPackConfig?.anchorExtractionRules) {
+        console.log(`[ANCHOR_EXTRACT][${pack_id}] Using centralized extraction engine`);
         
-        // LOCAL EXTRACTION: Extract month/year from narrative
-        const dateExtracted = extractMonthYearFromText(field_value);
-        if (dateExtracted.value) {
-          extractedAnchors.month_year = dateExtracted.value;
-          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
-        }
+        // Use centralized extraction function
+        const centrallyExtracted = extractAnchorsFromNarrative(
+          field_value,
+          currentPackConfig.anchorExtractionRules,
+          incident_context
+        );
         
-        // Extract position (expanded patterns for narrative)
-        const positionPatterns = [
-          /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer|patrol)/i,
-          /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\s+(?:position|role|job)/i,
-          /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\b/i
-        ];
-        for (const pattern of positionPatterns) {
-          const positionMatch = field_value.match(pattern);
-          if (positionMatch) {
-            extractedAnchors.position = positionMatch[1];
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] position="${positionMatch[1]}"`);
-            break;
-          }
-        }
+        // Merge centrally extracted anchors
+        Object.assign(extractedAnchors, centrallyExtracted);
         
-        // Extract agency name (expanded patterns for narrative)
-        const agencyPatterns = [
-          /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
-          /\b([\w\s]+(?:Police Department|Sheriff's Office|Sheriff Office|County Sheriff|City Police|State Police|Highway Patrol|Marshal's Office))\b/i,
-          /\b([A-Z][A-Za-z\s]+(?:Police|Sheriff|PD|SO|Agency))\b/i
-        ];
-        for (const pattern of agencyPatterns) {
-          const agencyMatch = field_value.match(pattern);
-          if (agencyMatch && agencyMatch[1].length > 3) {
-            extractedAnchors.agency_name = agencyMatch[1].trim();
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] agency_name="${agencyMatch[1].trim()}"`);
-            break;
-          }
-        }
+        console.log(`[ANCHOR_EXTRACT][${pack_id}] Extracted ${Object.keys(centrallyExtracted).length} anchors: [${Object.keys(centrallyExtracted).join(', ')}]`);
         
-        // =====================================================================
-        // OUTCOME EXTRACTION - Robust phrase-based matching for application_outcome
-        // This enables Q02 to be SKIPPED when outcome is clearly stated in narrative
-        // Only extracts if application_outcome is NOT already set
-        // =====================================================================
-        
-        if (!incident_context.application_outcome || !incident_context.application_outcome.trim()) {
-          // Check for DISQUALIFIED / NOT SELECTED outcome (check first - most common)
-          const disqualifiedPhrases = [
-            'disqualified', 'dq\'d', 'failed background', 'failed the background',
-            'background investigation disqualified', 'not selected', 'wasn\'t selected',
-            'was not selected', 'they did not select me', 'was removed from the process',
-            'did not pass the background', 'was dropped from the process',
-            'denied after background', 'rejected', 'they rejected me',
-            'did not get', 'didn\'t get', 'was denied', 'not hired', 'wasn\'t hired',
-            'did not hire', 'didn\'t hire', 'dq', 'was dq', 'got disqualified',
-            'was disqualified', 'they disqualified me', 'removed from consideration',
-            'no longer in the running', 'did not make it', 'didn\'t make it'
+        // For PACK_PRIOR_LE_APPS_STANDARD, also extract city/state (location pattern)
+        if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+          const locationPatterns = [
+            /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/,
+            /\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/i
           ];
-          
-          // Check for WITHDREW outcome
-          const withdrewPhrases = [
-            'withdrew', 'withdrew my application', 'pulled my application',
-            'pulled out of the process', 'decided not to continue',
-            'removed myself from consideration', 'chose not to continue',
-            'i withdrew', 'i pulled out', 'decided to withdraw',
-            'chose to withdraw', 'dropped out', 'backed out'
-          ];
-          
-          // Check for HIRED outcome
-          const hiredPhrases = [
-            'hired', 'they hired me', 'got hired', 'offered me the job',
-            'offered me the position', 'they brought me on', 'was hired',
-            'i was hired', 'got the job', 'was offered', 'offered a job'
-          ];
-          
-          // Check for STILL IN PROCESS outcome
-          const stillInProcessPhrases = [
-            'still in process', 'still pending', 'process is ongoing',
-            'have not heard back yet', 'waiting to hear back',
-            'still under consideration', 'still being processed',
-            'haven\'t heard back', 'awaiting decision', 'in progress',
-            'currently in process', 'application is pending', 'background in progress',
-            'still processing'
-          ];
-          
-          let outcomeFound = false;
-          
-          // Check DISQUALIFIED first
-          for (const phrase of disqualifiedPhrases) {
-            if (narrativeLower.includes(phrase)) {
-              extractedAnchors.application_outcome = 'disqualified';
-              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="disqualified" (matched: "${phrase}")`);
-              outcomeFound = true;
+          for (const pattern of locationPatterns) {
+            const locationMatch = field_value.match(pattern);
+            if (locationMatch) {
+              extractedAnchors.application_city = locationMatch[1];
+              extractedAnchors.application_state = locationMatch[2];
+              console.log(`[ANCHOR_EXTRACT][${pack_id}] location: city="${locationMatch[1]}" state="${locationMatch[2]}"`);
               break;
             }
           }
-          
-          // Check WITHDREW
-          if (!outcomeFound) {
-            for (const phrase of withdrewPhrases) {
-              if (narrativeLower.includes(phrase)) {
-                extractedAnchors.application_outcome = 'withdrew';
-                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="withdrew" (matched: "${phrase}")`);
-                outcomeFound = true;
-                break;
-              }
-            }
-          }
-          
-          // Check HIRED
-          if (!outcomeFound) {
-            for (const phrase of hiredPhrases) {
-              if (narrativeLower.includes(phrase)) {
-                extractedAnchors.application_outcome = 'hired';
-                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="hired" (matched: "${phrase}")`);
-                outcomeFound = true;
-                break;
-              }
-            }
-          }
-          
-          // Check STILL IN PROCESS
-          if (!outcomeFound) {
-            for (const phrase of stillInProcessPhrases) {
-              if (narrativeLower.includes(phrase)) {
-                extractedAnchors.application_outcome = 'still in process';
-                console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="still in process" (matched: "${phrase}")`);
-                outcomeFound = true;
-                break;
-              }
-            }
-          }
-          
-          if (!outcomeFound) {
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome NOT FOUND - Q02 will be asked`);
-          }
-        } else {
-          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome already set to "${incident_context.application_outcome}" - not overwriting`);
         }
-        
-        // Extract city/state from narrative
-        const locationPatterns = [
-          /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/, // "Phoenix, AZ" or "Phoenix AZ"
-          /\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/i // "in Phoenix, AZ"
-        ];
-        for (const pattern of locationPatterns) {
-          const locationMatch = field_value.match(pattern);
-          if (locationMatch) {
-            extractedAnchors.application_city = locationMatch[1];
-            extractedAnchors.application_state = locationMatch[2];
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_city="${locationMatch[1]}" application_state="${locationMatch[2]}"`);
-            break;
-          }
-        }
-        
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Total anchors extracted locally: ${Object.keys(extractedAnchors).length}`);
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Extracted anchor keys: [${Object.keys(extractedAnchors).join(', ')}]`);
-        
-        // Aggregate all previous answers for this instance to improve LLM extraction
-        const allAnswers = Object.values(incident_context || {}).filter(Boolean);
-        if (allAnswers.length > 0) {
-          answerToExtract = [...allAnswers, field_value].join(' ');
-          console.log(`[PRIOR_LE_APPS][AGGREGATE] Aggregating ${allAnswers.length + 1} answers for extraction`);
-        }
+      } else {
+        console.log(`[ANCHOR_EXTRACT][${pack_id}] No anchorExtractionRules defined - skipping centralized extraction`);
+      }
+      
+      // Aggregate all previous answers for LLM extraction (fallback)
+      let answerToExtract = field_value;
+      const allAnswers = Object.values(incident_context || {}).filter(Boolean);
+      if (allAnswers.length > 0) {
+        answerToExtract = [...allAnswers, field_value].join(' ');
+        console.log(`[ANCHOR_EXTRACT][${pack_id}] Aggregating ${allAnswers.length + 1} answers for LLM extraction`);
       }
       
       const extractionResult = await base44Client.functions.invoke('factExtractor', {
