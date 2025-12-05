@@ -3520,8 +3520,11 @@ Return ONLY the outcome value, nothing else.`;
           maxProbesPerField: maxProbesForPrimary,
           hasQuestion: false,
           followupsCount: 0,
+          // CRITICAL: Return anchors in BOTH formats for frontend compatibility
+          anchors: anchorUpdates,
           collectedAnchors: anchorUpdates,
           collectedAnchorsKeys: Object.keys(anchorUpdates),
+          anchorKeys: Object.keys(anchorUpdates),
           targetAnchors: prlePackConfig?.targetAnchors || [],
           reason: missingAnchors.length === 0 ? "All required anchors collected" : `Max probes reached - missing: ${missingAnchors.join(', ')}`,
           instanceNumber: instance_number,
