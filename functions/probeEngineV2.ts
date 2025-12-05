@@ -3382,12 +3382,64 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[PACK_PRIOR_LE_APPS][Q01] extractedAnchors:`, extractedAnchors);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
         
-        // DIAGNOSTIC: Force a test anchor to prove the flow works
+        // Extract application_outcome from narrative using LLM analysis
+        let narrativeAnalysis = null;
+        try {
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Calling LLM to analyze narrative for outcome...`);
+          
+          const analysisPrompt = `Read the following narrative from a law enforcement job application background interview.
+
+Narrative: "${field_value}"
+
+Your task: Determine the outcome of this application based on what the candidate stated.
+
+Rules:
+- If the narrative clearly states the applicant was hired or offered the job, return "hired".
+- If the narrative states they were disqualified, rejected, not selected, DQ'd, failed, or removed from the process, return "disqualified".
+- If the narrative states they withdrew, pulled out, or chose to stop the process, return "withdrew".
+- If the narrative states the process is ongoing, pending, or they haven't heard back, return "still_in_process".
+- If the outcome is truly not mentioned or unclear, return "unknown".
+
+Return ONLY the outcome value, nothing else.`;
+
+          const llmResult = await base44Client.integrations.Core.InvokeLLM({
+            prompt: analysisPrompt,
+            add_context_from_internet: false,
+            response_json_schema: {
+              type: "object",
+              properties: {
+                applicationOutcome: {
+                  type: "string",
+                  enum: ["hired", "disqualified", "withdrew", "still_in_process", "unknown"],
+                  description: "The outcome of the application"
+                }
+              },
+              required: ["applicationOutcome"]
+            }
+          });
+          
+          narrativeAnalysis = llmResult;
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] LLM analysis result:`, narrativeAnalysis);
+        } catch (llmErr) {
+          console.warn(`[PACK_PRIOR_LE_APPS][Q01] LLM analysis failed, will use keyword extraction:`, llmErr.message);
+        }
+        
+        // Build anchorUpdates: merge incident_context, extractedAnchors, and narrative analysis
         const anchorUpdates = { 
-          application_outcome: "disqualified_test",
           ...incident_context, 
           ...extractedAnchors 
         };
+        
+        // Map LLM outcome analysis to application_outcome anchor
+        if (narrativeAnalysis?.applicationOutcome && narrativeAnalysis.applicationOutcome !== 'unknown') {
+          anchorUpdates.application_outcome = narrativeAnalysis.applicationOutcome;
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Set application_outcome anchor from LLM: "${narrativeAnalysis.applicationOutcome}"`);
+        } else if (extractedAnchors.application_outcome) {
+          // Fallback: use keyword extraction if LLM didn't find it
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Using application_outcome from keyword extraction: "${extractedAnchors.application_outcome}"`);
+        } else {
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] No application_outcome detected in narrative (LLM or keywords)`);
+        }
         
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (merged):`, anchorUpdates);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates keys: [${Object.keys(anchorUpdates).join(', ')}]`);
@@ -3478,6 +3530,10 @@ async function probeEngineV2(input, base44Client) {
         console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue keys:", Object.keys(returnValue));
         console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchors:", returnValue.collectedAnchors);
         console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchorsKeys:", returnValue.collectedAnchorsKeys);
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== PACK_PRLE_Q01 FINAL RESULT ==========');
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(returnValue, null, 2));
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome anchor?', 
+          !!(returnValue.collectedAnchors?.application_outcome));
         
         return returnValue;
       }
