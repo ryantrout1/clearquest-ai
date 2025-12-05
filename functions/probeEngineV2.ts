@@ -1380,6 +1380,67 @@ const PACK_CONFIG = {
 };
 
 /**
+ * Extract month/year from text (e.g., "March 2022", "03/2022", "Jan 2020")
+ * Used for PACK_PRIOR_LE_APPS_STANDARD field gating
+ * @param {string} text 
+ * @returns {{value: string|null, confidence: "high"|"medium"|"low"|null}}
+ */
+function extractMonthYearFromText(text) {
+  if (!text) return { value: null, confidence: null };
+  
+  // Month names mapping
+  const monthNames = {
+    'january': '01', 'jan': '01',
+    'february': '02', 'feb': '02',
+    'march': '03', 'mar': '03',
+    'april': '04', 'apr': '04',
+    'may': '05',
+    'june': '06', 'jun': '06',
+    'july': '07', 'jul': '07',
+    'august': '08', 'aug': '08',
+    'september': '09', 'sep': '09', 'sept': '09',
+    'october': '10', 'oct': '10',
+    'november': '11', 'nov': '11',
+    'december': '12', 'dec': '12'
+  };
+  
+  // Pattern 1: "March 2022", "Jan 2020", "September 2019"
+  const monthNamePattern = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s*,?\s*(20\d{2}|19\d{2})\b/i;
+  const match1 = text.match(monthNamePattern);
+  if (match1) {
+    const monthKey = match1[1].toLowerCase();
+    const month = monthNames[monthKey];
+    const year = match1[2];
+    return { value: `${year}-${month}`, confidence: "high" };
+  }
+  
+  // Pattern 2: "03/2022", "3/2022", "03-2022"
+  const numericPattern = /\b(0?[1-9]|1[0-2])[\/\-](20\d{2}|19\d{2})\b/;
+  const match2 = text.match(numericPattern);
+  if (match2) {
+    const month = match2[1].padStart(2, '0');
+    const year = match2[2];
+    return { value: `${year}-${month}`, confidence: "high" };
+  }
+  
+  // Pattern 3: Just year "2022", "in 2020"
+  const yearOnlyPattern = /\b(20\d{2}|19\d{2})\b/;
+  const match3 = text.match(yearOnlyPattern);
+  if (match3) {
+    return { value: match3[1], confidence: "medium" };
+  }
+  
+  // Pattern 4: Approximate terms "early 2020", "late 2019", "around 2021"
+  const approxPattern = /\b(early|late|mid|around|about|spring|summer|fall|winter|beginning of|end of)\s*(20\d{2}|19\d{2})\b/i;
+  const match4 = text.match(approxPattern);
+  if (match4) {
+    return { value: `${match4[1]} ${match4[2]}`, confidence: "medium" };
+  }
+  
+  return { value: null, confidence: null };
+}
+
+/**
  * Normalize curly quotes and trim
  */
 function normalizeText(raw) {
