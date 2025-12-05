@@ -1733,7 +1733,8 @@ Object.assign(PACK_CONFIG, {
           "didn't complete", "did not complete",
           "unsuccessful", "was unsuccessful", "were unsuccessful",
           "not offered", "wasn't offered", "was not offered",
-          "turned down", "was turned down"
+          "turned down", "was turned down",
+          "disqualified during the background"
         ],
         withdrew: [
           "withdrew", "withdraw", "withdrawn",
