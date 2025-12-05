@@ -1697,39 +1697,25 @@ Object.assign(PACK_CONFIG, {
     standardClusterId: "PRIOR_LE_APPS",
     isStandardCluster: true,
     active: true,
-    usesAnchors: true, // FLAG: This pack uses anchor-aware probing
+    usesAnchors: true, // FLAG: This pack uses anchor-aware probing (SAME as PACK_DRIVING_COLLISION_STANDARD)
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
-    useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story
-    primaryField: "PACK_PRLE_Q01", // Primary narrative field that must collect all required anchors
+    useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story (SAME as PACK_DRIVING_COLLISION_STANDARD)
+    primaryField: "PACK_PRLE_Q01", // Primary narrative field that must collect all required anchors (SAME pattern)
     riskDomain: "PRIOR_LE",
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
     clusterOpeningMessage: "Please describe this prior law enforcement application in your own words.",
     multiInstanceOpeningMessage: "Please describe this prior law enforcement application in your own words.",
-    // Required anchors that MUST be collected from Q01 before advancing
+    // Required anchors that MUST be collected from Q01 before advancing (SAME pattern as PACK_DRIVING_COLLISION_STANDARD)
     requiredAnchors: [
       "agency_name",
       "position",
       "month_year",
       "application_outcome"
     ],
-    // Anchor definitions with labels and required flags
-    anchors: {
-      agency_name: { label: "Agency name", required: true },
-      position: { label: "Position applied for", required: true },
-      month_year: { label: "Application date", required: true },
-      application_outcome: { label: "Outcome of application", required: true }
-    },
-    // Micro clarifier templates for missing anchors
-    anchorClarifiers: {
-      agency_name: "What was the name of the law enforcement agency for this application?",
-      position: "What position did you apply for with that agency?",
-      month_year: "About what month and year did you apply?",
-      application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
-    },
-    // CENTRALIZED ANCHOR EXTRACTION RULES - used by extractAnchorsFromNarrative()
+    // CENTRALIZED ANCHOR EXTRACTION RULES - used by extractAnchorsFromNarrative() (SAME mechanism as PACK_DRIVING_COLLISION_STANDARD)
     anchorExtractionRules: {
       application_outcome: {
         disqualified: ["disqualified", "dq'd", "dq", "failed background", "failed the background", "background investigation disqualified", "not selected", "wasn't selected", "was not selected", "rejected", "not hired", "wasn't hired", "did not get", "didn't get", "was denied", "removed from consideration", "removed from the process", "did not make it", "didn't make it"],
@@ -1741,8 +1727,15 @@ Object.assign(PACK_CONFIG, {
       agency_name: "agency_name",
       position: "position"
     },
+    // Micro clarifier templates for missing anchors
+    anchorClarifiers: {
+      agency_name: "What was the name of the law enforcement agency for this application?",
+      position: "What position did you apply for with that agency?",
+      month_year: "About what month and year did you apply?",
+      application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
+    },
     // All possible anchors - extracted from narrative
-    anchors: [
+    targetAnchors: [
       "agency_name",
       "position",
       "month_year",
