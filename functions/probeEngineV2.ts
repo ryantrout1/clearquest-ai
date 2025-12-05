@@ -444,8 +444,8 @@ Object.assign(FALLBACK_PROBES, {
   "prevention_steps": "What steps have you taken to ensure this will not happen again?",
   
   // === PACK_PRIOR_LE_APPS_STANDARD (question codes) ===
-  "PACK_PRLE_Q01": "First, tell me briefly about this prior application. What type of agency was it (city police department, a sheriff's office, a state agency, or a federal agency), and about what month and year did you apply?",
-  "PACK_PRLE_Q02": "What was the name of that agency?",
+  "PACK_PRLE_Q01": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+  "PACK_PRLE_Q02": "What was the outcome of that application? (For example: hired, disqualified, withdrew, or still in process.)",
   "PACK_PRLE_Q03": "Which city and state was that agency in?",
   "PACK_PRLE_Q04": "About when did you apply there? Month and year is fine.",
   "PACK_PRLE_Q05": "What position or job title did you apply for with that agency?",
