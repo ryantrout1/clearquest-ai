@@ -3562,9 +3562,11 @@ Return ONLY the outcome value, nothing else.`;
           }
         }
         
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (final):`, anchorUpdates);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates keys: [${Object.keys(anchorUpdates).join(', ')}]`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] application_outcome value:`, anchorUpdates.application_outcome || '(NOT FOUND)');
+        // Final audit of what was extracted
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] ========== EXTRACTION SUMMARY ==========`);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] anchorUpdates:`, anchorUpdates);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] application_outcome: "${anchorUpdates.application_outcome || '(NOT FOUND)'}"`);
         
         const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
         const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
@@ -3572,9 +3574,9 @@ Return ONLY the outcome value, nothing else.`;
         const collectedKeys = Object.keys(anchorUpdates).filter(k => anchorUpdates[k] && String(anchorUpdates[k]).trim());
         const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
         
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] Required: [${requiredAnchors.join(', ')}]`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] Collected: [${collectedKeys.join(', ')}]`);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] Missing: [${missingAnchors.join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Required: [${requiredAnchors.join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Collected: [${collectedKeys.join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Missing: [${missingAnchors.join(', ')}]`);
         
         let maxProbesForPrimary = 4;
         try {
