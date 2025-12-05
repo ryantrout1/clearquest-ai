@@ -1219,7 +1219,8 @@ const PACK_CONFIG = {
     },
   },
   
-  // Prior Law Enforcement Applications pack (v2.5)
+  // Prior Law Enforcement Applications pack (v2.5) - NARRATIVE-FIRST
+  // Q01 is now an open-ended narrative. The system extracts anchors and only asks follow-ups for gaps.
   PACK_PRIOR_LE_APPS_STANDARD: {
     id: "PACK_PRIOR_LE_APPS_STANDARD",
     packName: "Prior Law Enforcement Applications",
@@ -1228,13 +1229,14 @@ const PACK_CONFIG = {
     active: true,
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
+    useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story
     riskDomain: "PRIOR_LE",
     supportsMultipleInstances: true,
     instanceLabelSingular: "application",
     instanceLabelPlural: "applications",
-    clusterOpeningMessage: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceOpeningMessage: "Got it. I'll take these one at a time so everything stays clear.",
-    // Anchors for conversational gating
+    clusterOpeningMessage: "Please describe this prior law enforcement application in your own words.",
+    multiInstanceOpeningMessage: "Please describe this prior law enforcement application in your own words.",
+    // Anchors for conversational gating - extracted from narrative
     anchors: [
       "agency_name",
       "position_title",
@@ -1247,15 +1249,16 @@ const PACK_CONFIG = {
       "anything_else"
     ],
     requiredFields: ["agency_name", "application_month_year", "position_title", "application_outcome"],
-    priorityOrder: ["agency_name", "application_outcome", "application_city", "application_state", "application_month_year", "position_title", "reason_not_hired", "appeal_or_reapply", "anything_else"],
+    // Priority order for gap-filling after narrative
+    priorityOrder: ["application_outcome", "agency_name", "position_title", "application_month_year", "application_city", "application_state", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
       // Question code → semantic role mappings
-      "PACK_PRLE_Q01": "opener", // Captures agency_name, position_title, application_month_year
+      "PACK_PRLE_Q01": "narrative", // NARRATIVE OPENER - extracts all anchors
       "PACK_PRLE_Q02": "application_outcome",
       "PACK_PRLE_Q03": "application_location", // Captures city + state
       "PACK_PRLE_Q04": "application_month_year",
       "PACK_PRLE_Q05": "position_title",
-      "PACK_PRLE_Q06": "application_outcome",
+      "PACK_PRLE_Q06": "agency_name",
       "PACK_PRLE_Q07": "reason_not_hired",
       "PACK_PRLE_Q08": "appeal_or_reapply",
       "PACK_PRLE_Q09": "anything_else",
@@ -1271,16 +1274,22 @@ const PACK_CONFIG = {
       "appeal_or_reapply": "appeal_or_reapply",
       "anything_else": "anything_else",
     },
-    // Field gating config - which anchors each field captures and requires
+    // Field gating config - NARRATIVE-FIRST approach
+    // Q01 is narrative opener that captures everything; Q02-Q09 only ask if anchors missing
     fieldGating: {
-      "PACK_PRLE_Q01": { captures: ["agency_name", "position_title", "application_month_year"], alwaysAsk: true, isOpener: true },
-      "PACK_PRLE_Q02": { captures: ["application_outcome"], alwaysAsk: true },
-      "PACK_PRLE_Q03": { captures: ["application_city", "application_state"], requiresMissing: ["application_city", "application_state"] },
-      "PACK_PRLE_Q04": { captures: ["application_month_year"], requiresMissing: ["application_month_year"] },
-      "PACK_PRLE_Q05": { captures: ["position_title"], requiresMissing: ["position_title"] },
-      "PACK_PRLE_Q06": { captures: ["application_outcome"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] } },
-      "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: ["reason_not_hired"], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] } },
-      "PACK_PRLE_Q08": { captures: ["appeal_or_reapply"], requiresMissing: [] },
+      "PACK_PRLE_Q01": { 
+        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"], 
+        alwaysAsk: true, 
+        isOpener: true,
+        isNarrativeOpener: true // Special flag for narrative extraction
+      },
+      "PACK_PRLE_Q02": { captures: ["application_outcome"], requiresMissing: ["application_outcome"], alwaysAsk: false },
+      "PACK_PRLE_Q03": { captures: ["application_city", "application_state"], requiresMissing: ["application_city", "application_state"], alwaysAsk: false },
+      "PACK_PRLE_Q04": { captures: ["application_month_year"], requiresMissing: ["application_month_year"], alwaysAsk: false },
+      "PACK_PRLE_Q05": { captures: ["position_title"], requiresMissing: ["position_title"], alwaysAsk: false },
+      "PACK_PRLE_Q06": { captures: ["agency_name"], requiresMissing: ["agency_name"], alwaysAsk: false },
+      "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd"] }, alwaysAsk: false },
+      "PACK_PRLE_Q08": { captures: ["appeal_or_reapply"], requiresMissing: [], alwaysAsk: false },
       "PACK_PRLE_Q09": { captures: ["anything_else"], alwaysAsk: true, isCloser: true }
     },
     // Field schemas for per-field probing
