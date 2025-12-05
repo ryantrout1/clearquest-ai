@@ -3365,6 +3365,9 @@ async function probeEngineV2(input, base44Client) {
   // EARLY ROUTER: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
   // CRITICAL: This MUST execute FIRST before any generic logic
   // ============================================================================
+  console.log(`[EARLY_ROUTER_CHECK] pack_id="${pack_id}", field_key="${field_key}", has_value=${!!(field_value && field_value.trim())}`);
+  console.log(`[EARLY_ROUTER_CHECK] Condition match: ${pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()}`);
+  
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
