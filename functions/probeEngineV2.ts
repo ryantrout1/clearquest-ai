@@ -1929,6 +1929,118 @@ Object.assign(PACK_CONFIG, {
 };
 
 /**
+ * Deterministic inference of application outcome from PACK_PRLE_Q01 narrative
+ * Returns one of: "hired", "disqualified", "withdrew", "still_in_process", or null
+ * @param {string} narrative - The candidate's story about their prior LE application
+ * @returns {string|null}
+ */
+function inferPriorLEApplicationOutcome(narrative) {
+  if (!narrative || narrative.length < 10) return null;
+  
+  const text = narrative.toLowerCase();
+  
+  // DISQUALIFIED patterns (check first as most common)
+  const disqualifiedPatterns = [
+    "disqualified",
+    "dq'd",
+    "dq'ed",
+    "was dq",
+    "got dq",
+    "removed from the process",
+    "removed from process",
+    "did not pass background",
+    "didn't pass background",
+    "failed the background",
+    "failed background",
+    "not selected",
+    "wasn't selected",
+    "was not selected",
+    "no longer being considered",
+    "rejected",
+    "not hired",
+    "wasn't hired",
+    "was not hired",
+    "did not get hired",
+    "didn't get hired",
+    "did not make it",
+    "didn't make it",
+    "unsuccessful"
+  ];
+  
+  for (const pattern of disqualifiedPatterns) {
+    if (text.includes(pattern)) {
+      console.log(`[INFER_OUTCOME] Matched DISQUALIFIED pattern: "${pattern}"`);
+      return "disqualified";
+    }
+  }
+  
+  // WITHDREW patterns
+  const withdrewPatterns = [
+    "withdrew my application",
+    "withdrew from the process",
+    "withdrew from the hiring",
+    "i withdrew",
+    "decided not to continue",
+    "chose not to continue",
+    "pulled out of the process",
+    "pulled out of the hiring",
+    "pulled my application",
+    "dropped out of the process"
+  ];
+  
+  for (const pattern of withdrewPatterns) {
+    if (text.includes(pattern)) {
+      console.log(`[INFER_OUTCOME] Matched WITHDREW pattern: "${pattern}"`);
+      return "withdrew";
+    }
+  }
+  
+  // HIRED patterns
+  const hiredPatterns = [
+    "was hired",
+    "got hired",
+    "they hired me",
+    "i was hired",
+    "offered the job and i accepted",
+    "received a job offer and accepted",
+    "accepted the position",
+    "started working there"
+  ];
+  
+  for (const pattern of hiredPatterns) {
+    if (text.includes(pattern)) {
+      console.log(`[INFER_OUTCOME] Matched HIRED pattern: "${pattern}"`);
+      return "hired";
+    }
+  }
+  
+  // STILL_IN_PROCESS patterns
+  const stillInProcessPatterns = [
+    "still in process",
+    "still in the process",
+    "still being processed",
+    "still going through",
+    "process is ongoing",
+    "currently in process",
+    "pending background",
+    "pending polygraph",
+    "pending psych",
+    "waiting to hear back",
+    "haven't heard back"
+  ];
+  
+  for (const pattern of stillInProcessPatterns) {
+    if (text.includes(pattern)) {
+      console.log(`[INFER_OUTCOME] Matched STILL_IN_PROCESS pattern: "${pattern}"`);
+      return "still_in_process";
+    }
+  }
+  
+  console.log(`[INFER_OUTCOME] No outcome pattern matched in narrative`);
+  return null;
+}
+
+/**
  * Extract month/year from text (e.g., "March 2022", "03/2022", "Jan 2020")
  * Used for PACK_PRIOR_LE_APPS_STANDARD field gating
  * @param {string} text 
