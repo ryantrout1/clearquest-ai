@@ -1286,43 +1286,111 @@ export default function CandidateInterview() {
         
         // Advance to next field or complete pack (only after backend says NEXT_FIELD)
         if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
-          const nextFieldIdx = fieldIndex + 1;
-          const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+          // NARRATIVE-FIRST GATING: For PACK_PRIOR_LE_APPS_STANDARD, skip fields whose anchors are already captured
+          let nextFieldIdx = fieldIndex + 1;
+          let nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
           
-          console.log(`[V2_PACK_FIELD][NEXT_FIELD] ========== ADVANCING TO NEXT FIELD ==========`);
-          console.log(`[V2_PACK_FIELD][NEXT_FIELD]`, {
-            packId,
-            currentField: fieldKey,
-            nextField: nextFieldConfig.fieldKey,
-            fieldProgress: `${nextFieldIdx + 1}/${totalFieldsInPack}`,
-            instanceNumber
-          });
+          // Check if we need to skip fields based on requiresMissing anchors
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] ========== CHECKING FIELD GATING ==========`);
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Starting at field ${nextFieldIdx + 1}/${totalFieldsInPack}: ${nextFieldConfig.fieldKey}`);
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors:`, Object.keys(updatedCollectedAnswers));
+            
+            // Skip fields whose requiresMissing anchors are already present
+            while (nextFieldIdx < totalFieldsInPack) {
+              nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+              const requiresMissing = nextFieldConfig.requiresMissing || [];
+              const alwaysAsk = nextFieldConfig.alwaysAsk || false;
+              const skipUnless = nextFieldConfig.skipUnless || null;
+              
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] Checking field ${nextFieldIdx + 1}: ${nextFieldConfig.fieldKey}`, {
+                requiresMissing,
+                alwaysAsk,
+                skipUnless
+              });
+              
+              // Check if all required anchors are present (meaning we should skip this field)
+              const allAnchorsPresent = requiresMissing.length === 0 || 
+                requiresMissing.every(anchor => {
+                  const value = updatedCollectedAnswers[anchor];
+                  return value && value.trim() && value.trim() !== '';
+                });
+              
+              // Check skipUnless condition (only ask if outcome matches)
+              let shouldSkipDueToOutcome = false;
+              if (skipUnless && updatedCollectedAnswers.application_outcome) {
+                const outcomeValue = updatedCollectedAnswers.application_outcome.toLowerCase();
+                const matchesAny = skipUnless.application_outcome.some(val => 
+                  outcomeValue.includes(val.toLowerCase())
+                );
+                shouldSkipDueToOutcome = !matchesAny;
+                console.log(`[V2_PACK_FIELD][GATE_CHECK] skipUnless check: outcome="${outcomeValue}", shouldSkip=${shouldSkipDueToOutcome}`);
+              }
+              
+              if (alwaysAsk) {
+                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Field ${nextFieldConfig.fieldKey} is alwaysAsk - SHOWING`);
+                break;
+              } else if (shouldSkipDueToOutcome) {
+                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Field ${nextFieldConfig.fieldKey} SKIPPED - outcome doesn't match skipUnless`);
+                nextFieldIdx++;
+              } else if (allAnchorsPresent && requiresMissing.length > 0) {
+                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Field ${nextFieldConfig.fieldKey} SKIPPED - anchors already present: [${requiresMissing.join(', ')}]`);
+                nextFieldIdx++;
+              } else {
+                const missingAnchors = requiresMissing.filter(a => !updatedCollectedAnswers[a] || !updatedCollectedAnswers[a].trim());
+                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Field ${nextFieldConfig.fieldKey} NEEDED - missing: [${missingAnchors.join(', ')}]`);
+                break;
+              }
+            }
+            
+            // If we've skipped past all fields, pack is complete
+            if (nextFieldIdx >= totalFieldsInPack) {
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] All fields skipped or complete - pack is done`);
+              // Fall through to pack completion logic below
+            }
+          }
           
-          setActiveV2Pack(prev => ({
-            ...prev,
-            currentIndex: nextFieldIdx,
-            collectedAnswers: updatedCollectedAnswers
-          }));
-          
-          const nextItemForV2 = {
-            id: `v2pack-${packId}-${nextFieldIdx}`,
-            type: 'v2_pack_field',
-            packId: packId,
-            fieldIndex: nextFieldIdx,
-            fieldKey: nextFieldConfig.fieldKey,
-            fieldConfig: nextFieldConfig,
-            baseQuestionId: baseQuestionId,
-            instanceNumber: instanceNumber
-          };
-          
-          setCurrentItem(nextItemForV2);
-          setQueue([]);
-          
-          await persistStateToDatabase(newTranscript, [], nextItemForV2);
-          console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
-          setIsCommitting(false);
-          setInput("");
-          return;
+          // Check if we've reached the end
+          if (nextFieldIdx >= totalFieldsInPack) {
+            console.log(`[V2_PACK_FIELD][PACK_COMPLETE] All fields processed - pack finished`);
+            // Continue to pack completion below (don't return here)
+          } else {
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD] ========== ADVANCING TO NEXT FIELD ==========`);
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD]`, {
+              packId,
+              currentField: fieldKey,
+              nextField: nextFieldConfig.fieldKey,
+              fieldProgress: `${nextFieldIdx + 1}/${totalFieldsInPack}`,
+              instanceNumber,
+              skippedFields: nextFieldIdx - (fieldIndex + 1)
+            });
+            
+            setActiveV2Pack(prev => ({
+              ...prev,
+              currentIndex: nextFieldIdx,
+              collectedAnswers: updatedCollectedAnswers
+            }));
+            
+            const nextItemForV2 = {
+              id: `v2pack-${packId}-${nextFieldIdx}`,
+              type: 'v2_pack_field',
+              packId: packId,
+              fieldIndex: nextFieldIdx,
+              fieldKey: nextFieldConfig.fieldKey,
+              fieldConfig: nextFieldConfig,
+              baseQuestionId: baseQuestionId,
+              instanceNumber: instanceNumber
+            };
+            
+            setCurrentItem(nextItemForV2);
+            setQueue([]);
+            
+            await persistStateToDatabase(newTranscript, [], nextItemForV2);
+            console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
+            setIsCommitting(false);
+            setInput("");
+            return;
+          }
         }
         
         // Pack complete - exit V2 pack mode (either isLastField or backend said COMPLETE)
