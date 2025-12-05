@@ -3469,6 +3469,70 @@ async function probeEngineV2(input, base44Client) {
     }
   }
   
+  // =====================================================================
+  // PACK_PRIOR_LE_APPS_STANDARD: PACK_PRLE_Q01 EARLY HANDLER
+  // MUST execute BEFORE generic validation/discretion to return anchors
+  // =====================================================================
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
+    console.log("[PRIOR_LE_APPS][Q01][ROUTER_HIT] ========== PACK_PRLE_Q01 HANDLER EXECUTING ==========");
+    console.log(`[PRIOR_LE_APPS][Q01] pack_id: ${pack_id}`);
+    console.log(`[PRIOR_LE_APPS][Q01] field_key: ${field_key}`);
+    console.log(`[PRIOR_LE_APPS][Q01] Narrative length: ${field_value?.length || 0}`);
+    console.log(`[PRIOR_LE_APPS][Q01] Narrative preview: "${field_value.substring(0, 150)}..."`);
+    
+    // Start with incident_context (previous anchors) and merge with extracted anchors
+    const anchorUpdates = { 
+      ...incident_context, 
+      ...extractedAnchors 
+    };
+    
+    console.log(`[PRIOR_LE_APPS][Q01] Initial anchorUpdates:`, anchorUpdates);
+    
+    // DETERMINISTIC EXTRACTION: Extract application_outcome from narrative
+    const deterministicOutcome = inferPriorLEApplicationOutcome(field_value);
+    
+    if (deterministicOutcome) {
+      anchorUpdates.application_outcome = deterministicOutcome;
+      console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ Extracted application_outcome="${deterministicOutcome}"`);
+    } else {
+      console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match - outcome not in narrative`);
+    }
+    
+    // Final audit
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] ========== ANCHORS READY FOR RETURN ==========`);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] anchorUpdates:`, anchorUpdates);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] application_outcome: "${anchorUpdates.application_outcome || '(NONE)'}"`);
+    
+    // Return result with anchors
+    const returnValue = {
+      mode: "NEXT_FIELD",
+      pack_id,
+      field_key,
+      semanticField: field_key,
+      validationResult: "narrative_complete",
+      previousProbeCount: previous_probes_count,
+      maxProbesPerField: 4,
+      hasQuestion: false,
+      followupsCount: 0,
+      // CRITICAL: Return anchors for frontend gating
+      anchors: anchorUpdates,
+      collectedAnchors: anchorUpdates,
+      collectedAnchorsKeys: Object.keys(anchorUpdates),
+      reason: "PACK_PRLE_Q01 narrative processed",
+      instanceNumber: instance_number,
+      message: "PACK_PRLE_Q01 complete with anchors"
+    };
+    
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING TO FRONTEND ==========');
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] mode:', returnValue.mode);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] anchors:', returnValue.anchors);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] collectedAnchors:', returnValue.collectedAnchors);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome:', returnValue.anchors?.application_outcome || '(MISSING)');
+    
+    return returnValue;
+  }
+  
   if (field_value && field_value.trim()) {
     console.log(`[V2-UNIVERSAL][ANSWER] Calling Discretion Engine after answer`);
     
@@ -3478,76 +3542,6 @@ async function probeEngineV2(input, base44Client) {
         ...incident_context,
         ...extractedAnchors
       };
-      
-      // =====================================================================
-      // PACK_PRIOR_LE_APPS_STANDARD: PACK_PRLE_Q01 HANDLER
-      // Extracts application_outcome and other anchors from narrative
-      // CRITICAL: Must return anchors to enable frontend field gating
-      // =====================================================================
-      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        console.log("[PRIOR_LE_APPS][Q01][HANDLER_ENTRY] ========== PACK_PRLE_Q01 HANDLER EXECUTING ==========");
-        console.log(`[PRIOR_LE_APPS][Q01] pack_id: ${pack_id}`);
-        console.log(`[PRIOR_LE_APPS][Q01] field_key: ${field_key}`);
-        console.log(`[PRIOR_LE_APPS][Q01] Narrative length: ${field_value?.length || 0}`);
-        console.log(`[PRIOR_LE_APPS][Q01] Narrative: "${field_value}"`);
-        console.log(`[PRIOR_LE_APPS][Q01] extractedAnchors from centralized:`, extractedAnchors);
-        console.log(`[PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
-        
-        // Start with merged anchors from centralized extraction and incident context
-        const anchorUpdates = { 
-          ...incident_context, 
-          ...extractedAnchors 
-        };
-        
-        console.log(`[PRIOR_LE_APPS][Q01] Initial anchorUpdates (before deterministic):`, anchorUpdates);
-        
-        // DETERMINISTIC EXTRACTION: Try keyword-based outcome extraction
-        const deterministicOutcome = inferPriorLEApplicationOutcome(field_value || "");
-        
-        if (deterministicOutcome) {
-          anchorUpdates.application_outcome = deterministicOutcome;
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ Extracted application_outcome="${deterministicOutcome}"`);
-        } else {
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match`);
-        }
-        
-        // Final merged anchors
-        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] ========== FINAL ANCHOR STATE ==========`);
-        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] anchorUpdates:`, anchorUpdates);
-        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] application_outcome: "${anchorUpdates.application_outcome || '(NONE)'}"`);
-        
-        // Build and return result with anchors
-        const returnValue = {
-          mode: "NEXT_FIELD",
-          pack_id,
-          field_key,
-          semanticField: field_key,
-          validationResult: "narrative_complete",
-          previousProbeCount: previous_probes_count,
-          maxProbesPerField: 4,
-          hasQuestion: false,
-          followupsCount: 0,
-          // CRITICAL: Return anchors for frontend gating
-          anchors: anchorUpdates,
-          collectedAnchors: anchorUpdates,
-          collectedAnchorsKeys: Object.keys(anchorUpdates),
-          reason: "Narrative processed - anchors extracted",
-          instanceNumber: instance_number,
-          message: "PACK_PRLE_Q01 complete with anchors"
-        };
-        
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING TO FRONTEND ==========');
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.mode:', returnValue.mode);
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.anchors:', returnValue.anchors);
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.collectedAnchors:', returnValue.collectedAnchors);
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome present?', 
-          !!(returnValue.anchors?.application_outcome));
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome value:', 
-          returnValue.anchors?.application_outcome || '(MISSING)');
-        
-        return returnValue;
-      }
       
       // HARDENED: Validate anchor count to prevent malformed state
       const anchorCount = Object.keys(currentAnchors).length;
