@@ -3626,11 +3626,10 @@ Return ONLY the outcome value, nothing else.`;
         }
         
         // All anchors collected or max probes reached - return NEXT_FIELD with anchors
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] ========== RETURNING NEXT_FIELD ==========`);
-        console.log("[DIAG_PRIOR_LE_APPS][Q01] RETURNING ANCHORS", { anchorUpdates });
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorsFromQ1:`, extractedAnchors);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates:`, anchorUpdates);
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorKeys: [${Object.keys(anchorUpdates).join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING NEXT_FIELD ==========`);
+        console.log(`[PRIOR_LE_APPS][Q01][RETURN] Final anchorUpdates:`, anchorUpdates);
+        console.log(`[PRIOR_LE_APPS][Q01][RETURN] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][RETURN] application_outcome: "${anchorUpdates.application_outcome || '(MISSING)'}"`);
         
         const returnValue = {
           mode: "NEXT_FIELD",
@@ -3653,16 +3652,13 @@ Return ONLY the outcome value, nothing else.`;
           message: "PACK_PRLE_Q01 complete"
         };
         
-        console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue keys:", Object.keys(returnValue));
-        console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchors:", returnValue.collectedAnchors);
-        console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchorsKeys:", returnValue.collectedAnchorsKeys);
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== PACK_PRLE_Q01 FINAL RESULT ==========');
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] field=PACK_PRLE_Q01 anchors=', JSON.stringify(returnValue.collectedAnchors || {}, null, 2));
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Full result:', JSON.stringify(returnValue, null, 2));
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome anchor?', 
-          !!(returnValue.collectedAnchors?.application_outcome));
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] application_outcome value:', 
-          returnValue.collectedAnchors?.application_outcome || '(NONE)');
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== FINAL RETURN VALUE ==========');
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.anchors:', returnValue.anchors);
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.collectedAnchors:', returnValue.collectedAnchors);
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome in anchors?', 
+          !!(returnValue.anchors?.application_outcome));
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome value:', 
+          returnValue.anchors?.application_outcome || '(MISSING)');
         
         return returnValue;
       }
