@@ -1036,6 +1036,13 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
     maxAiFollowups: 1, // Hard cap: single clarifier only for vague info
+    // TARGET ANCHORS - semantic keys extracted from Q01 narrative
+    targetAnchors: [
+      "agency_name",
+      "position_title",
+      "application_month_year",
+      "application_outcome"
+    ],
     // Anchors extracted from narrative - used for field gating
     factAnchors: [
       { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },

@@ -3017,6 +3017,7 @@ async function probeEngineV2(input, base44Client) {
           application_city: currentAnchors.application_city || '(missing)',
           application_state: currentAnchors.application_state || '(missing)'
         });
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Anchor keys in currentAnchors: [${Object.keys(currentAnchors).join(', ')}]`);
         
         // Log which fields will be skipped vs asked
         const packConfig = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
@@ -3107,7 +3108,9 @@ async function probeEngineV2(input, base44Client) {
           // Discretion says we have enough - advance
           // No probe was asked, so probeCount stays the same
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
-          return {
+          
+          // CRITICAL: For PACK_PRIOR_LE_APPS_STANDARD, return extracted anchors
+          const result = {
             mode: "NEXT_FIELD",
             pack_id,
             field_key,
@@ -3119,6 +3122,15 @@ async function probeEngineV2(input, base44Client) {
             instanceNumber: instance_number,
             message: `Discretion Engine stopped: ${discretionResult.data.reason}`
           };
+          
+          // Return extracted anchors for narrative-first packs
+          if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors).length > 0) {
+            result.anchors = extractedAnchors;
+            result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
+            console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(extractedAnchors).length} anchors:`, Object.keys(extractedAnchors));
+          }
+          
+          return result;
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
           const question = discretionResult.data.question.trim();
@@ -3304,11 +3316,12 @@ async function probeEngineV2(input, base44Client) {
         semanticField,
         decision: "NEXT_FIELD",
         validationResult: "complete",
-        will_advance_to_next_field: true
+        will_advance_to_next_field: true,
+        extractedAnchorKeys: Object.keys(extractedAnchors || {})
       });
     }
     
-    return {
+    const result = {
       mode: "NEXT_FIELD",
       pack_id,
       field_key,
@@ -3319,6 +3332,15 @@ async function probeEngineV2(input, base44Client) {
       semanticInfo,
       message: `Field ${semanticField} validated successfully`
     };
+    
+    // CRITICAL: Return extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors || {}).length > 0) {
+      result.anchors = extractedAnchors;
+      result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
+      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(extractedAnchors).length} anchors:`, Object.keys(extractedAnchors));
+    }
+    
+    return result;
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)

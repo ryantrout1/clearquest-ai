@@ -390,12 +390,24 @@ const runV2FieldProbeIfNeeded = async ({
     
     // LIFECYCLE LOG: Anchors updated (structural only)
     if (v2Result?.mode === 'QUESTION' || v2Result?.mode === 'NEXT_FIELD') {
+      // CRITICAL: For PACK_PRIOR_LE_APPS_STANDARD, merge backend-extracted anchors into incidentContext
+      let finalAnchors = { ...incidentContext };
+      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
+        finalAnchors = { ...finalAnchors, ...v2Result.anchors };
+        console.log(`[V2_LIFECYCLE][PRIOR_LE_APPS] Merged backend anchors:`, Object.keys(v2Result.anchors));
+      }
+      
       console.log(`[V2_LIFECYCLE][ANCHORS_UPDATED]`, {
         packId,
         instanceNumber: instanceNumber || 1,
-        collectedAnchorKeys: Object.keys(incidentContext || {}), // Keys only
+        collectedAnchorKeys: Object.keys(finalAnchors), // Keys only
         targetAnchors: v2Result?.targetAnchors || []
       });
+      
+      // Update incidentContext for field gating
+      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
+        incidentContext = finalAnchors;
+      }
     }
     
     // LIFECYCLE LOG: Discretion decision
@@ -1169,9 +1181,11 @@ export default function CandidateInterview() {
         setTranscript(newTranscript);
         
         // Update collected answers
+        // CRITICAL: Store by semantic key, not field key, for PACK_PRIOR_LE_APPS_STANDARD
+        const semanticKey = fieldConfig.semanticKey || fieldKey;
         const updatedCollectedAnswers = {
           ...activeV2Pack.collectedAnswers,
-          [fieldKey]: finalAnswer
+          [semanticKey]: finalAnswer
         };
         
         // Save to database
@@ -1221,8 +1235,20 @@ export default function CandidateInterview() {
           hasQuestion: !!v2Result?.question,
           questionPreview: v2Result?.question?.substring?.(0, 60),
           nextField: v2Result?.nextField || null,
-          isComplete: v2Result?.isComplete || false
+          isComplete: v2Result?.isComplete || false,
+          hasAnchors: !!v2Result?.anchors,
+          anchorKeys: v2Result?.anchors ? Object.keys(v2Result.anchors) : []
         });
+        
+        // CRITICAL: Merge backend-returned anchors into collectedAnswers for field gating
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Merging ${Object.keys(v2Result.anchors).length} anchors from backend`);
+          Object.assign(updatedCollectedAnswers, v2Result.anchors);
+          setActiveV2Pack(prev => ({
+            ...prev,
+            collectedAnswers: updatedCollectedAnswers
+          }));
+        }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
         if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
