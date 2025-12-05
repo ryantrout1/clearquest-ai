@@ -1493,6 +1493,18 @@ Object.assign(PACK_CONFIG, {
       "month_year",
       "application_outcome"
     ],
+    // CENTRALIZED ANCHOR EXTRACTION RULES - used by extractAnchorsFromNarrative()
+    anchorExtractionRules: {
+      application_outcome: {
+        disqualified: ["disqualified", "dq'd", "dq", "failed background", "failed the background", "background investigation disqualified", "not selected", "wasn't selected", "was not selected", "rejected", "not hired", "wasn't hired", "did not get", "didn't get", "was denied", "removed from consideration", "did not make it", "didn't make it"],
+        withdrew: ["withdrew", "withdraw", "pulled my application", "decided not to continue", "dropped out", "backed out", "chose to withdraw", "removed myself"],
+        hired: ["hired", "offered the job", "offered a job", "got the job", "was offered", "they brought me on"],
+        "still in process": ["still in process", "still pending", "waiting to hear back", "background in progress", "still processing", "currently in process", "awaiting decision"]
+      },
+      month_year: "month_year",
+      agency_name: "agency_name",
+      position: "position"
+    },
     // All possible anchors - extracted from narrative
     anchors: [
       "agency_name",
