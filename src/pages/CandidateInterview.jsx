@@ -1180,15 +1180,7 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, v2CombinedEntry];
         setTranscript(newTranscript);
         
-        // Update collected answers
-        // CRITICAL: Store by semantic key, not field key, for PACK_PRIOR_LE_APPS_STANDARD
-        const semanticKey = fieldConfig.semanticKey || fieldKey;
-        const updatedCollectedAnswers = {
-          ...activeV2Pack.collectedAnswers,
-          [semanticKey]: finalAnswer
-        };
-        
-        // Save to database
+        // Save to database first
         await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
         
         // Call V2 backend engine
@@ -1207,7 +1199,8 @@ export default function CandidateInterview() {
           probeCount,
           maxAiFollowups,
           aiProbingEnabled,
-          aiProbingDisabledForSession
+          aiProbingDisabledForSession,
+          currentCollectedAnswers: Object.keys(activeV2Pack.collectedAnswers || {})
         });
         
         const v2Result = await runV2FieldProbeIfNeeded({
@@ -1216,7 +1209,7 @@ export default function CandidateInterview() {
           fieldKey,
           fieldValue: finalAnswer,
           previousProbesCount: probeCount,
-          incidentContext: updatedCollectedAnswers,
+          incidentContext: activeV2Pack.collectedAnswers || {},
           sessionId,
           questionCode: baseQuestion?.question_id,
           baseQuestionId,
@@ -1237,13 +1230,26 @@ export default function CandidateInterview() {
           nextField: v2Result?.nextField || null,
           isComplete: v2Result?.isComplete || false,
           hasAnchors: !!v2Result?.anchors,
-          anchorKeys: v2Result?.anchors ? Object.keys(v2Result.anchors) : []
+          anchorKeys: v2Result?.anchors ? Object.keys(v2Result.anchors) : [],
+          targetAnchors: v2Result?.targetAnchors || []
         });
         
         // CRITICAL: Merge backend-returned anchors into collectedAnswers for field gating
+        // This is the KEY fix - backend extracts semantic anchors and frontend uses them for gating
+        let updatedCollectedAnswers = { ...activeV2Pack.collectedAnswers };
+        
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Merging ${Object.keys(v2Result.anchors).length} anchors from backend`);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] ========== MERGING BACKEND ANCHORS ==========`);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Before merge:`, Object.keys(updatedCollectedAnswers));
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, v2Result.anchors);
+          
+          // Merge backend-extracted anchors (semantic keys like 'application_outcome')
           Object.assign(updatedCollectedAnswers, v2Result.anchors);
+          
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Has application_outcome: ${!!updatedCollectedAnswers.application_outcome}`);
+          
+          // Update activeV2Pack state with merged anchors
           setActiveV2Pack(prev => ({
             ...prev,
             collectedAnswers: updatedCollectedAnswers
