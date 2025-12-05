@@ -1027,71 +1027,75 @@ export const FOLLOWUP_PACK_CONFIGS = {
   },
 
   // Prior Law Enforcement Applications pack (v2.5)
-  // IMPORTANT: All fields are deterministic - captured by PACK_PRLE_Q01 through Q09.
-  // Agency/position/month_year = PACK_PRLE_Q01 (deterministic)
-  // Outcome = PACK_PRLE_Q02 (deterministic)
-  // AI clarifiers should ONLY clarify vague agency/position/date info from Q01, NOT ask about outcome.
+  // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
+  // The system extracts anchors from the narrative and only asks follow-ups for missing info.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001"],
     instancesLabel: "Prior Law Enforcement Applications",
-    packDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-    multiInstanceDescription: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-    maxAiFollowups: 1, // Hard cap: single clarifier only for vague agency/position/date
+    packDescription: "Please describe this prior law enforcement application in your own words.",
+    multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
+    maxAiFollowups: 1, // Hard cap: single clarifier only for vague info
+    // Anchors extracted from narrative - used for field gating
     factAnchors: [
-      // Only optional clarifiers for vague agency/position/date info - outcome is NEVER probed
-      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false }
-      // NOTE: outcome is NOT here - it's handled by deterministic PACK_PRLE_Q02
+      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "position_title", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "application_month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "application_outcome", label: "Application outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "application_city", label: "City", answerType: "text", priority: 5, multiInstanceAware: true, clarifierStyle: "micro", required: false },
+      { key: "application_state", label: "State", answerType: "text", priority: 6, multiInstanceAware: true, clarifierStyle: "micro", required: false }
     ],
-    excludeFromProbing: ["outcome", "reason_not_hired"], // NEVER probe for these
+    excludeFromProbing: [], // All anchors can be probed if missing
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
+    useNarrativeFirst: true, // Flag for narrative-first approach
     multiInstance: true,
     fields: [
       {
         fieldKey: "PACK_PRLE_Q01",
-        semanticKey: "agency_name",
-        label: "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
-        factsLabel: "Agency name and timing",
-        inputType: "text",
-        placeholder: "Example: Phoenix Police Department, police officer, March 2022",
+        semanticKey: "narrative",
+        label: "In your own words, describe this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, and what happened with that application. Please provide as much detail as you can.",
+        factsLabel: "Narrative",
+        inputType: "textarea",
+        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation...",
         required: true,
         aiProbingEnabled: true,
+        isNarrativeOpener: true, // Marks this as the narrative opener
+        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1,
         includeInNarrative: true,
-        allowUnknown: true,
+        allowUnknown: false,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after probing",
+        unknownDisplayLabel: "Not provided",
         validation: {
-          type: "agency_name",
-          allowUnknown: true,
+          type: "free_text",
+          allowUnknown: false,
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           rejectTokens: DEFAULT_REJECT_TOKENS,
-          minLength: 2,
+          minLength: 10,
           mustContainLetters: true
         }
       },
       {
         fieldKey: "PACK_PRLE_Q02",
-        semanticKey: "outcome",
+        semanticKey: "application_outcome",
         label: "What was the outcome of that application? (For example: hired, disqualified, withdrew, or still in process.)",
         factsLabel: "Outcome",
         inputType: "text",
         placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
         required: true,
-        aiProbingEnabled: false, // Outcome is deterministic - no AI probing
+        aiProbingEnabled: false,
+        requiresMissing: ["application_outcome"], // Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
         headerOrder: 2,
         includeInNarrative: true,
-        allowUnknown: false, // Outcome should always be provided
+        allowUnknown: false,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not provided",
         validation: {
@@ -1103,17 +1107,16 @@ export const FOLLOWUP_PACK_CONFIGS = {
           mustContainLetters: true
         }
       },
-      // Q03-Q05 are now conditionally asked based on what was captured in Q01
-      // If opener already captured location/date/position, these are skipped
       {
         fieldKey: "PACK_PRLE_Q03",
-        semanticKey: "location_general",
+        semanticKey: "application_location",
         label: "Which city and state was that agency in?",
         factsLabel: "Location",
         inputType: "text",
         placeholder: "e.g., Phoenix, AZ",
-        required: true,
+        required: false,
         aiProbingEnabled: true,
+        requiresMissing: ["application_city", "application_state"], // Only ask if not extracted
         includeInFacts: true,
         factsOrder: 3,
         includeInInstanceHeader: true,
@@ -1132,13 +1135,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q04",
-        semanticKey: "time_period",
+        semanticKey: "application_month_year",
         label: "About when did you apply there? Month and year is fine.",
         factsLabel: "Application Date",
         inputType: "month_year",
         placeholder: "e.g., June 2020 or around 2019",
         required: true,
         aiProbingEnabled: true,
+        requiresMissing: ["application_month_year"], // ONLY ask if date NOT extracted from narrative
         probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
         includeInFacts: true,
         factsOrder: 4,
@@ -1157,13 +1161,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q05",
-        semanticKey: "position",
+        semanticKey: "position_title",
         label: "What position or job title did you apply for with that agency?",
         factsLabel: "Position",
         inputType: "text",
         placeholder: "Enter position title",
         required: true,
         aiProbingEnabled: true,
+        requiresMissing: ["position_title"], // Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,
@@ -1182,13 +1187,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q06",
-        semanticKey: "outcome",
-        label: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process, or something else.)",
-        factsLabel: "Outcome",
+        semanticKey: "agency_name",
+        label: "What was the name of the law enforcement agency you applied to?",
+        factsLabel: "Agency Name",
         inputType: "text",
-        placeholder: "Enter outcome",
+        placeholder: "Enter agency name",
         required: true,
         aiProbingEnabled: true,
+        requiresMissing: ["agency_name"], // Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 6,
         includeInInstanceHeader: false,
@@ -1197,7 +1203,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled",
         validation: {
-          type: "outcome",
+          type: "agency_name",
           allowUnknown: true,
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           minLength: 2,
@@ -1213,6 +1219,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Enter reason or explanation",
         required: false,
         aiProbingEnabled: true,
+        skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd"] },
         includeInFacts: true,
         factsOrder: 7,
         includeInInstanceHeader: false,

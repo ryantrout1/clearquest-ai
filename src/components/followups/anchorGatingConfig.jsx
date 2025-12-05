@@ -70,10 +70,13 @@ export const ANCHOR_CATEGORIES = {
 
 export const PACK_ANCHOR_CONFIG = {
   // ============================================================
-  // PRIOR LAW ENFORCEMENT APPLICATIONS
+  // PRIOR LAW ENFORCEMENT APPLICATIONS (NARRATIVE-FIRST)
   // ============================================================
+  // Q01 is now a full narrative prompt. The system extracts anchors from the
+  // narrative and only asks follow-up questions for missing information.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
+    useNarrativeFirst: true, // Enables narrative-first processing
     anchors: [
       "agency_name",
       "position_title",
@@ -86,52 +89,52 @@ export const PACK_ANCHOR_CONFIG = {
       "anything_else"
     ],
     
-    // Opening field captures multiple anchors at once
+    // Narrative opener field - extracts all core anchors
     openerField: "PACK_PRLE_Q01",
     
     fields: {
-      // Opening narrative - captures agency, position, and timing
+      // NARRATIVE OPENER - captures everything possible from user's story
       "PACK_PRLE_Q01": {
-        captures: ["agency_name", "position_title", "application_month_year"],
-        alwaysAsk: true, // Opening is always asked
-        isOpener: true
+        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"],
+        alwaysAsk: true,
+        isOpener: true,
+        isNarrativeOpener: true // Special flag for narrative-first processing
       },
-      // Outcome - always ask after opener
+      // Outcome - ONLY if not extracted from narrative
       "PACK_PRLE_Q02": {
         captures: ["application_outcome"],
-        requiresMissing: [], // Always ask - critical field
-        alwaysAsk: true
+        requiresMissing: ["application_outcome"],
+        alwaysAsk: false
       },
-      // Location - only if not captured in opener
+      // Location - ONLY if not extracted from narrative
       "PACK_PRLE_Q03": {
         captures: ["application_city", "application_state"],
         requiresMissing: ["application_city", "application_state"],
         alwaysAsk: false
       },
-      // Time period - ONLY if not captured in opener (key gating logic)
+      // Date - ONLY if not extracted from narrative (KEY GATING)
       "PACK_PRLE_Q04": {
         captures: ["application_month_year"],
         requiresMissing: ["application_month_year"],
         alwaysAsk: false
       },
-      // Position - only if not captured in opener
+      // Position - ONLY if not extracted from narrative
       "PACK_PRLE_Q05": {
         captures: ["position_title"],
         requiresMissing: ["position_title"],
         alwaysAsk: false
       },
-      // Detailed outcome - only if outcome was "not selected"
+      // Agency name - ONLY if not extracted from narrative
       "PACK_PRLE_Q06": {
-        captures: ["application_outcome"],
-        requiresMissing: [],
-        skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] },
+        captures: ["agency_name"],
+        requiresMissing: ["agency_name"],
         alwaysAsk: false
       },
-      // Reason not hired - conditional
+      // Reason not hired - conditional on negative outcome
       "PACK_PRLE_Q07": {
         captures: ["reason_not_hired"],
-        requiresMissing: ["reason_not_hired"],
-        skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] },
+        requiresMissing: [],
+        skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd"] },
         alwaysAsk: false
       },
       // Appeal - optional context
