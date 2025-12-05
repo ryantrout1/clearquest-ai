@@ -2736,6 +2736,8 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] ========== EXTRACTING FROM NARRATIVE ==========`);
         console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Raw answer: "${field_value.substring(0, 200)}..."`);
         
+        const narrativeLower = field_value.toLowerCase();
+        
         // LOCAL EXTRACTION: Extract month/year from narrative
         const dateExtracted = extractMonthYearFromText(field_value);
         if (dateExtracted.value) {
@@ -2773,21 +2775,101 @@ async function probeEngineV2(input, base44Client) {
           }
         }
         
-        // Extract outcome from narrative
-        const outcomePatterns = [
-          { pattern: /(?:was\s+)?(?:disqualified|dq'd|dq)\b/i, outcome: "disqualified" },
-          { pattern: /(?:not\s+)?(?:selected|hired|chosen)\b/i, outcome: "not selected" },
-          { pattern: /(?:withdrew|pulled\s+out|dropped\s+out)\b/i, outcome: "withdrew" },
-          { pattern: /(?:still\s+in\s+process|pending|waiting)\b/i, outcome: "still in process" },
-          { pattern: /(?:was\s+)?(?:hired|got\s+the\s+job|accepted)\b/i, outcome: "hired" },
-          { pattern: /(?:rejected|denied|turned\s+down)\b/i, outcome: "rejected" }
+        // =====================================================================
+        // OUTCOME EXTRACTION - Robust phrase-based matching for application_outcome
+        // This enables Q02 to be SKIPPED when outcome is clearly stated in narrative
+        // =====================================================================
+        
+        // Check for HIRED outcome
+        const hiredPhrases = [
+          'hired', 'they hired me', 'got hired', 'offered me the job',
+          'offered me the position', 'they brought me on', 'was hired',
+          'i was hired', 'got the job', 'was offered'
         ];
-        for (const { pattern, outcome } of outcomePatterns) {
-          if (pattern.test(field_value)) {
-            extractedAnchors.application_outcome = outcome;
-            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="${outcome}"`);
+        
+        // Check for DISQUALIFIED / NOT SELECTED outcome
+        const disqualifiedPhrases = [
+          'disqualified', 'not selected', 'they did not select me',
+          'was removed from the process', 'failed the background',
+          'did not pass the background', 'was dropped from the process',
+          'denied after background', 'rejected', 'they rejected me',
+          'was not selected', 'wasn\'t selected', 'did not get',
+          'didn\'t get', 'was denied', 'not hired', 'wasn\'t hired',
+          'did not hire', 'didn\'t hire', 'dq\'d', 'dq', 'was dq',
+          'got disqualified', 'was disqualified', 'they disqualified me',
+          'removed from consideration', 'no longer in the running',
+          'did not make it', 'didn\'t make it', 'failed'
+        ];
+        
+        // Check for WITHDREW outcome
+        const withdrewPhrases = [
+          'withdrew', 'withdrew my application', 'pulled my application',
+          'pulled out of the process', 'decided not to continue',
+          'removed myself from consideration', 'chose not to continue',
+          'i withdrew', 'i pulled out', 'decided to withdraw',
+          'chose to withdraw', 'dropped out', 'backed out'
+        ];
+        
+        // Check for STILL IN PROCESS outcome
+        const stillInProcessPhrases = [
+          'still in process', 'still pending', 'process is ongoing',
+          'have not heard back yet', 'waiting to hear back',
+          'still under consideration', 'still being processed',
+          'haven\'t heard back', 'awaiting decision', 'in progress',
+          'currently in process', 'application is pending'
+        ];
+        
+        // Match outcome - order matters (check specific phrases first)
+        let outcomeFound = false;
+        
+        // Check DISQUALIFIED first (most common negative outcome)
+        for (const phrase of disqualifiedPhrases) {
+          if (narrativeLower.includes(phrase)) {
+            extractedAnchors.application_outcome = 'disqualified / not selected';
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="disqualified / not selected" (matched: "${phrase}")`);
+            outcomeFound = true;
             break;
           }
+        }
+        
+        // Check HIRED
+        if (!outcomeFound) {
+          for (const phrase of hiredPhrases) {
+            if (narrativeLower.includes(phrase)) {
+              extractedAnchors.application_outcome = 'hired';
+              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="hired" (matched: "${phrase}")`);
+              outcomeFound = true;
+              break;
+            }
+          }
+        }
+        
+        // Check WITHDREW
+        if (!outcomeFound) {
+          for (const phrase of withdrewPhrases) {
+            if (narrativeLower.includes(phrase)) {
+              extractedAnchors.application_outcome = 'withdrew';
+              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="withdrew" (matched: "${phrase}")`);
+              outcomeFound = true;
+              break;
+            }
+          }
+        }
+        
+        // Check STILL IN PROCESS
+        if (!outcomeFound) {
+          for (const phrase of stillInProcessPhrases) {
+            if (narrativeLower.includes(phrase)) {
+              extractedAnchors.application_outcome = 'still in process';
+              console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="still in process" (matched: "${phrase}")`);
+              outcomeFound = true;
+              break;
+            }
+          }
+        }
+        
+        if (!outcomeFound) {
+          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome NOT FOUND - Q02 will be asked`);
         }
         
         // Extract city/state from narrative
@@ -2806,6 +2888,7 @@ async function probeEngineV2(input, base44Client) {
         }
         
         console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Total anchors extracted locally: ${Object.keys(extractedAnchors).length}`);
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Extracted anchor keys: [${Object.keys(extractedAnchors).join(', ')}]`);
         
         // Aggregate all previous answers for this instance to improve LLM extraction
         const allAnswers = Object.values(incident_context || {}).filter(Boolean);
