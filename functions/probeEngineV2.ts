@@ -3256,6 +3256,84 @@ function getPackTopicForDiscretion(packId) {
 }
 
 /**
+ * Dedicated handler for PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
+ * Extracts application_outcome from narrative and returns anchors
+ * CRITICAL: Must be called FIRST for this pack/field combination
+ */
+function handlePriorLeAppsQ01({
+  pack_id,
+  field_key,
+  field_value,
+  incident_context = {},
+  extractedAnchors = {},
+  previous_probes_count = 0,
+  instance_number = 1
+}) {
+  const narrative = (field_value || '').trim();
+  
+  console.log("[PRIOR_LE_APPS][Q01][HANDLER_ENTRY] ========== DEDICATED HANDLER EXECUTING ==========");
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] pack_id: ${pack_id}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] field_key: ${field_key}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] instance: ${instance_number}, probeCount: ${previous_probes_count}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative length: ${narrative.length}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative: "${narrative.substring(0, 200)}..."`);
+  
+  // Merge incident_context and extractedAnchors
+  const anchorUpdates = { 
+    ...incident_context, 
+    ...extractedAnchors 
+  };
+  
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors:`, anchorUpdates);
+  
+  // DETERMINISTIC EXTRACTION: Extract application_outcome via keyword matching
+  const deterministicOutcome = inferPriorLEApplicationOutcome(narrative);
+  
+  if (deterministicOutcome) {
+    anchorUpdates.application_outcome = deterministicOutcome;
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ Extracted application_outcome="${deterministicOutcome}"`);
+  } else {
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ No outcome keyword found in narrative`);
+  }
+  
+  // Final anchor audit
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ========== FINAL ANCHORS ==========`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] All anchors:`, anchorUpdates);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome: "${anchorUpdates.application_outcome || '(MISSING)'}"`);
+  
+  // Build return value
+  const returnValue = {
+    mode: "NEXT_FIELD",
+    pack_id,
+    field_key,
+    semanticField: field_key,
+    validationResult: "narrative_complete",
+    previousProbeCount: previous_probes_count,
+    maxProbesPerField: 4,
+    hasQuestion: false,
+    followupsCount: 0,
+    // CRITICAL: Return anchors for frontend field gating
+    anchors: anchorUpdates,
+    collectedAnchors: anchorUpdates,
+    collectedAnchorsKeys: Object.keys(anchorUpdates),
+    reason: "Field narrative validated successfully",
+    instanceNumber: instance_number,
+    message: "PACK_PRLE_Q01 complete with anchors"
+  };
+  
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] ========== RETURNING TO FRONTEND ==========');
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] mode:', returnValue.mode);
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] reason:', returnValue.reason);
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] hasQuestion:', returnValue.hasQuestion);
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] anchors:', returnValue.anchors);
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] collectedAnchors:', returnValue.collectedAnchors);
+  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] application_outcome value:', returnValue.anchors?.application_outcome || '(MISSING)');
+  
+  return returnValue;
+}
+
+/**
  * Main probe engine function - Universal MVP Mode
  * V2.6 Universal MVP: ALL V2 packs use Discretion Engine
  * 
