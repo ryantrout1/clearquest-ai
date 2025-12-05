@@ -3663,55 +3663,11 @@ Return ONLY the outcome value, nothing else.`;
         return returnValue;
       }
       
-      // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST field gating
-      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] ========== ANCHOR EXTRACTION & GATING ==========`);
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Extracted anchors:`, {
-          agency_name: currentAnchors.agency_name || '(missing)',
-          position_title: currentAnchors.position_title || '(missing)',
-          application_month_year: currentAnchors.application_month_year || '(missing)',
-          application_outcome: currentAnchors.application_outcome || '(missing)',
-          application_city: currentAnchors.application_city || '(missing)',
-          application_state: currentAnchors.application_state || '(missing)'
-        });
-        console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Anchor keys in currentAnchors: [${Object.keys(currentAnchors).join(', ')}]`);
-        
-        // Log which fields will be skipped vs asked
-        const packConfig = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
-        if (packConfig?.fieldGating) {
-          const fieldsToSkip = [];
-          const fieldsToAsk = [];
-          
-          for (const [fieldKey, gating] of Object.entries(packConfig.fieldGating)) {
-            if (fieldKey === "PACK_PRLE_Q01") continue; // Skip opener
-            
-            const requiresMissing = gating.requiresMissing || [];
-            const allAnchorsPresent = requiresMissing.length === 0 || 
-              requiresMissing.every(anchor => currentAnchors[anchor] && currentAnchors[anchor].trim());
-            
-            if (allAnchorsPresent && !gating.alwaysAsk) {
-              fieldsToSkip.push(fieldKey);
-              console.log(`[PRIOR_LE_APPS][SKIP_FIELD] field=${fieldKey} reason="anchors already captured: ${requiresMissing.join(', ')}"`);
-            } else if (!gating.alwaysAsk && requiresMissing.length > 0) {
-              const missing = requiresMissing.filter(a => !currentAnchors[a] || !currentAnchors[a].trim());
-              if (missing.length > 0) {
-                fieldsToAsk.push(fieldKey);
-                console.log(`[PRIOR_LE_APPS][ASK_FIELD] field=${fieldKey} reason="missing anchors: ${missing.join(', ')}"`);
-              }
-            }
-          }
-          
-          console.log(`[PRIOR_LE_APPS][NARRATIVE_FIRST] Summary: skipping=${fieldsToSkip.length} fields, asking=${fieldsToAsk.length} fields`);
-        }
-      }
-      
       // HARDENED: Validate anchor count to prevent malformed state
       const anchorCount = Object.keys(currentAnchors).length;
       if (anchorCount > 20) {
         console.warn(`[V2-UNIVERSAL] Excessive anchor count (${anchorCount}) - possible data issue`);
       }
-      
-      // REMOVED: Duplicate handler - logic now consolidated in earlier PACK_PRLE_Q01 handler (lines 3486-3664)
       
       // CRITICAL: Only increment probeCount when we're actually asking a question
       // The opening call with mode='NONE' should NOT consume a probe
