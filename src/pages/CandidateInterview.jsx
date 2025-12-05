@@ -389,26 +389,7 @@ const runV2FieldProbeIfNeeded = async ({
     });
     
     // LIFECYCLE LOG: Anchors updated (structural only)
-    if (v2Result?.mode === 'QUESTION' || v2Result?.mode === 'NEXT_FIELD') {
-      // CRITICAL: For PACK_PRIOR_LE_APPS_STANDARD, merge backend-extracted anchors into incidentContext
-      let finalAnchors = { ...incidentContext };
-      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
-        finalAnchors = { ...finalAnchors, ...v2Result.anchors };
-        console.log(`[V2_LIFECYCLE][PRIOR_LE_APPS] Merged backend anchors:`, Object.keys(v2Result.anchors));
-      }
-      
-      console.log(`[V2_LIFECYCLE][ANCHORS_UPDATED]`, {
-        packId,
-        instanceNumber: instanceNumber || 1,
-        collectedAnchorKeys: Object.keys(finalAnchors), // Keys only
-        targetAnchors: v2Result?.targetAnchors || []
-      });
-      
-      // Update incidentContext for field gating
-      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && v2Result?.anchors) {
-        incidentContext = finalAnchors;
-      }
-    }
+    // NOTE: This log is now consolidated with the per-field handler below
     
     // LIFECYCLE LOG: Discretion decision
     if (v2Result?.probeSource?.includes('discretion')) {
