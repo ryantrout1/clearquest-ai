@@ -2249,7 +2249,7 @@ const FIELD_LABELS = {
   "location_general": "Agency Location",
   "time_period": "Application Time Period",
   "position": "Position Applied For",
-  "outcome": "Outcome",
+  "outcome": "Application Outcome",
   "reason_not_hired": "Reason for Not Being Hired",
   "appeal_or_reapply": "Appeal or Reapplication",
   "anything_else": "Additional Information"
