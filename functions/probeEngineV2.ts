@@ -3432,14 +3432,32 @@ Return ONLY the outcome value, nothing else.`;
         }
         
         // Map LLM outcome analysis to application_outcome anchor
-        if (narrativeAnalysis?.applicationOutcome && narrativeAnalysis.applicationOutcome !== 'unknown') {
-          anchorUpdates.application_outcome = narrativeAnalysis.applicationOutcome;
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] Set application_outcome anchor from LLM: "${narrativeAnalysis.applicationOutcome}"`);
-        } else if (extractedAnchors.application_outcome) {
-          // Fallback: use keyword extraction if LLM didn't find it
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] Using application_outcome from keyword extraction: "${extractedAnchors.application_outcome}"`);
+        // CRITICAL: Use the EXACT string value (not an object) for gating compatibility
+        const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
+        let normalizedOutcome = null;
+        
+        if (narrativeAnalysis?.applicationOutcome) {
+          const rawOutcome = String(narrativeAnalysis.applicationOutcome).trim().toLowerCase();
+          if (allowedOutcomes.includes(rawOutcome)) {
+            normalizedOutcome = rawOutcome;
+          }
+        }
+        
+        // Fallback to keyword extraction if LLM didn't find it
+        if (!normalizedOutcome && extractedAnchors.application_outcome) {
+          const rawExtracted = String(extractedAnchors.application_outcome).trim().toLowerCase();
+          if (allowedOutcomes.includes(rawExtracted)) {
+            normalizedOutcome = rawExtracted;
+          }
+        }
+        
+        if (normalizedOutcome) {
+          // Set as simple string value for frontend gating compatibility
+          anchorUpdates.application_outcome = normalizedOutcome;
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] Set application_outcome anchor: "${normalizedOutcome}"`);
+          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][ANCHOR_DEBUG] field=PACK_PRLE_Q01 application_outcome="${normalizedOutcome}"`);
         } else {
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] No application_outcome detected in narrative (LLM or keywords)`);
+          console.log(`[PACK_PRIOR_LE_APPS][Q01] No valid application_outcome detected - will ask PACK_PRLE_Q02`);
         }
         
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (final):`, anchorUpdates);
