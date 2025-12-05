@@ -21,6 +21,171 @@ const DEFAULT_MAX_PROBES_FALLBACK = 3;
 // V2.6 Universal MVP: Use Discretion Engine for ALL pack openings and probing
 // No more static opening messages - Discretion Engine generates context-aware questions
 
+// ============================================================================
+// CENTRALIZED ANCHOR EXTRACTION ENGINE
+// Generic, reusable extraction logic - NO per-pack hand-coded rules needed
+// Packs define anchorExtractionRules in PACK_CONFIG; this engine applies them
+// ============================================================================
+
+/**
+ * Extract anchors from narrative text using declarative rules.
+ * This is the SINGLE centralized extraction function for ALL packs.
+ * 
+ * @param {string} text - Raw narrative text from candidate
+ * @param {object} anchorExtractionRules - Map of anchorKey → { outcomeValue: [keywords...] }
+ * @param {object} existingAnchors - Already-collected anchors (won't overwrite)
+ * @returns {object} - Map of anchorKey → extractedValue
+ */
+function extractAnchorsFromNarrative(text, anchorExtractionRules, existingAnchors = {}) {
+  if (!text || !anchorExtractionRules) return {};
+  
+  const normalized = text.toLowerCase().trim();
+  const extracted = {};
+  
+  console.log(`[ANCHOR_EXTRACT] ========== CENTRALIZED EXTRACTION ==========`);
+  console.log(`[ANCHOR_EXTRACT] Text length: ${text.length}, Rules for: [${Object.keys(anchorExtractionRules).join(', ')}]`);
+  
+  for (const [anchorKey, rules] of Object.entries(anchorExtractionRules)) {
+    // Skip if anchor already has a value
+    if (existingAnchors[anchorKey] && existingAnchors[anchorKey].trim()) {
+      console.log(`[ANCHOR_EXTRACT] ${anchorKey}: SKIP (already set to "${existingAnchors[anchorKey]}")`);
+      continue;
+    }
+    
+    // Rules can be:
+    // 1. Object with outcomeValue → keywords mapping (e.g., { disqualified: ["dq", "failed"], hired: ["hired"] })
+    // 2. Array of keywords (simple extraction - just checks presence)
+    // 3. Special extraction type string (e.g., "month_year", "agency_name")
+    
+    if (typeof rules === 'object' && !Array.isArray(rules)) {
+      // Outcome-style rules: { disqualified: [...], hired: [...], withdrew: [...] }
+      let matched = false;
+      for (const [outcomeValue, keywords] of Object.entries(rules)) {
+        if (!Array.isArray(keywords)) continue;
+        
+        for (const keyword of keywords) {
+          if (normalized.includes(keyword.toLowerCase())) {
+            extracted[anchorKey] = outcomeValue;
+            console.log(`[ANCHOR_EXTRACT] ${anchorKey}="${outcomeValue}" (matched: "${keyword}")`);
+            matched = true;
+            break;
+          }
+        }
+        if (matched) break;
+      }
+      if (!matched) {
+        console.log(`[ANCHOR_EXTRACT] ${anchorKey}: NO MATCH`);
+      }
+    } else if (Array.isArray(rules)) {
+      // Simple keyword presence check
+      for (const keyword of rules) {
+        if (normalized.includes(keyword.toLowerCase())) {
+          extracted[anchorKey] = keyword;
+          console.log(`[ANCHOR_EXTRACT] ${anchorKey}="${keyword}" (simple match)`);
+          break;
+        }
+      }
+    } else if (typeof rules === 'string') {
+      // Special extraction types
+      const extractedValue = extractSpecialAnchorType(text, rules);
+      if (extractedValue) {
+        extracted[anchorKey] = extractedValue;
+        console.log(`[ANCHOR_EXTRACT] ${anchorKey}="${extractedValue}" (special: ${rules})`);
+      }
+    }
+  }
+  
+  console.log(`[ANCHOR_EXTRACT] Total extracted: ${Object.keys(extracted).length} anchors`);
+  return extracted;
+}
+
+/**
+ * Extract special anchor types (month_year, agency_name, position, location)
+ */
+function extractSpecialAnchorType(text, extractionType) {
+  switch (extractionType) {
+    case 'month_year': {
+      const result = extractMonthYearFromText(text);
+      return result.value || null;
+    }
+    
+    case 'agency_name': {
+      const agencyPatterns = [
+        /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
+        /\b([\w\s]+(?:Police Department|Sheriff's Office|Sheriff Office|County Sheriff|City Police|State Police|Highway Patrol|Marshal's Office))\b/i,
+        /\b([A-Z][A-Za-z\s]+(?:Police|Sheriff|PD|SO|Agency))\b/i
+      ];
+      for (const pattern of agencyPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1] && match[1].length > 3) {
+          return match[1].trim();
+        }
+      }
+      return null;
+    }
+    
+    case 'position': {
+      const positionPatterns = [
+        /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer|patrol)/i,
+        /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\s+(?:position|role|job)/i,
+        /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\b/i
+      ];
+      for (const pattern of positionPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      return null;
+    }
+    
+    case 'location': {
+      const locationPatterns = [
+        /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/,
+        /\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/i
+      ];
+      for (const pattern of locationPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          return `${match[1]}, ${match[2]}`;
+        }
+      }
+      return null;
+    }
+    
+    case 'employer': {
+      const employerPatterns = [
+        /(?:worked\s+(?:at|for)\s+)([\w\s]+(?:Inc|LLC|Corp|Corporation|Company|Co\.|Ltd|Services|Solutions|Group))/i,
+        /(?:employed\s+(?:at|by)\s+)([\w\s]+)/i,
+        /\b([\w\s]+)\s+(?:as\s+(?:a|an)\s+)/i
+      ];
+      for (const pattern of employerPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1] && match[1].length > 2) {
+          return match[1].trim();
+        }
+      }
+      return null;
+    }
+    
+    case 'substance': {
+      const substancePatterns = [
+        /\b(marijuana|cannabis|weed|pot|cocaine|heroin|methamphetamine|meth|ecstasy|mdma|lsd|mushrooms|psilocybin|opioids?|fentanyl|xanax|adderall|pills?|alcohol|beer|wine|liquor)\b/i
+      ];
+      for (const pattern of substancePatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          return match[1].toLowerCase();
+        }
+      }
+      return null;
+    }
+    
+    default:
+      return null;
+  }
+}
+
 /**
  * Helper to detect "I don't recall / remember / know" style answers
  * Used to force probing even if field-specific validation might accept the value
