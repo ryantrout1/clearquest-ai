@@ -26,7 +26,7 @@ export const PACK_FACT_ANCHORS = {
     severity: "standard",
     maxProbes: 1, // Single clarifier only if needed
     multiInstance: true,
-    excludeFromProbing: ["outcome", "reason_not_hired"] // NEVER probe for these - they're deterministic fields
+    excludeFromProbing: ["application_outcome", "reason_not_hired"] // NEVER probe for these - they're deterministic fields
   },
   "PACK_LE_APPS": {
     required: [], // No required AI anchors
@@ -1040,17 +1040,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
     targetAnchors: [
       "agency_name",
       "position_title",
-      "application_month_year",
-      "application_outcome"
+      "application_month_year"
     ],
     // Anchors extracted from narrative - used for field gating
+    // NOTE: application_outcome is collected by PACK_PRLE_Q02 deterministically, not from narrative
     factAnchors: [
-      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
-      { key: "position_title", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
-      { key: "application_month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
-      { key: "application_outcome", label: "Application outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true },
-      { key: "application_city", label: "City", answerType: "text", priority: 5, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "application_state", label: "State", answerType: "text", priority: 6, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "application_outcome", label: "Outcome of application", answerType: "text", priority: 4, multiInstanceAware: false, clarifierStyle: "micro", required: true }
     ],
     excludeFromProbing: [], // All anchors can be probed if missing
     requiresCompletion: true,
@@ -1062,14 +1060,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "narrative",
-        label: "In your own words, describe this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, and what happened with that application. Please provide as much detail as you can.",
+        label: "In your own words, describe this prior law enforcement application. Include the name of the agency, the position you applied for, and roughly when you applied. Please provide as much detail as you can.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation...",
+        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022...",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
-        captures: ["agency_name", "position_title", "application_month_year", "application_outcome", "application_city", "application_state"],
+        captures: ["agency_name", "position", "month_year"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
@@ -1096,7 +1094,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
         required: true,
         aiProbingEnabled: false,
-        requiresMissing: ["application_outcome"], // Only ask if not extracted from narrative
+        capturesAnchor: "application_outcome", // This field persists the application_outcome anchor
+        requiresMissing: ["application_outcome"], // Only ask if application_outcome anchor is missing
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
