@@ -2733,32 +2733,85 @@ async function probeEngineV2(input, base44Client) {
       let answerToExtract = field_value;
       
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-        // LOCAL EXTRACTION: Extract month/year from Q01 opener to enable field gating
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] ========== EXTRACTING FROM NARRATIVE ==========`);
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Raw answer: "${field_value.substring(0, 200)}..."`);
+        
+        // LOCAL EXTRACTION: Extract month/year from narrative
         const dateExtracted = extractMonthYearFromText(field_value);
         if (dateExtracted.value) {
           extractedAnchors.application_month_year = dateExtracted.value;
-          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] application_month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
+          console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
         }
         
-        // Extract position
-        const positionMatch = field_value.match(/\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet)\b/i);
-        if (positionMatch) {
-          extractedAnchors.position_title = positionMatch[1];
-          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] position_title="${positionMatch[1]}"`);
+        // Extract position (expanded patterns for narrative)
+        const positionPatterns = [
+          /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer|patrol)/i,
+          /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\s+(?:position|role|job)/i,
+          /\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet|patrol officer)\b/i
+        ];
+        for (const pattern of positionPatterns) {
+          const positionMatch = field_value.match(pattern);
+          if (positionMatch) {
+            extractedAnchors.position_title = positionMatch[1];
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] position_title="${positionMatch[1]}"`);
+            break;
+          }
         }
         
-        // Extract agency name
-        const agencyMatch = field_value.match(/\b([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|PD|SO|Agency))\b/i);
-        if (agencyMatch && agencyMatch[1].length > 3) {
-          extractedAnchors.agency_name = agencyMatch[1].trim();
-          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] agency_name="${agencyMatch[1].trim()}"`);
+        // Extract agency name (expanded patterns for narrative)
+        const agencyPatterns = [
+          /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
+          /\b([\w\s]+(?:Police Department|Sheriff's Office|Sheriff Office|County Sheriff|City Police|State Police|Highway Patrol|Marshal's Office))\b/i,
+          /\b([A-Z][A-Za-z\s]+(?:Police|Sheriff|PD|SO|Agency))\b/i
+        ];
+        for (const pattern of agencyPatterns) {
+          const agencyMatch = field_value.match(pattern);
+          if (agencyMatch && agencyMatch[1].length > 3) {
+            extractedAnchors.agency_name = agencyMatch[1].trim();
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] agency_name="${agencyMatch[1].trim()}"`);
+            break;
+          }
         }
+        
+        // Extract outcome from narrative
+        const outcomePatterns = [
+          { pattern: /(?:was\s+)?(?:disqualified|dq'd|dq)\b/i, outcome: "disqualified" },
+          { pattern: /(?:not\s+)?(?:selected|hired|chosen)\b/i, outcome: "not selected" },
+          { pattern: /(?:withdrew|pulled\s+out|dropped\s+out)\b/i, outcome: "withdrew" },
+          { pattern: /(?:still\s+in\s+process|pending|waiting)\b/i, outcome: "still in process" },
+          { pattern: /(?:was\s+)?(?:hired|got\s+the\s+job|accepted)\b/i, outcome: "hired" },
+          { pattern: /(?:rejected|denied|turned\s+down)\b/i, outcome: "rejected" }
+        ];
+        for (const { pattern, outcome } of outcomePatterns) {
+          if (pattern.test(field_value)) {
+            extractedAnchors.application_outcome = outcome;
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_outcome="${outcome}"`);
+            break;
+          }
+        }
+        
+        // Extract city/state from narrative
+        const locationPatterns = [
+          /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/, // "Phoenix, AZ" or "Phoenix AZ"
+          /\bin\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s*([A-Z]{2})\b/i // "in Phoenix, AZ"
+        ];
+        for (const pattern of locationPatterns) {
+          const locationMatch = field_value.match(pattern);
+          if (locationMatch) {
+            extractedAnchors.application_city = locationMatch[1];
+            extractedAnchors.application_state = locationMatch[2];
+            console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] application_city="${locationMatch[1]}" application_state="${locationMatch[2]}"`);
+            break;
+          }
+        }
+        
+        console.log(`[PRIOR_LE_APPS][NARRATIVE_EXTRACT] Total anchors extracted locally: ${Object.keys(extractedAnchors).length}`);
         
         // Aggregate all previous answers for this instance to improve LLM extraction
         const allAnswers = Object.values(incident_context || {}).filter(Boolean);
         if (allAnswers.length > 0) {
           answerToExtract = [...allAnswers, field_value].join(' ');
-          console.log(`[PACK_PRIOR_LE_APPS][AGGREGATE] Aggregating ${allAnswers.length + 1} answers for extraction`);
+          console.log(`[PRIOR_LE_APPS][AGGREGATE] Aggregating ${allAnswers.length + 1} answers for extraction`);
         }
       }
       
