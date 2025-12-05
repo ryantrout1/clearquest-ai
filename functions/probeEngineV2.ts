@@ -3470,25 +3470,29 @@ async function probeEngineV2(input, base44Client) {
   }
   
   // =====================================================================
-  // PACK_PRIOR_LE_APPS_STANDARD: PACK_PRLE_Q01 EARLY HANDLER
-  // MUST execute BEFORE generic validation/discretion to return anchors
+  // PACK_PRIOR_LE_APPS_STANDARD: PACK_PRLE_Q01 DEDICATED HANDLER
+  // CRITICAL: This MUST execute BEFORE generic Discretion Engine flow
+  // Returns anchors (including application_outcome) for frontend field gating
   // =====================================================================
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
     console.log("[PRIOR_LE_APPS][Q01][ROUTER_HIT] ========== PACK_PRLE_Q01 HANDLER EXECUTING ==========");
-    console.log(`[PRIOR_LE_APPS][Q01] pack_id: ${pack_id}`);
-    console.log(`[PRIOR_LE_APPS][Q01] field_key: ${field_key}`);
-    console.log(`[PRIOR_LE_APPS][Q01] Narrative length: ${field_value?.length || 0}`);
-    console.log(`[PRIOR_LE_APPS][Q01] Narrative preview: "${field_value.substring(0, 150)}..."`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] pack_id: ${pack_id}`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] field_key: ${field_key}`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] instance_number: ${instance_number}`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] previous_probes_count: ${previous_probes_count}`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] Narrative length: ${field_value?.length || 0}`);
+    console.log(`[PRIOR_LE_APPS][Q01][ROUTER] Narrative preview: "${field_value.substring(0, 150)}..."`);
     
-    // Start with incident_context (previous anchors) and merge with extracted anchors
+    // Start with incident_context and merge with centralized extracted anchors
     const anchorUpdates = { 
       ...incident_context, 
       ...extractedAnchors 
     };
     
-    console.log(`[PRIOR_LE_APPS][Q01] Initial anchorUpdates:`, anchorUpdates);
+    console.log(`[PRIOR_LE_APPS][Q01] Initial anchorUpdates (after centralized extraction):`, anchorUpdates);
     
     // DETERMINISTIC EXTRACTION: Extract application_outcome from narrative
+    // This is CRITICAL for frontend field gating - application_outcome is required
     const deterministicOutcome = inferPriorLEApplicationOutcome(field_value);
     
     if (deterministicOutcome) {
@@ -3498,13 +3502,16 @@ async function probeEngineV2(input, base44Client) {
       console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match - outcome not in narrative`);
     }
     
-    // Final audit
+    // Final audit before return
     console.log(`[PRIOR_LE_APPS][Q01][FINAL] ========== ANCHORS READY FOR RETURN ==========`);
-    console.log(`[PRIOR_LE_APPS][Q01][FINAL] anchorUpdates:`, anchorUpdates);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] Final anchorUpdates:`, anchorUpdates);
     console.log(`[PRIOR_LE_APPS][Q01][FINAL] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
     console.log(`[PRIOR_LE_APPS][Q01][FINAL] application_outcome: "${anchorUpdates.application_outcome || '(NONE)'}"`);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] agency_name: "${anchorUpdates.agency_name || '(NONE)'}"`);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] position: "${anchorUpdates.position || '(NONE)'}"`);
+    console.log(`[PRIOR_LE_APPS][Q01][FINAL] month_year: "${anchorUpdates.month_year || '(NONE)'}"`);
     
-    // Return result with anchors
+    // Build return value with anchors
     const returnValue = {
       mode: "NEXT_FIELD",
       pack_id,
@@ -3515,7 +3522,7 @@ async function probeEngineV2(input, base44Client) {
       maxProbesPerField: 4,
       hasQuestion: false,
       followupsCount: 0,
-      // CRITICAL: Return anchors for frontend gating
+      // CRITICAL: Return anchors in BOTH formats for frontend compatibility
       anchors: anchorUpdates,
       collectedAnchors: anchorUpdates,
       collectedAnchorsKeys: Object.keys(anchorUpdates),
@@ -3526,10 +3533,15 @@ async function probeEngineV2(input, base44Client) {
     
     console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING TO FRONTEND ==========');
     console.log('[PRIOR_LE_APPS][Q01][RETURN] mode:', returnValue.mode);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] hasQuestion:', returnValue.hasQuestion);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] followupsCount:', returnValue.followupsCount);
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] reason:', returnValue.reason);
     console.log('[PRIOR_LE_APPS][Q01][RETURN] anchors:', returnValue.anchors);
     console.log('[PRIOR_LE_APPS][Q01][RETURN] collectedAnchors:', returnValue.collectedAnchors);
-    console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome:', returnValue.anchors?.application_outcome || '(MISSING)');
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome present?', !!(returnValue.anchors?.application_outcome));
+    console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome value:', returnValue.anchors?.application_outcome || '(MISSING)');
     
+    // CRITICAL: Return immediately - do NOT continue to Discretion Engine
     return returnValue;
   }
   
