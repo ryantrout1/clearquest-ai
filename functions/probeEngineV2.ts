@@ -1994,7 +1994,7 @@ function getStaticFallbackQuestion(fieldName, probeCount, currentValue, incident
     
     case "agency_name":
       if (isFirstProbe) {
-        return "What was the name of that agency?";
+        return "Can you recall any other details about the agency, such as the city or type of department?";
       }
       return "Even if you're not sure of the exact name, can you recall any part of the agency name or identifying details?";
     
