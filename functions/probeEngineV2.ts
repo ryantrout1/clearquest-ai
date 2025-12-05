@@ -3481,6 +3481,14 @@ async function probeEngineV2(input, base44Client) {
       // The opening call with mode='NONE' should NOT consume a probe
       // We pass the raw count here; the discretion engine will decide if this answer
       // justifies asking another question
+
+      // PACK_PRIOR_LE_APPS_STANDARD: Skip Discretion Engine call - use anchor-aware logic above
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][SKIP_DISCRETION] Using anchor-aware logic instead of Discretion Engine`);
+        // The anchor-aware logic above already handled this case and returned
+        // If we reach here, something went wrong - fall through to legacy validation
+      }
+
       const discretionResult = await base44Client.functions.invoke('discretionEngine', {
         packId: pack_id,
         collectedAnchors: currentAnchors,
@@ -3757,10 +3765,12 @@ async function probeEngineV2(input, base44Client) {
     };
     
     // CRITICAL: Return extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors || {}).length > 0) {
-      result.anchors = extractedAnchors;
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+      // Merge extracted anchors with incident_context for complete anchor state
+      const allAnchors = { ...incident_context, ...extractedAnchors };
+      result.anchors = allAnchors;
       result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
-      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(extractedAnchors).length} anchors:`, Object.keys(extractedAnchors));
+      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(allAnchors).length} total anchors:`, allAnchors);
     }
     
     return result;
