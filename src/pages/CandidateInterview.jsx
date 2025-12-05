@@ -1234,25 +1234,49 @@ export default function CandidateInterview() {
         // CRITICAL: Merge backend-returned anchors into collectedAnswers for field gating
         // This is the universal anchor merge path used by ALL V2 anchor-aware packs
         let updatedCollectedAnswers = { ...activeV2Pack.collectedAnswers };
-        
-        // Universal anchor merge: if backend returns v2Result.anchors OR v2Result.collectedAnchors, merge them
-        const backendAnchors = v2Result?.collectedAnchors || v2Result?.anchors || {};
+
+        // Universal anchor merge: check ALL possible anchor return formats from backend
+        // Backend may return: anchors, collectedAnchors, or both
+        const backendAnchors = {};
+
+        // Merge from v2Result.anchors (primary format)
+        if (v2Result?.anchors && typeof v2Result.anchors === 'object') {
+          Object.assign(backendAnchors, v2Result.anchors);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Found anchors:`, v2Result.anchors);
+        }
+
+        // Merge from v2Result.collectedAnchors (alternate format)
+        if (v2Result?.collectedAnchors && typeof v2Result.collectedAnchors === 'object') {
+          Object.assign(backendAnchors, v2Result.collectedAnchors);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Found collectedAnchors:`, v2Result.collectedAnchors);
+        }
+
+        // PACK_PRIOR_LE_APPS_STANDARD: Extra diagnostic before merge
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] ========== RAW BACKEND RESPONSE ==========');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.anchors:', v2Result?.anchors || '(none)');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] backendAnchors combined:', backendAnchors);
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] application_outcome in backendAnchors?', 
+            backendAnchors.application_outcome !== undefined);
+        }
+
         if (Object.keys(backendAnchors).length > 0) {
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] ========== MERGING BACKEND ANCHORS ==========`);
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Pack: ${packId}, Instance: ${instanceNumber}`);
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Before merge:`, Object.keys(updatedCollectedAnswers));
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, backendAnchors);
-          
+
           // Merge backend-extracted anchors (semantic keys like 'application_outcome', 'month_year', etc.)
           Object.assign(updatedCollectedAnswers, backendAnchors);
-          
+
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
           console.log(`[V2_PACK][ANCHORS_MERGED]`, {
             packId,
             instanceNumber,
             anchors: updatedCollectedAnswers
           });
-          
+
           // Log specific anchors for PACK_PRIOR_LE_APPS_STANDARD
           if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
             console.log(`[V2_PACK_FIELD][MERGE_ANCHORS][PRIOR_LE_APPS] Merged anchors:`, {
@@ -1262,26 +1286,21 @@ export default function CandidateInterview() {
               application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
             });
           }
-          
-          // Update activeV2Pack state with merged anchors
-          setActiveV2Pack(prev => ({
-            ...prev,
-            collectedAnswers: updatedCollectedAnswers
-          }));
-          
-          console.log("[DIAG_PRIOR_LE_APPS][LIFECYCLE][AFTER_MERGE]", { 
-            packId, 
-            anchorsAfterMerge: updatedCollectedAnswers 
-          });
-          
-          // DIAGNOSTIC: Extra detail for PACK_PRIOR_LE_APPS_STANDARD
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
-            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
-            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] application_outcome value:', 
-              updatedCollectedAnswers.application_outcome || '(MISSING)');
-            console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Full anchor map:', updatedCollectedAnswers);
-          }
+        }
+
+        // ALWAYS update activeV2Pack state with merged anchors (even if no new anchors)
+        setActiveV2Pack(prev => ({
+          ...prev,
+          collectedAnswers: updatedCollectedAnswers
+        }));
+
+        // DIAGNOSTIC: Extra detail for PACK_PRIOR_LE_APPS_STANDARD
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] application_outcome value:', 
+            updatedCollectedAnswers.application_outcome || '(MISSING)');
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Full anchor map:', updatedCollectedAnswers);
         }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
