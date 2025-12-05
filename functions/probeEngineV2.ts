@@ -3321,22 +3321,26 @@ async function probeEngineV2(input, base44Client) {
         ...extractedAnchors
       };
       
-      // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST primary field enforcement
-      // If this is the primary narrative field (PACK_PRLE_Q01), check if all required anchors are collected
+      // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE NARRATIVE FIELD ENFORCEMENT
+      // CRITICAL: Do NOT return NEXT_FIELD unless ALL required anchors are populated
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        const packConfigV2 = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD;
-        const requiredAnchors = packConfigV2?.requiredAnchors || [];
-        const missingRequired = requiredAnchors.filter(anchor => !currentAnchors[anchor] || !currentAnchors[anchor].trim());
+        const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
+        const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
         
-        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ========== CHECKING PRIMARY NARRATIVE FIELD ==========`);
-        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Required anchors: [${requiredAnchors.join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Missing anchors: [${missingRequired.join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] Collected anchors:`, {
-          agency_name: currentAnchors.agency_name || '(missing)',
-          position: currentAnchors.position || '(missing)',
-          month_year: currentAnchors.month_year || '(missing)',
-          application_outcome: currentAnchors.application_outcome || '(missing)'
+        // Compute missing anchors from currentAnchors (which includes extractedAnchors)
+        const collectedKeys = Object.keys(currentAnchors).filter(k => currentAnchors[k] && String(currentAnchors[k]).trim());
+        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
+        
+        // DEBUG LOGGING - CRITICAL for diagnosing anchor issues
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] ========== ANCHOR CHECK ==========`);
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] anchorsAfterExtraction=`, {
+          agency_name: currentAnchors.agency_name || '(MISSING)',
+          position: currentAnchors.position || '(MISSING)',
+          month_year: currentAnchors.month_year || '(MISSING)',
+          application_outcome: currentAnchors.application_outcome || '(MISSING)'
         });
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] collectedKeys=[${collectedKeys.join(', ')}]`);
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] missingAnchors=[${missingAnchors.join(', ')}]`);
         
         // Fetch max probes from FollowUpPack entity
         let maxProbesForPrimary = 4;
@@ -3349,31 +3353,80 @@ async function probeEngineV2(input, base44Client) {
             maxProbesForPrimary = followUpPacks[0].max_ai_followups;
           }
         } catch (err) {
-          console.warn(`[PRIOR_LE_APPS][PRIMARY_FIELD] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
+          console.warn(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Could not fetch max_ai_followups, using default: ${maxProbesForPrimary}`);
         }
         
-        // If any required anchors are missing, we MUST stay on this field and probe
-        if (missingRequired.length > 0 && previous_probes_count < maxProbesForPrimary) {
-          console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] ${missingRequired.length} required anchors missing - will probe`);
-          // Force Discretion Engine to generate clarifier - fall through to discretion call below
-        } else if (missingRequired.length === 0) {
-          console.log(`[PRIOR_LE_APPS][PRIMARY_FIELD] All required anchors collected - advancing to next field`);
-          // All required anchors collected - advance
+        // CRITICAL: If ANY required anchor is missing, return QUESTION with micro clarifier
+        if (missingAnchors.length > 0) {
+          // Check if we've exceeded max probes
+          if (previous_probes_count >= maxProbesForPrimary) {
+            console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Max probes reached (${previous_probes_count}/${maxProbesForPrimary}) - advancing despite missing anchors`);
+            console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=NEXT_FIELD (max probes exceeded)`);
+            return {
+              mode: "NEXT_FIELD",
+              pack_id,
+              field_key,
+              semanticField: field_key,
+              validationResult: "max_probes_reached_with_missing_anchors",
+              previousProbeCount: previous_probes_count,
+              maxProbesPerField: maxProbesForPrimary,
+              anchors: currentAnchors,
+              missingAnchors,
+              reason: `Max probes reached - still missing: ${missingAnchors.join(', ')}`,
+              instanceNumber: instance_number,
+              message: "Max probes reached - advancing to backup fields"
+            };
+          }
+          
+          // Generate micro clarifier for the first missing anchor
+          const firstMissing = missingAnchors[0];
+          const clarifierTemplates = prlePackConfig?.anchorClarifiers || {
+            agency_name: "What was the name of the law enforcement agency for this application?",
+            position: "What position did you apply for with that agency?",
+            month_year: "About what month and year did you apply?",
+            application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
+          };
+          const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
+          
+          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=QUESTION, targeting anchor="${firstMissing}"`);
+          console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] clarifier="${clarifierQuestion}"`);
+          
           return {
-            mode: "NEXT_FIELD",
+            mode: "QUESTION",
             pack_id,
             field_key,
             semanticField: field_key,
-            validationResult: "all_required_anchors_collected",
-            previousProbeCount: previous_probes_count,
+            question: clarifierQuestion,
+            validationResult: "missing_required_anchors",
+            previousProbeCount: previous_probes_count + 1,
             maxProbesPerField: maxProbesForPrimary,
-            anchors: extractedAnchors,
-            targetAnchors: packConfigV2?.targetAnchors || [],
-            reason: "All required anchors collected from narrative",
+            isFallback: false,
+            probeSource: "anchor_clarifier",
+            targetAnchors: [firstMissing],
+            missingAnchors,
+            anchors: currentAnchors,
             instanceNumber: instance_number,
-            message: "Primary narrative field complete - all required anchors captured"
+            message: `Probing for missing anchor: ${firstMissing}`
           };
         }
+        
+        // ALL REQUIRED ANCHORS COLLECTED - safe to return NEXT_FIELD
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] mode=NEXT_FIELD (all anchors collected)`);
+        console.log(`[PACK_PRIOR_LE_APPS_STANDARD][PACK_PRLE_Q01] Final anchors:`, currentAnchors);
+        
+        return {
+          mode: "NEXT_FIELD",
+          pack_id,
+          field_key,
+          semanticField: field_key,
+          validationResult: "all_required_anchors_collected",
+          previousProbeCount: previous_probes_count,
+          maxProbesPerField: maxProbesForPrimary,
+          anchors: currentAnchors,
+          reason: "All required anchors collected from narrative",
+          instanceNumber: instance_number,
+          message: "Primary narrative field complete - all required anchors captured"
+        };
       }
       
       // PACK_PRIOR_LE_APPS_STANDARD: NARRATIVE-FIRST field gating
