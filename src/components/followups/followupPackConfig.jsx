@@ -1091,18 +1091,20 @@ export const FOLLOWUP_PACK_CONFIGS = {
         includeInInstanceHeader: true,
         headerOrder: 2,
         includeInNarrative: true,
-        allowUnknown: true,
+        allowUnknown: false, // Outcome should always be provided
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
-        unknownDisplayLabel: "Not recalled after probing",
+        unknownDisplayLabel: "Not provided",
         validation: {
           type: "outcome",
-          allowUnknown: true,
+          allowUnknown: false,
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           rejectTokens: DEFAULT_REJECT_TOKENS,
           minLength: 2,
           mustContainLetters: true
         }
       },
+      // Q03-Q05 are now conditionally asked based on what was captured in Q01
+      // If opener already captured location/date/position, these are skipped
       {
         fieldKey: "PACK_PRLE_Q03",
         semanticKey: "location_general",
