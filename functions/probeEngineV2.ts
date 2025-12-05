@@ -1234,29 +1234,54 @@ const PACK_CONFIG = {
     instanceLabelPlural: "applications",
     clusterOpeningMessage: "Thanks. I'll ask a few quick factual questions to keep things clear.",
     multiInstanceOpeningMessage: "Got it. I'll take these one at a time so everything stays clear.",
-    requiredFields: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome"],
-    priorityOrder: ["agency_type", "agency_name", "location_general", "time_period", "position", "outcome", "reason_not_hired", "appeal_or_reapply", "anything_else"],
+    // Anchors for conversational gating
+    anchors: [
+      "agency_name",
+      "position_title",
+      "application_month_year",
+      "application_outcome",
+      "application_city",
+      "application_state",
+      "reason_not_hired",
+      "appeal_or_reapply",
+      "anything_else"
+    ],
+    requiredFields: ["agency_name", "application_month_year", "position_title", "application_outcome"],
+    priorityOrder: ["agency_name", "application_outcome", "application_city", "application_state", "application_month_year", "position_title", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
-      // Question code → semantic role mappings (aligned with new field order)
-      "PACK_PRLE_Q01": "agency_type",
-      "PACK_PRLE_Q02": "agency_name",
-      "PACK_PRLE_Q03": "location_general",
-      "PACK_PRLE_Q04": "time_period",
-      "PACK_PRLE_Q05": "position",
-      "PACK_PRLE_Q06": "outcome",
+      // Question code → semantic role mappings
+      "PACK_PRLE_Q01": "opener", // Captures agency_name, position_title, application_month_year
+      "PACK_PRLE_Q02": "application_outcome",
+      "PACK_PRLE_Q03": "application_location", // Captures city + state
+      "PACK_PRLE_Q04": "application_month_year",
+      "PACK_PRLE_Q05": "position_title",
+      "PACK_PRLE_Q06": "application_outcome",
       "PACK_PRLE_Q07": "reason_not_hired",
       "PACK_PRLE_Q08": "appeal_or_reapply",
       "PACK_PRLE_Q09": "anything_else",
-      // Semantic field self-mappings (for direct semantic lookups)
-      "agency_type": "agency_type",
+      // Semantic field self-mappings
       "agency_name": "agency_name",
-      "location_general": "location_general",
-      "time_period": "time_period",
-      "position": "position",
-      "outcome": "outcome",
+      "position_title": "position_title",
+      "application_month_year": "application_month_year",
+      "application_outcome": "application_outcome",
+      "application_city": "application_city",
+      "application_state": "application_state",
+      "application_location": "application_location",
       "reason_not_hired": "reason_not_hired",
       "appeal_or_reapply": "appeal_or_reapply",
       "anything_else": "anything_else",
+    },
+    // Field gating config - which anchors each field captures and requires
+    fieldGating: {
+      "PACK_PRLE_Q01": { captures: ["agency_name", "position_title", "application_month_year"], alwaysAsk: true, isOpener: true },
+      "PACK_PRLE_Q02": { captures: ["application_outcome"], alwaysAsk: true },
+      "PACK_PRLE_Q03": { captures: ["application_city", "application_state"], requiresMissing: ["application_city", "application_state"] },
+      "PACK_PRLE_Q04": { captures: ["application_month_year"], requiresMissing: ["application_month_year"] },
+      "PACK_PRLE_Q05": { captures: ["position_title"], requiresMissing: ["position_title"] },
+      "PACK_PRLE_Q06": { captures: ["application_outcome"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] } },
+      "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: ["reason_not_hired"], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired"] } },
+      "PACK_PRLE_Q08": { captures: ["appeal_or_reapply"], requiresMissing: [] },
+      "PACK_PRLE_Q09": { captures: ["anything_else"], alwaysAsk: true, isCloser: true }
     },
     // Field schemas for per-field probing
     fieldSchemas: {
