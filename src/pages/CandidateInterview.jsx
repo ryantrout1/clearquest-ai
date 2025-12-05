@@ -1200,6 +1200,7 @@ export default function CandidateInterview() {
           instanceNumber
         });
         
+        console.log("[DIAG_PRIOR_LE_APPS][LIFECYCLE][BEFORE_MERGE]", { packId, result: v2Result });
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
           packId,
@@ -1211,7 +1212,9 @@ export default function CandidateInterview() {
           nextField: v2Result?.nextField || null,
           isComplete: v2Result?.isComplete || false,
           hasAnchors: !!v2Result?.anchors,
+          hasCollectedAnchors: !!v2Result?.collectedAnchors,
           anchorKeys: v2Result?.anchors ? Object.keys(v2Result.anchors) : [],
+          collectedAnchorsKeys: v2Result?.collectedAnchorsKeys || [],
           targetAnchors: v2Result?.targetAnchors || []
         });
         
@@ -1252,6 +1255,11 @@ export default function CandidateInterview() {
             ...prev,
             collectedAnswers: updatedCollectedAnswers
           }));
+          
+          console.log("[DIAG_PRIOR_LE_APPS][LIFECYCLE][AFTER_MERGE]", { 
+            packId, 
+            anchorsAfterMerge: updatedCollectedAnswers 
+          });
         }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
