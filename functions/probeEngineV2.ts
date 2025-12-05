@@ -4282,45 +4282,20 @@ Deno.serve(async (req) => {
     
     let result = await probeEngineV2(input, base44);
     
-    // PRIOR LE APPS: Deterministic fallback to infer application_outcome from Q01 narrative
-    // CRITICAL: This runs AFTER probeEngineV2 returns, ensuring anchors are always set
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] ========== DETERMINISTIC INFERENCE START ==========`);
-      
-      const narrative = (input.field_value || "").trim();
-      console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] narrative length=${narrative.length}`);
-      console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] narrative preview: "${narrative.substring(0, 100)}..."`);
-      
-      if (narrative.length > 0) {
-        const inferredOutcome = inferPriorLEApplicationOutcome(narrative);
-        
-        console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] inferred="${inferredOutcome || 'null'}"`);
-        
-        // Ensure anchors objects exist - ALWAYS create them
-        if (!result.anchors) {
-          result.anchors = {};
-          console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] Created result.anchors object`);
-        }
-        if (!result.collectedAnchors) {
-          result.collectedAnchors = {};
-          console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] Created result.collectedAnchors object`);
-        }
-        
-        if (inferredOutcome) {
-          // ALWAYS set the anchor (deterministic takes precedence)
-          result.anchors.application_outcome = inferredOutcome;
-          result.collectedAnchors.application_outcome = inferredOutcome;
-          console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] ✓ SET application_outcome = "${inferredOutcome}"`);
-        } else {
-          console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] ✗ No outcome pattern matched - Q02 will be asked`);
-        }
-        
-        // Log final state
-        console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] Final result.anchors:`, result.anchors);
-        console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] Final result.collectedAnchors:`, result.collectedAnchors);
-      }
-      
-      console.log(`[DIAG_PRIOR_LE_APPS][DETERMINISTIC] ========== DETERMINISTIC INFERENCE END ==========`);
+    // TEMP: PRIOR LE APPS hard-coded anchor test
+    // This proves the code path is reached and the frontend merge/gating logic works
+    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+      if (!result) result = {};
+      if (!result.anchors) result.anchors = {};
+      if (!result.collectedAnchors) result.collectedAnchors = {};
+
+      // Hard-code the outcome so we can see it in logs and gating
+      result.anchors.application_outcome = "DISQUALIFIED";
+      result.collectedAnchors.application_outcome = "DISQUALIFIED";
+
+      console.log("[DIAG_PRIOR_LE_APPS][BACKEND][HARDCODED_TEST] For PACK_PRLE_Q01, forcing application_outcome=DISQUALIFIED");
+      console.log("[DIAG_PRIOR_LE_APPS][BACKEND][HARDCODED_TEST] result.anchors:", result.anchors);
+      console.log("[DIAG_PRIOR_LE_APPS][BACKEND][HARDCODED_TEST] result.collectedAnchors:", result.collectedAnchors);
     }
     
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
