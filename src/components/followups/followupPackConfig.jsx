@@ -693,30 +693,49 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_DRIVING_COLLISION_STANDARD",
     supportedBaseQuestions: [],
     instancesLabel: "Collisions",
-    packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
-    maxAiFollowups: 3,
+    packDescription: "Please tell the complete story of this collision in your own words.",
+    multiInstanceDescription: "Please tell the complete story of this collision in your own words.",
+    maxAiFollowups: 4,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
+    useNarrativeFirst: true,
     multiInstance: true,
+    requiredAnchors: ["month_year", "location", "what_happened", "outcome"],
     factAnchors: [
-      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "what_happened", label: "What happened", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true }
     ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_COLLISION_Q01",
-        semanticKey: "collision_date",
-        label: "Collision date (month/year)",
-        inputType: "month_year",
+        semanticKey: "narrative",
+        label: "In your own words, tell the complete story of this collision. Include roughly when it happened, where it happened, what happened, who was involved, what the outcome was, and why (if you know). Please provide as much detail as you can.",
+        inputType: "textarea",
+        placeholder: "Example: Around June 2021, I was driving eastbound on Main Street in Phoenix when a car ran a red light and hit my passenger side. Both cars had minor damage. The other driver got a citation. No one was injured.",
         required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["month_year", "location", "what_happened", "outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q01_DATE",
+        semanticKey: "collision_date",
+        label: "Collision date (month/year)",
+        inputType: "month_year",
+        required: true,
+        requiresMissing: ["month_year"],
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2
       },
       {
         fieldKey: "PACK_DRIVING_COLLISION_Q02",
@@ -724,46 +743,49 @@ export const FOLLOWUP_PACK_CONFIGS = {
         label: "Location (city/state)",
         inputType: "text",
         required: true,
+        requiresMissing: ["location"],
         includeInFacts: true,
-        factsOrder: 2,
+        factsOrder: 3,
         includeInInstanceHeader: true,
-        headerOrder: 2
+        headerOrder: 3
       },
       {
         fieldKey: "PACK_DRIVING_COLLISION_Q03",
         semanticKey: "description",
-        label: "Brief description",
+        label: "What happened in this collision?",
         inputType: "textarea",
         required: true,
-        includeInFacts: true,
-        factsOrder: 3
-      },
-      {
-        fieldKey: "PACK_DRIVING_COLLISION_Q04",
-        semanticKey: "at_fault",
-        label: "At fault",
-        inputType: "text",
-        required: true,
+        requiresMissing: ["what_happened"],
         includeInFacts: true,
         factsOrder: 4
       },
       {
-        fieldKey: "PACK_DRIVING_COLLISION_Q05",
-        semanticKey: "injuries",
-        label: "Injuries",
+        fieldKey: "PACK_DRIVING_COLLISION_Q04",
+        semanticKey: "outcome",
+        label: "What was the outcome? (citations, fault determination, etc.)",
         inputType: "text",
         required: true,
+        requiresMissing: ["outcome"],
         includeInFacts: true,
         factsOrder: 5
       },
       {
-        fieldKey: "PACK_DRIVING_COLLISION_Q06",
-        semanticKey: "police_citation",
-        label: "Police/citation",
+        fieldKey: "PACK_DRIVING_COLLISION_Q05",
+        semanticKey: "injuries",
+        label: "Were there any injuries?",
         inputType: "text",
         required: false,
         includeInFacts: true,
         factsOrder: 6
+      },
+      {
+        fieldKey: "PACK_DRIVING_COLLISION_Q06",
+        semanticKey: "police_citation",
+        label: "Police/citation details",
+        inputType: "text",
+        required: false,
+        includeInFacts: true,
+        factsOrder: 7
       },
       {
         fieldKey: "PACK_DRIVING_COLLISION_Q07",
@@ -772,7 +794,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         inputType: "text",
         required: false,
         includeInFacts: true,
-        factsOrder: 7
+        factsOrder: 8
       }
     ]
   },
@@ -781,57 +803,78 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_DRIVING_DUIDWI_STANDARD",
     supportedBaseQuestions: [],
     instancesLabel: "DUI/DWI Incidents",
-    packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
-    maxAiFollowups: 3,
+    packDescription: "Please tell the complete story of this DUI/DWI incident in your own words.",
+    multiInstanceDescription: "Please tell the complete story of this DUI/DWI incident in your own words.",
+    maxAiFollowups: 4,
     requiresCompletion: true,
     flagOnUnresolved: "red_flag",
     usePerFieldProbing: true,
+    useNarrativeFirst: true,
     multiInstance: true,
+    requiredAnchors: ["month_year", "substance_type", "location", "outcome"],
     factAnchors: [
-      { key: "approx_month_year", label: "Month and year", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "bac_or_level", label: "BAC or level (if known)", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "legal_outcome", label: "Legal outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "substance_type", label: "Substance involved", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true }
     ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q01",
-        semanticKey: "incident_date",
-        label: "Incident date (month/year)",
-        inputType: "month_year",
+        semanticKey: "narrative",
+        label: "In your own words, tell the complete story of this DUI/DWI incident. Include roughly when it happened, what substance was involved, where it happened, what happened during the stop, what the outcome was, and any relevant details. Please provide as much detail as you can.",
+        inputType: "textarea",
+        placeholder: "Example: In July 2018, I was pulled over in Tempe for a broken taillight after having a few beers. I took a breathalyzer and blew a 0.09. I was arrested and later pled guilty to a DUI. I completed probation and paid all fines.",
         required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["month_year", "substance_type", "location", "outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1
       },
       {
-        fieldKey: "PACK_DRIVING_DUIDWI_Q02",
-        semanticKey: "location",
-        label: "Location",
-        inputType: "text",
+        fieldKey: "PACK_DRIVING_DUIDWI_Q01_DATE",
+        semanticKey: "incident_date",
+        label: "Incident date (month/year)",
+        inputType: "month_year",
         required: true,
+        requiresMissing: ["month_year"],
         includeInFacts: true,
-        factsOrder: 2
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2
       },
       {
-        fieldKey: "PACK_DRIVING_DUIDWI_Q03",
-        semanticKey: "substance_type",
-        label: "Substance type",
+        fieldKey: "PACK_DRIVING_DUIDWI_Q02",
+        semanticKey: "location",
+        label: "Where did this happen?",
         inputType: "text",
         required: true,
+        requiresMissing: ["location"],
         includeInFacts: true,
         factsOrder: 3
       },
       {
+        fieldKey: "PACK_DRIVING_DUIDWI_Q03",
+        semanticKey: "substance_type",
+        label: "What substance was involved?",
+        inputType: "text",
+        required: true,
+        requiresMissing: ["substance_type"],
+        includeInFacts: true,
+        factsOrder: 4
+      },
+      {
         fieldKey: "PACK_DRIVING_DUIDWI_Q04",
         semanticKey: "stop_reason",
-        label: "Reason for stop",
+        label: "Why were you stopped?",
         inputType: "text",
         required: true,
         includeInFacts: true,
-        factsOrder: 4
+        factsOrder: 5
       },
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q05",
@@ -840,7 +883,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         inputType: "text",
         required: false,
         includeInFacts: true,
-        factsOrder: 5
+        factsOrder: 6
       },
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q06",
@@ -849,25 +892,26 @@ export const FOLLOWUP_PACK_CONFIGS = {
         inputType: "text",
         required: false,
         includeInFacts: true,
-        factsOrder: 6
+        factsOrder: 7
       },
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q07",
         semanticKey: "arrest_status",
-        label: "Arrest status",
+        label: "Were you arrested?",
         inputType: "text",
         required: true,
         includeInFacts: true,
-        factsOrder: 7
+        factsOrder: 8
       },
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q08",
         semanticKey: "court_outcome",
-        label: "Court outcome",
+        label: "What was the court outcome?",
         inputType: "text",
-        required: false,
+        required: true,
+        requiresMissing: ["outcome"],
         includeInFacts: true,
-        factsOrder: 8
+        factsOrder: 9
       },
       {
         fieldKey: "PACK_DRIVING_DUIDWI_Q09",
@@ -876,7 +920,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         inputType: "text",
         required: false,
         includeInFacts: true,
-        factsOrder: 9
+        factsOrder: 10
       }
     ]
   },
@@ -886,63 +930,81 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_DRIVING_STANDARD",
     supportedBaseQuestions: [],
     instancesLabel: "Driving Incidents",
-    packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
-    maxAiFollowups: 3,
+    packDescription: "Please tell the complete story of this driving incident in your own words.",
+    multiInstanceDescription: "Please tell the complete story of this driving incident in your own words.",
+    maxAiFollowups: 4,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
+    useNarrativeFirst: true,
     multiInstance: true,
+    requiredAnchors: ["month_year", "incident_type", "what_happened", "outcome"],
     factAnchors: [
-      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "incident_type", label: "Type of incident", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "what_happened", label: "What happened", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true }
     ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_STANDARD_Q01",
-        semanticKey: "incident_date",
-        label: "Incident date (month/year)",
-        inputType: "month_year",
+        semanticKey: "narrative",
+        label: "In your own words, tell the complete story of this driving incident. Include roughly when it happened, what type of incident it was, what happened, who was involved, what the outcome was, and why (if you know). Please provide as much detail as you can.",
+        inputType: "textarea",
+        placeholder: "Example: Around fall 2020, I got a speeding ticket on I-10 near Tucson going 15 over. The officer gave me a citation and I paid the fine. No points were added to my license.",
         required: true,
         aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["month_year", "incident_type", "what_happened", "outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1
       },
       {
-        fieldKey: "PACK_DRIVING_STANDARD_Q02",
-        semanticKey: "incident_type",
-        label: "Incident type",
-        inputType: "text",
+        fieldKey: "PACK_DRIVING_STANDARD_Q01_DATE",
+        semanticKey: "incident_date",
+        label: "Incident date (month/year)",
+        inputType: "month_year",
         required: true,
-        aiProbingEnabled: true,
+        requiresMissing: ["month_year"],
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
         headerOrder: 2
       },
       {
+        fieldKey: "PACK_DRIVING_STANDARD_Q02",
+        semanticKey: "incident_type",
+        label: "Type of incident",
+        inputType: "text",
+        required: true,
+        requiresMissing: ["incident_type"],
+        includeInFacts: true,
+        factsOrder: 3,
+        includeInInstanceHeader: true,
+        headerOrder: 3
+      },
+      {
         fieldKey: "PACK_DRIVING_STANDARD_Q03",
         semanticKey: "description",
-        label: "Description",
+        label: "What happened?",
         inputType: "textarea",
         required: true,
-        aiProbingEnabled: true,
+        requiresMissing: ["what_happened"],
         includeInFacts: true,
-        factsOrder: 3
+        factsOrder: 4
       },
       {
         fieldKey: "PACK_DRIVING_STANDARD_Q04",
         semanticKey: "outcome",
-        label: "Outcome",
+        label: "What was the outcome?",
         inputType: "text",
         required: true,
-        aiProbingEnabled: true,
+        requiresMissing: ["outcome"],
         includeInFacts: true,
-        factsOrder: 4
+        factsOrder: 5
       }
     ]
   },
@@ -951,59 +1013,81 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packId: "PACK_DRIVING_VIOLATIONS_STANDARD",
     supportedBaseQuestions: [],
     instancesLabel: "Traffic Violations",
-    packDescription: "Thanks. I'll ask a few quick factual questions to keep things clear.",
-    multiInstanceDescription: "Got it. I'll take these one at a time so everything stays clear.",
-    maxAiFollowups: 3,
+    packDescription: "Please tell the complete story of this traffic violation in your own words.",
+    multiInstanceDescription: "Please tell the complete story of this traffic violation in your own words.",
+    maxAiFollowups: 4,
     requiresCompletion: true,
     flagOnUnresolved: "warning",
     usePerFieldProbing: true,
+    useNarrativeFirst: true,
     multiInstance: true,
+    requiredAnchors: ["month_year", "violation_type", "location", "outcome"],
     factAnchors: [
-      { key: "approx_month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "location", label: "Location", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "combined", required: true },
-      { key: "what_happened", label: "Short factual description", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: false },
-      { key: "consequences", label: "Consequences", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: false }
+      { key: "month_year", label: "When it happened", answerType: "month_year", priority: 1, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "violation_type", label: "Type of violation", answerType: "text", priority: 2, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "location", label: "Location", answerType: "text", priority: 3, multiInstanceAware: true, clarifierStyle: "micro", required: true },
+      { key: "outcome", label: "Outcome", answerType: "text", priority: 4, multiInstanceAware: true, clarifierStyle: "micro", required: true }
     ],
     fields: [
       {
         fieldKey: "PACK_DRIVING_VIOLATIONS_Q01",
-        semanticKey: "violation_date",
-        label: "Violation date (month/year)",
-        inputType: "month_year",
+        semanticKey: "narrative",
+        label: "In your own words, tell the complete story of this traffic violation. Include roughly when it happened, what type of violation it was, where it happened, what the outcome was, and any relevant details. Please provide as much detail as you can.",
+        inputType: "textarea",
+        placeholder: "Example: In August 2019, I was pulled over for speeding on Highway 60 in Mesa doing 70 in a 55 zone. The officer gave me a ticket and I paid a $200 fine. No points were added to my license.",
         required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["month_year", "violation_type", "location", "outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
         headerOrder: 1
       },
       {
-        fieldKey: "PACK_DRIVING_VIOLATIONS_Q02",
-        semanticKey: "violation_type",
-        label: "Violation type",
-        inputType: "text",
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q01_DATE",
+        semanticKey: "violation_date",
+        label: "Violation date (month/year)",
+        inputType: "month_year",
         required: true,
+        requiresMissing: ["month_year"],
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
         headerOrder: 2
       },
       {
-        fieldKey: "PACK_DRIVING_VIOLATIONS_Q03",
-        semanticKey: "location",
-        label: "Location",
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q02",
+        semanticKey: "violation_type",
+        label: "What type of violation was this?",
         inputType: "text",
         required: true,
+        requiresMissing: ["violation_type"],
         includeInFacts: true,
-        factsOrder: 3
+        factsOrder: 3,
+        includeInInstanceHeader: true,
+        headerOrder: 3
+      },
+      {
+        fieldKey: "PACK_DRIVING_VIOLATIONS_Q03",
+        semanticKey: "location",
+        label: "Where did this happen?",
+        inputType: "text",
+        required: true,
+        requiresMissing: ["location"],
+        includeInFacts: true,
+        factsOrder: 4
       },
       {
         fieldKey: "PACK_DRIVING_VIOLATIONS_Q04",
         semanticKey: "outcome",
-        label: "Outcome",
+        label: "What was the outcome?",
         inputType: "text",
         required: true,
+        requiresMissing: ["outcome"],
         includeInFacts: true,
-        factsOrder: 4
+        factsOrder: 5
       },
       {
         fieldKey: "PACK_DRIVING_VIOLATIONS_Q05",
@@ -1069,14 +1153,15 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "narrative",
-        label: "In your own words, describe this prior law enforcement application. Include the name of the agency, the position you applied for, and roughly when you applied. Please provide as much detail as you can.",
+        label: "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022.",
+        placeholder: "Example: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation.",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
-        captures: ["agency_name", "position", "month_year"],
+        isPrimaryNarrativeField: true, // Must capture ALL required anchors before advancing
+        captures: ["agency_name", "position", "month_year", "application_outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
