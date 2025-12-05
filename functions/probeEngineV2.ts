@@ -2659,11 +2659,32 @@ async function probeEngineV2(input, base44Client) {
   let extractedAnchors = {};
   if (field_value && field_value.trim()) {
     try {
-      // Special handling for PACK_PRIOR_LE_APPS_STANDARD - aggregate answers
+      // Special handling for PACK_PRIOR_LE_APPS_STANDARD - use local extraction first
       let answerToExtract = field_value;
       
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-        // Aggregate all previous answers for this instance to improve extraction
+        // LOCAL EXTRACTION: Extract month/year from Q01 opener to enable field gating
+        const dateExtracted = extractMonthYearFromText(field_value);
+        if (dateExtracted.value) {
+          extractedAnchors.application_month_year = dateExtracted.value;
+          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] application_month_year="${dateExtracted.value}" confidence=${dateExtracted.confidence}`);
+        }
+        
+        // Extract position
+        const positionMatch = field_value.match(/\b(police officer|officer|deputy|sheriff|detective|sergeant|lieutenant|captain|trooper|agent|corrections officer|correctional officer|dispatcher|cadet)\b/i);
+        if (positionMatch) {
+          extractedAnchors.position_title = positionMatch[1];
+          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] position_title="${positionMatch[1]}"`);
+        }
+        
+        // Extract agency name
+        const agencyMatch = field_value.match(/\b([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|PD|SO|Agency))\b/i);
+        if (agencyMatch && agencyMatch[1].length > 3) {
+          extractedAnchors.agency_name = agencyMatch[1].trim();
+          console.log(`[PACK_PRIOR_LE_APPS][LOCAL_EXTRACT] agency_name="${agencyMatch[1].trim()}"`);
+        }
+        
+        // Aggregate all previous answers for this instance to improve LLM extraction
         const allAnswers = Object.values(incident_context || {}).filter(Boolean);
         if (allAnswers.length > 0) {
           answerToExtract = [...allAnswers, field_value].join(' ');
@@ -2677,7 +2698,8 @@ async function probeEngineV2(input, base44Client) {
         previousAnchors: incident_context
       });
       if (extractionResult.data?.success && extractionResult.data.newAnchors) {
-        extractedAnchors = extractionResult.data.newAnchors;
+        // Merge LLM extraction with local extraction (local takes precedence for month_year)
+        extractedAnchors = { ...extractionResult.data.newAnchors, ...extractedAnchors };
         
         // Log extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
         if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
