@@ -3382,7 +3382,14 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[PACK_PRIOR_LE_APPS][Q01] extractedAnchors:`, extractedAnchors);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
         
+        // Build anchorUpdates: merge incident_context and extractedAnchors
+        const anchorUpdates = { 
+          ...incident_context, 
+          ...extractedAnchors 
+        };
+        
         // Extract application_outcome from narrative using LLM analysis
+        // This MUST happen for PACK_PRLE_Q01 to enable field gating for PACK_PRLE_Q02
         let narrativeAnalysis = null;
         try {
           console.log(`[PACK_PRIOR_LE_APPS][Q01] Calling LLM to analyze narrative for outcome...`);
@@ -3424,12 +3431,6 @@ Return ONLY the outcome value, nothing else.`;
           console.warn(`[PACK_PRIOR_LE_APPS][Q01] LLM analysis failed, will use keyword extraction:`, llmErr.message);
         }
         
-        // Build anchorUpdates: merge incident_context, extractedAnchors, and narrative analysis
-        const anchorUpdates = { 
-          ...incident_context, 
-          ...extractedAnchors 
-        };
-        
         // Map LLM outcome analysis to application_outcome anchor
         if (narrativeAnalysis?.applicationOutcome && narrativeAnalysis.applicationOutcome !== 'unknown') {
           anchorUpdates.application_outcome = narrativeAnalysis.applicationOutcome;
@@ -3441,7 +3442,7 @@ Return ONLY the outcome value, nothing else.`;
           console.log(`[PACK_PRIOR_LE_APPS][Q01] No application_outcome detected in narrative (LLM or keywords)`);
         }
         
-        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (merged):`, anchorUpdates);
+        console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates (final):`, anchorUpdates);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] anchorUpdates keys: [${Object.keys(anchorUpdates).join(', ')}]`);
         console.log(`[PACK_PRIOR_LE_APPS][Q01] application_outcome value:`, anchorUpdates.application_outcome || '(NOT FOUND)');
         
@@ -3531,9 +3532,12 @@ Return ONLY the outcome value, nothing else.`;
         console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchors:", returnValue.collectedAnchors);
         console.log("[DIAG_PRIOR_LE_APPS][Q01] returnValue.collectedAnchorsKeys:", returnValue.collectedAnchorsKeys);
         console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== PACK_PRLE_Q01 FINAL RESULT ==========');
-        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(returnValue, null, 2));
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] field=PACK_PRLE_Q01 anchors=', JSON.stringify(returnValue.collectedAnchors || {}, null, 2));
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Full result:', JSON.stringify(returnValue, null, 2));
         console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome anchor?', 
           !!(returnValue.collectedAnchors?.application_outcome));
+        console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] application_outcome value:', 
+          returnValue.collectedAnchors?.application_outcome || '(NONE)');
         
         return returnValue;
       }
