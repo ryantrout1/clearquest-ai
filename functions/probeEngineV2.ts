@@ -4133,46 +4133,6 @@ Deno.serve(async (req) => {
     
     let result = await probeEngineV2(input, base44);
     
-    // PRIOR LE APPS: Deterministic outcome extraction from PACK_PRLE_Q01 narrative
-    // CRITICAL: This enables field gating to skip PACK_PRLE_Q02 when outcome is already known
-    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
-      const narrative = (input.field_value || "").trim();
-      
-      console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ========== OUTCOME EXTRACTION STARTING ==========`);
-      console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] Narrative length: ${narrative.length}`);
-      console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] Narrative preview: "${narrative.substring(0, 200)}..."`);
-      
-      if (narrative.length > 0) {
-        const inferredOutcome = inferPriorLEApplicationOutcome(narrative);
-        
-        console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] Derived application_outcome from narrative: "${inferredOutcome || 'null'}"`);
-        
-        if (inferredOutcome) {
-          // Ensure anchors objects exist
-          if (!result) result = {};
-          if (!result.anchors) result.anchors = {};
-          if (!result.collectedAnchors) result.collectedAnchors = {};
-          
-          // MERGE the anchor (don't overwrite existing anchors)
-          result.anchors = {
-            ...(result.anchors || {}),
-            application_outcome: inferredOutcome
-          };
-          result.collectedAnchors = {
-            ...(result.collectedAnchors || {}),
-            application_outcome: inferredOutcome
-          };
-          
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ SET application_outcome = "${inferredOutcome}"`);
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] result.anchors:`, result.anchors);
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] result.collectedAnchors:`, result.collectedAnchors);
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] All anchor keys: [${Object.keys(result.anchors).join(', ')}]`);
-        } else {
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No outcome pattern matched - Q02 will capture it`);
-        }
-      }
-    }
-    
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
     // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
