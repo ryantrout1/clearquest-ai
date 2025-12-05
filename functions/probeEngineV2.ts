@@ -1716,12 +1716,52 @@ Object.assign(PACK_CONFIG, {
       "application_outcome"
     ],
     // CENTRALIZED ANCHOR EXTRACTION RULES - used by extractAnchorsFromNarrative() (SAME mechanism as PACK_DRIVING_COLLISION_STANDARD)
+    // CRITICAL: application_outcome extraction is KEY for skipping PACK_PRLE_Q02
     anchorExtractionRules: {
       application_outcome: {
-        disqualified: ["disqualified", "dq'd", "dq", "failed background", "failed the background", "background investigation disqualified", "not selected", "wasn't selected", "was not selected", "rejected", "not hired", "wasn't hired", "did not get", "didn't get", "was denied", "removed from consideration", "removed from the process", "did not make it", "didn't make it"],
-        withdrew: ["withdrew", "withdraw", "pulled my application", "decided not to continue", "dropped out", "backed out", "chose to withdraw", "removed myself", "pulled out"],
-        hired: ["hired", "offered the job", "offered a job", "got the job", "was offered", "they brought me on", "got hired", "was hired"],
-        still_in_process: ["still in process", "still pending", "waiting to hear back", "background in progress", "still processing", "currently in process", "awaiting decision", "haven't heard back"]
+        // NOTE: Order matters - more specific patterns first
+        disqualified: [
+          "disqualified", "dq'd", "dq", "dq'ed", "was dq", "got dq",
+          "failed background", "failed the background", "background investigation disqualified",
+          "not selected", "wasn't selected", "was not selected", "weren't selected",
+          "rejected", "not hired", "wasn't hired", "was not hired", "weren't hired",
+          "did not get", "didn't get", "didn't get hired", "did not get hired",
+          "was denied", "denied employment", "denied the position",
+          "removed from consideration", "removed from the process",
+          "did not make it", "didn't make it", "didn't make the cut",
+          "didn't pass", "did not pass", "failed to pass",
+          "didn't complete", "did not complete",
+          "unsuccessful", "was unsuccessful", "were unsuccessful",
+          "not offered", "wasn't offered", "was not offered",
+          "turned down", "was turned down"
+        ],
+        withdrew: [
+          "withdrew", "withdraw", "withdrawn",
+          "pulled my application", "pulled out", "pulled application",
+          "decided not to continue", "chose not to continue",
+          "dropped out", "backed out", "backed away",
+          "chose to withdraw", "decided to withdraw",
+          "removed myself", "took myself out",
+          "stopped the process", "ended the process"
+        ],
+        hired: [
+          "hired", "got hired", "was hired", "were hired",
+          "offered the job", "offered a job", "offered the position",
+          "got the job", "got the position",
+          "was offered", "were offered",
+          "they brought me on", "brought me on",
+          "accepted", "was accepted", "got accepted"
+        ],
+        still_in_process: [
+          "still in process", "still in the process",
+          "still pending", "currently pending",
+          "waiting to hear back", "waiting to hear",
+          "background in progress", "in progress",
+          "still processing", "currently processing",
+          "currently in process", "ongoing",
+          "awaiting decision", "awaiting",
+          "haven't heard back", "haven't heard"
+        ]
       },
       month_year: "month_year",
       agency_name: "agency_name",
