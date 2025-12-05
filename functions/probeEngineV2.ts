@@ -4280,7 +4280,34 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
-    const result = await probeEngineV2(input, base44);
+    let result = await probeEngineV2(input, base44);
+    
+    // PRIOR LE APPS: Deterministic fallback to infer application_outcome from Q01 narrative
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+      const narrative = (input.field_value || "").trim();
+      if (narrative.length > 0) {
+        const inferredOutcome = inferPriorLEApplicationOutcome(narrative);
+        
+        console.log(`[PRIOR_LE_APPS][DETERMINISTIC_INFER] narrative length=${narrative.length}, inferred="${inferredOutcome || 'null'}"`);
+        
+        if (inferredOutcome) {
+          // Ensure anchors objects exist
+          if (!result.anchors) result.anchors = {};
+          if (!result.collectedAnchors) result.collectedAnchors = {};
+          
+          // Only set if not already present
+          if (!result.anchors.application_outcome) {
+            result.anchors.application_outcome = inferredOutcome;
+            console.log(`[PRIOR_LE_APPS][DETERMINISTIC_INFER] Set anchors.application_outcome = "${inferredOutcome}"`);
+          }
+          if (!result.collectedAnchors.application_outcome) {
+            result.collectedAnchors.application_outcome = inferredOutcome;
+            console.log(`[PRIOR_LE_APPS][DETERMINISTIC_INFER] Set collectedAnchors.application_outcome = "${inferredOutcome}"`);
+          }
+        }
+      }
+    }
+    
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
     // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
