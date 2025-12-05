@@ -1219,15 +1219,16 @@ export default function CandidateInterview() {
         // This is the universal anchor merge path used by ALL V2 anchor-aware packs
         let updatedCollectedAnswers = { ...activeV2Pack.collectedAnswers };
         
-        // Universal anchor merge: if backend returns v2Result.anchors, merge them
-        if (v2Result?.anchors && Object.keys(v2Result.anchors).length > 0) {
+        // Universal anchor merge: if backend returns v2Result.anchors OR v2Result.collectedAnchors, merge them
+        const backendAnchors = v2Result?.collectedAnchors || v2Result?.anchors || {};
+        if (Object.keys(backendAnchors).length > 0) {
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] ========== MERGING BACKEND ANCHORS ==========`);
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Pack: ${packId}, Instance: ${instanceNumber}`);
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Before merge:`, Object.keys(updatedCollectedAnswers));
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, v2Result.anchors);
+          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, backendAnchors);
           
           // Merge backend-extracted anchors (semantic keys like 'application_outcome', 'month_year', etc.)
-          Object.assign(updatedCollectedAnswers, v2Result.anchors);
+          Object.assign(updatedCollectedAnswers, backendAnchors);
           
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
           console.log(`[V2_PACK][ANCHORS_MERGED]`, {
