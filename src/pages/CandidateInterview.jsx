@@ -1230,6 +1230,11 @@ export default function CandidateInterview() {
           Object.assign(updatedCollectedAnswers, v2Result.anchors);
           
           console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
+          console.log(`[V2_PACK][ANCHORS_MERGED]`, {
+            packId,
+            instanceNumber,
+            anchors: updatedCollectedAnswers
+          });
           
           // Log specific anchors for PACK_PRIOR_LE_APPS_STANDARD
           if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
