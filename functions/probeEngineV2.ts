@@ -3480,182 +3480,68 @@ async function probeEngineV2(input, base44Client) {
       };
       
       // =====================================================================
-      // PACK_PRIOR_LE_APPS_STANDARD: ANCHOR-AWARE HANDLER FOR PACK_PRLE_Q01
-      // Extracts application_outcome from narrative using deterministic + LLM approach
+      // PACK_PRIOR_LE_APPS_STANDARD: PACK_PRLE_Q01 HANDLER
+      // Extracts application_outcome and other anchors from narrative
+      // CRITICAL: Must return anchors to enable frontend field gating
       // =====================================================================
       if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-        console.log("[PRIOR_LE_APPS][Q01][ENTRY] ========== PACK_PRLE_Q01 HANDLER START ==========");
+        console.log("[PRIOR_LE_APPS][Q01][HANDLER_ENTRY] ========== PACK_PRLE_Q01 HANDLER EXECUTING ==========");
+        console.log(`[PRIOR_LE_APPS][Q01] pack_id: ${pack_id}`);
+        console.log(`[PRIOR_LE_APPS][Q01] field_key: ${field_key}`);
         console.log(`[PRIOR_LE_APPS][Q01] Narrative length: ${field_value?.length || 0}`);
-        console.log(`[PRIOR_LE_APPS][Q01] Narrative preview: "${(field_value || "").substring(0, 150)}..."`);
-        console.log(`[PRIOR_LE_APPS][Q01] extractedAnchors from centralized extraction:`, extractedAnchors);
+        console.log(`[PRIOR_LE_APPS][Q01] Narrative: "${field_value}"`);
+        console.log(`[PRIOR_LE_APPS][Q01] extractedAnchors from centralized:`, extractedAnchors);
         console.log(`[PRIOR_LE_APPS][Q01] incident_context:`, incident_context);
         
-        // Build anchorUpdates: merge incident_context and extractedAnchors
+        // Start with merged anchors from centralized extraction and incident context
         const anchorUpdates = { 
           ...incident_context, 
           ...extractedAnchors 
         };
         
-        // STEP 1: Try deterministic keyword-based extraction FIRST (fastest and most reliable)
+        console.log(`[PRIOR_LE_APPS][Q01] Initial anchorUpdates (before deterministic):`, anchorUpdates);
+        
+        // DETERMINISTIC EXTRACTION: Try keyword-based outcome extraction
         const deterministicOutcome = inferPriorLEApplicationOutcome(field_value || "");
         
         if (deterministicOutcome) {
           anchorUpdates.application_outcome = deterministicOutcome;
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ Extracted application_outcome="${deterministicOutcome}" via keyword matching`);
+          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✓ Extracted application_outcome="${deterministicOutcome}"`);
         } else {
-          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match - trying LLM extraction...`);
-          
-          // STEP 2: Fallback to LLM analysis if deterministic extraction failed
-          try {
-            const analysisPrompt = `Read the following narrative from a law enforcement job application background interview.
-
-Narrative: "${field_value}"
-
-Your task: Determine the outcome of this application based on what the candidate stated.
-
-Rules:
-- If the narrative clearly states the applicant was hired or offered the job, return "hired".
-- If the narrative states they were disqualified, rejected, not selected, DQ'd, failed, or removed from the process, return "disqualified".
-- If the narrative states they withdrew, pulled out, or chose to stop the process, return "withdrew".
-- If the narrative states the process is ongoing, pending, or they haven't heard back, return "still_in_process".
-- If the outcome is truly not mentioned or unclear, return "unknown".
-
-Return ONLY the outcome value, nothing else.`;
-
-            const llmResult = await base44Client.integrations.Core.InvokeLLM({
-              prompt: analysisPrompt,
-              add_context_from_internet: false,
-              response_json_schema: {
-                type: "object",
-                properties: {
-                  applicationOutcome: {
-                    type: "string",
-                    enum: ["hired", "disqualified", "withdrew", "still_in_process", "unknown"],
-                    description: "The outcome of the application"
-                  }
-                },
-                required: ["applicationOutcome"]
-              }
-            });
-            
-            const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
-            const rawOutcome = String(llmResult?.applicationOutcome || "").trim().toLowerCase();
-            
-            if (allowedOutcomes.includes(rawOutcome)) {
-              anchorUpdates.application_outcome = rawOutcome;
-              console.log(`[PRIOR_LE_APPS][Q01][LLM] ✓ Extracted application_outcome="${rawOutcome}" via LLM`);
-            } else {
-              console.log(`[PRIOR_LE_APPS][Q01][LLM] ✗ LLM returned invalid/unknown outcome: "${rawOutcome}"`);
-            }
-          } catch (llmErr) {
-            console.warn(`[PRIOR_LE_APPS][Q01][LLM] LLM analysis failed:`, llmErr.message);
-          }
+          console.log(`[PRIOR_LE_APPS][Q01][DETERMINISTIC] ✗ No keyword match`);
         }
         
-        // STEP 3: Also use centralized extraction if it found application_outcome
-        if (!anchorUpdates.application_outcome && extractedAnchors.application_outcome) {
-          const rawExtracted = String(extractedAnchors.application_outcome).trim().toLowerCase();
-          const allowedOutcomes = ['hired', 'disqualified', 'withdrew', 'still_in_process'];
-          if (allowedOutcomes.includes(rawExtracted)) {
-            anchorUpdates.application_outcome = rawExtracted;
-            console.log(`[PRIOR_LE_APPS][Q01][CENTRALIZED] ✓ Used centralized extraction result: "${rawExtracted}"`);
-          }
-        }
+        // Final merged anchors
+        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] ========== FINAL ANCHOR STATE ==========`);
+        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] anchorUpdates:`, anchorUpdates);
+        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
+        console.log(`[PRIOR_LE_APPS][Q01][FINAL_ANCHORS] application_outcome: "${anchorUpdates.application_outcome || '(NONE)'}"`);
         
-        // Final audit of what was extracted
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] ========== EXTRACTION SUMMARY ==========`);
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] anchorUpdates:`, anchorUpdates);
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] application_outcome: "${anchorUpdates.application_outcome || '(NOT FOUND)'}"`);
-        
-        const prlePackConfig = PACK_CONFIG.PACK_PRIOR_LE_APPS_STANDARD;
-        const requiredAnchors = prlePackConfig?.requiredAnchors || ["agency_name", "position", "month_year", "application_outcome"];
-        
-        const collectedKeys = Object.keys(anchorUpdates).filter(k => anchorUpdates[k] && String(anchorUpdates[k]).trim());
-        const missingAnchors = requiredAnchors.filter(a => !collectedKeys.includes(a));
-        
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Required: [${requiredAnchors.join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Collected: [${collectedKeys.join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][Q01][SUMMARY] Missing: [${missingAnchors.join(', ')}]`);
-        
-        let maxProbesForPrimary = 4;
-        try {
-          const followUpPacks = await base44Client.entities.FollowUpPack.filter({
-            followup_pack_id: pack_id,
-            active: true
-          });
-          if (followUpPacks.length > 0 && typeof followUpPacks[0].max_ai_followups === 'number') {
-            maxProbesForPrimary = followUpPacks[0].max_ai_followups;
-          }
-        } catch (err) {
-          console.warn(`[PACK_PRIOR_LE_APPS][Q01] Using default max probes: ${maxProbesForPrimary}`);
-        }
-        
-        // If missing required anchors and haven't hit max probes, ask clarifier
-        if (missingAnchors.length > 0 && previous_probes_count < maxProbesForPrimary) {
-          const firstMissing = missingAnchors[0];
-          const clarifierTemplates = prlePackConfig?.anchorClarifiers || {
-            agency_name: "What was the name of the law enforcement agency for this application?",
-            position: "What position did you apply for with that agency?",
-            month_year: "About what month and year did you apply?",
-            application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
-          };
-          const clarifierQuestion = clarifierTemplates[firstMissing] || `Can you provide more details about ${firstMissing.replace(/_/g, ' ')}?`;
-          
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] mode=QUESTION, targeting: ${firstMissing}`);
-          console.log(`[PACK_PRIOR_LE_APPS][Q01] clarifier: "${clarifierQuestion}"`);
-          
-          return {
-            mode: "QUESTION",
-            pack_id,
-            field_key,
-            semanticField: field_key,
-            question: clarifierQuestion,
-            validationResult: "missing_required_anchors",
-            previousProbeCount: previous_probes_count + 1,
-            maxProbesPerField: maxProbesForPrimary,
-            isFallback: false,
-            probeSource: "anchor_clarifier",
-            targetAnchors: [firstMissing],
-            missingAnchors,
-            collectedAnchors: anchorUpdates,
-            collectedAnchorsKeys: Object.keys(anchorUpdates),
-            instanceNumber: instance_number,
-            message: `Probing for missing anchor: ${firstMissing}`
-          };
-        }
-        
-        // All anchors collected or max probes reached - return NEXT_FIELD with anchors
-        console.log(`[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING NEXT_FIELD ==========`);
-        console.log(`[PRIOR_LE_APPS][Q01][RETURN] Final anchorUpdates:`, anchorUpdates);
-        console.log(`[PRIOR_LE_APPS][Q01][RETURN] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
-        console.log(`[PRIOR_LE_APPS][Q01][RETURN] application_outcome: "${anchorUpdates.application_outcome || '(MISSING)'}"`);
-        
+        // Build and return result with anchors
         const returnValue = {
           mode: "NEXT_FIELD",
           pack_id,
           field_key,
           semanticField: field_key,
-          validationResult: missingAnchors.length === 0 ? "all_required_anchors_collected" : "max_probes_reached",
+          validationResult: "narrative_complete",
           previousProbeCount: previous_probes_count,
-          maxProbesPerField: maxProbesForPrimary,
+          maxProbesPerField: 4,
           hasQuestion: false,
           followupsCount: 0,
-          // CRITICAL: Return anchors in BOTH formats for frontend compatibility
+          // CRITICAL: Return anchors for frontend gating
           anchors: anchorUpdates,
           collectedAnchors: anchorUpdates,
           collectedAnchorsKeys: Object.keys(anchorUpdates),
-          anchorKeys: Object.keys(anchorUpdates),
-          targetAnchors: prlePackConfig?.targetAnchors || [],
-          reason: missingAnchors.length === 0 ? "All required anchors collected" : `Max probes reached - missing: ${missingAnchors.join(', ')}`,
+          reason: "Narrative processed - anchors extracted",
           instanceNumber: instance_number,
-          message: "PACK_PRLE_Q01 complete"
+          message: "PACK_PRLE_Q01 complete with anchors"
         };
         
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== FINAL RETURN VALUE ==========');
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] ========== RETURNING TO FRONTEND ==========');
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.mode:', returnValue.mode);
         console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.anchors:', returnValue.anchors);
         console.log('[PRIOR_LE_APPS][Q01][RETURN] returnValue.collectedAnchors:', returnValue.collectedAnchors);
-        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome in anchors?', 
+        console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome present?', 
           !!(returnValue.anchors?.application_outcome));
         console.log('[PRIOR_LE_APPS][Q01][RETURN] application_outcome value:', 
           returnValue.anchors?.application_outcome || '(MISSING)');
