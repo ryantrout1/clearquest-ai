@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import FactAnchorEngine from './factAnchorEngine.js';
 
 /**
  * ProbeEngineV2 - Universal MVP Probing Engine
