@@ -3795,27 +3795,62 @@ function handlePriorLeAppsQ01({
  * Unified V2ProbeResult type - ALWAYS includes anchors and collectedAnchors
  * CRITICAL FIX: Remove anchors/collectedAnchors from rest to prevent override
  */
-function createV2ProbeResult({
-  mode,
-  pack_id,
-  field_key,
-  anchors = {},
-  collectedAnchors = {},
-  ...rest
-}) {
-  // Extract and discard anchors/collectedAnchors from rest to prevent them from overwriting explicit params
-  const { anchors: _ignoredAnchors, collectedAnchors: _ignoredCollected, ...safeRest } = rest;
+/**
+ * Universal V2 result builder - ensures EVERY response includes anchors/collectedAnchors
+ * CRITICAL: All V2 probe returns MUST use this helper
+ */
+function createV2ProbeResult(opts = {}) {
+  const {
+    mode = "NONE",
+    pack_id,
+    field_key,
+    hasQuestion,
+    followupsCount,
+    question,
+    reason,
+    probeSource,
+    semanticField,
+    validationResult,
+    previousProbeCount,
+    maxProbesPerField,
+    isFallback,
+    semanticInfo,
+    instanceNumber,
+    message,
+    followups,
+    targetAnchors,
+    tone,
+    collectedAnchorsKeys,
+    anchors,
+    collectedAnchors,
+    ...rest
+  } = opts;
   
   return {
     mode,
     pack_id,
     field_key,
-    hasQuestion: rest.hasQuestion ?? (mode === 'QUESTION'),
-    followupsCount: rest.followupsCount ?? (rest.followups?.length || 0),
-    // CRITICAL: Always include anchors and collectedAnchors (set AFTER destructuring rest)
+    hasQuestion: hasQuestion ?? (mode === 'QUESTION'),
+    followupsCount: followupsCount ?? (followups?.length || 0),
+    question,
+    reason,
+    probeSource,
+    semanticField,
+    validationResult,
+    previousProbeCount,
+    maxProbesPerField,
+    isFallback,
+    semanticInfo,
+    instanceNumber,
+    message,
+    followups,
+    targetAnchors,
+    tone,
+    collectedAnchorsKeys,
+    // CRITICAL: Always include anchors and collectedAnchors
     anchors: anchors || {},
     collectedAnchors: collectedAnchors || {},
-    ...safeRest
+    ...rest
   };
 }
 
