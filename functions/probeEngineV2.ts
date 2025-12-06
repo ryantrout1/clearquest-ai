@@ -4000,6 +4000,21 @@ async function handlePriorLeAppsQ01({
   // Build anchors object - start with incident_context
   const anchors = { ...incident_context };
   
+  // DETERMINISTIC EXTRACTION: Extract outcome first using extractFactAnchorsForField
+  if (narrative && narrative.length > 10) {
+    console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Running deterministic extraction...");
+    const deterministicResult = extractFactAnchorsForField({
+      packId: pack_id,
+      fieldKey: field_key,
+      fieldValue: narrative
+    });
+    
+    if (deterministicResult.anchors && Object.keys(deterministicResult.anchors).length > 0) {
+      Object.assign(anchors, deterministicResult.anchors);
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Deterministic extraction added anchors:", deterministicResult.anchors);
+    }
+  }
+  
   // LLM-based extraction with strict JSON schema
   try {
     const llmResult = await base44Client.integrations.Core.InvokeLLM({
@@ -4378,10 +4393,14 @@ async function probeEngineV2Core(input, base44Client) {
     console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] incident_context (incoming anchors):`, incident_context);
     console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] instance_anchors:`, instance_anchors);
     
-    // CRITICAL: Run deterministic extractor FIRST using registry with narrativeText
+    // CRITICAL: Run deterministic extractor FIRST using extractFactAnchorsForField
     console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] ========== RUNNING DETERMINISTIC EXTRACTION ==========`);
-    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Calling extractAnchorsForField...`);
-    const deterministicExtraction = extractAnchorsForField(pack_id, field_key, narrativeText);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Calling extractFactAnchorsForField...`);
+    const deterministicExtraction = extractFactAnchorsForField({ 
+      packId: pack_id, 
+      fieldKey: field_key, 
+      fieldValue: narrativeText 
+    });
     Object.assign(extractedAnchors, deterministicExtraction.anchors || {});
     
     console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] ========== EXTRACTION COMPLETE ==========`);
@@ -4619,6 +4638,23 @@ async function probeEngineV2Core(input, base44Client) {
         console.log(`[ANCHOR_EXTRACT][${pack_id}] No anchorExtractionRules defined - skipping centralized extraction`);
       }
       
+      // DETERMINISTIC EXTRACTION FIRST: Use extractFactAnchorsForField before LLM
+      console.log(`[V2-UNIVERSAL][DETERMINISTIC] Running extractFactAnchorsForField for pack=${pack_id}, field=${fieldKey}`);
+      const deterministicResult = extractFactAnchorsForField({
+        packId: pack_id,
+        fieldKey: fieldKey,
+        fieldValue: field_value
+      });
+      
+      if (deterministicResult.anchors && Object.keys(deterministicResult.anchors).length > 0) {
+        Object.assign(extractedAnchors, deterministicResult.anchors);
+        console.log(`[V2-UNIVERSAL][DETERMINISTIC] Extracted ${Object.keys(deterministicResult.anchors).length} anchors: [${Object.keys(deterministicResult.anchors).join(', ')}]`);
+        
+        if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+          console.log(`[PACK_PRIOR_LE_APPS][DETERMINISTIC] application_outcome="${deterministicResult.anchors.application_outcome || '(none)'}"`);
+        }
+      }
+      
       // Aggregate all previous answers for LLM extraction (fallback)
       const allAnswers = Object.values(incident_context || {}).filter(Boolean);
       let answerToExtract = field_value;
@@ -4633,7 +4669,7 @@ async function probeEngineV2Core(input, base44Client) {
         previousAnchors: currentAnchors
       });
       if (extractionResult.data?.success && extractionResult.data.newAnchors) {
-        // Merge LLM extraction with local extraction (local takes precedence)
+        // Merge LLM extraction with local extraction (deterministic takes precedence)
         extractedAnchors = { ...extractionResult.data.newAnchors, ...extractedAnchors };
         
         // Log extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
