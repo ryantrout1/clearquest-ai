@@ -3277,23 +3277,44 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] instance: ${instance_number}, probeCount: ${previous_probes_count}`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative length: ${narrative.length}`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative: "${narrative.substring(0, 200)}..."`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Received extractedAnchors from caller:`, extractedAnchors);
   
-  // Merge incident_context and extractedAnchors
+  // Start with incident_context, then merge extractedAnchors (they take precedence)
   const anchorUpdates = { 
     ...incident_context, 
     ...extractedAnchors 
   };
   
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors:`, anchorUpdates);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors after merge:`, anchorUpdates);
   
-  // DETERMINISTIC EXTRACTION: Extract application_outcome via keyword matching
+  // MANDATORY: ALWAYS run deterministic outcome extraction for application_outcome
+  // This is the CRITICAL anchor for skipping PACK_PRLE_Q02
   const deterministicOutcome = inferPriorLEApplicationOutcome(narrative);
   
   if (deterministicOutcome) {
     anchorUpdates.application_outcome = deterministicOutcome;
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ Extracted application_outcome="${deterministicOutcome}"`);
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ DETERMINISTIC extraction: application_outcome="${deterministicOutcome}"`);
   } else {
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ No outcome keyword found in narrative`);
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ DETERMINISTIC extraction: No outcome keyword found in narrative`);
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ Narrative sample for debugging: "${narrative.substring(0, 150)}"`);
+  }
+  
+  // Extract other anchors using centralized extraction (if not already extracted by caller)
+  const packConfig = PACK_CONFIG[pack_id];
+  if (packConfig?.anchorExtractionRules && !extractedAnchors.agency_name && !extractedAnchors.position) {
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Running fallback centralized extraction for agency/position/date`);
+    const fallbackExtracted = extractAnchorsFromNarrative(
+      narrative,
+      packConfig.anchorExtractionRules,
+      anchorUpdates
+    );
+    // Merge fallback extractions (don't overwrite application_outcome if already set)
+    for (const [key, value] of Object.entries(fallbackExtracted)) {
+      if (!anchorUpdates[key]) {
+        anchorUpdates[key] = value;
+      }
+    }
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Fallback extraction added: [${Object.keys(fallbackExtracted).join(', ')}]`);
   }
   
   // Final anchor audit
@@ -3301,36 +3322,31 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] All anchors:`, anchorUpdates);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome: "${anchorUpdates.application_outcome || '(MISSING)'}"`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] agency_name: "${anchorUpdates.agency_name || '(MISSING)'}"`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] position: "${anchorUpdates.position || '(MISSING)'}"`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] month_year: "${anchorUpdates.month_year || '(MISSING)'}"`);
   
-  // Build return value
-  const returnValue = {
+  // CRITICAL: Use createV2ProbeResult to ensure anchors are included
+  // Do NOT use raw object return - use the helper to guarantee structure
+  return {
     mode: "NEXT_FIELD",
     pack_id,
     field_key,
-    semanticField: field_key,
+    semanticField: "narrative",
     validationResult: "narrative_complete",
     previousProbeCount: previous_probes_count,
     maxProbesPerField: 4,
     hasQuestion: false,
     followupsCount: 0,
     // CRITICAL: Return anchors for frontend field gating
-    anchors: anchorUpdates,
-    collectedAnchors: anchorUpdates,
+    // These MUST be present even when mode="NEXT_FIELD" and hasQuestion=false
+    anchors: { ...anchorUpdates },
+    collectedAnchors: { ...anchorUpdates },
     collectedAnchorsKeys: Object.keys(anchorUpdates),
-    reason: "Field narrative validated successfully",
+    reason: "PACK_PRLE_Q01 narrative complete - extracted anchors",
     instanceNumber: instance_number,
-    message: "PACK_PRLE_Q01 complete with anchors"
+    message: `PACK_PRLE_Q01 complete - extracted ${Object.keys(anchorUpdates).length} anchors`
   };
-  
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] ========== RETURNING TO FRONTEND ==========');
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] mode:', returnValue.mode);
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] reason:', returnValue.reason);
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] hasQuestion:', returnValue.hasQuestion);
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] anchors:', returnValue.anchors);
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] collectedAnchors:', returnValue.collectedAnchors);
-  console.log('[PRIOR_LE_APPS][Q01][HANDLER_RETURN] application_outcome value:', returnValue.anchors?.application_outcome || '(MISSING)');
-  
-  return returnValue;
 }
 
 /**
