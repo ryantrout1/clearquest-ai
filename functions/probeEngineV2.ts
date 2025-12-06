@@ -86,186 +86,64 @@ function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj
  * CANONICAL KEYS: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
  */
 function extractPriorLeAppsAnchors({ text }) {
+  const anchors = {};
+  
   if (!text || text.trim().length < 10) {
     return { anchors: {}, collectedAnchors: {} };
   }
   
-  const normalized = text.toLowerCase().trim();
-  const anchors = {};
-  
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== DETERMINISTIC EXTRACTION START ==========`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input length: ${text.length}`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input preview: "${text.substring(0, 150)}..."`);
-  
-  // ===== ANCHOR 1: application_outcome (CRITICAL for PACK_PRLE_Q02 gating) =====
-  // Precedence order (most definitive first):
-  
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Normalized text for pattern matching: "${normalized.substring(0, 200)}"`);
-  
-  // 1. DISQUALIFIED (most common)
-  const disqualifiedPatterns = [
-    "disqualified during the background",
-    "disqualified during background",
-    "disqualified",
-    "dq'd",
-    "dq'ed",
-    "was dq",
-    "got dq",
-    "failed background",
-    "failed the background",
-    "background investigation disqualified",
-    "not selected",
-    "wasn't selected",
-    "was not selected",
-    "rejected",
-    "not hired",
-    "wasn't hired",
-    "was not hired",
-    "did not get",
-    "didn't get",
-    "didn't get hired",
-    "was denied",
-    "denied employment",
-    "removed from consideration",
-    "removed from the process",
-    "did not make it",
-    "didn't make it",
-    "didn't make the cut",
-    "didn't pass",
-    "did not pass",
-    "unsuccessful"
-  ];
-  
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== TESTING DISQUALIFIED PATTERNS ==========`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Testing ${disqualifiedPatterns.length} disqualified patterns...`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Normalized text to scan: "${normalized.substring(0, 250)}"`);
-  
-  for (let i = 0; i < disqualifiedPatterns.length; i++) {
-    const pattern = disqualifiedPatterns[i];
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] Testing pattern ${i + 1}/${disqualifiedPatterns.length}: "${pattern}"`);
-    
-    if (normalized.includes(pattern)) {
-      anchors.application_outcome = "disqualified";
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅✅✅ MATCH FOUND! application_outcome="disqualified"`);
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Matched pattern: "${pattern}"`);
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Pattern found at position: ${normalized.indexOf(pattern)}`);
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Text around match: "${normalized.substring(Math.max(0, normalized.indexOf(pattern) - 30), normalized.indexOf(pattern) + pattern.length + 30)}"`);
-      break;
-    } else {
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS]    ✗ Pattern "${pattern}" NOT found`);
+  const clean = text.trim();
+  const lower = clean.toLowerCase();
+
+  console.log("[EXTRACTOR][PRIOR_LE_APPS] Text preview:", lower.substring(0, 100));
+
+  // 1) application_outcome (CRITICAL for Q02 gating)
+  if (lower.includes("disqual")) {
+    anchors.application_outcome = "Disqualified";
+  } else if (lower.includes("hired")) {
+    anchors.application_outcome = "Hired";
+  } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
+    anchors.application_outcome = "Withdrew application";
+  } else if (lower.includes("still in process") || lower.includes("still in progress")) {
+    anchors.application_outcome = "Still in process";
+  }
+
+  // 2) prior_le_agency - look for "applied to X"
+  const appliedIdx = lower.indexOf("applied to ");
+  if (appliedIdx !== -1) {
+    const afterApplied = clean.slice(appliedIdx + "applied to ".length);
+    const stopTokens = [" for a ", " for the ", ". ", ", then ", ";"];
+    let stopIdx = afterApplied.length;
+    for (const token of stopTokens) {
+      const i = afterApplied.toLowerCase().indexOf(token);
+      if (i !== -1 && i < stopIdx) stopIdx = i;
     }
+    const agency = afterApplied.slice(0, stopIdx).trim();
+    if (agency) anchors.prior_le_agency = agency;
   }
-  
-  if (!anchors.application_outcome) {
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌❌❌ NO disqualified pattern matched in normalized text`);
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌ Full normalized text for manual inspection:`, normalized);
+
+  // 3) prior_le_position - look for "position"
+  const positionMatch = clean.match(/position(?: of)? ([^.,;]+)/i);
+  if (positionMatch && positionMatch[1]) {
+    anchors.prior_le_position = positionMatch[1].trim();
   }
-  
-  // 2. WITHDREW (check only if not already disqualified)
-  if (!anchors.application_outcome) {
-    const withdrewPatterns = [
-      "withdrew", "withdraw", "withdrawn",
-      "pulled my application", "pulled out", "pulled application",
-      "decided not to continue", "chose not to continue",
-      "dropped out", "backed out",
-      "removed myself", "took myself out"
-    ];
-    
-    for (const pattern of withdrewPatterns) {
-      if (normalized.includes(pattern)) {
-        anchors.application_outcome = "withdrew";
-        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="withdrew" (matched: "${pattern}")`);
-        break;
-      }
-    }
+
+  // 4) prior_le_approx_date - month + year
+  const dateMatch = clean.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
+  if (dateMatch) {
+    anchors.prior_le_approx_date = dateMatch[0].trim();
   }
+
+  console.log("[PROBE_V2][PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
+    prior_le_agency: anchors.prior_le_agency || "(missing)",
+    prior_le_position: anchors.prior_le_position || "(missing)",
+    prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
+    application_outcome: anchors.application_outcome || "(missing)",
+  });
   
-  // 3. HIRED (check only if no other outcome yet)
-  if (!anchors.application_outcome) {
-    const hiredPatterns = [
-      "hired", "got hired", "was hired", "were hired",
-      "offered the job", "offered a job", "offered the position",
-      "got the job", "got the position",
-      "was offered", "were offered",
-      "they brought me on", "accepted the offer",
-      "started working there"
-    ];
-    
-    for (const pattern of hiredPatterns) {
-      if (normalized.includes(pattern)) {
-        anchors.application_outcome = "hired";
-        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="hired" (matched: "${pattern}")`);
-        break;
-      }
-    }
-  }
-  
-  // 4. STILL_IN_PROCESS (check last)
-  if (!anchors.application_outcome) {
-    const stillInProcessPatterns = [
-      "still in process", "still in the process",
-      "still pending", "currently pending",
-      "waiting to hear back", "waiting to hear",
-      "background in progress", "in progress",
-      "still processing", "awaiting decision",
-      "haven't heard back", "haven't heard"
-    ];
-    
-    for (const pattern of stillInProcessPatterns) {
-      if (normalized.includes(pattern)) {
-        anchors.application_outcome = "still_in_process";
-        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="still_in_process" (matched: "${pattern}")`);
-        break;
-      }
-    }
-  }
-  
-  // ===== ANCHOR 2: prior_le_agency (optional - nice-to-have) =====
-  const agencyPatterns = [
-    /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
-    /\b([\w\s]+(?:Police Department|Sheriff's Office|County Sheriff|City Police|State Police))\b/i
-  ];
-  
-  for (const pattern of agencyPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1] && match[1].length > 3) {
-      anchors.prior_le_agency = match[1].trim();
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_agency="${anchors.prior_le_agency}" (regex match)`);
-      break;
-    }
-  }
-  
-  // ===== ANCHOR 3: prior_le_position (optional - nice-to-have) =====
-  const positionPatterns = [
-    /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer|dispatcher|cadet)/i,
-    /\b(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer)\s+(?:position|role|job)/i
-  ];
-  
-  for (const pattern of positionPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      anchors.prior_le_position = match[1].trim();
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_position="${anchors.prior_le_position}" (regex match)`);
-      break;
-    }
-  }
-  
-  // ===== ANCHOR 4: prior_le_approx_date (optional - uses existing helper) =====
-  const dateExtraction = extractMonthYearFromText(text);
-  if (dateExtraction.value) {
-    anchors.prior_le_approx_date = dateExtraction.value;
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_approx_date="${anchors.prior_le_approx_date}" (confidence: ${dateExtraction.confidence})`);
-  }
-  
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== EXTRACTION COMPLETE ==========`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Total anchors extracted: ${Object.keys(anchors).length}`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Canonical keys: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome`);
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Final anchors:`, anchors);
-  
-  // Return canonical anchors
   return {
-    anchors: { ...anchors },
-    collectedAnchors: { ...anchors }
+    anchors,
+    collectedAnchors: anchors
   };
 }
 
@@ -3771,16 +3649,15 @@ function getPackTopicForDiscretion(packId) {
 
 /**
  * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
- * Extracts canonical anchors from narrative answers
+ * Uses pluggable extractor from FIELD_ANCHOR_EXTRACTORS registry
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
-  const PACK_PRLE_Q01 = "PACK_PRLE_Q01";
 
   const existingCollection = collectedAnchors || {};
   const narrativeText = (fieldValue || "").trim();
 
-  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY] ========== HANDLER EXECUTING ==========", {
+  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY]", {
     packId,
     fieldKey,
     probeCount,
@@ -3788,156 +3665,41 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     existingAnchorKeys: Object.keys(existingCollection),
   });
 
-  // --------------------------------------------------------
-  // Q01: Extract anchors from narrative using LLM
-  // --------------------------------------------------------
-  if (fieldKey === PACK_PRLE_Q01) {
-    console.log("[PRIOR_LE_APPS][Q01] ========== EXTRACTING ANCHORS FROM NARRATIVE ==========");
-    console.log("[PRIOR_LE_APPS][Q01] Narrative length:", narrativeText.length);
-    
-    if (!narrativeText || narrativeText.length < 10) {
-      console.log("[PRIOR_LE_APPS][Q01] Narrative too short or empty - returning empty anchors");
-      return createV2ProbeResult({
-        mode: "NEXT_FIELD",
-        hasQuestion: false,
-        followupsCount: 0,
-        anchors: {},
-        collectedAnchors: existingCollection,
-        reason: "Narrative too short for anchor extraction",
-      });
-    }
-
-    // Use simple heuristics to extract anchors (per user requirements)
-    const text = narrativeText;
-    const lower = text.toLowerCase();
-
-    const anchors = {};
-    const collectedAnchors = {};
-
-    console.log("[PRIOR_LE_APPS][Q01] Starting heuristic extraction...");
-    console.log("[PRIOR_LE_APPS][Q01] Text preview:", lower.substring(0, 150));
-
-    // 1) Extract application_outcome (MOST IMPORTANT FOR GATING)
-    let applicationOutcome = null;
-    if (lower.includes("disqual")) {
-      applicationOutcome = "Disqualified";
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Disqualified");
-    } else if (lower.includes("hired")) {
-      applicationOutcome = "Hired";
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Hired");
-    } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
-      applicationOutcome = "Withdrew application";
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Withdrew");
-    } else if (lower.includes("still in process") || lower.includes("still in progress")) {
-      applicationOutcome = "Still in process";
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Still in process");
-    }
-
-    // 2) Basic agency extraction (optional but useful)
-    // Look for "applied to X" up to "for a" or the end of the sentence.
-    let priorLeAgency = null;
-    const appliedIdx = lower.indexOf("applied to ");
-    if (appliedIdx !== -1) {
-      const afterApplied = text.slice(appliedIdx + "applied to ".length);
-      const stopTokens = [" for a ", " for the ", ". ", ", then ", ";"];
-      let stopIdx = afterApplied.length;
-      for (const token of stopTokens) {
-        const i = afterApplied.toLowerCase().indexOf(token);
-        if (i !== -1 && i < stopIdx) stopIdx = i;
-      }
-      priorLeAgency = afterApplied.slice(0, stopIdx).trim();
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted agency:", priorLeAgency);
-    }
-
-    // 3) Position extraction (look for "position" or "role")
-    let priorLePosition = null;
-    const positionMatch = text.match(/position(?: of)? ([^.,;]+)/i);
-    if (positionMatch && positionMatch[1]) {
-      priorLePosition = positionMatch[1].trim();
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted position:", priorLePosition);
-    }
-
-    // 4) Approx date (grab month + year combo if present)
-    let priorLeApproxDate = null;
-    const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
-    if (dateMatch) {
-      priorLeApproxDate = dateMatch[0].trim();
-      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted date:", priorLeApproxDate);
-    }
-
-    if (priorLeAgency) {
-      anchors["prior_le_agency"] = priorLeAgency;
-      collectedAnchors["prior_le_agency"] = [priorLeAgency];
-    }
-    if (priorLePosition) {
-      anchors["prior_le_position"] = priorLePosition;
-      collectedAnchors["prior_le_position"] = [priorLePosition];
-    }
-    if (priorLeApproxDate) {
-      anchors["prior_le_approx_date"] = priorLeApproxDate;
-      collectedAnchors["prior_le_approx_date"] = [priorLeApproxDate];
-    }
-    if (applicationOutcome) {
-      anchors["application_outcome"] = applicationOutcome;
-      collectedAnchors["application_outcome"] = [applicationOutcome];
-    }
-
-    // 🔍 Diagnostic logging in the backend logs (per user requirements)
-    console.log("[PROBE_V2][PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
-      prior_le_agency: anchors.prior_le_agency || "(missing)",
-      prior_le_position: anchors.prior_le_position || "(missing)",
-      prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
-      application_outcome: anchors.application_outcome || "(missing)",
-    });
-
-    const mergedCollected = {
-      ...existingCollection,
-      ...anchors,
-    };
-
-    console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] ========== EXTRACTION COMPLETE ==========");
-    console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] anchors:", anchors);
-    console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] collectedAnchors:", collectedAnchors);
-    console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] Canonical keys:", {
-      prior_le_agency: anchors.prior_le_agency || "(missing)",
-      prior_le_position: anchors.prior_le_position || "(missing)",
-      prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
-      application_outcome: anchors.application_outcome || "(missing)"
-    });
-
-    const result = createV2ProbeResult({
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      followupsCount: 0,
-      anchors,
-      collectedAnchors: mergedCollected,
-      reason: "prior_le_apps: Field narrative validated and anchors extracted from PACK_PRLE_Q01",
-    });
-
-    console.log("[PRIOR_LE_APPS][Q01][RESULT] ========== RETURNING FROM HANDLER ==========");
-    console.log("[PRIOR_LE_APPS][Q01][RESULT] result.anchors:", result.anchors);
-    console.log("[PRIOR_LE_APPS][Q01][RESULT] result.collectedAnchors:", result.collectedAnchors);
-    console.log("[PRIOR_LE_APPS][Q01][RESULT] result keys:", Object.keys(result));
-
-    return result;
-  }
-
-  // --------------------------------------------------------
-  // Other fields: passthrough with empty anchors
-  // --------------------------------------------------------
-  console.log("[PRIOR_LE_APPS][OTHER_FIELD]", {
-    fieldKey,
-    probeCount,
+  // Use pluggable extractor from registry
+  const extraction = runDeterministicExtractor({ 
+    packId, 
+    fieldKey, 
+    answerText: narrativeText 
   });
 
-  return createV2ProbeResult({
+  const mergedCollected = {
+    ...existingCollection,
+    ...extraction.anchors,
+  };
+
+  console.log("[PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
+    prior_le_agency: extraction.anchors.prior_le_agency || "(missing)",
+    prior_le_position: extraction.anchors.prior_le_position || "(missing)",
+    prior_le_approx_date: extraction.anchors.prior_le_approx_date || "(missing)",
+    application_outcome: extraction.anchors.application_outcome || "(missing)",
+  });
+
+  const result = createV2ProbeResult({
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    anchors: {},
-    collectedAnchors: existingCollection,
-    reason: `prior_le_apps: ${fieldKey} passthrough`,
+    anchors: extraction.anchors,
+    collectedAnchors: mergedCollected,
+    reason: `prior_le_apps: ${fieldKey} validated and anchors extracted`,
   });
+
+  console.log("[PRIOR_LE_APPS][RESULT]", {
+    mode: result.mode,
+    anchorKeys: Object.keys(result.anchors),
+    collectedKeys: Object.keys(result.collectedAnchors)
+  });
+
+  return result;
 }
 
 /**
