@@ -3859,30 +3859,38 @@ async function probeEngineV2(input, base44Client) {
       collectedAnchors: mergedAnchors
     };
     
-    console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== RETURNING FROM DEDICATED HANDLER ==========");
-    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] text=', narrativeText.substring(0, 100));
-    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] anchors=', finalResult.anchors);
-    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] collectedAnchors=', finalResult.collectedAnchors);
+    console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ========== FINAL RESULT BEFORE RETURN ==========");
+    console.log('[PRIOR_LE_APPS][BACKEND][Q01_RESULT]', {
+      mode: finalResult.mode,
+      hasQuestion: finalResult.hasQuestion,
+      pack_id: finalResult.pack_id,
+      field_key: finalResult.field_key,
+      anchorsType: typeof finalResult.anchors,
+      collectedAnchorsType: typeof finalResult.collectedAnchors,
+      anchorKeys: Object.keys(finalResult.anchors || {}),
+      collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
+      anchors: finalResult.anchors,
+      collectedAnchors: finalResult.collectedAnchors,
+      hasApplicationOutcome: !!(
+        (finalResult.anchors && finalResult.anchors.application_outcome) ||
+        (finalResult.collectedAnchors && finalResult.collectedAnchors.application_outcome)
+      ),
+      applicationOutcome:
+        (finalResult.anchors && finalResult.anchors.application_outcome) ||
+        (finalResult.collectedAnchors && finalResult.collectedAnchors.application_outcome) ||
+        null
+    });
     
     // ASSERTION LOG
     if (finalResult.anchors && finalResult.anchors.application_outcome) {
-      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ✅ application_outcome anchor present:", finalResult.anchors.application_outcome);
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ✅✅✅ application_outcome anchor PRESENT:", finalResult.anchors.application_outcome);
     } else {
-      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ application_outcome anchor missing in final result");
-      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ DEBUG: mergedAnchors=", mergedAnchors);
-      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ DEBUG: handlerResult.anchors=", handlerResult.anchors);
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ❌❌❌ application_outcome anchor MISSING");
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ❌ DEBUG: mergedAnchors=", mergedAnchors);
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ❌ DEBUG: handlerResult.anchors=", handlerResult.anchors);
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ❌ DEBUG: extractedAnchors=", extractedAnchors);
+      console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ❌ DEBUG: currentAnchors=", currentAnchors);
     }
-    
-    console.log('[V2_ENGINE][RETURN][FINAL_BEFORE_SEND]', {
-      packId: pack_id,
-      fieldKey: field_key,
-      mode: finalResult.mode,
-      anchorKeys: Object.keys(finalResult.collectedAnchors || {}),
-      hasApplicationOutcome: !!(finalResult.collectedAnchors?.application_outcome),
-      application_outcome_value: finalResult.collectedAnchors?.application_outcome || '(MISSING)',
-      anchorsObjectType: typeof finalResult.anchors,
-      collectedAnchorsObjectType: typeof finalResult.collectedAnchors
-    });
     
     return finalResult;
   }
