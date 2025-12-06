@@ -603,53 +603,105 @@ function extractSpecialAnchorType(text, extractionType) {
 }
 
 /**
- * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
- * @param {string} text - Raw narrative text
- * @returns {string|null} - "disqualified" | "hired" | "withdrew" | "still_in_process" | null
+ * Get full narrative text from request payload
+ * Checks all possible field value properties in priority order
  */
-function inferApplicationOutcomeFromText(text) {
-  if (!text) return null;
+function getFieldNarrativeText(raw) {
+  if (!raw) return "";
+  
+  // Prefer explicit full value if present
+  if (raw.fullFieldValue && typeof raw.fullFieldValue === "string") {
+    return raw.fullFieldValue;
+  }
+  if (raw.field_value && typeof raw.field_value === "string") {
+    return raw.field_value;
+  }
+  if (raw.fieldValue && typeof raw.fieldValue === "string") {
+    return raw.fieldValue;
+  }
+  if (raw.fullNarrative && typeof raw.fullNarrative === "string") {
+    return raw.fullNarrative;
+  }
+  if (raw.fullAnswer && typeof raw.fullAnswer === "string") {
+    return raw.fullAnswer;
+  }
+  if (raw.answer && typeof raw.answer === "string") {
+    return raw.answer;
+  }
+  if (raw.narrative && typeof raw.narrative === "string") {
+    return raw.narrative;
+  }
 
-  const lower = text.toLowerCase();
+  // Absolute fallback: preview
+  if (raw.fieldValuePreview && typeof raw.fieldValuePreview === "string") {
+    return raw.fieldValuePreview;
+  }
+  if (raw.answerPreview && typeof raw.answerPreview === "string") {
+    return raw.answerPreview;
+  }
 
-  // Disqualified / DQ'd
+  return "";
+}
+
+/**
+ * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
+ * Deterministic, keyword-based extraction
+ * @param {string} text - Raw narrative text
+ * @returns {string|null} - "disqualified" | "hired" | "withdrew" | "in_process" | null
+ */
+function inferApplicationOutcomeFromNarrative(text) {
+  if (!text || typeof text !== "string") return null;
+
+  const normalized = text.toLowerCase();
+
+  // Disqualified / failed
   if (
-    lower.includes("disqualified") ||
-    lower.includes("dq'd") ||
-    lower.includes("dq'ed") ||
-    lower.includes("dq'd")
+    normalized.includes("disqualified") ||
+    normalized.includes("dq'd") ||
+    normalized.includes("dq'd") ||
+    normalized.includes("failed background") ||
+    normalized.includes("removed from the process") ||
+    normalized.includes("removed from process") ||
+    normalized.includes("failed the background")
   ) {
     return "disqualified";
   }
 
-  // Hired / got the job
+  // Hired / selected
   if (
-    lower.includes("hired") ||
-    lower.includes("got the job") ||
-    lower.includes("was offered the job") ||
-    lower.includes("selected")
+    normalized.includes("hired") ||
+    normalized.includes("offered the job") ||
+    normalized.includes("offered a position") ||
+    normalized.includes("given a conditional offer") ||
+    normalized.includes("received a conditional offer") ||
+    normalized.includes("selected for the position")
   ) {
     return "hired";
   }
 
-  // Withdrew / pulled application
+  // Withdrew / withdrew my application
   if (
-    lower.includes("withdrew") ||
-    lower.includes("withdrawn") ||
-    lower.includes("pulled my application") ||
-    lower.includes("pulled the application")
+    normalized.includes("withdrew my application") ||
+    normalized.includes("withdrew from the process") ||
+    normalized.includes("withdrew from process") ||
+    normalized.includes("withdrew my candidacy") ||
+    normalized.includes("pulled out of the process") ||
+    normalized.includes("pulled out") ||
+    normalized.includes("stopped the process")
   ) {
     return "withdrew";
   }
 
   // Still in process
   if (
-    lower.includes("still in process") ||
-    lower.includes("still processing") ||
-    lower.includes("in progress") ||
-    lower.includes("still pending")
+    normalized.includes("still in process") ||
+    normalized.includes("still being processed") ||
+    normalized.includes("still pending") ||
+    normalized.includes("ongoing") ||
+    normalized.includes("waiting to hear back") ||
+    normalized.includes("waiting for a decision")
   ) {
-    return "still_in_process";
+    return "in_process";
   }
 
   return null;
@@ -3965,15 +4017,8 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
 
   const existingCollection = collectedAnchors || {};
 
-  // Pull narrative text from all possible sources (prefer fullNarrative)
-  const narrativeText =
-    ctx.fullNarrative ||
-    ctx.fullAnswer ||
-    fieldValue ||
-    ctx.answer ||
-    ctx.fieldValuePreview ||
-    ctx.answerPreview ||
-    "";
+  // Use centralized helper to get full narrative text
+  const narrativeText = getFieldNarrativeText(ctx);
 
   console.log("[V2_PRIOR_LE_APPS][Q01_INPUT]", {
     fieldKey,
@@ -3983,54 +4028,52 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
 
   // For PACK_PRLE_Q01: Extract outcome deterministically
   if (fieldKey === "PACK_PRLE_Q01") {
-    // Initialize mutable anchor objects
-    const anchors = { ...existingCollection };
-    const collectedAnchorsObj = { ...existingCollection };
+    // Initialize mutable anchor objects - start with existing collection
+    let anchors = { ...existingCollection };
+    let collectedAnchorsResult = { ...existingCollection };
     
     // Call deterministic helper to extract outcome
-    const inferredOutcome = inferApplicationOutcomeFromText(narrativeText);
+    const outcome = inferApplicationOutcomeFromNarrative(narrativeText);
     
     // Debug log for PRIOR_LE_APPS
     console.log("[PRIOR_LE_APPS_OUTCOME]", {
       packId,
       fieldKey,
       narrativePreview: narrativeText.slice(0, 120),
-      inferredOutcome,
+      inferredOutcome: outcome,
     });
     
-    // Set application_outcome if found and not already set
-    if (inferredOutcome) {
-      if (anchors.application_outcome == null) {
-        anchors.application_outcome = inferredOutcome;
-      }
-      if (collectedAnchorsObj.application_outcome == null) {
-        collectedAnchorsObj.application_outcome = inferredOutcome;
-      }
+    // Set application_outcome in both anchor containers
+    if (outcome) {
+      anchors = { ...anchors, application_outcome: outcome };
+      collectedAnchorsResult = { ...collectedAnchorsResult, application_outcome: outcome };
     }
 
     const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
       followupsCount: 0,
-      reason: inferredOutcome
-        ? "Field narrative validated; outcome extracted from narrative"
+      reason: outcome
+        ? `Field narrative validated; outcome="${outcome}" extracted from narrative`
         : "Field narrative validated; outcome not detected (will ask specific outcome question)",
     };
 
-    const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsObj);
+    const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsResult);
 
     console.log("[V2_PRIOR_LE_APPS][Q01_OUTPUT]", {
       mode: finalResult.mode,
       hasQuestion: finalResult.hasQuestion,
+      anchorsCount: Object.keys(finalResult.anchors || {}).length,
+      collectedAnchorsCount: Object.keys(finalResult.collectedAnchors || {}).length,
       anchors: finalResult.anchors,
-      collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
+      collectedAnchors: finalResult.collectedAnchors,
       applicationOutcome: finalResult.anchors?.application_outcome || '(none)',
     });
 
     return finalResult;
   }
 
-  // Other fields: pass through with empty anchors
+  // Other fields: pass through with existing collection
   const baseResult = {
     mode: "NEXT_FIELD",
     hasQuestion: false,
