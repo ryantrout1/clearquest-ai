@@ -4001,37 +4001,45 @@ async function probeEngineV2(input, base44Client) {
   console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
-  // PROOF-OF-LIFE: HARD-CODED ANCHORS TEST FOR PACK_PRIOR_LE_APPS_STANDARD
-  // TEMPORARY: This bypasses all extraction logic to verify anchor transport
+  // PER-FIELD HANDLER ROUTER
+  // Check if this pack has a dedicated perFieldHandler before generic logic
   // ============================================================================
-  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
-    console.log("[V2_PRIOR_LE_APPS][TEST] ========== HARD-CODED ANCHORS PROOF-OF-LIFE ==========");
-    console.log("[V2_PRIOR_LE_APPS][TEST] Narrative length:", field_value.length);
-    console.log("[V2_PRIOR_LE_APPS][TEST] Narrative preview:", field_value.substring(0, 100));
-
-    const testAnchors = {
-      application_outcome: "TEST_DISQUALIFIED",
-      prior_le_agency_name: "TEST_AGENCY",
-      prior_le_position_title: "TEST_POSITION",
-      prior_le_date_range: "TEST_DATE_RANGE",
-    };
-
-    console.log("[V2_PRIOR_LE_APPS][TEST] Returning hard-coded anchors:", testAnchors);
-
-    return createV2ProbeResult({
-      pack_id,
-      field_key,
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      followupsCount: 0,
-      reason: "HARD-CODED TEST - proof-of-life for anchors",
-      anchors: testAnchors,
-      collectedAnchors: testAnchors,
-      debug: {
-        stage: "hardcoded_anchors_test",
-        testAnchors,
-      },
+  const packConfig = PACK_CONFIG[pack_id];
+  
+  if (packConfig?.perFieldHandler && typeof packConfig.perFieldHandler === 'function') {
+    console.log("[V2_PER_FIELD][ROUTER]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      usingHandler: packConfig.perFieldHandler === handlePriorLeAppsPerFieldV2 
+        ? "handlePriorLeAppsPerFieldV2" 
+        : packConfig.perFieldHandler.name || "anonymous",
     });
+    
+    // Build context for per-field handler
+    const ctx = {
+      packId: pack_id,
+      fieldKey: field_key,
+      fieldValue: field_value,
+      instanceNumber: instance_number,
+      collectedAnchors: incident_context || {},
+      probeCount: previous_probes_count,
+      base44Client,
+      sectionName,
+      baseQuestionText,
+      questionCode
+    };
+    
+    // Call the handler
+    const handlerResult = await packConfig.perFieldHandler(ctx);
+    
+    console.log("[V2_PER_FIELD][ROUTER][RESULT]", {
+      packId: pack_id,
+      mode: handlerResult.mode,
+      hasAnchors: !!handlerResult.anchors,
+      anchorKeys: handlerResult.anchors ? Object.keys(handlerResult.anchors) : []
+    });
+    
+    return handlerResult;
   }
   
   // Initialize anchor tracking from incoming context
