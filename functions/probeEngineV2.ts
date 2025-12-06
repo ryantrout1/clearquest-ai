@@ -4723,6 +4723,15 @@ Deno.serve(async (req) => {
       hasCollectedAnchors: !!(result.collectedAnchors)
     });
     
+    // UNIVERSAL DEBUG LOG: Show anchors for all V2 probes before returning
+    console.log(
+      "[V2_PER_FIELD][BACKEND_RESULT]",
+      "packId=" + (result.pack_id || packId),
+      "fieldKey=" + (result.field_key || fieldKey),
+      "mode=" + result.mode,
+      "anchors keys=" + (result.anchors ? Object.keys(result.anchors).join(",") : "(none)")
+    );
+    
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
     // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
