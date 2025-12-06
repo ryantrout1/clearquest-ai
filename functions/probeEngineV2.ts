@@ -3767,6 +3767,126 @@ function getPackTopicForDiscretion(packId) {
 
 
 /**
+ * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
+ * Handles deterministic extraction for Q01, diagnostic anchors for Q02, and passthrough for other fields
+ */
+async function handlePriorLeAppsPerFieldV2({
+  packId,
+  fieldKey,
+  fieldValueRaw,
+  collectedAnchors,
+  probeCount,
+  baseQuestionCode,
+}) {
+  const PACK_ID = "PACK_PRIOR_LE_APPS_STANDARD";
+  const PACK_PRLE_Q01 = "PACK_PRLE_Q01";
+  const PACK_PRLE_Q02 = "PACK_PRLE_Q02";
+
+  const existingCollection = collectedAnchors || {};
+  const narrativeText = (fieldValueRaw || "").trim();
+
+  console.log("[prior_le_apps][ENTER][V2_PER_FIELD]", {
+    packId,
+    fieldKey,
+    probeCount,
+    baseQuestionCode,
+    narrativeLength: narrativeText.length,
+    existingAnchorKeys: Object.keys(existingCollection),
+  });
+
+  // --------------------------------------------------------
+  // Q01: Deterministic extraction of agency / position / date
+  // --------------------------------------------------------
+  if (fieldKey === PACK_PRLE_Q01) {
+    console.log("[prior_le_apps][Q01] running deterministic extraction");
+
+    const deterministicExtraction =
+      extractAnchorsForField(PACK_ID, fieldKey, narrativeText) || {};
+
+    const anchors = deterministicExtraction.anchors || {};
+    const updatedCollection = {
+      ...existingCollection,
+      ...anchors,
+    };
+
+    console.log("[prior_le_apps][Q01][ANCHORS]", {
+      incomingText: narrativeText,
+      anchorKeys: Object.keys(anchors),
+    });
+
+    console.log("[prior_le_apps][Q01][COLLECTED_AFTER]", {
+      globalAnchorKeys: Object.keys(updatedCollection),
+    });
+
+    // We only validate and move to the next field – no AI question.
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      reason: "prior_le_apps: Q01 deterministic extraction",
+      anchors,
+      collectedAnchors: updatedCollection,
+    });
+  }
+
+  // --------------------------------------------------------
+  // Q02: Diagnostic proof-of-life for application_outcome
+  // --------------------------------------------------------
+  if (fieldKey === PACK_PRLE_Q02) {
+    console.log("[prior_le_apps][Q02][DIAGNOSTIC] building application_outcome anchor");
+
+    const normalized = (narrativeText || "").trim();
+    const outcomeValue = normalized || "diagnostic: withdrew";
+
+    const anchors = {
+      application_outcome: {
+        value: outcomeValue,
+        confidence: 0.99,
+        source: "deterministic",
+        fieldKey,
+      },
+    };
+
+    const updatedCollection = {
+      ...existingCollection,
+      ...anchors,
+    };
+
+    console.log("[prior_le_apps][Q02][ANCHORS]", {
+      text: narrativeText,
+      anchorKeys: Object.keys(anchors),
+    });
+
+    console.log("[prior_le_apps][Q02][COLLECTED_AFTER]", {
+      globalAnchorKeys: Object.keys(updatedCollection),
+    });
+
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      reason: "prior_le_apps: Q02 diagnostic outcome anchor",
+      anchors,
+      collectedAnchors: updatedCollection,
+    });
+  }
+
+  // --------------------------------------------------------
+  // Default: passthrough – advance to next field, no new anchors
+  // --------------------------------------------------------
+  console.log("[prior_le_apps][GENERIC] no special handling for field", {
+    fieldKey,
+    probeCount,
+  });
+
+  return createV2ProbeResult({
+    mode: "NEXT_FIELD",
+    hasQuestion: false,
+    reason: "prior_le_apps: generic per-field passthrough (no anchors for this field)",
+    anchors: {},
+    collectedAnchors: existingCollection,
+  });
+}
+
+/**
  * Dedicated handler for PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
  * Uses LLM with strict JSON schema to extract anchors from narrative
  * CRITICAL: Must be called FIRST for this pack/field combination
