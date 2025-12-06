@@ -3466,26 +3466,21 @@ async function probeEngineV2(input, base44Client) {
   
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id} field=${field_key} instance=${instance_number} probeCount=${previous_probes_count}`);
   
-  // Build collected anchors from incident_context
-  const collectedAnchors = { ...incident_context };
-  if (field_value && field_value.trim()) {
-    // The current answer contributes to collected anchors
-    // We'll extract specific anchors from it below
-  }
-  
   // HARDENED: For pack opening (probeCount=0, empty field value), call Discretion Engine
   // Validate pack_id before calling to prevent errors
   if (previous_probes_count === 0 && (!field_value || field_value.trim() === "")) {
     if (!pack_id || typeof pack_id !== 'string') {
       console.error(`[V2-UNIVERSAL][OPENING] Invalid pack_id: ${pack_id}`);
-      return {
+      return createV2ProbeResult({
         mode: "NEXT_FIELD",
         pack_id,
         field_key,
         semanticField: field_key,
         validationResult: "invalid_pack_id",
+        anchors: currentAnchors,
+        collectedAnchors: currentAnchors,
         message: 'Invalid pack_id - cannot open pack'
-      };
+      });
     }
     
     // SPECIAL CASE: PACK_PRIOR_LE_APPS_STANDARD and PACK_LE_APPS - NO opening probe
@@ -3493,7 +3488,7 @@ async function probeEngineV2(input, base44Client) {
     // No AI opening message needed - go straight to showing Q01.
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" || pack_id === "PACK_LE_APPS") {
       console.log(`[PACK_PRIOR_LE_APPS][OPENING] No opening probe - showing PACK_PRLE_Q01 narrative field directly`);
-      return {
+      return createV2ProbeResult({
         mode: "NONE",
         pack_id,
         field_key,
@@ -3501,9 +3496,11 @@ async function probeEngineV2(input, base44Client) {
         validationResult: "prior_le_apps_no_opening",
         hasQuestion: false,
         targetAnchors: [],
+        anchors: currentAnchors,
+        collectedAnchors: currentAnchors,
         reason: "prior_le_apps: no opening probe; Q01 is the opener",
         message: "PACK_PRIOR_LE_APPS_STANDARD shows Q01 narrative field directly - no opening message"
-      };
+      });
     }
     
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
