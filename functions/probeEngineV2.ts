@@ -3414,14 +3414,13 @@ async function probeEngineV2(input, base44Client) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
     // Extract anchors from narrative first
-    let extractedAnchors = {};
     try {
       const currentPackConfig = PACK_CONFIG[pack_id];
       if (currentPackConfig?.anchorExtractionRules) {
         const centrallyExtracted = extractAnchorsFromNarrative(
           field_value,
           currentPackConfig.anchorExtractionRules,
-          incident_context
+          currentAnchors
         );
         Object.assign(extractedAnchors, centrallyExtracted);
         console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Centralized extraction: [${Object.keys(centrallyExtracted).join(', ')}]`);
@@ -3430,19 +3429,35 @@ async function probeEngineV2(input, base44Client) {
       console.warn(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Extraction error (continuing):`, err.message);
     }
     
-    // Call dedicated handler and return immediately
-    const result = handlePriorLeAppsQ01({
+    // Call dedicated handler
+    const handlerResult = handlePriorLeAppsQ01({
       pack_id,
       field_key,
       field_value,
-      incident_context,
+      incident_context: currentAnchors,
       extractedAnchors,
       previous_probes_count,
       instance_number
     });
     
+    // Merge anchors from handler
+    const mergedAnchors = mergeAnchors(currentAnchors, handlerResult.anchors);
+    const finalResult = createV2ProbeResult({
+      ...handlerResult,
+      anchors: mergedAnchors,
+      collectedAnchors: mergedAnchors
+    });
+    
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== RETURNING FROM DEDICATED HANDLER ==========");
-    return result;
+    console.log('[V2_ENGINE][RETURN]', {
+      packId: pack_id,
+      fieldKey: field_key,
+      mode: finalResult.mode,
+      anchorKeys: Object.keys(finalResult.collectedAnchors || {}),
+      hasApplicationOutcome: !!(finalResult.collectedAnchors?.application_outcome)
+    });
+    
+    return finalResult;
   }
   
   // ============================================================================
