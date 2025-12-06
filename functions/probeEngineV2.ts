@@ -22,6 +22,240 @@ const DEFAULT_MAX_PROBES_FALLBACK = 3;
 // No more static opening messages - Discretion Engine generates context-aware questions
 
 // ============================================================================
+// GOLDEN MVP RULE: DETERMINISTIC FIELD ANCHOR EXTRACTION REGISTRY
+// ============================================================================
+/**
+ * GOLDEN MVP RULE FOR V2 FACT EXTRACTION:
+ * 
+ * For every V2 pack + field that participates in gating (via requiresMissing / skipUnless),
+ * there MUST be a deterministic extractor that derives those anchors from the field's answer.
+ * 
+ * This registry maps (packId, fieldKey) → extractor function.
+ * Extractors are rule-based and predictable (simple string/regex rules).
+ * Same narrative → same anchor values → stable gating.
+ * 
+ * EXTENSIBILITY:
+ * - Add new packs/fields here as they adopt V2 anchor-based gating
+ * - Extractors must return { anchors: {...}, collectedAnchors: {...} }
+ * - Missing extractors log WARN messages for configuration debugging
+ */
+
+/**
+ * Deterministic extractor for PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+ * Derives application_outcome and other anchors from the narrative text
+ * 
+ * @param {object} params
+ * @param {string} params.text - Raw narrative answer from candidate
+ * @returns {object} { anchors: {...}, collectedAnchors: {...} }
+ */
+function extractPriorLeAppsAnchors({ text }) {
+  if (!text || text.trim().length < 10) {
+    return { anchors: {}, collectedAnchors: {} };
+  }
+  
+  const normalized = text.toLowerCase().trim();
+  const anchors = {};
+  
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== DETERMINISTIC EXTRACTION START ==========`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input length: ${text.length}`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input preview: "${text.substring(0, 150)}..."`);
+  
+  // ===== ANCHOR 1: application_outcome (CRITICAL for PACK_PRLE_Q02 gating) =====
+  // Precedence order (most definitive first):
+  
+  // 1. DISQUALIFIED (most common)
+  const disqualifiedPatterns = [
+    "disqualified", "dq'd", "dq", "dq'ed", "was dq", "got dq",
+    "failed background", "failed the background",
+    "background investigation disqualified", "disqualified during the background",
+    "not selected", "wasn't selected", "was not selected",
+    "rejected", "not hired", "wasn't hired", "was not hired",
+    "did not get", "didn't get", "didn't get hired",
+    "was denied", "denied employment",
+    "removed from consideration", "removed from the process",
+    "did not make it", "didn't make it", "didn't make the cut",
+    "didn't pass", "did not pass", "unsuccessful"
+  ];
+  
+  for (const pattern of disqualifiedPatterns) {
+    if (normalized.includes(pattern)) {
+      anchors.application_outcome = "disqualified";
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="disqualified" (matched: "${pattern}")`);
+      break;
+    }
+  }
+  
+  // 2. WITHDREW (check only if not already disqualified)
+  if (!anchors.application_outcome) {
+    const withdrewPatterns = [
+      "withdrew", "withdraw", "withdrawn",
+      "pulled my application", "pulled out", "pulled application",
+      "decided not to continue", "chose not to continue",
+      "dropped out", "backed out",
+      "removed myself", "took myself out"
+    ];
+    
+    for (const pattern of withdrewPatterns) {
+      if (normalized.includes(pattern)) {
+        anchors.application_outcome = "withdrew";
+        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="withdrew" (matched: "${pattern}")`);
+        break;
+      }
+    }
+  }
+  
+  // 3. HIRED (check only if no other outcome yet)
+  if (!anchors.application_outcome) {
+    const hiredPatterns = [
+      "hired", "got hired", "was hired", "were hired",
+      "offered the job", "offered a job", "offered the position",
+      "got the job", "got the position",
+      "was offered", "were offered",
+      "they brought me on", "accepted the offer",
+      "started working there"
+    ];
+    
+    for (const pattern of hiredPatterns) {
+      if (normalized.includes(pattern)) {
+        anchors.application_outcome = "hired";
+        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="hired" (matched: "${pattern}")`);
+        break;
+      }
+    }
+  }
+  
+  // 4. STILL_IN_PROCESS (check last)
+  if (!anchors.application_outcome) {
+    const stillInProcessPatterns = [
+      "still in process", "still in the process",
+      "still pending", "currently pending",
+      "waiting to hear back", "waiting to hear",
+      "background in progress", "in progress",
+      "still processing", "awaiting decision",
+      "haven't heard back", "haven't heard"
+    ];
+    
+    for (const pattern of stillInProcessPatterns) {
+      if (normalized.includes(pattern)) {
+        anchors.application_outcome = "still_in_process";
+        console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="still_in_process" (matched: "${pattern}")`);
+        break;
+      }
+    }
+  }
+  
+  // ===== ANCHOR 2: agency_name (optional - nice-to-have) =====
+  const agencyPatterns = [
+    /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
+    /\b([\w\s]+(?:Police Department|Sheriff's Office|County Sheriff|City Police|State Police))\b/i
+  ];
+  
+  for (const pattern of agencyPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1] && match[1].length > 3) {
+      anchors.agency_name = match[1].trim();
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ agency_name="${anchors.agency_name}" (regex match)`);
+      break;
+    }
+  }
+  
+  // ===== ANCHOR 3: position (optional - nice-to-have) =====
+  const positionPatterns = [
+    /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer|dispatcher|cadet)/i,
+    /\b(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer)\s+(?:position|role|job)/i
+  ];
+  
+  for (const pattern of positionPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      anchors.position = match[1].trim();
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ position="${anchors.position}" (regex match)`);
+      break;
+    }
+  }
+  
+  // ===== ANCHOR 4: month_year (optional - uses existing helper) =====
+  const dateExtraction = extractMonthYearFromText(text);
+  if (dateExtraction.value) {
+    anchors.month_year = dateExtraction.value;
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ month_year="${anchors.month_year}" (confidence: ${dateExtraction.confidence})`);
+  }
+  
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== EXTRACTION COMPLETE ==========`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Total anchors extracted: ${Object.keys(anchors).length}`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Final anchors:`, anchors);
+  
+  // Return both anchors and collectedAnchors (they should be the same for deterministic extraction)
+  return {
+    anchors: { ...anchors },
+    collectedAnchors: { ...anchors }
+  };
+}
+
+/**
+ * Central field anchor extractor registry
+ * Maps (packId, fieldKey) → deterministic extractor function
+ * 
+ * EXTENSION PATTERN:
+ * To add a new pack/field:
+ * 1. Create an extractor function like extractPriorLeAppsAnchors
+ * 2. Register it here under the pack's key
+ * 3. The engine will automatically call it for that (packId, fieldKey)
+ */
+const FIELD_ANCHOR_EXTRACTORS = {
+  PACK_PRIOR_LE_APPS_STANDARD: {
+    PACK_PRLE_Q01: extractPriorLeAppsAnchors
+    // Future: PACK_PRLE_Q02, Q03, etc. if they need anchor extraction
+  }
+  // Future packs:
+  // PACK_DRIVING_COLLISION_STANDARD: { PACK_DRIVING_COLLISION_Q01: extractDrivingCollisionAnchors },
+  // PACK_DRIVING_DUIDWI_STANDARD: { PACK_DRIVING_DUIDWI_Q01: extractDuiDwiAnchors },
+  // PACK_EMPLOYMENT_STANDARD: { PACK_EMPLOYMENT_Q01: extractEmploymentAnchors },
+  // etc.
+};
+
+/**
+ * Extract anchors for a specific field using registered deterministic extractors
+ * 
+ * This is the SINGLE entry point for deterministic fact extraction.
+ * Every V2 field probe MUST call this before returning v2Result.
+ * 
+ * @param {string} packId 
+ * @param {string} fieldKey 
+ * @param {string} answerText - Raw answer text from candidate
+ * @returns {object} { anchors: {...}, collectedAnchors: {...} }
+ */
+function extractAnchorsForField(packId, fieldKey, answerText) {
+  console.log(`[V2_FACTS][EXTRACTOR_LOOKUP] packId="${packId}", fieldKey="${fieldKey}"`);
+  console.log(`[V2_FACTS][EXTRACTOR_LOOKUP] Answer preview: "${answerText?.substring?.(0, 120)}..."`);
+  
+  // Look up extractor function
+  const packExtractors = FIELD_ANCHOR_EXTRACTORS[packId];
+  if (!packExtractors) {
+    console.warn(`[V2_FACTS][MISSING_EXTRACTOR] No extractors registered for pack="${packId}"`);
+    return { anchors: {}, collectedAnchors: {} };
+  }
+  
+  const extractor = packExtractors[fieldKey];
+  if (!extractor) {
+    console.warn(`[V2_FACTS][MISSING_EXTRACTOR] No extractor registered for pack="${packId}", field="${fieldKey}"`);
+    return { anchors: {}, collectedAnchors: {} };
+  }
+  
+  // Call the registered extractor
+  console.log(`[V2_FACTS][EXTRACTOR_FOUND] Using extractor for pack="${packId}", field="${fieldKey}"`);
+  
+  try {
+    const result = extractor({ text: answerText });
+    console.log(`[V2_FACTS][EXTRACTOR_SUCCESS] Extracted ${Object.keys(result.anchors || {}).length} anchors: [${Object.keys(result.anchors || {}).join(', ')}]`);
+    return result;
+  } catch (err) {
+    console.error(`[V2_FACTS][EXTRACTOR_ERROR] Extractor failed for pack="${packId}", field="${fieldKey}":`, err.message);
+    return { anchors: {}, collectedAnchors: {} };
+  }
+}
+
+// ============================================================================
 // CENTRALIZED ANCHOR EXTRACTION ENGINE
 // Generic, reusable extraction logic - NO per-pack hand-coded rules needed
 // Packs define anchorExtractionRules in PACK_CONFIG; this engine applies them
