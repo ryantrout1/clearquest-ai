@@ -3842,10 +3842,22 @@ function createV2ProbeResult(opts = {}) {
     collectedAnchorsKeys,
     anchors,
     collectedAnchors,
+    debug,
     ...rest
   } = opts;
   
-  return {
+  const safeAnchors = anchors ?? {};
+  const safeCollectedAnchors = collectedAnchors ?? {};
+  
+  // Warn if anchors missing when they should be present
+  if ((!anchors || !collectedAnchors) && mode !== "NONE") {
+    console.warn(
+      "[V2][createV2ProbeResult] Missing anchors for pack/field",
+      { pack_id, field_key, hasAnchors: !!anchors, hasCollected: !!collectedAnchors }
+    );
+  }
+  
+  const result = {
     mode,
     pack_id,
     field_key,
@@ -3866,11 +3878,18 @@ function createV2ProbeResult(opts = {}) {
     targetAnchors,
     tone,
     collectedAnchorsKeys,
-    // CRITICAL: Always include anchors and collectedAnchors
-    anchors: anchors || {},
-    collectedAnchors: collectedAnchors || {},
+    // CRITICAL: Always include anchors and collectedAnchors (never undefined)
+    anchors: safeAnchors,
+    collectedAnchors: safeCollectedAnchors,
     ...rest
   };
+  
+  // Include debug if provided
+  if (debug) {
+    result.debug = debug;
+  }
+  
+  return result;
 }
 
 /**
