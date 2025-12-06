@@ -4132,7 +4132,8 @@ async function probeEngineV2(input, base44Client) {
     instance_anchors = {}         // Current anchor values for this instance
   } = input;
 
-  console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
+  console.log(`[V2-UNIVERSAL][ENTRY] ========== PROBE ENGINE STARTING ==========`);
+  console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
   // PER-FIELD HANDLER ROUTER
@@ -4184,9 +4185,18 @@ async function probeEngineV2(input, base44Client) {
     console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors exists?", Object.prototype.hasOwnProperty.call(handlerResult, "collectedAnchors"));
     console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.anchors:", handlerResult.anchors);
     console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors:", handlerResult.collectedAnchors);
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] All keys in handlerResult:", Object.keys(handlerResult));
+    
+    // CRITICAL: Normalize through createV2ProbeResult to guarantee shape
+    const normalizedHandlerResult = createV2ProbeResult(handlerResult);
+    
+    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] ========== AFTER NORMALIZATION ==========");
+    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] normalizedHandlerResult.anchors:", normalizedHandlerResult.anchors);
+    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] normalizedHandlerResult.collectedAnchors:", normalizedHandlerResult.collectedAnchors);
+    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] All keys:", Object.keys(normalizedHandlerResult));
     
     // CRITICAL: Return immediately - don't fall through to early router or generic logic
-    return handlerResult;
+    return normalizedHandlerResult;
   }
   
   // Initialize anchor tracking from incoming context
@@ -5032,7 +5042,20 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
+    console.log('[HTTP_HANDLER][PRE_CALL] ========== CALLING probeEngineV2 ==========');
+    console.log('[HTTP_HANDLER][PRE_CALL] packId:', input.pack_id);
+    console.log('[HTTP_HANDLER][PRE_CALL] fieldKey:', input.field_key);
+    
     let result = await probeEngineV2(input, base44);
+    
+    console.log('[HTTP_HANDLER][POST_CALL] ========== probeEngineV2 RETURNED ==========');
+    console.log('[HTTP_HANDLER][POST_CALL] typeof result:', typeof result);
+    console.log('[HTTP_HANDLER][POST_CALL] result.mode:', result?.mode);
+    console.log('[HTTP_HANDLER][POST_CALL] result.anchors exists?', Object.prototype.hasOwnProperty.call(result || {}, "anchors"));
+    console.log('[HTTP_HANDLER][POST_CALL] result.collectedAnchors exists?', Object.prototype.hasOwnProperty.call(result || {}, "collectedAnchors"));
+    console.log('[HTTP_HANDLER][POST_CALL] result.anchors:', result?.anchors);
+    console.log('[HTTP_HANDLER][POST_CALL] result.collectedAnchors:', result?.collectedAnchors);
+    console.log('[HTTP_HANDLER][POST_CALL] All keys in result:', Object.keys(result || {}));
     
     // ========================================================================
     // GOLDEN MVP CONTRACT ENFORCEMENT: Attach deterministic anchors
