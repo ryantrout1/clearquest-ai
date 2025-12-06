@@ -4013,6 +4013,8 @@ function getPackTopicForDiscretion(packId) {
  * Deterministically extracts application_outcome from Q01 narrative for gating
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
+  const DEBUG_PREFIX = "[TEST_PRIOR_LE_ANCHORS]";
+  
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
 
   const existingCollection = collectedAnchors || {};
@@ -4020,14 +4022,18 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   // Use centralized helper to get full narrative text
   const narrativeText = getFieldNarrativeText(ctx);
 
-  console.log("[V2_PRIOR_LE_APPS][Q01_INPUT]", {
+  console.log(DEBUG_PREFIX, "[HANDLER_ENTRY]", {
+    packId,
     fieldKey,
     narrativePreview: narrativeText.slice(0, 160),
-    length: narrativeText.length,
+    narrativeLength: narrativeText.length,
+    ctxKeys: Object.keys(ctx),
   });
 
   // For PACK_PRLE_Q01: Extract outcome deterministically
   if (fieldKey === "PACK_PRLE_Q01") {
+    console.log(DEBUG_PREFIX, "[Q01_BRANCH] Executing PACK_PRLE_Q01 logic");
+    
     // Initialize mutable anchor objects - start with existing collection
     let anchors = { ...existingCollection };
     let collectedAnchorsResult = { ...existingCollection };
@@ -4035,18 +4041,20 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     // Call deterministic helper to extract outcome
     const outcome = inferApplicationOutcomeFromNarrative(narrativeText);
     
-    // Debug log for PRIOR_LE_APPS
-    console.log("[PRIOR_LE_APPS_OUTCOME]", {
+    console.log(DEBUG_PREFIX, "[OUTCOME_EXTRACTED]", {
       packId,
       fieldKey,
-      narrativePreview: narrativeText.slice(0, 120),
-      inferredOutcome: outcome,
+      narrativeExcerpt: narrativeText ? narrativeText.slice(0, 200) : "(empty)",
+      outcome,
     });
     
     // Set application_outcome in both anchor containers
     if (outcome) {
       anchors = { ...anchors, application_outcome: outcome };
       collectedAnchorsResult = { ...collectedAnchorsResult, application_outcome: outcome };
+      console.log(DEBUG_PREFIX, "[ANCHORS_SET]", { outcome, anchorsKeys: Object.keys(anchors) });
+    } else {
+      console.log(DEBUG_PREFIX, "[NO_OUTCOME] No outcome detected in narrative");
     }
 
     const baseResult = {
@@ -4060,20 +4068,22 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
 
     const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsResult);
 
-    console.log("[V2_PRIOR_LE_APPS][Q01_OUTPUT]", {
+    console.log(DEBUG_PREFIX, "[BEFORE_RETURN]", {
       mode: finalResult.mode,
       hasQuestion: finalResult.hasQuestion,
-      anchorsCount: Object.keys(finalResult.anchors || {}).length,
-      collectedAnchorsCount: Object.keys(finalResult.collectedAnchors || {}).length,
+      anchorsKeys: Object.keys(finalResult.anchors || {}),
       anchors: finalResult.anchors,
+      collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
       collectedAnchors: finalResult.collectedAnchors,
-      applicationOutcome: finalResult.anchors?.application_outcome || '(none)',
+      applicationOutcome: finalResult.anchors?.application_outcome || '(missing)',
     });
 
     return finalResult;
   }
 
   // Other fields: pass through with existing collection
+  console.log(DEBUG_PREFIX, "[OTHER_FIELD]", { fieldKey, message: "Not PACK_PRLE_Q01, passing through" });
+  
   const baseResult = {
     mode: "NEXT_FIELD",
     hasQuestion: false,
@@ -4388,11 +4398,18 @@ async function probeEngineV2Core(input, base44Client) {
         : packConfig.perFieldHandler.name || "anonymous",
     });
     
-    // Build context for per-field handler
+    // Build context for per-field handler - pass entire input for narrative extraction
     const ctx = {
       packId: pack_id,
       fieldKey: field_key,
       fieldValue: field_value,
+      field_value: field_value,
+      fullNarrative: input.fullNarrative,
+      fullAnswer: input.fullAnswer,
+      answer: input.answer,
+      narrative: input.narrative,
+      fieldValuePreview: input.fieldValuePreview,
+      answerPreview: input.answerPreview,
       instanceNumber: instance_number,
       collectedAnchors: incident_context || {},
       probeCount: previous_probes_count,
@@ -4401,6 +4418,18 @@ async function probeEngineV2Core(input, base44Client) {
       baseQuestionText,
       questionCode
     };
+    
+    // DIAGNOSTIC: Log raw context being sent to handler
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      console.log("[TEST_PRIOR_LE_ANCHORS][CTX_TO_HANDLER]", {
+        packId: pack_id,
+        fieldKey: field_key,
+        fieldValue: ctx.fieldValue?.slice?.(0, 100),
+        field_value: ctx.field_value?.slice?.(0, 100),
+        fullNarrative: ctx.fullNarrative?.slice?.(0, 100),
+        allCtxKeys: Object.keys(ctx),
+      });
+    }
     
     // Call the handler
     const handlerResult = await packConfig.perFieldHandler(ctx);
@@ -4412,6 +4441,18 @@ async function probeEngineV2Core(input, base44Client) {
       anchorKeys: Object.keys(handlerResult.anchors || {}),
       collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
     });
+    
+    // DIAGNOSTIC: Log final handler result for PRIOR_LE_APPS
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      console.log("[TEST_PRIOR_LE_ANCHORS][HANDLER_RESULT]", {
+        mode: handlerResult.mode,
+        anchorsKeys: Object.keys(handlerResult.anchors || {}),
+        anchors: handlerResult.anchors,
+        collectedAnchorsKeys: Object.keys(handlerResult.collectedAnchors || {}),
+        collectedAnchors: handlerResult.collectedAnchors,
+        applicationOutcome: handlerResult.anchors?.application_outcome || '(missing)',
+      });
+    }
     
     // CRITICAL: Wire FactAnchorEngine before returning (V2 per-field path only)
     const factCtx = {

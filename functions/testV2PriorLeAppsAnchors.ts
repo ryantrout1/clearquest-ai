@@ -43,12 +43,15 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     
     console.log('[TEST][V2_PRIOR_LE_APPS] Invoking probeEngineV2 backend function...');
+    console.log('[TEST][V2_PRIOR_LE_APPS] Test params being sent:', JSON.stringify(testParams, null, 2));
     
     const probeResponse = await base44.functions.invoke('probeEngineV2', testParams);
     const rawResult = probeResponse.data || {};
 
     console.log('[TEST][V2_PRIOR_LE_APPS] ========== RAW BACKEND RESPONSE ==========');
-    console.log(JSON.stringify(rawResult, null, 2));
+    console.log('[TEST][V2_PRIOR_LE_APPS] Raw response:', JSON.stringify(rawResult, null, 2));
+    console.log('[TEST][V2_PRIOR_LE_APPS] Has anchors key:', Object.prototype.hasOwnProperty.call(rawResult, 'anchors'));
+    console.log('[TEST][V2_PRIOR_LE_APPS] Has collectedAnchors key:', Object.prototype.hasOwnProperty.call(rawResult, 'collectedAnchors'));
 
     // Normalize result
     const result = {
