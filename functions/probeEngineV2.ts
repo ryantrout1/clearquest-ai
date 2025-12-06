@@ -2000,7 +2000,8 @@ Object.assign(PACK_CONFIG, {
   },
   
   // Prior Law Enforcement Applications pack (v2.5) - NARRATIVE-FIRST
-  // Q01 is now an open-ended narrative. The system extracts anchors and only asks follow-ups for gaps.
+  // Q01 is handled by the dedicated handlePriorLeAppsQ01 early-router.
+  // Gating for Q02+ is driven by anchors extracted from that narrative.
   PACK_PRIOR_LE_APPS_STANDARD: {
     id: "PACK_PRIOR_LE_APPS_STANDARD",
     packName: "Prior Law Enforcement Applications",
@@ -2008,8 +2009,6 @@ Object.assign(PACK_CONFIG, {
     isStandardCluster: true,
     active: true,
     usesAnchors: true,
-    // CRITICAL: Per-field handler for proof-of-life testing
-    perFieldHandler: handlePriorLeAppsPerFieldV2, // FLAG: This pack uses anchor-aware probing (SAME as PACK_DRIVING_COLLISION_STANDARD)
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
     useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story (SAME as PACK_DRIVING_COLLISION_STANDARD)
@@ -3764,70 +3763,7 @@ function getPackTopicForDiscretion(packId) {
   return map[packId] || "general";
 }
 
-/**
- * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
- * PROOF-OF-LIFE: Returns hard-coded test anchors to verify transport
- */
-async function handlePriorLeAppsPerFieldV2(ctx) {
-  const {
-    packId,
-    fieldKey,
-    fieldValue,
-    instanceNumber,
-    collectedAnchors,
-    probeCount,
-  } = ctx;
 
-  // ✅ Diagnostic proof-of-life
-  console.log("[V2_PRIOR_LE_APPS][HANDLER_ENTER]", {
-    packId,
-    fieldKey,
-    instanceNumber,
-    probeCount,
-    fieldValuePreview: fieldValue ? String(fieldValue).slice(0, 80) : "",
-  });
-
-  // Start from an empty base set of anchors for this call
-  const newAnchors = {};
-  const newCollectedAnchors = { ...(collectedAnchors || {}) };
-
-  // For now, we ONLY care about PACK_PRLE_Q01
-  if (fieldKey === "PACK_PRLE_Q01") {
-    // ✅ HARD-CODED ANCHOR FOR PROOF-OF-LIFE
-    newAnchors.application_outcome = "TEST_DISQUALIFIED";
-    newCollectedAnchors.application_outcome = "TEST_DISQUALIFIED";
-
-    console.log("[V2_PRIOR_LE_APPS][TEST] HARD-CODED ANCHORS PROOF-OF-LIFE", {
-      anchors: newAnchors,
-      collectedAnchors: newCollectedAnchors,
-    });
-
-    return createV2ProbeResult({
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      anchors: newAnchors,
-      collectedAnchors: newCollectedAnchors,
-      followupsCount: 0,
-      pack_id: packId,
-      field_key: fieldKey,
-      reason: "prior_le_apps: hard-coded application_outcome for diagnostic",
-    });
-  }
-
-  // For all other fields, just fall back to default behavior for now
-  console.log("[V2_PRIOR_LE_APPS][HANDLER_FALLBACK]", { fieldKey });
-
-  return createV2ProbeResult({
-    mode: "NEXT_FIELD",
-    hasQuestion: false,
-    anchors: {},
-    collectedAnchors,
-    followupsCount: 0,
-    pack_id: packId,
-    field_key: fieldKey,
-    reason: "prior_le_apps: no special handling for this fieldKey",
-  });
-}
 
 /**
  * Dedicated handler for PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
