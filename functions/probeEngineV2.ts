@@ -2333,6 +2333,36 @@ function withAnchorDefaults(result) {
 }
 
 /**
+ * V2 Result Normalizer - Thin wrapper ensuring all responses have anchors/collectedAnchors
+ * BACKWARDS-COMPATIBLE: Does NOT change functional behavior, only normalizes shape
+ * 
+ * @param {object} rawResult - Result from probeEngineV2Core
+ * @param {object} extra - Optional additional fields to overlay
+ * @returns {object} Normalized result with guaranteed anchors/collectedAnchors
+ */
+function normalizeV2ProbeResult(rawResult, extra = {}) {
+  const base = rawResult || {};
+
+  const anchors = base.anchors && typeof base.anchors === "object" && !Array.isArray(base.anchors)
+    ? base.anchors
+    : {};
+
+  const collectedAnchors = base.collectedAnchors && typeof base.collectedAnchors === "object" && !Array.isArray(base.collectedAnchors)
+    ? base.collectedAnchors
+    : {};
+
+  return {
+    // keep any existing fields exactly as they are
+    ...base,
+    // normalized anchors
+    anchors,
+    collectedAnchors,
+    // allow callers to overlay any explicit extras
+    ...extra,
+  };
+}
+
+/**
  * Attach deterministic anchors to v2Result before returning to frontend
  * GOLDEN MVP CONTRACT: Every per-field return MUST include anchors/collectedAnchors
  */
@@ -4078,7 +4108,7 @@ function mergeAnchors(existingAnchors = {}, newAnchors = {}) {
 }
 
 /**
- * Main probe engine function - Universal MVP Mode
+ * Core probe engine logic - Universal MVP Mode
  * V2.6 Universal MVP: ALL V2 packs use Discretion Engine
  * 
  * Flow:
@@ -4087,8 +4117,10 @@ function mergeAnchors(existingAnchors = {}, newAnchors = {}) {
  * 3. Return QUESTION with AI-generated text, or NEXT_FIELD/COMPLETE when done
  * 
  * SYSTEMIC FIX: All return paths now include anchors and collectedAnchors
+ * 
+ * NOTE: This is the CORE implementation - call probeEngineV2Wrapper for normalized results
  */
-async function probeEngineV2(input, base44Client) {
+async function probeEngineV2Core(input, base44Client) {
   // VERSION BANNER - Confirms we're running the fixed code
   console.log("[V2_DEBUG_VERSION] probeEngineV2 build 2025-12-06 PRIOR_LE_APPS anchors enabled");
   
@@ -4768,6 +4800,19 @@ async function probeEngineV2(input, base44Client) {
     reason: `Probing for more information about ${semanticField}`,
   };
   return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+}
+
+/**
+ * Main probe engine function - Normalized wrapper around core logic
+ * BACKWARDS-COMPATIBLE: Guarantees anchors/collectedAnchors on ALL responses
+ * 
+ * @param {object} input - Probe parameters
+ * @param {object} base44Client - Base44 SDK client
+ * @returns {object} Normalized V2 probe result with anchors/collectedAnchors
+ */
+async function probeEngineV2(input, base44Client) {
+  const rawResult = await probeEngineV2Core(input, base44Client);
+  return normalizeV2ProbeResult(rawResult);
 }
 
 /**
