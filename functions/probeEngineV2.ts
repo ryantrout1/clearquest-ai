@@ -3685,6 +3685,7 @@ function handlePriorLeAppsQ01({
 
 /**
  * Unified V2ProbeResult type - ALWAYS includes anchors and collectedAnchors
+ * CRITICAL FIX: Remove anchors/collectedAnchors from rest to prevent override
  */
 function createV2ProbeResult({
   mode,
@@ -3694,16 +3695,19 @@ function createV2ProbeResult({
   collectedAnchors = {},
   ...rest
 }) {
+  // Extract and discard anchors/collectedAnchors from rest to prevent them from overwriting explicit params
+  const { anchors: _ignoredAnchors, collectedAnchors: _ignoredCollected, ...safeRest } = rest;
+  
   return {
     mode,
     pack_id,
     field_key,
     hasQuestion: rest.hasQuestion ?? (mode === 'QUESTION'),
     followupsCount: rest.followupsCount ?? (rest.followups?.length || 0),
-    // CRITICAL: Always include anchors and collectedAnchors (empty object if none)
+    // CRITICAL: Always include anchors and collectedAnchors (set AFTER destructuring rest)
     anchors: anchors || {},
     collectedAnchors: collectedAnchors || {},
-    ...rest
+    ...safeRest
   };
 }
 
