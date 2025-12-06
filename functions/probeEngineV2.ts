@@ -18,6 +18,39 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 // Default max probes fallback - only used if pack entity doesn't have max_ai_followups set
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
+// ============================================================================
+// DIAGNOSTIC HELPER: FACT ANCHOR TRACE FOR PACK_PRIOR_LE_APPS_STANDARD
+// ============================================================================
+const FACT_ANCHOR_KEYS_PRIOR_LE = [
+  'prior_le_agency',
+  'prior_le_position',
+  'prior_le_approx_date',
+  'application_outcome',
+];
+
+function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj }) {
+  try {
+    if (packId !== 'PACK_PRIOR_LE_APPS_STANDARD') return;
+
+    const keys = FACT_ANCHOR_KEYS_PRIOR_LE;
+    console.log(
+      `[FACT_ANCHOR_TRACE][${stage}] pack=${packId} field=${fieldKey || 'n/a'} instance=${instanceNumber ?? 'n/a'}`
+    );
+    console.log(
+      `[FACT_ANCHOR_TRACE][${stage}] keys present:`,
+      anchorsObj ? Object.keys(anchorsObj) : []
+    );
+    keys.forEach((k) => {
+      const v = anchorsObj && Object.prototype.hasOwnProperty.call(anchorsObj, k)
+        ? anchorsObj[k]
+        : '(MISSING)';
+      console.log(`[FACT_ANCHOR_TRACE][${stage}] ${k}:`, v);
+    });
+  } catch (err) {
+    console.log('[FACT_ANCHOR_TRACE][ERROR]', stage, err?.message || err);
+  }
+}
+
 // V2.6 Universal MVP: Use Discretion Engine for ALL pack openings and probing
 // No more static opening messages - Discretion Engine generates context-aware questions
 
@@ -3817,6 +3850,15 @@ If any field is not clearly stated, set it to null.`,
       }
     });
     
+    // STAGE1: Log raw LLM output
+    logPriorLeAnchors('STAGE1_MODEL_RAW', {
+      packId: pack_id,
+      fieldKey: field_key,
+      instanceNumber: instance_number,
+      anchorsObj: llmResult // Raw LLM result before mapping
+    });
+    console.log('[FACT_ANCHOR_TRACE][STAGE1_MODEL_RAW] Full LLM result:', JSON.stringify(llmResult, null, 2));
+    
     console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] LLM extraction result:", llmResult);
     
     // Map LLM extracted data to anchor keys
@@ -3825,13 +3867,24 @@ If any field is not clearly stated, set it to null.`,
     }
     if (llmResult?.agency_name) {
       anchors.agency_name = llmResult.agency_name;
+      anchors.prior_le_agency = llmResult.agency_name; // Map to expected key
     }
     if (llmResult?.position_title) {
       anchors.position = llmResult.position_title;
+      anchors.prior_le_position = llmResult.position_title; // Map to expected key
     }
     if (llmResult?.approx_date_range) {
       anchors.month_year = llmResult.approx_date_range;
+      anchors.prior_le_approx_date = llmResult.approx_date_range; // Map to expected key
     }
+    
+    // STAGE2: Log parsed anchors after LLM mapping
+    logPriorLeAnchors('STAGE2_PARSED', {
+      packId: pack_id,
+      fieldKey: field_key,
+      instanceNumber: instance_number,
+      anchorsObj: anchors
+    });
   } catch (llmErr) {
     console.warn("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] LLM extraction failed, using fallback:", llmErr.message);
   }
@@ -3859,6 +3912,28 @@ If any field is not clearly stated, set it to null.`,
   // DIAGNOSTIC LOGS (per user requirements)
   console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] anchors to return:", anchors);
   console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] application_outcome:", anchors.application_outcome);
+  
+  // STAGE3: Log normalized anchors (same as parsed for this handler)
+  logPriorLeAnchors('STAGE3_NORMALIZED', {
+    packId: pack_id,
+    fieldKey: field_key,
+    instanceNumber: instance_number,
+    anchorsObj: anchors
+  });
+  
+  // STAGE4: Log inputs to createV2ProbeResult
+  logPriorLeAnchors('STAGE4_RESULT_INPUT_ANCHORS', {
+    packId: pack_id,
+    fieldKey: field_key,
+    instanceNumber: instance_number,
+    anchorsObj: anchors
+  });
+  logPriorLeAnchors('STAGE4_RESULT_INPUT_COLLECTED', {
+    packId: pack_id,
+    fieldKey: field_key,
+    instanceNumber: instance_number,
+    anchorsObj: anchors
+  });
   
   return createV2ProbeResult({
     mode: "NEXT_FIELD",
@@ -4917,6 +4992,20 @@ Deno.serve(async (req) => {
     );
     
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
+    
+    // STAGE5: Log HTTP response anchors before returning to frontend
+    logPriorLeAnchors('STAGE5_HTTP_RESPONSE_ANCHORS', {
+      packId: result.pack_id || packId,
+      fieldKey: result.field_key || fieldKey,
+      instanceNumber: result.instanceNumber,
+      anchorsObj: result.anchors
+    });
+    logPriorLeAnchors('STAGE5_HTTP_RESPONSE_COLLECTED', {
+      packId: result.pack_id || packId,
+      fieldKey: result.field_key || fieldKey,
+      instanceNumber: result.instanceNumber,
+      anchorsObj: result.collectedAnchors
+    });
     
     // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {

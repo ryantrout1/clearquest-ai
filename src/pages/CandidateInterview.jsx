@@ -43,6 +43,33 @@ const ENABLE_V3_PROBING = true;
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
+// ============================================================================
+// DIAGNOSTIC HELPER: FACT ANCHOR TRACE FOR PACK_PRIOR_LE_APPS_STANDARD
+// ============================================================================
+const PRIOR_LE_FACT_ANCHOR_KEYS = [
+  'prior_le_agency',
+  'prior_le_position',
+  'prior_le_approx_date',
+  'application_outcome',
+];
+
+function logPriorLeClientAnchors(stage, anchorsObj) {
+  try {
+    console.log(
+      `[DIAG_PRIOR_LE_APPS][${stage}] keys present:`,
+      anchorsObj ? Object.keys(anchorsObj) : []
+    );
+    PRIOR_LE_FACT_ANCHOR_KEYS.forEach((k) => {
+      const v = anchorsObj && Object.prototype.hasOwnProperty.call(anchorsObj, k)
+        ? anchorsObj[k]
+        : '(MISSING)';
+      console.log(`[DIAG_PRIOR_LE_APPS][${stage}] ${k}:`, v);
+    });
+  } catch (err) {
+    console.log('[DIAG_PRIOR_LE_APPS][ERROR]', stage, err?.message || err);
+  }
+}
+
 // File revision: 2025-12-02 - Cleaned and validated
 
 // ============================================================================
@@ -1214,10 +1241,8 @@ export default function CandidateInterview() {
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] ========== RAW ANCHORS FROM BACKEND ==========');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.anchors:', v2Result?.anchors || '(none)');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Has application_outcome in anchors?', 
-            !!(v2Result?.anchors?.application_outcome));
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Has application_outcome in collectedAnchors?', 
-            !!(v2Result?.collectedAnchors?.application_outcome));
+          logPriorLeClientAnchors('MERGE_INPUT_ANCHORS', v2Result?.anchors || {});
+          logPriorLeClientAnchors('MERGE_INPUT_COLLECTED', v2Result?.collectedAnchors || {});
         }
         
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
@@ -1354,9 +1379,7 @@ export default function CandidateInterview() {
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] application_outcome value:', 
-            updatedCollectedAnswers.application_outcome || '(MISSING)');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Full anchor map:', updatedCollectedAnswers);
+          logPriorLeClientAnchors('MERGE_OUTPUT_GLOBAL', updatedCollectedAnswers);
         }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
@@ -1434,11 +1457,7 @@ export default function CandidateInterview() {
             
             // DIAGNOSTIC: Extra logging for PACK_PRIOR_LE_APPS_STANDARD gating
             console.log('[DIAG_PRIOR_LE_APPS][GATING] ========== FIELD GATING CHECK ==========');
-            console.log('[DIAG_PRIOR_LE_APPS][GATING] updatedCollectedAnswers:', updatedCollectedAnswers);
-            console.log('[DIAG_PRIOR_LE_APPS][GATING] application_outcome present?', 
-              !!(updatedCollectedAnswers.application_outcome));
-            console.log('[DIAG_PRIOR_LE_APPS][GATING] application_outcome value:', 
-              updatedCollectedAnswers.application_outcome || '(MISSING)');
+            logPriorLeClientAnchors('GATING_CURRENT', updatedCollectedAnswers);
             
             // Skip fields whose requiresMissing anchors are already present
             while (nextFieldIdx < totalFieldsInPack) {
