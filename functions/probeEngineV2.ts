@@ -3648,12 +3648,6 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2-UNIVERSAL][ANSWER] Calling Discretion Engine after answer`);
     
     try {
-      // HARDENED: Merge extracted anchors with incident context
-      const currentAnchors = { 
-        ...incident_context,
-        ...extractedAnchors
-      };
-      
       // HARDENED: Validate anchor count to prevent malformed state
       const anchorCount = Object.keys(currentAnchors).length;
       if (anchorCount > 20) {
@@ -3716,74 +3710,73 @@ async function probeEngineV2(input, base44Client) {
           // No probe was asked, so probeCount stays the same
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
           
-          // CRITICAL: For PACK_PRIOR_LE_APPS_STANDARD, return extracted anchors
-          const result = {
+          return createV2ProbeResult({
             mode: "NEXT_FIELD",
             pack_id,
             field_key,
             semanticField: field_key,
             validationResult: "discretion_stop",
-            previousProbeCount: previous_probes_count, // No increment - no question asked
+            previousProbeCount: previous_probes_count,
             maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
             reason: discretionResult.data.reason,
             instanceNumber: instance_number,
+            anchors: currentAnchors,
+            collectedAnchors: currentAnchors,
+            targetAnchors: discretionResult.data.targetAnchors,
             message: `Discretion Engine stopped: ${discretionResult.data.reason}`
-          };
-          
-          // Return extracted anchors for narrative-first packs
-          if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors).length > 0) {
-            result.anchors = extractedAnchors;
-            result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
-            console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Returning ${Object.keys(extractedAnchors).length} anchors:`, Object.keys(extractedAnchors));
-          }
-          
-          return result;
+          });
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
           const question = discretionResult.data.question.trim();
           if (question.length < 10 || question.length > 500) {
             console.warn(`[V2-UNIVERSAL] Invalid question length (${question.length}) - advancing instead`);
-            return {
+            return createV2ProbeResult({
               mode: "NEXT_FIELD",
               pack_id,
               field_key,
               semanticField: field_key,
               validationResult: "invalid_question",
               previousProbeCount: previous_probes_count + 1,
+              anchors: currentAnchors,
+              collectedAnchors: currentAnchors,
               message: 'Invalid question from Discretion - advancing'
-            };
+            });
           }
           
           // Discretion wants to ask another question - THIS is where we increment probeCount
           console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${question.substring(0, 60)}..."`);
-          return {
+          return createV2ProbeResult({
             mode: "QUESTION",
             pack_id,
             field_key,
             semanticField: field_key,
             question,
             validationResult: "discretion_probe",
-            previousProbeCount: previous_probes_count + 1, // INCREMENT: a question is actually being asked
+            previousProbeCount: previous_probes_count + 1,
             maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
             isFallback: false,
             probeSource: `discretion_${discretionResult.data.action}`,
             targetAnchors: discretionResult.data.targetAnchors,
             tone: discretionResult.data.tone,
             instanceNumber: instance_number,
+            anchors: currentAnchors,
+            collectedAnchors: currentAnchors,
             message: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`
-          };
+          });
         } else {
           // No valid question returned - don't increment probe count
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
-          return {
+          return createV2ProbeResult({
             mode: "NEXT_FIELD",
             pack_id,
             field_key,
             semanticField: field_key,
             validationResult: "discretion_no_question",
-            previousProbeCount: previous_probes_count, // No increment - no question asked
+            previousProbeCount: previous_probes_count,
+            anchors: currentAnchors,
+            collectedAnchors: currentAnchors,
             message: 'No question from Discretion - advancing'
-          };
+          });
         }
       } else {
         console.warn(`[V2-UNIVERSAL] Invalid discretion result - advancing`);
