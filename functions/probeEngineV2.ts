@@ -4127,11 +4127,12 @@ async function probeEngineV2(input, base44Client) {
   // ============================================================================
   // PER-FIELD HANDLER ROUTER
   // Check if this pack has a dedicated perFieldHandler before generic logic
+  // CRITICAL: This runs BEFORE the early router to give perFieldHandlers priority
   // ============================================================================
   const packConfig = PACK_CONFIG[pack_id];
   
   if (packConfig?.perFieldHandler && typeof packConfig.perFieldHandler === 'function') {
-    console.log("[V2_PER_FIELD][ROUTER]", {
+    console.log("[V2_PER_FIELD][ROUTER] ========== DEDICATED HANDLER FOUND ==========", {
       packId: pack_id,
       fieldKey: field_key,
       usingHandler: packConfig.perFieldHandler === handlePriorLeAppsPerFieldV2 
@@ -4156,13 +4157,17 @@ async function probeEngineV2(input, base44Client) {
     // Call the handler
     const handlerResult = await packConfig.perFieldHandler(ctx);
     
-    console.log("[V2_PER_FIELD][ROUTER][RESULT]", {
+    console.log("[V2_PER_FIELD][ROUTER][RESULT] ========== HANDLER RETURNED ==========", {
       packId: pack_id,
+      fieldKey: field_key,
       mode: handlerResult.mode,
       hasAnchors: !!handlerResult.anchors,
-      anchorKeys: handlerResult.anchors ? Object.keys(handlerResult.anchors) : []
+      hasCollectedAnchors: !!handlerResult.collectedAnchors,
+      anchorKeys: handlerResult.anchors ? Object.keys(handlerResult.anchors) : [],
+      collectedKeys: handlerResult.collectedAnchors ? Object.keys(handlerResult.collectedAnchors) : []
     });
     
+    // CRITICAL: Return immediately - don't fall through to early router or generic logic
     return handlerResult;
   }
   
@@ -4173,9 +4178,18 @@ async function probeEngineV2(input, base44Client) {
   console.log(`[V2-UNIVERSAL] Initial anchors:`, Object.keys(currentAnchors));
   
   // ============================================================================
-  // EARLY ROUTER: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
-  // CRITICAL: This MUST execute FIRST before any generic logic
+  // EARLY ROUTER: SKIP for packs with perFieldHandler
+  // If a pack has a dedicated perFieldHandler, don't use the early router
   // ============================================================================
+  
+  // CRITICAL: Check if this pack has a perFieldHandler BEFORE using early router
+  const hasPerFieldHandler = packConfig?.perFieldHandler && typeof packConfig.perFieldHandler === 'function';
+  
+  if (hasPerFieldHandler) {
+    console.log(`[EARLY_ROUTER_SKIP] pack="${pack_id}" has perFieldHandler - skipping early router logic`);
+    // Skip early router - handler was already called above and returned
+    // This prevents double-processing
+  }
   
   // CRITICAL: Extract narrative text - frontend sends it as field_value
   const narrativeText = 
@@ -4187,18 +4201,11 @@ async function probeEngineV2(input, base44Client) {
     '';
   
   console.log(`[EARLY_ROUTER_CHECK] pack_id="${pack_id}", field_key="${field_key}"`);
-  console.log(`[EARLY_ROUTER_CHECK] Checking all input properties:`, {
-    has_field_value: !!input.field_value,
-    has_fieldValue: !!input.fieldValue,
-    has_answer: !!input.answer,
-    field_value_length: input.field_value?.length || 0,
-    fieldValue_length: input.fieldValue?.length || 0
-  });
+  console.log(`[EARLY_ROUTER_CHECK] hasPerFieldHandler: ${hasPerFieldHandler}`);
   console.log(`[EARLY_ROUTER_CHECK] narrativeText length: ${narrativeText?.length || 0}`);
-  console.log(`[EARLY_ROUTER_CHECK] narrativeText preview: "${narrativeText?.substring?.(0, 80)}..."`);
-  console.log(`[EARLY_ROUTER_CHECK] Condition match: ${pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim()}`);
   
-  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim()) {
+  // Only execute early router if pack does NOT have perFieldHandler
+  if (!hasPerFieldHandler && pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim()) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
     // PART 1 DIAGNOSTICS: Log raw input narrative
