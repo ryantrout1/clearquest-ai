@@ -3553,13 +3553,8 @@ async function probeEngineV2(input, base44Client) {
   // ============================================================================
   
   // HARDENED: Extract anchors BEFORE calling Discretion Engine
-  // For PACK_PRIOR_LE_APPS_STANDARD: aggregate ALL answers from this instance
-  let extractedAnchors = {};
   if (field_value && field_value.trim()) {
     try {
-      // Special handling for PACK_PRIOR_LE_APPS_STANDARD - use local extraction first
-      let answerToExtract = field_value;
-
       // =====================================================================
       // CENTRALIZED ANCHOR EXTRACTION - Uses anchorExtractionRules from PACK_CONFIG
       // Automatically extracts outcomes, dates, agencies, roles from narrative
@@ -3574,7 +3569,7 @@ async function probeEngineV2(input, base44Client) {
         const centrallyExtracted = extractAnchorsFromNarrative(
           field_value,
           currentPackConfig.anchorExtractionRules,
-          incident_context
+          currentAnchors
         );
         
         // Merge centrally extracted anchors
@@ -3615,8 +3610,8 @@ async function probeEngineV2(input, base44Client) {
       }
       
       // Aggregate all previous answers for LLM extraction (fallback)
-      let answerToExtract = field_value;
       const allAnswers = Object.values(incident_context || {}).filter(Boolean);
+      let answerToExtract = field_value;
       if (allAnswers.length > 0) {
         answerToExtract = [...allAnswers, field_value].join(' ');
         console.log(`[ANCHOR_EXTRACT][${pack_id}] Aggregating ${allAnswers.length + 1} answers for LLM extraction`);
@@ -3625,10 +3620,10 @@ async function probeEngineV2(input, base44Client) {
       const extractionResult = await base44Client.functions.invoke('factExtractor', {
         packId: pack_id,
         candidateAnswer: answerToExtract,
-        previousAnchors: incident_context
+        previousAnchors: currentAnchors
       });
       if (extractionResult.data?.success && extractionResult.data.newAnchors) {
-        // Merge LLM extraction with local extraction (local takes precedence for month_year)
+        // Merge LLM extraction with local extraction (local takes precedence)
         extractedAnchors = { ...extractionResult.data.newAnchors, ...extractedAnchors };
         
         // Log extracted anchors for PACK_PRIOR_LE_APPS_STANDARD
@@ -3643,6 +3638,10 @@ async function probeEngineV2(input, base44Client) {
     } catch (extractErr) {
       console.warn(`[V2-UNIVERSAL][EXTRACT] Extraction failed - continuing:`, extractErr.message);
     }
+    
+    // Merge extracted anchors into current state
+    currentAnchors = mergeAnchors(currentAnchors, extractedAnchors);
+    console.log(`[V2-UNIVERSAL][EXTRACT] Merged anchors:`, Object.keys(currentAnchors));
   }
   
   if (field_value && field_value.trim()) {
