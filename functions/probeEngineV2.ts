@@ -5012,6 +5012,18 @@ Deno.serve(async (req) => {
     } else {
       console.log('[V2_ENGINE][SKIP_ATTACH] Skipping attachDeterministicAnchorsForField for PACK_PRLE_Q01 - already handled');
     }
+    
+    // ========================================================================
+    // SAFETY NET: Ensure result has anchors and collectedAnchors
+    // Wrap through createV2ProbeResult to guarantee shape consistency
+    // ========================================================================
+    result = createV2ProbeResult({
+      ...result,
+      // Preserve existing anchors/collectedAnchors if present, otherwise use {}
+      anchors: result?.anchors ?? {},
+      collectedAnchors: result?.collectedAnchors ?? {},
+    });
+    
     result = normalizeV2Result(result);
     
     // CRITICAL: Final log before returning to frontend
