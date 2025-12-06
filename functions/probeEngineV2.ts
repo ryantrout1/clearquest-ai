@@ -3941,7 +3941,7 @@ async function probeEngineV2(input, base44Client) {
     fieldName: semanticField,
     currentValue: field_value,
     probeCount: previous_probes_count,
-    incidentContext: incident_context,
+    incidentContext: currentAnchors,
     packId: pack_id,
     maxProbesPerField,
     sectionContext
@@ -3956,7 +3956,7 @@ async function probeEngineV2(input, base44Client) {
       console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=false, probed=false, coverage=complete`);
     }
     
-    return {
+    return createV2ProbeResult({
       mode: "NEXT_FIELD",
       pack_id,
       field_key,
@@ -3966,8 +3966,10 @@ async function probeEngineV2(input, base44Client) {
       maxProbesPerField,
       semanticInfo,
       instanceNumber: instance_number,
+      anchors: currentAnchors,
+      collectedAnchors: currentAnchors,
       message: `LLM determined field ${semanticField} is acceptable`
-    };
+    });
   }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
@@ -3988,7 +3990,7 @@ async function probeEngineV2(input, base44Client) {
     });
   }
 
-  return {
+  return createV2ProbeResult({
     mode: "QUESTION",
     pack_id,
     field_key,
@@ -4001,10 +4003,12 @@ async function probeEngineV2(input, base44Client) {
     probeSource: probeResult.source,
     semanticInfo,
     instanceNumber: instance_number,
+    anchors: currentAnchors,
+    collectedAnchors: currentAnchors,
     message: `Probing for more information about ${semanticField}`,
     followups: [probeResult.question],
     followupsCount: 1
-  };
+  });
 }
 
 /**
