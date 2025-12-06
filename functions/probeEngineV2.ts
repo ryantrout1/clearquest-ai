@@ -4046,20 +4046,26 @@ Deno.serve(async (req) => {
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
         console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json({
+        return Response.json(createV2ProbeResult({
           mode: fallback.mode,
+          pack_id: packId,
+          field_key: fieldKey,
           question: fallback.question,
-          packId,
-          fieldKey,
           isFallback: true,
-        }, { status: 200 });
+          anchors: {},
+          collectedAnchors: {}
+        }), { status: 200 });
       }
       
-      return Response.json({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
+        pack_id: packId,
+        field_key: fieldKey,
         reason: "BACKEND_ERROR",
-        details: authError.message || "Authentication failed"
-      }, { status: 200 });
+        details: authError.message || "Authentication failed",
+        anchors: {},
+        collectedAnchors: {}
+      }), { status: 200 });
     }
     
     if (!user) {
