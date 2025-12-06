@@ -25,23 +25,22 @@
  * @returns {object} { anchors: {...}, collectedAnchors: {...} }
  */
 export function extract(ctx) {
-  const anchors = {};
-  const collectedAnchors = {};
-
   try {
     if (ctx && ctx.packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
       // Prior LE Applications pack
-      const fromNarrative = extractNarrative(ctx) || {};
-      const fromShortForm = extractShortForm(ctx) || {};
+      const fromNarrative = extractNarrative(ctx) || { anchors: {}, confidence: {} };
+      const fromShortForm = extractShortForm(ctx) || { anchors: {}, confidence: {} };
 
-      Object.assign(anchors, fromNarrative, fromShortForm);
+      // Confidence-aware merge: choose best value for each anchor
+      const merged = pickBestAnchors(fromNarrative, fromShortForm);
 
-      // collectedAnchors mirrors anchors for now so that the frontend can
-      // display a history if we later add multi-instance support.
-      Object.assign(collectedAnchors, fromNarrative, fromShortForm);
+      return {
+        anchors: merged,
+        collectedAnchors: merged
+      };
     }
 
-    return { anchors, collectedAnchors };
+    return { anchors: {}, collectedAnchors: {} };
   } catch (err) {
     // Never break probing; fail safe
     console.error('[FactAnchorEngine] extract error:', err.message);
@@ -56,24 +55,31 @@ export function extract(ctx) {
  * Extract anchors from narrative/long-form text fields
  * 
  * @param {object} ctx - Extraction context
- * @returns {object} Extracted anchors (plain object, not nested)
+ * @returns {object} { anchors: {...}, confidence: {...} }
  */
 function extractNarrative(ctx) {
   // Only handle PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01 for now
-  if (ctx.packId !== 'PACK_PRIOR_LE_APPS_STANDARD' || ctx.fieldKey !== 'PACK_PRLE_Q01') {
-    return {};
+  if (ctx.packId !== 'PACK_PRIOR_LE_APPS_STANDARD') {
+    return { anchors: {}, confidence: {} };
+  }
+  
+  if (ctx.fieldKey !== 'PACK_PRLE_Q01') {
+    return { anchors: {}, confidence: {} };
   }
 
   const text = (ctx.answerText || '').toLowerCase();
   
   if (!text || text.trim().length < 10) {
-    return {};
+    return { anchors: {}, confidence: {} };
   }
 
   console.log('[FactAnchorEngine][NARRATIVE] Extracting from PACK_PRLE_Q01:', {
     textLength: text.length,
     textPreview: text.substring(0, 100)
   });
+
+  const anchors = {};
+  const confidence = {};
 
   // Extract application_outcome from narrative
   let outcome = null;
@@ -108,38 +114,48 @@ function extractNarrative(ctx) {
   }
 
   if (outcome) {
+    anchors.application_outcome = outcome;
+    confidence.application_outcome = 2; // Moderate - inferred from story
     console.log('[FactAnchorEngine][NARRATIVE] Extracted application_outcome:', outcome);
-    return {
-      application_outcome: outcome
-    };
+  } else {
+    console.log('[FactAnchorEngine][NARRATIVE] No outcome detected in narrative');
   }
 
-  console.log('[FactAnchorEngine][NARRATIVE] No outcome detected in narrative');
-  return {};
+  // TODO: Extract other anchors (agency, position, date) from narrative text
+  // For now, only application_outcome is implemented
+
+  return { anchors, confidence };
 }
 
 /**
  * Extract anchors from short-form/structured fields
  * 
  * @param {object} ctx - Extraction context
- * @returns {object} Extracted anchors (plain object, not nested)
+ * @returns {object} { anchors: {...}, confidence: {...} }
  */
 function extractShortForm(ctx) {
   // Only handle PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q02 for now
-  if (ctx.packId !== 'PACK_PRIOR_LE_APPS_STANDARD' || ctx.fieldKey !== 'PACK_PRLE_Q02') {
-    return {};
+  if (ctx.packId !== 'PACK_PRIOR_LE_APPS_STANDARD') {
+    return { anchors: {}, confidence: {} };
+  }
+  
+  if (ctx.fieldKey !== 'PACK_PRLE_Q02') {
+    return { anchors: {}, confidence: {} };
   }
 
   const text = (ctx.answerText || '').toLowerCase().trim();
   
   if (!text || text.length === 0) {
-    return {};
+    return { anchors: {}, confidence: {} };
   }
 
   console.log('[FactAnchorEngine][SHORT_FORM] Extracting from PACK_PRLE_Q02:', {
     textLength: text.length,
     text: text
   });
+
+  const anchors = {};
+  const confidence = {};
 
   // For short-form answers (< 80 chars), treat as primarily the outcome word/phrase
   let outcome = null;
@@ -172,14 +188,17 @@ function extractShortForm(ctx) {
   }
 
   if (outcome) {
+    anchors.application_outcome = outcome;
+    confidence.application_outcome = 4; // Highest - explicit short-form answer
     console.log('[FactAnchorEngine][SHORT_FORM] Extracted application_outcome:', outcome);
-    return {
-      application_outcome: outcome
-    };
+  } else {
+    console.log('[FactAnchorEngine][SHORT_FORM] No outcome detected in short answer');
   }
 
-  console.log('[FactAnchorEngine][SHORT_FORM] No outcome detected in short answer');
-  return {};
+  // TODO: Extract other anchors if present in short answers
+  // For now, only application_outcome is implemented
+
+  return { anchors, confidence };
 }
 
 /**
@@ -205,6 +224,34 @@ function normalizeAnchorValue(key, value) {
   // - Handle null/undefined/empty
   
   return value;
+}
+
+/**
+ * Pick best anchors based on confidence scoring
+ * 
+ * @param {object} narr - Result from extractNarrative { anchors, confidence }
+ * @param {object} short - Result from extractShortForm { anchors, confidence }
+ * @returns {object} Merged anchors (best value for each key)
+ */
+function pickBestAnchors(narr, short) {
+  const final = {};
+  const keys = new Set([...Object.keys(narr.anchors), ...Object.keys(short.anchors)]);
+
+  for (const key of keys) {
+    const nConf = narr.confidence[key] || 0;
+    const sConf = short.confidence[key] || 0;
+
+    if (sConf > nConf) {
+      final[key] = short.anchors[key];
+    } else if (nConf > sConf) {
+      final[key] = narr.anchors[key];
+    } else if (sConf === nConf && sConf !== 0) {
+      // Tie — prefer short-form
+      final[key] = short.anchors[key];
+    }
+  }
+
+  return final;
 }
 
 /**
