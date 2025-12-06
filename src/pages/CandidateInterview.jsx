@@ -521,6 +521,12 @@ export default function CandidateInterview() {
   const [validationHint, setValidationHint] = useState(null);
   const [isCommitting, setIsCommitting] = useState(false);
   
+  // UX: Typing lock to prevent preview refreshes while user is typing
+  const [isUserTyping, setIsUserTyping] = useState(false);
+  const typingLockTimeoutRef = useRef(null);
+  const currentItemRef = useRef(null);
+  const frozenPreviewRef = useRef(null);
+  
   const triggeredPacksRef = useRef(new Set());
   const lastLoggedV2PackFieldRef = useRef(null);
   
@@ -581,6 +587,7 @@ export default function CandidateInterview() {
   const MAX_PROBE_TURNS = 6;
   const AI_RESPONSE_TIMEOUT_MS = 45000;
   const TYPING_TIMEOUT_MS = 240000;
+  const TYPING_IDLE_MS = 4000; // 4 seconds after last keystroke = not typing
 
   const autoScrollToBottom = useCallback(() => {
     if (!historyRef.current) return;
@@ -590,6 +597,61 @@ export default function CandidateInterview() {
       }
     });
   }, []);
+  
+  // UX: Mark user as typing and set timeout to unlock after idle period
+  const markUserTyping = useCallback(() => {
+    if (!isUserTyping) {
+      console.log("[UX][TYPING] User started typing – locking preview updates");
+      setIsUserTyping(true);
+    }
+    
+    if (typingLockTimeoutRef.current) {
+      clearTimeout(typingLockTimeoutRef.current);
+    }
+    
+    typingLockTimeoutRef.current = setTimeout(() => {
+      console.log("[UX][TYPING] User idle – unlocking preview updates");
+      setIsUserTyping(false);
+      typingLockTimeoutRef.current = null;
+    }, TYPING_IDLE_MS);
+  }, [isUserTyping]);
+  
+  // UX: Build draft key for sessionStorage
+  const buildDraftKey = useCallback((sessionId, packId, fieldKey, instanceNumber) => {
+    return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
+  }, []);
+  
+  // UX: Save draft to sessionStorage
+  const saveDraft = useCallback((value) => {
+    if (!sessionId) return;
+    
+    const packId = currentItem?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
+    const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+    
+    try {
+      window.sessionStorage.setItem(draftKey, value);
+    } catch (e) {
+      console.warn("[UX][DRAFT] Failed to save draft", e);
+    }
+  }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
+  
+  // UX: Clear draft from sessionStorage
+  const clearDraft = useCallback(() => {
+    if (!sessionId) return;
+    
+    const packId = currentItem?.packId || activeV2Pack?.packId || null;
+    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
+    const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+    
+    try {
+      window.sessionStorage.removeItem(draftKey);
+    } catch (e) {
+      console.warn("[UX][DRAFT] Failed to clear draft", e);
+    }
+  }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
 
   // Track last logged V2 pack field to prevent duplicates (logging happens on answer, not render)
   // This ref is used when logging answers to check for duplicates
@@ -612,6 +674,7 @@ export default function CandidateInterview() {
       }
       clearTimeout(typingTimeoutRef.current);
       clearTimeout(aiResponseTimeoutRef.current);
+      clearTimeout(typingLockTimeoutRef.current);
     };
   }, [sessionId, navigate]);
 
@@ -1288,8 +1351,12 @@ export default function CandidateInterview() {
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.anchors:', v2Result?.anchors || '(none)');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] backendAnchors combined:', backendAnchors);
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] application_outcome in backendAnchors?', 
-            backendAnchors.application_outcome !== undefined);
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Canonical keys check:', {
+            prior_le_agency: backendAnchors.prior_le_agency || '(missing)',
+            prior_le_position: backendAnchors.prior_le_position || '(missing)',
+            prior_le_approx_date: backendAnchors.prior_le_approx_date || '(missing)',
+            application_outcome: backendAnchors.application_outcome || '(missing)'
+          });
         }
 
         if (Object.keys(backendAnchors).length > 0) {
@@ -1416,6 +1483,12 @@ export default function CandidateInterview() {
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
           console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
+          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Canonical anchor values:', {
+            prior_le_agency: updatedCollectedAnswers.prior_le_agency || '(missing)',
+            prior_le_position: updatedCollectedAnswers.prior_le_position || '(missing)',
+            prior_le_approx_date: updatedCollectedAnswers.prior_le_approx_date || '(missing)',
+            application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
+          });
           logPriorLeClientAnchors('MERGE_OUTPUT_GLOBAL', updatedCollectedAnswers);
         }
         
@@ -1614,14 +1687,17 @@ export default function CandidateInterview() {
         setV2PackMode("BASE");
         setCurrentFollowUpAnswers({});
         lastLoggedV2PackFieldRef.current = null;
-        
+
+        // UX: Clear draft on successful pack completion
+        clearDraft();
+
         const baseQuestionForExit = engine.QById[baseQuestionId];
         if (baseQuestionForExit?.followup_multi_instance) {
           onFollowupPackComplete(baseQuestionId, packId);
         } else {
           advanceToNextBaseQuestion(baseQuestionId);
         }
-        
+
         await persistStateToDatabase(newTranscript, [], null);
         setIsCommitting(false);
         setInput("");
@@ -2644,7 +2720,38 @@ export default function CandidateInterview() {
     }]);
   }, []);
 
+  // UX: Restore draft when currentItem changes
+  useEffect(() => {
+    if (!currentItem || !sessionId) return;
+    
+    const packId = currentItem?.packId || null;
+    const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
+    const instanceNumber = currentItem?.instanceNumber || 0;
+    const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
+    
+    try {
+      const savedDraft = window.sessionStorage.getItem(draftKey);
+      if (savedDraft != null && savedDraft !== "") {
+        console.log("[UX][DRAFT] Restoring draft for", draftKey);
+        setInput(savedDraft);
+      } else {
+        setInput("");
+      }
+    } catch (e) {
+      console.warn("[UX][DRAFT] Failed to restore draft", e);
+    }
+  }, [currentItem, sessionId, buildDraftKey]);
+  
   const getCurrentPrompt = () => {
+    // UX: Stabilize current item while typing
+    let effectiveCurrentItem = currentItem;
+    
+    if (isUserTyping && currentItemRef.current) {
+      effectiveCurrentItem = currentItemRef.current;
+    } else {
+      currentItemRef.current = currentItem;
+    }
+    
     // V3 probing mode - no prompt, V3ProbingLoop handles it
     if (v3ProbingActive) {
       return null;
@@ -2658,6 +2765,9 @@ export default function CandidateInterview() {
         category: currentIdeCategoryId || 'Follow-up'
       };
     }
+    
+    // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
+    if (!effectiveCurrentItem || !engine) return null;
     
     // If waiting for agent and we have a field probe question, show it
     if (isWaitingForAgent && currentFieldProbe) {
@@ -2677,11 +2787,9 @@ export default function CandidateInterview() {
     if (isWaitingForAgent) {
       return null;
     }
-    
-    if (!currentItem || !engine) return null;
 
-    if (currentItem.type === 'question') {
-      const question = engine.QById[currentItem.id];
+    if (effectiveCurrentItem.type === 'question') {
+      const question = engine.QById[effectiveCurrentItem.id];
       
       if (!question) {
         setCurrentItem(null);
@@ -2695,15 +2803,15 @@ export default function CandidateInterview() {
       
       return {
         type: 'question',
-        id: currentItem.id,
+        id: effectiveCurrentItem.id,
         text: question.question_text,
         responseType: question.response_type,
         category: sectionName
       };
     }
 
-    if (currentItem.type === 'followup') {
-      const { packId, stepIndex, substanceName } = currentItem;
+    if (effectiveCurrentItem.type === 'followup') {
+      const { packId, stepIndex, substanceName } = effectiveCurrentItem;
       
       const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
       if (!packSteps) return null;
@@ -2720,7 +2828,7 @@ export default function CandidateInterview() {
       
       return {
         type: 'followup',
-        id: currentItem.id,
+        id: effectiveCurrentItem.id,
         text: step.Prompt,
         responseType: step.Response_Type || 'text',
         expectedType: step.Expected_Type || 'TEXT',
@@ -2731,37 +2839,37 @@ export default function CandidateInterview() {
       };
     }
 
-    if (currentItem.type === 'multi_instance') {
+    if (effectiveCurrentItem.type === 'multi_instance') {
       return {
         type: 'multi_instance',
-        id: currentItem.id,
-        text: currentItem.prompt,
+        id: effectiveCurrentItem.id,
+        text: effectiveCurrentItem.prompt,
         responseType: 'yes_no',
-        instanceNumber: currentItem.instanceNumber,
-        maxInstances: currentItem.maxInstances
+        instanceNumber: effectiveCurrentItem.instanceNumber,
+        maxInstances: effectiveCurrentItem.maxInstances
       };
     }
 
     // V2 Pack field question
-    if (currentItem.type === 'v2_pack_field') {
-      const { packId, fieldIndex, fieldConfig, instanceNumber } = currentItem;
+    if (effectiveCurrentItem.type === 'v2_pack_field') {
+      const { packId, fieldIndex, fieldConfig, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const totalFields = packConfig?.fields?.length || 0;
       
       console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId);
       
-      // Log currentItem structure for debugging
+      // Log effectiveCurrentItem structure for debugging
       console.log("[V2_PACK][CURRENT_ITEM]", {
-        type: currentItem.type,
-        id: currentItem.id,
+        type: effectiveCurrentItem.type,
+        id: effectiveCurrentItem.id,
         v2PackId: packId,
-        fieldKey: currentItem.fieldKey,
+        fieldKey: effectiveCurrentItem.fieldKey,
         v2InstanceNumber: instanceNumber
       });
       
       // Special log for PACK_PRIOR_LE_APPS_STANDARD rendering
       if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-        console.log(`[V2_PACK][PRIOR_LE_APPS][RENDER] Rendering ${currentItem.fieldKey} (${fieldIndex + 1}/${totalFields})`, {
+        console.log(`[V2_PACK][PRIOR_LE_APPS][RENDER] Rendering ${effectiveCurrentItem.fieldKey} (${fieldIndex + 1}/${totalFields})`, {
           label: fieldConfig?.label,
           inputType: fieldConfig?.inputType
         });
@@ -2769,14 +2877,14 @@ export default function CandidateInterview() {
       
       return {
         type: 'v2_pack_field',
-        id: currentItem.id,
+        id: effectiveCurrentItem.id,
         text: fieldConfig.label,
         responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
         inputType: fieldConfig.inputType,
         placeholder: fieldConfig.placeholder,
         options: fieldConfig.options,
         packId: packId,
-        fieldKey: currentItem.fieldKey,
+        fieldKey: effectiveCurrentItem.fieldKey,
         stepNumber: fieldIndex + 1,
         totalSteps: totalFields,
         instanceNumber: instanceNumber,
@@ -2892,8 +3000,11 @@ export default function CandidateInterview() {
 
     // Call handleAnswer with the answer text - handleAnswer reads currentItem from state
     await handleAnswer(trimmed);
+
+    // UX: Clear draft on successful submit
+    clearDraft();
     setInput("");
-  };
+    };
 
   // Keydown handler for Enter key on bottom bar input
   const handleInputKeyDown = (e) => {
@@ -3322,7 +3433,12 @@ export default function CandidateInterview() {
             <Input
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                markUserTyping(); // UX: Mark as typing to lock preview
+                saveDraft(value);  // UX: Auto-save draft
+                setInput(value);
+              }}
               onKeyDown={handleInputKeyDown}
               placeholder="Type your answer..."
               className="flex-1 h-12 bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400"
