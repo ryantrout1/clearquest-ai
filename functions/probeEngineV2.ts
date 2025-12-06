@@ -1,3 +1,58 @@
+/**
+ * V2 PROBING ARCHITECTURE (CLEARQUEST AI) - FACT-ANCHOR PIPELINE
+ * 
+ * ============================================================================
+ * ARCHITECTURE MAP (2025-12-06)
+ * ============================================================================
+ * 
+ * ENTRYPOINTS:
+ *   - HTTP Handler: Deno.serve() receives POST with { pack_id, field_key, field_value, ... }
+ *   - Main Function: probeEngineV2Core(input, base44Client)
+ * 
+ * DATA FLOW (Per-Field V2 Probe):
+ *   1. Frontend sends narrative → HTTP POST to probeEngineV2
+ *   2. Extract params: packId, fieldKey, field_value (full narrative text)
+ *   3. Router checks for perFieldHandler (pack-specific logic)
+ *   4. Per-Field Handler (e.g., handlePriorLeAppsPerFieldV2):
+ *      a. getFieldNarrativeText(ctx) → extract full text from ctx properties
+ *      b. inferApplicationOutcomeFromNarrative(text) → deterministic extraction
+ *      c. extractPriorLeAppsAnchors({ text }) → legacy centralized extraction
+ *      d. Build anchors and collectedAnchors objects
+ *      e. Return createV2ProbeResult(baseResult, anchors, collectedAnchors)
+ *   5. FactAnchorEngine.extract(factCtx) → secondary extraction layer
+ *   6. Merge: handlerResult.anchors = merge(handler, factEngine)
+ *   7. normalizeV2ProbeResult → ensure anchors/collectedAnchors exist
+ *   8. Return { mode, hasQuestion, question, anchors, collectedAnchors, ... }
+ * 
+ * CANONICAL TEXT FIELD:
+ *   - Primary: field_value
+ *   - Fallbacks: fieldValue, answer, narrative, fullNarrative
+ *   - Helper: getFieldNarrativeText(ctx) tries all keys
+ * 
+ * CANONICAL ANCHOR KEYS (PACK_PRIOR_LE_APPS_STANDARD):
+ *   - application_outcome (PRIMARY - gates PACK_PRLE_Q02)
+ *   - prior_le_agency
+ *   - prior_le_position
+ *   - prior_le_approx_date
+ * 
+ * FACT PERSISTENCE:
+ *   - Anchors returned in probe result → Frontend stores in Response.additional_details
+ *   - Cumulative anchors → session.structured_followup_facts
+ *   - Contradiction Engine reads from session.structured_followup_facts
+ * 
+ * EXTRACTORS (Priority Order):
+ *   1. handlePriorLeAppsPerFieldV2 (pack-specific in-function deterministic)
+ *   2. extractPriorLeAppsAnchors (centralized registry FIELD_ANCHOR_EXTRACTORS)
+ *   3. FactAnchorEngine.extract (separate module with confidence scoring)
+ * 
+ * CONTRADICTION ENGINE:
+ *   - Endpoint: functions/contradictionEngine
+ *   - Reads: session.structured_followup_facts
+ *   - Returns: { contradictions: [...] }
+ * 
+ * ============================================================================
+ */
+
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import FactAnchorEngine from './factAnchorEngine.js';
 
