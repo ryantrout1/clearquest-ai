@@ -3807,126 +3807,88 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       });
     }
 
-    // Try LLM extraction first, with heuristic fallback
-    let extracted = {
-      prior_le_agency: null,
-      prior_le_position: null,
-      prior_le_approx_date: null,
-      application_outcome: null
-    };
+    // Use simple heuristics to extract anchors (per user requirements)
+    const text = narrativeText;
+    const lower = text.toLowerCase();
 
-    // Try LLM extraction
-    try {
-      console.log("[PRIOR_LE_APPS][Q01] Attempting LLM extraction...");
-      
-      const extractionPrompt = `You are analyzing a candidate's narrative about a prior law enforcement application. Extract the following four pieces of information if present:
-
-1. prior_le_agency: The name of the law enforcement agency they applied to (e.g., "Phoenix Police Department")
-2. prior_le_position: The position they applied for (e.g., "police officer", "deputy sheriff")
-3. prior_le_approx_date: The approximate date/time of their application (e.g., "March 2022", "early 2020", "2019")
-4. application_outcome: The outcome of their application (e.g., "hired", "disqualified during background investigation", "withdrew", "still in process", "not selected")
-
-Narrative:
-"""
-${narrativeText}
-"""
-
-Return ONLY a valid JSON object with these four keys. If a piece of information is not present or cannot be determined, set that key to null. Be concise but preserve important detail for the outcome.
-
-Example output:
-{
-  "prior_le_agency": "Phoenix Police Department",
-  "prior_le_position": "police officer",
-  "prior_le_approx_date": "March 2022",
-  "application_outcome": "disqualified during background investigation due to prior traffic violation"
-}`;
-
-      const llmResponse = await base44Client.integrations.Core.InvokeLLM({
-        prompt: extractionPrompt,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            prior_le_agency: { type: ["string", "null"] },
-            prior_le_position: { type: ["string", "null"] },
-            prior_le_approx_date: { type: ["string", "null"] },
-            application_outcome: { type: ["string", "null"] }
-          },
-          required: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"]
-        }
-      });
-
-      console.log("[PRIOR_LE_APPS][Q01] LLM response:", llmResponse);
-
-      if (llmResponse && typeof llmResponse === 'object') {
-        extracted = llmResponse;
-        console.log("[PRIOR_LE_APPS][Q01] LLM extraction successful");
-      }
-    } catch (error) {
-      console.error("[PRIOR_LE_APPS][Q01] LLM extraction failed, using heuristics:", error);
-    }
-
-    // Heuristic fallback if LLM didn't extract values
-    const textLower = narrativeText.toLowerCase();
-    
-    if (!extracted.prior_le_agency) {
-      // Look for patterns like "applied to [AGENCY]" or "applied with [AGENCY]"
-      const agencyMatch = narrativeText.match(/applied (?:to|with) ([^.]+?(?:police|sheriff|department|agency)[^.]*?)(?:for|in|around|\.|$)/i);
-      if (agencyMatch) {
-        extracted.prior_le_agency = agencyMatch[1].trim();
-        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted agency:", extracted.prior_le_agency);
-      }
-    }
-
-    if (!extracted.prior_le_position) {
-      // Look for common position keywords
-      if (textLower.includes('police officer')) {
-        extracted.prior_le_position = 'police officer';
-      } else if (textLower.includes('deputy')) {
-        extracted.prior_le_position = 'deputy';
-      } else if (textLower.includes('dispatcher')) {
-        extracted.prior_le_position = 'dispatcher';
-      } else if (textLower.includes('officer')) {
-        extracted.prior_le_position = 'officer';
-      }
-      if (extracted.prior_le_position) {
-        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted position:", extracted.prior_le_position);
-      }
-    }
-
-    if (!extracted.prior_le_approx_date) {
-      // Look for date patterns like "March 2022", "early 2020", "2019"
-      const dateMatch = narrativeText.match(/(?:around|in|during|circa)\s+([A-Z][a-z]+\s+\d{4}|\d{4}|(?:early|mid|late)\s+\d{4})/i);
-      if (dateMatch) {
-        extracted.prior_le_approx_date = dateMatch[1].trim();
-        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted date:", extracted.prior_le_approx_date);
-      }
-    }
-
-    if (!extracted.application_outcome) {
-      // Look for outcome keywords
-      if (textLower.includes('disqualified')) {
-        const outcomeMatch = narrativeText.match(/(disqualified[^.]+\.)/i);
-        extracted.application_outcome = outcomeMatch ? outcomeMatch[1].trim() : 'Disqualified';
-      } else if (textLower.includes('hired') || textLower.includes('offered the position')) {
-        extracted.application_outcome = 'Hired';
-      } else if (textLower.includes('withdrew')) {
-        extracted.application_outcome = 'Withdrew application';
-      } else if (textLower.includes('still in process') || textLower.includes('pending')) {
-        extracted.application_outcome = 'Still in process';
-      } else if (textLower.includes('not selected') || textLower.includes('not hired')) {
-        extracted.application_outcome = 'Not selected';
-      }
-      if (extracted.application_outcome) {
-        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted outcome:", extracted.application_outcome);
-      }
-    }
-
-    // Build anchors object with only non-null values
     const anchors = {};
-    if (extracted.prior_le_agency) anchors.prior_le_agency = extracted.prior_le_agency;
-    if (extracted.prior_le_position) anchors.prior_le_position = extracted.prior_le_position;
-    if (extracted.prior_le_approx_date) anchors.prior_le_approx_date = extracted.prior_le_approx_date;
-    if (extracted.application_outcome) anchors.application_outcome = extracted.application_outcome;
+    const collectedAnchors = {};
+
+    console.log("[PRIOR_LE_APPS][Q01] Starting heuristic extraction...");
+    console.log("[PRIOR_LE_APPS][Q01] Text preview:", lower.substring(0, 150));
+
+    // 1) Extract application_outcome (MOST IMPORTANT FOR GATING)
+    let applicationOutcome = null;
+    if (lower.includes("disqual")) {
+      applicationOutcome = "Disqualified";
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Disqualified");
+    } else if (lower.includes("hired")) {
+      applicationOutcome = "Hired";
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Hired");
+    } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
+      applicationOutcome = "Withdrew application";
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Withdrew");
+    } else if (lower.includes("still in process") || lower.includes("still in progress")) {
+      applicationOutcome = "Still in process";
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Matched outcome: Still in process");
+    }
+
+    // 2) Basic agency extraction (optional but useful)
+    // Look for "applied to X" up to "for a" or the end of the sentence.
+    let priorLeAgency = null;
+    const appliedIdx = lower.indexOf("applied to ");
+    if (appliedIdx !== -1) {
+      const afterApplied = text.slice(appliedIdx + "applied to ".length);
+      const stopTokens = [" for a ", " for the ", ". ", ", then ", ";"];
+      let stopIdx = afterApplied.length;
+      for (const token of stopTokens) {
+        const i = afterApplied.toLowerCase().indexOf(token);
+        if (i !== -1 && i < stopIdx) stopIdx = i;
+      }
+      priorLeAgency = afterApplied.slice(0, stopIdx).trim();
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted agency:", priorLeAgency);
+    }
+
+    // 3) Position extraction (look for "position" or "role")
+    let priorLePosition = null;
+    const positionMatch = text.match(/position(?: of)? ([^.,;]+)/i);
+    if (positionMatch && positionMatch[1]) {
+      priorLePosition = positionMatch[1].trim();
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted position:", priorLePosition);
+    }
+
+    // 4) Approx date (grab month + year combo if present)
+    let priorLeApproxDate = null;
+    const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
+    if (dateMatch) {
+      priorLeApproxDate = dateMatch[0].trim();
+      console.log("[PRIOR_LE_APPS][Q01] ✅ Extracted date:", priorLeApproxDate);
+    }
+
+    if (priorLeAgency) {
+      anchors["prior_le_agency"] = priorLeAgency;
+      collectedAnchors["prior_le_agency"] = [priorLeAgency];
+    }
+    if (priorLePosition) {
+      anchors["prior_le_position"] = priorLePosition;
+      collectedAnchors["prior_le_position"] = [priorLePosition];
+    }
+    if (priorLeApproxDate) {
+      anchors["prior_le_approx_date"] = priorLeApproxDate;
+      collectedAnchors["prior_le_approx_date"] = [priorLeApproxDate];
+    }
+    if (applicationOutcome) {
+      anchors["application_outcome"] = applicationOutcome;
+      collectedAnchors["application_outcome"] = [applicationOutcome];
+    }
+
+    // 🔍 Diagnostic logging in the backend logs (per user requirements)
+    console.log("[PROBE_V2][PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
+      prior_le_agency: anchors.prior_le_agency || "(missing)",
+      prior_le_position: anchors.prior_le_position || "(missing)",
+      prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
+      application_outcome: anchors.application_outcome || "(missing)",
+    });
 
     const mergedCollected = {
       ...existingCollection,
@@ -3935,6 +3897,7 @@ Example output:
 
     console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] ========== EXTRACTION COMPLETE ==========");
     console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] anchors:", anchors);
+    console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] collectedAnchors:", collectedAnchors);
     console.log("[PRIOR_LE_APPS][Q01][EXTRACTED] Canonical keys:", {
       prior_le_agency: anchors.prior_le_agency || "(missing)",
       prior_le_position: anchors.prior_le_position || "(missing)",
@@ -3948,7 +3911,7 @@ Example output:
       followupsCount: 0,
       anchors,
       collectedAnchors: mergedCollected,
-      reason: "Field narrative validated and anchors extracted for prior LE application",
+      reason: "prior_le_apps: Field narrative validated and anchors extracted from PACK_PRLE_Q01",
     });
 
     console.log("[PRIOR_LE_APPS][Q01][RESULT] ========== RETURNING FROM HANDLER ==========");
