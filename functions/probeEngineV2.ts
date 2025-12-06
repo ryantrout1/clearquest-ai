@@ -4208,6 +4208,7 @@ async function probeEngineV2(input, base44Client) {
         currentAnchorsKeys: Object.keys(currentAnchors),
         application_outcome: currentAnchors.application_outcome || '(MISSING)'
       });
+      console.log(`[V2_PRIOR_LE_APPS][COMPLETE] Final anchors being returned:`, currentAnchors);
     }
     
     return createV2ProbeResult({
