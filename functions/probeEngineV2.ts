@@ -3769,14 +3769,21 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT incident_context (incoming anchors):`, incident_context);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT instance_anchors:`, instance_anchors);
     
-    // Extract anchors from narrative first
+    // CRITICAL: Run deterministic extractor FIRST using registry
+    console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Running deterministic extraction from FIELD_ANCHOR_EXTRACTORS registry`);
+    const deterministicExtraction = extractAnchorsForField(pack_id, field_key, field_value);
+    Object.assign(extractedAnchors, deterministicExtraction.anchors || {});
+    console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Deterministic extraction result:`, deterministicExtraction.anchors);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW MODEL RESPONSE (deterministic):`, deterministicExtraction.anchors);
+    
+    // Also run centralized extraction for additional anchors
     try {
       const currentPackConfig = PACK_CONFIG[pack_id];
       if (currentPackConfig?.anchorExtractionRules) {
         const centrallyExtracted = extractAnchorsFromNarrative(
           field_value,
           currentPackConfig.anchorExtractionRules,
-          currentAnchors
+          { ...currentAnchors, ...extractedAnchors } // Include already extracted anchors
         );
         Object.assign(extractedAnchors, centrallyExtracted);
         console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Centralized extraction: [${Object.keys(centrallyExtracted).join(', ')}]`);
@@ -3786,7 +3793,7 @@ async function probeEngineV2(input, base44Client) {
       console.warn(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Extraction error (continuing):`, err.message);
     }
     
-    // Call dedicated handler
+    // Call dedicated handler with all extracted anchors
     const handlerResult = handlePriorLeAppsQ01({
       pack_id,
       field_key,
