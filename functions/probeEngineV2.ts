@@ -3699,7 +3699,8 @@ async function probeEngineV2(input, base44Client) {
           collected_anchor_count: Object.keys(currentAnchors).length,
           probe_count: previous_probes_count + 1,
           will_ask_question: discretionResult.data?.action !== "stop",
-          question_preview: discretionResult.data?.question?.substring?.(0, 80)
+          question_preview: discretionResult.data?.question?.substring?.(0, 80),
+          application_outcome: currentAnchors.application_outcome || '(MISSING)'
         });
       }
       
