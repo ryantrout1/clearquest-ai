@@ -701,6 +701,57 @@ function getFieldNarrativeText(raw) {
 const PRIOR_LE_DEBUG = "[PRIOR_LE_Q01_ANCHORS]";
 const V2_DEBUG_ENABLED = true; // Set to false to reduce console noise
 
+// ============================================================================
+// DETERMINISTIC EXTRACTOR FOR PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+// ============================================================================
+
+/**
+ * Deterministic extractor for PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+ * Reads narrative and infers application outcome
+ */
+function extractPriorLeAppsOutcomeAnchors(fieldTextRaw) {
+  const text = (fieldTextRaw || "").toLowerCase();
+
+  const anchors = {};
+  const collectedAnchors = {};
+
+  // Outcome: disqualified
+  if (text.includes("disqualif")) {
+    anchors.application_outcome = "disqualified";
+  }
+  // Outcome: withdrew / withdrawn
+  else if (text.includes("withdrew") || text.includes("withdrawn") || text.includes("withdraw")) {
+    anchors.application_outcome = "withdrew";
+  }
+  // Outcome: hired / selected / offered the job
+  else if (
+    text.includes("hired") ||
+    text.includes("offered the job") ||
+    text.includes("offered the position") ||
+    text.includes("offered me the job") ||
+    text.includes("offered me the position") ||
+    text.includes("selected for the position")
+  ) {
+    anchors.application_outcome = "hired";
+  }
+  // Outcome: still in process / pending
+  else if (
+    text.includes("still in process") ||
+    text.includes("still in progress") ||
+    text.includes("still being processed") ||
+    text.includes("pending") ||
+    text.includes("under review")
+  ) {
+    anchors.application_outcome = "in_process";
+  }
+
+  if (anchors.application_outcome) {
+    collectedAnchors.application_outcome = anchors.application_outcome;
+  }
+
+  return { anchors, collectedAnchors };
+}
+
 /**
  * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
  * Deterministic, keyword-based extraction
@@ -4586,7 +4637,54 @@ async function probeEngineV2Core(input, base44Client) {
     }
     
     // Call the handler
-    const handlerResult = await packConfig.perFieldHandler(ctx);
+    let handlerResult = await packConfig.perFieldHandler(ctx);
+    
+    // === PRIOR LE APPS: deterministic outcome anchors for PACK_PRLE_Q01 ===
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      // Get canonical field text from input
+      const fieldText =
+        input.field_value ??
+        input.fieldValue ??
+        input.answer ??
+        input.narrative ??
+        input.fullNarrative ??
+        "";
+      
+      const { anchors: outcomeAnchors, collectedAnchors: outcomeCollected } =
+        extractPriorLeAppsOutcomeAnchors(fieldText);
+
+      // Normalize handlerResult anchors objects so we can safely merge into them
+      if (!handlerResult.anchors || typeof handlerResult.anchors !== "object") {
+        handlerResult.anchors = {};
+      }
+      if (
+        !handlerResult.collectedAnchors ||
+        typeof handlerResult.collectedAnchors !== "object"
+      ) {
+        handlerResult.collectedAnchors = {};
+      }
+
+      // Merge deterministic outcome anchors in WITHOUT overwriting any existing keys
+      handlerResult.anchors = {
+        ...outcomeAnchors,
+        ...handlerResult.anchors,
+      };
+
+      handlerResult.collectedAnchors = {
+        ...outcomeCollected,
+        ...handlerResult.collectedAnchors,
+      };
+
+      // Diagnostic for this pack/field
+      console.log("[PRIOR_LE_APPS][Q01][DETERMINISTIC_OUTCOME]", {
+        packId: pack_id,
+        fieldKey: field_key,
+        fieldTextPreview: fieldText.slice(0, 120),
+        anchorsKeys: Object.keys(handlerResult.anchors || {}),
+        collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
+        outcome: handlerResult.anchors.application_outcome || null,
+      });
+    }
     
     // CRITICAL DIAGNOSTIC: Trace handler result structure
     console.log("[V2_PER_FIELD][ROUTER][HANDLER_RESULT_RAW]", {
