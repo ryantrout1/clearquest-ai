@@ -3684,8 +3684,8 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] position: "${anchorUpdates.position || '(MISSING)'}"`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] month_year: "${anchorUpdates.month_year || '(MISSING)'}"`);
   
-  // CRITICAL: Return plain object with anchors - createV2ProbeResult will be called by early router
-  return {
+  // CRITICAL: Build result object that will be returned to frontend
+  const handlerResult = {
     mode: "NEXT_FIELD",
     pack_id,
     field_key,
@@ -3703,6 +3703,20 @@ function handlePriorLeAppsQ01({
     instanceNumber: instance_number,
     message: `PACK_PRLE_Q01 complete - extracted ${Object.keys(anchorUpdates).length} anchors`
   };
+  
+  // FINAL HANDLER LOG: Show exactly what's being returned
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ========== HANDLER RETURN ==========`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Returning result object with:`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   mode: "${handlerResult.mode}"`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   hasQuestion: ${handlerResult.hasQuestion}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors type: ${typeof handlerResult.anchors}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors keys: [${Object.keys(handlerResult.anchors).join(', ')}]`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors.application_outcome: "${handlerResult.anchors.application_outcome || '(MISSING)'}"`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors type: ${typeof handlerResult.collectedAnchors}`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors keys: [${Object.keys(handlerResult.collectedAnchors).join(', ')}]`);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors.application_outcome: "${handlerResult.collectedAnchors.application_outcome || '(MISSING)'}"`);
+  
+  return handlerResult;
 }
 
 /**
