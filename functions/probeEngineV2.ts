@@ -3781,17 +3781,24 @@ async function probeEngineV2(input, base44Client) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
     // PART 1 DIAGNOSTICS: Log raw input narrative
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT NARRATIVE:`, narrativeText);
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT narrative length: ${narrativeText.length}`);
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT incident_context (incoming anchors):`, incident_context);
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT instance_anchors:`, instance_anchors);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] ========== RAW INPUT ==========`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] narrativeText:`, narrativeText);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] narrative length: ${narrativeText.length}`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] incident_context (incoming anchors):`, incident_context);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_INPUT] instance_anchors:`, instance_anchors);
     
-    // CRITICAL: Run deterministic extractor FIRST using registry with narrativeText (not field_value)
-    console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Running deterministic extraction from FIELD_ANCHOR_EXTRACTORS registry`);
+    // CRITICAL: Run deterministic extractor FIRST using registry with narrativeText
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] ========== RUNNING DETERMINISTIC EXTRACTION ==========`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Calling extractAnchorsForField...`);
     const deterministicExtraction = extractAnchorsForField(pack_id, field_key, narrativeText);
     Object.assign(extractedAnchors, deterministicExtraction.anchors || {});
-    console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Deterministic extraction result:`, deterministicExtraction.anchors);
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW MODEL RESPONSE (deterministic):`, deterministicExtraction.anchors);
+    
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] ========== EXTRACTION COMPLETE ==========`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Extracted anchors:`, deterministicExtraction.anchors);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Anchor count: ${Object.keys(deterministicExtraction.anchors || {}).length}`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] Has application_outcome? ${!!(deterministicExtraction.anchors?.application_outcome)}`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] application_outcome value: "${deterministicExtraction.anchors?.application_outcome || '(NOT FOUND)'}"`);
+    console.log(`[PRIOR_LE_APPS][BACKEND][Q01_EXTRACT] extractedAnchors after merge:`, extractedAnchors);
     
     // Also run centralized extraction for additional anchors
     try {
