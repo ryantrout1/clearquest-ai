@@ -1,6 +1,111 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import FactAnchorEngine from './factAnchorEngine.js';
 
+// ============================================================================
+// DETERMINISTIC FACT EXTRACTION HELPERS (Phase 4)
+// ============================================================================
+
+/**
+ * Simple keyword map for application outcomes
+ * Used by PACK_PRIOR_LE_APPS_STANDARD for deterministic extraction
+ */
+const PRIOR_LE_OUTCOME_KEYWORDS = {
+  disqualified: [
+    'disqualified',
+    'dq',
+    'failed background',
+    'did not pass background',
+    'removed from process',
+    'screened out',
+  ],
+  hired: [
+    'hired',
+    'offered the job',
+    'given an offer',
+    'received an offer',
+    'brought on',
+  ],
+  withdrew: [
+    'withdrew',
+    'withdrew my application',
+    'pulled my application',
+    'removed myself from the process',
+    'dropped out of the process',
+  ],
+  in_process: [
+    'still in process',
+    'still processing',
+    'pending',
+    'currently in progress',
+    'still being processed',
+  ],
+};
+
+/**
+ * Detect application outcome from text using keyword matching
+ * @param {string} text - Raw answer text
+ * @returns {string|null} Canonical outcome value or null
+ */
+function detectApplicationOutcomeFromText(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  for (const [value, keywords] of Object.entries(PRIOR_LE_OUTCOME_KEYWORDS)) {
+    if (keywords.some((kw) => lower.includes(kw))) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Deterministic, pack-aware fact anchor extraction for a single field
+ * This is the ONLY place we hard-code pack/field behaviors
+ * All other probe logic should stay generic
+ * 
+ * @param {object} params
+ * @param {string} params.packId - Pack identifier
+ * @param {string} params.fieldKey - Field key
+ * @param {string} params.fieldValue - Raw field value from candidate
+ * @returns {object} { anchors: {...}, collectedAnchors: {...} }
+ */
+function extractFactAnchorsForField({ packId, fieldKey, fieldValue }) {
+  const anchors = {};
+  if (!fieldValue) return { anchors: {}, collectedAnchors: {} };
+
+  // ---------- PRIOR LE APPS: narrative field ----------
+  if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+    // For now, we ONLY extract application_outcome. Later we can add agency, position, approx_date, etc.
+    const outcome = detectApplicationOutcomeFromText(fieldValue);
+    if (outcome) {
+      anchors.application_outcome = outcome;
+      console.log('[DETERMINISTIC_EXTRACT][PRIOR_LE_APPS][Q01] application_outcome:', outcome);
+    }
+
+    return { anchors, collectedAnchors: anchors };
+  }
+
+  // ---------- PRIOR LE APPS: outcome short-answer field ----------
+  if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q02') {
+    // Q02 is already directly asking for the outcome: hired, disqualified, withdrew, still in process.
+    const outcome = detectApplicationOutcomeFromText(fieldValue) || fieldValue.trim().toLowerCase();
+    if (outcome) {
+      // Normalize some obvious raw user variants
+      if (outcome === 'dq') anchors.application_outcome = 'disqualified';
+      else if (outcome === 'in progress') anchors.application_outcome = 'in_process';
+      else anchors.application_outcome = outcome;
+      
+      console.log('[DETERMINISTIC_EXTRACT][PRIOR_LE_APPS][Q02] application_outcome:', anchors.application_outcome);
+    }
+
+    return { anchors, collectedAnchors: anchors };
+  }
+
+  // Default: no deterministic anchors for other fields (yet)
+  return { anchors: {}, collectedAnchors: {} };
+}
+
 /**
  * ProbeEngineV2 - Universal MVP Probing Engine
  * 
