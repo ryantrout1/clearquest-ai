@@ -4097,14 +4097,14 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
 
   const existingCollection = collectedAnchors || {};
 
-  // Use centralized helper to get full narrative text
+  // Use centralized helper to get full narrative text - tries multiple possible keys
   const narrativeText = getFieldNarrativeText(ctx);
 
   console.log(DEBUG_PREFIX, "[HANDLER_ENTRY]", {
     packId,
     fieldKey,
-    narrativePreview: narrativeText.slice(0, 160),
-    narrativeLength: narrativeText.length,
+    narrativePreview: narrativeText?.slice?.(0, 160) || "(empty)",
+    narrativeLength: narrativeText?.length || 0,
     ctxKeys: Object.keys(ctx),
   });
 
@@ -4116,17 +4116,37 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     let anchors = { ...existingCollection };
     let collectedAnchorsResult = { ...existingCollection };
     
-    // Call deterministic helper to extract outcome
-    const outcome = inferApplicationOutcomeFromNarrative(narrativeText);
+    // CRITICAL: Call BOTH extraction helpers to maximize coverage
+    // 1. New inferApplicationOutcomeFromNarrative (from surgical fix)
+    const outcomeNew = inferApplicationOutcomeFromNarrative(narrativeText);
+    console.log(DEBUG_PREFIX, "[OUTCOME_NEW_HELPER]", { outcomeNew });
+    
+    // 2. Legacy extractPriorLeAppsAnchors (from centralized extraction)
+    const legacyExtraction = extractPriorLeAppsAnchors({ text: narrativeText });
+    console.log(DEBUG_PREFIX, "[OUTCOME_LEGACY_HELPER]", { 
+      anchors: legacyExtraction.anchors,
+      application_outcome: legacyExtraction.anchors?.application_outcome 
+    });
+    
+    // Use whichever extraction succeeded
+    const outcome = outcomeNew || legacyExtraction.anchors?.application_outcome;
     
     console.log(DEBUG_PREFIX, "[OUTCOME_EXTRACTED]", {
       packId,
       fieldKey,
       narrativeExcerpt: narrativeText ? narrativeText.slice(0, 200) : "(empty)",
-      outcome,
+      outcomeNew,
+      outcomeLegacy: legacyExtraction.anchors?.application_outcome,
+      outcomeFinal: outcome,
     });
     
-    // Set application_outcome in both anchor containers
+    // Merge ALL extracted anchors from legacy extractor
+    if (legacyExtraction.anchors) {
+      anchors = { ...anchors, ...legacyExtraction.anchors };
+      collectedAnchorsResult = { ...collectedAnchorsResult, ...legacyExtraction.anchors };
+    }
+    
+    // Set application_outcome in both anchor containers (ensure it's set even if only new helper found it)
     if (outcome) {
       anchors = { ...anchors, application_outcome: outcome };
       collectedAnchorsResult = { ...collectedAnchorsResult, application_outcome: outcome };
@@ -4510,7 +4530,7 @@ async function probeEngineV2Core(input, base44Client) {
     }
     
     // Call the handler
-    let handlerResult = await packConfig.perFieldHandler(ctx);
+    const handlerResult = await packConfig.perFieldHandler(ctx);
     
     console.log("[V2_PER_FIELD][ROUTER][RESULT] Handler returned:", {
       packId: pack_id,
@@ -4518,22 +4538,8 @@ async function probeEngineV2Core(input, base44Client) {
       mode: handlerResult.mode,
       anchorKeys: Object.keys(handlerResult.anchors || {}),
       collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
+      applicationOutcome: handlerResult.anchors?.application_outcome || '(none)',
     });
-    
-    // 🔒 SURGICAL FIX: Apply PRIOR_LE_APPS Q01 outcome anchors
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-      console.log(PRIOR_LE_DEBUG, "[APPLYING_ANCHORS] Running applyPriorLeQ01OutcomeAnchors");
-      handlerResult = applyPriorLeQ01OutcomeAnchors(input, handlerResult);
-      
-      console.log("[TEST_PRIOR_LE_ANCHORS][AFTER_APPLY]", {
-        mode: handlerResult.mode,
-        anchorsKeys: Object.keys(handlerResult.anchors || {}),
-        anchors: handlerResult.anchors,
-        collectedAnchorsKeys: Object.keys(handlerResult.collectedAnchors || {}),
-        collectedAnchors: handlerResult.collectedAnchors,
-        applicationOutcome: handlerResult.anchors?.application_outcome || '(missing)',
-      });
-    }
     
     // CRITICAL: Wire FactAnchorEngine before returning (V2 per-field path only)
     const factCtx = {
