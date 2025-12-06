@@ -3429,6 +3429,12 @@ async function probeEngineV2(input, base44Client) {
   if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
+    // PART 1 DIAGNOSTICS: Log raw input narrative
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT NARRATIVE:`, field_value);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT narrative length: ${field_value.length}`);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT incident_context (incoming anchors):`, incident_context);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT instance_anchors:`, instance_anchors);
+    
     // Extract anchors from narrative first
     try {
       const currentPackConfig = PACK_CONFIG[pack_id];
@@ -3440,6 +3446,7 @@ async function probeEngineV2(input, base44Client) {
         );
         Object.assign(extractedAnchors, centrallyExtracted);
         console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Centralized extraction: [${Object.keys(centrallyExtracted).join(', ')}]`);
+        console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW MODEL RESPONSE (centralized):`, centrallyExtracted);
       }
     } catch (err) {
       console.warn(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Extraction error (continuing):`, err.message);
@@ -3456,8 +3463,16 @@ async function probeEngineV2(input, base44Client) {
       instance_number
     });
     
+    // PART 1 DIAGNOSTICS: Log parsed anchors from handler
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] PARSED ANCHORS (from handler):`, handlerResult.anchors);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] PARSED ANCHORS application_outcome: "${handlerResult.anchors?.application_outcome || '(MISSING)'}"`);
+    
     // Merge anchors from handler
     const mergedAnchors = mergeAnchors(currentAnchors, handlerResult.anchors);
+    
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL MERGED ANCHORS:`, mergedAnchors);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL application_outcome: "${mergedAnchors.application_outcome || '(MISSING)'}"`);
+    
     const finalResult = createV2ProbeResult({
       ...handlerResult,
       anchors: mergedAnchors,
@@ -3470,7 +3485,8 @@ async function probeEngineV2(input, base44Client) {
       fieldKey: field_key,
       mode: finalResult.mode,
       anchorKeys: Object.keys(finalResult.collectedAnchors || {}),
-      hasApplicationOutcome: !!(finalResult.collectedAnchors?.application_outcome)
+      hasApplicationOutcome: !!(finalResult.collectedAnchors?.application_outcome),
+      application_outcome_value: finalResult.collectedAnchors?.application_outcome || '(MISSING)'
     });
     
     return finalResult;
