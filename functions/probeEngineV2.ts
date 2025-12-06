@@ -1970,7 +1970,9 @@ Object.assign(PACK_CONFIG, {
     standardClusterId: "PRIOR_LE_APPS",
     isStandardCluster: true,
     active: true,
-    usesAnchors: true, // FLAG: This pack uses anchor-aware probing (SAME as PACK_DRIVING_COLLISION_STANDARD)
+    usesAnchors: true,
+    // CRITICAL: Per-field handler for proof-of-life testing
+    perFieldHandler: handlePriorLeAppsPerFieldV2, // FLAG: This pack uses anchor-aware probing (SAME as PACK_DRIVING_COLLISION_STANDARD)
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
     useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story (SAME as PACK_DRIVING_COLLISION_STANDARD)
