@@ -603,6 +603,59 @@ function extractSpecialAnchorType(text, extractionType) {
 }
 
 /**
+ * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
+ * @param {string} text - Raw narrative text
+ * @returns {string|null} - "disqualified" | "hired" | "withdrew" | "still_in_process" | null
+ */
+function inferApplicationOutcomeFromText(text) {
+  if (!text) return null;
+
+  const lower = text.toLowerCase();
+
+  // Disqualified / DQ'd
+  if (
+    lower.includes("disqualified") ||
+    lower.includes("dq'd") ||
+    lower.includes("dq'ed") ||
+    lower.includes("dq'd")
+  ) {
+    return "disqualified";
+  }
+
+  // Hired / got the job
+  if (
+    lower.includes("hired") ||
+    lower.includes("got the job") ||
+    lower.includes("was offered the job") ||
+    lower.includes("selected")
+  ) {
+    return "hired";
+  }
+
+  // Withdrew / pulled application
+  if (
+    lower.includes("withdrew") ||
+    lower.includes("withdrawn") ||
+    lower.includes("pulled my application") ||
+    lower.includes("pulled the application")
+  ) {
+    return "withdrew";
+  }
+
+  // Still in process
+  if (
+    lower.includes("still in process") ||
+    lower.includes("still processing") ||
+    lower.includes("in progress") ||
+    lower.includes("still pending")
+  ) {
+    return "still_in_process";
+  }
+
+  return null;
+}
+
+/**
  * Helper to detect "I don't recall / remember / know" style answers
  * Used to force probing even if field-specific validation might accept the value
  */
@@ -3913,7 +3966,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   const existingCollection = collectedAnchors || {};
 
   // Pull narrative text from all possible sources (prefer fullNarrative)
-  const narrative =
+  const narrativeText =
     ctx.fullNarrative ||
     ctx.fullAnswer ||
     fieldValue ||
@@ -3924,41 +3977,54 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
 
   console.log("[V2_PRIOR_LE_APPS][Q01_INPUT]", {
     fieldKey,
-    narrativePreview: narrative.slice(0, 160),
-    length: narrative.length,
+    narrativePreview: narrativeText.slice(0, 160),
+    length: narrativeText.length,
   });
 
   // For PACK_PRLE_Q01: Extract outcome deterministically
   if (fieldKey === "PACK_PRLE_Q01") {
-    const outcome = extractPriorLeOutcomeFromNarrative(narrative);
-
-    const newAnchors = {};
-    if (outcome) {
-      newAnchors.application_outcome = outcome;
+    // Initialize mutable anchor objects
+    const anchors = { ...existingCollection };
+    const collectedAnchorsObj = { ...existingCollection };
+    
+    // Call deterministic helper to extract outcome
+    const inferredOutcome = inferApplicationOutcomeFromText(narrativeText);
+    
+    // Debug log for PRIOR_LE_APPS
+    console.log("[PRIOR_LE_APPS_OUTCOME]", {
+      packId,
+      fieldKey,
+      narrativePreview: narrativeText.slice(0, 120),
+      inferredOutcome,
+    });
+    
+    // Set application_outcome if found and not already set
+    if (inferredOutcome) {
+      if (anchors.application_outcome == null) {
+        anchors.application_outcome = inferredOutcome;
+      }
+      if (collectedAnchorsObj.application_outcome == null) {
+        collectedAnchorsObj.application_outcome = inferredOutcome;
+      }
     }
-
-    // Merge into collectedAnchors
-    const mergedCollected = {
-      ...existingCollection,
-      ...newAnchors,
-    };
 
     const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
       followupsCount: 0,
-      reason: outcome
+      reason: inferredOutcome
         ? "Field narrative validated; outcome extracted from narrative"
         : "Field narrative validated; outcome not detected (will ask specific outcome question)",
     };
 
-    const finalResult = createV2ProbeResult(baseResult, newAnchors, mergedCollected);
+    const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsObj);
 
     console.log("[V2_PRIOR_LE_APPS][Q01_OUTPUT]", {
       mode: finalResult.mode,
       hasQuestion: finalResult.hasQuestion,
       anchors: finalResult.anchors,
       collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
+      applicationOutcome: finalResult.anchors?.application_outcome || '(none)',
     });
 
     return finalResult;
