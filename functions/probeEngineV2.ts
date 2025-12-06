@@ -2162,6 +2162,137 @@ Object.assign(PACK_CONFIG, {
   },
 };
 
+// ============================================================================
+// GOLDEN MVP: DETERMINISTIC FIELD ANCHOR EXTRACTORS
+// ============================================================================
+
+/**
+ * Deterministic extractor for PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+ * Extracts application_outcome and other anchors from narrative text
+ * @param {string} text - Raw narrative answer
+ * @returns {object} { anchors: {...}, collectedAnchors: {...} }
+ */
+function extractPriorLeAppsAnchors(text) {
+  const raw = (text || '').toLowerCase();
+  const anchors = {};
+  const collectedAnchors = {};
+
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Extracting from: "${text?.substring(0, 100)}..."`);
+
+  // Extract application_outcome (CRITICAL for Q02 gating)
+  if (raw.includes('disqualif')) {
+    anchors.application_outcome = 'disqualified';
+  } else if (raw.includes('withdrew') || raw.includes('withdrawn')) {
+    anchors.application_outcome = 'withdrew';
+  } else if (raw.includes('still in process') || raw.includes('in process') || raw.includes('pending')) {
+    anchors.application_outcome = 'still_in_process';
+  } else if (raw.includes('hired') || raw.includes('offered the job') || raw.includes('job offer')) {
+    anchors.application_outcome = 'hired';
+  }
+
+  if (anchors.application_outcome) {
+    collectedAnchors.application_outcome = anchors.application_outcome;
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="${anchors.application_outcome}"`);
+  } else {
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✗ No application_outcome found`);
+  }
+
+  return { anchors, collectedAnchors };
+}
+
+/**
+ * Central registry: (packId, fieldKey) → deterministic extractor function
+ * Add new packs/fields here as they adopt anchor-based gating
+ */
+const FIELD_ANCHOR_EXTRACTORS = {
+  PACK_PRIOR_LE_APPS_STANDARD: {
+    PACK_PRLE_Q01: extractPriorLeAppsAnchors,
+  }
+  // Future: PACK_DRIVING_COLLISION_STANDARD, PACK_EMPLOYMENT_STANDARD, etc.
+};
+
+/**
+ * Safe lookup wrapper for deterministic extractors
+ * @param {object} params
+ * @param {string} params.packId
+ * @param {string} params.fieldKey
+ * @param {string} params.answerText
+ * @returns {object} { anchors: {...}, collectedAnchors: {...} }
+ */
+function runDeterministicExtractor({ packId, fieldKey, answerText }) {
+  console.log(`[V2_FACTS][LOOKUP] pack="${packId}", field="${fieldKey}"`);
+  
+  const packExtractors = FIELD_ANCHOR_EXTRACTORS[packId];
+  if (!packExtractors) {
+    console.log(`[V2_FACTS][LOOKUP] No extractors for pack="${packId}"`);
+    return { anchors: {}, collectedAnchors: {} };
+  }
+
+  const extractor = packExtractors[fieldKey];
+  if (!extractor) {
+    console.log(`[V2_FACTS][LOOKUP] No extractor for field="${fieldKey}"`);
+    return { anchors: {}, collectedAnchors: {} };
+  }
+
+  console.log(`[V2_FACTS][RUNNING] Extractor found - executing`);
+  const result = extractor(answerText || '');
+  return {
+    anchors: result.anchors || {},
+    collectedAnchors: result.collectedAnchors || {},
+  };
+}
+
+/**
+ * Normalize v2Result to ensure anchors/collectedAnchors always exist
+ */
+function normalizeV2Result(result) {
+  if (!result || typeof result !== 'object') {
+    return { mode: 'NONE', hasQuestion: false, anchors: {}, collectedAnchors: {} };
+  }
+  if (!result.anchors) result.anchors = {};
+  if (!result.collectedAnchors) result.collectedAnchors = {};
+  return result;
+}
+
+/**
+ * Attach deterministic anchors to v2Result before returning to frontend
+ * GOLDEN MVP CONTRACT: Every per-field return MUST include anchors/collectedAnchors
+ */
+function attachDeterministicAnchorsForField(params, v2Result) {
+  const { pack_id: packId, field_key: fieldKey } = params || {};
+
+  const answerText =
+    params.field_value ||
+    params.fieldValue ||
+    params.answerText ||
+    params.narrative ||
+    '';
+
+  console.log(`[V2_FACTS][ATTACH] pack="${packId}", field="${fieldKey}", answerLength=${answerText?.length || 0}`);
+
+  const deterministic = runDeterministicExtractor({ packId, fieldKey, answerText });
+
+  const normalized = normalizeV2Result(v2Result || {});
+
+  // Merge deterministic anchors (they take precedence)
+  normalized.anchors = {
+    ...(normalized.anchors || {}),
+    ...(deterministic.anchors || {}),
+  };
+
+  normalized.collectedAnchors = {
+    ...(normalized.collectedAnchors || {}),
+    ...(deterministic.collectedAnchors || {}),
+  };
+
+  console.log(`[V2_FACTS][ATTACH] Final anchor count: ${Object.keys(normalized.anchors).length}`);
+  if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
+    console.log(`[V2_FACTS][ATTACH][PRIOR_LE_APPS] application_outcome="${normalized.anchors.application_outcome || '(NONE)'}"`);
+  }
+
+  return normalized;
+}
+
 /**
  * Deterministic inference of application outcome from PACK_PRLE_Q01 narrative
  * Returns one of: "hired", "disqualified", "withdrew", "still_in_process", or null
