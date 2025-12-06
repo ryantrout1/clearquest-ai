@@ -3771,111 +3771,150 @@ function getPackTopicForDiscretion(packId) {
 
 /**
  * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
- * Handles deterministic extraction for Q01, diagnostic anchors for Q02, and passthrough for other fields
+ * Uses LLM extraction for Q01 to get canonical anchors
  */
-async function handlePriorLeAppsPerFieldV2({
-  packId,
-  fieldKey,
-  fieldValueRaw,
-  collectedAnchors,
-  probeCount,
-  baseQuestionCode,
-}) {
+async function handlePriorLeAppsPerFieldV2(ctx) {
+  const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
   const PACK_ID = "PACK_PRIOR_LE_APPS_STANDARD";
   const PACK_PRLE_Q01 = "PACK_PRLE_Q01";
-  const PACK_PRLE_Q02 = "PACK_PRLE_Q02";
 
   const existingCollection = collectedAnchors || {};
-  const narrativeText = (fieldValueRaw || "").trim();
+  const narrativeText = (fieldValue || "").trim();
 
-  console.log("[prior_le_apps][ENTER][V2_PER_FIELD]", {
+  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY]", {
     packId,
     fieldKey,
     probeCount,
-    baseQuestionCode,
     narrativeLength: narrativeText.length,
     existingAnchorKeys: Object.keys(existingCollection),
   });
 
   // --------------------------------------------------------
-  // Q01: Deterministic extraction of agency / position / date
+  // Q01: LLM-based extraction for canonical anchors
   // --------------------------------------------------------
   if (fieldKey === PACK_PRLE_Q01) {
-    console.log("[prior_le_apps][Q01] running deterministic extraction");
+    console.log("[PRIOR_LE_APPS][Q01] ========== LLM EXTRACTION FOR Q01 ==========");
+    console.log("[PRIOR_LE_APPS][Q01] Narrative length:", narrativeText.length);
+    console.log("[PRIOR_LE_APPS][Q01] Narrative preview:", narrativeText.substring(0, 150));
 
-    const deterministicExtraction =
-      extractAnchorsForField(PACK_ID, fieldKey, narrativeText) || {};
+    const anchors = {};
 
-    const anchors = deterministicExtraction.anchors || {};
+    // Use LLM with strict JSON schema to extract canonical fields
+    try {
+      const llmResult = await base44Client.integrations.Core.InvokeLLM({
+        prompt: `Extract structured data from this law enforcement application narrative. Be precise and only extract information explicitly stated in the text.
+
+Narrative:
+"${narrativeText}"
+
+Extract the following fields using ONLY the exact values from the text:
+- agency_name: The name of the law enforcement agency (e.g., "Phoenix Police Department", "Maricopa County Sheriff's Office")
+- position: The job position applied for (e.g., "Police Officer", "Deputy Sheriff", "Detention Officer")
+- approx_date: When they applied (e.g., "March 2022", "2020", "early 2019", "around June 2021")
+- application_outcome: The final result - use ONLY one of these values: "hired", "disqualified", "withdrew", "still_in_process"
+
+If any field is not clearly stated in the narrative, set it to null.`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            agency_name: { type: ["string", "null"] },
+            position: { type: ["string", "null"] },
+            approx_date: { type: ["string", "null"] },
+            application_outcome: {
+              type: ["string", "null"],
+              enum: ["hired", "disqualified", "withdrew", "still_in_process", null]
+            }
+          }
+        }
+      });
+
+      console.log("[PRIOR_LE_APPS][Q01][LLM] Raw extraction result:", llmResult);
+
+      // Map LLM results to canonical keys
+      if (llmResult?.agency_name) {
+        anchors.prior_le_agency = llmResult.agency_name;
+      }
+      if (llmResult?.position) {
+        anchors.prior_le_position = llmResult.position;
+      }
+      if (llmResult?.approx_date) {
+        anchors.prior_le_approx_date = llmResult.approx_date;
+      }
+      if (llmResult?.application_outcome) {
+        anchors.application_outcome = llmResult.application_outcome;
+      }
+
+      console.log("[PRIOR_LE_APPS][Q01][LLM] Mapped to canonical keys:", anchors);
+    } catch (llmErr) {
+      console.warn("[PRIOR_LE_APPS][Q01][LLM_ERROR] LLM extraction failed, using regex fallback:", llmErr.message);
+    }
+
+    // Regex fallback for missing anchors
+    if (!anchors.prior_le_agency) {
+      const agencyMatch = narrativeText.match(/(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO))/i);
+      if (agencyMatch && agencyMatch[1]) {
+        anchors.prior_le_agency = agencyMatch[1].trim();
+        console.log("[PRIOR_LE_APPS][Q01][FALLBACK] prior_le_agency:", anchors.prior_le_agency);
+      }
+    }
+
+    if (!anchors.prior_le_position) {
+      const positionMatch = narrativeText.match(/(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer|detention officer)/i);
+      if (positionMatch && positionMatch[1]) {
+        anchors.prior_le_position = positionMatch[1].trim();
+        console.log("[PRIOR_LE_APPS][Q01][FALLBACK] prior_le_position:", anchors.prior_le_position);
+      }
+    }
+
+    if (!anchors.prior_le_approx_date) {
+      const dateExtraction = extractMonthYearFromText(narrativeText);
+      if (dateExtraction.value) {
+        anchors.prior_le_approx_date = dateExtraction.value;
+        console.log("[PRIOR_LE_APPS][Q01][FALLBACK] prior_le_approx_date:", anchors.prior_le_approx_date);
+      }
+    }
+
+    if (!anchors.application_outcome) {
+      const normalized = narrativeText.toLowerCase();
+      if (normalized.includes("disqualified") || normalized.includes("dq") || normalized.includes("not selected")) {
+        anchors.application_outcome = "disqualified";
+      } else if (normalized.includes("hired") || normalized.includes("offered the job")) {
+        anchors.application_outcome = "hired";
+      } else if (normalized.includes("withdrew") || normalized.includes("pulled my application")) {
+        anchors.application_outcome = "withdrew";
+      } else if (normalized.includes("still in process") || normalized.includes("pending")) {
+        anchors.application_outcome = "still_in_process";
+      }
+      console.log("[PRIOR_LE_APPS][Q01][FALLBACK] application_outcome:", anchors.application_outcome || "(none)");
+    }
+
     const updatedCollection = {
       ...existingCollection,
       ...anchors,
     };
 
-    console.log("[prior_le_apps][Q01][ANCHORS]", {
-      incomingText: narrativeText,
-      anchorKeys: Object.keys(anchors),
+    console.log("[PRIOR_LE_APPS][Q01][ANCHORS] ========== EXTRACTION COMPLETE ==========");
+    console.log("[PRIOR_LE_APPS][Q01][ANCHORS] Extracted anchors:", anchors);
+    console.log("[PRIOR_LE_APPS][Q01][ANCHORS] Canonical keys:", {
+      prior_le_agency: anchors.prior_le_agency || "(missing)",
+      prior_le_position: anchors.prior_le_position || "(missing)",
+      prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
+      application_outcome: anchors.application_outcome || "(missing)"
     });
 
-    console.log("[prior_le_apps][Q01][COLLECTED_AFTER]", {
-      globalAnchorKeys: Object.keys(updatedCollection),
-    });
-
-    // We only validate and move to the next field – no AI question.
     return createV2ProbeResult({
       mode: "NEXT_FIELD",
       hasQuestion: false,
-      reason: "prior_le_apps: Q01 deterministic extraction",
+      reason: "prior_le_apps: Q01 LLM extraction complete",
       anchors,
       collectedAnchors: updatedCollection,
     });
   }
 
   // --------------------------------------------------------
-  // Q02: Diagnostic proof-of-life for application_outcome
+  // Other fields: passthrough with empty anchors
   // --------------------------------------------------------
-  if (fieldKey === PACK_PRLE_Q02) {
-    console.log("[prior_le_apps][Q02][DIAGNOSTIC] building application_outcome anchor");
-
-    const normalized = (narrativeText || "").trim();
-    const outcomeValue = normalized || "diagnostic: withdrew";
-
-    const anchors = {
-      application_outcome: {
-        value: outcomeValue,
-        confidence: 0.99,
-        source: "deterministic",
-        fieldKey,
-      },
-    };
-
-    const updatedCollection = {
-      ...existingCollection,
-      ...anchors,
-    };
-
-    console.log("[prior_le_apps][Q02][ANCHORS]", {
-      text: narrativeText,
-      anchorKeys: Object.keys(anchors),
-    });
-
-    console.log("[prior_le_apps][Q02][COLLECTED_AFTER]", {
-      globalAnchorKeys: Object.keys(updatedCollection),
-    });
-
-    return createV2ProbeResult({
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      reason: "prior_le_apps: Q02 diagnostic outcome anchor",
-      anchors,
-      collectedAnchors: updatedCollection,
-    });
-  }
-
-  // --------------------------------------------------------
-  // Default: passthrough – advance to next field, no new anchors
-  // --------------------------------------------------------
-  console.log("[prior_le_apps][GENERIC] no special handling for field", {
+  console.log("[PRIOR_LE_APPS][OTHER_FIELD]", {
     fieldKey,
     probeCount,
   });
@@ -3883,7 +3922,7 @@ async function handlePriorLeAppsPerFieldV2({
   return createV2ProbeResult({
     mode: "NEXT_FIELD",
     hasQuestion: false,
-    reason: "prior_le_apps: generic per-field passthrough (no anchors for this field)",
+    reason: `prior_le_apps: ${fieldKey} passthrough`,
     anchors: {},
     collectedAnchors: existingCollection,
   });
