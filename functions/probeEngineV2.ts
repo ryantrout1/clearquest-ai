@@ -3508,7 +3508,7 @@ async function probeEngineV2(input, base44Client) {
     try {
       const discretionResult = await base44Client.functions.invoke('discretionEngine', {
         packId: pack_id,
-        collectedAnchors: {},
+        collectedAnchors: currentAnchors,
         probeCount: 0,
         instanceNumber: instance_number,
         lastAnswer: ""
@@ -3518,7 +3518,7 @@ async function probeEngineV2(input, base44Client) {
       if (discretionResult.data?.success && discretionResult.data?.question && discretionResult.data.question.trim()) {
         const question = discretionResult.data.question.trim();
         console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${question.substring(0, 60)}..."`);
-        return {
+        return createV2ProbeResult({
           mode: "QUESTION",
           pack_id,
           field_key,
@@ -3532,8 +3532,10 @@ async function probeEngineV2(input, base44Client) {
           targetAnchors: discretionResult.data.targetAnchors || [],
           tone: discretionResult.data.tone || 'neutral',
           instanceNumber: instance_number,
+          anchors: currentAnchors,
+          collectedAnchors: currentAnchors,
           message: "Opening question from Discretion Engine"
-        };
+        });
       } else {
         console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
       }
