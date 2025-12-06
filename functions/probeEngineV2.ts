@@ -19,6 +19,50 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
 // ============================================================================
+// DETERMINISTIC OUTCOME EXTRACTOR FOR PRIOR LE APPS
+// ============================================================================
+/**
+ * Extract application outcome from narrative text
+ * Simple, deterministic, and targeted for gating logic
+ */
+function extractPriorLeOutcomeFromNarrative(text) {
+  if (!text) return "";
+
+  const lower = text.toLowerCase();
+
+  // Highly targeted checks; keep SIMPLE and deterministic.
+  if (lower.includes("disqualified")) {
+    // capture slightly more context if available
+    if (lower.includes("disqualified during")) {
+      // e.g., "disqualified during the background investigation"
+      const idx = lower.indexOf("disqualified during");
+      const snippet = text.slice(idx, idx + 120);
+      return snippet.trim();
+    }
+    return "disqualified";
+  }
+
+  if (lower.includes("hired")) {
+    return "hired";
+  }
+
+  if (lower.includes("withdrew") || lower.includes("withdraw")) {
+    return "withdrew";
+  }
+
+  if (
+    lower.includes("still in process") ||
+    lower.includes("still being processed") ||
+    lower.includes("still being considered") ||
+    lower.includes("pending")
+  ) {
+    return "still in process";
+  }
+
+  return "";
+}
+
+// ============================================================================
 // PLUGGABLE ANCHOR EXTRACTOR FOR Q01
 // ============================================================================
 /**
@@ -36,16 +80,11 @@ function extractPriorLeAppsQ01AnchorsFromText(textRaw) {
   const raw = textRaw.trim();
   const lower = raw.toLowerCase();
 
-  // --- application_outcome ---
-  let applicationOutcome = null;
-  if (lower.includes("disqual")) {
-    applicationOutcome = "Disqualified";
-  } else if (lower.includes("hired")) {
-    applicationOutcome = "Hired";
-  } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
-    applicationOutcome = "Withdrew application";
-  } else if (lower.includes("still in process") || lower.includes("still in progress")) {
-    applicationOutcome = "Still in process";
+  // --- application_outcome (CRITICAL for Q02 gating) ---
+  const outcome = extractPriorLeOutcomeFromNarrative(raw);
+  if (outcome) {
+    anchors.application_outcome = outcome;
+    collectedAnchors.application_outcome = [outcome];
   }
 
   // --- prior_le_agency ---
@@ -82,7 +121,6 @@ function extractPriorLeAppsQ01AnchorsFromText(textRaw) {
     collectedAnchors[key] = [value];
   }
 
-  add("application_outcome", applicationOutcome);
   add("prior_le_agency", priorLeAgency);
   add("prior_le_position", priorLePosition);
   add("prior_le_approx_date", priorLeApproxDate);
@@ -3731,86 +3769,74 @@ function getPackTopicForDiscretion(packId) {
 
 /**
  * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
- * Uses pluggable extractor from ANCHOR_EXTRACTORS registry
+ * Deterministically extracts application_outcome from Q01 narrative for gating
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
 
-  // V2 DEBUG: Log all available text sources
-  console.log("[V2_DEBUG_INPUT]", {
-    packId,
-    fieldKey,
-    availableKeys: Object.keys(ctx),
-    fieldValuePreview: fieldValue?.substring?.(0, 100),
-    fieldValueLength: fieldValue?.length || 0,
-  });
-
   const existingCollection = collectedAnchors || {};
 
-  // Pull narrative text from all possible sources
-  const narrativeText =
-    fieldValue ||
-    ctx.fullAnswer ||
-    ctx.answer ||
+  // Pull narrative text from all possible sources (prefer fullNarrative)
+  const narrative =
     ctx.fullNarrative ||
+    ctx.fullAnswer ||
+    fieldValue ||
+    ctx.answer ||
+    ctx.fieldValuePreview ||
+    ctx.answerPreview ||
     "";
 
-  console.log("[V2_PRIOR_LE_APPS_DEBUG_INPUT]", {
+  console.log("[V2_PRIOR_LE_APPS][Q01_INPUT]", {
     fieldKey,
-    narrativePreview: narrativeText.substring(0, 160),
-    narrativeLength: narrativeText.length,
+    narrativePreview: narrative.slice(0, 160),
+    length: narrative.length,
   });
 
-  // Run pluggable extractor
-  let newAnchors = {};
-  let mergedCollectedAnchors = existingCollection;
+  // For PACK_PRLE_Q01: Extract outcome deterministically
+  if (fieldKey === "PACK_PRLE_Q01") {
+    const outcome = extractPriorLeOutcomeFromNarrative(narrative);
 
-  const packExtractors = ANCHOR_EXTRACTORS[packId];
-  if (packExtractors && fieldKey) {
-    const fieldExtractor = packExtractors[fieldKey];
-    if (fieldExtractor) {
-      console.log("[V2_PRIOR_LE_APPS] Running extractor for", fieldKey);
-      
-      const extraction = fieldExtractor(narrativeText);
-      newAnchors = extraction.anchors || {};
-      
-      // Merge into collectedAnchors
-      mergedCollectedAnchors = { 
-        ...existingCollection, 
-        ...newAnchors 
-      };
-      
-      console.log("[PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
-        prior_le_agency: newAnchors.prior_le_agency || "(missing)",
-        prior_le_position: newAnchors.prior_le_position || "(missing)",
-        prior_le_approx_date: newAnchors.prior_le_approx_date || "(missing)",
-        application_outcome: newAnchors.application_outcome || "(missing)",
-      });
-    } else {
-      console.log("[V2_PRIOR_LE_APPS] No extractor found for field", fieldKey);
+    const newAnchors = {};
+    if (outcome) {
+      newAnchors.application_outcome = outcome;
     }
+
+    // Merge into collectedAnchors
+    const mergedCollected = {
+      ...existingCollection,
+      ...newAnchors,
+    };
+
+    const baseResult = {
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: outcome
+        ? "Field narrative validated; outcome extracted from narrative"
+        : "Field narrative validated; outcome not detected (will ask specific outcome question)",
+    };
+
+    const finalResult = createV2ProbeResult(baseResult, newAnchors, mergedCollected);
+
+    console.log("[V2_PRIOR_LE_APPS][Q01_OUTPUT]", {
+      mode: finalResult.mode,
+      hasQuestion: finalResult.hasQuestion,
+      anchors: finalResult.anchors,
+      collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
+    });
+
+    return finalResult;
   }
 
-  // Build result with explicit anchors
+  // Other fields: pass through with empty anchors
   const baseResult = {
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    reason: `prior_le_apps: ${fieldKey} validated and anchors extracted`,
+    reason: `prior_le_apps: ${fieldKey} passthrough`,
   };
 
-  const finalResult = createV2ProbeResult(baseResult, newAnchors, mergedCollectedAnchors);
-
-  console.log("[V2_PRIOR_LE_APPS_DEBUG_OUTPUT]", {
-    fieldKey,
-    mode: finalResult.mode,
-    hasQuestion: finalResult.hasQuestion,
-    anchorKeys: Object.keys(finalResult.anchors || {}),
-    anchors: finalResult.anchors,
-    collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
-  });
-
-  return finalResult;
+  return createV2ProbeResult(baseResult, {}, existingCollection);
 }
 
 /**
