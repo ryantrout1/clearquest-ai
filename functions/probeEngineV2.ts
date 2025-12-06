@@ -3736,36 +3736,49 @@ function getPackTopicForDiscretion(packId) {
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
 
-  const existingCollection = collectedAnchors || {};
-  const text = (fieldValue || "").trim();
-
-  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY]", {
+  // V2 DEBUG: Log all available text sources
+  console.log("[V2_DEBUG_INPUT]", {
     packId,
     fieldKey,
-    textLength: text.length,
-    existingAnchorKeys: Object.keys(existingCollection),
+    availableKeys: Object.keys(ctx),
+    fieldValuePreview: fieldValue?.substring?.(0, 100),
+    fieldValueLength: fieldValue?.length || 0,
   });
 
-  // Pull text from all possible sources
+  const existingCollection = collectedAnchors || {};
+
+  // Pull narrative text from all possible sources
   const narrativeText =
     fieldValue ||
-    ctx.answer ||
     ctx.fullAnswer ||
+    ctx.answer ||
+    ctx.fullNarrative ||
     "";
 
+  console.log("[V2_PRIOR_LE_APPS_DEBUG_INPUT]", {
+    fieldKey,
+    narrativePreview: narrativeText.substring(0, 160),
+    narrativeLength: narrativeText.length,
+  });
+
   // Run pluggable extractor
-  let mergedAnchors = existingCollection;
+  let newAnchors = {};
   let mergedCollectedAnchors = existingCollection;
 
   const packExtractors = ANCHOR_EXTRACTORS[packId];
-  if (packExtractors) {
+  if (packExtractors && fieldKey) {
     const fieldExtractor = packExtractors[fieldKey];
     if (fieldExtractor) {
-      const { anchors: newAnchors = {}, collectedAnchors: newCollected = {} } =
-        fieldExtractor(narrativeText);
-
-      mergedAnchors = { ...mergedAnchors, ...newAnchors };
-      mergedCollectedAnchors = { ...mergedCollectedAnchors, ...newCollected };
+      console.log("[V2_PRIOR_LE_APPS] Running extractor for", fieldKey);
+      
+      const extraction = fieldExtractor(narrativeText);
+      newAnchors = extraction.anchors || {};
+      
+      // Merge into collectedAnchors
+      mergedCollectedAnchors = { 
+        ...existingCollection, 
+        ...newAnchors 
+      };
       
       console.log("[PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
         prior_le_agency: newAnchors.prior_le_agency || "(missing)",
@@ -3773,27 +3786,31 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
         prior_le_approx_date: newAnchors.prior_le_approx_date || "(missing)",
         application_outcome: newAnchors.application_outcome || "(missing)",
       });
+    } else {
+      console.log("[V2_PRIOR_LE_APPS] No extractor found for field", fieldKey);
     }
   }
 
-  const result = createV2ProbeResult({
+  // Build result with explicit anchors
+  const baseResult = {
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    anchors: mergedAnchors,
-    collectedAnchors: mergedCollectedAnchors,
     reason: `prior_le_apps: ${fieldKey} validated and anchors extracted`,
+  };
+
+  const finalResult = createV2ProbeResult(baseResult, newAnchors, mergedCollectedAnchors);
+
+  console.log("[V2_PRIOR_LE_APPS_DEBUG_OUTPUT]", {
+    fieldKey,
+    mode: finalResult.mode,
+    hasQuestion: finalResult.hasQuestion,
+    anchorKeys: Object.keys(finalResult.anchors || {}),
+    anchors: finalResult.anchors,
+    collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
   });
 
-  console.log("[V2_PRIOR_LE_APPS][Q01] Returning result:", {
-    mode: result.mode,
-    hasQuestion: result.hasQuestion,
-    reason: result.reason,
-    anchorKeys: Object.keys(result.anchors || {}),
-    anchors: result.anchors,
-  });
-
-  return result;
+  return finalResult;
 }
 
 /**
@@ -4000,31 +4017,27 @@ If any field is not clearly stated, set it to null.`,
  * Universal V2 result builder - ensures EVERY response includes anchors/collectedAnchors
  * CRITICAL: All V2 probe returns MUST use this helper
  * 
- * Signature: createV2ProbeResult(base, overrides)
- * - base: Required fields { mode, hasQuestion, followupsCount, reason, anchors, collectedAnchors }
- * - overrides: Optional override for any field
+ * Signature: createV2ProbeResult(base, anchors, collectedAnchors)
  */
-function createV2ProbeResult(base, overrides = {}) {
-  const {
-    mode = "NONE",
-    hasQuestion = false,
-    followupsCount = 0,
-    reason = "",
-    anchors = {},
-    collectedAnchors = {},
-  } = base || {};
-
-  const finalAnchors = overrides.anchors || anchors || {};
-  const finalCollected = overrides.collectedAnchors || collectedAnchors || {};
-
+function createV2ProbeResult(base, anchors, collectedAnchors) {
+  // Allow single-argument call for backward compatibility
+  if (arguments.length === 1 && base.anchors !== undefined) {
+    return {
+      mode: base.mode || "NONE",
+      hasQuestion: base.hasQuestion || false,
+      followupsCount: base.followupsCount || 0,
+      reason: base.reason || "",
+      question: base.question,
+      anchors: base.anchors || {},
+      collectedAnchors: base.collectedAnchors || {},
+    };
+  }
+  
+  // Standard three-argument call
   return {
-    mode: overrides.mode || mode,
-    hasQuestion: overrides.hasQuestion !== undefined ? overrides.hasQuestion : hasQuestion,
-    followupsCount: overrides.followupsCount !== undefined ? overrides.followupsCount : followupsCount,
-    reason: overrides.reason || reason,
-    question: overrides.question,
-    anchors: finalAnchors,
-    collectedAnchors: finalCollected,
+    ...base,
+    anchors: anchors || {},
+    collectedAnchors: collectedAnchors || {},
   };
 }
 
@@ -4050,12 +4063,15 @@ function mergeAnchors(existingAnchors = {}, newAnchors = {}) {
  * SYSTEMIC FIX: All return paths now include anchors and collectedAnchors
  */
 async function probeEngineV2(input, base44Client) {
+  // VERSION BANNER - Confirms we're running the fixed code
+  console.log("[V2_DEBUG_VERSION] probeEngineV2 build 2025-12-06 PRIOR_LE_APPS anchors enabled");
+  
   const {
     pack_id,
-    field_key,                    // The specific field being validated
-    field_value,                  // The value provided for this field
-    previous_probes_count = 0,    // How many times we've probed this incident
-    incident_context = {},        // Other field values for context (= collectedAnchors)
+    field_key,
+    field_value,
+    previous_probes_count = 0,
+    incident_context = {},
     mode: requestMode = "VALIDATE_FIELD",
     answerLooksLikeNoRecall: frontendNoRecallFlag = false,
     sectionName = null,
@@ -4063,10 +4079,9 @@ async function probeEngineV2(input, base44Client) {
     questionDbId = null,
     questionCode = null,
     instance_number = 1,
-    instance_anchors = {}         // Current anchor values for this instance
+    instance_anchors = {}
   } = input;
 
-  console.log(`[V2-UNIVERSAL][ENTRY] ========== PROBE ENGINE STARTING ==========`);
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
@@ -4313,13 +4328,13 @@ async function probeEngineV2(input, base44Client) {
     // No AI opening message needed - go straight to showing Q01.
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" || pack_id === "PACK_LE_APPS") {
       console.log(`[PACK_PRIOR_LE_APPS][OPENING] No opening probe - showing PACK_PRLE_Q01 narrative field directly`);
-      return createV2ProbeResult({
+      const baseResult = {
         mode: "NONE",
         hasQuestion: false,
+        followupsCount: 0,
         reason: "prior_le_apps: no opening probe; Q01 is the opener",
-        anchors: currentAnchors || {},
-        collectedAnchors: currentAnchors || {},
-      });
+      };
+      return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
     }
     
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
@@ -4337,14 +4352,14 @@ async function probeEngineV2(input, base44Client) {
       if (discretionResult.data?.success && discretionResult.data?.question && discretionResult.data.question.trim()) {
         const question = discretionResult.data.question.trim();
         console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${question.substring(0, 60)}..."`);
-        return createV2ProbeResult({
+        const baseResult = {
           mode: "QUESTION",
           hasQuestion: true,
+          followupsCount: 1,
           question,
           reason: "Opening question from Discretion Engine",
-          anchors: currentAnchors || {},
-          collectedAnchors: currentAnchors || {},
-        });
+        };
+        return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
       } else {
         console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
       }
@@ -4519,13 +4534,13 @@ async function probeEngineV2(input, base44Client) {
           // Discretion says we have enough - advance
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
           
-          return createV2ProbeResult({
+          const baseResult = {
             mode: "NEXT_FIELD",
             hasQuestion: false,
+            followupsCount: 0,
             reason: discretionResult.data.reason,
-            anchors: currentAnchors || {},
-            collectedAnchors: currentAnchors || {},
-          });
+          };
+          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
           const question = discretionResult.data.question.trim();
@@ -4546,24 +4561,24 @@ async function probeEngineV2(input, base44Client) {
           
           // Discretion wants to ask another question
           console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${question.substring(0, 60)}..."`);
-          return createV2ProbeResult({
+          const baseResult = {
             mode: "QUESTION",
             hasQuestion: true,
+            followupsCount: 1,
             question,
             reason: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`,
-            anchors: currentAnchors || {},
-            collectedAnchors: currentAnchors || {},
-          });
+          };
+          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
         } else {
           // No valid question returned
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
-          return createV2ProbeResult({
+          const baseResult = {
             mode: "NEXT_FIELD",
             hasQuestion: false,
+            followupsCount: 0,
             reason: 'No question from Discretion - advancing',
-            anchors: currentAnchors || {},
-            collectedAnchors: currentAnchors || {},
-          });
+          };
+          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
         }
       } else {
         console.warn(`[V2-UNIVERSAL] Invalid discretion result - advancing`);
@@ -4609,13 +4624,13 @@ async function probeEngineV2(input, base44Client) {
   if (!packConfig) {
     console.log(`[V2-UNIVERSAL] No pack config found for ${pack_id} - accepting answer`);
     
-    return createV2ProbeResult({
+    const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
+      followupsCount: 0,
       reason: `Pack ${pack_id} not configured for V2 probing`,
-      anchors: currentAnchors || {},
-      collectedAnchors: currentAnchors || {},
-    });
+    };
+    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
   }
 
   // Map raw field key to semantic name
@@ -4683,26 +4698,26 @@ async function probeEngineV2(input, base44Client) {
   if (previous_probes_count >= maxProbesPerField) {
     console.log(`[V2-PER-FIELD] Max probes (${maxProbesPerField}) reached for ${semanticField} → accepting and advancing`);
     
-    return createV2ProbeResult({
+    const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
+      followupsCount: 0,
       reason: `Max probes reached for ${semanticField}`,
-      anchors: currentAnchors || {},
-      collectedAnchors: currentAnchors || {},
-    });
+    };
+    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
   }
 
   // If field is complete (valid answer), move to next field
   if (validationResult === "complete") {
     console.log(`[V2-PER-FIELD] Field ${semanticField} is complete → advancing`);
     
-    return createV2ProbeResult({
+    const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
+      followupsCount: 0,
       reason: `Field ${semanticField} validated successfully`,
-      anchors: currentAnchors || {},
-      collectedAnchors: currentAnchors || {},
-    });
+    };
+    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)
@@ -4727,26 +4742,25 @@ async function probeEngineV2(input, base44Client) {
   if (!probeResult.question) {
     console.log(`[V2-PER-FIELD] LLM determined no probe needed for ${semanticField} → advancing`);
     
-    return createV2ProbeResult({
+    const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
+      followupsCount: 0,
       reason: `LLM determined field ${semanticField} is acceptable`,
-      anchors: currentAnchors || {},
-      collectedAnchors: currentAnchors || {},
-    });
+    };
+    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
   }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
 
-  return createV2ProbeResult({
+  const baseResult = {
     mode: "QUESTION",
     hasQuestion: true,
-    question: probeResult.question,
     followupsCount: 1,
+    question: probeResult.question,
     reason: `Probing for more information about ${semanticField}`,
-    anchors: currentAnchors || {},
-    collectedAnchors: currentAnchors || {},
-  });
+  };
+  return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
 }
 
 /**
@@ -4812,23 +4826,23 @@ Deno.serve(async (req) => {
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
         console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
-        return Response.json(createV2ProbeResult({
+        const baseResult = {
           mode: fallback.mode,
           hasQuestion: true,
+          followupsCount: 1,
           question: fallback.question,
           reason: "Fallback probe - no user",
-          anchors: {},
-          collectedAnchors: {}
-        }), { status: 200 });
+        };
+        return Response.json(createV2ProbeResult(baseResult, {}, {}), { status: 200 });
       }
       
-      return Response.json(createV2ProbeResult({ 
+      const baseResult = {
         mode: "NONE",
         hasQuestion: false,
+        followupsCount: 0,
         reason: "User not authenticated",
-        anchors: {},
-        collectedAnchors: {}
-      }), { status: 200 });
+      };
+      return Response.json(createV2ProbeResult(baseResult, {}, {}), { status: 200 });
     }
     
     let input;
@@ -4838,13 +4852,13 @@ Deno.serve(async (req) => {
       fieldKey = input.field_key;
     } catch (parseError) {
       console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
-      return Response.json(createV2ProbeResult({ 
+      const baseResult = {
         mode: "NONE",
         hasQuestion: false,
+        followupsCount: 0,
         reason: parseError.message || "Invalid request body",
-        anchors: {},
-        collectedAnchors: {}
-      }), { status: 200 });
+      };
+      return Response.json(createV2ProbeResult(baseResult, {}, {}), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
