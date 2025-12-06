@@ -3780,14 +3780,14 @@ async function probeEngineV2(input, base44Client) {
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== ROUTING TO DEDICATED HANDLER ==========");
     
     // PART 1 DIAGNOSTICS: Log raw input narrative
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT NARRATIVE:`, field_value);
-    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT narrative length: ${field_value.length}`);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT NARRATIVE:`, narrativeText);
+    console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT narrative length: ${narrativeText.length}`);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT incident_context (incoming anchors):`, incident_context);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW INPUT instance_anchors:`, instance_anchors);
     
-    // CRITICAL: Run deterministic extractor FIRST using registry
+    // CRITICAL: Run deterministic extractor FIRST using registry with narrativeText (not field_value)
     console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Running deterministic extraction from FIELD_ANCHOR_EXTRACTORS registry`);
-    const deterministicExtraction = extractAnchorsForField(pack_id, field_key, field_value);
+    const deterministicExtraction = extractAnchorsForField(pack_id, field_key, narrativeText);
     Object.assign(extractedAnchors, deterministicExtraction.anchors || {});
     console.log(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Deterministic extraction result:`, deterministicExtraction.anchors);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] RAW MODEL RESPONSE (deterministic):`, deterministicExtraction.anchors);
@@ -3797,7 +3797,7 @@ async function probeEngineV2(input, base44Client) {
       const currentPackConfig = PACK_CONFIG[pack_id];
       if (currentPackConfig?.anchorExtractionRules) {
         const centrallyExtracted = extractAnchorsFromNarrative(
-          field_value,
+          narrativeText,
           currentPackConfig.anchorExtractionRules,
           { ...currentAnchors, ...extractedAnchors } // Include already extracted anchors
         );
@@ -3809,11 +3809,11 @@ async function probeEngineV2(input, base44Client) {
       console.warn(`[PRIOR_LE_APPS][Q01][EARLY_ROUTER] Extraction error (continuing):`, err.message);
     }
     
-    // Call dedicated handler with all extracted anchors
+    // Call dedicated handler with all extracted anchors - use narrativeText
     const handlerResult = handlePriorLeAppsQ01({
       pack_id,
       field_key,
-      field_value,
+      field_value: narrativeText, // Pass narrativeText here
       incident_context: currentAnchors,
       extractedAnchors,
       previous_probes_count,
@@ -3830,13 +3830,37 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL MERGED ANCHORS:`, mergedAnchors);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL application_outcome: "${mergedAnchors.application_outcome || '(MISSING)'}"`);
     
+    // CRITICAL: Create result with explicit anchors parameter BEFORE collectedAnchors
     const finalResult = createV2ProbeResult({
-      ...handlerResult,
+      mode: handlerResult.mode,
+      pack_id: handlerResult.pack_id,
+      field_key: handlerResult.field_key,
       anchors: mergedAnchors,
-      collectedAnchors: mergedAnchors
+      collectedAnchors: mergedAnchors,
+      hasQuestion: handlerResult.hasQuestion,
+      followupsCount: handlerResult.followupsCount,
+      semanticField: handlerResult.semanticField,
+      validationResult: handlerResult.validationResult,
+      previousProbeCount: handlerResult.previousProbeCount,
+      maxProbesPerField: handlerResult.maxProbesPerField,
+      collectedAnchorsKeys: Object.keys(mergedAnchors),
+      reason: handlerResult.reason,
+      instanceNumber: handlerResult.instanceNumber,
+      message: handlerResult.message
     });
     
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== RETURNING FROM DEDICATED HANDLER ==========");
+    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] text=', narrativeText.substring(0, 100));
+    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] anchors=', finalResult.anchors);
+    console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] collectedAnchors=', finalResult.collectedAnchors);
+    
+    // ASSERTION LOG
+    if (finalResult.anchors && finalResult.anchors.application_outcome) {
+      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ✅ application_outcome anchor present:", finalResult.anchors.application_outcome);
+    } else {
+      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ application_outcome anchor missing in final result");
+    }
+    
     console.log('[V2_ENGINE][RETURN]', {
       packId: pack_id,
       fieldKey: field_key,
