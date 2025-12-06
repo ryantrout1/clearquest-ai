@@ -3696,9 +3696,75 @@ function getPackTopicForDiscretion(packId) {
 }
 
 /**
+ * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
+ * PROOF-OF-LIFE: Returns hard-coded test anchors to verify transport
+ */
+async function handlePriorLeAppsPerFieldV2(ctx) {
+  const {
+    packId,
+    fieldKey,
+    fieldValue,
+    instanceNumber,
+    collectedAnchors,
+    probeCount,
+  } = ctx;
+
+  // ✅ Diagnostic proof-of-life
+  console.log("[V2_PRIOR_LE_APPS][HANDLER_ENTER]", {
+    packId,
+    fieldKey,
+    instanceNumber,
+    probeCount,
+    fieldValuePreview: fieldValue ? String(fieldValue).slice(0, 80) : "",
+  });
+
+  // Start from an empty base set of anchors for this call
+  const newAnchors = {};
+  const newCollectedAnchors = { ...(collectedAnchors || {}) };
+
+  // For now, we ONLY care about PACK_PRLE_Q01
+  if (fieldKey === "PACK_PRLE_Q01") {
+    // ✅ HARD-CODED ANCHOR FOR PROOF-OF-LIFE
+    newAnchors.application_outcome = "TEST_DISQUALIFIED";
+    newCollectedAnchors.application_outcome = "TEST_DISQUALIFIED";
+
+    console.log("[V2_PRIOR_LE_APPS][TEST] HARD-CODED ANCHORS PROOF-OF-LIFE", {
+      anchors: newAnchors,
+      collectedAnchors: newCollectedAnchors,
+    });
+
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      anchors: newAnchors,
+      collectedAnchors: newCollectedAnchors,
+      followupsCount: 0,
+      pack_id: packId,
+      field_key: fieldKey,
+      reason: "prior_le_apps: hard-coded application_outcome for diagnostic",
+    });
+  }
+
+  // For all other fields, just fall back to default behavior for now
+  console.log("[V2_PRIOR_LE_APPS][HANDLER_FALLBACK]", { fieldKey });
+
+  return createV2ProbeResult({
+    mode: "NEXT_FIELD",
+    hasQuestion: false,
+    anchors: {},
+    collectedAnchors,
+    followupsCount: 0,
+    pack_id: packId,
+    field_key: fieldKey,
+    reason: "prior_le_apps: no special handling for this fieldKey",
+  });
+}
+
+/**
  * Dedicated handler for PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
  * Uses LLM with strict JSON schema to extract anchors from narrative
  * CRITICAL: Must be called FIRST for this pack/field combination
+ * @deprecated - Replaced by handlePriorLeAppsPerFieldV2 for proof-of-life testing
  */
 async function handlePriorLeAppsQ01({
   pack_id,
