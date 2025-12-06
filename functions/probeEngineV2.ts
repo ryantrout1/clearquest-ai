@@ -2302,6 +2302,31 @@ function normalizeV2Result(result) {
 }
 
 /**
+ * Safety net normalizer - guarantees anchors/collectedAnchors exist on every response
+ * Must be called at the HTTP boundary before returning to frontend
+ */
+function withAnchorDefaults(result) {
+  if (!result || typeof result !== "object") {
+    return {
+      mode: "ERROR",
+      hasQuestion: false,
+      anchors: {},
+      collectedAnchors: {},
+      reason: "Invalid probe result object",
+    };
+  }
+
+  if (!result.anchors) {
+    result.anchors = {};
+  }
+  if (!result.collectedAnchors) {
+    result.collectedAnchors = {};
+  }
+
+  return result;
+}
+
+/**
  * Attach deterministic anchors to v2Result before returning to frontend
  * GOLDEN MVP CONTRACT: Every per-field return MUST include anchors/collectedAnchors
  */
@@ -4928,7 +4953,7 @@ Deno.serve(async (req) => {
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
         console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json(createV2ProbeResult({
+        return Response.json(withAnchorDefaults(createV2ProbeResult({
           mode: fallback.mode,
           pack_id: packId,
           field_key: fieldKey,
@@ -4936,10 +4961,10 @@ Deno.serve(async (req) => {
           isFallback: true,
           anchors: {},
           collectedAnchors: {}
-        }), { status: 200 });
+        })), { status: 200 });
       }
       
-      return Response.json(createV2ProbeResult({ 
+      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
         mode: "NONE",
         pack_id: packId,
         field_key: fieldKey,
@@ -4947,7 +4972,7 @@ Deno.serve(async (req) => {
         details: authError.message || "Authentication failed",
         anchors: {},
         collectedAnchors: {}
-      }), { status: 200 });
+      })), { status: 200 });
     }
     
     if (!user) {
@@ -4958,7 +4983,7 @@ Deno.serve(async (req) => {
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
         console.log('[V2-PER-FIELD] No user → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json(createV2ProbeResult({
+        return Response.json(withAnchorDefaults(createV2ProbeResult({
           mode: fallback.mode,
           pack_id: packId,
           field_key: fieldKey,
@@ -4966,10 +4991,10 @@ Deno.serve(async (req) => {
           isFallback: true,
           anchors: {},
           collectedAnchors: {}
-        }), { status: 200 });
+        })), { status: 200 });
       }
       
-      return Response.json(createV2ProbeResult({ 
+      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
         mode: "NONE",
         pack_id: packId,
         field_key: fieldKey,
@@ -4977,7 +5002,7 @@ Deno.serve(async (req) => {
         details: "User not authenticated",
         anchors: {},
         collectedAnchors: {}
-      }), { status: 200 });
+      })), { status: 200 });
     }
     
     let input;
@@ -4987,7 +5012,7 @@ Deno.serve(async (req) => {
       fieldKey = input.field_key;
     } catch (parseError) {
       console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
-      return Response.json(createV2ProbeResult({ 
+      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
         mode: "NONE",
         pack_id: packId,
         field_key: fieldKey,
@@ -4995,7 +5020,7 @@ Deno.serve(async (req) => {
         details: parseError.message || "Invalid request body",
         anchors: {},
         collectedAnchors: {}
-      }), { status: 200 });
+      })), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
@@ -5047,31 +5072,45 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
+    // ========================================================================
+    // SAFETY NET: Normalize result at HTTP boundary
+    // Guarantees anchors and collectedAnchors always exist before sending to frontend
+    // ========================================================================
+    const normalized = withAnchorDefaults(result);
+    
+    // Optional diagnostic to verify shape
+    console.log("[V2_PROBE_RESULT_SHAPE]", {
+      hasAnchorsProp: Object.prototype.hasOwnProperty.call(normalized, "anchors"),
+      hasCollectedProp: Object.prototype.hasOwnProperty.call(normalized, "collectedAnchors"),
+      anchorKeys: Object.keys(normalized.anchors || {}),
+      collectedKeys: Object.keys(normalized.collectedAnchors || {}),
+    });
+    
     // STAGE5: Log HTTP response anchors before returning to frontend
     logPriorLeAnchors('STAGE5_HTTP_RESPONSE_ANCHORS', {
-      packId: result.pack_id || packId,
-      fieldKey: result.field_key || fieldKey,
-      instanceNumber: result.instanceNumber,
-      anchorsObj: result.anchors
+      packId: normalized.pack_id || packId,
+      fieldKey: normalized.field_key || fieldKey,
+      instanceNumber: normalized.instanceNumber,
+      anchorsObj: normalized.anchors
     });
     logPriorLeAnchors('STAGE5_HTTP_RESPONSE_COLLECTED', {
-      packId: result.pack_id || packId,
-      fieldKey: result.field_key || fieldKey,
-      instanceNumber: result.instanceNumber,
-      anchorsObj: result.collectedAnchors
+      packId: normalized.pack_id || packId,
+      fieldKey: normalized.field_key || fieldKey,
+      instanceNumber: normalized.instanceNumber,
+      anchorsObj: normalized.collectedAnchors
     });
     
     // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
       console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== FINAL RESULT FROM BACKEND ==========');
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(result, null, 2));
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] anchors:', result.anchors || '(none)');
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] collectedAnchors:', result.collectedAnchors || '(none)');
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(normalized, null, 2));
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] anchors:', normalized.anchors || '(none)');
+      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] collectedAnchors:', normalized.collectedAnchors || '(none)');
       console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome?', 
-        !!(result.anchors?.application_outcome || result.collectedAnchors?.application_outcome));
+        !!(normalized.anchors?.application_outcome || normalized.collectedAnchors?.application_outcome));
     }
     
-    return Response.json(result);
+    return Response.json(normalized);
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
     // This allows frontend to treat it as "no probe available"
@@ -5090,7 +5129,7 @@ Deno.serve(async (req) => {
     const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
     if (fallback) {
       console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-      return Response.json(createV2ProbeResult({
+      return Response.json(withAnchorDefaults(createV2ProbeResult({
         mode: fallback.mode,
         pack_id: packId,
         field_key: fieldKey,
@@ -5098,10 +5137,10 @@ Deno.serve(async (req) => {
         isFallback: true,
         anchors: {},
         collectedAnchors: {}
-      }), { status: 200 });
+      })), { status: 200 });
     }
     
-    return Response.json(createV2ProbeResult({ 
+    return Response.json(withAnchorDefaults(createV2ProbeResult({ 
       mode: "NONE",
       pack_id: packId,
       field_key: fieldKey,
@@ -5109,6 +5148,6 @@ Deno.serve(async (req) => {
       details: error.message || "Unexpected error during probing.",
       anchors: {},
       collectedAnchors: {}
-    }), { status: 200 });
+    })), { status: 200 });
   }
 });
