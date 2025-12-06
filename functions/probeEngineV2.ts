@@ -2177,25 +2177,48 @@ function extractPriorLeAppsAnchors(text) {
   const anchors = {};
   const collectedAnchors = {};
 
-  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Extracting from: "${text?.substring(0, 100)}..."`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== DETERMINISTIC EXTRACTION START ==========`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input length: ${text?.length || 0}`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Input preview: "${text?.substring(0, 150)}..."`);
 
-  // Extract application_outcome (CRITICAL for Q02 gating)
-  if (raw.includes('disqualif')) {
+  // Extract application_outcome (CRITICAL for Q02 gating) - EXPANDED PATTERNS
+  // Priority: most definitive first
+  if (raw.includes('disqualif') || raw.includes('dq\'d') || raw.includes('dq\'ed') || 
+      raw.includes('failed background') || raw.includes('failed the background') ||
+      raw.includes('not selected') || raw.includes('wasn\'t selected') || raw.includes('was not selected') ||
+      raw.includes('rejected') || raw.includes('not hired') || raw.includes('wasn\'t hired') ||
+      raw.includes('did not get') || raw.includes('didn\'t get') ||
+      raw.includes('removed from consideration') || raw.includes('removed from the process') ||
+      raw.includes('did not make it') || raw.includes('didn\'t make it') ||
+      raw.includes('unsuccessful')) {
     anchors.application_outcome = 'disqualified';
-  } else if (raw.includes('withdrew') || raw.includes('withdrawn')) {
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="disqualified" (matched disqualified pattern)`);
+  } else if (raw.includes('withdrew') || raw.includes('withdrawn') || raw.includes('pulled my application') ||
+             raw.includes('pulled out') || raw.includes('decided not to continue') ||
+             raw.includes('backed out') || raw.includes('removed myself')) {
     anchors.application_outcome = 'withdrew';
-  } else if (raw.includes('still in process') || raw.includes('in process') || raw.includes('pending')) {
-    anchors.application_outcome = 'still_in_process';
-  } else if (raw.includes('hired') || raw.includes('offered the job') || raw.includes('job offer')) {
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="withdrew" (matched withdrew pattern)`);
+  } else if (raw.includes('hired') || raw.includes('offered the job') || raw.includes('job offer') ||
+             raw.includes('got hired') || raw.includes('was hired') ||
+             raw.includes('got the job') || raw.includes('accepted the offer')) {
     anchors.application_outcome = 'hired';
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="hired" (matched hired pattern)`);
+  } else if (raw.includes('still in process') || raw.includes('in process') || raw.includes('pending') ||
+             raw.includes('waiting to hear back') || raw.includes('haven\'t heard back') ||
+             raw.includes('background in progress') || raw.includes('still processing')) {
+    anchors.application_outcome = 'still_in_process';
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="still_in_process" (matched in-process pattern)`);
+  } else {
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✗ No application_outcome found in narrative`);
   }
 
   if (anchors.application_outcome) {
     collectedAnchors.application_outcome = anchors.application_outcome;
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="${anchors.application_outcome}"`);
-  } else {
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✗ No application_outcome found`);
   }
+
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== EXTRACTION COMPLETE ==========`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Anchors found: ${Object.keys(anchors).length}`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Final anchors:`, anchors);
 
   return { anchors, collectedAnchors };
 }
