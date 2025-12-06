@@ -3795,10 +3795,9 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2-UNIVERSAL] No pack config found for ${pack_id} - using discretion fallback`);
     
     // For unsupported packs, fail closed - do NOT generate generic probes
-    // This prevents confusing "be more specific" questions when pack-specific behavior was expected
-    const semanticInfo = semanticV2EvaluateAnswer(field_key, field_value, incident_context);
+    const semanticInfo = semanticV2EvaluateAnswer(field_key, field_value, currentAnchors);
     
-    return { 
+    return createV2ProbeResult({
       mode: "NEXT_FIELD", 
       pack_id,
       field_key,
@@ -3806,8 +3805,10 @@ async function probeEngineV2(input, base44Client) {
       validationResult: "skipped_unsupported_pack",
       hasProbeQuestion: false,
       semanticInfo,
+      anchors: currentAnchors,
+      collectedAnchors: currentAnchors,
       message: `Pack ${pack_id} not configured for V2 probing - accepting answer without probe` 
-    };
+    });
   }
 
   // Map raw field key to semantic name
@@ -3827,7 +3828,7 @@ async function probeEngineV2(input, base44Client) {
   }
 
   // Global v2-semantic evaluation (pack-agnostic)
-  const semanticInfo = semanticV2EvaluateAnswer(semanticField, field_value, incident_context);
+  const semanticInfo = semanticV2EvaluateAnswer(semanticField, field_value, currentAnchors);
 
   // Fetch max_ai_followups and fact_anchors from FollowUpPack entity
   let maxProbesPerField = DEFAULT_MAX_PROBES_FALLBACK;
