@@ -3334,6 +3334,40 @@ function handlePriorLeAppsQ01({
 }
 
 /**
+ * Unified V2ProbeResult type - ALWAYS includes anchors and collectedAnchors
+ */
+function createV2ProbeResult({
+  mode,
+  pack_id,
+  field_key,
+  anchors = {},
+  collectedAnchors = {},
+  ...rest
+}) {
+  return {
+    mode,
+    pack_id,
+    field_key,
+    hasQuestion: rest.hasQuestion ?? (mode === 'QUESTION'),
+    followupsCount: rest.followupsCount ?? (rest.followups?.length || 0),
+    // CRITICAL: Always include anchors and collectedAnchors (empty object if none)
+    anchors: anchors || {},
+    collectedAnchors: collectedAnchors || {},
+    ...rest
+  };
+}
+
+/**
+ * Merge anchors from multiple sources
+ */
+function mergeAnchors(existingAnchors = {}, newAnchors = {}) {
+  return {
+    ...(existingAnchors || {}),
+    ...(newAnchors || {}),
+  };
+}
+
+/**
  * Main probe engine function - Universal MVP Mode
  * V2.6 Universal MVP: ALL V2 packs use Discretion Engine
  * 
@@ -3341,6 +3375,8 @@ function handlePriorLeAppsQ01({
  * 1. On pack entry (probeCount=0): Call Discretion Engine for opening question
  * 2. On each answer: Extract anchors, call Discretion Engine to decide next step
  * 3. Return QUESTION with AI-generated text, or NEXT_FIELD/COMPLETE when done
+ * 
+ * SYSTEMIC FIX: All return paths now include anchors and collectedAnchors
  */
 async function probeEngineV2(input, base44Client) {
   const {
@@ -3360,6 +3396,12 @@ async function probeEngineV2(input, base44Client) {
   } = input;
 
   console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
+  
+  // Initialize anchor tracking from incoming context
+  let currentAnchors = mergeAnchors(incident_context, instance_anchors);
+  let extractedAnchors = {};
+  
+  console.log(`[V2-UNIVERSAL] Initial anchors:`, Object.keys(currentAnchors));
   
   // ============================================================================
   // EARLY ROUTER: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
