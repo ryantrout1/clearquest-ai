@@ -22,7 +22,7 @@ export const PACK_FACT_ANCHORS = {
   // AI clarifiers should ONLY clarify vague agency/position/date info
   "PACK_PRIOR_LE_APPS_STANDARD": {
     required: [], // No required AI anchors - all fields are deterministic
-    optional: ["agency_name", "position", "month_year"], // Can clarify these if vague
+    optional: ["prior_le_agency", "prior_le_position", "prior_le_approx_date"], // CANONICAL KEYS - can clarify these if vague
     severity: "standard",
     maxProbes: 1, // Single clarifier only if needed
     multiInstance: true,
@@ -1158,27 +1158,27 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
     maxAiFollowups: 4, // Allows clarifiers for all 4 required anchors if needed
-    // Required anchors that MUST be collected from Q01 before advancing
+    // Required anchors that MUST be collected from Q01 before advancing (CANONICAL KEYS)
     requiredAnchors: [
-      "agency_name",
-      "position",
-      "month_year",
+      "prior_le_agency",
+      "prior_le_position",
+      "prior_le_approx_date",
       "application_outcome"
     ],
-    // All target anchors - extracted from Q01 narrative
+    // All target anchors - extracted from Q01 narrative (CANONICAL KEYS)
     targetAnchors: [
-      "agency_name",
-      "position",
-      "month_year",
+      "prior_le_agency",
+      "prior_le_position",
+      "prior_le_approx_date",
       "application_outcome",
       "application_city",
       "application_state"
     ],
-    // Fact anchors for AI clarifier generation
+    // Fact anchors for AI clarifier generation (CANONICAL KEYS)
     factAnchors: [
-      { key: "agency_name", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "month_year", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "prior_le_agency", label: "Agency name", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "prior_le_position", label: "Position applied for", answerType: "text", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "prior_le_approx_date", label: "Application date", answerType: "month_year", priority: 3, multiInstanceAware: false, clarifierStyle: "micro", required: true },
       { key: "application_outcome", label: "Outcome of application", answerType: "text", priority: 4, multiInstanceAware: false, clarifierStyle: "micro", required: true }
     ],
     excludeFromProbing: [], // All anchors can be probed if missing
@@ -1199,7 +1199,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
         isPrimaryNarrativeField: true, // Must capture ALL required anchors before advancing
-        captures: ["agency_name", "position", "month_year", "application_outcome"],
+        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"], // CANONICAL KEYS
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
@@ -1273,14 +1273,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q04",
-        semanticKey: "month_year",
+        semanticKey: "prior_le_approx_date",
         label: "About when did you apply there? Month and year is fine.",
         factsLabel: "Application Date",
         inputType: "month_year",
         placeholder: "e.g., June 2020 or around 2019",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["month_year"], // ONLY ask if date NOT extracted from narrative
+        requiresMissing: ["prior_le_approx_date"], // CANONICAL KEY - ONLY ask if date NOT extracted from narrative
         probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
         includeInFacts: true,
         factsOrder: 4,
@@ -1299,14 +1299,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q05",
-        semanticKey: "position",
+        semanticKey: "prior_le_position",
         label: "What position or job title did you apply for with that agency?",
         factsLabel: "Position",
         inputType: "text",
         placeholder: "Enter position title",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["position"], // Only ask if not extracted from narrative
+        requiresMissing: ["prior_le_position"], // CANONICAL KEY - Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,
@@ -1325,14 +1325,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_PRLE_Q06",
-        semanticKey: "agency_name",
+        semanticKey: "prior_le_agency",
         label: "What was the name of the law enforcement agency you applied to?",
         factsLabel: "Agency Name",
         inputType: "text",
         placeholder: "Enter agency name",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["agency_name"], // Only ask if not extracted from narrative
+        requiresMissing: ["prior_le_agency"], // CANONICAL KEY - Only ask if not extracted from narrative
         includeInFacts: true,
         factsOrder: 6,
         includeInInstanceHeader: false,
