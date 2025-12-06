@@ -108,11 +108,13 @@ function extractNarrative(ctx) {
   }
 
   if (outcome) {
+    console.log('[FactAnchorEngine][NARRATIVE] Extracted application_outcome:', outcome);
     return {
       application_outcome: outcome
     };
   }
 
+  console.log('[FactAnchorEngine][NARRATIVE] No outcome detected in narrative');
   return {};
 }
 
@@ -170,11 +172,13 @@ function extractShortForm(ctx) {
   }
 
   if (outcome) {
+    console.log('[FactAnchorEngine][SHORT_FORM] Extracted application_outcome:', outcome);
     return {
       application_outcome: outcome
     };
   }
 
+  console.log('[FactAnchorEngine][SHORT_FORM] No outcome detected in short answer');
   return {};
 }
 
