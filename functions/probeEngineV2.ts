@@ -3729,17 +3729,22 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors after merge:`, anchorUpdates);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome from extractedAnchors: "${extractedAnchors.application_outcome || '(NONE)'}"`);
   
-  // SAFETY CHECK: If application_outcome is still missing, run inferPriorLEApplicationOutcome as fallback
-  if (!anchorUpdates.application_outcome && narrative) {
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Running FALLBACK inferPriorLEApplicationOutcome`);
-    const fallbackOutcome = inferPriorLEApplicationOutcome(narrative);
-    
-    if (fallbackOutcome) {
-      anchorUpdates.application_outcome = fallbackOutcome;
-      console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ FALLBACK extraction: application_outcome="${fallbackOutcome}"`);
-    } else {
-      console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ FALLBACK extraction: No outcome keyword found in narrative`);
-    }
+  // CRITICAL: Direct inference using new helper function
+  // This is the PRIMARY method for extracting application_outcome
+  const inferredOutcome = inferPriorLeApplicationOutcome(narrative);
+  
+  // DIAGNOSTIC LOG: Show what was inferred (exact format requested in prompt)
+  console.log(
+    "[DIAG_PRIOR_LE_APPS][PACK_PRLE_Q01] inferredOutcome:",
+    inferredOutcome || "(none)"
+  );
+  
+  // Apply inferred outcome - takes precedence over any other extraction
+  if (inferredOutcome) {
+    anchorUpdates.application_outcome = inferredOutcome;
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✅ Direct inference: application_outcome="${inferredOutcome}"`);
+  } else {
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ⚠️ No outcome pattern matched - Q2 will be asked`);
   }
   
   // Final anchor audit
