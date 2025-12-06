@@ -3697,67 +3697,102 @@ function getPackTopicForDiscretion(packId) {
 
 /**
  * Dedicated handler for PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q01
- * Extracts application_outcome from narrative and returns anchors
+ * Uses LLM with strict JSON schema to extract anchors from narrative
  * CRITICAL: Must be called FIRST for this pack/field combination
  */
-function handlePriorLeAppsQ01({
+async function handlePriorLeAppsQ01({
   pack_id,
   field_key,
   field_value,
   incident_context = {},
   extractedAnchors = {},
   previous_probes_count = 0,
-  instance_number = 1
+  instance_number = 1,
+  base44Client
 }) {
   const narrative = (field_value || '').trim();
   
-  console.log("[PRIOR_LE_APPS][Q01][HANDLER_ENTRY] ========== DEDICATED HANDLER EXECUTING ==========");
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] pack_id: ${pack_id}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] field_key: ${field_key}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] instance: ${instance_number}, probeCount: ${previous_probes_count}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative length: ${narrative.length}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative: "${narrative.substring(0, 200)}..."`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Received extractedAnchors from caller:`, extractedAnchors);
+  console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] ========== HANDLER EXECUTING ==========");
+  console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Narrative length:", narrative.length);
+  console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Narrative preview:", narrative.substring(0, 200));
   
-  // Start fresh with extractedAnchors (which already include deterministic + centralized extraction)
-  // Then merge with incident_context (extractedAnchors take precedence)
-  const anchorUpdates = { 
-    ...incident_context, 
-    ...extractedAnchors 
-  };
+  // Build anchors object - start with incident_context
+  const anchors = { ...incident_context };
   
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors after merge:`, anchorUpdates);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome from extractedAnchors: "${extractedAnchors.application_outcome || '(NONE)'}"`);
-  
-  // CRITICAL: Direct inference using new helper function
-  // This is the PRIMARY method for extracting application_outcome
-  const inferredOutcome = inferPriorLeApplicationOutcome(narrative);
-  
-  // DIAGNOSTIC LOG: Show what was inferred (exact format requested in prompt)
-  console.log(
-    "[DIAG_PRIOR_LE_APPS][PACK_PRLE_Q01] inferredOutcome:",
-    inferredOutcome || "(none)"
-  );
-  
-  // Apply inferred outcome - takes precedence over any other extraction
-  if (inferredOutcome) {
-    anchorUpdates.application_outcome = inferredOutcome;
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✅ Direct inference: application_outcome="${inferredOutcome}"`);
-  } else {
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ⚠️ No outcome pattern matched - Q2 will be asked`);
+  // LLM-based extraction with strict JSON schema
+  try {
+    const llmResult = await base44Client.integrations.Core.InvokeLLM({
+      prompt: `Extract structured data from this law enforcement application narrative. Be precise and only extract information explicitly stated in the text.
+
+Narrative:
+"${narrative}"
+
+Extract:
+- application_outcome: The final result (use ONLY: "hired", "disqualified", "withdrew", or "still_in_process")
+- agency_name: The name of the law enforcement agency
+- position_title: The job position applied for
+- approx_date_range: When they applied (e.g., "March 2022", "2020", "early 2019")
+
+If any field is not clearly stated, set it to null.`,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          application_outcome: {
+            type: ["string", "null"],
+            enum: ["hired", "disqualified", "withdrew", "still_in_process", null]
+          },
+          agency_name: { type: ["string", "null"] },
+          position_title: { type: ["string", "null"] },
+          approx_date_range: { type: ["string", "null"] },
+          notes: { type: ["string", "null"] }
+        }
+      }
+    });
+    
+    console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] LLM extraction result:", llmResult);
+    
+    // Map LLM extracted data to anchor keys
+    if (llmResult?.application_outcome) {
+      anchors.application_outcome = llmResult.application_outcome;
+    }
+    if (llmResult?.agency_name) {
+      anchors.agency_name = llmResult.agency_name;
+    }
+    if (llmResult?.position_title) {
+      anchors.position = llmResult.position_title;
+    }
+    if (llmResult?.approx_date_range) {
+      anchors.month_year = llmResult.approx_date_range;
+    }
+  } catch (llmErr) {
+    console.warn("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] LLM extraction failed, using fallback:", llmErr.message);
   }
   
-  // Final anchor audit
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ========== FINAL ANCHORS ==========`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] All anchors:`, anchorUpdates);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Anchor keys: [${Object.keys(anchorUpdates).join(', ')}]`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome: "${anchorUpdates.application_outcome || '(MISSING)'}"`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] agency_name: "${anchorUpdates.agency_name || '(MISSING)'}"`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] position: "${anchorUpdates.position || '(MISSING)'}"`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] month_year: "${anchorUpdates.month_year || '(MISSING)'}"`);
+  // Fallback heuristics if application_outcome still missing
+  if (!anchors.application_outcome && narrative) {
+    const text = narrative.toLowerCase();
+    
+    if (text.includes("disqualified") || text.includes("dq") || text.includes("failed background") || 
+        text.includes("failed the background") || text.includes("not selected") || text.includes("rejected")) {
+      anchors.application_outcome = "disqualified";
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set application_outcome=disqualified");
+    } else if (text.includes("hired") || text.includes("offered the job") || text.includes("got the job")) {
+      anchors.application_outcome = "hired";
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set application_outcome=hired");
+    } else if (text.includes("withdrew") || text.includes("pulled my application") || text.includes("decided not to continue")) {
+      anchors.application_outcome = "withdrew";
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set application_outcome=withdrew");
+    } else if (text.includes("still in process") || text.includes("currently in process") || text.includes("pending")) {
+      anchors.application_outcome = "still_in_process";
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set application_outcome=still_in_process");
+    }
+  }
   
-  // CRITICAL: Build result object that will be returned to frontend
-  const handlerResult = {
+  // DIAGNOSTIC LOGS (per user requirements)
+  console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] anchors to return:", anchors);
+  console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] application_outcome:", anchors.application_outcome);
+  
+  return createV2ProbeResult({
     mode: "NEXT_FIELD",
     pack_id,
     field_key,
@@ -3767,28 +3802,12 @@ function handlePriorLeAppsQ01({
     maxProbesPerField: 4,
     hasQuestion: false,
     followupsCount: 0,
-    // CRITICAL: Return anchors for frontend field gating
-    anchors: { ...anchorUpdates },
-    collectedAnchors: { ...anchorUpdates },
-    collectedAnchorsKeys: Object.keys(anchorUpdates),
-    reason: "PACK_PRLE_Q01 narrative complete - extracted anchors",
+    reason: "PACK_PRLE_Q01 narrative validated and anchors extracted",
     instanceNumber: instance_number,
-    message: `PACK_PRLE_Q01 complete - extracted ${Object.keys(anchorUpdates).length} anchors`
-  };
-  
-  // FINAL HANDLER LOG: Show exactly what's being returned
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ========== HANDLER RETURN ==========`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Returning result object with:`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   mode: "${handlerResult.mode}"`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   hasQuestion: ${handlerResult.hasQuestion}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors type: ${typeof handlerResult.anchors}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors keys: [${Object.keys(handlerResult.anchors).join(', ')}]`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   anchors.application_outcome: "${handlerResult.anchors.application_outcome || '(MISSING)'}"`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors type: ${typeof handlerResult.collectedAnchors}`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors keys: [${Object.keys(handlerResult.collectedAnchors).join(', ')}]`);
-  console.log(`[PRIOR_LE_APPS][Q01][HANDLER]   collectedAnchors.application_outcome: "${handlerResult.collectedAnchors.application_outcome || '(MISSING)'}"`);
-  
-  return handlerResult;
+    message: `Extracted ${Object.keys(anchors).length} anchors from narrative`,
+    anchors,
+    collectedAnchors: anchors
+  });
 }
 
 /**
