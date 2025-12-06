@@ -4252,6 +4252,7 @@ async function probeEngineV2(input, base44Client) {
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
       console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] LLM determined ${semanticField} is acceptable - advancing`);
       console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=false, probed=false, coverage=complete`);
+      console.log(`[V2_PRIOR_LE_APPS][NO_PROBE] Final anchors being returned:`, currentAnchors);
     }
     
     return createV2ProbeResult({
