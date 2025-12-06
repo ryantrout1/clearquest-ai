@@ -4143,35 +4143,16 @@ async function probeEngineV2(input, base44Client) {
     // Call the handler
     const handlerResult = await packConfig.perFieldHandler(ctx);
     
-    console.log("[V2_PER_FIELD][ROUTER][RESULT] ========== HANDLER RETURNED ==========", {
+    console.log("[V2_PER_FIELD][ROUTER][RESULT] Handler returned:", {
       packId: pack_id,
       fieldKey: field_key,
       mode: handlerResult.mode,
-      hasAnchors: !!handlerResult.anchors,
-      hasCollectedAnchors: !!handlerResult.collectedAnchors,
-      anchorKeys: handlerResult.anchors ? Object.keys(handlerResult.anchors) : [],
-      collectedKeys: handlerResult.collectedAnchors ? Object.keys(handlerResult.collectedAnchors) : []
+      anchorKeys: Object.keys(handlerResult.anchors || {}),
+      collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
     });
     
-    // CRITICAL: Verify result structure before returning
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] ========== VERIFYING RESULT STRUCTURE ==========");
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] typeof handlerResult:", typeof handlerResult);
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.anchors exists?", Object.prototype.hasOwnProperty.call(handlerResult, "anchors"));
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors exists?", Object.prototype.hasOwnProperty.call(handlerResult, "collectedAnchors"));
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.anchors:", handlerResult.anchors);
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors:", handlerResult.collectedAnchors);
-    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] All keys in handlerResult:", Object.keys(handlerResult));
-    
-    // CRITICAL: Normalize through createV2ProbeResult to guarantee shape
-    const normalizedHandlerResult = createV2ProbeResult(handlerResult);
-    
-    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] ========== AFTER NORMALIZATION ==========");
-    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] normalizedHandlerResult.anchors:", normalizedHandlerResult.anchors);
-    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] normalizedHandlerResult.collectedAnchors:", normalizedHandlerResult.collectedAnchors);
-    console.log("[V2_PER_FIELD][ROUTER][POST_NORMALIZE] All keys:", Object.keys(normalizedHandlerResult));
-    
-    // CRITICAL: Return immediately - don't fall through to early router or generic logic
-    return normalizedHandlerResult;
+    // CRITICAL: Return handler result directly - it's already normalized
+    return handlerResult;
   }
   
   // Initialize anchor tracking from incoming context
