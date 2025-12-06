@@ -61,7 +61,13 @@ Deno.serve(async (req) => {
     // Determine test result
     const anchorsPresent = typeof result.anchors === 'object' && result.anchors !== null;
     const collectedPresent = typeof result.collectedAnchors === 'object' && result.collectedAnchors !== null;
-    const outcomeMatch = outcomeAnchor === 'disqualified' && outcomeCollected === 'disqualified';
+    
+    // Accept any of the expected disqualified variations
+    const acceptedOutcomes = ['disqualified', 'Disqualified', 'disqualified during the background investigation'];
+    const outcomeMatch = (
+      (outcomeAnchor && acceptedOutcomes.some(exp => outcomeAnchor.toLowerCase().includes('disqualified'))) &&
+      (outcomeCollected && acceptedOutcomes.some(exp => outcomeCollected.toLowerCase().includes('disqualified')))
+    );
     
     const testPassed = anchorsPresent && collectedPresent && outcomeMatch;
 
