@@ -3859,20 +3859,9 @@ async function probeEngineV2(input, base44Client) {
   } catch (err) {
     console.warn(`[V2-PER-FIELD] Error fetching FollowUpPack entity, using fallback: ${maxProbesPerField}`, err.message);
   }
-  // ============================================================================
-  // V2.6 UNIVERSAL: After answer received, extract facts and call Discretion
-  // HARDENED: Extract facts but continue even if extraction fails
-  // NOTE: extractedAnchors is declared here and used by Discretion call above
-  // ============================================================================
-  
-  // MOVED: extractedAnchors declaration is now BEFORE the Discretion call
-  // This section is now only for logging/debugging purposes
-  if (field_value && field_value.trim() && Object.keys(extractedAnchors || {}).length > 0) {
-    console.log(`[V2-UNIVERSAL][EXTRACT_SUMMARY] Anchors extracted: ${Object.keys(extractedAnchors).join(', ')}`);
-  }
 
   // Validate the current field value with pack-specific rules
-  let validationResult = validateField(semanticField, field_value, incident_context);
+  let validationResult = validateField(semanticField, field_value, currentAnchors);
   console.log(`[V2-PER-FIELD] Validation result for ${semanticField}: ${validationResult}, value="${field_value}"`);
 
   // v2-Semantic override:
