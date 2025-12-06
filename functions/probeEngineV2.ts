@@ -2302,10 +2302,77 @@ function attachDeterministicAnchorsForField(params, v2Result) {
 }
 
 /**
- * Deterministic inference of application outcome from PACK_PRLE_Q01 narrative
- * Returns one of: "hired", "disqualified", "withdrew", "still_in_process", or null
- * @param {string} narrative - The candidate's story about their prior LE application
+ * Infer application outcome from PACK_PRLE_Q01 narrative
+ * Returns: "hired" | "disqualified" | "withdrew" | "still_in_process" | null
+ * @param {string} narrative - Candidate's narrative about prior LE application
  * @returns {string|null}
+ */
+function inferPriorLeApplicationOutcome(narrative) {
+  if (!narrative) return null;
+
+  const text = narrative.toLowerCase().replace(/\s+/g, " ");
+
+  // Disqualified / failed background
+  if (
+    text.includes("disqualified") ||
+    text.includes("removed from the process") ||
+    text.includes("failed the background") ||
+    text.includes("did not pass the background") ||
+    text.includes("didn't pass the background") ||
+    text.includes("failed background") ||
+    text.includes("did not pass polygraph") ||
+    text.includes("didn't pass polygraph")
+  ) {
+    return "disqualified";
+  }
+
+  // Withdrew
+  if (
+    text.includes("withdrew my application") ||
+    text.includes("withdrew from the process") ||
+    text.includes("pulled my application") ||
+    text.includes("chose not to continue") ||
+    text.includes("decided not to continue") ||
+    text.includes("voluntarily withdrew")
+  ) {
+    return "withdrew";
+  }
+
+  // Still in process / pending
+  if (
+    text.includes("still in process") ||
+    text.includes("still in the process") ||
+    text.includes("still being processed") ||
+    text.includes("awaiting a decision") ||
+    text.includes("waiting for a decision") ||
+    text.includes("pending background") ||
+    text.includes("background is pending")
+  ) {
+    return "still_in_process";
+  }
+
+  // Hired / offer
+  if (
+    text.includes("was hired") ||
+    text.includes("got hired") ||
+    text.includes("offered the job") ||
+    text.includes("offered a position") ||
+    text.includes("received an offer") ||
+    text.includes("received a job offer") ||
+    text.includes("given a conditional offer") ||
+    text.includes("started working") ||
+    text.includes("began working") ||
+    text.includes("joined the department")
+  ) {
+    return "hired";
+  }
+
+  return null;
+}
+
+/**
+ * Legacy function name - kept for backward compatibility
+ * @deprecated Use inferPriorLeApplicationOutcome instead
  */
 function inferPriorLEApplicationOutcome(narrative) {
   if (!narrative || narrative.length < 10) return null;
