@@ -4043,6 +4043,7 @@ function createV2ProbeResult(opts = {}) {
   }
   
   const result = {
+    ...rest,  // CRITICAL: Spread rest FIRST so it doesn't override our safe defaults
     mode,
     pack_id,
     field_key,
@@ -4065,8 +4066,7 @@ function createV2ProbeResult(opts = {}) {
     collectedAnchorsKeys,
     // CRITICAL: Always include anchors and collectedAnchors (never undefined)
     anchors: safeAnchors,
-    collectedAnchors: safeCollectedAnchors,
-    ...rest
+    collectedAnchors: safeCollectedAnchors
   };
   
   // Include debug if provided
