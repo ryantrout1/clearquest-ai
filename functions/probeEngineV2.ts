@@ -3813,13 +3813,12 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL MERGED ANCHORS:`, mergedAnchors);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL application_outcome: "${mergedAnchors.application_outcome || '(MISSING)'}"`);
     
-    // CRITICAL: Create result with explicit anchors parameter BEFORE collectedAnchors
-    const finalResult = createV2ProbeResult({
+    // CRITICAL: DON'T pass handlerResult through ...spread - explicitly set all fields
+    // This prevents anchors from being in both explicit params AND rest, which causes override
+    const finalResult = {
       mode: handlerResult.mode,
       pack_id: handlerResult.pack_id,
       field_key: handlerResult.field_key,
-      anchors: mergedAnchors,
-      collectedAnchors: mergedAnchors,
       hasQuestion: handlerResult.hasQuestion,
       followupsCount: handlerResult.followupsCount,
       semanticField: handlerResult.semanticField,
@@ -3829,8 +3828,11 @@ async function probeEngineV2(input, base44Client) {
       collectedAnchorsKeys: Object.keys(mergedAnchors),
       reason: handlerResult.reason,
       instanceNumber: handlerResult.instanceNumber,
-      message: handlerResult.message
-    });
+      message: handlerResult.message,
+      // CRITICAL: Set anchors LAST to ensure they are not overwritten
+      anchors: mergedAnchors,
+      collectedAnchors: mergedAnchors
+    };
     
     console.log("[PRIOR_LE_APPS][Q01][EARLY_ROUTER] ========== RETURNING FROM DEDICATED HANDLER ==========");
     console.log('[PRIOR_LE_APPS][PACK_PRLE_Q01] text=', narrativeText.substring(0, 100));
@@ -3842,15 +3844,19 @@ async function probeEngineV2(input, base44Client) {
       console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ✅ application_outcome anchor present:", finalResult.anchors.application_outcome);
     } else {
       console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ application_outcome anchor missing in final result");
+      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ DEBUG: mergedAnchors=", mergedAnchors);
+      console.log("[PRIOR_LE_APPS][PACK_PRLE_Q01] ❌ DEBUG: handlerResult.anchors=", handlerResult.anchors);
     }
     
-    console.log('[V2_ENGINE][RETURN]', {
+    console.log('[V2_ENGINE][RETURN][FINAL_BEFORE_SEND]', {
       packId: pack_id,
       fieldKey: field_key,
       mode: finalResult.mode,
       anchorKeys: Object.keys(finalResult.collectedAnchors || {}),
       hasApplicationOutcome: !!(finalResult.collectedAnchors?.application_outcome),
-      application_outcome_value: finalResult.collectedAnchors?.application_outcome || '(MISSING)'
+      application_outcome_value: finalResult.collectedAnchors?.application_outcome || '(MISSING)',
+      anchorsObjectType: typeof finalResult.anchors,
+      collectedAnchorsObjectType: typeof finalResult.collectedAnchors
     });
     
     return finalResult;
