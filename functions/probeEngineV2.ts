@@ -4055,6 +4055,34 @@ async function probeEngineV2(input, base44Client) {
   }
   
   // ============================================================================
+  // ============================================================================
+  // GOLDEN MVP: DETERMINISTIC FIELD ANCHOR EXTRACTION (ALWAYS RUNS)
+  // This runs AFTER discretion/validation but BEFORE returning v2Result
+  // Ensures v2Result always has anchors/collectedAnchors populated when available
+  // ============================================================================
+  
+  if (field_value && field_value.trim()) {
+    console.log(`[V2_FACTS][EXTRACTION_CHECK] Running deterministic extraction for pack="${pack_id}", field="${field_key}"`);
+    
+    const deterministic = extractAnchorsForField(pack_id, field_key, field_value);
+    
+    // Merge deterministic anchors into current state
+    // Deterministic extraction has priority over previous values
+    if (deterministic.anchors && Object.keys(deterministic.anchors).length > 0) {
+      console.log(`[V2_FACTS][EXTRACTION_SUCCESS] Merging ${Object.keys(deterministic.anchors).length} deterministic anchors`);
+      currentAnchors = mergeAnchors(currentAnchors, deterministic.anchors);
+      
+      // Special logging for PACK_PRIOR_LE_APPS_STANDARD
+      if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+        console.log(`[V2_PRIOR_LE_APPS][DETERMINISTIC] application_outcome="${currentAnchors.application_outcome || '(MISSING)'}"`);
+        console.log(`[V2_PRIOR_LE_APPS][DETERMINISTIC] All anchors after merge:`, currentAnchors);
+      }
+    } else {
+      console.log(`[V2_FACTS][EXTRACTION_EMPTY] No anchors extracted for pack="${pack_id}", field="${field_key}"`);
+    }
+  }
+  
+  // ============================================================================
   // LEGACY FALLBACK: Only used if Discretion Engine fails
   // ============================================================================
   
