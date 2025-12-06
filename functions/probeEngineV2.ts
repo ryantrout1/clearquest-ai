@@ -4550,6 +4550,13 @@ Deno.serve(async (req) => {
     
     let result = await probeEngineV2(input, base44);
     
+    // ========================================================================
+    // GOLDEN MVP CONTRACT ENFORCEMENT: Attach deterministic anchors
+    // This runs for EVERY per-field V2 probe before returning to frontend
+    // ========================================================================
+    result = attachDeterministicAnchorsForField(input, result);
+    result = normalizeV2Result(result);
+    
     // CRITICAL: Final log before returning to frontend
     console.log('[V2_ENGINE][RETURN]', {
       packId: result.pack_id || packId,
