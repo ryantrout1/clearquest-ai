@@ -3780,7 +3780,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   const existingCollection = collectedAnchors || {};
   const narrativeText = (fieldValue || "").trim();
 
-  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY]", {
+  console.log("[PRIOR_LE_APPS][HANDLER][ENTRY] ========== HANDLER EXECUTING ==========", {
     packId,
     fieldKey,
     probeCount,
@@ -3793,6 +3793,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   // --------------------------------------------------------
   if (fieldKey === PACK_PRLE_Q01) {
     console.log("[PRIOR_LE_APPS][Q01] ========== HARDCODED TEST ANCHORS ==========");
+    console.log("[PRIOR_LE_APPS][Q01] This proves the perFieldHandler is running");
     
     // HARDCODED test anchors to prove plumbing works
     const anchors = {
@@ -3816,14 +3817,22 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       application_outcome: anchors.application_outcome
     });
 
-    return createV2ProbeResult({
+    const result = createV2ProbeResult({
       mode: "NEXT_FIELD",
       hasQuestion: false,
       followupsCount: 0,
       anchors,
       collectedAnchors: mergedCollected,
+      debug_pack: "PRIOR_LE_APPS_V2_ACTIVE",
       reason: "PRIOR_LE_APPS_TEST: hard-coded anchors for plumbing verification",
     });
+
+    console.log("[PRIOR_LE_APPS][Q01][RESULT] ========== RETURNING FROM HANDLER ==========");
+    console.log("[PRIOR_LE_APPS][Q01][RESULT] result.anchors:", result.anchors);
+    console.log("[PRIOR_LE_APPS][Q01][RESULT] result.collectedAnchors:", result.collectedAnchors);
+    console.log("[PRIOR_LE_APPS][Q01][RESULT] result keys:", Object.keys(result));
+
+    return result;
   }
 
   // --------------------------------------------------------
@@ -3840,6 +3849,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     followupsCount: 0,
     anchors: {},
     collectedAnchors: existingCollection,
+    debug_pack: "PRIOR_LE_APPS_V2_ACTIVE_OTHER",
     reason: `prior_le_apps: ${fieldKey} passthrough`,
   });
 }
@@ -4166,6 +4176,14 @@ async function probeEngineV2(input, base44Client) {
       anchorKeys: handlerResult.anchors ? Object.keys(handlerResult.anchors) : [],
       collectedKeys: handlerResult.collectedAnchors ? Object.keys(handlerResult.collectedAnchors) : []
     });
+    
+    // CRITICAL: Verify result structure before returning
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] ========== VERIFYING RESULT STRUCTURE ==========");
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] typeof handlerResult:", typeof handlerResult);
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.anchors exists?", Object.prototype.hasOwnProperty.call(handlerResult, "anchors"));
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors exists?", Object.prototype.hasOwnProperty.call(handlerResult, "collectedAnchors"));
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.anchors:", handlerResult.anchors);
+    console.log("[V2_PER_FIELD][ROUTER][PRE_RETURN] handlerResult.collectedAnchors:", handlerResult.collectedAnchors);
     
     // CRITICAL: Return immediately - don't fall through to early router or generic logic
     return handlerResult;
@@ -5103,6 +5121,17 @@ Deno.serve(async (req) => {
       console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome?', 
         !!(normalized.anchors?.application_outcome || normalized.collectedAnchors?.application_outcome));
     }
+    
+    // ========================================================================
+    // CRITICAL: Log EXACT JSON being returned to frontend
+    // ========================================================================
+    console.log("[HTTP_RESPONSE][FINAL_JSON] ========== EXACT RESPONSE TO FRONTEND ==========");
+    console.log("[HTTP_RESPONSE][FINAL_JSON] pack:", packId);
+    console.log("[HTTP_RESPONSE][FINAL_JSON] field:", fieldKey);
+    console.log("[HTTP_RESPONSE][FINAL_JSON] JSON.stringify(normalized):", JSON.stringify(normalized));
+    console.log("[HTTP_RESPONSE][FINAL_JSON] normalized.anchors exists?", Object.prototype.hasOwnProperty.call(normalized, "anchors"));
+    console.log("[HTTP_RESPONSE][FINAL_JSON] normalized.collectedAnchors exists?", Object.prototype.hasOwnProperty.call(normalized, "collectedAnchors"));
+    console.log("[HTTP_RESPONSE][FINAL_JSON] Keys in response:", Object.keys(normalized));
     
     return Response.json(normalized);
   } catch (error) {
