@@ -2407,6 +2407,14 @@ export default function CandidateInterview() {
         
         const question = engine.QById[questionId];
         
+        console.log('[PRIOR_LE_APPS][MULTI_INSTANCE]', {
+          questionId,
+          packId,
+          instanceNumber,
+          answer,
+          action: answer === 'Yes' ? `starting instance #${instanceNumber + 1}` : 'moving to next question'
+        });
+
         const transcriptEntry = {
           id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
           type: 'multi_instance_answer',
@@ -2938,7 +2946,8 @@ export default function CandidateInterview() {
   const answerable = isAnswerableItem(currentItem) || isV2PackField;
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
-                          (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no');
+                          (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no') ||
+                          (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no');
 
   // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
   const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion;
