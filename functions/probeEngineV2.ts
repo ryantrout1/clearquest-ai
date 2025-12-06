@@ -3913,6 +3913,40 @@ async function probeEngineV2(input, base44Client) {
 
   console.log(`[V2-UNIVERSAL] Starting for pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
+  // ============================================================================
+  // PROOF-OF-LIFE: HARD-CODED ANCHORS TEST FOR PACK_PRIOR_LE_APPS_STANDARD
+  // TEMPORARY: This bypasses all extraction logic to verify anchor transport
+  // ============================================================================
+  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && field_value && field_value.trim()) {
+    console.log("[V2_PRIOR_LE_APPS][TEST] ========== HARD-CODED ANCHORS PROOF-OF-LIFE ==========");
+    console.log("[V2_PRIOR_LE_APPS][TEST] Narrative length:", field_value.length);
+    console.log("[V2_PRIOR_LE_APPS][TEST] Narrative preview:", field_value.substring(0, 100));
+
+    const testAnchors = {
+      application_outcome: "TEST_DISQUALIFIED",
+      prior_le_agency_name: "TEST_AGENCY",
+      prior_le_position_title: "TEST_POSITION",
+      prior_le_date_range: "TEST_DATE_RANGE",
+    };
+
+    console.log("[V2_PRIOR_LE_APPS][TEST] Returning hard-coded anchors:", testAnchors);
+
+    return createV2ProbeResult({
+      pack_id,
+      field_key,
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "HARD-CODED TEST - proof-of-life for anchors",
+      anchors: testAnchors,
+      collectedAnchors: testAnchors,
+      debug: {
+        stage: "hardcoded_anchors_test",
+        testAnchors,
+      },
+    });
+  }
+  
   // Initialize anchor tracking from incoming context
   let currentAnchors = mergeAnchors(incident_context, instance_anchors);
   let extractedAnchors = {};
