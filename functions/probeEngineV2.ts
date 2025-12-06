@@ -2258,7 +2258,8 @@ function runDeterministicExtractor({ packId, fieldKey, answerText }) {
   }
 
   console.log(`[V2_FACTS][RUNNING] Extractor found - executing`);
-  const result = extractor(answerText || '');
+  // CRITICAL: Call extractor with object signature { text } to match extractPriorLeAppsAnchors
+  const result = extractor({ text: answerText || '' });
   return {
     anchors: result.anchors || {},
     collectedAnchors: result.collectedAnchors || {},
