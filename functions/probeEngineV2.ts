@@ -4184,7 +4184,34 @@ async function probeEngineV2Core(input, base44Client) {
       collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
     });
     
-    // CRITICAL: Return handler result directly - it's already normalized
+    // CRITICAL: Wire FactAnchorEngine before returning (V2 per-field path only)
+    const factCtx = {
+      packId: pack_id,
+      fieldKey: field_key,
+      questionId: ctx.baseQuestionText || null,
+      answerText: field_value || ctx.fullNarrative || ctx.fullAnswer || ctx.answer || '',
+      sessionId: ctx.sessionId || null,
+      instanceNumber: instance_number,
+      anchors: handlerResult.anchors || {},
+      collectedAnchors: handlerResult.collectedAnchors || {}
+    };
+    
+    const factResult = FactAnchorEngine.extract(factCtx) || {};
+    const factAnchors = factResult.anchors || {};
+    const factCollectedAnchors = factResult.collectedAnchors || {};
+    
+    // Merge FactAnchorEngine results into handler result
+    handlerResult.anchors = mergeAnchors(handlerResult.anchors || {}, factAnchors);
+    handlerResult.collectedAnchors = mergeAnchors(handlerResult.collectedAnchors || {}, factCollectedAnchors);
+    
+    console.log("[V2_PER_FIELD][FACT_ENGINE] Applied FactAnchorEngine:", {
+      packId: pack_id,
+      fieldKey: field_key,
+      extractedKeys: Object.keys(factAnchors),
+      finalAnchorKeys: Object.keys(handlerResult.anchors || {})
+    });
+    
+    // CRITICAL: Return handler result with merged fact anchors
     return handlerResult;
   }
   
