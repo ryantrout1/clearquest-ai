@@ -4161,19 +4161,25 @@ Deno.serve(async (req) => {
     const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
     if (fallback) {
       console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-      return Response.json({
+      return Response.json(createV2ProbeResult({
         mode: fallback.mode,
+        pack_id: packId,
+        field_key: fieldKey,
         question: fallback.question,
-        packId,
-        fieldKey,
         isFallback: true,
-      }, { status: 200 });
+        anchors: {},
+        collectedAnchors: {}
+      }), { status: 200 });
     }
     
-    return Response.json({ 
+    return Response.json(createV2ProbeResult({ 
       mode: "NONE",
+      pack_id: packId,
+      field_key: fieldKey,
       reason: "BACKEND_ERROR",
-      details: error.message || "Unexpected error during probing."
-    }, { status: 200 });
+      details: error.message || "Unexpected error during probing.",
+      anchors: {},
+      collectedAnchors: {}
+    }), { status: 200 });
   }
 });
