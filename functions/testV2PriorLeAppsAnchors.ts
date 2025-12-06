@@ -52,6 +52,15 @@ Deno.serve(async (req) => {
     console.log('[TEST][V2_PRIOR_LE_APPS] Raw response:', JSON.stringify(rawResult, null, 2));
     console.log('[TEST][V2_PRIOR_LE_APPS] Has anchors key:', Object.prototype.hasOwnProperty.call(rawResult, 'anchors'));
     console.log('[TEST][V2_PRIOR_LE_APPS] Has collectedAnchors key:', Object.prototype.hasOwnProperty.call(rawResult, 'collectedAnchors'));
+    
+    console.log("[PRIOR_LE_Q01_ANCHORS][TEST_RAW_RESPONSE]", {
+      packId: rawResult?.pack_id,
+      fieldKey: rawResult?.field_key,
+      anchorsKeys: rawResult?.anchors ? Object.keys(rawResult.anchors) : [],
+      collectedAnchorsKeys: rawResult?.collectedAnchors ? Object.keys(rawResult.collectedAnchors) : [],
+      anchors: rawResult?.anchors,
+      collectedAnchors: rawResult?.collectedAnchors,
+    });
 
     // Normalize result
     const result = {

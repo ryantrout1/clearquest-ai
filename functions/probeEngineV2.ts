@@ -643,26 +643,37 @@ function getFieldNarrativeText(raw) {
   return "";
 }
 
+const PRIOR_LE_DEBUG = "[PRIOR_LE_Q01_ANCHORS]";
+
 /**
  * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
  * Deterministic, keyword-based extraction
- * @param {string} text - Raw narrative text
- * @returns {string|null} - "disqualified" | "hired" | "withdrew" | "in_process" | null
+ * @param {string} narrativeRaw - Raw narrative text
+ * @returns {string|null} - "disqualified" | "hired" | "withdrew" | "not_selected" | "in_process" | null
  */
-function inferApplicationOutcomeFromNarrative(text) {
-  if (!text || typeof text !== "string") return null;
+function inferApplicationOutcomeFromNarrative(narrativeRaw) {
+  if (!narrativeRaw || typeof narrativeRaw !== "string") {
+    return null;
+  }
 
-  const normalized = text.toLowerCase();
+  const text = narrativeRaw.toLowerCase();
 
-  // Disqualified / failed
+  // Normalize a few variants
+  const normalized = text
+    .replace(/\bwithdrew\b/g, " withdrew ")
+    .replace(/\bwithdrawn\b/g, " withdrew ")
+    .replace(/\bwithdraw\b/g, " withdrew ")
+    .replace(/\bdenied\b/g, " denied ")
+    .replace(/\bno longer under consideration\b/g, " disqualified ")
+    .replace(/\bnot selected\b/g, " not_selected ");
+
+  // Disqualified / DQ
   if (
     normalized.includes("disqualified") ||
+    normalized.includes("dq'ed") ||
     normalized.includes("dq'd") ||
-    normalized.includes("dq'd") ||
-    normalized.includes("failed background") ||
-    normalized.includes("removed from the process") ||
-    normalized.includes("removed from process") ||
-    normalized.includes("failed the background")
+    normalized.includes("dq ") ||
+    normalized.includes("dq'd")
   ) {
     return "disqualified";
   }
@@ -671,40 +682,107 @@ function inferApplicationOutcomeFromNarrative(text) {
   if (
     normalized.includes("hired") ||
     normalized.includes("offered the job") ||
-    normalized.includes("offered a position") ||
-    normalized.includes("given a conditional offer") ||
-    normalized.includes("received a conditional offer") ||
+    normalized.includes("offered a job") ||
+    normalized.includes("given an offer") ||
     normalized.includes("selected for the position")
   ) {
     return "hired";
   }
 
-  // Withdrew / withdrew my application
+  // Withdrew
   if (
+    normalized.includes("withdrew") ||
     normalized.includes("withdrew my application") ||
-    normalized.includes("withdrew from the process") ||
-    normalized.includes("withdrew from process") ||
-    normalized.includes("withdrew my candidacy") ||
-    normalized.includes("pulled out of the process") ||
-    normalized.includes("pulled out") ||
-    normalized.includes("stopped the process")
+    normalized.includes("i withdrew") ||
+    normalized.includes("i withdrew my")
   ) {
     return "withdrew";
+  }
+
+  // Not selected (but not explicitly "disqualified")
+  if (
+    normalized.includes("not selected") ||
+    normalized.includes("wasn't selected") ||
+    normalized.includes("was not selected")
+  ) {
+    return "not_selected";
   }
 
   // Still in process
   if (
     normalized.includes("still in process") ||
     normalized.includes("still being processed") ||
-    normalized.includes("still pending") ||
-    normalized.includes("ongoing") ||
-    normalized.includes("waiting to hear back") ||
-    normalized.includes("waiting for a decision")
+    normalized.includes("still going through") ||
+    normalized.includes("background is in process")
   ) {
     return "in_process";
   }
 
+  // Fallback: look for generic "denied" language
+  if (
+    normalized.includes("denied") ||
+    normalized.includes("rejected") ||
+    normalized.includes("turned down")
+  ) {
+    return "disqualified";
+  }
+
   return null;
+}
+
+/**
+ * Apply PRIOR_LE_APPS Q01 outcome anchors to probe result
+ * Surgical helper that only affects PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+ */
+function applyPriorLeQ01OutcomeAnchors(rawInput, baseResult) {
+  // Safely get the narrative text from whatever field is actually used
+  const text =
+    rawInput?.fieldValue ||
+    rawInput?.field_value ||
+    rawInput?.answer ||
+    rawInput?.narrative ||
+    rawInput?.narrativeText ||
+    "";
+
+  const outcome = inferApplicationOutcomeFromNarrative(text);
+
+  console.log(PRIOR_LE_DEBUG, "rawInputForQ01", {
+    keys: rawInput ? Object.keys(rawInput) : [],
+    fieldValuePreview: (rawInput?.fieldValue || "").slice(0, 200),
+    field_valuePreview: (rawInput?.field_value || "").slice(0, 200),
+    answerPreview: (rawInput?.answer || "").slice(0, 200),
+    narrativePreview: (rawInput?.narrative || "").slice(0, 200),
+    narrativeTextPreview: (rawInput?.narrativeText || "").slice(0, 200),
+    inferredOutcome: outcome,
+  });
+
+  let anchors = baseResult?.anchors || {};
+  let collectedAnchors = baseResult?.collectedAnchors || {};
+
+  if (outcome) {
+    anchors = {
+      ...anchors,
+      application_outcome: outcome,
+    };
+    collectedAnchors = {
+      ...collectedAnchors,
+      application_outcome: outcome,
+    };
+  }
+
+  console.log(PRIOR_LE_DEBUG, "anchorsBeforeReturn", {
+    outcome,
+    anchorsKeys: Object.keys(anchors || {}),
+    anchors,
+    collectedAnchorsKeys: Object.keys(collectedAnchors || {}),
+    collectedAnchors,
+  });
+
+  return {
+    ...baseResult,
+    anchors,
+    collectedAnchors,
+  };
 }
 
 /**
@@ -4432,7 +4510,7 @@ async function probeEngineV2Core(input, base44Client) {
     }
     
     // Call the handler
-    const handlerResult = await packConfig.perFieldHandler(ctx);
+    let handlerResult = await packConfig.perFieldHandler(ctx);
     
     console.log("[V2_PER_FIELD][ROUTER][RESULT] Handler returned:", {
       packId: pack_id,
@@ -4442,9 +4520,12 @@ async function probeEngineV2Core(input, base44Client) {
       collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
     });
     
-    // DIAGNOSTIC: Log final handler result for PRIOR_LE_APPS
+    // 🔒 SURGICAL FIX: Apply PRIOR_LE_APPS Q01 outcome anchors
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-      console.log("[TEST_PRIOR_LE_ANCHORS][HANDLER_RESULT]", {
+      console.log(PRIOR_LE_DEBUG, "[APPLYING_ANCHORS] Running applyPriorLeQ01OutcomeAnchors");
+      handlerResult = applyPriorLeQ01OutcomeAnchors(input, handlerResult);
+      
+      console.log("[TEST_PRIOR_LE_ANCHORS][AFTER_APPLY]", {
         mode: handlerResult.mode,
         anchorsKeys: Object.keys(handlerResult.anchors || {}),
         anchors: handlerResult.anchors,
@@ -4494,6 +4575,18 @@ async function probeEngineV2Core(input, base44Client) {
       finalAnchorKeys: Object.keys(handlerResult.anchors || {}),
       application_outcome: handlerResult.anchors?.application_outcome || '(none)'
     });
+    
+    // DIAGNOSTIC: Final result before return
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      console.log(PRIOR_LE_DEBUG, "finalResultForQ01", {
+        packId: pack_id,
+        fieldKey: field_key,
+        anchorsKeys: Object.keys(handlerResult.anchors || {}),
+        collectedAnchorsKeys: Object.keys(handlerResult.collectedAnchors || {}),
+        anchors: handlerResult.anchors,
+        collectedAnchors: handlerResult.collectedAnchors,
+      });
+    }
     
     // CRITICAL: Return handler result with merged fact anchors
     return handlerResult;
