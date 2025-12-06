@@ -3756,7 +3756,7 @@ async function probeEngineV2(input, base44Client) {
   // CRITICAL: This MUST execute FIRST before any generic logic
   // ============================================================================
   
-  // CRITICAL FIX: Use robust text extraction to handle all possible property names
+  // CRITICAL: Extract narrative text - frontend sends it as field_value
   const narrativeText = 
     input.field_value || 
     input.fieldValue || 
@@ -3766,6 +3766,13 @@ async function probeEngineV2(input, base44Client) {
     '';
   
   console.log(`[EARLY_ROUTER_CHECK] pack_id="${pack_id}", field_key="${field_key}"`);
+  console.log(`[EARLY_ROUTER_CHECK] Checking all input properties:`, {
+    has_field_value: !!input.field_value,
+    has_fieldValue: !!input.fieldValue,
+    has_answer: !!input.answer,
+    field_value_length: input.field_value?.length || 0,
+    fieldValue_length: input.fieldValue?.length || 0
+  });
   console.log(`[EARLY_ROUTER_CHECK] narrativeText length: ${narrativeText?.length || 0}`);
   console.log(`[EARLY_ROUTER_CHECK] narrativeText preview: "${narrativeText?.substring?.(0, 80)}..."`);
   console.log(`[EARLY_ROUTER_CHECK] Condition match: ${pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim()}`);
