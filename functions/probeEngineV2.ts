@@ -81,6 +81,10 @@ function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj
  * @param {string} params.text - Raw narrative answer from candidate
  * @returns {object} { anchors: {...}, collectedAnchors: {...} }
  */
+/**
+ * Extract fact anchors for PACK_PRIOR_LE_APPS_STANDARD from narrative text
+ * Maps to the 4 critical anchors: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
+ */
 function extractPriorLeAppsAnchors({ text }) {
   if (!text || text.trim().length < 10) {
     return { anchors: {}, collectedAnchors: {} };
@@ -216,7 +220,7 @@ function extractPriorLeAppsAnchors({ text }) {
     }
   }
   
-  // ===== ANCHOR 2: agency_name (optional - nice-to-have) =====
+  // ===== ANCHOR 2: prior_le_agency (optional - nice-to-have) =====
   const agencyPatterns = [
     /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
     /\b([\w\s]+(?:Police Department|Sheriff's Office|County Sheriff|City Police|State Police))\b/i
@@ -225,13 +229,13 @@ function extractPriorLeAppsAnchors({ text }) {
   for (const pattern of agencyPatterns) {
     const match = text.match(pattern);
     if (match && match[1] && match[1].length > 3) {
-      anchors.agency_name = match[1].trim();
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ agency_name="${anchors.agency_name}" (regex match)`);
+      anchors.prior_le_agency = match[1].trim();
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_agency="${anchors.prior_le_agency}" (regex match)`);
       break;
     }
   }
   
-  // ===== ANCHOR 3: position (optional - nice-to-have) =====
+  // ===== ANCHOR 3: prior_le_position (optional - nice-to-have) =====
   const positionPatterns = [
     /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer|dispatcher|cadet)/i,
     /\b(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer)\s+(?:position|role|job)/i
@@ -240,17 +244,17 @@ function extractPriorLeAppsAnchors({ text }) {
   for (const pattern of positionPatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      anchors.position = match[1].trim();
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ position="${anchors.position}" (regex match)`);
+      anchors.prior_le_position = match[1].trim();
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_position="${anchors.prior_le_position}" (regex match)`);
       break;
     }
   }
   
-  // ===== ANCHOR 4: month_year (optional - uses existing helper) =====
+  // ===== ANCHOR 4: prior_le_approx_date (optional - uses existing helper) =====
   const dateExtraction = extractMonthYearFromText(text);
   if (dateExtraction.value) {
-    anchors.month_year = dateExtraction.value;
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ month_year="${anchors.month_year}" (confidence: ${dateExtraction.confidence})`);
+    anchors.prior_le_approx_date = dateExtraction.value;
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ prior_le_approx_date="${anchors.prior_le_approx_date}" (confidence: ${dateExtraction.confidence})`);
   }
   
   console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== EXTRACTION COMPLETE ==========`);
@@ -3861,21 +3865,18 @@ If any field is not clearly stated, set it to null.`,
     
     console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] LLM extraction result:", llmResult);
     
-    // Map LLM extracted data to anchor keys
+    // Map LLM extracted data to anchor keys (use canonical prior_le_* keys)
     if (llmResult?.application_outcome) {
       anchors.application_outcome = llmResult.application_outcome;
     }
     if (llmResult?.agency_name) {
-      anchors.agency_name = llmResult.agency_name;
-      anchors.prior_le_agency = llmResult.agency_name; // Map to expected key
+      anchors.prior_le_agency = llmResult.agency_name;
     }
     if (llmResult?.position_title) {
-      anchors.position = llmResult.position_title;
-      anchors.prior_le_position = llmResult.position_title; // Map to expected key
+      anchors.prior_le_position = llmResult.position_title;
     }
     if (llmResult?.approx_date_range) {
-      anchors.month_year = llmResult.approx_date_range;
-      anchors.prior_le_approx_date = llmResult.approx_date_range; // Map to expected key
+      anchors.prior_le_approx_date = llmResult.approx_date_range;
     }
     
     // STAGE2: Log parsed anchors after LLM mapping
@@ -3906,6 +3907,47 @@ If any field is not clearly stated, set it to null.`,
     } else if (text.includes("still in process") || text.includes("currently in process") || text.includes("pending")) {
       anchors.application_outcome = "still_in_process";
       console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set application_outcome=still_in_process");
+    }
+  }
+  
+  // Fallback heuristics for agency if LLM didn't extract
+  if (!anchors.prior_le_agency && narrative) {
+    const agencyPatterns = [
+      /(?:applied\s+to\s+(?:the\s+)?)([\w\s]+(?:Police|Sheriff|Department|PD|SO|Agency|Marshal|Patrol))/i,
+      /\b([\w\s]+(?:Police Department|Sheriff's Office|County Sheriff|City Police|State Police))\b/i
+    ];
+    for (const pattern of agencyPatterns) {
+      const match = narrative.match(pattern);
+      if (match && match[1] && match[1].length > 3) {
+        anchors.prior_le_agency = match[1].trim();
+        console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set prior_le_agency=" + anchors.prior_le_agency);
+        break;
+      }
+    }
+  }
+  
+  // Fallback heuristics for position if LLM didn't extract
+  if (!anchors.prior_le_position && narrative) {
+    const positionPatterns = [
+      /(?:applied\s+(?:for|as)\s+(?:a\s+)?)(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer|dispatcher|cadet)/i,
+      /\b(police officer|officer|deputy|sheriff|detective|trooper|agent|corrections officer)\s+(?:position|role|job)/i
+    ];
+    for (const pattern of positionPatterns) {
+      const match = narrative.match(pattern);
+      if (match && match[1]) {
+        anchors.prior_le_position = match[1].trim();
+        console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set prior_le_position=" + anchors.prior_le_position);
+        break;
+      }
+    }
+  }
+  
+  // Fallback heuristics for date if LLM didn't extract
+  if (!anchors.prior_le_approx_date && narrative) {
+    const dateExtraction = extractMonthYearFromText(narrative);
+    if (dateExtraction.value) {
+      anchors.prior_le_approx_date = dateExtraction.value;
+      console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] Fallback: Set prior_le_approx_date=" + anchors.prior_le_approx_date);
     }
   }
   
