@@ -4105,11 +4105,15 @@ Deno.serve(async (req) => {
       fieldKey = input.field_key;
     } catch (parseError) {
       console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
-      return Response.json({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
+        pack_id: packId,
+        field_key: fieldKey,
         reason: "BACKEND_ERROR",
-        details: parseError.message || "Invalid request body"
-      }, { status: 200 });
+        details: parseError.message || "Invalid request body",
+        anchors: {},
+        collectedAnchors: {}
+      }), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
