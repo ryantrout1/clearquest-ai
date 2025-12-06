@@ -3910,7 +3910,9 @@ async function probeEngineV2(input, base44Client) {
         decision: "NEXT_FIELD",
         validationResult: "complete",
         will_advance_to_next_field: true,
-        extractedAnchorKeys: Object.keys(extractedAnchors || {})
+        extractedAnchorKeys: Object.keys(extractedAnchors || {}),
+        currentAnchorsKeys: Object.keys(currentAnchors),
+        application_outcome: currentAnchors.application_outcome || '(MISSING)'
       });
     }
     
