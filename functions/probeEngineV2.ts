@@ -4587,14 +4587,28 @@ async function probeEngineV2Core(input, base44Client) {
     // Call the handler
     const handlerResult = await packConfig.perFieldHandler(ctx);
     
-    console.log("[V2_PER_FIELD][ROUTER][RESULT] Handler returned:", {
+    // CRITICAL DIAGNOSTIC: Trace handler result structure
+    console.log("[V2_PER_FIELD][ROUTER][HANDLER_RESULT_RAW]", {
       packId: pack_id,
       fieldKey: field_key,
-      mode: handlerResult.mode,
-      anchorKeys: Object.keys(handlerResult.anchors || {}),
-      collectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
-      applicationOutcome: handlerResult.anchors?.application_outcome || '(none)',
+      resultType: typeof handlerResult,
+      resultKeys: handlerResult ? Object.keys(handlerResult) : [],
+      hasAnchorsProperty: handlerResult && Object.prototype.hasOwnProperty.call(handlerResult, 'anchors'),
+      hasCollectedProperty: handlerResult && Object.prototype.hasOwnProperty.call(handlerResult, 'collectedAnchors'),
+      anchorsValue: handlerResult?.anchors,
+      collectedValue: handlerResult?.collectedAnchors,
     });
+    
+    // CRITICAL: Verify handler actually returned anchors before proceeding
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      console.log(PRIOR_LE_DEBUG, "[POST_HANDLER_CHECK]", {
+        handlerReturnedAnchors: !!handlerResult?.anchors,
+        handlerReturnedCollected: !!handlerResult?.collectedAnchors,
+        anchorKeys: Object.keys(handlerResult?.anchors || {}),
+        collectedKeys: Object.keys(handlerResult?.collectedAnchors || {}),
+        applicationOutcome: handlerResult?.anchors?.application_outcome || '(MISSING)',
+      });
+    }
     
     // CRITICAL: Wire FactAnchorEngine before returning (V2 per-field path only)
     const factCtx = {
@@ -4604,48 +4618,60 @@ async function probeEngineV2Core(input, base44Client) {
       answerText: field_value || ctx.fullNarrative || ctx.fullAnswer || ctx.answer || '',
       sessionId: input.session_id || null,
       instanceNumber: instance_number,
-      anchors: handlerResult.anchors || {},
-      collectedAnchors: handlerResult.collectedAnchors || {}
+      anchors: handlerResult?.anchors || {},
+      collectedAnchors: handlerResult?.collectedAnchors || {}
     };
     
-    console.log("[V2_PER_FIELD][FACT_ENGINE][PRE]", {
-      packId: pack_id,
-      fieldKey: field_key,
-      answerLength: factCtx.answerText?.length || 0,
-      beforeAnchors: Object.keys(handlerResult.anchors || {})
-    });
+    if (V2_DEBUG_ENABLED && pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
+      console.log("[V2_PER_FIELD][FACT_ENGINE][CTX]", {
+        answerTextLength: factCtx.answerText?.length || 0,
+        answerTextPreview: factCtx.answerText?.slice?.(0, 100) || '(empty)',
+      });
+    }
     
     const factResult = FactAnchorEngine.extract(factCtx) || {};
     const factAnchors = factResult.anchors || {};
     const factCollectedAnchors = factResult.collectedAnchors || {};
     
-    console.log("[V2_PER_FIELD][FACT_ENGINE][EXTRACTED]", {
-      packId: pack_id,
-      fieldKey: field_key,
-      extractedKeys: Object.keys(factAnchors),
-      application_outcome: factAnchors.application_outcome || '(none)'
-    });
+    if (V2_DEBUG_ENABLED) {
+      console.log("[V2_PER_FIELD][FACT_ENGINE][EXTRACTED]", {
+        packId: pack_id,
+        fieldKey: field_key,
+        extractedKeys: Object.keys(factAnchors),
+        application_outcome: factAnchors.application_outcome || '(none)'
+      });
+    }
     
     // Merge FactAnchorEngine results into handler result
-    handlerResult.anchors = mergeAnchors(handlerResult.anchors || {}, factAnchors);
-    handlerResult.collectedAnchors = mergeAnchors(handlerResult.collectedAnchors || {}, factCollectedAnchors);
+    // CRITICAL: Use fresh object assignment to avoid mutation issues
+    const mergedAnchors = mergeAnchors(handlerResult?.anchors || {}, factAnchors);
+    const mergedCollected = mergeAnchors(handlerResult?.collectedAnchors || {}, factCollectedAnchors);
     
-    console.log("[V2_PER_FIELD][FACT_ENGINE][POST]", {
-      packId: pack_id,
-      fieldKey: field_key,
-      finalAnchorKeys: Object.keys(handlerResult.anchors || {}),
-      application_outcome: handlerResult.anchors?.application_outcome || '(none)'
-    });
+    handlerResult.anchors = mergedAnchors;
+    handlerResult.collectedAnchors = mergedCollected;
+    
+    // CRITICAL DIAGNOSTIC: Verify merge worked
+    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
+      console.log(PRIOR_LE_DEBUG, "[AFTER_MERGE]", {
+        mergedAnchorsKeys: Object.keys(mergedAnchors),
+        mergedCollectedKeys: Object.keys(mergedCollected),
+        handlerResultAnchorsKeys: Object.keys(handlerResult.anchors || {}),
+        handlerResultCollectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
+        applicationOutcome: handlerResult.anchors?.application_outcome || '(MISSING)',
+        fullAnchorsObject: handlerResult.anchors,
+        fullCollectedObject: handlerResult.collectedAnchors,
+      });
+    }
     
     // DIAGNOSTIC: Final result before return
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-      console.log(PRIOR_LE_DEBUG, "finalResultForQ01", {
+      console.log(PRIOR_LE_DEBUG, "[BEFORE_FINAL_RETURN]", {
         packId: pack_id,
         fieldKey: field_key,
-        anchorsKeys: Object.keys(handlerResult.anchors || {}),
-        collectedAnchorsKeys: Object.keys(handlerResult.collectedAnchors || {}),
-        anchors: handlerResult.anchors,
-        collectedAnchors: handlerResult.collectedAnchors,
+        resultAnchorsKeys: Object.keys(handlerResult.anchors || {}),
+        resultCollectedKeys: Object.keys(handlerResult.collectedAnchors || {}),
+        resultAnchors: handlerResult.anchors,
+        resultCollected: handlerResult.collectedAnchors,
       });
     }
     
