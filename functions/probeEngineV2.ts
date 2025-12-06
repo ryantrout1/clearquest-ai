@@ -3952,9 +3952,8 @@ async function probeEngineV2(input, base44Client) {
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL MERGED ANCHORS:`, mergedAnchors);
     console.log(`[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] FINAL application_outcome: "${mergedAnchors.application_outcome || '(MISSING)'}"`);
     
-    // CRITICAL: DON'T pass handlerResult through ...spread - explicitly set all fields
-    // This prevents anchors from being in both explicit params AND rest, which causes override
-    const finalResult = {
+    // CRITICAL: Use createV2ProbeResult to ensure consistent result structure
+    const finalResult = createV2ProbeResult({
       mode: handlerResult.mode,
       pack_id: handlerResult.pack_id,
       field_key: handlerResult.field_key,
@@ -3968,10 +3967,10 @@ async function probeEngineV2(input, base44Client) {
       reason: handlerResult.reason,
       instanceNumber: handlerResult.instanceNumber,
       message: handlerResult.message,
-      // CRITICAL: Set anchors LAST to ensure they are not overwritten
+      // CRITICAL: Pass anchors explicitly so createV2ProbeResult includes them
       anchors: mergedAnchors,
       collectedAnchors: mergedAnchors
-    };
+    });
     
     console.log("[PRIOR_LE_APPS][BACKEND][Q01_RESULT] ========== FINAL RESULT BEFORE RETURN ==========");
     console.log('[PRIOR_LE_APPS][BACKEND][Q01_RESULT]', {
