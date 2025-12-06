@@ -3986,14 +3986,15 @@ async function probeEngineV2(input, base44Client) {
     }
     
     // Call dedicated handler with all extracted anchors - use narrativeText
-    const handlerResult = handlePriorLeAppsQ01({
+    const handlerResult = await handlePriorLeAppsQ01({
       pack_id,
       field_key,
       field_value: narrativeText, // Pass narrativeText here
       incident_context: currentAnchors,
       extractedAnchors,
       previous_probes_count,
-      instance_number
+      instance_number,
+      base44Client
     });
     
     // PART 1 DIAGNOSTICS: Log parsed anchors from handler
