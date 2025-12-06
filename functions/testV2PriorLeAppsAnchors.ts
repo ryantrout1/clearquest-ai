@@ -9,38 +9,41 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-// NOTE: Since probeEngineV2 is in a separate function file, we'll simulate its logic
-// For a real integration test, you'd import from probeEngineV2.js if it exports the function
-
 Deno.serve(async (req) => {
   try {
-    console.log('[TEST][V2_PRIOR_LE_APPS] Starting anchor extraction test');
+    console.log('[TEST][V2_PRIOR_LE_APPS] ========================================');
+    console.log('[TEST][V2_PRIOR_LE_APPS] Starting deterministic anchor extraction test');
+    console.log('[TEST][V2_PRIOR_LE_APPS] ========================================');
 
     // Test narrative with clear "disqualified" signal
     const narrative = "I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation.";
 
-    // Build params that match what CandidateInterview sends to probeEngineV2
+    // Build params matching what the frontend sends to probeEngineV2
     const testParams = {
       pack_id: 'PACK_PRIOR_LE_APPS_STANDARD',
       field_key: 'PACK_PRLE_Q01',
       field_value: narrative,
       previous_probes_count: 0,
-      session_id: 'TEST-SESSION-PRLE',
-      base_question_code: 'Q001',
+      incident_context: {}, // Empty - first field in pack
       instance_number: 1,
+      sectionName: 'Applications with Other Law Enforcement Agencies',
+      baseQuestionText: 'Have you ever applied with any other law enforcement agency?',
+      questionCode: 'Q001'
     };
 
-    console.log('[TEST][V2_PRIOR_LE_APPS] Test payload:', JSON.stringify(testParams, null, 2));
+    console.log('[TEST][V2_PRIOR_LE_APPS] Test payload:');
+    console.log(JSON.stringify(testParams, null, 2));
 
     // Call the actual probeEngineV2 function endpoint
     const base44 = createClientFromRequest(req);
     
-    console.log('[TEST][V2_PRIOR_LE_APPS] Calling probeEngineV2...');
+    console.log('[TEST][V2_PRIOR_LE_APPS] Invoking probeEngineV2 backend function...');
     
     const probeResponse = await base44.functions.invoke('probeEngineV2', testParams);
     const rawResult = probeResponse.data || {};
 
-    console.log('[TEST][V2_PRIOR_LE_APPS] Raw result from probeEngineV2:', JSON.stringify(rawResult, null, 2));
+    console.log('[TEST][V2_PRIOR_LE_APPS] ========== RAW BACKEND RESPONSE ==========');
+    console.log(JSON.stringify(rawResult, null, 2));
 
     // Normalize result
     const result = {
@@ -56,22 +59,30 @@ Deno.serve(async (req) => {
     const outcomeCollected = result.collectedAnchors.application_outcome || null;
 
     // Determine test result
-    const testPassed = outcomeAnchor === 'disqualified' && outcomeCollected === 'disqualified';
+    const anchorsPresent = typeof result.anchors === 'object' && result.anchors !== null;
+    const collectedPresent = typeof result.collectedAnchors === 'object' && result.collectedAnchors !== null;
+    const outcomeMatch = outcomeAnchor === 'disqualified' && outcomeCollected === 'disqualified';
+    
+    const testPassed = anchorsPresent && collectedPresent && outcomeMatch;
 
     console.log('[TEST][V2_PRIOR_LE_APPS] ========== TEST RESULT ==========');
-    console.log('[TEST][V2_PRIOR_LE_APPS] Expected: application_outcome = "disqualified"');
-    console.log('[TEST][V2_PRIOR_LE_APPS] Got anchors:', outcomeAnchor);
-    console.log('[TEST][V2_PRIOR_LE_APPS] Got collectedAnchors:', outcomeCollected);
-    console.log('[TEST][V2_PRIOR_LE_APPS] Test passed:', testPassed);
-    console.log('[TEST][V2_PRIOR_LE_APPS] ===================================');
+    console.log('[TEST][V2_PRIOR_LE_APPS] Expected outcome: "disqualified"');
+    console.log('[TEST][V2_PRIOR_LE_APPS] Got anchors.application_outcome:', outcomeAnchor);
+    console.log('[TEST][V2_PRIOR_LE_APPS] Got collectedAnchors.application_outcome:', outcomeCollected);
+    console.log('[TEST][V2_PRIOR_LE_APPS] Anchors object present:', anchorsPresent);
+    console.log('[TEST][V2_PRIOR_LE_APPS] CollectedAnchors object present:', collectedPresent);
+    console.log('[TEST][V2_PRIOR_LE_APPS] Test PASSED:', testPassed ? '✓ YES' : '✗ NO');
+    console.log('[TEST][V2_PRIOR_LE_APPS] =====================================');
 
     // Return comprehensive test result
     return Response.json({
       ok: true,
       testPassed,
-      test: 'PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01 anchor extraction',
-      narrativeSample: narrative.substring(0, 100) + '...',
-      result: {
+      packId: 'PACK_PRIOR_LE_APPS_STANDARD',
+      fieldKey: 'PACK_PRLE_Q01',
+      test: 'PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01 deterministic anchor extraction',
+      narrativeSample: narrative.substring(0, 120) + '...',
+      normalizedResult: {
         mode: result.mode,
         hasQuestion: result.hasQuestion,
         anchorsCount: Object.keys(result.anchors).length,
@@ -79,14 +90,18 @@ Deno.serve(async (req) => {
         anchors: result.anchors,
         collectedAnchors: result.collectedAnchors,
       },
-      outcomeAnchor,
-      outcomeCollected,
+      sampleOutcome: outcomeAnchor,
+      sampleOutcomeCollected: outcomeCollected,
       expectedOutcome: 'disqualified',
+      hasAnchorsKey: anchorsPresent,
+      hasCollectedAnchorsKey: collectedPresent,
       diagnostics: {
-        anchorsPresent: !!result.anchors,
-        collectedAnchorsPresent: !!result.collectedAnchors,
+        anchorsPresent,
+        collectedAnchorsPresent: collectedPresent,
         applicationOutcomeInAnchors: !!result.anchors.application_outcome,
         applicationOutcomeInCollected: !!result.collectedAnchors.application_outcome,
+        allAnchorKeys: Object.keys(result.anchors),
+        allCollectedKeys: Object.keys(result.collectedAnchors)
       }
     });
 
@@ -94,6 +109,7 @@ Deno.serve(async (req) => {
     console.error('[TEST][V2_PRIOR_LE_APPS] Test failed with error:', error);
     return Response.json({
       ok: false,
+      testPassed: false,
       error: error.message || String(error),
       stack: error.stack,
     }, { status: 500 });
