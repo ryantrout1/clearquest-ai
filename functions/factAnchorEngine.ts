@@ -70,6 +70,11 @@ function extractNarrative(ctx) {
     return {};
   }
 
+  console.log('[FactAnchorEngine][NARRATIVE] Extracting from PACK_PRLE_Q01:', {
+    textLength: text.length,
+    textPreview: text.substring(0, 100)
+  });
+
   // Extract application_outcome from narrative
   let outcome = null;
 
@@ -128,6 +133,11 @@ function extractShortForm(ctx) {
   if (!text || text.length === 0) {
     return {};
   }
+
+  console.log('[FactAnchorEngine][SHORT_FORM] Extracting from PACK_PRLE_Q02:', {
+    textLength: text.length,
+    text: text
+  });
 
   // For short-form answers (< 80 chars), treat as primarily the outcome word/phrase
   let outcome = null;

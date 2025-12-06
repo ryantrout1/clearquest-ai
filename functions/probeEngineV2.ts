@@ -4188,27 +4188,41 @@ async function probeEngineV2Core(input, base44Client) {
     const factCtx = {
       packId: pack_id,
       fieldKey: field_key,
-      questionId: ctx.baseQuestionText || null,
+      questionId: ctx.questionCode || null,
       answerText: field_value || ctx.fullNarrative || ctx.fullAnswer || ctx.answer || '',
-      sessionId: ctx.sessionId || null,
+      sessionId: input.session_id || null,
       instanceNumber: instance_number,
       anchors: handlerResult.anchors || {},
       collectedAnchors: handlerResult.collectedAnchors || {}
     };
     
+    console.log("[V2_PER_FIELD][FACT_ENGINE][PRE]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      answerLength: factCtx.answerText?.length || 0,
+      beforeAnchors: Object.keys(handlerResult.anchors || {})
+    });
+    
     const factResult = FactAnchorEngine.extract(factCtx) || {};
     const factAnchors = factResult.anchors || {};
     const factCollectedAnchors = factResult.collectedAnchors || {};
+    
+    console.log("[V2_PER_FIELD][FACT_ENGINE][EXTRACTED]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      extractedKeys: Object.keys(factAnchors),
+      application_outcome: factAnchors.application_outcome || '(none)'
+    });
     
     // Merge FactAnchorEngine results into handler result
     handlerResult.anchors = mergeAnchors(handlerResult.anchors || {}, factAnchors);
     handlerResult.collectedAnchors = mergeAnchors(handlerResult.collectedAnchors || {}, factCollectedAnchors);
     
-    console.log("[V2_PER_FIELD][FACT_ENGINE] Applied FactAnchorEngine:", {
+    console.log("[V2_PER_FIELD][FACT_ENGINE][POST]", {
       packId: pack_id,
       fieldKey: field_key,
-      extractedKeys: Object.keys(factAnchors),
-      finalAnchorKeys: Object.keys(handlerResult.anchors || {})
+      finalAnchorKeys: Object.keys(handlerResult.anchors || {}),
+      application_outcome: handlerResult.anchors?.application_outcome || '(none)'
     });
     
     // CRITICAL: Return handler result with merged fact anchors
