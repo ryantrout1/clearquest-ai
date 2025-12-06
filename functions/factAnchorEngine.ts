@@ -121,8 +121,36 @@ function extractNarrative(ctx) {
     console.log('[FactAnchorEngine][NARRATIVE] No outcome detected in narrative');
   }
 
-  // TODO: Extract other anchors (agency, position, date) from narrative text
-  // For now, only application_outcome is implemented
+  // Extract agency name - look for common patterns
+  const agencyMatch = text.match(/(?:applied to|application to|with)\s+([A-Za-z\s]+(?:police|pd|sheriff|department|agency))/i);
+  if (agencyMatch && agencyMatch[1]) {
+    const agency = agencyMatch[1].trim();
+    if (agency.length > 2 && agency.length < 100) {
+      anchors.prior_le_agency = agency;
+      confidence.prior_le_agency = 3; // Strong - from narrative
+      console.log('[FactAnchorEngine][NARRATIVE] Extracted prior_le_agency:', agency);
+    }
+  }
+
+  // Extract position - look for job titles
+  const positionMatch = text.match(/(?:for|as|position as|role as|job as)\s+(a\s+)?([A-Za-z\s]+(?:officer|deputy|agent|investigator|position))/i);
+  if (positionMatch && positionMatch[2]) {
+    const position = positionMatch[2].trim();
+    if (position.length > 2 && position.length < 100) {
+      anchors.prior_le_position = position;
+      confidence.prior_le_position = 3; // Strong - from narrative
+      console.log('[FactAnchorEngine][NARRATIVE] Extracted prior_le_position:', position);
+    }
+  }
+
+  // Extract approximate date - look for month/year patterns
+  const dateMatch = text.match(/(?:around|in|during|about)\s+([A-Za-z]+\s+\d{4}|\d{4}|[A-Za-z]+\s+of\s+\d{4})/i);
+  if (dateMatch && dateMatch[1]) {
+    const date = dateMatch[1].trim();
+    anchors.prior_le_approx_date = date;
+    confidence.prior_le_approx_date = 3; // Strong - from narrative
+    console.log('[FactAnchorEngine][NARRATIVE] Extracted prior_le_approx_date:', date);
+  }
 
   return { anchors, confidence };
 }
@@ -195,8 +223,9 @@ function extractShortForm(ctx) {
     console.log('[FactAnchorEngine][SHORT_FORM] No outcome detected in short answer');
   }
 
-  // TODO: Extract other anchors if present in short answers
-  // For now, only application_outcome is implemented
+  // Short-form answers may contain position or date hints but with low confidence
+  // These would only be used if narrative didn't extract them
+  // For Q02 specifically, we expect only the outcome, so we don't extract other fields here
 
   return { anchors, confidence };
 }
