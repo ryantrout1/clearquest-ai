@@ -4558,8 +4558,13 @@ Deno.serve(async (req) => {
     // ========================================================================
     // GOLDEN MVP CONTRACT ENFORCEMENT: Attach deterministic anchors
     // This runs for EVERY per-field V2 probe before returning to frontend
+    // SKIP for PACK_PRIOR_LE_APPS_STANDARD/PACK_PRLE_Q01 - already handled in early router
     // ========================================================================
-    result = attachDeterministicAnchorsForField(input, result);
+    if (!(packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01")) {
+      result = attachDeterministicAnchorsForField(input, result);
+    } else {
+      console.log('[V2_ENGINE][SKIP_ATTACH] Skipping attachDeterministicAnchorsForField for PACK_PRLE_Q01 - already handled');
+    }
     result = normalizeV2Result(result);
     
     // CRITICAL: Final log before returning to frontend
