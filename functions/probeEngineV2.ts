@@ -69,31 +69,59 @@ function extractPriorLeAppsAnchors({ text }) {
   const disqualifiedPatterns = [
     "disqualified during the background",
     "disqualified during background",
-    "disqualified", "dq'd", "dq", "dq'ed", "was dq", "got dq",
-    "failed background", "failed the background",
+    "disqualified",
+    "dq'd",
+    "dq'ed",
+    "was dq",
+    "got dq",
+    "failed background",
+    "failed the background",
     "background investigation disqualified",
-    "not selected", "wasn't selected", "was not selected",
-    "rejected", "not hired", "wasn't hired", "was not hired",
-    "did not get", "didn't get", "didn't get hired",
-    "was denied", "denied employment",
-    "removed from consideration", "removed from the process",
-    "did not make it", "didn't make it", "didn't make the cut",
-    "didn't pass", "did not pass", "unsuccessful"
+    "not selected",
+    "wasn't selected",
+    "was not selected",
+    "rejected",
+    "not hired",
+    "wasn't hired",
+    "was not hired",
+    "did not get",
+    "didn't get",
+    "didn't get hired",
+    "was denied",
+    "denied employment",
+    "removed from consideration",
+    "removed from the process",
+    "did not make it",
+    "didn't make it",
+    "didn't make the cut",
+    "didn't pass",
+    "did not pass",
+    "unsuccessful"
   ];
   
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== TESTING DISQUALIFIED PATTERNS ==========`);
   console.log(`[EXTRACTOR][PRIOR_LE_APPS] Testing ${disqualifiedPatterns.length} disqualified patterns...`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Normalized text to scan: "${normalized.substring(0, 250)}"`);
   
-  for (const pattern of disqualifiedPatterns) {
+  for (let i = 0; i < disqualifiedPatterns.length; i++) {
+    const pattern = disqualifiedPatterns[i];
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] Testing pattern ${i + 1}/${disqualifiedPatterns.length}: "${pattern}"`);
+    
     if (normalized.includes(pattern)) {
       anchors.application_outcome = "disqualified";
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅✅✅ application_outcome="disqualified" (matched: "${pattern}")`);
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅✅✅ MATCH FOUND! application_outcome="disqualified"`);
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Matched pattern: "${pattern}"`);
       console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Pattern found at position: ${normalized.indexOf(pattern)}`);
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Text around match: "${normalized.substring(Math.max(0, normalized.indexOf(pattern) - 30), normalized.indexOf(pattern) + pattern.length + 30)}"`);
       break;
+    } else {
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS]    ✗ Pattern "${pattern}" NOT found`);
     }
   }
   
   if (!anchors.application_outcome) {
-    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌ NO disqualified pattern matched in normalized text`);
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌❌❌ NO disqualified pattern matched in normalized text`);
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌ Full normalized text for manual inspection:`, normalized);
   }
   
   // 2. WITHDREW (check only if not already disqualified)
