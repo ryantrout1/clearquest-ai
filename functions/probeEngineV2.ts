@@ -2000,7 +2000,7 @@ Object.assign(PACK_CONFIG, {
   },
   
   // Prior Law Enforcement Applications pack (v2.5) - NARRATIVE-FIRST
-  // Q01 is handled by the dedicated handlePriorLeAppsQ01 early-router.
+  // Q01 performs deterministic extraction, Q02 builds application_outcome anchor
   // Gating for Q02+ is driven by anchors extracted from that narrative.
   PACK_PRIOR_LE_APPS_STANDARD: {
     id: "PACK_PRIOR_LE_APPS_STANDARD",
@@ -2009,6 +2009,7 @@ Object.assign(PACK_CONFIG, {
     isStandardCluster: true,
     active: true,
     usesAnchors: true,
+    perFieldHandler: handlePriorLeAppsPerFieldV2, // Per-field handler with deterministic extraction
     enablePerFieldProbing: true,
     enableCoverageGuardrail: true,
     useNarrativeFirst: true, // NARRATIVE-FIRST: Q01 is open-ended story (SAME as PACK_DRIVING_COLLISION_STANDARD)
