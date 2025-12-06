@@ -19,6 +19,89 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 const DEFAULT_MAX_PROBES_FALLBACK = 3;
 
 // ============================================================================
+// PLUGGABLE ANCHOR EXTRACTOR FOR Q01
+// ============================================================================
+/**
+ * Extract anchors from PACK_PRLE_Q01 narrative text
+ * Returns: { anchors: {...}, collectedAnchors: {...} }
+ */
+function extractPriorLeAppsQ01AnchorsFromText(textRaw) {
+  const anchors = {};
+  const collectedAnchors = {};
+
+  if (!textRaw || !textRaw.trim) {
+    return { anchors, collectedAnchors };
+  }
+
+  const raw = textRaw.trim();
+  const lower = raw.toLowerCase();
+
+  // --- application_outcome ---
+  let applicationOutcome = null;
+  if (lower.includes("disqual")) {
+    applicationOutcome = "Disqualified";
+  } else if (lower.includes("hired")) {
+    applicationOutcome = "Hired";
+  } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
+    applicationOutcome = "Withdrew application";
+  } else if (lower.includes("still in process") || lower.includes("still in progress")) {
+    applicationOutcome = "Still in process";
+  }
+
+  // --- prior_le_agency ---
+  let priorLeAgency = null;
+  const appliedIdx = lower.indexOf("applied to ");
+  if (appliedIdx !== -1) {
+    const after = raw.slice(appliedIdx + "applied to ".length);
+    const stopTokens = [" for a ", " for the ", ". ", ", then ", ";"];
+    let stopIdx = after.length;
+    for (const token of stopTokens) {
+      const i = after.toLowerCase().indexOf(token);
+      if (i !== -1 && i < stopIdx) stopIdx = i;
+    }
+    priorLeAgency = after.slice(0, stopIdx).trim();
+  }
+
+  // --- prior_le_position ---
+  let priorLePosition = null;
+  const posMatch = raw.match(/position(?: of)? ([^.,;]+)/i);
+  if (posMatch && posMatch[1]) {
+    priorLePosition = posMatch[1].trim();
+  }
+
+  // --- prior_le_approx_date ---
+  let priorLeApproxDate = null;
+  const dateMatch = raw.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
+  if (dateMatch) {
+    priorLeApproxDate = dateMatch[0].trim();
+  }
+
+  function add(key, value) {
+    if (!value) return;
+    anchors[key] = value;
+    collectedAnchors[key] = [value];
+  }
+
+  add("application_outcome", applicationOutcome);
+  add("prior_le_agency", priorLeAgency);
+  add("prior_le_position", priorLePosition);
+  add("prior_le_approx_date", priorLeApproxDate);
+
+  return { anchors, collectedAnchors };
+}
+
+// ============================================================================
+// PLUGGABLE ANCHOR EXTRACTOR REGISTRY
+// Maps (packId, fieldKey) → extractor function
+// ============================================================================
+const ANCHOR_EXTRACTORS = {
+  PACK_PRIOR_LE_APPS_STANDARD: {
+    PACK_PRLE_Q01: extractPriorLeAppsQ01AnchorsFromText,
+  },
+  // Future packs can be added here
+};
+
+// ============================================================================
 // DIAGNOSTIC HELPER: FACT ANCHOR TRACE FOR PACK_PRIOR_LE_APPS_STANDARD
 // ============================================================================
 const FACT_ANCHOR_KEYS_PRIOR_LE = [
@@ -2128,14 +2211,13 @@ Object.assign(PACK_CONFIG, {
 
 
 /**
- * Central registry: (packId, fieldKey) → deterministic extractor function
- * Add new packs/fields here as they adopt anchor-based gating
+ * Legacy registry - kept for backward compatibility with other code paths
+ * NOTE: New code should use ANCHOR_EXTRACTORS instead
  */
 const FIELD_ANCHOR_EXTRACTORS = {
   PACK_PRIOR_LE_APPS_STANDARD: {
     PACK_PRLE_Q01: extractPriorLeAppsAnchors,
   }
-  // Future: PACK_DRIVING_COLLISION_STANDARD, PACK_EMPLOYMENT_STANDARD, etc.
 };
 
 /**
@@ -3649,54 +3731,66 @@ function getPackTopicForDiscretion(packId) {
 
 /**
  * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
- * Uses pluggable extractor from FIELD_ANCHOR_EXTRACTORS registry
+ * Uses pluggable extractor from ANCHOR_EXTRACTORS registry
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
 
   const existingCollection = collectedAnchors || {};
-  const narrativeText = (fieldValue || "").trim();
+  const text = (fieldValue || "").trim();
 
   console.log("[PRIOR_LE_APPS][HANDLER][ENTRY]", {
     packId,
     fieldKey,
-    probeCount,
-    narrativeLength: narrativeText.length,
+    textLength: text.length,
     existingAnchorKeys: Object.keys(existingCollection),
   });
 
-  // Use pluggable extractor from registry
-  const extraction = runDeterministicExtractor({ 
-    packId, 
-    fieldKey, 
-    answerText: narrativeText 
-  });
+  // Pull text from all possible sources
+  const narrativeText =
+    fieldValue ||
+    ctx.answer ||
+    ctx.fullAnswer ||
+    "";
 
-  const mergedCollected = {
-    ...existingCollection,
-    ...extraction.anchors,
-  };
+  // Run pluggable extractor
+  let mergedAnchors = existingCollection;
+  let mergedCollectedAnchors = existingCollection;
 
-  console.log("[PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
-    prior_le_agency: extraction.anchors.prior_le_agency || "(missing)",
-    prior_le_position: extraction.anchors.prior_le_position || "(missing)",
-    prior_le_approx_date: extraction.anchors.prior_le_approx_date || "(missing)",
-    application_outcome: extraction.anchors.application_outcome || "(missing)",
-  });
+  const packExtractors = ANCHOR_EXTRACTORS[packId];
+  if (packExtractors) {
+    const fieldExtractor = packExtractors[fieldKey];
+    if (fieldExtractor) {
+      const { anchors: newAnchors = {}, collectedAnchors: newCollected = {} } =
+        fieldExtractor(narrativeText);
+
+      mergedAnchors = { ...mergedAnchors, ...newAnchors };
+      mergedCollectedAnchors = { ...mergedCollectedAnchors, ...newCollected };
+      
+      console.log("[PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
+        prior_le_agency: newAnchors.prior_le_agency || "(missing)",
+        prior_le_position: newAnchors.prior_le_position || "(missing)",
+        prior_le_approx_date: newAnchors.prior_le_approx_date || "(missing)",
+        application_outcome: newAnchors.application_outcome || "(missing)",
+      });
+    }
+  }
 
   const result = createV2ProbeResult({
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    anchors: extraction.anchors,
-    collectedAnchors: mergedCollected,
+    anchors: mergedAnchors,
+    collectedAnchors: mergedCollectedAnchors,
     reason: `prior_le_apps: ${fieldKey} validated and anchors extracted`,
   });
 
-  console.log("[PRIOR_LE_APPS][RESULT]", {
+  console.log("[V2_PRIOR_LE_APPS][Q01] Returning result:", {
     mode: result.mode,
-    anchorKeys: Object.keys(result.anchors),
-    collectedKeys: Object.keys(result.collectedAnchors)
+    hasQuestion: result.hasQuestion,
+    reason: result.reason,
+    anchorKeys: Object.keys(result.anchors || {}),
+    anchors: result.anchors,
   });
 
   return result;
@@ -3905,41 +3999,33 @@ If any field is not clearly stated, set it to null.`,
 /**
  * Universal V2 result builder - ensures EVERY response includes anchors/collectedAnchors
  * CRITICAL: All V2 probe returns MUST use this helper
+ * 
+ * Signature: createV2ProbeResult(base, overrides)
+ * - base: Required fields { mode, hasQuestion, followupsCount, reason, anchors, collectedAnchors }
+ * - overrides: Optional override for any field
  */
-function createV2ProbeResult(overrides = {}) {
-  // 🔒 Base defaults - every V2 result MUST have these properties
-  const base = {
-    mode: "NONE",
-    hasQuestion: false,
-    question: null,
-    questionPreview: undefined,
-    followupsCount: 0,
-    followups: undefined,
-    reason: undefined,
-    probeSource: undefined,
-    // 🔒 CRITICAL: Always present, even if empty
-    anchors: {},
-    collectedAnchors: {},
+function createV2ProbeResult(base, overrides = {}) {
+  const {
+    mode = "NONE",
+    hasQuestion = false,
+    followupsCount = 0,
+    reason = "",
+    anchors = {},
+    collectedAnchors = {},
+  } = base || {};
+
+  const finalAnchors = overrides.anchors || anchors || {};
+  const finalCollected = overrides.collectedAnchors || collectedAnchors || {};
+
+  return {
+    mode: overrides.mode || mode,
+    hasQuestion: overrides.hasQuestion !== undefined ? overrides.hasQuestion : hasQuestion,
+    followupsCount: overrides.followupsCount !== undefined ? overrides.followupsCount : followupsCount,
+    reason: overrides.reason || reason,
+    question: overrides.question,
+    anchors: finalAnchors,
+    collectedAnchors: finalCollected,
   };
-
-  // Merge overrides into base (overrides take precedence)
-  const result = { ...base, ...overrides };
-
-  // 🔒 SAFETY NET: If overrides explicitly set anchors/collectedAnchors to null/undefined,
-  // force them back to empty objects
-  if (!result.anchors || typeof result.anchors !== "object") {
-    result.anchors = {};
-  }
-  if (!result.collectedAnchors || typeof result.collectedAnchors !== "object") {
-    result.collectedAnchors = {};
-  }
-
-  // Normalize followupsCount from followups if not explicitly set
-  if (typeof result.followupsCount !== "number") {
-    result.followupsCount = Array.isArray(result.followups) ? result.followups.length : 0;
-  }
-
-  return result;
 }
 
 /**
@@ -4229,16 +4315,10 @@ async function probeEngineV2(input, base44Client) {
       console.log(`[PACK_PRIOR_LE_APPS][OPENING] No opening probe - showing PACK_PRLE_Q01 narrative field directly`);
       return createV2ProbeResult({
         mode: "NONE",
-        pack_id,
-        field_key,
-        semanticField: field_key,
-        validationResult: "prior_le_apps_no_opening",
         hasQuestion: false,
-        targetAnchors: [],
-        anchors: currentAnchors,
-        collectedAnchors: currentAnchors,
         reason: "prior_le_apps: no opening probe; Q01 is the opener",
-        message: "PACK_PRIOR_LE_APPS_STANDARD shows Q01 narrative field directly - no opening message"
+        anchors: currentAnchors || {},
+        collectedAnchors: currentAnchors || {},
       });
     }
     
@@ -4259,21 +4339,11 @@ async function probeEngineV2(input, base44Client) {
         console.log(`[V2-UNIVERSAL][OPENING] Discretion returned: "${question.substring(0, 60)}..."`);
         return createV2ProbeResult({
           mode: "QUESTION",
-          pack_id,
-          field_key,
-          semanticField: field_key,
+          hasQuestion: true,
           question,
-          validationResult: "opening_question",
-          previousProbeCount: 0,
-          maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
-          isFallback: false,
-          probeSource: 'discretion_opening',
-          targetAnchors: discretionResult.data.targetAnchors || [],
-          tone: discretionResult.data.tone || 'neutral',
-          instanceNumber: instance_number,
-          anchors: currentAnchors,
-          collectedAnchors: currentAnchors,
-          message: "Opening question from Discretion Engine"
+          reason: "Opening question from Discretion Engine",
+          anchors: currentAnchors || {},
+          collectedAnchors: currentAnchors || {},
         });
       } else {
         console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
@@ -4447,23 +4517,14 @@ async function probeEngineV2(input, base44Client) {
       if (discretionResult.data?.success && discretionResult.data.action) {
         if (discretionResult.data.action === "stop") {
           // Discretion says we have enough - advance
-          // No probe was asked, so probeCount stays the same
           console.log(`[V2-UNIVERSAL][STOP] Discretion says stop: ${discretionResult.data.reason}`);
           
           return createV2ProbeResult({
             mode: "NEXT_FIELD",
-            pack_id,
-            field_key,
-            semanticField: field_key,
-            validationResult: "discretion_stop",
-            previousProbeCount: previous_probes_count,
-            maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
+            hasQuestion: false,
             reason: discretionResult.data.reason,
-            instanceNumber: instance_number,
-            anchors: currentAnchors,
-            collectedAnchors: currentAnchors,
-            targetAnchors: discretionResult.data.targetAnchors,
-            message: `Discretion Engine stopped: ${discretionResult.data.reason}`
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {},
           });
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
@@ -4483,39 +4544,25 @@ async function probeEngineV2(input, base44Client) {
             });
           }
           
-          // Discretion wants to ask another question - THIS is where we increment probeCount
+          // Discretion wants to ask another question
           console.log(`[V2-UNIVERSAL][PROBE] Discretion asks: "${question.substring(0, 60)}..."`);
           return createV2ProbeResult({
             mode: "QUESTION",
-            pack_id,
-            field_key,
-            semanticField: field_key,
+            hasQuestion: true,
             question,
-            validationResult: "discretion_probe",
-            previousProbeCount: previous_probes_count + 1,
-            maxProbesPerField: discretionResult.data.debug?.maxProbes || 4,
-            isFallback: false,
-            probeSource: `discretion_${discretionResult.data.action}`,
-            targetAnchors: discretionResult.data.targetAnchors,
-            tone: discretionResult.data.tone,
-            instanceNumber: instance_number,
-            anchors: currentAnchors,
-            collectedAnchors: currentAnchors,
-            message: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`
+            reason: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`,
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {},
           });
         } else {
-          // No valid question returned - don't increment probe count
+          // No valid question returned
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
           return createV2ProbeResult({
             mode: "NEXT_FIELD",
-            pack_id,
-            field_key,
-            semanticField: field_key,
-            validationResult: "discretion_no_question",
-            previousProbeCount: previous_probes_count,
-            anchors: currentAnchors,
-            collectedAnchors: currentAnchors,
-            message: 'No question from Discretion - advancing'
+            hasQuestion: false,
+            reason: 'No question from Discretion - advancing',
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {},
           });
         }
       } else {
@@ -4560,22 +4607,14 @@ async function probeEngineV2(input, base44Client) {
   // ============================================================================
   
   if (!packConfig) {
-    console.log(`[V2-UNIVERSAL] No pack config found for ${pack_id} - using discretion fallback`);
-    
-    // For unsupported packs, fail closed - do NOT generate generic probes
-    const semanticInfo = semanticV2EvaluateAnswer(field_key, field_value, currentAnchors);
+    console.log(`[V2-UNIVERSAL] No pack config found for ${pack_id} - accepting answer`);
     
     return createV2ProbeResult({
-      mode: "NEXT_FIELD", 
-      pack_id,
-      field_key,
-      semanticField: field_key,
-      validationResult: "skipped_unsupported_pack",
-      hasProbeQuestion: false,
-      semanticInfo,
-      anchors: currentAnchors,
-      collectedAnchors: currentAnchors,
-      message: `Pack ${pack_id} not configured for V2 probing - accepting answer without probe` 
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      reason: `Pack ${pack_id} not configured for V2 probing`,
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {},
     });
   }
 
@@ -4644,23 +4683,12 @@ async function probeEngineV2(input, base44Client) {
   if (previous_probes_count >= maxProbesPerField) {
     console.log(`[V2-PER-FIELD] Max probes (${maxProbesPerField}) reached for ${semanticField} → accepting and advancing`);
     
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD (MAX PROBES) ==========`);
-      console.log(`[V2-BACKEND-DECISION] Max probes reached for ${semanticField} - accepting answer and advancing`);
-    }
-    
     return createV2ProbeResult({
       mode: "NEXT_FIELD",
-      pack_id,
-      field_key,
-      semanticField,
-      validationResult: "max_probes_reached",
-      previousProbeCount: previous_probes_count,
-      maxProbesPerField,
-      semanticInfo,
-      anchors: currentAnchors,
-      collectedAnchors: currentAnchors,
-      message: `Max probes reached for ${semanticField}, accepting current value`
+      hasQuestion: false,
+      reason: `Max probes reached for ${semanticField}`,
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {},
     });
   }
 
@@ -4668,35 +4696,12 @@ async function probeEngineV2(input, base44Client) {
   if (validationResult === "complete") {
     console.log(`[V2-PER-FIELD] Field ${semanticField} is complete → advancing`);
     
-    // EXPLICIT LOGGING: NEXT_FIELD decision for PACK_PRIOR_LE_APPS_STANDARD
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log(`[V2-BACKEND-DECISION] ========== PACK_PRIOR_LE_APPS_STANDARD DECISION: NEXT_FIELD ==========`);
-      console.log(`[V2-BACKEND-DECISION] Field ${semanticField} is complete - advancing`, {
-        field_key,
-        semanticField,
-        decision: "NEXT_FIELD",
-        validationResult: "complete",
-        will_advance_to_next_field: true,
-        extractedAnchorKeys: Object.keys(extractedAnchors || {}),
-        currentAnchorsKeys: Object.keys(currentAnchors),
-        application_outcome: currentAnchors.application_outcome || '(MISSING)'
-      });
-      console.log(`[V2_PRIOR_LE_APPS][COMPLETE] Final anchors being returned:`, currentAnchors);
-    }
-    
     return createV2ProbeResult({
       mode: "NEXT_FIELD",
-      pack_id,
-      field_key,
-      semanticField,
-      validationResult: "complete",
-      previousProbeCount: previous_probes_count,
-      maxProbesPerField,
-      semanticInfo,
-      anchors: currentAnchors,
-      collectedAnchors: currentAnchors,
-      targetAnchors: V2_PACK_CONFIGS[pack_id]?.targetAnchors || [],
-      message: `Field ${semanticField} validated successfully`
+      hasQuestion: false,
+      reason: `Field ${semanticField} validated successfully`,
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {},
     });
   }
 
@@ -4722,64 +4727,25 @@ async function probeEngineV2(input, base44Client) {
   if (!probeResult.question) {
     console.log(`[V2-PER-FIELD] LLM determined no probe needed for ${semanticField} → advancing`);
     
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] LLM determined ${semanticField} is acceptable - advancing`);
-      console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=false, probed=false, coverage=complete`);
-      console.log(`[V2_PRIOR_LE_APPS][NO_PROBE] Final anchors being returned:`, currentAnchors);
-    }
-    
     return createV2ProbeResult({
       mode: "NEXT_FIELD",
-      pack_id,
-      field_key,
-      semanticField,
-      validationResult: "llm_no_probe",
-      previousProbeCount: previous_probes_count,
-      maxProbesPerField,
-      semanticInfo,
-      instanceNumber: instance_number,
-      anchors: currentAnchors,
-      collectedAnchors: currentAnchors,
-      message: `LLM determined field ${semanticField} is acceptable`
+      hasQuestion: false,
+      reason: `LLM determined field ${semanticField} is acceptable`,
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {},
     });
   }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
-  console.log(`[V2-PER-FIELD] Question: "${probeResult.question.substring(0, 80)}..."`);
-  
-  // EXPLICIT LOGGING: QUESTION decision for PACK_PRIOR_LE_APPS_STANDARD
-  if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] Field ${semanticField} needs probe - staying on field`);
-    console.log(`[V2_PER_FIELD][PRIOR_LE_APPS][LLM_RESULT] needsMoreDetail=true, probed=true, coverage=incomplete`, {
-      field_key,
-      semanticField,
-      decision: "QUESTION",
-      probe_source: probeResult.source,
-      is_fallback: probeResult.isFallback,
-      probe_count: previous_probes_count,
-      max_probes: maxProbesPerField,
-      question_preview: probeResult.question?.substring?.(0, 80)
-    });
-  }
 
   return createV2ProbeResult({
     mode: "QUESTION",
-    pack_id,
-    field_key,
-    semanticField,
+    hasQuestion: true,
     question: probeResult.question,
-    validationResult: "incomplete",
-    previousProbeCount: previous_probes_count,
-    maxProbesPerField,
-    isFallback: probeResult.isFallback,
-    probeSource: probeResult.source,
-    semanticInfo,
-    instanceNumber: instance_number,
-    anchors: currentAnchors,
-    collectedAnchors: currentAnchors,
-    message: `Probing for more information about ${semanticField}`,
-    followups: [probeResult.question],
-    followupsCount: 1
+    followupsCount: 1,
+    reason: `Probing for more information about ${semanticField}`,
+    anchors: currentAnchors || {},
+    collectedAnchors: currentAnchors || {},
   });
 }
 
@@ -4829,15 +4795,13 @@ Deno.serve(async (req) => {
         })), { status: 200 });
       }
       
-      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
-        pack_id: packId,
-        field_key: fieldKey,
-        reason: "BACKEND_ERROR",
-        details: authError.message || "Authentication failed",
+        hasQuestion: false,
+        reason: authError.message || "Authentication failed",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
     if (!user) {
@@ -4847,27 +4811,24 @@ Deno.serve(async (req) => {
       const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
       const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
       if (fallback) {
-        console.log('[V2-PER-FIELD] No user → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json(withAnchorDefaults(createV2ProbeResult({
+        console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
+        return Response.json(createV2ProbeResult({
           mode: fallback.mode,
-          pack_id: packId,
-          field_key: fieldKey,
+          hasQuestion: true,
           question: fallback.question,
-          isFallback: true,
+          reason: "Fallback probe - no user",
           anchors: {},
           collectedAnchors: {}
-        })), { status: 200 });
+        }), { status: 200 });
       }
       
-      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
-        pack_id: packId,
-        field_key: fieldKey,
-        reason: "BACKEND_ERROR",
-        details: "User not authenticated",
+        hasQuestion: false,
+        reason: "User not authenticated",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
     let input;
@@ -4877,15 +4838,13 @@ Deno.serve(async (req) => {
       fieldKey = input.field_key;
     } catch (parseError) {
       console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
-      return Response.json(withAnchorDefaults(createV2ProbeResult({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
-        pack_id: packId,
-        field_key: fieldKey,
-        reason: "BACKEND_ERROR",
-        details: parseError.message || "Invalid request body",
+        hasQuestion: false,
+        reason: parseError.message || "Invalid request body",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
@@ -4917,16 +4876,8 @@ Deno.serve(async (req) => {
     }
     
     // ========================================================================
-    // SAFETY NET: Ensure result has anchors and collectedAnchors
-    // Wrap through createV2ProbeResult to guarantee shape consistency
+    // SAFETY NET: Normalize result to guarantee anchors/collectedAnchors exist
     // ========================================================================
-    result = createV2ProbeResult({
-      ...result,
-      // Preserve existing anchors/collectedAnchors if present, otherwise use {}
-      anchors: result?.anchors ?? {},
-      collectedAnchors: result?.collectedAnchors ?? {},
-    });
-    
     result = normalizeV2Result(result);
     
     // CRITICAL: Final log before returning to frontend
@@ -4950,61 +4901,26 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
-    // ========================================================================
-    // SAFETY NET: Normalize result at HTTP boundary
-    // Guarantees anchors and collectedAnchors always exist before sending to frontend
-    // ========================================================================
-    const normalized = withAnchorDefaults(result);
-    
-    // Diagnostic to verify shape (always runs to catch any missing anchors)
-    console.log("[V2_PROBE_RESULT_SHAPE]", {
-      packId: normalized.pack_id || packId,
-      fieldKey: normalized.field_key || fieldKey,
-      mode: normalized.mode,
-      hasAnchorsProp: Object.prototype.hasOwnProperty.call(normalized, "anchors"),
-      hasCollectedProp: Object.prototype.hasOwnProperty.call(normalized, "collectedAnchors"),
-      anchorKeys: Object.keys(normalized.anchors || {}),
-      collectedKeys: Object.keys(normalized.collectedAnchors || {}),
-      anchorCount: Object.keys(normalized.anchors || {}).length,
-      collectedCount: Object.keys(normalized.collectedAnchors || {}).length
+    // Log final result before returning
+    console.log("[V2_ENGINE][FINAL_RESULT]", {
+      packId: result.pack_id || packId,
+      fieldKey: result.field_key || fieldKey,
+      mode: result.mode,
+      hasAnchors: !!result.anchors,
+      anchorKeys: Object.keys(result.anchors || {})
     });
     
-    // STAGE5: Log HTTP response anchors before returning to frontend
-    logPriorLeAnchors('STAGE5_HTTP_RESPONSE_ANCHORS', {
-      packId: normalized.pack_id || packId,
-      fieldKey: normalized.field_key || fieldKey,
-      instanceNumber: normalized.instanceNumber,
-      anchorsObj: normalized.anchors
-    });
-    logPriorLeAnchors('STAGE5_HTTP_RESPONSE_COLLECTED', {
-      packId: normalized.pack_id || packId,
-      fieldKey: normalized.field_key || fieldKey,
-      instanceNumber: normalized.instanceNumber,
-      anchorsObj: normalized.collectedAnchors
-    });
-    
-    // DIAGNOSTIC: Log complete result for PACK_PRIOR_LE_APPS_STANDARD
+    // DIAGNOSTIC: Log final anchors for PACK_PRIOR_LE_APPS_STANDARD
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] ========== FINAL RESULT FROM BACKEND ==========');
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT]', JSON.stringify(normalized, null, 2));
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] anchors:', normalized.anchors || '(none)');
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] collectedAnchors:', normalized.collectedAnchors || '(none)');
-      console.log('[DIAG_PRIOR_LE_APPS][BACKEND_RESULT] Has application_outcome?', 
-        !!(normalized.anchors?.application_outcome || normalized.collectedAnchors?.application_outcome));
+      logPriorLeAnchors('FINAL_HTTP_RESPONSE', {
+        packId,
+        fieldKey,
+        instanceNumber: result.instanceNumber,
+        anchorsObj: result.anchors
+      });
     }
     
-    // ========================================================================
-    // CRITICAL: Log EXACT JSON being returned to frontend
-    // ========================================================================
-    console.log("[HTTP_RESPONSE][FINAL_JSON] ========== EXACT RESPONSE TO FRONTEND ==========");
-    console.log("[HTTP_RESPONSE][FINAL_JSON] pack:", packId);
-    console.log("[HTTP_RESPONSE][FINAL_JSON] field:", fieldKey);
-    console.log("[HTTP_RESPONSE][FINAL_JSON] JSON.stringify(normalized):", JSON.stringify(normalized));
-    console.log("[HTTP_RESPONSE][FINAL_JSON] normalized.anchors exists?", Object.prototype.hasOwnProperty.call(normalized, "anchors"));
-    console.log("[HTTP_RESPONSE][FINAL_JSON] normalized.collectedAnchors exists?", Object.prototype.hasOwnProperty.call(normalized, "collectedAnchors"));
-    console.log("[HTTP_RESPONSE][FINAL_JSON] Keys in response:", Object.keys(normalized));
-    
-    return Response.json(normalized);
+    return Response.json(result);
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
     // This allows frontend to treat it as "no probe available"
@@ -5023,15 +4939,14 @@ Deno.serve(async (req) => {
     const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
     if (fallback) {
       console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-      return Response.json(withAnchorDefaults(createV2ProbeResult({
+      return Response.json(createV2ProbeResult({
         mode: fallback.mode,
-        pack_id: packId,
-        field_key: fieldKey,
+        hasQuestion: true,
         question: fallback.question,
-        isFallback: true,
+        reason: "Fallback probe due to auth error",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
     return Response.json(withAnchorDefaults(createV2ProbeResult({ 
