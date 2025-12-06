@@ -63,11 +63,15 @@ function extractPriorLeAppsAnchors({ text }) {
   // ===== ANCHOR 1: application_outcome (CRITICAL for PACK_PRLE_Q02 gating) =====
   // Precedence order (most definitive first):
   
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Normalized text for pattern matching: "${normalized.substring(0, 200)}"`);
+  
   // 1. DISQUALIFIED (most common)
   const disqualifiedPatterns = [
+    "disqualified during the background",
+    "disqualified during background",
     "disqualified", "dq'd", "dq", "dq'ed", "was dq", "got dq",
     "failed background", "failed the background",
-    "background investigation disqualified", "disqualified during the background",
+    "background investigation disqualified",
     "not selected", "wasn't selected", "was not selected",
     "rejected", "not hired", "wasn't hired", "was not hired",
     "did not get", "didn't get", "didn't get hired",
@@ -77,12 +81,19 @@ function extractPriorLeAppsAnchors({ text }) {
     "didn't pass", "did not pass", "unsuccessful"
   ];
   
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Testing ${disqualifiedPatterns.length} disqualified patterns...`);
+  
   for (const pattern of disqualifiedPatterns) {
     if (normalized.includes(pattern)) {
       anchors.application_outcome = "disqualified";
-      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✓ application_outcome="disqualified" (matched: "${pattern}")`);
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅✅✅ application_outcome="disqualified" (matched: "${pattern}")`);
+      console.log(`[EXTRACTOR][PRIOR_LE_APPS] ✅ Pattern found at position: ${normalized.indexOf(pattern)}`);
       break;
     }
+  }
+  
+  if (!anchors.application_outcome) {
+    console.log(`[EXTRACTOR][PRIOR_LE_APPS] ❌ NO disqualified pattern matched in normalized text`);
   }
   
   // 2. WITHDREW (check only if not already disqualified)
