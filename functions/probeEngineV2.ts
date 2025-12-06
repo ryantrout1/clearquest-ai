@@ -2291,14 +2291,19 @@ function runDeterministicExtractor({ packId, fieldKey, answerText }) {
 
 /**
  * Normalize v2Result to ensure anchors/collectedAnchors always exist
+ * SAFETY NET: Called at end of probeEngineV2 to catch any bypassed paths
  */
 function normalizeV2Result(result) {
   if (!result || typeof result !== 'object') {
-    return { mode: 'NONE', hasQuestion: false, anchors: {}, collectedAnchors: {} };
+    return createV2ProbeResult({
+      mode: 'ERROR',
+      hasQuestion: false,
+      reason: "Invalid probe result object",
+    });
   }
-  if (!result.anchors) result.anchors = {};
-  if (!result.collectedAnchors) result.collectedAnchors = {};
-  return result;
+  
+  // Route through createV2ProbeResult to guarantee shape
+  return createV2ProbeResult(result);
 }
 
 /**
@@ -4022,83 +4027,45 @@ If any field is not clearly stated, set it to null.`,
 
 /**
  * Unified V2ProbeResult type - ALWAYS includes anchors and collectedAnchors
- * CRITICAL FIX: Remove anchors/collectedAnchors from rest to prevent override
+ * CRITICAL FIX: Base defaults pattern guarantees anchors/collectedAnchors always exist
  */
 /**
  * Universal V2 result builder - ensures EVERY response includes anchors/collectedAnchors
  * CRITICAL: All V2 probe returns MUST use this helper
  */
-function createV2ProbeResult(opts = {}) {
-  const {
-    mode = "NONE",
-    pack_id,
-    field_key,
-    hasQuestion,
-    followupsCount,
-    question,
-    reason,
-    probeSource,
-    semanticField,
-    validationResult,
-    previousProbeCount,
-    maxProbesPerField,
-    isFallback,
-    semanticInfo,
-    instanceNumber,
-    message,
-    followups,
-    targetAnchors,
-    tone,
-    collectedAnchorsKeys,
-    anchors,
-    collectedAnchors,
-    debug,
-    ...rest
-  } = opts;
-  
-  const safeAnchors = anchors ?? {};
-  const safeCollectedAnchors = collectedAnchors ?? {};
-  
-  // Warn if anchors missing when they should be present
-  if ((!anchors || !collectedAnchors) && mode !== "NONE") {
-    console.warn(
-      "[V2][createV2ProbeResult] Missing anchors for pack/field",
-      { pack_id, field_key, hasAnchors: !!anchors, hasCollected: !!collectedAnchors }
-    );
-  }
-  
-  const result = {
-    ...rest,  // CRITICAL: Spread rest FIRST so it doesn't override our safe defaults
-    mode,
-    pack_id,
-    field_key,
-    hasQuestion: hasQuestion ?? (mode === 'QUESTION'),
-    followupsCount: followupsCount ?? (followups?.length || 0),
-    question,
-    reason,
-    probeSource,
-    semanticField,
-    validationResult,
-    previousProbeCount,
-    maxProbesPerField,
-    isFallback,
-    semanticInfo,
-    instanceNumber,
-    message,
-    followups,
-    targetAnchors,
-    tone,
-    collectedAnchorsKeys,
-    // CRITICAL: Always include anchors and collectedAnchors (never undefined)
-    anchors: safeAnchors,
-    collectedAnchors: safeCollectedAnchors
+function createV2ProbeResult(overrides = {}) {
+  // 🔒 Base defaults - every V2 result MUST have these properties
+  const base = {
+    mode: "NONE",
+    hasQuestion: false,
+    question: null,
+    questionPreview: undefined,
+    followupsCount: 0,
+    followups: undefined,
+    reason: undefined,
+    probeSource: undefined,
+    // 🔒 CRITICAL: Always present, even if empty
+    anchors: {},
+    collectedAnchors: {},
   };
-  
-  // Include debug if provided
-  if (debug) {
-    result.debug = debug;
+
+  // Merge overrides into base (overrides take precedence)
+  const result = { ...base, ...overrides };
+
+  // 🔒 SAFETY NET: If overrides explicitly set anchors/collectedAnchors to null/undefined,
+  // force them back to empty objects
+  if (!result.anchors || typeof result.anchors !== "object") {
+    result.anchors = {};
   }
-  
+  if (!result.collectedAnchors || typeof result.collectedAnchors !== "object") {
+    result.collectedAnchors = {};
+  }
+
+  // Normalize followupsCount from followups if not explicitly set
+  if (typeof result.followupsCount !== "number") {
+    result.followupsCount = Array.isArray(result.followups) ? result.followups.length : 0;
+  }
+
   return result;
 }
 
@@ -5078,12 +5045,17 @@ Deno.serve(async (req) => {
     // ========================================================================
     const normalized = withAnchorDefaults(result);
     
-    // Optional diagnostic to verify shape
+    // Diagnostic to verify shape (always runs to catch any missing anchors)
     console.log("[V2_PROBE_RESULT_SHAPE]", {
+      packId: normalized.pack_id || packId,
+      fieldKey: normalized.field_key || fieldKey,
+      mode: normalized.mode,
       hasAnchorsProp: Object.prototype.hasOwnProperty.call(normalized, "anchors"),
       hasCollectedProp: Object.prototype.hasOwnProperty.call(normalized, "collectedAnchors"),
       anchorKeys: Object.keys(normalized.anchors || {}),
       collectedKeys: Object.keys(normalized.collectedAnchors || {}),
+      anchorCount: Object.keys(normalized.anchors || {}).length,
+      collectedCount: Object.keys(normalized.collectedAnchors || {}).length
     });
     
     // STAGE5: Log HTTP response anchors before returning to frontend
