@@ -1320,10 +1320,20 @@ export default function CandidateInterview() {
         }
 
         // ========================================================================
-        // CLIENT-SIDE ANCHOR INJECTION: PACK_PRIOR_LE_APPS_STANDARD → PACK_PRLE_Q02
-        // CRITICAL: Q02 is the canonical source of application_outcome
-        // Normalize the answer and inject into anchors for downstream gating
+        // CLIENT-SIDE ANCHOR INJECTION: PACK_PRIOR_LE_APPS_STANDARD
         // ========================================================================
+
+        // CLIENT ANCHOR: Short Q01 answer = agency name
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+          const answerText = (finalAnswer || '').trim();
+
+          if (answerText && !updatedCollectedAnswers.prior_le_agency && answerText.length <= 60) {
+            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q01] Injecting prior_le_agency from short Q01:', answerText);
+            updatedCollectedAnswers.prior_le_agency = answerText;
+          }
+        }
+
+        // CLIENT ANCHOR: Q02 normalizes application_outcome
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q02') {
           console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== NORMALIZING APPLICATION OUTCOME ==========');
           console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Raw answer:', finalAnswer);
@@ -1367,7 +1377,34 @@ export default function CandidateInterview() {
           console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== ANCHOR INJECTED ==========');
           console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Updated anchors:', updatedCollectedAnswers);
           console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] application_outcome:', normalizedOutcome);
-        }
+          }
+
+          // CLIENT ANCHOR: Q04 normalizes date
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q04') {
+          const approx = finalAnswer?.trim();
+          if (approx) {
+            updatedCollectedAnswers.prior_le_approx_date = approx;
+            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q04] Injecting prior_le_approx_date:', approx);
+          }
+          }
+
+          // CLIENT ANCHOR: Q05 normalizes position
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q05') {
+          const position = finalAnswer?.trim();
+          if (position) {
+            updatedCollectedAnswers.prior_le_position = position;
+            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q05] Injecting prior_le_position:', position);
+          }
+          }
+
+          // CLIENT ANCHOR: Q06 normalizes agency (backup)
+          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q06') {
+          const agency = finalAnswer?.trim();
+          if (agency) {
+            updatedCollectedAnswers.prior_le_agency = agency;
+            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q06] Injecting prior_le_agency:', agency);
+          }
+          }
 
         // ALWAYS update activeV2Pack state with merged anchors (even if no new anchors)
         setActiveV2Pack(prev => ({
@@ -1452,9 +1489,15 @@ export default function CandidateInterview() {
           if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
             console.log(`[V2_PACK_FIELD][GATE_CHECK] ========== CHECKING FIELD GATING ==========`);
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Starting at field ${nextFieldIdx + 1}/${totalFieldsInPack}: ${nextFieldConfig.fieldKey}`);
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors:`, updatedCollectedAnswers);
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors (CANONICAL):`, updatedCollectedAnswers);
             console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchor keys:`, Object.keys(updatedCollectedAnswers));
-            
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] Canonical anchors:`, {
+              prior_le_agency: updatedCollectedAnswers.prior_le_agency || '(missing)',
+              prior_le_position: updatedCollectedAnswers.prior_le_position || '(missing)',
+              prior_le_approx_date: updatedCollectedAnswers.prior_le_approx_date || '(missing)',
+              application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
+            });
+
             // DIAGNOSTIC: Extra logging for PACK_PRIOR_LE_APPS_STANDARD gating
             console.log('[DIAG_PRIOR_LE_APPS][GATING] ========== FIELD GATING CHECK ==========');
             logPriorLeClientAnchors('GATING_CURRENT', updatedCollectedAnswers);

@@ -83,7 +83,7 @@ function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj
  */
 /**
  * Extract fact anchors for PACK_PRIOR_LE_APPS_STANDARD from narrative text
- * Maps to the 4 critical anchors: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
+ * CANONICAL KEYS: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
  */
 function extractPriorLeAppsAnchors({ text }) {
   if (!text || text.trim().length < 10) {
@@ -259,9 +259,10 @@ function extractPriorLeAppsAnchors({ text }) {
   
   console.log(`[EXTRACTOR][PRIOR_LE_APPS] ========== EXTRACTION COMPLETE ==========`);
   console.log(`[EXTRACTOR][PRIOR_LE_APPS] Total anchors extracted: ${Object.keys(anchors).length}`);
+  console.log(`[EXTRACTOR][PRIOR_LE_APPS] Canonical keys: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome`);
   console.log(`[EXTRACTOR][PRIOR_LE_APPS] Final anchors:`, anchors);
   
-  // Return both anchors and collectedAnchors (they should be the same for deterministic extraction)
+  // Return canonical anchors
   return {
     anchors: { ...anchors },
     collectedAnchors: { ...anchors }
@@ -1632,25 +1633,27 @@ const V2_PACK_CONFIGS = {
     useNarrativeFirst: true,
     primaryField: "PACK_PRLE_Q01", // Primary narrative field
     // Target anchors that MUST be extracted from Q01 narrative before advancing
+    // CANONICAL KEYS for PRIOR LE APPS
     requiredAnchors: [
-      "agency_name",
-      "position",
-      "month_year",
+      "prior_le_agency",
+      "prior_le_position",
+      "prior_le_approx_date",
       "application_outcome"
     ],
     // Optional anchors that can be extracted but aren't required
     targetAnchors: [
-      "agency_name",
-      "position", 
-      "month_year",
+      "prior_le_agency",
+      "prior_le_position", 
+      "prior_le_approx_date",
       "application_outcome",
       "application_city",
       "application_state"
     ],
     // Field gating config - which fields require which anchors to be missing
+    // CANONICAL KEYS for PRIOR LE APPS
     fieldGating: {
       "PACK_PRLE_Q01": { 
-        captures: ["agency_name", "position", "month_year", "application_outcome", "application_city", "application_state"], 
+        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome", "application_city", "application_state"], 
         alwaysAsk: true, 
         isOpener: true,
         isNarrativeOpener: true,
@@ -1667,18 +1670,18 @@ const V2_PACK_CONFIGS = {
         alwaysAsk: false 
       },
       "PACK_PRLE_Q04": { 
-        captures: ["month_year"], 
-        requiresMissing: ["month_year"], 
+        captures: ["prior_le_approx_date"], 
+        requiresMissing: ["prior_le_approx_date"], 
         alwaysAsk: false 
       },
       "PACK_PRLE_Q05": { 
-        captures: ["position"], 
-        requiresMissing: ["position"], 
+        captures: ["prior_le_position"], 
+        requiresMissing: ["prior_le_position"], 
         alwaysAsk: false 
       },
       "PACK_PRLE_Q06": { 
-        captures: ["agency_name"], 
-        requiresMissing: ["agency_name"], 
+        captures: ["prior_le_agency"], 
+        requiresMissing: ["prior_le_agency"], 
         alwaysAsk: false 
       },
       "PACK_PRLE_Q07": { 
@@ -2076,22 +2079,22 @@ Object.assign(PACK_CONFIG, {
           "haven't heard back", "haven't heard"
         ]
       },
-      month_year: "month_year",
-      agency_name: "agency_name",
-      position: "position"
+      month_year: "prior_le_approx_date",
+      agency_name: "prior_le_agency",
+      position: "prior_le_position"
     },
-    // Micro clarifier templates for missing anchors
+    // Micro clarifier templates for missing anchors (CANONICAL KEYS)
     anchorClarifiers: {
-      agency_name: "What was the name of the law enforcement agency for this application?",
-      position: "What position did you apply for with that agency?",
-      month_year: "About what month and year did you apply?",
+      prior_le_agency: "What was the name of the law enforcement agency for this application?",
+      prior_le_position: "What position did you apply for with that agency?",
+      prior_le_approx_date: "About what month and year did you apply?",
       application_outcome: "What was the outcome of that application? (For example: hired, disqualified, withdrew, still in process.)"
     },
-    // All possible anchors - extracted from narrative
+    // All possible anchors - extracted from narrative (CANONICAL KEYS)
     targetAnchors: [
-      "agency_name",
-      "position",
-      "month_year",
+      "prior_le_agency",
+      "prior_le_position",
+      "prior_le_approx_date",
       "application_outcome",
       "application_city",
       "application_state",
@@ -2099,24 +2102,24 @@ Object.assign(PACK_CONFIG, {
       "appeal_or_reapply",
       "anything_else"
     ],
-    requiredFields: ["agency_name", "month_year", "position", "application_outcome"],
-    // Priority order for gap-filling after narrative
-    priorityOrder: ["application_outcome", "agency_name", "position", "month_year", "application_city", "application_state", "reason_not_hired", "appeal_or_reapply", "anything_else"],
+    requiredFields: ["prior_le_agency", "prior_le_approx_date", "prior_le_position", "application_outcome"],
+    // Priority order for gap-filling after narrative (CANONICAL KEYS)
+    priorityOrder: ["application_outcome", "prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_city", "application_state", "reason_not_hired", "appeal_or_reapply", "anything_else"],
     fieldKeyMap: {
-      // Question code → semantic role mappings
+      // Question code → semantic role mappings (CANONICAL KEYS)
       "PACK_PRLE_Q01": "narrative", // NARRATIVE OPENER - extracts all anchors
       "PACK_PRLE_Q02": "application_outcome",
       "PACK_PRLE_Q03": "application_location", // Captures city + state
-      "PACK_PRLE_Q04": "month_year",
-      "PACK_PRLE_Q05": "position",
-      "PACK_PRLE_Q06": "agency_name",
+      "PACK_PRLE_Q04": "prior_le_approx_date",
+      "PACK_PRLE_Q05": "prior_le_position",
+      "PACK_PRLE_Q06": "prior_le_agency",
       "PACK_PRLE_Q07": "reason_not_hired",
       "PACK_PRLE_Q08": "appeal_or_reapply",
       "PACK_PRLE_Q09": "anything_else",
-      // Semantic field self-mappings
-      "agency_name": "agency_name",
-      "position": "position",
-      "month_year": "month_year",
+      // Semantic field self-mappings (CANONICAL KEYS)
+      "prior_le_agency": "prior_le_agency",
+      "prior_le_position": "prior_le_position",
+      "prior_le_approx_date": "prior_le_approx_date",
       "application_outcome": "application_outcome",
       "application_city": "application_city",
       "application_state": "application_state",
@@ -2125,11 +2128,11 @@ Object.assign(PACK_CONFIG, {
       "appeal_or_reapply": "appeal_or_reapply",
       "anything_else": "anything_else",
     },
-    // Field gating config - NARRATIVE-FIRST approach
+    // Field gating config - NARRATIVE-FIRST approach (CANONICAL KEYS)
     // Q01 is narrative opener that captures everything; Q02-Q09 only ask if anchors missing
     fieldGating: {
       "PACK_PRLE_Q01": { 
-        captures: ["agency_name", "position", "month_year", "application_outcome", "application_city", "application_state"], 
+        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome", "application_city", "application_state"], 
         alwaysAsk: true, 
         isOpener: true,
         isNarrativeOpener: true, // Special flag for narrative extraction
@@ -2137,9 +2140,9 @@ Object.assign(PACK_CONFIG, {
       },
       "PACK_PRLE_Q02": { captures: ["application_outcome"], requiresMissing: ["application_outcome"], alwaysAsk: false },
       "PACK_PRLE_Q03": { captures: ["application_city", "application_state"], requiresMissing: ["application_city", "application_state"], alwaysAsk: false },
-      "PACK_PRLE_Q04": { captures: ["month_year"], requiresMissing: ["month_year"], alwaysAsk: false },
-      "PACK_PRLE_Q05": { captures: ["position"], requiresMissing: ["position"], alwaysAsk: false },
-      "PACK_PRLE_Q06": { captures: ["agency_name"], requiresMissing: ["agency_name"], alwaysAsk: false },
+      "PACK_PRLE_Q04": { captures: ["prior_le_approx_date"], requiresMissing: ["prior_le_approx_date"], alwaysAsk: false },
+      "PACK_PRLE_Q05": { captures: ["prior_le_position"], requiresMissing: ["prior_le_position"], alwaysAsk: false },
+      "PACK_PRLE_Q06": { captures: ["prior_le_agency"], requiresMissing: ["prior_le_agency"], alwaysAsk: false },
       "PACK_PRLE_Q07": { captures: ["reason_not_hired"], requiresMissing: [], skipUnless: { application_outcome: ["not selected", "disqualified", "rejected", "not hired", "dq", "dq'd", "disqualified / not selected"] }, alwaysAsk: false },
       "PACK_PRLE_Q08": { captures: ["appeal_or_reapply"], requiresMissing: [], alwaysAsk: false },
       "PACK_PRLE_Q09": { captures: ["anything_else"], alwaysAsk: true, isCloser: true }
