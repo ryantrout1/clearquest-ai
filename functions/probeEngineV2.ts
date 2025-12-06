@@ -3881,7 +3881,7 @@ async function probeEngineV2(input, base44Client) {
       console.log(`[V2-BACKEND-DECISION] Max probes reached for ${semanticField} - accepting answer and advancing`);
     }
     
-    return {
+    return createV2ProbeResult({
       mode: "NEXT_FIELD",
       pack_id,
       field_key,
@@ -3890,8 +3890,10 @@ async function probeEngineV2(input, base44Client) {
       previousProbeCount: previous_probes_count,
       maxProbesPerField,
       semanticInfo,
+      anchors: currentAnchors,
+      collectedAnchors: currentAnchors,
       message: `Max probes reached for ${semanticField}, accepting current value`
-    };
+    });
   }
 
   // If field is complete (valid answer), move to next field
@@ -3911,7 +3913,7 @@ async function probeEngineV2(input, base44Client) {
       });
     }
     
-    const result = {
+    return createV2ProbeResult({
       mode: "NEXT_FIELD",
       pack_id,
       field_key,
@@ -3920,20 +3922,11 @@ async function probeEngineV2(input, base44Client) {
       previousProbeCount: previous_probes_count,
       maxProbesPerField,
       semanticInfo,
+      anchors: currentAnchors,
+      collectedAnchors: currentAnchors,
+      targetAnchors: V2_PACK_CONFIGS[pack_id]?.targetAnchors || [],
       message: `Field ${semanticField} validated successfully`
-    };
-    
-    // CRITICAL: Return extracted anchors for anchor-aware V2 packs
-    // PACK_PRIOR_LE_APPS_STANDARD follows the SAME pattern as PACK_DRIVING_COLLISION_STANDARD
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && Object.keys(extractedAnchors).length > 0) {
-      // Merge extracted anchors with incident_context for complete anchor state
-      const allAnchors = { ...incident_context, ...extractedAnchors };
-      result.anchors = allAnchors;
-      result.targetAnchors = V2_PACK_CONFIGS.PACK_PRIOR_LE_APPS_STANDARD?.targetAnchors || [];
-      console.log(`[PRIOR_LE_APPS][RETURN_ANCHORS] Discretion STOP: Returning ${Object.keys(allAnchors).length} total anchors:`, allAnchors);
-    }
-    
-    return result;
+    });
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)
