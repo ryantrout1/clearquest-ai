@@ -3613,42 +3613,27 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Narrative: "${narrative.substring(0, 200)}..."`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Received extractedAnchors from caller:`, extractedAnchors);
   
-  // Start with incident_context, then merge extractedAnchors (they take precedence)
+  // Start fresh with extractedAnchors (which already include deterministic + centralized extraction)
+  // Then merge with incident_context (extractedAnchors take precedence)
   const anchorUpdates = { 
     ...incident_context, 
     ...extractedAnchors 
   };
   
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Initial anchors after merge:`, anchorUpdates);
+  console.log(`[PRIOR_LE_APPS][Q01][HANDLER] application_outcome from extractedAnchors: "${extractedAnchors.application_outcome || '(NONE)'}"`);
   
-  // MANDATORY: ALWAYS run deterministic outcome extraction for application_outcome
-  // This is the CRITICAL anchor for skipping PACK_PRLE_Q02
-  const deterministicOutcome = inferPriorLEApplicationOutcome(narrative);
-  
-  if (deterministicOutcome) {
-    anchorUpdates.application_outcome = deterministicOutcome;
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ DETERMINISTIC extraction: application_outcome="${deterministicOutcome}"`);
-  } else {
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ DETERMINISTIC extraction: No outcome keyword found in narrative`);
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ Narrative sample for debugging: "${narrative.substring(0, 150)}"`);
-  }
-  
-  // Extract other anchors using centralized extraction (if not already extracted by caller)
-  const packConfig = PACK_CONFIG[pack_id];
-  if (packConfig?.anchorExtractionRules && !extractedAnchors.agency_name && !extractedAnchors.position) {
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Running fallback centralized extraction for agency/position/date`);
-    const fallbackExtracted = extractAnchorsFromNarrative(
-      narrative,
-      packConfig.anchorExtractionRules,
-      anchorUpdates
-    );
-    // Merge fallback extractions (don't overwrite application_outcome if already set)
-    for (const [key, value] of Object.entries(fallbackExtracted)) {
-      if (!anchorUpdates[key]) {
-        anchorUpdates[key] = value;
-      }
+  // SAFETY CHECK: If application_outcome is still missing, run inferPriorLEApplicationOutcome as fallback
+  if (!anchorUpdates.application_outcome && narrative) {
+    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Running FALLBACK inferPriorLEApplicationOutcome`);
+    const fallbackOutcome = inferPriorLEApplicationOutcome(narrative);
+    
+    if (fallbackOutcome) {
+      anchorUpdates.application_outcome = fallbackOutcome;
+      console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✓ FALLBACK extraction: application_outcome="${fallbackOutcome}"`);
+    } else {
+      console.log(`[PRIOR_LE_APPS][Q01][HANDLER] ✗ FALLBACK extraction: No outcome keyword found in narrative`);
     }
-    console.log(`[PRIOR_LE_APPS][Q01][HANDLER] Fallback extraction added: [${Object.keys(fallbackExtracted).join(', ')}]`);
   }
   
   // Final anchor audit
@@ -3660,8 +3645,7 @@ function handlePriorLeAppsQ01({
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] position: "${anchorUpdates.position || '(MISSING)'}"`);
   console.log(`[PRIOR_LE_APPS][Q01][HANDLER] month_year: "${anchorUpdates.month_year || '(MISSING)'}"`);
   
-  // CRITICAL: Use createV2ProbeResult to ensure anchors are included
-  // Do NOT use raw object return - use the helper to guarantee structure
+  // CRITICAL: Return plain object with anchors - createV2ProbeResult will be called by early router
   return {
     mode: "NEXT_FIELD",
     pack_id,
@@ -3673,7 +3657,6 @@ function handlePriorLeAppsQ01({
     hasQuestion: false,
     followupsCount: 0,
     // CRITICAL: Return anchors for frontend field gating
-    // These MUST be present even when mode="NEXT_FIELD" and hasQuestion=false
     anchors: { ...anchorUpdates },
     collectedAnchors: { ...anchorUpdates },
     collectedAnchorsKeys: Object.keys(anchorUpdates),
