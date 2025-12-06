@@ -3807,8 +3807,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       });
     }
 
-    // Call LLM to extract the four canonical anchors
-    const extractionPrompt = `You are analyzing a candidate's narrative about a prior law enforcement application. Extract the following four pieces of information if present:
+    // Try LLM extraction first, with heuristic fallback
+    let extracted = {
+      prior_le_agency: null,
+      prior_le_position: null,
+      prior_le_approx_date: null,
+      application_outcome: null
+    };
+
+    // Try LLM extraction
+    try {
+      console.log("[PRIOR_LE_APPS][Q01] Attempting LLM extraction...");
+      
+      const extractionPrompt = `You are analyzing a candidate's narrative about a prior law enforcement application. Extract the following four pieces of information if present:
 
 1. prior_le_agency: The name of the law enforcement agency they applied to (e.g., "Phoenix Police Department")
 2. prior_le_position: The position they applied for (e.g., "police officer", "deputy sheriff")
@@ -3830,16 +3841,6 @@ Example output:
   "application_outcome": "disqualified during background investigation due to prior traffic violation"
 }`;
 
-    let extracted = {
-      prior_le_agency: null,
-      prior_le_position: null,
-      prior_le_approx_date: null,
-      application_outcome: null
-    };
-
-    try {
-      console.log("[PRIOR_LE_APPS][Q01] Calling LLM for extraction...");
-      
       const llmResponse = await base44Client.integrations.Core.InvokeLLM({
         prompt: extractionPrompt,
         response_json_schema: {
@@ -3854,15 +3855,70 @@ Example output:
         }
       });
 
-      console.log("[PRIOR_LE_APPS][Q01] LLM raw response:", llmResponse);
+      console.log("[PRIOR_LE_APPS][Q01] LLM response:", llmResponse);
 
       if (llmResponse && typeof llmResponse === 'object') {
         extracted = llmResponse;
-        console.log("[PRIOR_LE_APPS][Q01] Extracted anchors:", extracted);
+        console.log("[PRIOR_LE_APPS][Q01] LLM extraction successful");
       }
     } catch (error) {
-      console.error("[PRIOR_LE_APPS][Q01] LLM extraction failed:", error);
-      // Fall through with null values
+      console.error("[PRIOR_LE_APPS][Q01] LLM extraction failed, using heuristics:", error);
+    }
+
+    // Heuristic fallback if LLM didn't extract values
+    const textLower = narrativeText.toLowerCase();
+    
+    if (!extracted.prior_le_agency) {
+      // Look for patterns like "applied to [AGENCY]" or "applied with [AGENCY]"
+      const agencyMatch = narrativeText.match(/applied (?:to|with) ([^.]+?(?:police|sheriff|department|agency)[^.]*?)(?:for|in|around|\.|$)/i);
+      if (agencyMatch) {
+        extracted.prior_le_agency = agencyMatch[1].trim();
+        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted agency:", extracted.prior_le_agency);
+      }
+    }
+
+    if (!extracted.prior_le_position) {
+      // Look for common position keywords
+      if (textLower.includes('police officer')) {
+        extracted.prior_le_position = 'police officer';
+      } else if (textLower.includes('deputy')) {
+        extracted.prior_le_position = 'deputy';
+      } else if (textLower.includes('dispatcher')) {
+        extracted.prior_le_position = 'dispatcher';
+      } else if (textLower.includes('officer')) {
+        extracted.prior_le_position = 'officer';
+      }
+      if (extracted.prior_le_position) {
+        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted position:", extracted.prior_le_position);
+      }
+    }
+
+    if (!extracted.prior_le_approx_date) {
+      // Look for date patterns like "March 2022", "early 2020", "2019"
+      const dateMatch = narrativeText.match(/(?:around|in|during|circa)\s+([A-Z][a-z]+\s+\d{4}|\d{4}|(?:early|mid|late)\s+\d{4})/i);
+      if (dateMatch) {
+        extracted.prior_le_approx_date = dateMatch[1].trim();
+        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted date:", extracted.prior_le_approx_date);
+      }
+    }
+
+    if (!extracted.application_outcome) {
+      // Look for outcome keywords
+      if (textLower.includes('disqualified')) {
+        const outcomeMatch = narrativeText.match(/(disqualified[^.]+\.)/i);
+        extracted.application_outcome = outcomeMatch ? outcomeMatch[1].trim() : 'Disqualified';
+      } else if (textLower.includes('hired') || textLower.includes('offered the position')) {
+        extracted.application_outcome = 'Hired';
+      } else if (textLower.includes('withdrew')) {
+        extracted.application_outcome = 'Withdrew application';
+      } else if (textLower.includes('still in process') || textLower.includes('pending')) {
+        extracted.application_outcome = 'Still in process';
+      } else if (textLower.includes('not selected') || textLower.includes('not hired')) {
+        extracted.application_outcome = 'Not selected';
+      }
+      if (extracted.application_outcome) {
+        console.log("[PRIOR_LE_APPS][Q01] Heuristic extracted outcome:", extracted.application_outcome);
+      }
     }
 
     // Build anchors object with only non-null values
