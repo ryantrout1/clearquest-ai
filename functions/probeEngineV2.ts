@@ -699,6 +699,7 @@ function getFieldNarrativeText(raw) {
 }
 
 const PRIOR_LE_DEBUG = "[PRIOR_LE_Q01_ANCHORS]";
+const V2_DEBUG_ENABLED = true; // Set to false to reduce console noise
 
 /**
  * Infer application outcome from narrative text for PACK_PRIOR_LE_APPS_STANDARD
