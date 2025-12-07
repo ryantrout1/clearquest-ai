@@ -4899,7 +4899,8 @@ async function probeEngineV2Core(input, base44Client) {
     questionDbId = null,
     questionCode = null,
     instance_number = 1,
-    instance_anchors = {}
+    instance_anchors = {},
+    session_id = null
   } = input;
 
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
@@ -4938,7 +4939,8 @@ async function probeEngineV2Core(input, base44Client) {
       base44Client,
       sectionName,
       baseQuestionText,
-      questionCode
+      questionCode,
+      sessionId: session_id
     };
     
     // DIAGNOSTIC: Log raw context being sent to handler
