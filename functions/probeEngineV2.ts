@@ -4207,12 +4207,20 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   // Use centralized helper to get full narrative text - tries multiple possible keys
   const narrativeText = getFieldNarrativeText(ctx);
 
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("FORENSIC CHECKPOINT 1: HANDLER ENTRY");
+  console.log("═════════════════════════════════════════════════════════════");
   console.log(DEBUG_PREFIX, "[HANDLER_ENTRY]", {
     packId,
     fieldKey,
     narrativePreview: narrativeText?.slice?.(0, 160) || "(empty)",
     narrativeLength: narrativeText?.length || 0,
     ctxKeys: Object.keys(ctx),
+    ctxFieldValue: ctx.fieldValue?.slice?.(0, 100),
+    ctxField_value: ctx.field_value?.slice?.(0, 100),
+    ctxFullNarrative: ctx.fullNarrative?.slice?.(0, 100),
+    ctxNarrative: ctx.narrative?.slice?.(0, 100),
+    narrativeTextSource: narrativeText ? "FOUND" : "EMPTY"
   });
 
   // For PACK_PRLE_Q01: Extract outcome deterministically
@@ -4262,6 +4270,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       console.log(DEBUG_PREFIX, "[NO_OUTCOME] No outcome detected in narrative");
     }
 
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 2: BEFORE createV2ProbeResult");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log(DEBUG_PREFIX, "[PRE_CREATE]", {
+      baseResultKeys: Object.keys(baseResult || {}),
+      baseResultHasAnchors: Object.prototype.hasOwnProperty.call(baseResult || {}, 'anchors'),
+      anchorsArgument: anchors,
+      collectedAnchorsArgument: collectedAnchorsResult,
+      anchorsArgumentKeys: Object.keys(anchors || {}),
+      collectedArgumentKeys: Object.keys(collectedAnchorsResult || {}),
+      applicationOutcomeInAnchorsArg: anchors?.application_outcome || '(MISSING)'
+    });
+
     const baseResult = {
       mode: "NEXT_FIELD",
       hasQuestion: false,
@@ -4271,7 +4292,34 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
         : "Field narrative validated; outcome not detected (will ask specific outcome question)",
     };
 
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 3: CALLING createV2ProbeResult");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log(DEBUG_PREFIX, "[CALLING_CREATE]", {
+      argumentsCount: 3,
+      arg1_baseResult: baseResult,
+      arg2_anchors: anchors,
+      arg3_collectedAnchors: collectedAnchorsResult,
+      arg2_keys: Object.keys(anchors || {}),
+      arg3_keys: Object.keys(collectedAnchorsResult || {})
+    });
+
     const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsResult);
+
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 4: AFTER createV2ProbeResult");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log(DEBUG_PREFIX, "[POST_CREATE]", {
+      finalResultType: typeof finalResult,
+      finalResultKeys: Object.keys(finalResult || {}),
+      finalResultAnchorsExists: Object.prototype.hasOwnProperty.call(finalResult || {}, 'anchors'),
+      finalResultCollectedExists: Object.prototype.hasOwnProperty.call(finalResult || {}, 'collectedAnchors'),
+      finalResultAnchors: finalResult?.anchors,
+      finalResultCollected: finalResult?.collectedAnchors,
+      finalResultAnchorsKeys: Object.keys(finalResult?.anchors || {}),
+      finalResultCollectedKeys: Object.keys(finalResult?.collectedAnchors || {}),
+      applicationOutcome: finalResult?.anchors?.application_outcome || '(MISSING)'
+    });
 
     console.log(DEBUG_PREFIX, "[BEFORE_RETURN]", {
       mode: finalResult.mode,
@@ -4281,6 +4329,14 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       collectedAnchorsKeys: Object.keys(finalResult.collectedAnchors || {}),
       collectedAnchors: finalResult.collectedAnchors,
       applicationOutcome: finalResult.anchors?.application_outcome || '(missing)',
+    });
+
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 5: HANDLER RETURNING TO ROUTER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log(DEBUG_PREFIX, "[HANDLER_RETURN]", {
+      returningObject: finalResult,
+      stringified: JSON.stringify(finalResult, null, 2)
     });
 
     return finalResult;
@@ -4521,9 +4577,25 @@ If any field is not clearly stated, set it to null.`,
  * Signature: createV2ProbeResult(base, anchors, collectedAnchors)
  */
 function createV2ProbeResult(base, anchors, collectedAnchors) {
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("FORENSIC: INSIDE createV2ProbeResult");
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("[createV2ProbeResult][ENTRY]", {
+    argumentsLength: arguments.length,
+    arg1_base: base,
+    arg1_baseKeys: Object.keys(base || {}),
+    arg1_baseHasAnchors: Object.prototype.hasOwnProperty.call(base || {}, 'anchors'),
+    arg1_baseAnchorsValue: base?.anchors,
+    arg2_anchors: anchors,
+    arg2_anchorsKeys: Object.keys(anchors || {}),
+    arg3_collectedAnchors: collectedAnchors,
+    arg3_collectedKeys: Object.keys(collectedAnchors || {})
+  });
+
   // Allow single-argument call for backward compatibility
   if (arguments.length === 1 && base.anchors !== undefined) {
-    return {
+    console.log("[createV2ProbeResult][BRANCH] Taking 1-ARG path");
+    const result = {
       mode: base.mode || "NONE",
       hasQuestion: base.hasQuestion || false,
       followupsCount: base.followupsCount || 0,
@@ -4532,14 +4604,30 @@ function createV2ProbeResult(base, anchors, collectedAnchors) {
       anchors: base.anchors || {},
       collectedAnchors: base.collectedAnchors || {},
     };
+    console.log("[createV2ProbeResult][1-ARG_RETURN]", {
+      resultAnchors: result.anchors,
+      resultCollected: result.collectedAnchors,
+      applicationOutcome: result.anchors?.application_outcome || '(MISSING)'
+    });
+    return result;
   }
   
   // Standard three-argument call
-  return {
+  console.log("[createV2ProbeResult][BRANCH] Taking 3-ARG path");
+  const result = {
     ...base,
     anchors: anchors || {},
     collectedAnchors: collectedAnchors || {},
   };
+  console.log("[createV2ProbeResult][3-ARG_RETURN]", {
+    resultKeys: Object.keys(result),
+    resultAnchors: result.anchors,
+    resultCollected: result.collectedAnchors,
+    resultAnchorsKeys: Object.keys(result.anchors || {}),
+    applicationOutcome: result.anchors?.application_outcome || '(MISSING)',
+    fullResult: JSON.stringify(result, null, 2)
+  });
+  return result;
 }
 
 /**
@@ -4637,7 +4725,35 @@ async function probeEngineV2Core(input, base44Client) {
     }
     
     // Call the handler
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 6: CALLING HANDLER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("[ROUTER][PRE_HANDLER]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      handlerName: packConfig.perFieldHandler.name || "anonymous",
+      ctxKeys: Object.keys(ctx)
+    });
+
     let handlerResult = await packConfig.perFieldHandler(ctx);
+    
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 7: HANDLER RETURNED");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("[ROUTER][POST_HANDLER]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      handlerResultType: typeof handlerResult,
+      handlerResultKeys: Object.keys(handlerResult || {}),
+      handlerResultAnchorsType: typeof handlerResult?.anchors,
+      handlerResultCollectedType: typeof handlerResult?.collectedAnchors,
+      handlerResultAnchors: handlerResult?.anchors,
+      handlerResultCollected: handlerResult?.collectedAnchors,
+      handlerResultAnchorsKeys: Object.keys(handlerResult?.anchors || {}),
+      handlerResultCollectedKeys: Object.keys(handlerResult?.collectedAnchors || {}),
+      applicationOutcomeValue: handlerResult?.anchors?.application_outcome || '(MISSING)',
+      fullHandlerResult: JSON.stringify(handlerResult, null, 2)
+    });
     
     // === PRIOR LE APPS: deterministic outcome anchors for PACK_PRLE_Q01 ===
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
@@ -4774,6 +4890,21 @@ async function probeEngineV2Core(input, base44Client) {
       });
     }
     
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 8: FINAL RETURN FROM ROUTER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("[ROUTER][FINAL_RETURN]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      handlerResultKeys: Object.keys(handlerResult || {}),
+      handlerResultAnchors: handlerResult?.anchors,
+      handlerResultCollected: handlerResult?.collectedAnchors,
+      handlerResultAnchorsKeys: Object.keys(handlerResult?.anchors || {}),
+      handlerResultCollectedKeys: Object.keys(handlerResult?.collectedAnchors || {}),
+      applicationOutcome: handlerResult?.anchors?.application_outcome || '(MISSING)',
+      fullObject: JSON.stringify(handlerResult, null, 2)
+    });
+
     // CRITICAL: Return handler result with merged fact anchors
     return handlerResult;
   }
@@ -5423,8 +5554,39 @@ async function probeEngineV2Core(input, base44Client) {
  * @returns {object} Normalized V2 probe result with anchors/collectedAnchors
  */
 async function probeEngineV2(input, base44Client) {
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("FORENSIC CHECKPOINT 9: WRAPPER CALLING CORE");
+  console.log("═════════════════════════════════════════════════════════════");
+  
   const rawResult = await probeEngineV2Core(input, base44Client);
-  return normalizeV2ProbeResult(rawResult);
+  
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("FORENSIC CHECKPOINT 10: CORE RETURNED TO WRAPPER");
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("[WRAPPER][RAW_RESULT]", {
+    rawResultType: typeof rawResult,
+    rawResultKeys: Object.keys(rawResult || {}),
+    rawResultAnchors: rawResult?.anchors,
+    rawResultCollected: rawResult?.collectedAnchors,
+    rawResultAnchorsKeys: Object.keys(rawResult?.anchors || {}),
+    applicationOutcome: rawResult?.anchors?.application_outcome || '(MISSING)'
+  });
+  
+  const normalized = normalizeV2ProbeResult(rawResult);
+  
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("FORENSIC CHECKPOINT 11: AFTER NORMALIZATION");
+  console.log("═════════════════════════════════════════════════════════════");
+  console.log("[WRAPPER][NORMALIZED]", {
+    normalizedType: typeof normalized,
+    normalizedKeys: Object.keys(normalized || {}),
+    normalizedAnchors: normalized?.anchors,
+    normalizedCollected: normalized?.collectedAnchors,
+    normalizedAnchorsKeys: Object.keys(normalized?.anchors || {}),
+    applicationOutcome: normalized?.anchors?.application_outcome || '(MISSING)'
+  });
+  
+  return normalized;
 }
 
 /**
@@ -5527,20 +5689,37 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
-    console.log('[HTTP_HANDLER][PRE_CALL] ========== CALLING probeEngineV2 ==========');
-    console.log('[HTTP_HANDLER][PRE_CALL] packId:', input.pack_id);
-    console.log('[HTTP_HANDLER][PRE_CALL] fieldKey:', input.field_key);
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 12: HTTP HANDLER CALLING WRAPPER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log('[HTTP_HANDLER][PRE_CALL]', {
+      packId: input.pack_id,
+      fieldKey: input.field_key,
+      inputKeys: Object.keys(input),
+      field_value: input.field_value?.slice?.(0, 100),
+      fieldValue: input.fieldValue?.slice?.(0, 100),
+      narrative: input.narrative?.slice?.(0, 100),
+      fullNarrative: input.fullNarrative?.slice?.(0, 100)
+    });
     
     let result = await probeEngineV2(input, base44);
     
-    console.log('[HTTP_HANDLER][POST_CALL] ========== probeEngineV2 RETURNED ==========');
-    console.log('[HTTP_HANDLER][POST_CALL] typeof result:', typeof result);
-    console.log('[HTTP_HANDLER][POST_CALL] result.mode:', result?.mode);
-    console.log('[HTTP_HANDLER][POST_CALL] result.anchors exists?', Object.prototype.hasOwnProperty.call(result || {}, "anchors"));
-    console.log('[HTTP_HANDLER][POST_CALL] result.collectedAnchors exists?', Object.prototype.hasOwnProperty.call(result || {}, "collectedAnchors"));
-    console.log('[HTTP_HANDLER][POST_CALL] result.anchors:', result?.anchors);
-    console.log('[HTTP_HANDLER][POST_CALL] result.collectedAnchors:', result?.collectedAnchors);
-    console.log('[HTTP_HANDLER][POST_CALL] All keys in result:', Object.keys(result || {}));
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 13: WRAPPER RETURNED TO HTTP HANDLER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log('[HTTP_HANDLER][POST_CALL]', {
+      resultType: typeof result,
+      resultMode: result?.mode,
+      resultKeys: Object.keys(result || {}),
+      anchorsExists: Object.prototype.hasOwnProperty.call(result || {}, "anchors"),
+      collectedExists: Object.prototype.hasOwnProperty.call(result || {}, "collectedAnchors"),
+      anchorsValue: result?.anchors,
+      collectedValue: result?.collectedAnchors,
+      anchorsKeys: Object.keys(result?.anchors || {}),
+      collectedKeys: Object.keys(result?.collectedAnchors || {}),
+      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
+      fullResultObject: JSON.stringify(result, null, 2)
+    });
     
     // ========================================================================
     // GOLDEN MVP CONTRACT ENFORCEMENT: Attach deterministic anchors
@@ -5556,7 +5735,29 @@ Deno.serve(async (req) => {
     // ========================================================================
     // SAFETY NET: Normalize result to guarantee anchors/collectedAnchors exist
     // ========================================================================
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 14: BEFORE normalizeV2Result");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log('[HTTP_HANDLER][PRE_NORMALIZE]', {
+      resultKeys: Object.keys(result || {}),
+      resultAnchors: result?.anchors,
+      resultCollected: result?.collectedAnchors,
+      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)'
+    });
+    
     result = normalizeV2Result(result);
+    
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 15: AFTER normalizeV2Result");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log('[HTTP_HANDLER][POST_NORMALIZE]', {
+      resultKeys: Object.keys(result || {}),
+      resultAnchors: result?.anchors,
+      resultCollected: result?.collectedAnchors,
+      resultAnchorsKeys: Object.keys(result?.anchors || {}),
+      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
+      fullNormalizedObject: JSON.stringify(result, null, 2)
+    });
     
     // CRITICAL: Final log before returning to frontend
     console.log('[V2_ENGINE][RETURN]', {
@@ -5598,6 +5799,19 @@ Deno.serve(async (req) => {
       });
     }
     
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC CHECKPOINT 16: HTTP RESPONSE BEING SENT");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log('[HTTP_HANDLER][RESPONSE]', {
+      statusCode: 200,
+      resultKeys: Object.keys(result || {}),
+      resultAnchors: result?.anchors,
+      resultCollected: result?.collectedAnchors,
+      resultAnchorsKeys: Object.keys(result?.anchors || {}),
+      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
+      jsonStringified: JSON.stringify(result)
+    });
+
     return Response.json(result);
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
