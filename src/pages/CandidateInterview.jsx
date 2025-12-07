@@ -1180,6 +1180,13 @@ export default function CandidateInterview() {
       if (currentItem.type === 'v2_pack_field') {
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
+        // CRITICAL: Declare baseQuestion FIRST before any usage to avoid TDZ errors
+        const baseQuestion = baseQuestionId && engine?.QById ? engine.QById[baseQuestionId] : null;
+        
+        if (!baseQuestion) {
+          console.warn('[V2_PACK_FIELD][WARN] baseQuestion not found for baseQuestionId', baseQuestionId, 'packId=', packId, 'fieldKey=', fieldKey);
+        }
+        
         // EXPLICIT ENTRY LOG for V2 pack field answers
         console.log(`[V2_PACK_FIELD][ENTRY] ========== V2 PACK FIELD ANSWER RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][ENTRY]`, {
@@ -1192,7 +1199,8 @@ export default function CandidateInterview() {
           v2PackMode,
           aiProbingEnabled,
           aiProbingDisabledForSession,
-          hasActiveV2Pack: !!activeV2Pack
+          hasActiveV2Pack: !!activeV2Pack,
+          hasBaseQuestion: !!baseQuestion
         });
         
         // Validate we have an active V2 pack
@@ -1278,7 +1286,6 @@ export default function CandidateInterview() {
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
-        const baseQuestion = engine.QById[baseQuestionId];
         
         // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine (same as regular V2 follow-ups)
         console.log(`[V2_PACK_FIELD][PROBE_CALL] ========== CALLING BACKEND PROBE ENGINE ==========`);
