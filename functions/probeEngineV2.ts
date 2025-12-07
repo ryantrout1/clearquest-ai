@@ -6477,8 +6477,9 @@ Deno.serve(async (req) => {
     let input;
     try {
       input = await req.json();
-      packId = input.pack_id;
-      fieldKey = input.field_key;
+      // Handle both snake_case and camelCase from frontend
+      packId = input.pack_id || input.packId;
+      fieldKey = input.field_key || input.fieldKey;
     } catch (parseError) {
       console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
       const baseResult = {
