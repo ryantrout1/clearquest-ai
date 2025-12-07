@@ -364,81 +364,168 @@ function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj
  * @returns {object} { anchors: {...}, collectedAnchors: {...} }
  */
 /**
- * Extract fact anchors for PACK_PRIOR_LE_APPS_STANDARD from narrative text
+ * Extract fact anchors for PACK_PRIOR_LE_APPS_STANDARD from narrative text using LLM
  * CANONICAL KEYS: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
  * 
  * This helper is called by the centralized extraction registry for PACK_PRLE_Q01
  */
-function extractPriorLeAppsAnchors({ text }) {
-  const anchors = {};
+async function extractPriorLeAppsAnchorsLLM({ text, base44Client }) {
+  const anchors = {
+    prior_le_agency: "unknown",
+    prior_le_position: "unknown",
+    prior_le_approx_date: "unknown",
+    application_outcome: "unknown"
+  };
   
   if (!text || text.trim().length < 10) {
-    return { anchors: {}, collectedAnchors: {} };
+    return { anchors, collectedAnchors: anchors };
   }
-  
-  const clean = text.trim();
-  const lower = clean.toLowerCase();
 
-  console.log("[EXTRACTOR][PRIOR_LE_APPS][INPUT]", {
+  console.log("[EXTRACTOR][PRIOR_LE_APPS][LLM_START]", {
     textLength: text.length,
-    textPreview: lower.substring(0, 120)
+    textPreview: text.substring(0, 120)
   });
 
-  // 1) application_outcome (CRITICAL for Q02 gating)
-  if (lower.includes("disqual") || lower.includes("dq'd") || lower.includes("failed background") || 
-      lower.includes("not selected") || lower.includes("wasn't selected")) {
-    anchors.application_outcome = "disqualified";
-  } else if (lower.includes("hired") || lower.includes("offered the job") || lower.includes("got the job")) {
-    anchors.application_outcome = "hired";
-  } else if (lower.includes("withdrew") || lower.includes("withdraw") || lower.includes("pulled my application")) {
-    anchors.application_outcome = "withdrew";
-  } else if (lower.includes("still in process") || lower.includes("still in progress") || 
-             lower.includes("pending") || lower.includes("waiting to hear")) {
-    anchors.application_outcome = "in_process";
+  try {
+    const prompt = `You are a FACT EXTRACTION engine for law-enforcement background investigations.
+
+Your ONLY job is to read a candidate's narrative about PRIOR LAW ENFORCEMENT APPLICATIONS and return a STRICT JSON object that fills in the canonical fact anchors for this incident.
+
+OUTPUT FORMAT - Output ONLY valid JSON with these exact keys:
+- "status" (string)
+- "anchors" (object)
+- "collectedAnchors" (object)
+
+STATUS - Use "status": "ok" if you understood the narrative. Use "status": "parse_error" only if something went wrong.
+
+ANCHOR FIELDS - Inside "anchors", ALWAYS include ALL of these keys:
+
+- "prior_le_agency": The name of the prior law-enforcement agency (e.g., "Phoenix Police Department")
+- "prior_le_position": The position or role applied for (e.g., "Police Officer")
+- "prior_le_approx_date": Approximate date in YYYY-MM format if month known, YYYY if only year, or "unknown"
+- "application_outcome": What happened - "hired", "disqualified", "withdrew", "in_process", or brief description
+
+RULES:
+- NEVER omit any of these keys
+- If information is missing, set value to "unknown" (not null, not empty string)
+- For "application_outcome", use one of: "hired", "disqualified", "withdrew", "in_process", or a brief phrase
+- For dates, prefer YYYY-MM format when month is mentioned, YYYY when only year known
+
+COLLECTED ANCHORS - Mirror the same values from "anchors" into "collectedAnchors"
+
+Candidate narrative:
+${text}`;
+
+    const llmResult = await base44Client.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          status: { type: "string" },
+          anchors: {
+            type: "object",
+            properties: {
+              prior_le_agency: { type: "string" },
+              prior_le_position: { type: "string" },
+              prior_le_approx_date: { type: "string" },
+              application_outcome: { type: "string" }
+            },
+            required: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"]
+          },
+          collectedAnchors: {
+            type: "object",
+            properties: {
+              prior_le_agency: { type: "string" },
+              prior_le_position: { type: "string" },
+              prior_le_approx_date: { type: "string" },
+              application_outcome: { type: "string" }
+            },
+            required: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"]
+          }
+        },
+        required: ["status", "anchors", "collectedAnchors"]
+      }
+    });
+
+    console.log("[EXTRACTOR][PRIOR_LE_APPS][LLM_RAW]", {
+      status: llmResult?.status,
+      anchors: llmResult?.anchors,
+      collectedAnchors: llmResult?.collectedAnchors
+    });
+
+    // Validate and use LLM result
+    if (llmResult?.status === "ok" && llmResult?.anchors) {
+      const llmAnchors = llmResult.anchors;
+      
+      // Replace "unknown" with null for cleaner output, but keep non-unknown values
+      if (llmAnchors.prior_le_agency && llmAnchors.prior_le_agency !== "unknown") {
+        anchors.prior_le_agency = llmAnchors.prior_le_agency;
+      } else {
+        delete anchors.prior_le_agency;
+      }
+      
+      if (llmAnchors.prior_le_position && llmAnchors.prior_le_position !== "unknown") {
+        anchors.prior_le_position = llmAnchors.prior_le_position;
+      } else {
+        delete anchors.prior_le_position;
+      }
+      
+      if (llmAnchors.prior_le_approx_date && llmAnchors.prior_le_approx_date !== "unknown") {
+        anchors.prior_le_approx_date = llmAnchors.prior_le_approx_date;
+      } else {
+        delete anchors.prior_le_approx_date;
+      }
+      
+      if (llmAnchors.application_outcome && llmAnchors.application_outcome !== "unknown") {
+        anchors.application_outcome = llmAnchors.application_outcome;
+      } else {
+        delete anchors.application_outcome;
+      }
+    }
+
+  } catch (llmErr) {
+    console.warn("[EXTRACTOR][PRIOR_LE_APPS][LLM_ERROR]", llmErr.message);
+    // Fall back to regex extraction
   }
 
-  // 2) prior_le_agency - look for "applied to [AGENCY]"
-  const appliedMatch = clean.match(/applied to(?: the)? ([^,.;]+(?:Police|PD|Sheriff|Department|Agency|Marshal|Patrol))/i);
-  if (appliedMatch && appliedMatch[1]) {
-    anchors.prior_le_agency = appliedMatch[1].trim();
-  } else {
-    // Fallback: look for any agency-like pattern
-    const agencyMatch = clean.match(/([A-Z][A-Za-z\s]+(?:Police Department|Sheriff's Office|Police|Sheriff|PD|SO))/);
-    if (agencyMatch && agencyMatch[1]) {
-      anchors.prior_le_agency = agencyMatch[1].trim();
+  // Fallback regex extraction if LLM failed
+  if (Object.keys(anchors).length === 0) {
+    const clean = text.trim();
+    const lower = clean.toLowerCase();
+
+    // 1) application_outcome
+    if (lower.includes("disqual") || lower.includes("dq'd") || lower.includes("failed background")) {
+      anchors.application_outcome = "disqualified";
+    } else if (lower.includes("hired") || lower.includes("offered the job")) {
+      anchors.application_outcome = "hired";
+    } else if (lower.includes("withdrew") || lower.includes("pulled my application")) {
+      anchors.application_outcome = "withdrew";
+    } else if (lower.includes("still in process") || lower.includes("pending")) {
+      anchors.application_outcome = "in_process";
+    }
+
+    // 2) prior_le_agency
+    const appliedMatch = clean.match(/applied to(?: the)? ([^,.;]+(?:Police|PD|Sheriff|Department|Agency))/i);
+    if (appliedMatch?.[1]) {
+      anchors.prior_le_agency = appliedMatch[1].trim();
+    }
+
+    // 3) prior_le_position
+    const positionMatch = clean.match(/(?:for a|for the|as a) ([^,.;]+(?:officer|deputy|trooper|agent|detective))/i);
+    if (positionMatch?.[1]) {
+      anchors.prior_le_position = positionMatch[1].trim();
+    }
+
+    // 4) prior_le_approx_date
+    const monthYearMatch = clean.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
+    if (monthYearMatch) {
+      anchors.prior_le_approx_date = monthYearMatch[0].trim();
     }
   }
 
-  // 3) prior_le_position - look for position keywords
-  const positionMatch = clean.match(/(?:for a|for the|as a|as an) ([^,.;]+(?:officer|deputy|trooper|agent|detective|sergeant|position))/i);
-  if (positionMatch && positionMatch[1]) {
-    anchors.prior_le_position = positionMatch[1].trim();
-  } else {
-    // Fallback: look for standalone position titles
-    const titleMatch = clean.match(/\b(police officer|officer|deputy sheriff|deputy|trooper|state trooper|detective|sergeant)\b/i);
-    if (titleMatch && titleMatch[1]) {
-      anchors.prior_le_position = titleMatch[1].trim();
-    }
-  }
-
-  // 4) prior_le_approx_date - month + year or just year
-  const monthYearMatch = clean.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
-  if (monthYearMatch) {
-    anchors.prior_le_approx_date = monthYearMatch[0].trim();
-  } else {
-    // Fallback: look for just year with context
-    const yearMatch = clean.match(/(?:around|in|during|about)\s+(\d{4})/i);
-    if (yearMatch && yearMatch[1]) {
-      anchors.prior_le_approx_date = yearMatch[0].trim();
-    }
-  }
-
-  console.log("[EXTRACTOR][PRIOR_LE_APPS][EXTRACTION_RAW]", {
+  console.log("[EXTRACTOR][PRIOR_LE_APPS][FINAL]", {
     extractedKeys: Object.keys(anchors),
-    prior_le_agency: anchors.prior_le_agency || "(missing)",
-    prior_le_position: anchors.prior_le_position || "(missing)",
-    prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
-    application_outcome: anchors.application_outcome || "(missing)",
+    anchors
   });
   
   return {
@@ -4285,48 +4372,13 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       narrativePreview: narrativeText?.slice(0, 150)
     });
     
-    // Initialize canonical anchor object with all required keys
-    const canonicalAnchors = {
-      prior_le_agency: null,
-      prior_le_position: null,
-      prior_le_approx_date: null,
-      application_outcome: null
-    };
+    // Use LLM-based extraction for better accuracy
+    const extractionResult = await extractPriorLeAppsAnchorsLLM({
+      text: narrativeText,
+      base44Client
+    });
     
-    // Only extract if we have narrative text
-    if (narrativeText && narrativeText.trim().length > 0) {
-      const text = narrativeText.trim();
-      const lower = text.toLowerCase();
-      
-      // Extract application_outcome (CRITICAL for gating)
-      if (lower.includes('disqualified') || lower.includes("dq'd") || lower.includes('failed background')) {
-        canonicalAnchors.application_outcome = 'disqualified';
-      } else if (lower.includes('hired') || lower.includes('offered the job') || lower.includes('got the job')) {
-        canonicalAnchors.application_outcome = 'hired';
-      } else if (lower.includes('withdrew') || lower.includes('pulled my application')) {
-        canonicalAnchors.application_outcome = 'withdrew';
-      } else if (lower.includes('still in process') || lower.includes('pending')) {
-        canonicalAnchors.application_outcome = 'in_process';
-      }
-      
-      // Extract prior_le_agency - look for "applied to [AGENCY]"
-      const appliedMatch = text.match(/applied to(?: the)? ([^,.]+(?:Police|PD|Sheriff|Department|Agency))/i);
-      if (appliedMatch && appliedMatch[1]) {
-        canonicalAnchors.prior_le_agency = appliedMatch[1].trim();
-      }
-      
-      // Extract prior_le_position - look for position keywords
-      const positionMatch = text.match(/(?:for a|for the|as a|as an) ([^,.]+officer|deputy|trooper|agent|detective|sergeant)/i);
-      if (positionMatch && positionMatch[1]) {
-        canonicalAnchors.prior_le_position = positionMatch[1].trim();
-      }
-      
-      // Extract prior_le_approx_date - look for month/year patterns
-      const dateMatch = text.match(/(?:around|in|during|about) ((?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}|\d{4})/i);
-      if (dateMatch && dateMatch[1]) {
-        canonicalAnchors.prior_le_approx_date = dateMatch[1].trim();
-      }
-    }
+    const canonicalAnchors = extractionResult.anchors || {};
     
     console.log("[PRIOR_LE_Q01][EXTRACTED]", {
       canonicalAnchors,
