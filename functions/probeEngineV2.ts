@@ -366,6 +366,8 @@ function logPriorLeAnchors(stage, { packId, fieldKey, instanceNumber, anchorsObj
 /**
  * Extract fact anchors for PACK_PRIOR_LE_APPS_STANDARD from narrative text
  * CANONICAL KEYS: prior_le_agency, prior_le_position, prior_le_approx_date, application_outcome
+ * 
+ * This helper is called by the centralized extraction registry for PACK_PRLE_Q01
  */
 function extractPriorLeAppsAnchors({ text }) {
   const anchors = {};
@@ -377,46 +379,62 @@ function extractPriorLeAppsAnchors({ text }) {
   const clean = text.trim();
   const lower = clean.toLowerCase();
 
-  console.log("[EXTRACTOR][PRIOR_LE_APPS] Text preview:", lower.substring(0, 100));
+  console.log("[EXTRACTOR][PRIOR_LE_APPS][INPUT]", {
+    textLength: text.length,
+    textPreview: lower.substring(0, 120)
+  });
 
   // 1) application_outcome (CRITICAL for Q02 gating)
-  if (lower.includes("disqual")) {
-    anchors.application_outcome = "Disqualified";
-  } else if (lower.includes("hired")) {
-    anchors.application_outcome = "Hired";
-  } else if (lower.includes("withdrew") || lower.includes("withdraw")) {
-    anchors.application_outcome = "Withdrew application";
-  } else if (lower.includes("still in process") || lower.includes("still in progress")) {
-    anchors.application_outcome = "Still in process";
+  if (lower.includes("disqual") || lower.includes("dq'd") || lower.includes("failed background") || 
+      lower.includes("not selected") || lower.includes("wasn't selected")) {
+    anchors.application_outcome = "disqualified";
+  } else if (lower.includes("hired") || lower.includes("offered the job") || lower.includes("got the job")) {
+    anchors.application_outcome = "hired";
+  } else if (lower.includes("withdrew") || lower.includes("withdraw") || lower.includes("pulled my application")) {
+    anchors.application_outcome = "withdrew";
+  } else if (lower.includes("still in process") || lower.includes("still in progress") || 
+             lower.includes("pending") || lower.includes("waiting to hear")) {
+    anchors.application_outcome = "in_process";
   }
 
-  // 2) prior_le_agency - look for "applied to X"
-  const appliedIdx = lower.indexOf("applied to ");
-  if (appliedIdx !== -1) {
-    const afterApplied = clean.slice(appliedIdx + "applied to ".length);
-    const stopTokens = [" for a ", " for the ", ". ", ", then ", ";"];
-    let stopIdx = afterApplied.length;
-    for (const token of stopTokens) {
-      const i = afterApplied.toLowerCase().indexOf(token);
-      if (i !== -1 && i < stopIdx) stopIdx = i;
+  // 2) prior_le_agency - look for "applied to [AGENCY]"
+  const appliedMatch = clean.match(/applied to(?: the)? ([^,.;]+(?:Police|PD|Sheriff|Department|Agency|Marshal|Patrol))/i);
+  if (appliedMatch && appliedMatch[1]) {
+    anchors.prior_le_agency = appliedMatch[1].trim();
+  } else {
+    // Fallback: look for any agency-like pattern
+    const agencyMatch = clean.match(/([A-Z][A-Za-z\s]+(?:Police Department|Sheriff's Office|Police|Sheriff|PD|SO))/);
+    if (agencyMatch && agencyMatch[1]) {
+      anchors.prior_le_agency = agencyMatch[1].trim();
     }
-    const agency = afterApplied.slice(0, stopIdx).trim();
-    if (agency) anchors.prior_le_agency = agency;
   }
 
-  // 3) prior_le_position - look for "position"
-  const positionMatch = clean.match(/position(?: of)? ([^.,;]+)/i);
+  // 3) prior_le_position - look for position keywords
+  const positionMatch = clean.match(/(?:for a|for the|as a|as an) ([^,.;]+(?:officer|deputy|trooper|agent|detective|sergeant|position))/i);
   if (positionMatch && positionMatch[1]) {
     anchors.prior_le_position = positionMatch[1].trim();
+  } else {
+    // Fallback: look for standalone position titles
+    const titleMatch = clean.match(/\b(police officer|officer|deputy sheriff|deputy|trooper|state trooper|detective|sergeant)\b/i);
+    if (titleMatch && titleMatch[1]) {
+      anchors.prior_le_position = titleMatch[1].trim();
+    }
   }
 
-  // 4) prior_le_approx_date - month + year
-  const dateMatch = clean.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
-  if (dateMatch) {
-    anchors.prior_le_approx_date = dateMatch[0].trim();
+  // 4) prior_le_approx_date - month + year or just year
+  const monthYearMatch = clean.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i);
+  if (monthYearMatch) {
+    anchors.prior_le_approx_date = monthYearMatch[0].trim();
+  } else {
+    // Fallback: look for just year with context
+    const yearMatch = clean.match(/(?:around|in|during|about)\s+(\d{4})/i);
+    if (yearMatch && yearMatch[1]) {
+      anchors.prior_le_approx_date = yearMatch[0].trim();
+    }
   }
 
-  console.log("[PROBE_V2][PRIOR_LE_APPS][EXTRACTED_ANCHORS]", {
+  console.log("[EXTRACTOR][PRIOR_LE_APPS][EXTRACTION_RAW]", {
+    extractedKeys: Object.keys(anchors),
     prior_le_agency: anchors.prior_le_agency || "(missing)",
     prior_le_position: anchors.prior_le_position || "(missing)",
     prior_le_approx_date: anchors.prior_le_approx_date || "(missing)",
@@ -4402,35 +4420,13 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       probeSource: 'PRIOR_LE_APPS_Q01_EXTRACTOR',
     });
     
-    // ================================================================
-    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS TO VERIFY PIPELINE
-    // ================================================================
-    console.log('[V2_PRIOR_LE_APPS][PROOF_OF_LIFE] Injecting TEST anchors');
-    
-    const dummyTestAnchors = {
-      prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
-      prior_le_position: 'TEST_POSITION_FROM_BACKEND',
-      prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
-      application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
-    };
-    
-    result.anchors = {
-      ...(result.anchors || {}),
-      ...dummyTestAnchors
-    };
-    result.collectedAnchors = {
-      ...(result.collectedAnchors || {}),
-      ...dummyTestAnchors
-    };
-    
-    console.log("[PRIOR_LE_Q01][ANCHORS_CREATED]", {
+    console.log("[PRIOR_LE_Q01][ANCHORS_FINAL]", {
       packId,
       fieldKey,
       anchorsKeys: Object.keys(result.anchors || {}),
       anchors: result.anchors,
       collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
-      collectedAnchors: result.collectedAnchors,
-      PROOF_OF_LIFE: 'TEST_ANCHORS_INJECTED'
+      collectedAnchors: result.collectedAnchors
     });
     
     return result;
@@ -5599,27 +5595,28 @@ async function probeEngineV2Core(input, base44Client) {
       collectedValue: handlerResult?.collectedAnchors,
     });
     
-    // CRITICAL: Verify handler actually returned anchors before proceeding
+    // CRITICAL: Log and verify handler returned anchors
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-      console.log(PRIOR_LE_DEBUG, "[POST_HANDLER_CHECK]", {
+      console.log('[V2_PRIOR_LE_APPS][RESULT_RAW]', {
         handlerReturnedAnchors: !!handlerResult?.anchors,
         handlerReturnedCollected: !!handlerResult?.collectedAnchors,
         anchorKeys: Object.keys(handlerResult?.anchors || {}),
         collectedKeys: Object.keys(handlerResult?.collectedAnchors || {}),
-        applicationOutcome: handlerResult?.anchors?.application_outcome || '(MISSING)',
+        anchorsValues: handlerResult?.anchors,
+        collectedValues: handlerResult?.collectedAnchors
       });
     }
     
-    // CRITICAL: Wire FactAnchorEngine before returning (V2 per-field path only)
+    // CRITICAL: Wire FactAnchorEngine for additional extraction (secondary layer)
+    const answerText = field_value || input.fullNarrative || input.fullAnswer || input.answer || '';
     const factCtx = {
       packId: pack_id,
       fieldKey: field_key,
-      questionId: ctx.questionCode || null,
-      answerText: field_value || ctx.fullNarrative || ctx.fullAnswer || ctx.answer || '',
+      questionId: input.questionCode || input.question_code || null,
+      answerText,
       sessionId: input.session_id || null,
       instanceNumber: instance_number,
-      anchors: handlerResult?.anchors || {},
-      collectedAnchors: handlerResult?.collectedAnchors || {}
+      existingAnchors: handlerResult?.anchors || {}
     };
     
     if (V2_DEBUG_ENABLED && pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
