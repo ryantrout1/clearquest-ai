@@ -4371,8 +4371,11 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       console.log(DEBUG_PREFIX, "[NO_OUTCOME] No outcome detected in narrative");
     }
 
-    // CRITICAL: Call universal FACT_EXTRACTOR for LLM-based anchor extraction
-    console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_BEFORE]', {
+    // ========================================================================
+    // HYBRID FACT MODEL: DETERMINISTIC + LLM EXTRACTION WITH PERSISTENCE
+    // ========================================================================
+    
+    console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTION_START]', {
       packId,
       fieldKey,
       instanceNumber,
@@ -4381,20 +4384,21 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     });
 
     try {
+      // Step 1: Call Fact Extractor (LLM-based)
       const extractorResult = await base44Client.functions.invoke('factExtractor', {
         packId,
         candidateAnswer: narrativeText,
         previousAnchors: anchors
       });
 
-      console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_AFTER]', {
+      console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_RESULT]', {
         success: extractorResult.data?.success,
         extractedKeys: Object.keys(extractorResult.data?.extractedFromThisAnswer || {}),
         newAnchorsKeys: Object.keys(extractorResult.data?.newAnchors || {}),
         stillMissing: extractorResult.data?.stillMissing || []
       });
 
-      // Map FACT_EXTRACTOR keys to canonical V2 anchor names
+      // Step 2: Map FACT_EXTRACTOR keys to canonical V2 anchor names
       const PRIOR_LE_ANCHOR_MAP = {
         agency_name: 'prior_le_agency',
         position: 'prior_le_position',
@@ -4412,82 +4416,64 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
         }
       }
 
-      console.log('[V2_PRIOR_LE_APPS][CANONICAL_MAP]', {
+      console.log('[V2_PRIOR_LE_APPS][CANONICAL_ANCHORS]', {
         extractorKeys: Object.keys(extractedAnchors),
         canonicalKeys: Object.keys(canonicalAnchors),
         canonicalAnchors
       });
 
-      // Merge canonical anchors into our anchor objects
+      // Step 3: Merge canonical anchors into working anchor objects
       if (Object.keys(canonicalAnchors).length > 0) {
         anchors = { ...anchors, ...canonicalAnchors };
         collectedAnchorsResult = { ...collectedAnchorsResult, ...canonicalAnchors };
-        console.log('[V2_PRIOR_LE_APPS][ANCHORS_MERGED_FROM_EXTRACTOR]', {
+        console.log('[V2_PRIOR_LE_APPS][ANCHORS_MERGED]', {
           anchorsKeys: Object.keys(anchors),
           anchors
         });
       }
-      
-      console.log('[V2_PRIOR_LE_APPS][ANCHORS_SAVED]', {
-        canonicalKeys: Object.keys(canonicalAnchors),
-        anchors: canonicalAnchors
+
+      // Step 4: Convert to normalized array for persistence
+      const anchorArray = normalizeAnchorsToArray({
+        sessionId,
+        packId,
+        fieldKey,
+        baseQuestionCode: questionCode || 'Q001',
+        instanceNumber,
+        expectedInputAnchors: canonicalAnchors
       });
 
-      // CRITICAL: Persist anchors to database (session.structured_followup_facts)
-      if (Object.keys(canonicalAnchors).length > 0 && ctx.sessionId) {
-        try {
-          // Load current session
-          const sessions = await base44Client.entities.InterviewSession.filter({ id: ctx.sessionId });
-          if (sessions && sessions.length > 0) {
-            const session = sessions[0];
-            const existingFacts = session.structured_followup_facts || {};
+      console.log('[V2_PRIOR_LE_APPS][ANCHOR_ARRAY]', {
+        arrayLength: anchorArray.length,
+        atoms: anchorArray
+      });
 
-            // Initialize pack structure if not exists
-            if (!existingFacts[ctx.questionCode]) {
-              existingFacts[ctx.questionCode] = [];
-            }
+      // Step 5: Persist anchors using Hybrid Fact Model
+      if (anchorArray.length > 0 && sessionId) {
+        await persistFactAnchorsHybrid({
+          base44Client,
+          sessionId,
+          packId,
+          fieldKey,
+          responseId: null, // Will be filled in when Response is created
+          baseQuestionCode: questionCode || 'Q001',
+          instanceNumber,
+          anchorsArray: anchorArray
+        });
 
-            // Find or create instance entry
-            let instanceEntry = existingFacts[ctx.questionCode].find(
-              entry => entry.pack_id === packId && entry.instance_number === instanceNumber
-            );
-
-            if (!instanceEntry) {
-              instanceEntry = {
-                followup_response_id: null,
-                pack_id: packId,
-                instance_number: instanceNumber,
-                fields: {},
-                updated_at: new Date().toISOString()
-              };
-              existingFacts[ctx.questionCode].push(instanceEntry);
-            }
-
-            // Merge canonical anchors into fields
-            instanceEntry.fields = { ...instanceEntry.fields, ...canonicalAnchors };
-            instanceEntry.updated_at = new Date().toISOString();
-
-            // Save back to session
-            await base44Client.entities.InterviewSession.update(ctx.sessionId, {
-              structured_followup_facts: existingFacts
-            });
-
-            console.log('[V2_PRIOR_LE_APPS][DB_SAVE_SUCCESS]', {
-              sessionId: ctx.sessionId,
-              questionCode: ctx.questionCode,
-              instanceNumber,
-              savedAnchors: canonicalAnchors
-            });
-          }
-        } catch (dbErr) {
-          console.error('[V2_PRIOR_LE_APPS][DB_SAVE_ERROR]', dbErr.message);
-          // Non-fatal - continue with in-memory anchors
-        }
+        console.log('[V2_PRIOR_LE_APPS][PERSIST_SUCCESS]', {
+          sessionId,
+          packId,
+          fieldKey,
+          instanceNumber,
+          persistedCount: anchorArray.length,
+          persistedKeys: anchorArray.map(a => a.key)
+        });
       }
-      } catch (extractorErr) {
-      console.error('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_ERROR]', extractorErr.message);
+
+    } catch (extractorErr) {
+      console.error('[V2_PRIOR_LE_APPS][FACT_EXTRACTION_ERROR]', extractorErr.message);
       // Non-fatal - continue with existing anchors
-      }
+    }
 
       console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
         anchorsKeys: Object.keys(anchors),
@@ -5041,6 +5027,196 @@ function mergeAnchors(existingAnchors = {}, newAnchors = {}) {
     ...(existingAnchors || {}),
     ...(newAnchors || {}),
   };
+}
+
+// ============================================================================
+// HYBRID FACT MODEL (OPTION C) - ANCHOR UTILITIES
+// ============================================================================
+
+/**
+ * Create a single fact anchor atom with canonical shape
+ * Returns null if key or value is invalid
+ */
+function createFactAnchor({
+  sessionId,
+  packId,
+  fieldKey,
+  baseQuestionCode,
+  instanceNumber,
+  key,
+  value,
+  source = "V2_PER_FIELD",
+  confidence = null,
+}) {
+  if (!key || value == null || value === "") return null;
+
+  return {
+    key,
+    value: String(value),
+    packId,
+    fieldKey,
+    baseQuestionCode,
+    sessionId,
+    instanceNumber: instanceNumber ?? 1,
+    source,
+    confidence,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Normalize anchors object to array of fact atoms
+ * Input: { prior_le_agency: "Phoenix PD", application_outcome: "disqualified", ... }
+ * Output: [ { key: "prior_le_agency", value: "Phoenix PD", ... }, { key: "application_outcome", value: "disqualified", ... } ]
+ */
+function normalizeAnchorsToArray({
+  sessionId,
+  packId,
+  fieldKey,
+  baseQuestionCode,
+  instanceNumber,
+  expectedInputAnchors,
+}) {
+  if (!expectedInputAnchors || typeof expectedInputAnchors !== 'object') return [];
+
+  const anchors = [];
+
+  for (const [key, valueObj] of Object.entries(expectedInputAnchors)) {
+    if (!valueObj) continue;
+    
+    // Handle both simple string values and {value, confidence} objects
+    const value = typeof valueObj === "object" && valueObj !== null && "value" in valueObj
+      ? valueObj.value
+      : valueObj;
+    const confidence = typeof valueObj === "object" && valueObj !== null && "confidence" in valueObj
+      ? valueObj.confidence
+      : null;
+
+    const anchor = createFactAnchor({
+      sessionId,
+      packId,
+      fieldKey,
+      baseQuestionCode,
+      instanceNumber,
+      key,
+      value,
+      source: "V2_PER_FIELD",
+      confidence,
+    });
+
+    if (anchor) anchors.push(anchor);
+  }
+
+  return anchors;
+}
+
+/**
+ * Persist fact anchors to BOTH Response.fact_atoms AND InterviewSession.structured_followup_facts
+ * Implements Hybrid Fact Model (Option C)
+ */
+async function persistFactAnchorsHybrid({
+  base44Client,
+  sessionId,
+  packId,
+  fieldKey,
+  responseId,
+  baseQuestionCode,
+  instanceNumber,
+  anchorsArray,
+}) {
+  if (!anchorsArray || anchorsArray.length === 0) {
+    console.log("[ANCHOR][PERSIST] No anchors to persist");
+    return;
+  }
+
+  console.log("[ANCHOR][PERSIST][START]", {
+    sessionId,
+    packId,
+    fieldKey,
+    responseId,
+    anchorCount: anchorsArray.length,
+    anchorKeys: anchorsArray.map(a => a.key)
+  });
+
+  try {
+    // 1) Update Response.fact_atoms (deep audit storage)
+    if (responseId) {
+      try {
+        const responses = await base44Client.asServiceRole.entities.Response.filter({ id: responseId });
+        if (responses && responses.length > 0) {
+          const response = responses[0];
+          const existingAtoms = Array.isArray(response?.fact_atoms) ? response.fact_atoms : [];
+
+          const mergedAtoms = [...existingAtoms, ...anchorsArray];
+
+          await base44Client.asServiceRole.entities.Response.update(responseId, {
+            fact_atoms: mergedAtoms
+          });
+
+          console.log("[ANCHOR][PERSIST][RESPONSE]", {
+            responseId,
+            atomsAdded: anchorsArray.length,
+            totalAtoms: mergedAtoms.length
+          });
+        }
+      } catch (respErr) {
+        console.error("[ANCHOR][PERSIST][RESPONSE_ERROR]", respErr.message);
+        // Non-fatal - continue to session persistence
+      }
+    }
+
+    // 2) Update InterviewSession.structured_followup_facts (canonical queryable index)
+    const sessions = await base44Client.asServiceRole.entities.InterviewSession.filter({ id: sessionId });
+    if (!sessions || sessions.length === 0) {
+      console.warn("[ANCHOR][PERSIST] Session not found:", sessionId);
+      return;
+    }
+
+    const session = sessions[0];
+    const existingFacts = Array.isArray(session?.structured_followup_facts)
+      ? session.structured_followup_facts
+      : [];
+
+    // Merge by (packId, fieldKey, instanceNumber, key) to prevent duplicates
+    const existingByKey = new Map();
+    for (const fact of existingFacts) {
+      if (!fact || !fact.key) continue;
+      const k = `${fact.packId || ""}::${fact.fieldKey || ""}::${fact.instanceNumber || 1}::${fact.key}`;
+      existingByKey.set(k, fact);
+    }
+
+    for (const anchor of anchorsArray) {
+      const k = `${anchor.packId || packId}::${anchor.fieldKey || fieldKey}::${anchor.instanceNumber || instanceNumber || 1}::${anchor.key}`;
+      existingByKey.set(k, {
+        ...anchor,
+        packId: anchor.packId || packId,
+        fieldKey: anchor.fieldKey || fieldKey,
+        sessionId: anchor.sessionId || sessionId,
+        instanceNumber: anchor.instanceNumber || instanceNumber || 1,
+      });
+    }
+
+    const mergedFacts = Array.from(existingByKey.values());
+
+    await base44Client.asServiceRole.entities.InterviewSession.update(sessionId, {
+      structured_followup_facts: mergedFacts
+    });
+
+    console.log("[ANCHOR][PERSIST][SESSION]", {
+      sessionId,
+      anchorsAdded: anchorsArray.length,
+      totalFacts: mergedFacts.length,
+      newKeys: anchorsArray.map(a => a.key)
+    });
+
+  } catch (error) {
+    console.error("[ANCHOR][PERSIST][ERROR]", {
+      error: error.message,
+      stack: error.stack
+    });
+    // Non-fatal - don't break the interview flow
+  }
 }
 
 /**

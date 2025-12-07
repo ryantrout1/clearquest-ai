@@ -59,34 +59,36 @@ Deno.serve(async (req) => {
     }
     
     const sessionData = session[0];
-    const structuredFacts = sessionData.structured_followup_facts || {};
     
-    // Extract anchors for this pack/field from structured_followup_facts
-    // Structure is typically: { [questionId]: [ {pack_id, instance_number, fields: {...anchors...}} ] }
-    let anchorRecords = [];
-    let allAnchorKeys = new Set();
+    // NEW HYBRID FACT MODEL: structured_followup_facts is now an ARRAY of anchor atoms
+    const structuredFacts = Array.isArray(sessionData.structured_followup_facts)
+      ? sessionData.structured_followup_facts
+      : [];
     
-    // Search through all questions in structured_followup_facts
-    for (const [questionId, instances] of Object.entries(structuredFacts)) {
-      if (Array.isArray(instances)) {
-        for (const instance of instances) {
-          if (instance.pack_id === packId) {
-            anchorRecords.push({
-              questionId,
-              pack_id: instance.pack_id,
-              instance_number: instance.instance_number,
-              fields: instance.fields || {},
-              updated_at: instance.updated_at
-            });
-            
-            // Collect all anchor keys
-            if (instance.fields) {
-              Object.keys(instance.fields).forEach(key => allAnchorKeys.add(key));
-            }
-          }
-        }
-      }
-    }
+    console.log("[ANCHOR-CONFIRM][RAW_FACTS]", {
+      isArray: Array.isArray(structuredFacts),
+      totalCount: structuredFacts.length,
+      sample: structuredFacts.slice(0, 3)
+    });
+    
+    // Filter anchors for this pack and field
+    const filteredAnchors = structuredFacts.filter(fact => 
+      fact.packId === packId && 
+      fact.fieldKey === fieldKey &&
+      fact.sessionId === sessionId
+    );
+    
+    console.log("[ANCHOR-CONFIRM][FILTERED]", {
+      packId,
+      fieldKey,
+      sessionId,
+      matchCount: filteredAnchors.length,
+      filteredAnchors
+    });
+    
+    // Extract unique anchor keys
+    const allAnchorKeys = new Set(filteredAnchors.map(f => f.key).filter(Boolean));
+    const anchorRecords = filteredAnchors;
     
     console.log("[ANCHOR-CONFIRM][ANCHORS]", {
       recordCount: anchorRecords.length,
