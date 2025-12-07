@@ -6616,21 +6616,140 @@ Deno.serve(async (req) => {
     });
     
     // ================================================================
-    // HTTP OVERRIDE: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
-    // Force anchors at the FINAL HTTP layer before response is sent
-    // This runs AFTER all engine processing, normalization, etc.
+    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE
+    // Extract anchors from PACK_PRLE_Q01 narrative and persist to DB
+    // This runs AFTER engine processing, BEFORE HTTP response
     // ================================================================
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log('[V2_HTTP_OVERRIDE][PRE_OVERRIDE]', {
+      const sessionId = input.session_id || input.sessionId;
+      const instanceNumber = input.instance_number || input.instanceNumber || 1;
+      const baseQuestionId = input.baseQuestionId || input.base_question_id;
+      const narrativeText = input.field_value || input.fieldValue || input.narrative || '';
+      
+      console.log('[V2_PRIOR_LE_APPS][EXTRACT][START]', {
         packId,
         fieldKey,
-        currentMode: result.mode,
-        currentAnchorsKeys: Object.keys(result.anchors || {}),
-        currentCollectedKeys: Object.keys(result.collectedAnchors || {}),
-        currentAnchors: result.anchors,
-        currentCollected: result.collectedAnchors
+        sessionId,
+        instanceNumber,
+        narrativeLength: narrativeText?.length || 0,
+        narrativePreview: narrativeText?.slice?.(0, 150)
       });
       
+      // Extract anchors from narrative using existing extractor
+      let extractedAnchors = {
+        prior_le_agency: null,
+        prior_le_position: null,
+        prior_le_approx_date: null,
+        application_outcome: null
+      };
+      
+      if (narrativeText && narrativeText.trim().length > 0) {
+        // Use existing extractor function
+        const extractResult = extractPriorLeAppsAnchors({ text: narrativeText });
+        
+        // Map to canonical keys
+        if (extractResult.anchors) {
+          extractedAnchors.prior_le_agency = extractResult.anchors.prior_le_agency || null;
+          extractedAnchors.prior_le_position = extractResult.anchors.prior_le_position || null;
+          extractedAnchors.prior_le_approx_date = extractResult.anchors.prior_le_approx_date || null;
+          extractedAnchors.application_outcome = extractResult.anchors.application_outcome || null;
+        }
+        
+        console.log('[V2_PRIOR_LE_APPS][EXTRACT][RESULT]', {
+          packId,
+          fieldKey,
+          extractedAnchors,
+          hasAgency: !!extractedAnchors.prior_le_agency,
+          hasPosition: !!extractedAnchors.prior_le_position,
+          hasDate: !!extractedAnchors.prior_le_approx_date,
+          hasOutcome: !!extractedAnchors.application_outcome
+        });
+      }
+      
+      // Persist anchors to Response record
+      if (sessionId && Object.values(extractedAnchors).some(v => v !== null)) {
+        try {
+          // Find the Response record that was just created for this field
+          const responses = await base44.asServiceRole.entities.Response.filter({
+            session_id: sessionId,
+            pack_id: packId,
+            field_key: fieldKey,
+            instance_number: instanceNumber
+          }, '-created_date', 1);
+          
+          if (responses && responses.length > 0) {
+            const responseRecord = responses[0];
+            const responseId = responseRecord.id;
+            
+            // Build anchor payload
+            const anchorPayload = {
+              pack_id: packId,
+              field_key: fieldKey,
+              instance_number: instanceNumber,
+              anchors: extractedAnchors,
+              extracted_at: new Date().toISOString()
+            };
+            
+            // Get existing additional_details or initialize
+            const existingDetails = responseRecord.additional_details || {};
+            const updatedDetails = {
+              ...existingDetails,
+              v2_anchors: anchorPayload
+            };
+            
+            // Update Response with anchors
+            await base44.asServiceRole.entities.Response.update(responseId, {
+              additional_details: updatedDetails
+            });
+            
+            console.log('[V2_PRIOR_LE_APPS][SAVE_ANCHORS]', {
+              sessionId,
+              responseId,
+              packId,
+              fieldKey,
+              instanceNumber,
+              anchors: extractedAnchors,
+              anchorKeys: Object.keys(extractedAnchors).filter(k => extractedAnchors[k] !== null)
+            });
+            
+            // READ-BACK: Verify anchors were saved
+            const verifyResponses = await base44.asServiceRole.entities.Response.filter({
+              id: responseId
+            });
+            
+            if (verifyResponses && verifyResponses.length > 0) {
+              const verifyRecord = verifyResponses[0];
+              const savedAnchors = verifyRecord.additional_details?.v2_anchors?.anchors;
+              
+              console.log('[V2_PRIOR_LE_APPS][READ_BACK]', {
+                sessionId,
+                responseId,
+                packId,
+                fieldKey,
+                instanceNumber,
+                anchorsFromDB: savedAnchors,
+                anchorKeysFromDB: savedAnchors ? Object.keys(savedAnchors).filter(k => savedAnchors[k] !== null) : [],
+                verificationSuccess: !!savedAnchors
+              });
+            }
+          } else {
+            console.warn('[V2_PRIOR_LE_APPS][SAVE_ANCHORS][NO_RESPONSE]', {
+              sessionId,
+              packId,
+              fieldKey,
+              instanceNumber,
+              message: 'No Response record found to attach anchors to'
+            });
+          }
+        } catch (persistErr) {
+          console.error('[V2_PRIOR_LE_APPS][SAVE_ANCHORS][ERROR]', {
+            error: persistErr.message,
+            stack: persistErr.stack
+          });
+        }
+      }
+      
+      // HTTP OVERRIDE: Force TEST anchors into result for frontend
       const httpOverrideAnchors = {
         prior_le_agency: 'TEST AGENCY (HTTP OVERRIDE)',
         prior_le_position: 'TEST POSITION (HTTP OVERRIDE)',
@@ -6638,25 +6757,21 @@ Deno.serve(async (req) => {
         application_outcome: 'TEST OUTCOME (HTTP OVERRIDE)',
       };
       
-      // Force anchors into result - overwrite whatever came from engine
       result.anchors = httpOverrideAnchors;
       result.collectedAnchors = {
         ...(result.collectedAnchors || {}),
         ...httpOverrideAnchors,
       };
-      result.reason = 'HTTP OVERRIDE: PACK_PRLE_Q01 anchors forced';
+      result.reason = 'HTTP OVERRIDE: PACK_PRLE_Q01 anchors forced (real extraction also persisted to DB)';
       result.probeSource = 'V2_HTTP_OVERRIDE';
       
-      console.log('[V2_HTTP_OVERRIDE][POST_OVERRIDE]', {
+      console.log('[V2_HTTP_OVERRIDE][FINAL]', {
         packId,
         fieldKey,
-        anchorsNowPresent: !!result.anchors,
-        collectedNowPresent: !!result.collectedAnchors,
         anchorsKeys: Object.keys(result.anchors),
         collectedKeys: Object.keys(result.collectedAnchors),
         anchorsValues: result.anchors,
-        collectedValues: result.collectedAnchors,
-        fullResultBeforeJSON: JSON.stringify(result, null, 2)
+        collectedValues: result.collectedAnchors
       });
     }
 
