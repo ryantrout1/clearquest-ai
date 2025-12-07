@@ -2691,7 +2691,16 @@ function runDeterministicExtractor({ packId, fieldKey, answerText }) {
  * SAFETY NET: Called at end of probeEngineV2 to catch any bypassed paths
  */
 function normalizeV2Result(result) {
+  console.log("[normalizeV2Result][ENTRY]", {
+    resultType: typeof result,
+    resultKeys: Object.keys(result || {}),
+    resultAnchors: result?.anchors,
+    resultCollected: result?.collectedAnchors,
+    applicationOutcome: result?.anchors?.application_outcome || '(NONE)'
+  });
+
   if (!result || typeof result !== 'object') {
+    console.log("[normalizeV2Result][ERROR] Invalid input, returning error result");
     return createV2ProbeResult({
       mode: 'ERROR',
       hasQuestion: false,
@@ -2700,7 +2709,16 @@ function normalizeV2Result(result) {
   }
   
   // Route through createV2ProbeResult to guarantee shape
-  return createV2ProbeResult(result);
+  const normalized = createV2ProbeResult(result);
+  
+  console.log("[normalizeV2Result][RETURN]", {
+    normalizedKeys: Object.keys(normalized || {}),
+    normalizedAnchors: normalized?.anchors,
+    normalizedAnchorsKeys: Object.keys(normalized?.anchors || {}),
+    applicationOutcome: normalized?.anchors?.application_outcome || '(NONE)'
+  });
+  
+  return normalized;
 }
 
 /**
@@ -2739,6 +2757,14 @@ function withAnchorDefaults(result) {
 function normalizeV2ProbeResult(rawResult, extra = {}) {
   const base = rawResult || {};
 
+  console.log("[normalizeV2ProbeResult][ENTRY]", {
+    baseKeys: Object.keys(base),
+    baseAnchors: base.anchors,
+    baseCollected: base.collectedAnchors,
+    baseAnchorsType: typeof base.anchors,
+    extraKeys: Object.keys(extra)
+  });
+
   const anchors = base.anchors && typeof base.anchors === "object" && !Array.isArray(base.anchors)
     ? base.anchors
     : {};
@@ -2747,15 +2773,30 @@ function normalizeV2ProbeResult(rawResult, extra = {}) {
     ? base.collectedAnchors
     : {};
 
-  return {
+  console.log("[normalizeV2ProbeResult][NORMALIZED]", {
+    anchorsKeys: Object.keys(anchors),
+    collectedKeys: Object.keys(collectedAnchors),
+    applicationOutcome: anchors.application_outcome || '(NONE)'
+  });
+
+  const result = {
     // keep any existing fields exactly as they are
     ...base,
-    // normalized anchors
+    // normalized anchors - MUST come after base spread to ensure they're included
     anchors,
     collectedAnchors,
     // allow callers to overlay any explicit extras
     ...extra,
   };
+
+  console.log("[normalizeV2ProbeResult][RETURN]", {
+    resultKeys: Object.keys(result),
+    resultAnchorsKeys: Object.keys(result.anchors || {}),
+    resultAnchors: result.anchors,
+    applicationOutcome: result.anchors?.application_outcome || '(NONE)'
+  });
+
+  return result;
 }
 
 /**
@@ -4223,13 +4264,58 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     narrativeTextSource: narrativeText ? "FOUND" : "EMPTY"
   });
 
+  // IMPORTANT:
+  // For PACK_PRIOR_LE_APPS_STANDARD, PACK_PRLE_Q01 MUST:
+  // - Call FactAnchorEngine PRIOR LE narrative extractor
+  // - Attach anchors and collectedAnchors to the result object
+  // - Preserve these keys through createV2ProbeResult/HTTP response
+  // Frontend gating and diagnostics depend on these anchors.
+  
   // For PACK_PRLE_Q01: Extract outcome deterministically
   if (fieldKey === "PACK_PRLE_Q01") {
     console.log(DEBUG_PREFIX, "[Q01_BRANCH] Executing PACK_PRLE_Q01 logic");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("FORENSIC: Q01 BRANCH - EXTRACTING ANCHORS");
+    console.log("═════════════════════════════════════════════════════════════");
     
     // Initialize mutable anchor objects - start with existing collection
     let anchors = { ...existingCollection };
     let collectedAnchorsResult = { ...existingCollection };
+    
+    console.log(DEBUG_PREFIX, "[INIT_ANCHORS]", {
+      existingCollectionKeys: Object.keys(existingCollection || {}),
+      anchorsInitKeys: Object.keys(anchors),
+      collectedInitKeys: Object.keys(collectedAnchorsResult)
+    });
+    
+    // CRITICAL: Call FactAnchorEngine for PRIOR LE APPS extraction
+    console.log(DEBUG_PREFIX, "[CALLING_FACT_ANCHOR_ENGINE]");
+    const factEngineResult = FactAnchorEngine.extract({
+      packId,
+      fieldKey,
+      answerText: narrativeText,
+      questionId: ctx.questionCode || null,
+      sessionId: ctx.sessionId || null,
+      instanceNumber,
+      existingAnchors: existingCollection
+    });
+    
+    console.log(DEBUG_PREFIX, "[FACT_ENGINE_RESULT]", {
+      factAnchors: factEngineResult?.anchors,
+      factCollected: factEngineResult?.collectedAnchors,
+      factAnchorsKeys: Object.keys(factEngineResult?.anchors || {}),
+      applicationOutcome: factEngineResult?.anchors?.application_outcome || '(NONE)'
+    });
+    
+    // Merge FactAnchorEngine results FIRST (highest priority)
+    if (factEngineResult?.anchors && Object.keys(factEngineResult.anchors).length > 0) {
+      anchors = { ...anchors, ...factEngineResult.anchors };
+      collectedAnchorsResult = { ...collectedAnchorsResult, ...factEngineResult.collectedAnchors || factEngineResult.anchors };
+      console.log(DEBUG_PREFIX, "[AFTER_FACT_ENGINE_MERGE]", {
+        anchorsKeys: Object.keys(anchors),
+        applicationOutcome: anchors.application_outcome || '(NONE)'
+      });
+    }
     
     // CRITICAL: Call BOTH extraction helpers to maximize coverage
     // 1. New inferApplicationOutcomeFromNarrative (from surgical fix)
@@ -4244,7 +4330,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     });
     
     // Use whichever extraction succeeded
-    const outcome = outcomeNew || legacyExtraction.anchors?.application_outcome;
+    const outcome = outcomeNew || legacyExtraction.anchors?.application_outcome || factEngineResult?.anchors?.application_outcome;
     
     console.log(DEBUG_PREFIX, "[OUTCOME_EXTRACTED]", {
       packId,
@@ -4252,13 +4338,18 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       narrativeExcerpt: narrativeText ? narrativeText.slice(0, 200) : "(empty)",
       outcomeNew,
       outcomeLegacy: legacyExtraction.anchors?.application_outcome,
+      outcomeFactEngine: factEngineResult?.anchors?.application_outcome,
       outcomeFinal: outcome,
     });
     
     // Merge ALL extracted anchors from legacy extractor
-    if (legacyExtraction.anchors) {
+    if (legacyExtraction.anchors && Object.keys(legacyExtraction.anchors).length > 0) {
       anchors = { ...anchors, ...legacyExtraction.anchors };
       collectedAnchorsResult = { ...collectedAnchorsResult, ...legacyExtraction.anchors };
+      console.log(DEBUG_PREFIX, "[AFTER_LEGACY_MERGE]", {
+        anchorsKeys: Object.keys(anchors),
+        applicationOutcome: anchors.application_outcome || '(NONE)'
+      });
     }
     
     // Set application_outcome in both anchor containers (ensure it's set even if only new helper found it)
@@ -4269,6 +4360,14 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     } else {
       console.log(DEBUG_PREFIX, "[NO_OUTCOME] No outcome detected in narrative");
     }
+    
+    console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
+      anchorsKeys: Object.keys(anchors),
+      anchors: anchors,
+      collectedKeys: Object.keys(collectedAnchorsResult),
+      collectedAnchors: collectedAnchorsResult,
+      applicationOutcome: anchors.application_outcome || '(NONE)'
+    });
 
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 2: BEFORE createV2ProbeResult");
