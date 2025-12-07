@@ -6631,8 +6631,11 @@ Deno.serve(async (req) => {
         fieldKey,
         sessionId,
         instanceNumber,
+        baseQuestionId,
         narrativeLength: narrativeText?.length || 0,
-        narrativePreview: narrativeText?.slice?.(0, 150)
+        narrativePreview: narrativeText?.slice?.(0, 150),
+        hasSessionId: !!sessionId,
+        hasNarrative: !!narrativeText && narrativeText.trim().length > 0
       });
       
       // Extract anchors from narrative using existing extractor
@@ -6644,8 +6647,19 @@ Deno.serve(async (req) => {
       };
       
       if (narrativeText && narrativeText.trim().length > 0) {
+        console.log('[V2_PRIOR_LE_APPS][EXTRACT][CALLING_EXTRACTOR]', {
+          extractorFunction: 'extractPriorLeAppsAnchors',
+          textLength: narrativeText.length
+        });
+        
         // Use existing extractor function
         const extractResult = extractPriorLeAppsAnchors({ text: narrativeText });
+        
+        console.log('[V2_PRIOR_LE_APPS][EXTRACT][RAW_RESULT]', {
+          extractResult,
+          hasAnchors: !!extractResult.anchors,
+          anchorsKeys: extractResult.anchors ? Object.keys(extractResult.anchors) : []
+        });
         
         // Map to canonical keys
         if (extractResult.anchors) {
@@ -6655,20 +6669,38 @@ Deno.serve(async (req) => {
           extractedAnchors.application_outcome = extractResult.anchors.application_outcome || null;
         }
         
-        console.log('[V2_PRIOR_LE_APPS][EXTRACT][RESULT]', {
+        console.log('[V2_PRIOR_LE_APPS][EXTRACT]', {
+          session: sessionId,
+          pack: packId,
+          field: fieldKey,
+          instance: instanceNumber,
+          anchors: extractedAnchors
+        });
+      } else {
+        console.warn('[V2_PRIOR_LE_APPS][EXTRACT][NO_NARRATIVE]', {
           packId,
           fieldKey,
-          extractedAnchors,
-          hasAgency: !!extractedAnchors.prior_le_agency,
-          hasPosition: !!extractedAnchors.prior_le_position,
-          hasDate: !!extractedAnchors.prior_le_approx_date,
-          hasOutcome: !!extractedAnchors.application_outcome
+          sessionId,
+          message: 'No narrative text available for extraction'
         });
       }
       
       // Persist anchors to Response record
       if (sessionId && Object.values(extractedAnchors).some(v => v !== null)) {
         try {
+          console.log('[V2_PRIOR_LE_APPS][PERSIST][QUERYING_RESPONSE]', {
+            sessionId,
+            packId,
+            fieldKey,
+            instanceNumber,
+            queryFilter: {
+              session_id: sessionId,
+              pack_id: packId,
+              field_key: fieldKey,
+              instance_number: instanceNumber
+            }
+          });
+          
           // Find the Response record that was just created for this field
           const responses = await base44.asServiceRole.entities.Response.filter({
             session_id: sessionId,
@@ -6677,9 +6709,20 @@ Deno.serve(async (req) => {
             instance_number: instanceNumber
           }, '-created_date', 1);
           
+          console.log('[V2_PRIOR_LE_APPS][PERSIST][QUERY_RESULT]', {
+            foundCount: responses?.length || 0,
+            hasResponse: responses && responses.length > 0
+          });
+          
           if (responses && responses.length > 0) {
             const responseRecord = responses[0];
             const responseId = responseRecord.id;
+            
+            console.log('[V2_PRIOR_LE_APPS][PERSIST][RESPONSE_FOUND]', {
+              responseId,
+              hasAdditionalDetails: !!responseRecord.additional_details,
+              currentAdditionalDetails: responseRecord.additional_details
+            });
             
             // Build anchor payload
             const anchorPayload = {
@@ -6697,22 +6740,32 @@ Deno.serve(async (req) => {
               v2_anchors: anchorPayload
             };
             
+            console.log('[V2_PRIOR_LE_APPS][PERSIST][UPDATING]', {
+              responseId,
+              anchorPayload,
+              updatedDetails
+            });
+            
             // Update Response with anchors
             await base44.asServiceRole.entities.Response.update(responseId, {
               additional_details: updatedDetails
             });
             
             console.log('[V2_PRIOR_LE_APPS][SAVE_ANCHORS]', {
-              sessionId,
+              session: sessionId,
               responseId,
-              packId,
-              fieldKey,
-              instanceNumber,
-              anchors: extractedAnchors,
-              anchorKeys: Object.keys(extractedAnchors).filter(k => extractedAnchors[k] !== null)
+              pack: packId,
+              field: fieldKey,
+              instance: instanceNumber,
+              anchors: extractedAnchors
             });
             
             // READ-BACK: Verify anchors were saved
+            console.log('[V2_PRIOR_LE_APPS][READ_BACK][QUERYING]', {
+              responseId,
+              queryFilter: { id: responseId }
+            });
+            
             const verifyResponses = await base44.asServiceRole.entities.Response.filter({
               id: responseId
             });
@@ -6722,14 +6775,31 @@ Deno.serve(async (req) => {
               const savedAnchors = verifyRecord.additional_details?.v2_anchors?.anchors;
               
               console.log('[V2_PRIOR_LE_APPS][READ_BACK]', {
-                sessionId,
+                session: sessionId,
+                pack: 'PACK_PRIOR_LE_APPS_STANDARD',
+                field: 'PACK_PRLE_Q01',
+                instance: instanceNumber,
+                anchors: savedAnchors
+              });
+              
+              if (savedAnchors) {
+                // Log individual anchor values
+                console.log('[V2_PRIOR_LE_APPS][READ_BACK][DETAILS]', {
+                  prior_le_agency: savedAnchors.prior_le_agency || '(null)',
+                  prior_le_position: savedAnchors.prior_le_position || '(null)',
+                  prior_le_approx_date: savedAnchors.prior_le_approx_date || '(null)',
+                  application_outcome: savedAnchors.application_outcome || '(null)'
+                });
+              } else {
+                console.warn('[V2_PRIOR_LE_APPS][READ_BACK][NO_ANCHORS]', {
+                  message: 'additional_details.v2_anchors.anchors is null/undefined',
+                  additional_details: verifyRecord.additional_details
+                });
+              }
+            } else {
+              console.warn('[V2_PRIOR_LE_APPS][READ_BACK][NO_RECORD]', {
                 responseId,
-                packId,
-                fieldKey,
-                instanceNumber,
-                anchorsFromDB: savedAnchors,
-                anchorKeysFromDB: savedAnchors ? Object.keys(savedAnchors).filter(k => savedAnchors[k] !== null) : [],
-                verificationSuccess: !!savedAnchors
+                message: 'Could not find Response record for read-back'
               });
             }
           } else {
@@ -6747,6 +6817,13 @@ Deno.serve(async (req) => {
             stack: persistErr.stack
           });
         }
+      } else {
+        console.warn('[V2_PRIOR_LE_APPS][PERSIST][SKIPPED]', {
+          hasSessionId: !!sessionId,
+          hasAnyAnchors: Object.values(extractedAnchors).some(v => v !== null),
+          extractedAnchors,
+          message: 'Skipping persistence - missing sessionId or no anchors extracted'
+        });
       }
       
       // HTTP OVERRIDE: Force TEST anchors into result for frontend
