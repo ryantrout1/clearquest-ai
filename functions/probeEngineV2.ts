@@ -4402,13 +4402,35 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       probeSource: 'PRIOR_LE_APPS_Q01_EXTRACTOR',
     });
     
+    // ================================================================
+    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS TO VERIFY PIPELINE
+    // ================================================================
+    console.log('[V2_PRIOR_LE_APPS][PROOF_OF_LIFE] Injecting TEST anchors');
+    
+    const dummyTestAnchors = {
+      prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
+      prior_le_position: 'TEST_POSITION_FROM_BACKEND',
+      prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
+      application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
+    };
+    
+    result.anchors = {
+      ...(result.anchors || {}),
+      ...dummyTestAnchors
+    };
+    result.collectedAnchors = {
+      ...(result.collectedAnchors || {}),
+      ...dummyTestAnchors
+    };
+    
     console.log("[PRIOR_LE_Q01][ANCHORS_CREATED]", {
       packId,
       fieldKey,
       anchorsKeys: Object.keys(result.anchors || {}),
       anchors: result.anchors,
       collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
-      collectedAnchors: result.collectedAnchors
+      collectedAnchors: result.collectedAnchors,
+      PROOF_OF_LIFE: 'TEST_ANCHORS_INJECTED'
     });
     
     return result;
