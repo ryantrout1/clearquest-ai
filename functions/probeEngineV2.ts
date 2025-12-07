@@ -6492,40 +6492,6 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
-    // ================================================================
-    // HTTP SHORT-CIRCUIT TEST: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
-    // Returns hard-coded TEST anchors to verify end-to-end transport
-    // ================================================================
-    if (input.pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && input.field_key === 'PACK_PRLE_Q01') {
-      const testAnchors = {
-        prior_le_agency: 'TEST AGENCY (HTTP ENTRY)',
-        prior_le_position: 'TEST POSITION (HTTP ENTRY)',
-        prior_le_approx_date: 'TEST DATE (HTTP ENTRY)',
-        application_outcome: 'TEST OUTCOME (HTTP ENTRY)',
-      };
-      
-      const httpTestResult = {
-        mode: 'NEXT_FIELD',
-        hasQuestion: false,
-        followupsCount: 0,
-        anchors: testAnchors,
-        collectedAnchors: testAnchors,
-        reason: 'HTTP SHORT-CIRCUIT TEST for PACK_PRLE_Q01',
-        probeSource: 'HTTP_ENTRY_SHORT_CIRCUIT',
-      };
-      
-      console.log('[V2_HTTP_SHORT_CIRCUIT][PACK_PRLE_Q01]', {
-        packId: input.pack_id,
-        fieldKey: input.field_key,
-        returningTestAnchors: true,
-        anchorsKeys: Object.keys(httpTestResult.anchors),
-        collectedAnchorsKeys: Object.keys(httpTestResult.collectedAnchors),
-        fullResult: JSON.stringify(httpTestResult, null, 2)
-      });
-      
-      return Response.json(httpTestResult);
-    }
-    
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 12: HTTP HANDLER CALLING WRAPPER");
     console.log("═════════════════════════════════════════════════════════════");
@@ -6649,6 +6615,53 @@ Deno.serve(async (req) => {
       jsonStringified: JSON.stringify(result)
     });
     
+    // ================================================================
+    // HTTP OVERRIDE TEST: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+    // Force anchors at the FINAL HTTP layer before response is sent
+    // This runs AFTER all engine processing, normalization, etc.
+    // ================================================================
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+      console.log('[V2_HTTP_OVERRIDE][PRE]', {
+        packId,
+        fieldKey,
+        resultBefore: {
+          mode: result.mode,
+          anchorsKeys: Object.keys(result.anchors || {}),
+          collectedKeys: Object.keys(result.collectedAnchors || {})
+        }
+      });
+      
+      const testAnchors = {
+        prior_le_agency: 'TEST AGENCY (HTTP OVERRIDE)',
+        prior_le_position: 'TEST POSITION (HTTP OVERRIDE)',
+        prior_le_approx_date: 'TEST DATE (HTTP OVERRIDE)',
+        application_outcome: 'TEST OUTCOME (HTTP OVERRIDE)',
+      };
+      
+      result = {
+        ...result,
+        anchors: testAnchors,
+        collectedAnchors: {
+          ...(result.collectedAnchors || {}),
+          ...testAnchors,
+        },
+        reason: 'HTTP OVERRIDE TEST: PACK_PRLE_Q01 anchors forced at HTTP layer',
+        probeSource: 'V2_HTTP_OVERRIDE_TEST',
+      };
+      
+      console.log('[V2_HTTP_OVERRIDE][POST]', {
+        packId,
+        fieldKey,
+        resultAfter: {
+          mode: result.mode,
+          anchorsKeys: Object.keys(result.anchors || {}),
+          collectedKeys: Object.keys(result.collectedAnchors || {}),
+          anchorsValues: result.anchors,
+          collectedValues: result.collectedAnchors
+        }
+      });
+    }
+    
     // FINAL VERIFICATION LOG: Confirm anchors in JSON before sending
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
       console.log('[V2_PRIOR_LE_APPS][FINAL_HTTP_RESPONSE]', {
@@ -6660,7 +6673,8 @@ Deno.serve(async (req) => {
         collectedKeys: Object.keys(result.collectedAnchors || {}),
         anchorsValues: result.anchors,
         collectedValues: result.collectedAnchors,
-        willBeSentAsJSON: true
+        willBeSentAsJSON: true,
+        fullResultJSON: JSON.stringify(result, null, 2)
       });
     }
 
