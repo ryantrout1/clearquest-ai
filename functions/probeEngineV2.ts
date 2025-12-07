@@ -6826,30 +6826,44 @@ Deno.serve(async (req) => {
         });
       }
       
-      // HTTP OVERRIDE: Force TEST anchors into result for frontend
-      const httpOverrideAnchors = {
-        prior_le_agency: 'TEST AGENCY (HTTP OVERRIDE)',
-        prior_le_position: 'TEST POSITION (HTTP OVERRIDE)',
-        prior_le_approx_date: 'TEST DATE (HTTP OVERRIDE)',
-        application_outcome: 'TEST OUTCOME (HTTP OVERRIDE)',
-      };
+      // WIRE EXTRACTED ANCHORS INTO RESULT: Use real anchors instead of TEST values
+      // Only set if we have non-null extracted anchors
+      const hasExtractedAnchors = Object.values(extractedAnchors).some(v => v !== null);
       
-      result.anchors = httpOverrideAnchors;
-      result.collectedAnchors = {
-        ...(result.collectedAnchors || {}),
-        ...httpOverrideAnchors,
-      };
-      result.reason = 'HTTP OVERRIDE: PACK_PRLE_Q01 anchors forced (real extraction also persisted to DB)';
-      result.probeSource = 'V2_HTTP_OVERRIDE';
-      
-      console.log('[V2_HTTP_OVERRIDE][FINAL]', {
-        packId,
-        fieldKey,
-        anchorsKeys: Object.keys(result.anchors),
-        collectedKeys: Object.keys(result.collectedAnchors),
-        anchorsValues: result.anchors,
-        collectedValues: result.collectedAnchors
-      });
+      if (hasExtractedAnchors) {
+        // Filter out null values for cleaner result
+        const nonNullAnchors = Object.fromEntries(
+          Object.entries(extractedAnchors).filter(([k, v]) => v !== null)
+        );
+        
+        result.anchors = {
+          ...(result.anchors || {}),
+          ...nonNullAnchors
+        };
+        result.collectedAnchors = {
+          ...(result.collectedAnchors || {}),
+          ...nonNullAnchors
+        };
+        
+        console.log('[V2_PRIOR_LE_APPS][RESULT_ANCHORS_ATTACHED]', {
+          packId,
+          fieldKey,
+          anchorsKeys: Object.keys(result.anchors),
+          collectedKeys: Object.keys(result.collectedAnchors),
+          anchorsValues: result.anchors,
+          collectedValues: result.collectedAnchors
+        });
+      } else {
+        // Ensure anchors/collectedAnchors exist even if empty
+        result.anchors = result.anchors || {};
+        result.collectedAnchors = result.collectedAnchors || {};
+        
+        console.log('[V2_PRIOR_LE_APPS][RESULT_NO_ANCHORS]', {
+          packId,
+          fieldKey,
+          message: 'No anchors extracted from narrative'
+        });
+      }
     }
 
     return Response.json(result);
