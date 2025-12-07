@@ -4248,6 +4248,16 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   // Use centralized helper to get full narrative text - tries multiple possible keys
   const narrativeText = getFieldNarrativeText(ctx);
 
+  // CRITICAL: Entry log to prove handler is executing
+  console.log("[ANCHOR-HANDLER-ENTER]", {
+    packId,
+    fieldKey,
+    instanceNumber,
+    fieldValueLength: fieldValue?.length || 0,
+    narrativeTextLength: narrativeText?.length || 0,
+    existingAnchorsKeys: Object.keys(existingCollection)
+  });
+
   console.log("═════════════════════════════════════════════════════════════");
   console.log("FORENSIC CHECKPOINT 1: HANDLER ENTRY");
   console.log("═════════════════════════════════════════════════════════════");
@@ -4561,6 +4571,18 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       stringified: JSON.stringify(finalResult, null, 2)
     });
 
+    // CRITICAL: Exit log to prove handler completed
+    console.log("[ANCHOR-HANDLER-EXIT]", {
+      packId,
+      fieldKey,
+      instanceNumber,
+      mode: finalResult.mode,
+      anchors: finalResult.anchors,
+      collectedAnchors: finalResult.collectedAnchors,
+      anchorsKeys: Object.keys(finalResult.anchors || {}),
+      collectedKeys: Object.keys(finalResult.collectedAnchors || {})
+    });
+
     return finalResult;
   }
 
@@ -4577,7 +4599,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     collectedAnchors: existingCollection || {}
   };
 
-  return createV2ProbeResult(baseResult);
+  const passThroughResult = createV2ProbeResult(baseResult);
+
+  // CRITICAL: Exit log for non-Q01 fields
+  console.log("[ANCHOR-HANDLER-EXIT]", {
+    packId,
+    fieldKey,
+    instanceNumber,
+    mode: passThroughResult.mode,
+    anchors: passThroughResult.anchors,
+    collectedAnchors: passThroughResult.collectedAnchors
+  });
+
+  return passThroughResult;
 }
 
 /**
@@ -5302,9 +5336,12 @@ async function probeEngineV2Core(input, base44Client) {
   
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id} field=${field_key} instance=${instance_number} probeCount=${previous_probes_count}`);
   
+  // Check if this is a V2 pack with perFieldHandler (should use handler for ALL calls)
+  const isV2PackWithHandler = packConfig?.perFieldHandler && typeof packConfig.perFieldHandler === 'function';
+  
   // HARDENED: For pack opening (probeCount=0, empty field value), call Discretion Engine
-  // Validate pack_id before calling to prevent errors
-  if (previous_probes_count === 0 && (!field_value || field_value.trim() === "")) {
+  // BUT: Skip this entirely for packs with perFieldHandler - they handle opening internally
+  if (!isV2PackWithHandler && previous_probes_count === 0 && (!field_value || field_value.trim() === "")) {
     if (!pack_id || typeof pack_id !== 'string') {
       console.error(`[V2-UNIVERSAL][OPENING] Invalid pack_id: ${pack_id}`);
       return createV2ProbeResult({
@@ -5317,23 +5354,6 @@ async function probeEngineV2Core(input, base44Client) {
         collectedAnchors: currentAnchors,
         message: 'Invalid pack_id - cannot open pack'
       });
-    }
-    
-    // SPECIAL CASE: PACK_PRIOR_LE_APPS_STANDARD and PACK_LE_APPS - NO opening probe
-    // These packs show PACK_PRLE_Q01 (narrative question) as the first field.
-    // No AI opening message needed - go straight to showing Q01.
-    if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" || pack_id === "PACK_LE_APPS") {
-      console.log(`[PACK_PRIOR_LE_APPS][OPENING] No opening probe - showing PACK_PRLE_Q01 narrative field directly`);
-      const baseResult = {
-        mode: "NONE",
-        hasQuestion: false,
-        followupsCount: 0,
-        reason: "prior_le_apps: no opening probe; Q01 is the opener",
-        // CRITICAL: Include anchors directly in baseResult for 1-arg signature
-        anchors: currentAnchors || {},
-        collectedAnchors: currentAnchors || {}
-      };
-      return createV2ProbeResult(baseResult);
     }
     
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
