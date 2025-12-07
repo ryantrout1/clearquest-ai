@@ -96,6 +96,8 @@ ${allAnchors.map(a => `- ${a}: (extracted value or "not found")`).join('\n')}`;
 }
 
 Deno.serve(async (req) => {
+  console.log('[FACT_EXTRACTOR][ENTRY] Incoming request');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -106,6 +108,12 @@ Deno.serve(async (req) => {
     }
 
     const { packId, candidateAnswer, previousAnchors = {} } = await req.json();
+    
+    console.log('[FACT_EXTRACTOR][INPUT]', { 
+      packId, 
+      answerLength: candidateAnswer ? candidateAnswer.length : 0,
+      previousAnchorsKeys: Object.keys(previousAnchors || {})
+    });
     
     // HARDENED: Validate inputs but return empty extraction instead of error
     if (!packId || !candidateAnswer) {
@@ -164,6 +172,13 @@ Deno.serve(async (req) => {
       
       console.log(`[FACT_EXTRACTOR] Extracted:`, {
         newKeys: Object.keys(extractedAnchors),
+        stillMissing
+      });
+      
+      console.log('[FACT_EXTRACTOR][OUTPUT]', {
+        packId,
+        extractedKeys: Object.keys(extractedAnchors || {}),
+        newAnchorsKeys: Object.keys(newAnchors || {}),
         stillMissing
       });
       

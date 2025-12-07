@@ -4241,7 +4241,7 @@ function getPackTopicForDiscretion(packId) {
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const DEBUG_PREFIX = "[TEST_PRIOR_LE_ANCHORS]";
   
-  const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber } = ctx;
+  const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
 
   const existingCollection = collectedAnchors || {};
 
@@ -4422,18 +4422,70 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
         canonicalKeys: Object.keys(canonicalAnchors),
         anchors: canonicalAnchors
       });
-    } catch (extractorErr) {
+
+      // CRITICAL: Persist anchors to database (session.structured_followup_facts)
+      if (Object.keys(canonicalAnchors).length > 0 && ctx.sessionId) {
+        try {
+          // Load current session
+          const sessions = await base44Client.entities.InterviewSession.filter({ id: ctx.sessionId });
+          if (sessions && sessions.length > 0) {
+            const session = sessions[0];
+            const existingFacts = session.structured_followup_facts || {};
+
+            // Initialize pack structure if not exists
+            if (!existingFacts[ctx.questionCode]) {
+              existingFacts[ctx.questionCode] = [];
+            }
+
+            // Find or create instance entry
+            let instanceEntry = existingFacts[ctx.questionCode].find(
+              entry => entry.pack_id === packId && entry.instance_number === instanceNumber
+            );
+
+            if (!instanceEntry) {
+              instanceEntry = {
+                followup_response_id: null,
+                pack_id: packId,
+                instance_number: instanceNumber,
+                fields: {},
+                updated_at: new Date().toISOString()
+              };
+              existingFacts[ctx.questionCode].push(instanceEntry);
+            }
+
+            // Merge canonical anchors into fields
+            instanceEntry.fields = { ...instanceEntry.fields, ...canonicalAnchors };
+            instanceEntry.updated_at = new Date().toISOString();
+
+            // Save back to session
+            await base44Client.entities.InterviewSession.update(ctx.sessionId, {
+              structured_followup_facts: existingFacts
+            });
+
+            console.log('[V2_PRIOR_LE_APPS][DB_SAVE_SUCCESS]', {
+              sessionId: ctx.sessionId,
+              questionCode: ctx.questionCode,
+              instanceNumber,
+              savedAnchors: canonicalAnchors
+            });
+          }
+        } catch (dbErr) {
+          console.error('[V2_PRIOR_LE_APPS][DB_SAVE_ERROR]', dbErr.message);
+          // Non-fatal - continue with in-memory anchors
+        }
+      }
+      } catch (extractorErr) {
       console.error('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_ERROR]', extractorErr.message);
       // Non-fatal - continue with existing anchors
-    }
-    
-    console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
+      }
+
+      console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
       anchorsKeys: Object.keys(anchors),
       anchors: anchors,
       collectedKeys: Object.keys(collectedAnchorsResult),
       collectedAnchors: collectedAnchorsResult,
       applicationOutcome: anchors.application_outcome || '(NONE)'
-    });
+      });
 
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 2: BEFORE createV2ProbeResult");
