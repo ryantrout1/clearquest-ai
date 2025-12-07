@@ -4259,76 +4259,48 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   });
   
   // ===================================================================
-  // CRITICAL FIX: FOR PACK_PRLE_Q01, ALWAYS EXTRACT AND RETURN ANCHORS
+  // TEST BLOCK: HARD-CODED ANCHORS FOR PACK_PRLE_Q01 (DIAGNOSTIC)
   // ===================================================================
-  if (fieldKey === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim().length > 0) {
-    console.log("[PRIOR_LE_Q01][EXTRACT_START]", {
-      narrativeLength: narrativeText.length,
-      narrativePreview: narrativeText.slice(0, 150)
-    });
+  if (fieldKey === "PACK_PRLE_Q01") {
+    console.log("[PRIOR_LE_Q01][TEST_MODE] Hard-coded anchor test active");
     
-    // Extract anchors using all available extractors
-    const extraction1 = extractPriorLeAppsAnchors({ text: narrativeText });
-    const extraction2 = extractPriorLeAppsQ01AnchorsFromText(narrativeText);
-    const extraction3 = { 
-      anchors: { 
-        application_outcome: inferApplicationOutcomeFromNarrative(narrativeText) 
-      }
+    const testAnchors = {
+      prior_le_agency: 'TEST AGENCY ANCHOR',
+      prior_le_position: 'TEST POSITION',
+      prior_le_approx_date: 'TEST DATE',
+      application_outcome: 'TEST OUTCOME',
     };
     
-    // Merge all extractions
     const mergedAnchors = {
-      ...extraction1.anchors,
-      ...extraction2.anchors,
-      ...extraction3.anchors
+      ...(existingCollection || {}),
+      ...testAnchors,
     };
     
-    console.log("[PRIOR_LE_Q01][EXTRACTED]", {
-      extraction1Keys: Object.keys(extraction1.anchors || {}),
-      extraction2Keys: Object.keys(extraction2.anchors || {}),
-      extraction3Keys: Object.keys(extraction3.anchors || {}),
-      mergedKeys: Object.keys(mergedAnchors),
-      mergedAnchors
+    console.log("[PRIOR_LE_Q01][TEST_ANCHORS]", {
+      testAnchors,
+      mergedAnchors,
+      existingCollection
     });
     
-    // Convert to array for persistence
-    const anchorArray = normalizeAnchorsToArray({
-      sessionId,
-      packId,
-      fieldKey,
-      baseQuestionCode: questionCode || 'Q001',
-      instanceNumber,
-      expectedInputAnchors: mergedAnchors
-    });
-    
-    // Persist to database
-    if (anchorArray.length > 0 && sessionId) {
-      await persistFactAnchorsHybrid({
-        base44Client,
-        sessionId,
-        packId,
-        fieldKey,
-        responseId: null,
-        baseQuestionCode: questionCode || 'Q001',
-        instanceNumber,
-        anchorsArray: anchorArray
-      });
-      
-      console.log("[PRIOR_LE_Q01][PERSISTED]", {
-        count: anchorArray.length,
-        keys: anchorArray.map(a => a.key)
-      });
-    }
-    
-    // CRITICAL: Return result with anchors
-    return createV2ProbeResult({
-      mode: "NEXT_FIELD",
+    const result = createV2ProbeResult({
+      mode: 'NEXT_FIELD',
       hasQuestion: false,
       followupsCount: 0,
-      reason: "PACK_PRLE_Q01 narrative processed",
-      anchors: mergedAnchors,
-      collectedAnchors: mergedAnchors
+      anchors: testAnchors,
+      collectedAnchors: mergedAnchors,
+      reason: 'prior_le_apps: TEST ANCHORS for PACK_PRLE_Q01',
+      probeSource: 'TEST_FIX',
     });
+    
+    console.log("[PRIOR_LE_Q01][TEST_RESULT]", {
+      resultKeys: Object.keys(result),
+      resultAnchors: result.anchors,
+      resultCollected: result.collectedAnchors,
+      resultAnchorsKeys: Object.keys(result.anchors || {}),
+      resultCollectedKeys: Object.keys(result.collectedAnchors || {})
+    });
+    
+    return result;
   }
 
   console.log("═════════════════════════════════════════════════════════════");
@@ -5344,6 +5316,17 @@ async function probeEngineV2Core(input, base44Client) {
         : packConfig.perFieldHandler.name || "anonymous",
     });
     
+    // DIAGNOSTIC: Log dispatch for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && field_key === 'PACK_PRLE_Q01') {
+      console.log('[V2_PRIOR_LE_APPS][DISPATCH]', {
+        packId: pack_id,
+        fieldKey: field_key,
+        instanceNumber: instance_number,
+        probeCount: previous_probes_count,
+        narrativePreview: field_value?.slice?.(0, 100)
+      });
+    }
+    
     // Build context for per-field handler - pass entire input for narrative extraction
     const ctx = {
       packId: pack_id,
@@ -5408,6 +5391,20 @@ async function probeEngineV2Core(input, base44Client) {
       applicationOutcomeValue: handlerResult?.anchors?.application_outcome || '(MISSING)',
       fullHandlerResult: JSON.stringify(handlerResult, null, 2)
     });
+    
+    // DIAGNOSTIC: Log result for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && field_key === 'PACK_PRLE_Q01') {
+      console.log('[V2_PRIOR_LE_APPS][RESULT_RAW]', {
+        packId: pack_id,
+        fieldKey: field_key,
+        resultMode: handlerResult?.mode,
+        hasQuestion: handlerResult?.hasQuestion,
+        anchorsKeys: handlerResult?.anchors ? Object.keys(handlerResult.anchors) : [],
+        collectedAnchorKeys: handlerResult?.collectedAnchors ? Object.keys(handlerResult.collectedAnchors) : [],
+        anchorsValues: handlerResult?.anchors,
+        collectedValues: handlerResult?.collectedAnchors
+      });
+    }
     
     // === PRIOR LE APPS: deterministic outcome anchors for PACK_PRLE_Q01 ===
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
