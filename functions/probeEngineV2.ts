@@ -4480,34 +4480,38 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       }
 
       console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
-      anchorsKeys: Object.keys(anchors),
-      anchors: anchors,
-      collectedKeys: Object.keys(collectedAnchorsResult),
-      collectedAnchors: collectedAnchorsResult,
-      applicationOutcome: anchors.application_outcome || '(NONE)'
+        anchorsKeys: Object.keys(anchors),
+        anchors: anchors,
+        collectedKeys: Object.keys(collectedAnchorsResult),
+        collectedAnchors: collectedAnchorsResult,
+        applicationOutcome: anchors.application_outcome || '(NONE)'
       });
 
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 2: BEFORE createV2ProbeResult");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log(DEBUG_PREFIX, "[PRE_CREATE]", {
-      baseResultKeys: Object.keys(baseResult || {}),
-      baseResultHasAnchors: Object.prototype.hasOwnProperty.call(baseResult || {}, 'anchors'),
-      anchorsArgument: anchors,
-      collectedAnchorsArgument: collectedAnchorsResult,
-      anchorsArgumentKeys: Object.keys(anchors || {}),
-      collectedArgumentKeys: Object.keys(collectedAnchorsResult || {}),
-      applicationOutcomeInAnchorsArg: anchors?.application_outcome || '(MISSING)'
-    });
+      // CRITICAL FIX: Build baseResult with anchors INSIDE it for 1-arg createV2ProbeResult call
+      const baseResult = {
+        mode: "NEXT_FIELD",
+        hasQuestion: false,
+        followupsCount: 0,
+        reason: outcome
+          ? `Field narrative validated; outcome="${outcome}" extracted from narrative`
+          : "Field narrative validated; outcome not detected (will ask specific outcome question)",
+        // CRITICAL: Include anchors in baseResult so they survive createV2ProbeResult
+        anchors: anchors,
+        collectedAnchors: collectedAnchorsResult
+      };
 
-    const baseResult = {
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      followupsCount: 0,
-      reason: outcome
-        ? `Field narrative validated; outcome="${outcome}" extracted from narrative`
-        : "Field narrative validated; outcome not detected (will ask specific outcome question)",
-    };
+      console.log("═════════════════════════════════════════════════════════════");
+      console.log("FORENSIC CHECKPOINT 2: BEFORE createV2ProbeResult");
+      console.log("═════════════════════════════════════════════════════════════");
+      console.log(DEBUG_PREFIX, "[PRE_CREATE]", {
+        baseResultKeys: Object.keys(baseResult || {}),
+        baseResultHasAnchors: Object.prototype.hasOwnProperty.call(baseResult || {}, 'anchors'),
+        baseResultAnchors: baseResult.anchors,
+        baseResultCollected: baseResult.collectedAnchors,
+        anchorsArgumentKeys: Object.keys(anchors || {}),
+        collectedArgumentKeys: Object.keys(collectedAnchorsResult || {}),
+        applicationOutcomeInAnchorsArg: anchors?.application_outcome || '(MISSING)'
+      });
 
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 3: CALLING createV2ProbeResult");
