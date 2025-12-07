@@ -6632,11 +6632,45 @@ Deno.serve(async (req) => {
     });
     
     // ================================================================
-    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE
+    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS FOR PACK_PRLE_Q01
+    // Temporary test to verify anchor pipeline works end-to-end
+    // ================================================================
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+      console.log('[V2_PRIOR_LE_APPS][DUMMY_ANCHOR][PROOF_OF_LIFE] Forcing test anchors');
+      
+      // FORCE dummy anchors to prove the pipeline works
+      const dummyAnchors = {
+        prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
+        prior_le_position: 'TEST_POSITION_FROM_BACKEND',
+        prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
+        application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
+      };
+      
+      result.anchors = {
+        ...(result.anchors || {}),
+        ...dummyAnchors
+      };
+      result.collectedAnchors = {
+        ...(result.collectedAnchors || {}),
+        ...dummyAnchors
+      };
+      
+      console.log('[V2_PRIOR_LE_APPS][DUMMY_ANCHOR][ATTACHED]', {
+        packId,
+        fieldKey,
+        anchorsKeys: Object.keys(result.anchors),
+        collectedKeys: Object.keys(result.collectedAnchors),
+        anchors: result.anchors,
+        collectedAnchors: result.collectedAnchors
+      });
+    }
+    
+    // ================================================================
+    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE (DISABLED FOR PROOF-OF-LIFE)
     // Extract anchors from PACK_PRLE_Q01 narrative and persist to DB
     // This runs AFTER engine processing, BEFORE HTTP response
     // ================================================================
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+    if (false && packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
       const sessionId = input.session_id || input.sessionId;
       const instanceNumber = input.instance_number || input.instanceNumber || 1;
       const baseQuestionId = input.baseQuestionId || input.base_question_id;
