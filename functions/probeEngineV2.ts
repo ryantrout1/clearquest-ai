@@ -4259,45 +4259,156 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   });
   
   // ===================================================================
-  // TEST BLOCK: HARD-CODED ANCHORS FOR PACK_PRLE_Q01 (DIAGNOSTIC)
+  // REAL EXTRACTION: PACK_PRLE_Q01 CANONICAL ANCHOR EXTRACTION
   // ===================================================================
   if (fieldKey === "PACK_PRLE_Q01") {
-    console.log("[PRIOR_LE_Q01][TEST_MODE] Hard-coded anchor test active");
-    
-    const testAnchors = {
-      prior_le_agency: 'TEST AGENCY ANCHOR',
-      prior_le_position: 'TEST POSITION',
-      prior_le_approx_date: 'TEST DATE',
-      application_outcome: 'TEST OUTCOME',
-    };
-    
-    const mergedAnchors = {
-      ...(existingCollection || {}),
-      ...testAnchors,
-    };
-    
-    console.log("[PRIOR_LE_Q01][TEST_ANCHORS]", {
-      testAnchors,
-      mergedAnchors,
-      existingCollection
+    console.log("[PRIOR_LE_Q01][EXTRACT_START]", {
+      narrativeLength: narrativeText?.length || 0,
+      narrativePreview: narrativeText?.slice(0, 150)
     });
     
+    // Initialize canonical anchor object with all required keys
+    const canonicalAnchors = {
+      prior_le_agency: null,
+      prior_le_position: null,
+      prior_le_approx_date: null,
+      application_outcome: null
+    };
+    
+    // Only extract if we have narrative text
+    if (narrativeText && narrativeText.trim().length > 0) {
+      const text = narrativeText.trim();
+      const lower = text.toLowerCase();
+      
+      // Extract application_outcome (CRITICAL for gating)
+      if (lower.includes('disqualified') || lower.includes("dq'd") || lower.includes('failed background')) {
+        canonicalAnchors.application_outcome = 'disqualified';
+      } else if (lower.includes('hired') || lower.includes('offered the job') || lower.includes('got the job')) {
+        canonicalAnchors.application_outcome = 'hired';
+      } else if (lower.includes('withdrew') || lower.includes('pulled my application')) {
+        canonicalAnchors.application_outcome = 'withdrew';
+      } else if (lower.includes('still in process') || lower.includes('pending')) {
+        canonicalAnchors.application_outcome = 'in_process';
+      }
+      
+      // Extract prior_le_agency - look for "applied to [AGENCY]"
+      const appliedMatch = text.match(/applied to(?: the)? ([^,.]+(?:Police|PD|Sheriff|Department|Agency))/i);
+      if (appliedMatch && appliedMatch[1]) {
+        canonicalAnchors.prior_le_agency = appliedMatch[1].trim();
+      }
+      
+      // Extract prior_le_position - look for position keywords
+      const positionMatch = text.match(/(?:for a|for the|as a|as an) ([^,.]+officer|deputy|trooper|agent|detective|sergeant)/i);
+      if (positionMatch && positionMatch[1]) {
+        canonicalAnchors.prior_le_position = positionMatch[1].trim();
+      }
+      
+      // Extract prior_le_approx_date - look for month/year patterns
+      const dateMatch = text.match(/(?:around|in|during|about) ((?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}|\d{4})/i);
+      if (dateMatch && dateMatch[1]) {
+        canonicalAnchors.prior_le_approx_date = dateMatch[1].trim();
+      }
+    }
+    
+    console.log("[PRIOR_LE_Q01][EXTRACTED]", {
+      canonicalAnchors,
+      hasAgency: !!canonicalAnchors.prior_le_agency,
+      hasPosition: !!canonicalAnchors.prior_le_position,
+      hasDate: !!canonicalAnchors.prior_le_approx_date,
+      hasOutcome: !!canonicalAnchors.application_outcome
+    });
+    
+    // Merge with existing anchors
+    const mergedAnchors = {
+      ...(existingCollection || {}),
+      ...Object.fromEntries(
+        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null)
+      )
+    };
+    
+    // Persist to database if we have sessionId
+    if (sessionId && Object.values(canonicalAnchors).some(v => v !== null)) {
+      try {
+        const anchorArray = Object.entries(canonicalAnchors)
+          .filter(([k, v]) => v !== null)
+          .map(([key, value]) => ({
+            key,
+            value: String(value),
+            packId,
+            fieldKey,
+            baseQuestionCode: questionCode || 'Q001',
+            sessionId,
+            instanceNumber: instanceNumber ?? 1,
+            source: 'V2_PER_FIELD',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+        
+        console.log("[PRIOR_LE_Q01][PERSIST_START]", {
+          sessionId,
+          anchorCount: anchorArray.length,
+          anchorKeys: anchorArray.map(a => a.key)
+        });
+        
+        // Persist to InterviewSession.structured_followup_facts (array-based)
+        const sessions = await base44Client.asServiceRole.entities.InterviewSession.filter({ id: sessionId });
+        if (sessions && sessions.length > 0) {
+          const session = sessions[0];
+          const existingFacts = Array.isArray(session.structured_followup_facts) 
+            ? session.structured_followup_facts 
+            : [];
+          
+          // Merge new anchors with existing
+          const existingByKey = new Map();
+          for (const fact of existingFacts) {
+            if (!fact || !fact.key) continue;
+            const k = `${fact.packId}::${fact.fieldKey}::${fact.instanceNumber}::${fact.key}`;
+            existingByKey.set(k, fact);
+          }
+          
+          for (const anchor of anchorArray) {
+            const k = `${anchor.packId}::${anchor.fieldKey}::${anchor.instanceNumber}::${anchor.key}`;
+            existingByKey.set(k, anchor);
+          }
+          
+          const mergedFacts = Array.from(existingByKey.values());
+          
+          await base44Client.asServiceRole.entities.InterviewSession.update(sessionId, {
+            structured_followup_facts: mergedFacts
+          });
+          
+          console.log("[PRIOR_LE_Q01][PERSIST_SUCCESS]", {
+            sessionId,
+            totalFacts: mergedFacts.length,
+            newAnchors: anchorArray.length
+          });
+        }
+      } catch (persistErr) {
+        console.error("[PRIOR_LE_Q01][PERSIST_ERROR]", persistErr.message);
+        // Non-fatal - continue with anchors in response
+      }
+    }
+    
+    // Return result with real extracted anchors
     const result = createV2ProbeResult({
       mode: 'NEXT_FIELD',
       hasQuestion: false,
       followupsCount: 0,
-      anchors: testAnchors,
+      anchors: Object.fromEntries(
+        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null)
+      ),
       collectedAnchors: mergedAnchors,
-      reason: 'prior_le_apps: TEST ANCHORS for PACK_PRLE_Q01',
-      probeSource: 'TEST_FIX',
+      reason: 'PACK_PRLE_Q01 narrative processed with extraction',
+      probeSource: 'PRIOR_LE_APPS_Q01_EXTRACTOR',
     });
     
-    console.log("[PRIOR_LE_Q01][TEST_RESULT]", {
-      resultKeys: Object.keys(result),
-      resultAnchors: result.anchors,
-      resultCollected: result.collectedAnchors,
-      resultAnchorsKeys: Object.keys(result.anchors || {}),
-      resultCollectedKeys: Object.keys(result.collectedAnchors || {})
+    console.log("[PRIOR_LE_Q01][ANCHORS_CREATED]", {
+      packId,
+      fieldKey,
+      anchorsKeys: Object.keys(result.anchors || {}),
+      anchors: result.anchors,
+      collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
+      collectedAnchors: result.collectedAnchors
     });
     
     return result;
