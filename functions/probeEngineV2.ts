@@ -6592,8 +6592,7 @@ Deno.serve(async (req) => {
     );
     
     // ================================================================
-    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS FOR PACK_PRLE_Q01
-    // This confirms the anchor pipeline works end-to-end
+    // PRIOR_LE_APPS: Log final anchors returned from handler
     // ================================================================
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
       console.log('[V2_PRIOR_LE_APPS][INPUT]', {
@@ -6604,34 +6603,16 @@ Deno.serve(async (req) => {
         narrativePreview: (input.field_value || input.fieldValue || '').substring(0, 120)
       });
       
-      // PROOF-OF-LIFE: Force dummy anchors to confirm pipeline
-      const dummyAnchors = {
-        prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
-        prior_le_position: 'TEST_POSITION_FROM_BACKEND',
-        prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
-        application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
-      };
-      
       console.log('[V2_PRIOR_LE_APPS][EXTRACTION_RAW]', {
-        extractedAnchors: dummyAnchors,
-        extractedKeys: Object.keys(dummyAnchors)
+        extractedFromHandler: result.anchors,
+        extractedKeys: Object.keys(result.anchors || {})
       });
-      
-      // CRITICAL: Merge dummy anchors into result
-      result.anchors = {
-        ...(result.anchors || {}),
-        ...dummyAnchors
-      };
-      result.collectedAnchors = {
-        ...(result.collectedAnchors || {}),
-        ...dummyAnchors
-      };
       
       console.log('[V2_PRIOR_LE_APPS][ANCHORS_FINAL]', {
         packId,
         fieldKey,
-        anchorsKeys: Object.keys(result.anchors),
-        collectedKeys: Object.keys(result.collectedAnchors),
+        anchorsKeys: Object.keys(result.anchors || {}),
+        collectedKeys: Object.keys(result.collectedAnchors || {}),
         anchors: result.anchors,
         collectedAnchors: result.collectedAnchors
       });
