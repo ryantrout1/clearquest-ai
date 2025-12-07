@@ -5205,8 +5205,11 @@ async function probeEngineV2Core(input, base44Client) {
         hasQuestion: false,
         followupsCount: 0,
         reason: "prior_le_apps: no opening probe; Q01 is the opener",
+        // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+        anchors: currentAnchors || {},
+        collectedAnchors: currentAnchors || {}
       };
-      return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+      return createV2ProbeResult(baseResult);
     }
     
     console.log(`[V2-UNIVERSAL][OPENING] Calling Discretion Engine for pack opening question`);
@@ -5230,8 +5233,11 @@ async function probeEngineV2Core(input, base44Client) {
           followupsCount: 1,
           question,
           reason: "Opening question from Discretion Engine",
+          // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+          anchors: currentAnchors || {},
+          collectedAnchors: currentAnchors || {}
         };
-        return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+        return createV2ProbeResult(baseResult);
       } else {
         console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
       }
@@ -5428,8 +5434,11 @@ async function probeEngineV2Core(input, base44Client) {
             hasQuestion: false,
             followupsCount: 0,
             reason: discretionResult.data.reason,
+            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {}
           };
-          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+          return createV2ProbeResult(baseResult);
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
           const question = discretionResult.data.question.trim();
@@ -5456,8 +5465,11 @@ async function probeEngineV2Core(input, base44Client) {
             followupsCount: 1,
             question,
             reason: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`,
+            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {}
           };
-          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+          return createV2ProbeResult(baseResult);
         } else {
           // No valid question returned
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
@@ -5466,8 +5478,11 @@ async function probeEngineV2Core(input, base44Client) {
             hasQuestion: false,
             followupsCount: 0,
             reason: 'No question from Discretion - advancing',
+            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+            anchors: currentAnchors || {},
+            collectedAnchors: currentAnchors || {}
           };
-          return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+          return createV2ProbeResult(baseResult);
         }
       } else {
         console.warn(`[V2-UNIVERSAL] Invalid discretion result - advancing`);
@@ -5518,8 +5533,11 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Pack ${pack_id} not configured for V2 probing`,
+      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {}
     };
-    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+    return createV2ProbeResult(baseResult);
   }
 
   // Map raw field key to semantic name
