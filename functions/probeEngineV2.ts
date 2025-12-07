@@ -4257,6 +4257,79 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     narrativeTextLength: narrativeText?.length || 0,
     existingAnchorsKeys: Object.keys(existingCollection)
   });
+  
+  // ===================================================================
+  // CRITICAL FIX: FOR PACK_PRLE_Q01, ALWAYS EXTRACT AND RETURN ANCHORS
+  // ===================================================================
+  if (fieldKey === "PACK_PRLE_Q01" && narrativeText && narrativeText.trim().length > 0) {
+    console.log("[PRIOR_LE_Q01][EXTRACT_START]", {
+      narrativeLength: narrativeText.length,
+      narrativePreview: narrativeText.slice(0, 150)
+    });
+    
+    // Extract anchors using all available extractors
+    const extraction1 = extractPriorLeAppsAnchors({ text: narrativeText });
+    const extraction2 = extractPriorLeAppsQ01AnchorsFromText(narrativeText);
+    const extraction3 = { 
+      anchors: { 
+        application_outcome: inferApplicationOutcomeFromNarrative(narrativeText) 
+      }
+    };
+    
+    // Merge all extractions
+    const mergedAnchors = {
+      ...extraction1.anchors,
+      ...extraction2.anchors,
+      ...extraction3.anchors
+    };
+    
+    console.log("[PRIOR_LE_Q01][EXTRACTED]", {
+      extraction1Keys: Object.keys(extraction1.anchors || {}),
+      extraction2Keys: Object.keys(extraction2.anchors || {}),
+      extraction3Keys: Object.keys(extraction3.anchors || {}),
+      mergedKeys: Object.keys(mergedAnchors),
+      mergedAnchors
+    });
+    
+    // Convert to array for persistence
+    const anchorArray = normalizeAnchorsToArray({
+      sessionId,
+      packId,
+      fieldKey,
+      baseQuestionCode: questionCode || 'Q001',
+      instanceNumber,
+      expectedInputAnchors: mergedAnchors
+    });
+    
+    // Persist to database
+    if (anchorArray.length > 0 && sessionId) {
+      await persistFactAnchorsHybrid({
+        base44Client,
+        sessionId,
+        packId,
+        fieldKey,
+        responseId: null,
+        baseQuestionCode: questionCode || 'Q001',
+        instanceNumber,
+        anchorsArray: anchorArray
+      });
+      
+      console.log("[PRIOR_LE_Q01][PERSISTED]", {
+        count: anchorArray.length,
+        keys: anchorArray.map(a => a.key)
+      });
+    }
+    
+    // CRITICAL: Return result with anchors
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "PACK_PRLE_Q01 narrative processed",
+      anchors: mergedAnchors,
+      collectedAnchors: mergedAnchors
+    });
+  }
 
   console.log("═════════════════════════════════════════════════════════════");
   console.log("FORENSIC CHECKPOINT 1: HANDLER ENTRY");
