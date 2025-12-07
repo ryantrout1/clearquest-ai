@@ -6616,65 +6616,47 @@ Deno.serve(async (req) => {
     });
     
     // ================================================================
-    // HTTP OVERRIDE TEST: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+    // HTTP OVERRIDE: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
     // Force anchors at the FINAL HTTP layer before response is sent
     // This runs AFTER all engine processing, normalization, etc.
     // ================================================================
     if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log('[V2_HTTP_OVERRIDE][PRE]', {
+      console.log('[V2_HTTP_OVERRIDE][PRE_OVERRIDE]', {
         packId,
         fieldKey,
-        resultBefore: {
-          mode: result.mode,
-          anchorsKeys: Object.keys(result.anchors || {}),
-          collectedKeys: Object.keys(result.collectedAnchors || {})
-        }
+        currentMode: result.mode,
+        currentAnchorsKeys: Object.keys(result.anchors || {}),
+        currentCollectedKeys: Object.keys(result.collectedAnchors || {}),
+        currentAnchors: result.anchors,
+        currentCollected: result.collectedAnchors
       });
       
-      const testAnchors = {
+      const httpOverrideAnchors = {
         prior_le_agency: 'TEST AGENCY (HTTP OVERRIDE)',
         prior_le_position: 'TEST POSITION (HTTP OVERRIDE)',
         prior_le_approx_date: 'TEST DATE (HTTP OVERRIDE)',
         application_outcome: 'TEST OUTCOME (HTTP OVERRIDE)',
       };
       
-      result = {
-        ...result,
-        anchors: testAnchors,
-        collectedAnchors: {
-          ...(result.collectedAnchors || {}),
-          ...testAnchors,
-        },
-        reason: 'HTTP OVERRIDE TEST: PACK_PRLE_Q01 anchors forced at HTTP layer',
-        probeSource: 'V2_HTTP_OVERRIDE_TEST',
+      // Force anchors into result - overwrite whatever came from engine
+      result.anchors = httpOverrideAnchors;
+      result.collectedAnchors = {
+        ...(result.collectedAnchors || {}),
+        ...httpOverrideAnchors,
       };
+      result.reason = 'HTTP OVERRIDE: PACK_PRLE_Q01 anchors forced';
+      result.probeSource = 'V2_HTTP_OVERRIDE';
       
-      console.log('[V2_HTTP_OVERRIDE][POST]', {
+      console.log('[V2_HTTP_OVERRIDE][POST_OVERRIDE]', {
         packId,
         fieldKey,
-        resultAfter: {
-          mode: result.mode,
-          anchorsKeys: Object.keys(result.anchors || {}),
-          collectedKeys: Object.keys(result.collectedAnchors || {}),
-          anchorsValues: result.anchors,
-          collectedValues: result.collectedAnchors
-        }
-      });
-    }
-    
-    // FINAL VERIFICATION LOG: Confirm anchors in JSON before sending
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log('[V2_PRIOR_LE_APPS][FINAL_HTTP_RESPONSE]', {
-        packId,
-        fieldKey,
-        anchorsInResult: !!result.anchors,
-        collectedInResult: !!result.collectedAnchors,
-        anchorsKeys: Object.keys(result.anchors || {}),
-        collectedKeys: Object.keys(result.collectedAnchors || {}),
+        anchorsNowPresent: !!result.anchors,
+        collectedNowPresent: !!result.collectedAnchors,
+        anchorsKeys: Object.keys(result.anchors),
+        collectedKeys: Object.keys(result.collectedAnchors),
         anchorsValues: result.anchors,
         collectedValues: result.collectedAnchors,
-        willBeSentAsJSON: true,
-        fullResultJSON: JSON.stringify(result, null, 2)
+        fullResultBeforeJSON: JSON.stringify(result, null, 2)
       });
     }
 
