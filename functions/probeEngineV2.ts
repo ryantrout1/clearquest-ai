@@ -4360,6 +4360,72 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     } else {
       console.log(DEBUG_PREFIX, "[NO_OUTCOME] No outcome detected in narrative");
     }
+
+    // CRITICAL: Call universal FACT_EXTRACTOR for LLM-based anchor extraction
+    console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_BEFORE]', {
+      packId,
+      fieldKey,
+      instanceNumber,
+      narrativeLength: narrativeText?.length || 0,
+      existingAnchorsKeys: Object.keys(anchors)
+    });
+
+    try {
+      const extractorResult = await base44Client.functions.invoke('factExtractor', {
+        packId,
+        candidateAnswer: narrativeText,
+        previousAnchors: anchors
+      });
+
+      console.log('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_AFTER]', {
+        success: extractorResult.data?.success,
+        extractedKeys: Object.keys(extractorResult.data?.extractedFromThisAnswer || {}),
+        newAnchorsKeys: Object.keys(extractorResult.data?.newAnchors || {}),
+        stillMissing: extractorResult.data?.stillMissing || []
+      });
+
+      // Map FACT_EXTRACTOR keys to canonical V2 anchor names
+      const PRIOR_LE_ANCHOR_MAP = {
+        agency_name: 'prior_le_agency',
+        position: 'prior_le_position',
+        month_year: 'prior_le_approx_date',
+        outcome: 'application_outcome'
+      };
+
+      const extractedAnchors = extractorResult.data?.newAnchors || {};
+      const canonicalAnchors = {};
+
+      for (const [extractorKey, value] of Object.entries(extractedAnchors)) {
+        const canonicalKey = PRIOR_LE_ANCHOR_MAP[extractorKey];
+        if (canonicalKey && value && value !== 'not found' && value.trim() !== '') {
+          canonicalAnchors[canonicalKey] = value;
+        }
+      }
+
+      console.log('[V2_PRIOR_LE_APPS][CANONICAL_MAP]', {
+        extractorKeys: Object.keys(extractedAnchors),
+        canonicalKeys: Object.keys(canonicalAnchors),
+        canonicalAnchors
+      });
+
+      // Merge canonical anchors into our anchor objects
+      if (Object.keys(canonicalAnchors).length > 0) {
+        anchors = { ...anchors, ...canonicalAnchors };
+        collectedAnchorsResult = { ...collectedAnchorsResult, ...canonicalAnchors };
+        console.log('[V2_PRIOR_LE_APPS][ANCHORS_MERGED_FROM_EXTRACTOR]', {
+          anchorsKeys: Object.keys(anchors),
+          anchors
+        });
+      }
+      
+      console.log('[V2_PRIOR_LE_APPS][ANCHORS_SAVED]', {
+        canonicalKeys: Object.keys(canonicalAnchors),
+        anchors: canonicalAnchors
+      });
+    } catch (extractorErr) {
+      console.error('[V2_PRIOR_LE_APPS][FACT_EXTRACTOR_ERROR]', extractorErr.message);
+      // Non-fatal - continue with existing anchors
+    }
     
     console.log(DEBUG_PREFIX, "[FINAL_ANCHORS_BEFORE_BASE]", {
       anchorsKeys: Object.keys(anchors),
