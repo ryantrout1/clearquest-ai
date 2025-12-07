@@ -5425,6 +5425,7 @@ async function probeEngineV2Core(input, base44Client) {
       usingHandler: packConfig.perFieldHandler === handlePriorLeAppsPerFieldV2 
         ? "handlePriorLeAppsPerFieldV2" 
         : packConfig.perFieldHandler.name || "anonymous",
+      narrativeLength: field_value?.length || 0
     });
     
     // DISPATCH LOGGING for PACK_PRIOR_LE_APPS_STANDARD
@@ -5692,7 +5693,21 @@ async function probeEngineV2Core(input, base44Client) {
       fullObject: JSON.stringify(handlerResult, null, 2)
     });
 
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("PER-FIELD HANDLER COMPLETE - RETURNING RESULT TO HTTP HANDLER");
+    console.log("═════════════════════════════════════════════════════════════");
+    console.log("[ROUTER][HANDLER_FINAL_RETURN]", {
+      packId: pack_id,
+      fieldKey: field_key,
+      resultMode: handlerResult?.mode,
+      resultAnchorsKeys: Object.keys(handlerResult?.anchors || {}),
+      resultCollectedKeys: Object.keys(handlerResult?.collectedAnchors || {}),
+      applicationOutcome: handlerResult?.anchors?.application_outcome || '(MISSING)',
+      RESULT_BEING_RETURNED: handlerResult
+    });
+    
     // CRITICAL: Return handler result with merged fact anchors
+    // This returns DIRECTLY to the HTTP handler, bypassing all remaining logic
     return handlerResult;
   }
   
@@ -6506,10 +6521,10 @@ Deno.serve(async (req) => {
       fullNarrative: input.fullNarrative?.slice?.(0, 100)
     });
     
-    let result = await probeEngineV2(input, base44);
+    let result = await probeEngineV2Core(input, base44);
     
     console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 13: WRAPPER RETURNED TO HTTP HANDLER");
+    console.log("FORENSIC CHECKPOINT 13: CORE RETURNED TO HTTP HANDLER");
     console.log("═════════════════════════════════════════════════════════════");
     console.log('[HTTP_HANDLER][POST_CALL]', {
       resultType: typeof result,
