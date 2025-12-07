@@ -5427,6 +5427,17 @@ async function probeEngineV2Core(input, base44Client) {
         : packConfig.perFieldHandler.name || "anonymous",
     });
     
+    // DISPATCH LOGGING for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD') {
+      console.log('[V2_PRIOR_LE_APPS][DISPATCH]', {
+        packId: pack_id,
+        fieldKey: field_key,
+        instanceNumber: instance_number,
+        probeCount: previous_probes_count,
+        narrativePreview: field_value?.slice?.(0, 100)
+      });
+    }
+    
     // DIAGNOSTIC: Log dispatch for PACK_PRIOR_LE_APPS_STANDARD
     if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && field_key === 'PACK_PRLE_Q01') {
       console.log('[V2_PRIOR_LE_APPS][DISPATCH]', {
@@ -5502,6 +5513,20 @@ async function probeEngineV2Core(input, base44Client) {
       applicationOutcomeValue: handlerResult?.anchors?.application_outcome || '(MISSING)',
       fullHandlerResult: JSON.stringify(handlerResult, null, 2)
     });
+    
+    // DISPATCH RESULT LOGGING for PACK_PRIOR_LE_APPS_STANDARD
+    if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD') {
+      console.log('[V2_PRIOR_LE_APPS][RESULT_RAW]', {
+        packId: pack_id,
+        fieldKey: field_key,
+        resultMode: handlerResult?.mode,
+        hasQuestion: handlerResult?.hasQuestion,
+        anchorsKeys: handlerResult?.anchors ? Object.keys(handlerResult.anchors) : [],
+        collectedAnchorsKeys: handlerResult?.collectedAnchors ? Object.keys(handlerResult.collectedAnchors) : [],
+        anchorsValues: handlerResult?.anchors,
+        collectedValues: handlerResult?.collectedAnchors
+      });
+    }
     
     // DIAGNOSTIC: Log result for PACK_PRIOR_LE_APPS_STANDARD
     if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && field_key === 'PACK_PRLE_Q01') {
@@ -6467,6 +6492,40 @@ Deno.serve(async (req) => {
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
     
+    // ================================================================
+    // HTTP SHORT-CIRCUIT TEST: PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+    // Returns hard-coded TEST anchors to verify end-to-end transport
+    // ================================================================
+    if (input.pack_id === 'PACK_PRIOR_LE_APPS_STANDARD' && input.field_key === 'PACK_PRLE_Q01') {
+      const testAnchors = {
+        prior_le_agency: 'TEST AGENCY (HTTP ENTRY)',
+        prior_le_position: 'TEST POSITION (HTTP ENTRY)',
+        prior_le_approx_date: 'TEST DATE (HTTP ENTRY)',
+        application_outcome: 'TEST OUTCOME (HTTP ENTRY)',
+      };
+      
+      const httpTestResult = {
+        mode: 'NEXT_FIELD',
+        hasQuestion: false,
+        followupsCount: 0,
+        anchors: testAnchors,
+        collectedAnchors: testAnchors,
+        reason: 'HTTP SHORT-CIRCUIT TEST for PACK_PRLE_Q01',
+        probeSource: 'HTTP_ENTRY_SHORT_CIRCUIT',
+      };
+      
+      console.log('[V2_HTTP_SHORT_CIRCUIT][PACK_PRLE_Q01]', {
+        packId: input.pack_id,
+        fieldKey: input.field_key,
+        returningTestAnchors: true,
+        anchorsKeys: Object.keys(httpTestResult.anchors),
+        collectedAnchorsKeys: Object.keys(httpTestResult.collectedAnchors),
+        fullResult: JSON.stringify(httpTestResult, null, 2)
+      });
+      
+      return Response.json(httpTestResult);
+    }
+    
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 12: HTTP HANDLER CALLING WRAPPER");
     console.log("═════════════════════════════════════════════════════════════");
@@ -6589,6 +6648,21 @@ Deno.serve(async (req) => {
       applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
       jsonStringified: JSON.stringify(result)
     });
+    
+    // FINAL VERIFICATION LOG: Confirm anchors in JSON before sending
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+      console.log('[V2_PRIOR_LE_APPS][FINAL_HTTP_RESPONSE]', {
+        packId,
+        fieldKey,
+        anchorsInResult: !!result.anchors,
+        collectedInResult: !!result.collectedAnchors,
+        anchorsKeys: Object.keys(result.anchors || {}),
+        collectedKeys: Object.keys(result.collectedAnchors || {}),
+        anchorsValues: result.anchors,
+        collectedValues: result.collectedAnchors,
+        willBeSentAsJSON: true
+      });
+    }
 
     return Response.json(result);
   } catch (error) {
