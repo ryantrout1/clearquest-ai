@@ -4571,6 +4571,146 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       stringified: JSON.stringify(finalResult, null, 2)
     });
 
+    // ========================================================================
+    // FACT EXTRACTION & PERSISTENCE - Wire Fact Extractor into V2 pipeline
+    // ========================================================================
+    
+    // If we have a non-empty narrative and a sessionId, extract and persist anchors
+    if (narrativeText && narrativeText.trim().length > 0 && sessionId) {
+      try {
+        console.log("[ANCHOR][EXTRACT][START]", {
+          packId,
+          fieldKey,
+          instanceNumber,
+          sessionId,
+          narrativeLength: narrativeText.length
+        });
+
+        // Fetch existing anchors from database for this session + pack
+        const session = await base44Client.asServiceRole.entities.InterviewSession.filter({
+          id: sessionId
+        });
+        
+        if (session && session.length > 0) {
+          const sessionData = session[0];
+          const structuredFacts = sessionData.structured_followup_facts || {};
+          
+          // Find existing anchors for this pack/instance
+          let previousAnchors = {};
+          for (const [qId, instances] of Object.entries(structuredFacts)) {
+            if (Array.isArray(instances)) {
+              for (const inst of instances) {
+                if (inst.pack_id === packId && inst.instance_number === instanceNumber) {
+                  previousAnchors = inst.fields || {};
+                  break;
+                }
+              }
+            }
+          }
+          
+          console.log("[ANCHOR][PREVIOUS]", {
+            packId,
+            instanceNumber,
+            previousKeys: Object.keys(previousAnchors)
+          });
+
+          // Call Fact Extractor
+          const extractorResult = await base44Client.functions.invoke('factExtractor', {
+            packId,
+            candidateAnswer: narrativeText,
+            previousAnchors
+          });
+          
+          const extractorData = extractorResult.data || {};
+          const newAnchors = extractorData.newAnchors || {};
+          const extractedFromThisAnswer = extractorData.extractedFromThisAnswer || {};
+          const stillMissing = extractorData.stillMissing || [];
+          
+          console.log("[ANCHOR][EXTRACT]", {
+            packId,
+            fieldKey,
+            extracted: extractedFromThisAnswer,
+            extractedKeys: Object.keys(extractedFromThisAnswer),
+            stillMissing
+          });
+          
+          // Persist anchors to session.structured_followup_facts
+          if (Object.keys(newAnchors).length > 0) {
+            // Get question ID from context
+            const baseQuestionId = questionCode || fieldKey;
+            
+            // Update structured_followup_facts
+            const updatedFacts = { ...structuredFacts };
+            
+            if (!updatedFacts[baseQuestionId]) {
+              updatedFacts[baseQuestionId] = [];
+            }
+            
+            // Find existing instance or create new one
+            const existingInstanceIndex = updatedFacts[baseQuestionId].findIndex(
+              inst => inst.pack_id === packId && inst.instance_number === instanceNumber
+            );
+            
+            const instanceData = {
+              pack_id: packId,
+              instance_number: instanceNumber,
+              fields: newAnchors,
+              updated_at: new Date().toISOString()
+            };
+            
+            if (existingInstanceIndex >= 0) {
+              updatedFacts[baseQuestionId][existingInstanceIndex] = instanceData;
+            } else {
+              updatedFacts[baseQuestionId].push(instanceData);
+            }
+            
+            // Save to database
+            await base44Client.asServiceRole.entities.InterviewSession.update(sessionId, {
+              structured_followup_facts: updatedFacts
+            });
+            
+            console.log("[ANCHOR][SAVE]", {
+              sessionId,
+              packId,
+              instanceNumber,
+              baseQuestionId,
+              savedAnchors: newAnchors,
+              savedKeys: Object.keys(newAnchors)
+            });
+            
+            // Update finalResult with extracted anchors
+            finalResult.anchors = { ...finalResult.anchors, ...newAnchors };
+            finalResult.collectedAnchors = { ...finalResult.collectedAnchors, ...newAnchors };
+            
+            console.log("[ANCHOR][MERGED]", {
+              packId,
+              fieldKey,
+              mergedAnchors: finalResult.collectedAnchors,
+              mergedKeys: Object.keys(finalResult.collectedAnchors)
+            });
+          } else {
+            console.log("[ANCHOR][EXTRACT][EMPTY]", {
+              packId,
+              fieldKey,
+              message: "No anchors extracted from this answer"
+            });
+          }
+        }
+      } catch (extractError) {
+        console.error("[ANCHOR][EXTRACT][ERROR]", {
+          packId,
+          fieldKey,
+          error: extractError.message,
+          stack: extractError.stack
+        });
+        // Don't fail the entire probe if extraction fails - continue with existing anchors
+      }
+    }
+    
+    // ========================================================================
+    // END FACT EXTRACTION & PERSISTENCE
+    // ========================================================================
+
     // CRITICAL: Exit log to prove handler completed
     console.log("[ANCHOR-HANDLER-EXIT]", {
       packId,
