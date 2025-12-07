@@ -4395,15 +4395,16 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     console.log("FORENSIC CHECKPOINT 3: CALLING createV2ProbeResult");
     console.log("═════════════════════════════════════════════════════════════");
     console.log(DEBUG_PREFIX, "[CALLING_CREATE]", {
-      argumentsCount: 3,
+      argumentsCount: 1,
       arg1_baseResult: baseResult,
-      arg2_anchors: anchors,
-      arg3_collectedAnchors: collectedAnchorsResult,
-      arg2_keys: Object.keys(anchors || {}),
-      arg3_keys: Object.keys(collectedAnchorsResult || {})
+      baseResultHasAnchors: Object.prototype.hasOwnProperty.call(baseResult, 'anchors'),
+      baseResultHasCollected: Object.prototype.hasOwnProperty.call(baseResult, 'collectedAnchors'),
+      baseResultAnchorsKeys: Object.keys(baseResult.anchors || {}),
+      baseResultCollectedKeys: Object.keys(baseResult.collectedAnchors || {})
     });
 
-    const finalResult = createV2ProbeResult(baseResult, anchors, collectedAnchorsResult);
+    // CRITICAL FIX: Use 1-arg signature with anchors already in baseResult
+    const finalResult = createV2ProbeResult(baseResult);
 
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 4: AFTER createV2ProbeResult");
@@ -4449,9 +4450,12 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     hasQuestion: false,
     followupsCount: 0,
     reason: `prior_le_apps: ${fieldKey} passthrough`,
+    // CRITICAL: Include anchors in baseResult for 1-arg signature
+    anchors: {},
+    collectedAnchors: existingCollection || {}
   };
 
-  return createV2ProbeResult(baseResult, {}, existingCollection);
+  return createV2ProbeResult(baseResult);
 }
 
 /**
@@ -4647,7 +4651,8 @@ If any field is not clearly stated, set it to null.`,
     anchorsObj: anchors
   });
   
-  return createV2ProbeResult({
+  // CRITICAL: For legacy handlePriorLeAppsQ01 calls, ensure anchors are included
+  const legacyResult = {
     mode: "NEXT_FIELD",
     pack_id,
     field_key,
@@ -4660,9 +4665,12 @@ If any field is not clearly stated, set it to null.`,
     reason: "PACK_PRLE_Q01 narrative validated and anchors extracted",
     instanceNumber: instance_number,
     message: `Extracted ${Object.keys(anchors).length} anchors from narrative`,
-    anchors,
-    collectedAnchors: anchors
-  });
+    // CRITICAL: Include anchors directly in result object
+    anchors: anchors || {},
+    collectedAnchors: anchors || {}
+  };
+  
+  return createV2ProbeResult(legacyResult);
 }
 
 /**
@@ -5584,8 +5592,11 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Max probes reached for ${semanticField}`,
+      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {}
     };
-    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+    return createV2ProbeResult(baseResult);
   }
 
   // If field is complete (valid answer), move to next field
@@ -5597,8 +5608,11 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Field ${semanticField} validated successfully`,
+      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {}
     };
-    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+    return createV2ProbeResult(baseResult);
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)
@@ -5628,8 +5642,11 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `LLM determined field ${semanticField} is acceptable`,
+      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+      anchors: currentAnchors || {},
+      collectedAnchors: currentAnchors || {}
     };
-    return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+    return createV2ProbeResult(baseResult);
   }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
@@ -5640,8 +5657,11 @@ async function probeEngineV2Core(input, base44Client) {
     followupsCount: 1,
     question: probeResult.question,
     reason: `Probing for more information about ${semanticField}`,
+    // CRITICAL: Include anchors directly in baseResult for 1-arg signature
+    anchors: currentAnchors || {},
+    collectedAnchors: currentAnchors || {}
   };
-  return createV2ProbeResult(baseResult, currentAnchors || {}, currentAnchors || {});
+  return createV2ProbeResult(baseResult);
 }
 
 /**
