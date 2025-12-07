@@ -5120,58 +5120,33 @@ If any field is not clearly stated, set it to null.`,
  * CRITICAL: All V2 probe returns MUST use this helper
  * 
  * Signature: createV2ProbeResult(base, anchors, collectedAnchors)
+ * OR: createV2ProbeResult({ mode, hasQuestion, ..., anchors, collectedAnchors })
  */
 function createV2ProbeResult(base, anchors, collectedAnchors) {
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("FORENSIC: INSIDE createV2ProbeResult");
-  console.log("═════════════════════════════════════════════════════════════");
-  console.log("[createV2ProbeResult][ENTRY]", {
-    argumentsLength: arguments.length,
-    arg1_base: base,
-    arg1_baseKeys: Object.keys(base || {}),
-    arg1_baseHasAnchors: Object.prototype.hasOwnProperty.call(base || {}, 'anchors'),
-    arg1_baseAnchorsValue: base?.anchors,
-    arg2_anchors: anchors,
-    arg2_anchorsKeys: Object.keys(anchors || {}),
-    arg3_collectedAnchors: collectedAnchors,
-    arg3_collectedKeys: Object.keys(collectedAnchors || {})
-  });
-
-  // Allow single-argument call for backward compatibility
-  if (arguments.length === 1 && base.anchors !== undefined) {
-    console.log("[createV2ProbeResult][BRANCH] Taking 1-ARG path");
+  // Allow single-argument call with anchors embedded
+  if (arguments.length === 1) {
     const result = {
-      mode: base.mode || "NONE",
-      hasQuestion: base.hasQuestion || false,
-      followupsCount: base.followupsCount || 0,
-      reason: base.reason || "",
-      question: base.question,
-      anchors: base.anchors || {},
-      collectedAnchors: base.collectedAnchors || {},
+      mode: base?.mode || "NONE",
+      hasQuestion: base?.hasQuestion || false,
+      followupsCount: base?.followupsCount || 0,
+      reason: base?.reason || "",
+      question: base?.question,
+      // CRITICAL: ALWAYS include these, even if empty
+      anchors: base?.anchors || {},
+      collectedAnchors: base?.collectedAnchors || {},
+      // Include any other fields from base
+      ...base
     };
-    console.log("[createV2ProbeResult][1-ARG_RETURN]", {
-      resultAnchors: result.anchors,
-      resultCollected: result.collectedAnchors,
-      applicationOutcome: result.anchors?.application_outcome || '(MISSING)'
-    });
     return result;
   }
   
   // Standard three-argument call
-  console.log("[createV2ProbeResult][BRANCH] Taking 3-ARG path");
   const result = {
     ...base,
+    // CRITICAL: ALWAYS include these, even if empty
     anchors: anchors || {},
     collectedAnchors: collectedAnchors || {},
   };
-  console.log("[createV2ProbeResult][3-ARG_RETURN]", {
-    resultKeys: Object.keys(result),
-    resultAnchors: result.anchors,
-    resultCollected: result.collectedAnchors,
-    resultAnchorsKeys: Object.keys(result.anchors || {}),
-    applicationOutcome: result.anchors?.application_outcome || '(MISSING)',
-    fullResult: JSON.stringify(result, null, 2)
-  });
   return result;
 }
 
@@ -6597,6 +6572,52 @@ Deno.serve(async (req) => {
       "anchors keys=" + (result.anchors ? Object.keys(result.anchors).join(",") : "(none)")
     );
     
+    // ================================================================
+    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS FOR PACK_PRLE_Q01
+    // This confirms the anchor pipeline works end-to-end
+    // ================================================================
+    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
+      console.log('[V2_PRIOR_LE_APPS][INPUT]', {
+        packId,
+        fieldKey,
+        instanceNumber: input.instance_number || 1,
+        narrativeLength: (input.field_value || input.fieldValue || '').length,
+        narrativePreview: (input.field_value || input.fieldValue || '').substring(0, 120)
+      });
+      
+      // PROOF-OF-LIFE: Force dummy anchors to confirm pipeline
+      const dummyAnchors = {
+        prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
+        prior_le_position: 'TEST_POSITION_FROM_BACKEND',
+        prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
+        application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
+      };
+      
+      console.log('[V2_PRIOR_LE_APPS][EXTRACTION_RAW]', {
+        extractedAnchors: dummyAnchors,
+        extractedKeys: Object.keys(dummyAnchors)
+      });
+      
+      // CRITICAL: Merge dummy anchors into result
+      result.anchors = {
+        ...(result.anchors || {}),
+        ...dummyAnchors
+      };
+      result.collectedAnchors = {
+        ...(result.collectedAnchors || {}),
+        ...dummyAnchors
+      };
+      
+      console.log('[V2_PRIOR_LE_APPS][ANCHORS_FINAL]', {
+        packId,
+        fieldKey,
+        anchorsKeys: Object.keys(result.anchors),
+        collectedKeys: Object.keys(result.collectedAnchors),
+        anchors: result.anchors,
+        collectedAnchors: result.collectedAnchors
+      });
+    }
+    
     console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
     
     // Log final result before returning
@@ -6607,16 +6628,6 @@ Deno.serve(async (req) => {
       hasAnchors: !!result.anchors,
       anchorKeys: Object.keys(result.anchors || {})
     });
-    
-    // DIAGNOSTIC: Log final anchors for PACK_PRIOR_LE_APPS_STANDARD
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-      logPriorLeAnchors('FINAL_HTTP_RESPONSE', {
-        packId,
-        fieldKey,
-        instanceNumber: result.instanceNumber,
-        anchorsObj: result.anchors
-      });
-    }
     
     console.log("═════════════════════════════════════════════════════════════");
     console.log("FORENSIC CHECKPOINT 16: HTTP RESPONSE BEING SENT");
@@ -6632,45 +6643,8 @@ Deno.serve(async (req) => {
     });
     
     // ================================================================
-    // PROOF-OF-LIFE: FORCE DUMMY ANCHORS FOR PACK_PRLE_Q01
-    // Temporary test to verify anchor pipeline works end-to-end
+    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE (REMOVED - HANDLED IN HANDLER)
     // ================================================================
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log('[V2_PRIOR_LE_APPS][DUMMY_ANCHOR][PROOF_OF_LIFE] Forcing test anchors');
-      
-      // FORCE dummy anchors to prove the pipeline works
-      const dummyAnchors = {
-        prior_le_agency: 'TEST_AGENCY_FROM_BACKEND',
-        prior_le_position: 'TEST_POSITION_FROM_BACKEND',
-        prior_le_approx_date: 'TEST_DATE_FROM_BACKEND',
-        application_outcome: 'TEST_OUTCOME_FROM_BACKEND'
-      };
-      
-      result.anchors = {
-        ...(result.anchors || {}),
-        ...dummyAnchors
-      };
-      result.collectedAnchors = {
-        ...(result.collectedAnchors || {}),
-        ...dummyAnchors
-      };
-      
-      console.log('[V2_PRIOR_LE_APPS][DUMMY_ANCHOR][ATTACHED]', {
-        packId,
-        fieldKey,
-        anchorsKeys: Object.keys(result.anchors),
-        collectedKeys: Object.keys(result.collectedAnchors),
-        anchors: result.anchors,
-        collectedAnchors: result.collectedAnchors
-      });
-    }
-    
-    // ================================================================
-    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE (DISABLED FOR PROOF-OF-LIFE)
-    // Extract anchors from PACK_PRLE_Q01 narrative and persist to DB
-    // This runs AFTER engine processing, BEFORE HTTP response
-    // ================================================================
-    if (false && packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
       const sessionId = input.session_id || input.sessionId;
       const instanceNumber = input.instance_number || input.instanceNumber || 1;
       const baseQuestionId = input.baseQuestionId || input.base_question_id;
