@@ -1423,14 +1423,58 @@ Object.assign(FALLBACK_PROBES, {
 });
 
 /**
+ * Get fallback question from pack config field definition
+ * Priority: pack field fallbackQuestion > FALLBACK_PROBES > static question generator
+ */
+async function getPackFallbackQuestion(base44Client, packId, fieldKey, probeCount = 0) {
+  try {
+    // Fetch pack entity from database to get field_config with fallbackQuestion
+    const packs = await base44Client.entities.FollowUpPack.filter({
+      followup_pack_id: packId,
+      active: true
+    });
+    
+    if (packs && packs.length > 0) {
+      const packEntity = packs[0];
+      const fieldConfig = packEntity.field_config?.find(f => f.fieldKey === fieldKey);
+      
+      if (fieldConfig?.fallbackQuestion) {
+        console.log(`[V2_FALLBACK] Using fallbackQuestion from pack config for ${packId}/${fieldKey}`);
+        return fieldConfig.fallbackQuestion;
+      }
+    }
+  } catch (err) {
+    console.warn(`[V2_FALLBACK] Error fetching pack config:`, err.message);
+  }
+  
+  // Fall back to FALLBACK_PROBES and multi-level probes
+  return getFallbackProbeForField(fieldKey, probeCount);
+}
+
+/**
  * Build a deterministic fallback probe for specific fields when AI/validation fails.
  * This ensures probing is rock-solid even when the backend has issues.
  * Supports PACK_LE_APPS, PACK_INTEGRITY_APPS, PACK_LE_MISCONDUCT_STANDARD, and driving packs.
  * 
  * Now uses multi-level probing for fields that have it configured.
+ * NEW: Checks pack config for fallbackQuestion first
  */
-function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount = 0 }) {
-  // Check if we have a multi-level or static fallback for this specific field key
+async function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount = 0, base44Client = null }) {
+  // Priority 1: Check pack config for fallbackQuestion
+  if (base44Client) {
+    const packFallback = await getPackFallbackQuestion(base44Client, packId, fieldKey, probeCount);
+    if (packFallback) {
+      console.log(`[V2_FALLBACK] Using pack config fallbackQuestion for ${packId}/${fieldKey}: "${packFallback.substring(0, 60)}..."`);
+      return {
+        mode: "QUESTION",
+        question: packFallback,
+        isFallback: true,
+        probeSource: 'fallback_pack_config'
+      };
+    }
+  }
+  
+  // Priority 2: Check FALLBACK_PROBES and multi-level probes
   const fallbackQuestion = getFallbackProbeForField(fieldKey, probeCount);
   if (fallbackQuestion) {
     return {
@@ -1441,7 +1485,7 @@ function buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCoun
     };
   }
   
-  // Try using semantic field name for fallback (for any supported pack)
+  // Priority 3: Try using semantic field name for fallback (for any supported pack)
   const supportedPacks = ["PACK_LE_APPS", "PACK_INTEGRITY_APPS", "PACK_LE_MISCONDUCT_STANDARD", "PACK_DRIVING_COLLISION_STANDARD", "PACK_DRIVING_VIOLATIONS_STANDARD", "PACK_DRIVING_STANDARD", "PACK_DRIVING_DUIDWI_STANDARD", "PACK_WORKPLACE_STANDARD", "PACK_FINANCIAL_STANDARD", "PACK_GANG_STANDARD", "PACK_MILITARY_STANDARD", "PACK_WEAPONS_STANDARD", "PACK_SEX_ADULT_STANDARD", "PACK_NON_CONSENT_STANDARD", "PACK_DRUG_SALE_STANDARD", "PACK_DRUG_USE_STANDARD", "PACK_PRESCRIPTION_MISUSE_STANDARD", "PACK_PRIOR_LE_APPS_STANDARD"];
   if (supportedPacks.includes(packId) && semanticField) {
     const staticFallback = getStaticFallbackQuestion(semanticField, probeCount, null, {});
@@ -5978,7 +6022,7 @@ Deno.serve(async (req) => {
       
       const packConfig = PACK_CONFIG[packId];
       const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
+      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
       if (fallback) {
         console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
         return Response.json(ensureAnchorsShape(withAnchorDefaults(createV2ProbeResult({
@@ -6006,7 +6050,7 @@ Deno.serve(async (req) => {
       
       const packConfig = PACK_CONFIG[packId];
       const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
+      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
       if (fallback) {
         console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
         const baseResult = {
@@ -6491,7 +6535,7 @@ Deno.serve(async (req) => {
     // Try fallback probe for this field
     const packConfig = PACK_CONFIG[packId];
     const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-    const fallback = buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount });
+    const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
     if (fallback) {
       console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
       return Response.json(ensureAnchorsShape(createV2ProbeResult({
