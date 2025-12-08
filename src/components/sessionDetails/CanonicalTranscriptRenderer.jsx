@@ -3,6 +3,7 @@
  * 
  * Renders the legal interview transcript from the canonical transcript_snapshot.
  * Uses exact question and answer text as seen by the candidate.
+ * Visually matches the live candidate interview UI (CandidateInterview.jsx).
  * 
  * NO RECOMPUTATION OR PARAPHRASING - this is the legal record.
  */
@@ -10,7 +11,8 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, FileText, CheckCircle } from "lucide-react";
+import { CheckCircle2, Shield } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CanonicalTranscriptRenderer({ session, searchTerm = "", showOnlyFollowUps = false }) {
   const originalEntries = session?.transcript_snapshot || [];
@@ -18,7 +20,7 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
   console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
   console.log("[TRANSCRIPT][ENTRY_SAMPLE]", originalEntries?.slice(0, 3));
   
-  // STEP 2: Apply filters
+  // Apply filters
   let filteredEntries = originalEntries;
   
   // Filter by search term
@@ -59,7 +61,7 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
   
   console.log('[TRANSCRIPT][FILTER]', { originalCount, filteredCount, searchTerm, showOnlyFollowUps });
   
-  // STEP 3: Empty state when filters hide everything
+  // Empty state when filters hide everything
   if (originalCount > 0 && filteredCount === 0) {
     return (
       <div className="rounded-xl bg-slate-900/50 border border-slate-700 p-8">
@@ -80,7 +82,7 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
       <Card className="bg-yellow-50 border-yellow-200">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
-            <FileText className="w-5 h-5 text-yellow-600 mt-0.5" />
+            <Shield className="w-5 h-5 text-yellow-600 mt-0.5" />
             <div>
               <p className="text-sm text-yellow-800 font-medium mb-1">
                 Legacy Session - No Canonical Transcript
@@ -97,146 +99,470 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
     );
   }
   
-  // STEP 2: Sort chronologically by timestamp
+  // Sort chronologically
   const sortedEntries = [...filteredEntries].sort((a, b) => {
     const timeA = a.timestamp || a.createdAt || a.index || 0;
     const timeB = b.timestamp || b.createdAt || b.index || 0;
     return timeA - timeB;
   });
   
-  // STEP 1: Add entry-level debug (one log per entry)
-  sortedEntries.forEach((entry, index) => {
-    console.log("[TRANSCRIPT][ENTRY_DEBUG]", {
-      index,
-      kind: entry.kind || entry.eventType || entry.type,
-      actor: entry.actor || entry.role || entry.source,
-      questionId: entry.questionId,
-      responseId: entry.responseId,
-      questionCode: entry.questionCode,
-      hasQuestionText: !!entry.questionText,
-      hasText: !!entry.text,
-      hasContent: !!entry.content,
-      hasAnswerText: !!entry.answerText,
-      hasAnswer: !!entry.answer,
-      hasResponseText: !!entry.responseText,
-    });
-  });
+  // Group entries into renderable blocks that match the candidate UI
+  const blocks = buildTranscriptBlocks(sortedEntries);
   
   return (
-    <div className="space-y-3 max-w-4xl">
-      {sortedEntries.map((entry, idx) => (
-        <TranscriptEntry key={entry.index || entry.id || idx} entry={entry} idx={idx} />
+    <div className="space-y-4 max-w-5xl">
+      {blocks.map((block, idx) => (
+        <TranscriptBlock key={block.id || `block-${idx}`} block={block} />
       ))}
     </div>
   );
 }
 
-function TranscriptEntry({ entry, idx }) {
-  const entryKind = entry.kind || entry.eventType || entry.type || "";
-  const messageText = entry.text || entry.questionText || entry.content || entry.answer || entry.answerText || entry.responseText || "";
-  const sectionName = entry.sectionName || entry.category || "";
-  const timestamp = entry.timestamp || entry.createdAt;
-  const questionCode = entry.questionCode || entry.code || "";
-  const packId = entry.packId || entry.followupPackId || "";
+/**
+ * Build renderable blocks from raw transcript entries
+ * Each block represents a visual card/bubble in the candidate interview UI
+ */
+function buildTranscriptBlocks(entries) {
+  const blocks = [];
+  let i = 0;
   
-  // SECTION START / DIVIDER
-  if (entryKind === 'section_start' || entryKind === 'section_transition') {
-    return (
-      <div className="mt-6 mb-2 text-xs uppercase tracking-wide text-slate-400">
-        {sectionName || 'Section'}
-      </div>
-    );
+  while (i < entries.length) {
+    const entry = entries[i];
+    const kind = entry.kind || entry.eventType || entry.type || "";
+    
+    // System welcome message
+    if (kind === 'system_welcome') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'system_welcome',
+        text: entry.text || entry.content || 'Welcome to your ClearQuest Interview.',
+        timestamp: entry.timestamp
+      });
+      i++;
+      continue;
+    }
+    
+    // Section completion card
+    if (kind === 'section_completion' || kind === 'system_section_complete') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'section_complete',
+        completedSectionName: entry.completedSectionName || entry.sectionName,
+        nextSectionName: entry.nextSectionName,
+        whatToExpect: entry.whatToExpect,
+        progress: entry.progress,
+        timestamp: entry.timestamp
+      });
+      i++;
+      continue;
+    }
+    
+    // Section transition divider
+    if (kind === 'section_transition' || kind === 'section_start') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'section_divider',
+        sectionName: entry.sectionName || entry.nextSectionName,
+        timestamp: entry.timestamp
+      });
+      i++;
+      continue;
+    }
+    
+    // System message
+    if (kind === 'system_message' || kind === 'system') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'system_message',
+        text: entry.text || entry.content || '[System message]',
+        timestamp: entry.timestamp
+      });
+      i++;
+      continue;
+    }
+    
+    // Base question + answer (may be a single combined entry or two separate entries)
+    if (kind === 'base_question' || kind === 'question') {
+      // Check if this entry has both question and answer (combined)
+      const hasAnswer = Boolean(entry.answer);
+      
+      // If separate, look ahead for answer
+      let answerEntry = null;
+      if (!hasAnswer && i + 1 < entries.length) {
+        const nextEntry = entries[i + 1];
+        const nextKind = nextEntry.kind || nextEntry.eventType || nextEntry.type || "";
+        if (nextKind === 'base_answer' || nextKind === 'answer') {
+          answerEntry = nextEntry;
+        }
+      }
+      
+      blocks.push({
+        id: `block-${i}`,
+        type: 'main_question',
+        questionNumber: null, // Will be computed during render
+        questionCode: entry.questionCode || entry.code,
+        questionText: entry.questionText || entry.text || entry.content,
+        answer: entry.answer || answerEntry?.answer || answerEntry?.text,
+        sectionName: entry.sectionName || entry.category,
+        timestamp: entry.timestamp,
+        questionId: entry.questionId
+      });
+      
+      // Skip the answer entry if we consumed it
+      if (answerEntry) {
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+    
+    // Follow-up question (deterministic or AI probe)
+    const isFollowupQuestion = kind === 'deterministic_followup_question' ||
+                               kind === 'v2_pack_followup' ||
+                               kind === 'ai_probe_question' ||
+                               kind === 'followup_question';
+    
+    if (isFollowupQuestion) {
+      // Look ahead for answer
+      let answerEntry = null;
+      const hasEmbeddedAnswer = Boolean(entry.answer);
+      
+      if (!hasEmbeddedAnswer && i + 1 < entries.length) {
+        const nextEntry = entries[i + 1];
+        const nextKind = nextEntry.kind || nextEntry.eventType || nextEntry.type || "";
+        const isFollowupAnswer = nextKind === 'deterministic_followup_answer' ||
+                                 nextKind === 'ai_probe_answer' ||
+                                 nextKind === 'followup_answer';
+        
+        // Match by packId and fieldKey to ensure we're pairing the right Q&A
+        const sameContext = nextEntry.packId === entry.packId &&
+                            nextEntry.fieldKey === entry.fieldKey &&
+                            (nextEntry.instanceNumber || 1) === (entry.instanceNumber || 1);
+        
+        if (isFollowupAnswer && sameContext) {
+          answerEntry = nextEntry;
+        }
+      }
+      
+      blocks.push({
+        id: `block-${i}`,
+        type: 'followup_question',
+        questionText: entry.questionText || entry.text || entry.content,
+        answer: entry.answer || answerEntry?.answer || answerEntry?.text,
+        packId: entry.packId || entry.followupPackId,
+        fieldKey: entry.fieldKey,
+        instanceNumber: entry.instanceNumber || 1,
+        isAiProbe: kind === 'ai_probe_question',
+        timestamp: entry.timestamp
+      });
+      
+      // Skip answer entry if consumed
+      if (answerEntry) {
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+    
+    // Multi-instance question/answer
+    if (kind === 'multi_instance_question') {
+      let answerEntry = null;
+      if (i + 1 < entries.length) {
+        const nextEntry = entries[i + 1];
+        const nextKind = nextEntry.kind || nextEntry.eventType || nextEntry.type || "";
+        if (nextKind === 'multi_instance_answer') {
+          answerEntry = nextEntry;
+        }
+      }
+      
+      blocks.push({
+        id: `block-${i}`,
+        type: 'multi_instance',
+        questionText: entry.text || entry.content,
+        answer: answerEntry?.text || answerEntry?.content,
+        packId: entry.packId,
+        instanceNumber: entry.instanceNumber,
+        timestamp: entry.timestamp
+      });
+      
+      if (answerEntry) {
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+    
+    // Fallback: skip unhandled entries
+    i++;
   }
   
-  // SECTION COMPLETE CARD
-  if (entryKind === 'section_complete' || entryKind === 'section_completion') {
-    return (
-      <div className="mt-3 rounded-xl border border-emerald-500/50 bg-emerald-900/40 px-4 py-3 text-xs text-emerald-50 shadow-sm">
-        <div className="flex items-center gap-2 font-semibold">
-          <CheckCircle className="w-4 h-4" />
-          <span>Section Complete: {sectionName || 'Section'}</span>
-        </div>
-        {messageText && (
-          <div className="mt-1 text-[11px] text-emerald-100/80">
-            {messageText}
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  // SYSTEM NOTE
-  if (entryKind === 'system' || entryKind === 'system_message' || entryKind === 'system_welcome') {
-    return (
-      <div className="flex justify-center my-2">
-        <div className="rounded-full bg-slate-800/80 px-3 py-1.5 text-[11px] text-slate-200">
-          {messageText || '[System message]'}
-        </div>
-      </div>
-    );
-  }
-  
-  // Determine if question or answer
-  const isQuestion = entryKind.includes('question') || entryKind === 'base_question' || Boolean(entry.questionText);
-  const isAnswer = entryKind.includes('answer') || entryKind === 'base_answer' || Boolean(entry.answer || entry.answerText);
-  const isCandidateAnswer = isAnswer || entry.role === 'candidate';
-  
-  // Determine if follow-up pack question (purple bubble)
-  const isFollowupQuestion = isQuestion && (
-    packId || 
-    entryKind.includes('followup') || 
-    entryKind.includes('probe') ||
-    entryKind === 'deterministic_followup_question' ||
-    entryKind === 'v2_pack_followup' ||
-    entryKind === 'ai_probe_question'
-  );
-  
-  // Determine bubble styling
-  let bubbleClasses = 'max-w-3xl rounded-xl border px-4 py-3 text-sm shadow-sm';
-  
-  if (isFollowupQuestion) {
-    // Purple bubble for follow-up pack questions
-    bubbleClasses += ' bg-purple-900/70 border-purple-500/70 text-purple-50';
-  } else if (isQuestion) {
-    // Blue bubble for standard investigator questions
-    bubbleClasses += ' bg-sky-900/70 border-sky-500/70 text-sky-50';
-  } else if (isCandidateAnswer) {
-    // Candidate answer styling
-    bubbleClasses += ' bg-slate-900/80 border-slate-600/60 text-slate-50';
-  } else {
-    // Default styling
-    bubbleClasses += ' bg-slate-900/80 border-slate-600/60 text-slate-50';
-  }
-  
-  const roleLabel = isCandidateAnswer ? 'Candidate' : 'Investigator';
+  return blocks;
+}
+
+/**
+ * Render a single transcript block matching the candidate UI
+ */
+function TranscriptBlock({ block }) {
+  const { type, timestamp } = block;
   const timeLabel = formatTranscriptTime(timestamp);
   
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-[11px] text-slate-400">
-        <span className="font-medium">
-          {roleLabel}
-          {isFollowupQuestion ? ' · Follow-up' : ''}
-        </span>
-        {timeLabel && <span className="text-slate-500">• {timeLabel}</span>}
-      </div>
-      <div className={bubbleClasses}>
-        {/* Optional header line for questions */}
-        {isQuestion && (sectionName || questionCode) && (
-          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide opacity-80">
-            {questionCode && <span>{questionCode}</span>}
-            {questionCode && sectionName && <span> · </span>}
-            {sectionName && <span>{sectionName}</span>}
+  // System welcome message
+  if (type === 'system_welcome') {
+    return (
+      <div className="space-y-2">
+        <RoleTimestamp role="System" time={timeLabel} />
+        <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+              <Shield className="w-6 h-6 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white mb-2">
+                Welcome to your ClearQuest Interview
+              </h2>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                This interview is part of your application process. One question at a time, at your own pace.
+              </p>
+            </div>
           </div>
-        )}
-        <div className="whitespace-pre-wrap leading-relaxed">
-          {messageText || '[No text recorded for this event]'}
         </div>
       </div>
+    );
+  }
+  
+  // Section complete card (green)
+  if (type === 'section_complete') {
+    return (
+      <div className="space-y-2">
+        <RoleTimestamp role="System" time={timeLabel} />
+        <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white mb-2">
+                Section Complete: {block.completedSectionName}
+              </h2>
+              <p className="text-emerald-200 text-sm leading-relaxed mb-4">
+                Nice work — you've finished this section. Ready for the next one?
+              </p>
+              
+              {block.nextSectionName && (
+                <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
+                  <p className="text-emerald-300 text-sm font-medium">
+                    Next up: {block.nextSectionName}
+                  </p>
+                  {block.whatToExpect && (
+                    <p className="text-emerald-300/80 text-xs mt-1">
+                      We'll ask about {block.whatToExpect}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {block.progress && (
+                <div className="flex items-center gap-4 text-xs text-emerald-300/80">
+                  <span>{block.progress.completedSections} of {block.progress.totalSections} sections complete</span>
+                  <span>•</span>
+                  <span>{block.progress.answeredQuestions} of {block.progress.totalQuestions} questions answered</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Section divider
+  if (type === 'section_divider') {
+    return (
+      <div className="mt-8 mb-4 text-sm uppercase tracking-wide text-slate-400 font-semibold">
+        {block.sectionName}
+      </div>
+    );
+  }
+  
+  // System message
+  if (type === 'system_message') {
+    return (
+      <div className="flex justify-center my-3">
+        <div className="rounded-full bg-slate-800/80 px-4 py-2 text-xs text-slate-200">
+          {block.text}
+        </div>
+      </div>
+    );
+  }
+  
+  // Main question card (blue) with optional Yes/No chip
+  if (type === 'main_question') {
+    const isYesNo = block.answer === 'Yes' || block.answer === 'No';
+    const hasTextAnswer = block.answer && !isYesNo;
+    
+    return (
+      <div className="space-y-3">
+        <RoleTimestamp role="Investigator" time={timeLabel} />
+        
+        {/* Blue question card matching candidate UI */}
+        <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold text-blue-400">
+                  Question {block.questionNumber || ''}
+                </span>
+                {block.sectionName && (
+                  <>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{block.sectionName}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+            </div>
+            
+            {/* Yes/No chip on the right side of card */}
+            {isYesNo && (
+              <div className={cn(
+                "flex-shrink-0 px-4 py-2 rounded-lg font-semibold",
+                block.answer === 'Yes' ? "bg-green-600" : "bg-red-600"
+              )}>
+                <span className="text-white">{block.answer}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Text answer bubble (purple) below question */}
+        {hasTextAnswer && (
+          <>
+            <RoleTimestamp role="Candidate" time={timeLabel} />
+            <div className="flex justify-end">
+              <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-3xl">
+                <p className="text-white">{block.answer}</p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+  
+  // Follow-up question card (purple) with answer
+  if (type === 'followup_question') {
+    const hasAnswer = Boolean(block.answer);
+    const packDisplayName = getPackDisplayName(block.packId);
+    
+    return (
+      <div className="space-y-2 ml-4">
+        <RoleTimestamp role={block.isAiProbe ? "AI Investigator" : "Investigator"} time={timeLabel} />
+        
+        {/* Purple follow-up question card */}
+        <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base font-semibold text-purple-400">
+              Follow-up Pack
+            </span>
+            {packDisplayName && (
+              <>
+                <span className="text-sm text-slate-500">•</span>
+                <span className="text-sm font-medium text-purple-400">
+                  {packDisplayName}
+                  {block.instanceNumber > 1 ? ` — Instance ${block.instanceNumber}` : ''}
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+        </div>
+        
+        {/* Answer bubble (purple) */}
+        {hasAnswer && (
+          <>
+            <RoleTimestamp role="Candidate" time={timeLabel} />
+            <div className="flex justify-end">
+              <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-3xl">
+                <p className="text-white">{block.answer}</p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+  
+  // Multi-instance question
+  if (type === 'multi_instance') {
+    return (
+      <div className="space-y-2 ml-4">
+        <RoleTimestamp role="Investigator" time={timeLabel} />
+        <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+          <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+        </div>
+        {block.answer && (
+          <>
+            <RoleTimestamp role="Candidate" time={timeLabel} />
+            <div className="flex justify-end">
+              <div className={cn(
+                "rounded-xl px-5 py-3",
+                block.answer === 'Yes' ? "bg-green-600" : "bg-red-600"
+              )}>
+                <p className="text-white">{block.answer}</p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+  
+  return null;
+}
+
+/**
+ * Role and timestamp header above each block
+ */
+function RoleTimestamp({ role, time }) {
+  if (!role && !time) return null;
+  
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-slate-400 px-1">
+      {role && <span className="font-medium">{role}</span>}
+      {role && time && <span className="text-slate-500">•</span>}
+      {time && <span className="text-slate-500">{time}</span>}
     </div>
   );
 }
 
+/**
+ * Get display name for follow-up pack
+ */
+function getPackDisplayName(packId) {
+  const PACK_NAMES = {
+    'PACK_LE_APPS': 'Applications with other Law Enforcement Agencies',
+    'PACK_PRIOR_LE_APPS_STANDARD': 'Prior Law Enforcement Applications',
+    'PACK_WITHHOLD_INFO': 'Withheld Information',
+    'PACK_DISQUALIFIED': 'Prior Disqualification',
+    'PACK_CHEATING': 'Test Cheating',
+    'PACK_DUI': 'DUI Incident',
+    'PACK_LICENSE_SUSPENSION': 'License Suspension',
+    'PACK_RECKLESS_DRIVING': 'Reckless Driving',
+    'PACK_DRIVING_COLLISION_STANDARD': 'Driving Collision',
+    'PACK_DRIVING_STANDARD': 'Driving Record',
+    'PACK_DRIVING_VIOLATIONS_STANDARD': 'Driving Violations',
+    'PACK_DRIVING_DUIDWI_STANDARD': 'DUI/DWI Incident'
+  };
+  
+  return PACK_NAMES[packId] || packId;
+}
+
+/**
+ * Format timestamp for display
+ */
 function formatTranscriptTime(timestamp) {
   if (!timestamp) return '';
   try {
