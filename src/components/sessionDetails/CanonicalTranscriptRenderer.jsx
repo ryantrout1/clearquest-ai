@@ -13,12 +13,69 @@ import { Badge } from "@/components/ui/badge";
 import { MessageSquare, FileText } from "lucide-react";
 import { groupTranscriptIntoPairs } from "../utils/transcriptLogger";
 
-export default function CanonicalTranscriptRenderer({ session }) {
-  const transcript = session?.transcript_snapshot || [];
+export default function CanonicalTranscriptRenderer({ session, searchTerm = "", showOnlyFollowUps = false }) {
+  const originalEntries = session?.transcript_snapshot || [];
   
-  console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", transcript.length);
+  console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
   
-  if (transcript.length === 0) {
+  // STEP 2: Apply filters
+  let filteredEntries = originalEntries;
+  
+  // Filter by search term
+  if (searchTerm && searchTerm.trim() !== "") {
+    const searchLower = searchTerm.toLowerCase();
+    filteredEntries = filteredEntries.filter(entry => {
+      const textFields = [
+        entry.text,
+        entry.content,
+        entry.questionText,
+        entry.answer
+      ].filter(Boolean);
+      
+      return textFields.some(field => 
+        String(field).toLowerCase().includes(searchLower)
+      );
+    });
+  }
+  
+  // Filter by follow-ups only
+  if (showOnlyFollowUps) {
+    filteredEntries = filteredEntries.filter(entry => {
+      const isFollowup = entry.eventType === 'followup_question' ||
+                         entry.kind === 'deterministic_followup_question' ||
+                         entry.kind === 'v2_pack_followup' ||
+                         entry.kind === 'v2_pack_ai_followup' ||
+                         entry.kind === 'ai_probe_question' ||
+                         entry.eventType === 'followup_answer' ||
+                         entry.kind === 'deterministic_followup_answer' ||
+                         entry.kind === 'ai_probe_answer' ||
+                         Boolean(entry.packId);
+      return isFollowup;
+    });
+  }
+  
+  const originalCount = originalEntries.length;
+  const filteredCount = filteredEntries.length;
+  
+  console.log('[TRANSCRIPT][FILTER]', { originalCount, filteredCount, searchTerm, showOnlyFollowUps });
+  
+  // STEP 3: Empty state when filters hide everything
+  if (originalCount > 0 && filteredCount === 0) {
+    return (
+      <div className="rounded-xl bg-slate-900/50 border border-slate-700 p-8">
+        <div className="text-center space-y-2">
+          <p className="text-slate-300 text-sm font-medium">
+            No transcript entries match your filters
+          </p>
+          <p className="text-slate-400 text-xs">
+            Try turning off 'Follow-Ups Only' or clearing your search to see the full interview timeline.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (originalCount === 0) {
     return (
       <Card className="bg-yellow-50 border-yellow-200">
         <CardContent className="p-6">
@@ -40,7 +97,7 @@ export default function CanonicalTranscriptRenderer({ session }) {
     );
   }
   
-  const pairs = groupTranscriptIntoPairs(transcript);
+  const pairs = groupTranscriptIntoPairs(filteredEntries);
   
   return (
     <div className="space-y-4">
