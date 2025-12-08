@@ -37,10 +37,12 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
         sessionId,
         baseQuestionId: response.question_id,
         baseQuestionCode: questionCode,
+        responseId: response.id, // Link to Response record
         followupPackId: null,
         instanceNumber: null,
         role: "investigator",
         kind: "base_question",
+        eventType: "question", // Add eventType for compatibility
         text: response.question_text,
         createdAt: new Date(response.response_timestamp).getTime() - 1000, // Question before answer
         sortKey: responseIdx * 1000
@@ -52,10 +54,12 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
         sessionId,
         baseQuestionId: response.question_id,
         baseQuestionCode: questionCode,
+        responseId: response.id, // Link to Response record
         followupPackId: null,
         instanceNumber: null,
         role: "candidate",
         kind: "base_answer",
+        eventType: "answer", // Add eventType for compatibility
         text: response.answer,
         createdAt: new Date(response.response_timestamp).getTime(),
         sortKey: responseIdx * 1000 + 1
@@ -146,8 +150,10 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               instanceNumber: instanceNum,
               role: "investigator",
               kind: "deterministic_followup_question",
+              eventType: "followup_question", // Add eventType for compatibility
               text: key, // Will be resolved to actual question text in UI
               fieldKey: key,
+              packId: packId, // Add packId at top level for easier access
               createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 + detailCounter * 10,
               sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + detailCounter * 10
             });
@@ -165,8 +171,10 @@ export async function buildTranscriptEventsForSession(sessionId, base44, engine)
               instanceNumber: instanceNum,
               role: "candidate",
               kind: "deterministic_followup_answer",
+              eventType: "answer", // Add eventType for compatibility
               text: value,
               fieldKey: key,
+              packId: packId, // Add packId at top level for easier access
               createdAt: new Date(followup.created_date || response.response_timestamp).getTime() + instanceIdx * 1000 + detailCounter * 10 + 1,
               sortKey: responseIdx * 10000 + 100 + instanceIdx * 500 + detailCounter * 10 + 1
             });
