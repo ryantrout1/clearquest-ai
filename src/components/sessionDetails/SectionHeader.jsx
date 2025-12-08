@@ -68,16 +68,36 @@ export default function SectionHeader({
   onToggle,
   sectionAISummary,
   transcriptEvents = [],
-  askedQuestionsByPack = {}
+  sectionStats = null
 }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
 
   const sectionResponses = allResponses.filter(r => r.section_name === category);
   
-  // STEP 2: Override KPIs to use asked questions from transcript
-  const kpis = computeSectionKPIsFromTranscript(category, allResponses, allFollowups, transcriptEvents, askedQuestionsByPack);
+  // STEP 2: Use section stats if provided, otherwise fall back to legacy computation
+  const kpis = sectionStats ? {
+    totalQuestions: sectionStats.totalQuestions,
+    yesCount: sectionStats.yesCount,
+    noCount: sectionStats.noCount,
+    followUpCount: allFollowups.filter(f => {
+      const baseResponse = allResponses.find(r => r.id === f.response_id);
+      return baseResponse?.section_name === category;
+    }).length,
+    yesPercent: sectionStats.totalQuestions > 0 ? Math.round((sectionStats.yesCount / sectionStats.totalQuestions) * 100) : 0,
+    noPercent: sectionStats.totalQuestions > 0 ? Math.round((sectionStats.noCount / sectionStats.totalQuestions) * 100) : 0
+  } : computeSectionKPIs(category, allResponses, allFollowups);
+  
   const timeAnalytics = computeSectionTimeAnalytics(category, allResponses);
   const badges = computeSectionBadges(kpis, timeAnalytics);
+  
+  console.log('[SECTION_HEADER_KPI]', {
+    category,
+    usingSectionStats: !!sectionStats,
+    totalQuestions: kpis.totalQuestions,
+    yesCount: kpis.yesCount,
+    noCount: kpis.noCount,
+    followUpCount: kpis.followUpCount
+  });
 
   // Read from stored summary passed as prop
   const aiSummary = sectionAISummary;
