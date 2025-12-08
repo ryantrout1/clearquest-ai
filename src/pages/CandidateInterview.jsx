@@ -2829,6 +2829,7 @@ export default function CandidateInterview() {
       
       console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
       
+      // CRITICAL FIX: Use the V2 pack field's label as the question text (not the section question)
       // If clarifier is active, show the clarifier question instead of the field label
       const displayText = hasClarifierActive 
         ? v2ClarifierState.clarifierQuestion 
