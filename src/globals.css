@@ -108,16 +108,16 @@
 
 /* Custom scrollbar utilities */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: rgba(30, 41, 59, 0.5);
-  border-radius: 3px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 4px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 3px;
+  background: #1e40af;
+  border-radius: 4px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #2563eb;
 }
