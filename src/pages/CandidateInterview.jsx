@@ -37,6 +37,33 @@ import V3DebugPanel from "../components/interview/V3DebugPanel";
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
 
+// Simple in-memory registry so we only log each question once per session.
+// Key format: `${sessionId}::${questionKey}`
+const transcriptQuestionLogRegistry = new Set();
+
+/**
+ * Returns true if this question has already been logged for this session.
+ * If not, marks it as logged and returns false.
+ *
+ * sessionId: string
+ * questionKey: string (can be dbId, fieldKey, or a composite)
+ */
+function hasQuestionBeenLogged(sessionId, questionKey) {
+  if (!sessionId || !questionKey) {
+    // If we don't have enough info, be safe and say "already logged"
+    // to avoid duplicate entries and avoid crashing.
+    return true;
+  }
+
+  const key = `${sessionId}::${questionKey}`;
+  if (transcriptQuestionLogRegistry.has(key)) {
+    return true;
+  }
+
+  transcriptQuestionLogRegistry.add(key);
+  return false;
+}
+
 // V3 Probing feature flag
 const ENABLE_V3_PROBING = true;
 
@@ -3035,12 +3062,8 @@ export default function CandidateInterview() {
     // Only log questions that will be shown to candidate (not auto-skipped)
     if (currentItem.type === 'question') {
       // Section question - check if already logged
-      const alreadyLogged = hasQuestionBeenLogged(currentTranscript, {
-        questionId: currentItem.id,
-        packId: null,
-        fieldKey: null,
-        instanceNumber: null
-      });
+      const questionKey = currentItem.id;
+      const alreadyLogged = hasQuestionBeenLogged(sessionId, questionKey);
       
       if (!alreadyLogged) {
         const question = engine.QById[currentItem.id];
@@ -3061,13 +3084,9 @@ export default function CandidateInterview() {
         }
       }
     } else if (currentItem.type === 'v2_pack_field') {
-      // V2 pack field - check if already logged
-      const alreadyLogged = hasQuestionBeenLogged(currentTranscript, {
-        questionId: currentItem.baseQuestionId || null,
-        packId: currentItem.packId,
-        fieldKey: currentItem.fieldKey,
-        instanceNumber: currentItem.instanceNumber || 1
-      });
+      // V2 pack field - use composite key for unique identification
+      const questionKey = `${currentItem.packId}::${currentItem.fieldKey}::${currentItem.instanceNumber || 1}`;
+      const alreadyLogged = hasQuestionBeenLogged(sessionId, questionKey);
       
       if (!alreadyLogged) {
         // Use the exact text shown to candidate (clarifier overrides field label)
