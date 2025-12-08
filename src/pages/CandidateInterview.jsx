@@ -3611,8 +3611,9 @@ export default function CandidateInterview() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-6 pb-[200px] scrollbar-thin" ref={historyRef}>
-        <div className="max-w-5xl mx-auto flex flex-col justify-end min-h-full space-y-4">
+      <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
+        <div className="max-w-5xl mx-auto px-4 pt-6 pb-[420px] flex flex-col justify-end min-h-full">
+          <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.type}-${entry.id || index}`}>
               {/* Base questions with answers - only show if answered */}
@@ -3745,6 +3746,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current question card removed from here - now shown above input in footer */}
+          </div>
         </div>
       </main>
 
