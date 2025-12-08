@@ -1,8 +1,8 @@
 /**
- * V2 PROBING ARCHITECTURE (CLEARQUEST AI) - FACT-ANCHOR PIPELINE
+ * V2 PROBING ARCHITECTURE (CLEARQUEST AI) - FIELD-BASED PROGRESSION
  * 
  * ============================================================================
- * ARCHITECTURE MAP (2025-12-06)
+ * ARCHITECTURE MAP (2025-12-08)
  * ============================================================================
  * 
  * ENTRYPOINTS:
@@ -10,72 +10,21 @@
  *   - Main Function: probeEngineV2Core(input, base44Client)
  * 
  * DATA FLOW (Per-Field V2 Probe):
- *   1. Frontend sends narrative → HTTP POST to probeEngineV2
- *   2. Extract params: packId, fieldKey, field_value (full narrative text)
- *   3. Router checks for perFieldHandler (pack-specific logic)
- *   4. Per-Field Handler (e.g., handlePriorLeAppsPerFieldV2):
- *      a. getFieldNarrativeText(ctx) → extract full text from ctx properties
- *      b. inferApplicationOutcomeFromNarrative(text) → deterministic extraction
- *      c. extractPriorLeAppsAnchors({ text }) → legacy centralized extraction
- *      d. Build anchors and collectedAnchors objects
- *      e. Return createV2ProbeResult(baseResult, anchors, collectedAnchors)
- *   5. FactAnchorEngine.extract(factCtx) → secondary extraction layer
- *   6. Merge: handlerResult.anchors = merge(handler, factEngine)
- *   7. normalizeV2ProbeResult → ensure anchors/collectedAnchors exist
- *   8. Return { mode, hasQuestion, question, anchors, collectedAnchors, ... }
+ *   1. Frontend sends field answer → HTTP POST to probeEngineV2
+ *   2. Extract params: packId, fieldKey, field_value
+ *   3. Validate field value
+ *   4. Return: { mode: "NONE" | "NEXT_FIELD" | "REQUEST_CLARIFICATION", hasQuestion, question }
  * 
- * CANONICAL TEXT FIELD:
- *   - Primary: field_value
- *   - Fallbacks: fieldValue, answer, narrative, fullNarrative
- *   - Helper: getFieldNarrativeText(ctx) tries all keys
- * 
- * CANONICAL ANCHOR KEYS (PACK_PRIOR_LE_APPS_STANDARD):
- *   - application_outcome (PRIMARY - gates PACK_PRLE_Q02)
- *   - prior_le_agency
- *   - prior_le_position
- *   - prior_le_approx_date
- * 
- * FACT PERSISTENCE:
- *   - Anchors returned in probe result → Frontend stores in Response.additional_details
- *   - Cumulative anchors → session.structured_followup_facts
- *   - Contradiction Engine reads from session.structured_followup_facts
- * 
- * EXTRACTORS (Priority Order):
- *   1. handlePriorLeAppsPerFieldV2 (pack-specific in-function deterministic)
- *   2. extractPriorLeAppsAnchors (centralized registry FIELD_ANCHOR_EXTRACTORS)
- *   3. FactAnchorEngine.extract (separate module with confidence scoring)
- * 
- * CONTRADICTION ENGINE:
- *   - Endpoint: functions/contradictionEngine
- *   - Reads: session.structured_followup_facts
- *   - Returns: { contradictions: [...] }
+ * NO ANCHOR EXTRACTION - Field progression based only on:
+ *   - requiresMissing
+ *   - requiresPresent
+ *   - alwaysAsk
+ *   - skipUnless
  * 
  * ============================================================================
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import FactAnchorEngine from './factAnchorEngine.js';
-
-// ============================================================================
-// GOAL 1: ANCHOR SHAPE GUARANTEE - Ensure ALL V2 results have anchors shape
-// ============================================================================
-
-/**
- * Safety net: Guarantees anchors and collectedAnchors properties exist on every V2 result
- * CRITICAL: Call this before returning ANY V2 probe result to ensure consistent shape
- */
-function ensureAnchorsShape(result) {
-  if (!result || typeof result !== "object") return result;
-
-  if (!result.anchors) {
-    result.anchors = {};
-  }
-  if (!result.collectedAnchors) {
-    result.collectedAnchors = {};
-  }
-
-  return result;
-}
 
 // ============================================================================
 // DETERMINISTIC FACT EXTRACTION HELPERS (Phase 4)
@@ -4386,230 +4335,26 @@ function getPackTopicForDiscretion(packId) {
  * Deterministically extracts application_outcome from Q01 narrative for gating
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
-  const DEBUG_PREFIX = "[PRIOR_LE_APPS_HANDLER]";
-  
-  const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
+  const { packId, fieldKey, fieldValue, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
 
-  const existingCollection = collectedAnchors || {};
-
-  // Use centralized helper to get full narrative text - tries multiple possible keys
-  const narrativeText = getFieldNarrativeText(ctx);
-
-  // CRITICAL: Entry log to prove handler is executing
-  console.log("[ANCHOR-HANDLER-ENTER]", {
+  console.log("[PRIOR_LE_APPS_HANDLER]", {
     packId,
     fieldKey,
     instanceNumber,
-    fieldValueLength: fieldValue?.length || 0,
-    narrativeTextLength: narrativeText?.length || 0,
-    existingAnchorsKeys: Object.keys(existingCollection)
+    fieldValueLength: fieldValue?.length || 0
   });
   
-  // ===================================================================
-  // REAL EXTRACTION: PACK_PRLE_Q01 CANONICAL ANCHOR EXTRACTION USING LLM
-  // ===================================================================
-  if (fieldKey === "PACK_PRLE_Q01") {
-    console.log("[PRIOR_LE_Q01][EXTRACT_START]", {
-      narrativeLength: narrativeText?.length || 0,
-      narrativePreview: narrativeText?.slice(0, 150)
-    });
-    
-    const extractionStartTime = Date.now();
-    
-    // Use LLM-based extraction for anchor extraction
-    const extractionResult = await extractPriorLeAppsAnchorsLLM({
-      text: narrativeText,
-      base44Client
-    });
-    
-    const extractionDuration = Date.now() - extractionStartTime;
-    
-    const canonicalAnchors = extractionResult.anchors || {};
-    
-    // Build audit trail for this extraction
-    const extractionAudit = {
-      engineVersion: "v2.6-llm-production",
-      packId,
-      fieldKey,
-      baseQuestionCode: questionCode || null,
-      rulesApplied: extractionResult.rulesUsed || ["llm_strict_schema", "regex_fallback"],
-      extractionMethod: extractionResult.method || "hybrid",
-      extractionDurationMs: extractionDuration,
-      createdAt: new Date().toISOString()
-    };
-    
-    console.log("[PRIOR_LE_Q01][AUDIT]", extractionAudit);
-    
-    console.log("[PRIOR_LE_Q01][EXTRACTED]", {
-      canonicalAnchors,
-      hasAgency: !!canonicalAnchors.prior_le_agency,
-      hasPosition: !!canonicalAnchors.prior_le_position,
-      hasDate: !!canonicalAnchors.prior_le_approx_date,
-      hasOutcome: !!canonicalAnchors.application_outcome
-    });
-    
-    // Merge with existing anchors
-    const mergedAnchors = {
-      ...(existingCollection || {}),
-      ...Object.fromEntries(
-        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null && v !== 'unknown')
-      )
-    };
-    
-    // Persist to database if we have sessionId
-    if (sessionId && Object.values(canonicalAnchors).some(v => v !== null && v !== 'unknown')) {
-      try {
-        const anchorArray = Object.entries(canonicalAnchors)
-          .filter(([k, v]) => v !== null && v !== 'unknown')
-          .map(([key, value]) => ({
-            key,
-            value: String(value),
-            packId,
-            fieldKey,
-            baseQuestionCode: questionCode || 'Q001',
-            sessionId,
-            instanceNumber: instanceNumber ?? 1,
-            source: 'V2_PER_FIELD',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }));
-        
-        console.log("[PRIOR_LE_Q01][PERSIST_START]", {
-          sessionId,
-          anchorCount: anchorArray.length,
-          anchorKeys: anchorArray.map(a => a.key)
-        });
-        
-        // Persist to InterviewSession.structured_followup_facts (array-based)
-        const sessions = await base44Client.asServiceRole.entities.InterviewSession.filter({ id: sessionId });
-        if (sessions && sessions.length > 0) {
-          const session = sessions[0];
-          const existingFacts = Array.isArray(session.structured_followup_facts) 
-            ? session.structured_followup_facts 
-            : [];
-          
-          // Merge new anchors with existing
-          const existingByKey = new Map();
-          for (const fact of existingFacts) {
-            if (!fact || !fact.key) continue;
-            const k = `${fact.packId}::${fact.fieldKey}::${fact.instanceNumber}::${fact.key}`;
-            existingByKey.set(k, fact);
-          }
-          
-          for (const anchor of anchorArray) {
-            const k = `${anchor.packId}::${anchor.fieldKey}::${anchor.instanceNumber}::${anchor.key}`;
-            existingByKey.set(k, anchor);
-          }
-          
-          const mergedFacts = Array.from(existingByKey.values());
-          
-          await base44Client.asServiceRole.entities.InterviewSession.update(sessionId, {
-            structured_followup_facts: mergedFacts
-          });
-          
-          console.log("[PRIOR_LE_Q01][PERSIST_SUCCESS]", {
-            sessionId,
-            totalFacts: mergedFacts.length,
-            newAnchors: anchorArray.length
-          });
-        }
-      } catch (persistErr) {
-        console.error("[PRIOR_LE_Q01][PERSIST_ERROR]", persistErr.message);
-        // Non-fatal - continue with anchors in response
-      }
-    }
-    
-    // Filter out null/unknown values for cleaner anchors
-    const cleanedAnchors = Object.fromEntries(
-      Object.entries(canonicalAnchors).filter(([k, v]) => v !== null && v !== 'unknown')
-    );
-    
-    // Backend debug logging for PRIOR LE APPS anchors
-    console.log("[PRIOR_LE_APPS][ANCHORS_EXTRACTED]", {
-      packId,
-      fieldKey,
-      extractedKeys: Object.keys(cleanedAnchors),
-      anchors: cleanedAnchors,
-      prior_le_agency: cleanedAnchors.prior_le_agency || '(not found)',
-      prior_le_position: cleanedAnchors.prior_le_position || '(not found)',
-      prior_le_approx_date: cleanedAnchors.prior_le_approx_date || '(not found)',
-      application_outcome: cleanedAnchors.application_outcome || '(not found)'
-    });
-    
-    console.log("[PRIOR_LE_APPS][ANCHORS_COLLECTED]", {
-      packId,
-      fieldKey,
-      collectedKeys: Object.keys(mergedAnchors),
-      collectedAnchors: mergedAnchors
-    });
-    
-    // Structured audit log for extraction
-    console.log("[ANCHOR_AUDIT][EXTRACT]", JSON.stringify({
-      sessionId,
-      packId,
-      fieldKey,
-      instanceNumber,
-      baseQuestionCode: questionCode || null,
-      engineVersion: extractionAudit.engineVersion,
-      anchors: cleanedAnchors,
-      rulesApplied: extractionAudit.rulesApplied,
-      extractionDurationMs: extractionAudit.extractionDurationMs,
-      createdAt: extractionAudit.createdAt
-    }));
-    
-    // Return result using standard helper to ensure anchors/collectedAnchors always present
-    const result = createV2ProbeResult({
-      packId,
-      fieldKey,
-      mode: 'NEXT_FIELD',
-      hasQuestion: false,
-      followupsCount: 0,
-      anchors: cleanedAnchors,
-      collectedAnchors: mergedAnchors,
-      reason: 'PACK_PRLE_Q01 narrative processed with LLM extraction',
-      probeSource: 'PRIOR_LE_APPS_LLM_EXTRACTOR',
-      audit: extractionAudit
-    });
-    
-    console.log("[PRIOR_LE_Q01][RESULT_FINAL]", {
-      packId,
-      fieldKey,
-      mode: result.mode,
-      hasAnchors: !!result.anchors,
-      hasCollected: !!result.collectedAnchors,
-      anchorsKeys: Object.keys(result.anchors || {}),
-      collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
-      anchors: result.anchors,
-      collectedAnchors: result.collectedAnchors
-    });
-    
-    return result;
-  }
-
-  // Other fields in PACK_PRIOR_LE_APPS_STANDARD: pass through with existing anchors
+  // All fields just validate and advance
   const baseResult = {
     packId,
     fieldKey,
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    reason: `PACK_PRIOR_LE_APPS: ${fieldKey} validated`,
-    anchors: {},
-    collectedAnchors: existingCollection || {}
+    reason: `${fieldKey} validated`
   };
 
-  const passThroughResult = ensureAnchorsShape(createV2ProbeResult(baseResult));
-
-  console.log("[ANCHOR-HANDLER-EXIT]", {
-    packId,
-    fieldKey,
-    instanceNumber,
-    mode: passThroughResult.mode,
-    anchors: passThroughResult.anchors,
-    collectedAnchors: passThroughResult.collectedAnchors
-  });
-
-  return passThroughResult;
+  return createV2ProbeResult(baseResult);
 }
 
 /**
@@ -4832,38 +4577,19 @@ If any field is not clearly stated, set it to null.`,
  * CRITICAL FIX: Base defaults pattern guarantees anchors/collectedAnchors always exist
  */
 /**
- * Universal V2 result builder - ensures EVERY response includes anchors/collectedAnchors
- * CRITICAL: All V2 probe returns MUST use this helper
+ * Universal V2 result builder - creates standard response structure
  * 
- * Signature: createV2ProbeResult(base, anchors, collectedAnchors)
- * OR: createV2ProbeResult({ mode, hasQuestion, ..., anchors, collectedAnchors })
+ * Signature: createV2ProbeResult({ mode, hasQuestion, question, ... })
  */
-function createV2ProbeResult(base, anchors, collectedAnchors) {
-  // Allow single-argument call with anchors embedded
-  if (arguments.length === 1) {
-    const result = {
-      mode: base?.mode || "NONE",
-      hasQuestion: base?.hasQuestion || false,
-      followupsCount: base?.followupsCount || 0,
-      reason: base?.reason || "",
-      question: base?.question,
-      questionPreview: base?.questionPreview,
-      // CRITICAL: ALWAYS include these, even if empty
-      anchors: base?.anchors || {},
-      collectedAnchors: base?.collectedAnchors || {},
-      debugTag: base?.debugTag,
-      // Include any other fields from base
-      ...base
-    };
-    return result;
-  }
-  
-  // Standard three-argument call
+function createV2ProbeResult(base) {
   const result = {
-    ...base,
-    // CRITICAL: ALWAYS include these, even if empty
-    anchors: anchors || {},
-    collectedAnchors: collectedAnchors || {},
+    mode: base?.mode || "NONE",
+    hasQuestion: base?.hasQuestion || false,
+    followupsCount: base?.followupsCount || 0,
+    reason: base?.reason || "",
+    question: base?.question,
+    questionPreview: base?.questionPreview,
+    ...base
   };
   return result;
 }
