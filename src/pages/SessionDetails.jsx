@@ -1900,7 +1900,7 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
   return followupsByResponseId;
 }
 
-function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId, drivingFactsFromTranscript }) {
+function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionEntities, categoryRefs, collapsedSections, toggleSection, expandedQuestions, toggleQuestionExpanded, sections, session, transcriptEvents, sectionSummariesBySectionId, drivingFactsFromTranscript, questions }) {
   // Flatten all responses for global context
   const allResponsesFlat = Object.values(responsesByCategory).flat();
   
@@ -1910,8 +1910,8 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   // BUILD FOLLOW-UPS FROM TRANSCRIPT (not FollowUpResponse entity)
   const followupsByResponseId = buildFollowupsByResponseIdFromTranscript(transcriptEvents);
   
-  // STEP 1: Derive asked questions from transcript
-  const askedQuestionsByPack = deriveAskedQuestionsFromTranscript(transcriptEvents, allResponsesFlat);
+  // STEP 1: Build section stats from section questions + responses
+  const sectionStats = buildSectionStatsFromQuestions(allResponsesFlat, questions, sections);
   
   // Sort categories by section_order from Section entities
   const sortedCategories = Object.entries(responsesByCategory).sort((a, b) => {
