@@ -110,7 +110,7 @@ export default function CanonicalTranscriptRenderer({ session, questions = [], s
   const blocks = buildTranscriptBlocks(sortedEntries, questions);
   
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
       {blocks.map((block, idx) => (
         <TranscriptBlock key={block.id || `block-${idx}`} block={block} />
       ))}
