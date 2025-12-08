@@ -1163,21 +1163,6 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
     maxAiFollowups: 4, // Allows clarifiers for all 4 required anchors if needed
-    _auditLogged: (() => {
-      // AUDIT LOG: Hardcoded PACK_PRIOR_LE_APPS_STANDARD config
-      if (typeof console !== 'undefined') {
-        const packConfig = FOLLOWUP_PACK_CONFIGS["PACK_PRIOR_LE_APPS_STANDARD"];
-        if (packConfig) {
-          console.log("[FOLLOWUP_CONFIG_AUDIT][PRIOR_LE]", {
-            packId: "PACK_PRIOR_LE_APPS_STANDARD",
-            fieldConfig: packConfig.fields || null,
-            maxAiFollowups: packConfig.maxAiFollowups,
-            factAnchors: packConfig.factAnchors || null
-          });
-        }
-      }
-      return true;
-    })(),
     // Required anchors that MUST be collected from Q01 before advancing (CANONICAL KEYS)
     requiredAnchors: [
       "prior_le_agency",
@@ -1872,6 +1857,17 @@ export function buildInstanceHeaderSummary(packId, values) {
     .filter(Boolean);
   
   return parts.length > 0 ? parts.join(' • ') : null;
+}
+
+// AUDIT LOG: PACK_PRIOR_LE_APPS_STANDARD config (safe - runs after FOLLOWUP_PACK_CONFIGS is initialized)
+const priorLePack = FOLLOWUP_PACK_CONFIGS && FOLLOWUP_PACK_CONFIGS["PACK_PRIOR_LE_APPS_STANDARD"];
+if (priorLePack) {
+  console.log("[FOLLOWUP_CONFIG_AUDIT][PRIOR_LE]", {
+    packId: "PACK_PRIOR_LE_APPS_STANDARD",
+    fieldConfig: priorLePack.field_config || priorLePack.fields || null,
+    maxAiFollowups: priorLePack.maxAiFollowups,
+    factAnchors: priorLePack.factAnchors || null
+  });
 }
 
 /**
