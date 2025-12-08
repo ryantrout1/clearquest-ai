@@ -1582,7 +1582,7 @@ export default function CandidateInterview() {
             
             await persistStateToDatabase(newTranscript, [], nextItemForV2);
             // STEP 2: Include backend question text for next field
-            const backendQuestionTextForNext = getBackendQuestionText(v2BackendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
+            const backendQuestionTextForNext = getBackendQuestionText(backendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
             nextItemForV2.backendQuestionText = backendQuestionTextForNext;
             
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
