@@ -4346,15 +4346,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     fieldValuePreview: fieldValue?.substring?.(0, 80)
   });
   
-  // CRITICAL FIX: First call with empty Q01 should return mode:"NONE"
-  // This prevents AI opening question and ensures scripted Q01 is shown first
+  // CRITICAL FIX: First call with empty Q01 should return the EXACT scripted narrative question
+  // This ensures production matches Preview behavior
   if (fieldKey === "PACK_PRLE_Q01" && probeCount === 0 && (!fieldValue || fieldValue.trim() === "")) {
-    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EMPTY_OPENING] Returning mode:NONE - no AI opening");
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EMPTY_OPENING] Returning scripted narrative question");
+    
+    const scriptedQuestion = "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.";
+    
     return createV2ProbeResult({
-      mode: "NONE",
-      hasQuestion: false,
-      followupsCount: 0,
-      reason: "First field - show scripted question"
+      mode: "QUESTION",
+      hasQuestion: true,
+      followupsCount: 1,
+      question: scriptedQuestion,
+      reason: "Opening narrative question for PACK_PRLE_Q01"
     });
   }
   
