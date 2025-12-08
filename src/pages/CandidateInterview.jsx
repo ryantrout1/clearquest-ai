@@ -3805,6 +3805,14 @@ export default function CandidateInterview() {
                       {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
                     </span>
                   </>
+                ) : currentPrompt.type === 'multi_instance' ? (
+                  <>
+                    <span className="text-base font-semibold text-blue-400">
+                      Question {getQuestionDisplayNumber(currentItem.questionId)}
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category || 'Applications with other Law Enforcement Agencies'}</span>
+                  </>
                 ) : (
                   <>
                     <span className="text-base font-semibold text-blue-400">
