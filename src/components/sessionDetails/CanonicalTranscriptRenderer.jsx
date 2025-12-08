@@ -355,6 +355,9 @@ function TranscriptBlock({ block }) {
   
   // Section complete card (compact)
   if (type === 'section_complete') {
+    // Calculate section time if available
+    const sectionTimeText = block.sectionTime ? `Completed in ${block.sectionTime}` : null;
+    
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
@@ -368,6 +371,12 @@ function TranscriptBlock({ block }) {
                 Section Complete: {block.completedSectionName}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {sectionTimeText && (
+                  <>
+                    <span className="text-emerald-300 text-sm">{sectionTimeText}</span>
+                    <span className="text-emerald-400/50">•</span>
+                  </>
+                )}
                 <span className="text-emerald-300 text-sm">
                   {block.progress?.completedSections || 0} of {block.progress?.totalSections || 0} sections complete
                 </span>
