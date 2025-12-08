@@ -1970,7 +1970,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                 onToggle={() => toggleSection(category)}
                 sectionAISummary={sectionSummariesBySectionId[category] ? { text: sectionSummariesBySectionId[category] } : null}
                 transcriptEvents={transcriptEvents}
-                askedQuestionsByPack={askedQuestionsByPack}
+                sectionStats={sectionStats[category]}
               />
             </div>
 
