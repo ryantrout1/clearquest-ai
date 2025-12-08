@@ -4346,21 +4346,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     fieldValuePreview: fieldValue?.substring?.(0, 80)
   });
   
-  // CRITICAL FIX: First call with empty Q01 should return the EXACT scripted narrative question
-  // This ensures production matches Preview behavior
-  if (fieldKey === "PACK_PRLE_Q01" && probeCount === 0 && (!fieldValue || fieldValue.trim() === "")) {
-    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EMPTY_OPENING] Returning scripted narrative question");
-    
-    const scriptedQuestion = "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.";
-    
-    return createV2ProbeResult({
-      mode: "QUESTION",
-      hasQuestion: true,
-      followupsCount: 1,
-      question: scriptedQuestion,
-      reason: "Opening narrative question for PACK_PRLE_Q01"
-    });
-  }
+
   
   // Q01 narrative field - extract anchors and advance
   if (fieldKey === "PACK_PRLE_Q01" && fieldValue && fieldValue.trim()) {
@@ -5962,19 +5948,9 @@ async function probeEngineV2(input, base44Client) {
 }
 
 /**
- * Deno serve handler - DIAGNOSTIC STUB MODE
+ * Deno serve handler - PRIOR_LE_APPS per-field controller
  */
 Deno.serve(async (req) => {
-  // DIAGNOSTIC STUB: Always return test message
-  return Response.json({
-    "mode": "QUESTION",
-    "hasQuestion": true,
-    "question": "TEST PRIOR LE APPS V3 – IF YOU SEE THIS, PROD IS USING THE CORRECT PROMPT.",
-    "followups": [],
-    "reason": "diagnostic"
-  });
-  
-  // Original handler code (unreachable) - kept for reference
   let packId = null;
   let fieldKey = null;
   
