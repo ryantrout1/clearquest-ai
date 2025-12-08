@@ -1218,15 +1218,18 @@ export default function CandidateInterview() {
     };
   }, [flushPersist]);
 
-  const advanceToNextBaseQuestion = useCallback(async (baseQuestionId) => {
+  const advanceToNextBaseQuestion = useCallback(async (baseQuestionId, currentTranscript = null) => {
     const currentQuestion = engine.QById[baseQuestionId];
     if (!currentQuestion) {
       setShowCompletionModal(true);
       return;
     }
 
+    // Use passed transcript or fall back to state
+    const effectiveTranscript = currentTranscript || transcript;
+
     const answeredQuestionIds = new Set(
-      transcript.filter(t => t.type === 'question').map(t => t.questionId)
+      effectiveTranscript.filter(t => t.type === 'question').map(t => t.questionId)
     );
 
     if (sections.length > 0) {
@@ -1273,7 +1276,7 @@ export default function CandidateInterview() {
           }
         };
         
-        const newTranscript = [...transcript, completionMessage];
+        const newTranscript = [...effectiveTranscript, completionMessage];
         setTranscript(newTranscript);
         
         setPendingSectionTransition({
@@ -1296,7 +1299,7 @@ export default function CandidateInterview() {
           role: 'system'
         };
         
-        const newTranscript = [...transcript, completionMessage];
+        const newTranscript = [...effectiveTranscript, completionMessage];
         setTranscript(newTranscript);
         
         setCurrentItem(null);
@@ -1992,6 +1995,9 @@ export default function CandidateInterview() {
           console.warn("[TRANSCRIPT][Q&A] Failed to log section question and answer:", err);
         }
 
+        // UX: Clear draft on successful submit
+        clearDraft();
+
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
 
@@ -2351,10 +2357,10 @@ export default function CandidateInterview() {
               }
             }
           } else {
-            advanceToNextBaseQuestion(currentItem.id);
+            advanceToNextBaseQuestion(currentItem.id, newTranscript);
           }
         } else {
-          advanceToNextBaseQuestion(currentItem.id);
+          advanceToNextBaseQuestion(currentItem.id, newTranscript);
         }
         
         // Note: saveAnswerToDatabase already called above before setting newTranscript
@@ -3776,36 +3782,7 @@ export default function CandidateInterview() {
             />
           )}
           
-          {/* Section Completion Card - shown when a section is complete and waiting to begin next */}
-          {pendingSectionTransition && !currentItem && !v3ProbingActive && (
-            <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold text-white mb-2">
-                    Section Complete: {activeSection?.displayName || 'Current Section'}
-                  </h2>
-                  <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                    Nice work — you've finished this section. Ready for the next one?
-                  </p>
-                  
-                  <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
-                    <p className="text-emerald-300 text-sm font-medium">
-                      Next up: {pendingSectionTransition.nextSectionName}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-xs text-emerald-300/80">
-                    <span>{completedSectionsCount + 1} of {sections.length} sections complete</span>
-                    <span>•</span>
-                    <span>{answeredQuestionsAllSections} of {totalQuestionsAllSections} questions answered</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Current question card removed from here - now shown above input in footer */}
           </div>
