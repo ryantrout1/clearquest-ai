@@ -363,12 +363,6 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       mode: 'VALIDATE_FIELD'
     });
     
-    // STEP 1: Store backend question text immediately
-    const backendQuestionText = response.data?.questionText || response.data?.question || null;
-    if (backendQuestionText && params.setBackendQuestionTextMap) {
-      storeBackendQuestionText(packId, fieldKey, params.instanceNumber || 1, backendQuestionText, params.setBackendQuestionTextMap);
-    }
-    
     console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
     console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, { 
       mode: response.data?.mode,
