@@ -796,6 +796,8 @@ export default function CandidateInterview() {
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
   const noButtonRef = useRef(null);
+  const questionCardRef = useRef(null);
+  const [questionCardHeight, setQuestionCardHeight] = useState(0);
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
@@ -3068,6 +3070,19 @@ export default function CandidateInterview() {
     }
   }, [currentItem, sessionId, buildDraftKey]);
   
+  // Measure question card height dynamically
+  useEffect(() => {
+    if (questionCardRef.current) {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          setQuestionCardHeight(entry.contentRect.height);
+        }
+      });
+      resizeObserver.observe(questionCardRef.current);
+      return () => resizeObserver.disconnect();
+    }
+  }, [currentPrompt, validationHint]);
+
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
     if (!currentItem) return;
@@ -3757,7 +3772,7 @@ export default function CandidateInterview() {
       {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
         <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
           <div className="max-w-5xl mx-auto">
-            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
+            <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
                 {isV2PackField || currentPrompt.type === 'ai_probe' ? (
                   <>
