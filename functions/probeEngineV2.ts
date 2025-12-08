@@ -5962,10 +5962,19 @@ async function probeEngineV2(input, base44Client) {
 }
 
 /**
- * Deno serve handler
+ * Deno serve handler - DIAGNOSTIC STUB MODE
  */
 Deno.serve(async (req) => {
-  // Extract packId and fieldKey early so they're available in catch blocks
+  // DIAGNOSTIC STUB: Always return test message
+  return Response.json({
+    "mode": "QUESTION",
+    "hasQuestion": true,
+    "question": "TEST PRIOR LE APPS V3 – IF YOU SEE THIS, PROD IS USING THE CORRECT PROMPT.",
+    "followups": [],
+    "reason": "diagnostic"
+  });
+  
+  // Original handler code (unreachable) - kept for reference
   let packId = null;
   let fieldKey = null;
   
