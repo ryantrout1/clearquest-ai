@@ -1,0 +1,104 @@
+/**
+ * Canonical Transcript Renderer
+ * 
+ * Renders the legal interview transcript from the canonical transcript_snapshot.
+ * Uses exact question and answer text as seen by the candidate.
+ * 
+ * NO RECOMPUTATION OR PARAPHRASING - this is the legal record.
+ */
+
+import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { MessageSquare, FileText } from "lucide-react";
+import { groupTranscriptIntoPairs } from "../utils/transcriptLogger";
+
+export default function CanonicalTranscriptRenderer({ session }) {
+  const transcript = session?.transcript_snapshot || [];
+  
+  console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", transcript.length);
+  
+  if (transcript.length === 0) {
+    return (
+      <Card className="bg-yellow-50 border-yellow-200">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-3">
+            <FileText className="w-5 h-5 text-yellow-600 mt-0.5" />
+            <div>
+              <p className="text-sm text-yellow-800 font-medium mb-1">
+                Legacy Session - No Canonical Transcript
+              </p>
+              <p className="text-xs text-yellow-700 leading-relaxed">
+                This session was created before the canonical transcript system was implemented. 
+                The transcript below is reconstructed from Response records and may not reflect 
+                the exact question text shown to the candidate.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  const pairs = groupTranscriptIntoPairs(transcript);
+  
+  return (
+    <div className="space-y-4">
+      {pairs.map((pair, idx) => (
+        <TranscriptPair key={pair.question.index} pair={pair} pairNumber={idx + 1} />
+      ))}
+    </div>
+  );
+}
+
+function TranscriptPair({ pair, pairNumber }) {
+  const question = pair.question;
+  const answers = pair.answers;
+  
+  const isFollowUp = Boolean(question.packId);
+  
+  return (
+    <Card className="bg-white border-slate-200">
+      <CardContent className="p-5 space-y-3">
+        {/* Question */}
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-slate-500">
+                  Question {pairNumber}
+                </span>
+                {isFollowUp && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                    Follow-up
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-slate-800 leading-relaxed">
+                {question.text}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Answers */}
+        {answers.map((answer, ansIdx) => (
+          <div key={answer.index} className="ml-6 pl-4 border-l-2 border-slate-200">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-500 mb-1">
+                  Answer
+                </p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {answer.text}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}

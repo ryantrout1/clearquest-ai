@@ -2985,6 +2985,63 @@ export default function CandidateInterview() {
     });
   }, [currentItem, isCommitting, v3ProbingActive, pendingSectionTransition]);
   
+  // Canonical Transcript: Log question text when currentItem changes (legal record)
+  useEffect(() => {
+    if (!currentItem || !session) return;
+    if (isCommitting || v3ProbingActive) return;
+    
+    const currentTranscript = session.transcript_snapshot || [];
+    
+    // Only log questions that will be shown to candidate (not auto-skipped)
+    if (currentItem.type === 'question') {
+      // Section question - check if already logged
+      const alreadyLogged = hasQuestionBeenLogged(currentTranscript, {
+        questionId: currentItem.id,
+        packId: null,
+        fieldKey: null,
+        instanceNumber: null
+      });
+      
+      if (!alreadyLogged) {
+        const displayText = currentItem.question_text || currentItem.text || "";
+        
+        appendQuestionEntry({
+          sessionId,
+          existingTranscript: currentTranscript,
+          text: displayText,
+          questionId: currentItem.id,
+          packId: null,
+          fieldKey: null,
+          instanceNumber: null
+        }).catch(err => {
+          console.warn("[TRANSCRIPT][QUESTION] Failed to log section question:", err);
+        });
+      }
+    } else if (currentItem.type === 'v2_pack_field') {
+      // V2 pack field - check if already logged
+      const alreadyLogged = hasQuestionBeenLogged(currentTranscript, {
+        questionId: currentItem.triggeringQuestionId || null,
+        packId: currentItem.packId,
+        fieldKey: currentItem.fieldKey,
+        instanceNumber: currentItem.instanceNumber || 1
+      });
+      
+      if (!alreadyLogged && currentItem.label) {
+        appendQuestionEntry({
+          sessionId,
+          existingTranscript: currentTranscript,
+          text: currentItem.label,
+          questionId: currentItem.triggeringQuestionId || null,
+          packId: currentItem.packId,
+          fieldKey: currentItem.fieldKey,
+          instanceNumber: currentItem.instanceNumber || 1
+        }).catch(err => {
+          console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
+        });
+      }
+    }
+  }, [currentItem, session, sessionId, isCommitting, v3ProbingActive]);
+  
   const getCurrentPrompt = () => {
     // UX: Stabilize current item while typing
     let effectiveCurrentItem = currentItem;
