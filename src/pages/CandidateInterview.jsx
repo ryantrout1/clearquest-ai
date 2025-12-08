@@ -3618,8 +3618,15 @@ export default function CandidateInterview() {
               {/* Base questions with answers - only show if answered */}
               {entry.type === 'question' && entry.answer && (
                 <div className="space-y-3">
-                  <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5">
-                    <p className="text-white">{entry.questionText}</p>
+                  <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-blue-400">
+                        Question {getQuestionDisplayNumber(entry.questionId)}
+                      </span>
+                      <span className="text-sm text-slate-500">•</span>
+                      <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+                    </div>
+                    <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
                   </div>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3">
@@ -3632,17 +3639,26 @@ export default function CandidateInterview() {
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
                 <div className="space-y-2 ml-4">
-                  <div className={`${entry.source === 'AI_FOLLOWUP' ? 'bg-indigo-900/30 border-indigo-700/50' : 'bg-purple-900/30 border-purple-700/50'} border rounded-xl p-4`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-medium ${entry.source === 'AI_FOLLOWUP' ? 'text-indigo-400' : 'text-purple-400'}`}>
-                        {entry.source === 'AI_FOLLOWUP' ? 'AI Clarification' : 'Follow-up Pack'}
+                  <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-purple-400">
+                        Follow-up Pack
                       </span>
+                      {entry.content && (
+                        <>
+                          <span className="text-sm text-slate-500">•</span>
+                          <span className="text-sm font-medium text-purple-400">
+                            {FOLLOWUP_PACK_CONFIGS[entry.packId]?.instancesLabel || entry.packId}
+                            {entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
+                          </span>
+                        </>
+                      )}
                     </div>
-                    <p className="text-white text-sm">{entry.questionText || entry.text}</p>
+                    <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
                   </div>
                   <div className="flex justify-end">
-                    <div className={`${entry.source === 'AI_FOLLOWUP' ? 'bg-indigo-600' : 'bg-purple-600'} rounded-xl px-4 py-2`}>
-                      <p className="text-white text-sm">{entry.answer}</p>
+                    <div className="bg-purple-600 rounded-xl px-5 py-3">
+                      <p className="text-white">{entry.answer}</p>
                     </div>
                   </div>
                 </div>
