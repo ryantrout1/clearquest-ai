@@ -3136,35 +3136,31 @@ export default function CandidateInterview() {
             : (backendText || currentItem.fieldConfig?.label || "");
           
           if (displayText) {
-            // Get base Response for parentResponseId
-            const getBaseResponseId = async () => {
+            // Get base Response for parentResponseId (async IIFE to avoid TDZ)
+            (async () => {
               try {
                 const baseResponses = await base44.entities.Response.filter({
                   session_id: sessionId,
                   question_id: currentItem.baseQuestionId,
                   response_type: 'base_question'
                 });
-                return baseResponses[0]?.id || null;
-              } catch (e) {
-                return null;
+                const parentResponseId = baseResponses[0]?.id || null;
+                
+                await appendQuestionEntry({
+                  sessionId,
+                  existingTranscript: currentTranscript,
+                  text: displayText,
+                  questionId: currentItem.baseQuestionId || null,
+                  packId: currentItem.packId,
+                  fieldKey: currentItem.fieldKey,
+                  instanceNumber: currentItem.instanceNumber || 1,
+                  responseId: null, // Will be set when answer is saved
+                  parentResponseId
+                });
+              } catch (err) {
+                console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
               }
-            };
-            
-            const parentResponseId = await getBaseResponseId();
-            
-            appendQuestionEntry({
-              sessionId,
-              existingTranscript: currentTranscript,
-              text: displayText,
-              questionId: currentItem.baseQuestionId || null,
-              packId: currentItem.packId,
-              fieldKey: currentItem.fieldKey,
-              instanceNumber: currentItem.instanceNumber || 1,
-              responseId: null, // Will be set when answer is saved
-              parentResponseId
-            }).catch(err => {
-              console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
-            });
+            })();
           }
         }
       }
