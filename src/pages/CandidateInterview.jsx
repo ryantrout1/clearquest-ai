@@ -3612,7 +3612,10 @@ export default function CandidateInterview() {
       </header>
 
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
-        <div className="max-w-5xl mx-auto px-4 pt-6 pb-[420px] flex flex-col justify-end min-h-full">
+        <div 
+          className="max-w-5xl mx-auto px-4 pt-6 flex flex-col justify-end min-h-full"
+          style={{ paddingBottom: `${questionCardHeight + 120}px` }}
+        >
           <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.type}-${entry.id || index}`}>
