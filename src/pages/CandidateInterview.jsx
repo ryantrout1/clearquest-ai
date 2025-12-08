@@ -513,6 +513,7 @@ export default function CandidateInterview() {
   const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
   const [pendingProbe, setPendingProbe] = useState(null);
   const v2ProbingInProgressRef = useRef(new Set());
+  const [v2ClarifierState, setV2ClarifierState] = useState(null);
   
   // Track the last AI follow-up question text per field so we can show it on history cards
   const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
@@ -1184,6 +1185,21 @@ export default function CandidateInterview() {
       if (currentItem.type === 'v2_pack_field') {
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
         
+        // Check if we're answering a clarifier for this field
+        const isAnsweringClarifier = v2ClarifierState &&
+          v2ClarifierState.packId === packId &&
+          v2ClarifierState.fieldKey === fieldKey &&
+          v2ClarifierState.instanceNumber === instanceNumber;
+        
+        console.log(`[V2_PACK_FIELD][CLARIFIER_CHECK]`, {
+          packId,
+          fieldKey,
+          instanceNumber,
+          hasV2ClarifierState: !!v2ClarifierState,
+          isAnsweringClarifier,
+          clarifierState: v2ClarifierState
+        });
+        
         // CRITICAL: Declare baseQuestion FIRST before any usage to avoid TDZ errors
         const baseQuestion = baseQuestionId && engine?.QById ? engine.QById[baseQuestionId] : null;
         
@@ -1231,23 +1247,12 @@ export default function CandidateInterview() {
         
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
         
-        // Determine if this is an AI follow-up answer or the first field answer
-        const aiFollowupKey = `${packId}:${fieldKey}:${instanceNumber}`;
-        const pendingAiQuestion = lastAiFollowupQuestionByField[aiFollowupKey];
-        const isAiFollowupAnswer = !!pendingAiQuestion;
+        // Determine if this is a clarifier answer or first field answer
+        const isAiFollowupAnswer = isAnsweringClarifier;
         
-        // Use the AI follow-up question text if this is answering a follow-up, else use the base field label
-        const displayQuestionText = isAiFollowupAnswer ? pendingAiQuestion : questionText;
+        // Use the clarifier question text if this is answering a clarifier
+        const displayQuestionText = isAiFollowupAnswer ? v2ClarifierState.clarifierQuestion : questionText;
         const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
-        
-        // Clear the pending AI question after using it
-        if (isAiFollowupAnswer) {
-          setLastAiFollowupQuestionByField(prev => {
-            const updated = { ...prev };
-            delete updated[aiFollowupKey];
-            return updated;
-          });
-        }
         
         // Log Q&A to transcript
         const v2CombinedEntry = createChatEvent('followup_question', {
@@ -1374,51 +1379,40 @@ export default function CandidateInterview() {
         
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
         
-        // Handle AI probe question from backend
+        // Handle AI clarifier from backend
         if (v2Result?.mode === 'QUESTION' && v2Result.question) {
-          console.log(`[V2_PACK_FIELD][AI_PROBE] ========== SHOWING AI FOLLOW-UP QUESTION ==========`);
-          console.log(`[V2_PACK_FIELD][AI_PROBE]`, {
+          console.log(`[V2_PACK_FIELD][CLARIFIER][SET] ========== CLARIFIER NEEDED ==========`);
+          console.log(`[V2_PACK_FIELD][CLARIFIER][SET]`, {
             packId,
             fieldKey,
             instanceNumber,
             question: v2Result.question?.substring?.(0, 80),
-            newProbeCount: probeCount + 1
+            probeCount: probeCount + 1
           });
           
-          // Store the AI follow-up question text so the next answer uses it as the card label
-          const aiFollowupKey = `${packId}:${fieldKey}:${instanceNumber}`;
-          setLastAiFollowupQuestionByField(prev => ({
-            ...prev,
-            [aiFollowupKey]: v2Result.question
-          }));
+          // Set clarifier state - keeps us on this field
+          setV2ClarifierState({
+            packId,
+            fieldKey,
+            instanceNumber,
+            clarifierQuestion: v2Result.question
+          });
           
           setAiFollowupCounts(prev => ({
             ...prev,
             [fieldCountKey]: probeCount + 1
           }));
           
-          setIsWaitingForAgent(true);
-          setIsInvokeLLMMode(true);
-          setCurrentFieldProbe({
-            packId,
-            instanceNumber,
-            fieldKey,
-            baseQuestionId,
-            substanceName: activeV2Pack.substanceName,
-            currentItem,
-            question: v2Result.question,
-            isV2PackMode: true
-          });
-          
-          setActiveV2Pack(prev => ({
-            ...prev,
-            collectedAnswers: updatedCollectedAnswers
-          }));
-          
           await persistStateToDatabase(newTranscript, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
+        }
+        
+        // Clear clarifier state if we got NEXT_FIELD
+        if (v2Result?.mode === 'NEXT_FIELD' && v2ClarifierState?.packId === packId && v2ClarifierState?.fieldKey === fieldKey) {
+          console.log(`[V2_PACK_FIELD][CLARIFIER][CLEAR] Field resolved`);
+          setV2ClarifierState(null);
         }
         
         // Advance to next field or complete pack (only after backend says NEXT_FIELD)
@@ -2775,29 +2769,23 @@ export default function CandidateInterview() {
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const totalFields = packConfig?.fields?.length || 0;
       
-      console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId);
+      // Check if we're showing a clarifier for this field
+      const hasClarifierActive = v2ClarifierState &&
+        v2ClarifierState.packId === packId &&
+        v2ClarifierState.fieldKey === effectiveCurrentItem.fieldKey &&
+        v2ClarifierState.instanceNumber === instanceNumber;
       
-      // Log effectiveCurrentItem structure for debugging
-      console.log("[V2_PACK][CURRENT_ITEM]", {
-        type: effectiveCurrentItem.type,
-        id: effectiveCurrentItem.id,
-        v2PackId: packId,
-        fieldKey: effectiveCurrentItem.fieldKey,
-        v2InstanceNumber: instanceNumber
-      });
+      console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
       
-      // Special log for PACK_PRIOR_LE_APPS_STANDARD rendering
-      if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-        console.log(`[V2_PACK][PRIOR_LE_APPS][RENDER] Rendering ${effectiveCurrentItem.fieldKey} (${fieldIndex + 1}/${totalFields})`, {
-          label: fieldConfig?.label,
-          inputType: fieldConfig?.inputType
-        });
-      }
+      // If clarifier is active, show the clarifier question instead of the field label
+      const displayText = hasClarifierActive 
+        ? v2ClarifierState.clarifierQuestion 
+        : fieldConfig.label;
       
       return {
-        type: 'v2_pack_field',
+        type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
         id: effectiveCurrentItem.id,
-        text: fieldConfig.label,
+        text: displayText,
         responseType: fieldConfig.inputType === 'yes_no' ? 'yes_no' : 'text',
         inputType: fieldConfig.inputType,
         placeholder: fieldConfig.placeholder,
