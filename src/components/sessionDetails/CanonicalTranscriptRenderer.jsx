@@ -132,94 +132,118 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
 }
 
 function TranscriptEntry({ entry, idx }) {
-  // Determine role/speaker first
-  const rawRole = entry.actor || entry.role || entry.source;
-  let roleLabel = "System";
-  
-  // Check entry kind/type to determine if question or answer
   const entryKind = entry.kind || entry.eventType || entry.type || "";
-  
-  const isQuestion = entryKind.includes('question') || 
-                     entryKind === 'base_question' ||
-                     Boolean(entry.questionText);
-  
-  const isAnswer = entryKind.includes('answer') || 
-                   entryKind === 'base_answer' ||
-                   Boolean(entry.answer || entry.answerText || entry.responseText);
-  
-  // Determine role label
-  if (rawRole) {
-    roleLabel = String(rawRole);
-  } else if (isAnswer) {
-    roleLabel = "Candidate";
-  } else if (isQuestion) {
-    roleLabel = "Interviewer";
-  }
-  
-  // Extract text content - try all possible fields
-  const questionText = entry.questionText || entry.text || entry.content || "";
-  const answerText = entry.answer || entry.answerText || entry.responseText || "";
-  
-  // Use whichever text we have
-  const displayText = questionText || answerText || "[No text recorded for this event]";
-  
-  const isFollowUp = Boolean(entry.packId) || 
-                     entryKind.includes('followup') ||
-                     entryKind.includes('probe');
-  
-  // Extract metadata
-  const questionCode = entry.questionCode || entry.code || "";
+  const messageText = entry.text || entry.questionText || entry.content || entry.answer || entry.answerText || entry.responseText || "";
   const sectionName = entry.sectionName || entry.category || "";
   const timestamp = entry.timestamp || entry.createdAt;
+  const questionCode = entry.questionCode || entry.code || "";
+  const packId = entry.packId || entry.followupPackId || "";
   
-  // Determine styling based on role
-  const isInterviewer = roleLabel === "Interviewer" || isQuestion;
-  const isCandidate = roleLabel === "Candidate" || isAnswer;
+  // SECTION START / DIVIDER
+  if (entryKind === 'section_start' || entryKind === 'section_transition') {
+    return (
+      <div className="mt-6 mb-2 text-xs uppercase tracking-wide text-slate-400">
+        {sectionName || 'Section'}
+      </div>
+    );
+  }
   
-  // ALWAYS render something - never return null
-  return (
-    <div className="flex gap-3">
-      <div className="flex-shrink-0 w-24 pt-1">
-        <div className="text-xs font-medium" style={{ color: isCandidate ? '#15803d' : '#475569' }}>
-          {questionCode && <div className="mb-0.5">{questionCode}</div>}
-          <div>{roleLabel}</div>
+  // SECTION COMPLETE CARD
+  if (entryKind === 'section_complete' || entryKind === 'section_completion') {
+    return (
+      <div className="mt-3 rounded-xl border border-emerald-500/50 bg-emerald-900/40 px-4 py-3 text-xs text-emerald-50 shadow-sm">
+        <div className="flex items-center gap-2 font-semibold">
+          <CheckCircle className="w-4 h-4" />
+          <span>Section Complete: {sectionName || 'Section'}</span>
+        </div>
+        {messageText && (
+          <div className="mt-1 text-[11px] text-emerald-100/80">
+            {messageText}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // SYSTEM NOTE
+  if (entryKind === 'system' || entryKind === 'system_message' || entryKind === 'system_welcome') {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="rounded-full bg-slate-800/80 px-3 py-1.5 text-[11px] text-slate-200">
+          {messageText || '[System message]'}
         </div>
       </div>
-      <div 
-        className="flex-1 rounded-lg p-4"
-        style={{
-          backgroundColor: isCandidate ? '#ffffff' : '#f8fafc',
-          border: `1px solid ${isCandidate ? '#86efac' : '#e2e8f0'}`
-        }}
-      >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isCandidate ? (
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-            ) : (
-              <MessageSquare className="w-4 h-4 text-slate-600" />
-            )}
-            {sectionName && (
-              <span className="text-xs text-slate-600 font-medium">
-                {sectionName}
-              </span>
-            )}
-            {isFollowUp && (
-              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                Follow-up
-              </Badge>
-            )}
+    );
+  }
+  
+  // Determine if question or answer
+  const isQuestion = entryKind.includes('question') || entryKind === 'base_question' || Boolean(entry.questionText);
+  const isAnswer = entryKind.includes('answer') || entryKind === 'base_answer' || Boolean(entry.answer || entry.answerText);
+  const isCandidateAnswer = isAnswer || entry.role === 'candidate';
+  
+  // Determine if follow-up pack question (purple bubble)
+  const isFollowupQuestion = isQuestion && (
+    packId || 
+    entryKind.includes('followup') || 
+    entryKind.includes('probe') ||
+    entryKind === 'deterministic_followup_question' ||
+    entryKind === 'v2_pack_followup' ||
+    entryKind === 'ai_probe_question'
+  );
+  
+  // Determine bubble styling
+  let bubbleClasses = 'max-w-3xl rounded-xl border px-4 py-3 text-sm shadow-sm';
+  
+  if (isFollowupQuestion) {
+    // Purple bubble for follow-up pack questions
+    bubbleClasses += ' bg-purple-900/70 border-purple-500/70 text-purple-50';
+  } else if (isQuestion) {
+    // Blue bubble for standard investigator questions
+    bubbleClasses += ' bg-sky-900/70 border-sky-500/70 text-sky-50';
+  } else if (isCandidateAnswer) {
+    // Candidate answer styling
+    bubbleClasses += ' bg-slate-900/80 border-slate-600/60 text-slate-50';
+  } else {
+    // Default styling
+    bubbleClasses += ' bg-slate-900/80 border-slate-600/60 text-slate-50';
+  }
+  
+  const roleLabel = isCandidateAnswer ? 'Candidate' : 'Investigator';
+  const timeLabel = formatTranscriptTime(timestamp);
+  
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+        <span className="font-medium">
+          {roleLabel}
+          {isFollowupQuestion ? ' · Follow-up' : ''}
+        </span>
+        {timeLabel && <span className="text-slate-500">• {timeLabel}</span>}
+      </div>
+      <div className={bubbleClasses}>
+        {/* Optional header line for questions */}
+        {isQuestion && (sectionName || questionCode) && (
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide opacity-80">
+            {questionCode && <span>{questionCode}</span>}
+            {questionCode && sectionName && <span> · </span>}
+            {sectionName && <span>{sectionName}</span>}
           </div>
-          {timestamp && (
-            <span className="text-xs text-slate-400">
-              {new Date(timestamp).toLocaleTimeString()}
-            </span>
-          )}
+        )}
+        <div className="whitespace-pre-wrap leading-relaxed">
+          {messageText || '[No text recorded for this event]'}
         </div>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: isCandidate ? '#334155' : '#1e293b' }}>
-          {displayText}
-        </p>
       </div>
     </div>
   );
+}
+
+function formatTranscriptTime(timestamp) {
+  if (!timestamp) return '';
+  try {
+    const d = new Date(timestamp);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } catch {
+    return '';
+  }
 }
