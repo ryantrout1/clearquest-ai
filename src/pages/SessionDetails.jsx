@@ -2197,11 +2197,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
                           <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)}>
                             <div className="flex flex-col gap-0.5 text-left">
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="font-semibold">Instance {instanceIdx + 1}</span>
-                                <Badge className="text-[9px] bg-emerald-500/20 text-emerald-300 border-emerald-500/30">from transcript</Badge>
-                              </div>
-                              {summaryLine && (<div className="text-[11px] text-slate-400">{summaryLine}</div>)}
+                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
                             </div>
                             <span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>
                           </button>
@@ -2209,7 +2205,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             <div className="px-3 pb-3 pt-1 space-y-2">
                               {deterministicEntries.length > 0 && (
                                 <div>
-                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
                                   <div className="divide-y divide-slate-700/60 text-xs">
                                     {deterministicEntries.map((entry, idx) => (
                                       <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
@@ -2318,12 +2313,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                         <div key={instanceNum} className="mt-2 rounded-lg border border-slate-700/60 bg-transparent">
                           <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/40" onClick={() => toggleInstance(instanceNum)} disabled={!hasMultipleInstances && !hasAnyContentForFallback}>
                             <div className="flex flex-col gap-0.5 text-left">
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="font-semibold">Instance {instanceIdx + 1}</span>
-                                {!hasTranscriptFollowups && (
-                                  <Badge className="text-[9px] bg-sky-500/20 text-sky-300 border-sky-500/30">legacy db</Badge>
-                                )}
-                              </div>
+                              <span className="font-semibold">Instance {instanceIdx + 1}</span>
                             </div>
                             {(hasMultipleInstances || hasAnyContentForFallback) && (<span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>)}
                           </button>
@@ -2331,7 +2321,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                             <div className="px-3 pb-3 pt-1 space-y-2">
                               {deterministicEntriesForFallback.length > 0 && (
                                 <div>
-                                  <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-1">Deterministic Follow-Ups</div>
                                   <div className="divide-y divide-slate-700/60 text-xs">
                                     {deterministicEntriesForFallback.map((entry, idx) => (
                                       <div key={entry.detailKey} className="grid grid-cols-[minmax(0,2.6fr)_minmax(0,1.2fr)] gap-x-4 py-1.5">
