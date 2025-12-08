@@ -161,6 +161,7 @@ function buildTranscriptBlocks(entries, questions = []) {
         nextSectionName: entry.nextSectionName,
         whatToExpect: entry.whatToExpect,
         progress: entry.progress,
+        sectionTime: entry.sectionTime,
         timestamp: entry.timestamp
       });
       i++;
