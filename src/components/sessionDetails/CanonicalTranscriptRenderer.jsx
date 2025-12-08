@@ -353,44 +353,33 @@ function TranscriptBlock({ block }) {
     );
   }
   
-  // Section complete card (green)
+  // Section complete card (compact)
   if (type === 'section_complete') {
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
-        <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+        <div className="bg-gradient-to-br from-emerald-900/60 to-emerald-800/40 backdrop-blur-sm border border-emerald-500/40 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border border-emerald-500/50">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-white mb-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-bold text-white leading-tight">
                 Section Complete: {block.completedSectionName}
-              </h2>
-              <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                Nice work — you've finished this section. Ready for the next one?
-              </p>
-              
-              {block.nextSectionName && (
-                <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
-                  <p className="text-emerald-300 text-sm font-medium">
-                    Next up: {block.nextSectionName}
-                  </p>
-                  {block.whatToExpect && (
-                    <p className="text-emerald-300/80 text-xs mt-1">
-                      We'll ask about {block.whatToExpect}
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              {block.progress && (
-                <div className="flex items-center gap-4 text-xs text-emerald-300/80">
-                  <span>{block.progress.completedSections} of {block.progress.totalSections} sections complete</span>
-                  <span>•</span>
-                  <span>{block.progress.answeredQuestions} of {block.progress.totalQuestions} questions answered</span>
-                </div>
-              )}
+              </h3>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-emerald-300 text-sm">
+                  {block.progress?.completedSections || 0} of {block.progress?.totalSections || 0} sections complete
+                </span>
+                {block.progress?.answeredQuestions && (
+                  <>
+                    <span className="text-emerald-400/50">•</span>
+                    <Badge className="bg-emerald-600/20 text-emerald-300 border-emerald-500/30 text-xs px-2 py-0">
+                      {block.progress.answeredQuestions} questions answered
+                    </Badge>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
