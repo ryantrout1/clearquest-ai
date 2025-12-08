@@ -4564,27 +4564,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   }
 
   // Other fields in PACK_PRIOR_LE_APPS_STANDARD: pass through with existing anchors
-  console.log(DEBUG_PREFIX, "[OTHER_FIELD]", { 
-    fieldKey, 
-    message: "Not PACK_PRLE_Q01, passing through with existing collection" 
-  });
-
-  // Other fields: pass through with existing collection
-  console.log(DEBUG_PREFIX, "[OTHER_FIELD]", { fieldKey, message: "Not PACK_PRLE_Q01, passing through" });
-  
   const baseResult = {
+    packId,
+    fieldKey,
     mode: "NEXT_FIELD",
     hasQuestion: false,
     followupsCount: 0,
-    reason: `prior_le_apps: ${fieldKey} passthrough`,
-    // CRITICAL: Include anchors in baseResult for 1-arg signature
+    reason: `PACK_PRIOR_LE_APPS: ${fieldKey} validated`,
     anchors: {},
     collectedAnchors: existingCollection || {}
   };
 
   const passThroughResult = ensureAnchorsShape(createV2ProbeResult(baseResult));
 
-  // CRITICAL: Exit log for non-Q01 fields
   console.log("[ANCHOR-HANDLER-EXIT]", {
     packId,
     fieldKey,
