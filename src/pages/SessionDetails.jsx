@@ -506,25 +506,14 @@ export default function SessionDetails() {
       
       setTranscriptEvents(events);
 
-      // Load AI summaries from dedicated entities
+      // Load AI summaries from dedicated entities + SectionResult
       try {
-        const [instanceSummaries, questionSummaries, sectionSummaries] = await Promise.all([
+        const [instanceSummaries, questionSummaries, sectionSummaries, sectionResults] = await Promise.all([
           base44.entities.InstanceSummary.filter({ session_id: sessionId }),
           base44.entities.QuestionSummary.filter({ session_id: sessionId }),
-          base44.entities.SectionSummary.filter({ session_id: sessionId })
+          base44.entities.SectionSummary.filter({ session_id: sessionId }),
+          base44.entities.SectionResult.filter({ session_id: sessionId })
         ]);
-
-        console.log('[SESSIONDETAILS] AI summaries loaded (raw)', {
-          sessionId,
-          instanceCount: instanceSummaries.length,
-          questionCount: questionSummaries.length,
-          sectionCount: sectionSummaries.length,
-          questionSummariesRaw: questionSummaries.map(qs => ({
-            id: qs.id,
-            question_id: qs.question_id,
-            textPreview: qs.question_summary_text?.substring(0, 60)
-          }))
-        });
 
         // Build maps for quick lookup
         const instMap = {};
@@ -562,35 +551,47 @@ export default function SessionDetails() {
         });
 
         // Build section summary map keyed by section NAME (what SectionHeader uses)
+        // PRIORITY 1: Use SectionResult.aiSummary (NEW primary storage)
         const sMapByName = {};
+
+        sectionResults.forEach(sr => {
+          const data = sr.data || sr;
+          const sectionName = data.section_name;
+          const summaryText = data.aiSummary?.sectionSummaryText;
+          const status = data.aiSummary?.status;
+
+          if (sectionName && summaryText && status === 'completed') {
+            sMapByName[sectionName] = summaryText;
+          } else if (sectionName && status === 'pending') {
+            sMapByName[sectionName] = { text: null, status: 'pending' };
+          }
+        });
+
+        // PRIORITY 2: Fall back to SectionSummary entity (backwards compatibility)
         sectionSummaries.forEach(ss => {
-          // Handle nested data structure from API
           const data = ss.data || ss;
           const sectionId = data.section_id || data.sectionId;
           const summaryText = data.section_summary_text || data.sectionSummaryText;
 
           if (!sectionId || !summaryText) return;
 
-          // Resolve section name: sectionId could be a DB ID or already a name
           let sectionName = sectionIdToName[sectionId];
           if (!sectionName) {
-            // Maybe it's already a name
             if (sectionNameToId[sectionId]) {
               sectionName = sectionId;
             } else {
-              // Last resort: use as-is
               sectionName = sectionId;
             }
           }
 
-          if (sectionName) {
+          if (sectionName && !sMapByName[sectionName]) {
             sMapByName[sectionName] = summaryText;
           }
-          });
+        });
 
         setInstanceSummariesByKey(instMap);
         setQuestionSummariesByQuestionId(qMap);
-        setSectionSummariesBySectionId(sMapByName); // Use name-based map for SectionHeader
+        setSectionSummariesBySectionId(sMapByName);
       } catch (err) {
         console.error('[SESSIONDETAILS] Failed to load summaries', { error: err });
       }
@@ -650,42 +651,28 @@ export default function SessionDetails() {
     // Get section name from Section entity
     const sectionEntity = sections.find(s => s.id === questionEntity?.section_id);
     const sectionName = sectionEntity?.section_name || r.category || '';
-    
-    // DEBUG: Log what we're looking up for this response
+
     const responseQuestionId = r.question_id;
-    const questionEntityId = questionEntity?.id; // The database ID of the Question entity
-    
-    // QuestionSummary.question_id is stored as the Question entity's database ID
-    // Response.question_id is ALSO the Question entity's database ID
-    // So we can do a direct lookup without needing questionEntityId
-    const questionSummary = questionSummariesByQuestionId[responseQuestionId] || null;
 
-    // Get instance summaries for this question
-    const relatedFollowupsFromDb = followups.filter(f => f.response_id === r.id);
-    const instanceSummaries = relatedFollowupsFromDb.map(f => {
-      const key = `${responseQuestionId}|${f.instance_number || 1}`;
-      return instanceSummariesByKey[key];
-    }).filter(Boolean);
+    // PRIORITY 1: Check Response.aiSummary.questionSummaryText (NEW primary storage)
+    let investigator_summary = r.aiSummary?.questionSummaryText || null;
 
-    // Prefer question summary, fallback to combined instance summaries
-    let investigator_summary = questionSummary;
-    if (!investigator_summary && instanceSummaries.length > 0) {
-      investigator_summary = instanceSummaries.join(' | ');
+    // PRIORITY 2: Fall back to QuestionSummary entity (backwards compatibility)
+    if (!investigator_summary) {
+      investigator_summary = questionSummariesByQuestionId[responseQuestionId] || null;
     }
 
-    const hasSummary = !!investigator_summary;
-    const summarySource = questionSummary ? 'question' : instanceSummaries.length ? 'instances' : 'none';
+    // PRIORITY 3: Fall back to combined instance summaries
+    if (!investigator_summary) {
+      const relatedFollowupsFromDb = followups.filter(f => f.response_id === r.id);
+      const instanceSummaries = relatedFollowupsFromDb.map(f => {
+        const key = `${responseQuestionId}|${f.instance_number || 1}`;
+        return instanceSummariesByKey[key];
+      }).filter(Boolean);
 
-    // Only log for Yes answers with follow-ups (where we expect summaries)
-    if (r.answer === 'Yes' && relatedFollowupsFromDb.length > 0) {
-      console.log('[SESSIONDETAILS] Question summary check', {
-        responseQuestionId,
-        hasFollowups: relatedFollowupsFromDb.length > 0,
-        hasSummary,
-        summarySource,
-        availableKeys: Object.keys(questionSummariesByQuestionId).slice(0, 5),
-        summaryPreview: investigator_summary ? investigator_summary.slice(0, 120) : null
-      });
+      if (instanceSummaries.length > 0) {
+        investigator_summary = instanceSummaries.join(' | ');
+      }
     }
     
     return {
@@ -1260,35 +1247,52 @@ export default function SessionDetails() {
               )}
             </div>
 
-            {session.global_ai_summary ? (
-              <>
-                {session.global_ai_summary.patterns && session.global_ai_summary.patterns.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {session.global_ai_summary.patterns.map((pattern, idx) => (
-                      <Badge key={idx} variant="outline" className="text-xs text-purple-300 border-purple-500/30">
-                        {pattern}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                <div className="text-sm text-slate-300 leading-relaxed mb-3">
-                  {session.global_ai_summary.text}
-                </div>
-
-                {session.global_ai_summary.keyObservations && session.global_ai_summary.keyObservations.length > 0 && (
-                  <div className="mt-3 space-y-1">
-                    <div className="text-xs font-semibold text-blue-400">Key Observations:</div>
-                    {session.global_ai_summary.keyObservations.map((obs, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                        <span className="text-blue-400">•</span>
-                        <span>{obs}</span>
+            {/* PRIORITY 1: Check InterviewSession.aiSummary.overallSummaryText */}
+                  {session.aiSummary?.overallSummaryText && session.aiSummary?.status === 'completed' ? (
+                    <>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
+                          ✓ Interview Summary Generated
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
+
+                      <div className="text-sm text-slate-300 leading-relaxed mb-3">
+                        {session.aiSummary.overallSummaryText}
+                      </div>
+                    </>
+                  ) : session.aiSummary?.status === 'pending' ? (
+                    <div className="text-sm text-slate-400 italic">
+                      Investigative summary is being generated…
+                    </div>
+                  ) : session.global_ai_summary ? (
+                    <>
+                      {session.global_ai_summary.patterns && session.global_ai_summary.patterns.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {session.global_ai_summary.patterns.map((pattern, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs text-purple-300 border-purple-500/30">
+                              {pattern}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="text-sm text-slate-300 leading-relaxed mb-3">
+                        {session.global_ai_summary.text}
+                      </div>
+
+                      {session.global_ai_summary.keyObservations && session.global_ai_summary.keyObservations.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          <div className="text-xs font-semibold text-blue-400">Key Observations:</div>
+                          {session.global_ai_summary.keyObservations.map((obs, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                              <span className="text-blue-400">•</span>
+                              <span>{obs}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2 mb-3">
                   <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
@@ -2064,6 +2068,35 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           </button>
                           {isInstanceExpanded && (
                             <div className="px-3 pb-3 pt-1 space-y-2">
+                              {/* Instance-level AI narrative (NEW) */}
+                              {(() => {
+                                const instanceFollowUp = followups.find(f => 
+                                  f.response_id === response.id && 
+                                  f.instance_number === instanceNum
+                                );
+
+                                if (instanceFollowUp?.aiSummary?.instanceNarrativeText && 
+                                    instanceFollowUp.aiSummary.status === 'completed') {
+                                  return (
+                                    <div className="bg-amber-950/20 border border-amber-700/40 rounded-lg p-3 mb-2">
+                                      <div className="text-[11px] font-semibold tracking-wide text-amber-400 mb-1">
+                                        Instance Narrative
+                                      </div>
+                                      <p className="text-xs text-amber-100 leading-relaxed italic">
+                                        {instanceFollowUp.aiSummary.instanceNarrativeText}
+                                      </p>
+                                    </div>
+                                  );
+                                } else if (instanceFollowUp?.aiSummary?.status === 'pending') {
+                                  return (
+                                    <div className="text-xs text-slate-500 italic mb-2">
+                                      Instance narrative is being prepared…
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
                               {deterministicEntries.length > 0 && (
                                 <div>
                                   <div className="divide-y divide-slate-700/60 text-xs">
@@ -2180,6 +2213,35 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                           </button>
                           {isInstanceExpanded && (
                             <div className="px-3 pb-3 pt-1 space-y-2">
+                              {/* Instance-level AI narrative (NEW) */}
+                              {(() => {
+                                const instanceFollowUp = followups.find(f => 
+                                  f.response_id === response.id && 
+                                  f.instance_number === instanceNum
+                                );
+
+                                if (instanceFollowUp?.aiSummary?.instanceNarrativeText && 
+                                    instanceFollowUp.aiSummary.status === 'completed') {
+                                  return (
+                                    <div className="bg-amber-950/20 border border-amber-700/40 rounded-lg p-3 mb-2">
+                                      <div className="text-[11px] font-semibold tracking-wide text-amber-400 mb-1">
+                                        Instance Narrative
+                                      </div>
+                                      <p className="text-xs text-amber-100 leading-relaxed italic">
+                                        {instanceFollowUp.aiSummary.instanceNarrativeText}
+                                      </p>
+                                    </div>
+                                  );
+                                } else if (instanceFollowUp?.aiSummary?.status === 'pending') {
+                                  return (
+                                    <div className="text-xs text-slate-500 italic mb-2">
+                                      Instance narrative is being prepared…
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
                               {deterministicEntriesForFallback.length > 0 && (
                                 <div>
                                   <div className="divide-y divide-slate-700/60 text-xs">

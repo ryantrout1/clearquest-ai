@@ -176,7 +176,12 @@ export default function SectionHeader({
       {/* AI Summary Section */}
       {!isCollapsed && (
         <div className="border-t border-slate-700 bg-slate-800/50 px-4 py-3">
-          {aiSummary ? (
+          {aiSummary?.status === 'pending' ? (
+            <div className="flex items-center gap-2">
+              <span className="text-purple-400 text-base">🧠</span>
+              <span className="text-sm text-slate-400 italic">Section summary is being generated…</span>
+            </div>
+          ) : aiSummary && (typeof aiSummary === 'string' || aiSummary.text) ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -185,23 +190,23 @@ export default function SectionHeader({
                     AI Investigator Assist
                   </span>
                 </div>
-                <Badge className={cn("text-xs", getBadgeColor(
-                  aiSummary.riskLevel === "High" ? "red" : 
-                  aiSummary.riskLevel === "Medium" ? "yellow" : "green"
-                ))}>
-                  AI Section Signal: {aiSummary.riskLevel === "High" ? "High Concern" : 
-                    aiSummary.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
-                </Badge>
+                {aiSummary.riskLevel && (
+                  <Badge className={cn("text-xs", getBadgeColor(
+                    aiSummary.riskLevel === "High" ? "red" : 
+                    aiSummary.riskLevel === "Medium" ? "yellow" : "green"
+                  ))}>
+                    AI Section Signal: {aiSummary.riskLevel === "High" ? "High Concern" : 
+                      aiSummary.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
+                  </Badge>
+                )}
               </div>
 
-              <div
-                className="text-sm text-slate-300 leading-relaxed"
-              >
+              <div className="text-sm text-slate-300 leading-relaxed">
                 {showFullSummary ? (
-                  <div>{aiSummary.text}</div>
+                  <div>{typeof aiSummary === 'string' ? aiSummary : aiSummary.text}</div>
                 ) : (
                   <div className="line-clamp-2 cursor-pointer hover:text-white transition-colors" onClick={() => setShowFullSummary(true)}>
-                    {aiSummary.text}
+                    {typeof aiSummary === 'string' ? aiSummary : aiSummary.text}
                   </div>
                 )}
               </div>
@@ -218,7 +223,7 @@ export default function SectionHeader({
                 </div>
               )}
 
-              {aiSummary.text.length > 100 && (
+              {(typeof aiSummary === 'string' ? aiSummary : aiSummary.text)?.length > 100 && (
                 <button
                   onClick={() => setShowFullSummary(!showFullSummary)}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1"
