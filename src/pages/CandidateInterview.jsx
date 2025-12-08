@@ -1822,7 +1822,7 @@ export default function CandidateInterview() {
               } else {
                 // No opening message - go directly to first field
                 // STEP 2: Include backend question text in currentItem
-                const backendQuestionText = getBackendQuestionText(v2BackendQuestionTextMap, packId, firstField.fieldKey, 1);
+                const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
                 
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
