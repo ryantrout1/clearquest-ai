@@ -10,13 +10,13 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, FileText } from "lucide-react";
-import { groupTranscriptIntoPairs } from "../utils/transcriptLogger";
+import { MessageSquare, FileText, CheckCircle } from "lucide-react";
 
 export default function CanonicalTranscriptRenderer({ session, searchTerm = "", showOnlyFollowUps = false }) {
   const originalEntries = session?.transcript_snapshot || [];
   
   console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
+  console.log("[TRANSCRIPT][ENTRY_SAMPLE]", originalEntries?.slice(0, 3));
   
   // STEP 2: Apply filters
   let filteredEntries = originalEntries;
