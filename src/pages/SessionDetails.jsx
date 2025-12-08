@@ -2324,7 +2324,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                                   <Badge className="text-[9px] bg-sky-500/20 text-sky-300 border-sky-500/30">legacy db</Badge>
                                 )}
                               </div>
-                              {summaryLineForFallback && (<div className="text-[11px] text-slate-400">{summaryLineForFallback}</div>)}
                             </div>
                             {(hasMultipleInstances || hasAnyContentForFallback) && (<span className="text-[10px] text-slate-400">{isInstanceExpanded ? "Hide" : "Show"}</span>)}
                           </button>
