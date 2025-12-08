@@ -297,13 +297,6 @@ async function runSummariesForSession(base44, sessionId) {
     return isYes || hasFollowUps;
   });
   
-  console.log('[SUMMARIES] QUESTION_FILTER', {
-    sessionId,
-    totalResponses: responses.length,
-    needingSummary: questionsNeedingSummary.length,
-    yesCount: responses.filter(r => r.answer === 'Yes').length
-  });
-  
   // Iterate over filtered responses only
   for (const response of questionsNeedingSummary) {
     // response.question_id is the string code (Q008, Q009, etc.)
@@ -323,9 +316,12 @@ async function runSummariesForSession(base44, sessionId) {
       continue;
     }
     
-    // Check if summary already exists (keyed by question code)
-    if (existingQSummaryIds.has(questionCode)) {
-      console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
+    // Check if Response already has aiSummary.questionSummaryText
+    const hasResponseLevelSummary = response.aiSummary?.questionSummaryText && 
+                                     response.aiSummary?.status === 'completed';
+    
+    // Also check QuestionSummary entity for backwards compatibility
+    if (hasResponseLevelSummary || existingQSummaryIds.has(questionCode)) {
       result.skippedExists.question++;
       continue;
     }
@@ -333,7 +329,6 @@ async function runSummariesForSession(base44, sessionId) {
     // Check if question is complete
     const completionStatus = isQuestionComplete(questionCode, responsesByQuestionCode, followUpsByResponseId);
     if (!completionStatus.complete) {
-      console.log('[QSUM][SKIP-INCOMPLETE]', { session: sessionId, question: questionCode, reason: completionStatus.reason });
       result.skippedIncomplete.question++;
       continue;
     }
@@ -368,49 +363,137 @@ ${contextText}`;
       
       const summaryText = llmResult?.summary;
       if (summaryText) {
-        // Double-check no existing summary (race condition guard)
+        // Save to Response.aiSummary (NEW primary storage)
         try {
-          const existingCheck = await base44.asServiceRole.entities.QuestionSummary.filter({
-            session_id: sessionId,
-            question_id: questionCode
+          await base44.asServiceRole.entities.Response.update(response.id, {
+            aiSummary: {
+              questionSummaryText: summaryText,
+              status: 'completed',
+              lastUpdatedAt: new Date().toISOString()
+            }
           });
           
-          if (existingCheck.length > 0) {
-            console.log('[QSUM][SKIP-EXISTS]', { session: sessionId, question: questionCode });
-            result.skippedExists.question++;
-            continue;
-          }
-        } catch (checkErr) {
-          console.warn('[QSUM][CHECK-ERROR]', { session: sessionId, question: questionCode, error: checkErr.message });
-          // Continue anyway - worst case we get a duplicate that fails
-        }
-        
-        // Find section name for this question
-        const sectionEntity = sections.find(s => s.id === questionEntity.section_id);
-        const sectionName = sectionEntity?.section_name || '';
-        
-        try {
+          result.created.question++;
+          
+          // Also save to QuestionSummary entity for backwards compatibility
+          const sectionEntity = sections.find(s => s.id === questionEntity.section_id);
+          const sectionName = sectionEntity?.section_name || '';
+          
           await base44.asServiceRole.entities.QuestionSummary.create({
             session_id: sessionId,
             section_id: sectionName,
             question_id: questionCode,
             question_summary_text: summaryText,
             generated_at: new Date().toISOString()
-          });
+          }).catch(() => {}); // Ignore errors - Response.aiSummary is primary
           
-          console.log('[QSUM][CREATE]', { session: sessionId, question: questionCode });
-          result.created.question++;
-        } catch (createErr) {
-          console.error('[QSUM][CREATE-ERROR]', { session: sessionId, question: questionCode, error: createErr.message });
-          result.errors.push({ type: 'question_create', id: questionCode, error: createErr.message });
+        } catch (updateErr) {
+          result.errors.push({ type: 'question_update', id: questionCode, error: updateErr.message });
         }
-      } else {
-        console.warn('[QSUM][NO-SUMMARY]', { session: sessionId, question: questionCode });
       }
     } catch (err) {
       console.error('[QSUM][LLM-ERROR]', { session: sessionId, question: questionCode, error: err.message });
       result.errors.push({ type: 'question_llm', id: questionCode, error: err.message });
       // Continue to next question - don't fail the whole batch
+    }
+  }
+  
+  // 3.5) Process INSTANCE SUMMARIES (FollowUpResponse)
+  // Generate narrative for each completed follow-up instance
+  for (const followUp of followUps) {
+    // Skip if instance already has summary
+    if (followUp.aiSummary?.instanceNarrativeText && followUp.aiSummary?.status === 'completed') {
+      result.skippedExists.instance = (result.skippedExists.instance || 0) + 1;
+      continue;
+    }
+    
+    // Check if instance is complete
+    if (!followUp.completed) {
+      result.skippedIncomplete.instance = (result.skippedIncomplete.instance || 0) + 1;
+      continue;
+    }
+    
+    // Build instance context
+    const packId = followUp.followup_pack;
+    const details = followUp.additional_details || {};
+    const instanceNumber = followUp.instance_number || 1;
+    
+    // Gather all field answers for this instance
+    const fieldAnswers = [];
+    Object.entries(details).forEach(([key, value]) => {
+      if (['investigator_probing', 'question_text_snapshot', 'facts', 'unresolvedFields', 'candidate_narrative'].includes(key)) return;
+      if (!value || typeof value === 'object') return;
+      
+      const label = key.replace(/PACK_[A-Z_]+_/g, '').replace(/_/g, ' ');
+      fieldAnswers.push(`${label}: ${value}`);
+    });
+    
+    // Add top-level fields
+    if (followUp.incident_date) fieldAnswers.push(`Date: ${followUp.incident_date}`);
+    if (followUp.incident_location) fieldAnswers.push(`Location: ${followUp.incident_location}`);
+    if (followUp.incident_description) fieldAnswers.push(`Description: ${followUp.incident_description}`);
+    if (followUp.circumstances) fieldAnswers.push(`Circumstances: ${followUp.circumstances}`);
+    
+    // Add AI probing exchanges
+    const aiProbes = details.investigator_probing || [];
+    const probeText = aiProbes.map(p => `Q: ${p.probing_question}\nA: ${p.candidate_response}`).join('\n');
+    
+    if (fieldAnswers.length === 0 && !probeText) {
+      result.skippedIncomplete.instance = (result.skippedIncomplete.instance || 0) + 1;
+      continue;
+    }
+    
+    const instancePrompt = `You are summarizing a single incident from an interview.
+
+Pack: ${packId}
+Instance: ${instanceNumber}
+
+Details:
+${fieldAnswers.join('\n')}
+
+${probeText ? `\nAI Follow-up Exchanges:\n${probeText}` : ''}
+
+Write a brief narrative (2-3 sentences) describing this specific incident. Use third person and focus on facts.`;
+
+    try {
+      const instanceResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
+        prompt: instancePrompt,
+        response_json_schema: {
+          type: "object",
+          properties: { narrative: { type: "string" } }
+        },
+        model: aiConfig.model,
+        temperature: aiConfig.temperature,
+        max_tokens: aiConfig.max_tokens,
+        top_p: aiConfig.top_p
+      });
+      
+      const narrativeText = instanceResult?.narrative;
+      if (narrativeText) {
+        await base44.asServiceRole.entities.FollowUpResponse.update(followUp.id, {
+          aiSummary: {
+            instanceNarrativeText: narrativeText,
+            status: 'completed',
+            lastUpdatedAt: new Date().toISOString()
+          }
+        });
+        
+        result.created.instance = (result.created.instance || 0) + 1;
+        
+        // Also save to InstanceSummary entity for backwards compatibility
+        const baseResponse = responsesById[followUp.response_id];
+        await base44.asServiceRole.entities.InstanceSummary.create({
+          session_id: sessionId,
+          section_id: baseResponse?.category || '',
+          question_id: followUp.question_id,
+          pack_id: packId,
+          instance_number: instanceNumber,
+          instance_summary_text: narrativeText,
+          generated_at: new Date().toISOString()
+        }).catch(() => {}); // Ignore errors
+      }
+    } catch (err) {
+      result.errors.push({ type: 'instance_llm', id: followUp.id, error: err.message });
     }
   }
   
@@ -549,31 +632,51 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     
     if (summaryText) {
       try {
-        // Double-check no existing summary by name
-        const existingCheck = await base44.asServiceRole.entities.SectionSummary.filter({
+        // Create/update SectionResult entity (NEW primary storage)
+        const existingSectionResults = await base44.asServiceRole.entities.SectionResult.filter({
           session_id: sessionId,
           section_id: sectionDbId
         });
         
-        if (existingCheck.length > 0) {
-          console.log('[SSUM][SKIP-EXISTS-RACE]', { session: sessionId, sectionName });
-          result.skippedExists.section++;
-          continue;
+        if (existingSectionResults.length > 0) {
+          // Update existing
+          await base44.asServiceRole.entities.SectionResult.update(existingSectionResults[0].id, {
+            aiSummary: {
+              sectionSummaryText: summaryText,
+              status: 'completed',
+              lastUpdatedAt: new Date().toISOString()
+            }
+          });
+        } else {
+          // Create new
+          await base44.asServiceRole.entities.SectionResult.create({
+            session_id: sessionId,
+            section_id: sectionDbId,
+            section_name: sectionName,
+            total_questions: status.total || 0,
+            answered_questions: status.answered || 0,
+            yes_count: yesAnswers.length,
+            no_count: noAnswers.length,
+            completion_status: status.complete ? 'completed' : 'in_progress',
+            aiSummary: {
+              sectionSummaryText: summaryText,
+              status: 'completed',
+              lastUpdatedAt: new Date().toISOString()
+            }
+          });
         }
         
-        // CRITICAL: Store section_id as the DATABASE ID (for consistency)
-        // The UI will map DB ID -> section name when loading
+        result.created.section++;
+        
+        // Also save to SectionSummary entity for backwards compatibility
         await base44.asServiceRole.entities.SectionSummary.create({
           session_id: sessionId,
           section_id: sectionDbId,
           section_summary_text: summaryText,
           generated_at: new Date().toISOString()
-        });
+        }).catch(() => {}); // Ignore errors
         
-        console.log('[SSUM][CREATE]', { session: sessionId, sectionName, sectionDbId });
-        result.created.section++;
       } catch (err) {
-        console.error('[SSUM][ERROR]', { session: sessionId, sectionName, error: err.message });
         result.errors.push({ type: 'section', id: sectionName, error: err.message });
       }
     }
@@ -601,17 +704,17 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
   }
   
   // 6) Process INTERVIEW SUMMARY (only if all sections complete)
-  const hasExistingGlobalSummary = session?.global_ai_summary?.text && 
+  const hasExistingOverallSummary = session?.aiSummary?.overallSummaryText && 
+                                     session?.aiSummary?.status === 'completed';
+  
+  // Also check legacy global_ai_summary for backwards compatibility
+  const hasLegacyGlobalSummary = session?.global_ai_summary?.text && 
     session.global_ai_summary.text.length > 0 &&
     !session.global_ai_summary.text.includes('lack of disclosures');
   
-  if (hasExistingGlobalSummary) {
-    console.log('[ISUM][SKIP-EXISTS]', { session: sessionId });
+  if (hasExistingOverallSummary || hasLegacyGlobalSummary) {
     result.skippedExists.interview++;
   } else if (!allSectionsComplete) {
-    const completeSections = Object.values(sectionCompletionStatus).filter(s => s.complete).length;
-    const totalSections = Object.keys(sectionCompletionStatus).length;
-    console.log('[ISUM][SKIP-INCOMPLETE]', { session: sessionId, completeSections, totalSections });
     result.skippedIncomplete.interview++;
   } else {
     // All sections complete - generate interview summary
@@ -649,24 +752,25 @@ Generate a brief interview-level summary (2-3 sentences) focusing on what was di
       if (globalResult?.summary) {
         try {
           await base44.asServiceRole.entities.InterviewSession.update(sessionId, {
+            aiSummary: {
+              overallSummaryText: globalResult.summary,
+              status: 'completed',
+              lastUpdatedAt: new Date().toISOString()
+            },
             global_ai_summary: {
               text: globalResult.summary,
               riskLevel: yesCount > 10 ? 'High' : yesCount > 5 ? 'Moderate' : 'Low',
               keyObservations: [],
               patterns: [],
-              contradictions: contradictions // Attach contradictions to BI output
+              contradictions: contradictions
             },
             ai_summaries_last_generated_at: new Date().toISOString()
           });
           
-          console.log('[ISUM][CREATE]', { session: sessionId });
           result.created.interview++;
         } catch (updateErr) {
-          console.error('[ISUM][UPDATE-ERROR]', { session: sessionId, error: updateErr.message });
           result.errors.push({ type: 'interview_update', id: sessionId, error: updateErr.message });
         }
-      } else {
-        console.warn('[ISUM][NO-SUMMARY]', { session: sessionId });
       }
     } catch (err) {
       console.error('[ISUM][LLM-ERROR]', { session: sessionId, error: err.message });
@@ -675,10 +779,9 @@ Generate a brief interview-level summary (2-3 sentences) focusing on what was di
     }
   }
   
-  // Add contradictions to result for caller visibility
+  // Add summary counts to result
   result.contradictions = contradictions;
   
-  console.log('[SUMMARIES] DONE', { sessionId, result: { ...result, contradictionCount: contradictions.length } });
   return result;
 }
 
