@@ -12,52 +12,6 @@ import {
 } from "./sectionAnalytics";
 
 /**
- * STEP 2: Compute section KPIs using asked questions from transcript (session-specific)
- */
-function computeSectionKPIsFromTranscript(category, allResponses, allFollowups, transcriptEvents, askedQuestionsByPack) {
-  const sectionResponses = allResponses.filter(r => r.section_name === category);
-  
-  // Find which pack this category corresponds to
-  // Look at responses in this category that triggered follow-ups to identify the pack
-  const categoryPackIds = new Set();
-  sectionResponses.forEach(r => {
-    if (r.triggered_followup && r.followup_pack) {
-      categoryPackIds.add(r.followup_pack);
-    }
-  });
-  
-  // If we found a pack in asked questions, use transcript data for count
-  let totalQuestions = sectionResponses.length;
-  if (categoryPackIds.size > 0) {
-    const packId = Array.from(categoryPackIds)[0]; // Assume one pack per section
-    const askedData = askedQuestionsByPack[packId];
-    if (askedData && askedData.askedQuestionIds) {
-      totalQuestions = askedData.askedQuestionIds.length;
-      console.log('[SECTION_KPI_OVERRIDE]', { category, packId, askedQuestions: totalQuestions, originalCount: sectionResponses.length });
-    }
-  }
-  
-  const yesCount = sectionResponses.filter(r => r.answer === 'Yes').length;
-  const noCount = sectionResponses.filter(r => r.answer === 'No').length;
-  
-  // Follow-ups count based on transcript events for this section
-  const followupEvents = transcriptEvents.filter(e => 
-    (e.kind === 'deterministic_followup_question' || e.kind === 'ai_probe_question') &&
-    e.sectionName === category
-  );
-  const followUpCount = followupEvents.length;
-  
-  return {
-    totalQuestions,
-    yesCount,
-    noCount,
-    followUpCount,
-    yesPercent: totalQuestions > 0 ? Math.round((yesCount / totalQuestions) * 100) : 0,
-    noPercent: totalQuestions > 0 ? Math.round((noCount / totalQuestions) * 100) : 0
-  };
-}
-
-/**
  * Smart Section Header with Analytics, KPIs, and AI Summary
  */
 export default function SectionHeader({
