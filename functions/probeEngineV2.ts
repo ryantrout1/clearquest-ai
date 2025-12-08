@@ -2827,6 +2827,96 @@ function runDeterministicExtractor({ packId, fieldKey, answerText }) {
 }
 
 /**
+ * Auto-skip helper for fields with high-confidence extracted values
+ * 
+ * Checks if a field should be automatically filled and skipped based on:
+ * - Field config flags (autoSkipIfConfident, autoSkipMinConfidence)
+ * - Extraction quality (confidence, enum validation)
+ * - Pack progress state
+ * 
+ * @param {object} fieldConfig - Field configuration from pack
+ * @param {object} extraction - Extracted value with confidence { value, confidence }
+ * @param {object} packState - Current pack state (for persistence)
+ * @param {object} base44Client - Base44 SDK client for persistence
+ * @returns {Promise<{shouldSkip: boolean, autoAnswerValue?: string}>}
+ */
+async function maybeAutoSkipField(fieldConfig, extraction, packState, base44Client) {
+  try {
+    // Check if auto-skip is enabled for this field
+    if (!fieldConfig?.autoSkipIfConfident) {
+      return { shouldSkip: false };
+    }
+    
+    // Determine confidence threshold (default 0.85)
+    const threshold = fieldConfig.autoSkipMinConfidence ?? 0.85;
+    
+    // Validate extraction exists and has value
+    if (!extraction || !extraction.value || extraction.value.trim() === "") {
+      return { shouldSkip: false };
+    }
+    
+    // Validate enum values if defined
+    if (fieldConfig.allowedEnumValues && Array.isArray(fieldConfig.allowedEnumValues)) {
+      const normalizedValue = extraction.value.toLowerCase().trim();
+      const normalizedEnum = fieldConfig.allowedEnumValues.map(v => v.toLowerCase().trim());
+      
+      if (!normalizedEnum.includes(normalizedValue)) {
+        console.log(`[AUTO_SKIP] Value "${extraction.value}" not in allowedEnumValues - cannot skip`);
+        return { shouldSkip: false };
+      }
+    }
+    
+    // Check confidence threshold
+    if (extraction.confidence && extraction.confidence < threshold) {
+      console.log(`[AUTO_SKIP] Confidence ${extraction.confidence} < ${threshold} - cannot skip`);
+      return { shouldSkip: false };
+    }
+    
+    // All conditions met - field can be auto-skipped
+    console.log(`[AUTO_SKIP] Field ${fieldConfig.fieldKey} can be auto-filled with "${extraction.value}" (confidence: ${extraction.confidence || 'N/A'})`);
+    
+    // Persist the auto-answer if we have session context
+    if (packState?.sessionId && packState?.packId && base44Client) {
+      try {
+        // Create Response record for this auto-answered field
+        await base44Client.asServiceRole.entities.Response.create({
+          session_id: packState.sessionId,
+          pack_id: packState.packId,
+          field_key: fieldConfig.fieldKey,
+          instance_number: packState.instanceNumber || 1,
+          question_id: packState.baseQuestionId || null,
+          question_text: fieldConfig.label || fieldConfig.fieldKey,
+          answer: extraction.value,
+          response_type: 'v2_pack_field',
+          response_timestamp: new Date().toISOString(),
+          additional_details: {
+            auto_filled: true,
+            auto_fill_source: 'narrative_extraction',
+            confidence: extraction.confidence,
+            extraction_method: extraction.method || 'llm'
+          }
+        });
+        
+        console.log(`[AUTO_SKIP] Persisted auto-answer for ${fieldConfig.fieldKey}: "${extraction.value}"`);
+      } catch (persistErr) {
+        console.error(`[AUTO_SKIP] Failed to persist auto-answer:`, persistErr.message);
+        // Don't fail the entire skip - just log the error
+      }
+    }
+    
+    return {
+      shouldSkip: true,
+      autoAnswerValue: extraction.value
+    };
+    
+  } catch (error) {
+    console.error(`[AUTO_SKIP] Error in maybeAutoSkipField:`, error.message);
+    // On any error, fall back to normal flow
+    return { shouldSkip: false };
+  }
+}
+
+/**
  * Normalize v2Result to ensure anchors/collectedAnchors always exist
  * SAFETY NET: Called at end of probeEngineV2 to catch any bypassed paths
  */
