@@ -1749,6 +1749,20 @@ export function parseV2FollowUpPacks(v2Packs, allFollowUpQuestions) {
       }));
     
     console.log(`   ✅ V2 Pack ${packId}: ${V2PackStepsById[packId].length} VISIBLE questions loaded (${schemaOnlyCount} SCHEMA_ONLY excluded)`);
+    
+    // AUDIT LOG: Full pack metadata for PACK_PRIOR_LE_APPS_STANDARD
+    if (packId === "PACK_PRIOR_LE_APPS_STANDARD") {
+      console.log("[V2_PACK_AUDIT][FRONTEND_PACK_META]", {
+        packId,
+        packName: pack.pack_name,
+        fieldConfig: pack.field_config || null,
+        fields: pack.fields || null,
+        maxAiFollowups: pack.max_ai_followups,
+        aiProbeInstructions: pack.ai_probe_instructions ? 'present' : 'missing',
+        visibleQuestionsCount: V2PackStepsById[packId].length,
+        rawPackMeta: pack
+      });
+    }
   });
   
   console.log(`📦 Loaded ${Object.keys(V2PackStepsById).length} V2 follow-up packs from database`);

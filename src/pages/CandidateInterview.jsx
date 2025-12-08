@@ -347,6 +347,19 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       followupsCount: response.data?.followups?.length || 0
     });
     
+    // AUDIT LOG: Full result for PACK_PRIOR_LE_APPS_STANDARD
+    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+      console.log("[V2_PACK_AUDIT][FRONTEND_RECV]", {
+        packId,
+        fieldKey,
+        question: response.data?.question || null,
+        questionText: response.data?.questionText || null,
+        questionPreview: response.data?.questionPreview || null,
+        mode: response.data?.mode,
+        rawResult: response.data
+      });
+    }
+    
     return response.data;
   } catch (err) {
     console.error('[V2_PER_FIELD][ERROR] Backend call failed:', { packId, fieldKey, message: err?.message });
@@ -457,6 +470,19 @@ const runV2FieldProbeIfNeeded = async ({
       probeSource: v2Result?.probeSource,
       reason: v2Result?.reason || v2Result?.message
     });
+    
+    // AUDIT LOG: Full response for PACK_PRIOR_LE_APPS_STANDARD
+    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+      console.log("[V2_PACK_AUDIT][UNIVERSAL_RESPONSE]", {
+        packId,
+        fieldKey,
+        question: v2Result?.question || null,
+        questionText: v2Result?.questionText || null,
+        questionPreview: v2Result?.questionPreview || null,
+        mode: v2Result?.mode,
+        rawResult: v2Result
+      });
+    }
     
     // If AI is disabled at session level, skip any probe questions
     if (aiProbingDisabledForSession && v2Result?.mode === 'QUESTION') {
@@ -2664,6 +2690,24 @@ export default function CandidateInterview() {
       currentItemRef.current = currentItem;
     }
     
+    // AUDIT LOG: UI question object for PACK_PRIOR_LE_APPS_STANDARD before rendering
+    if (effectiveCurrentItem?.type === 'v2_pack_field' && 
+        effectiveCurrentItem?.packId === "PACK_PRIOR_LE_APPS_STANDARD" && 
+        effectiveCurrentItem?.fieldKey === "PACK_PRLE_Q01") {
+      const fieldConfig = effectiveCurrentItem?.fieldConfig;
+      console.log("[V2_PACK_AUDIT][UI_QUESTION_BEFORE_RENDER]", {
+        packId: effectiveCurrentItem.packId,
+        fieldKey: effectiveCurrentItem.fieldKey,
+        fieldConfigLabel: fieldConfig?.label || null,
+        fieldConfigFallbackQuestion: fieldConfig?.fallbackQuestion || null,
+        hasClarifierActive: !!(v2ClarifierState?.packId === effectiveCurrentItem.packId && 
+                               v2ClarifierState?.fieldKey === effectiveCurrentItem.fieldKey),
+        clarifierQuestion: v2ClarifierState?.clarifierQuestion || null,
+        rawFieldConfig: fieldConfig,
+        rawCurrentItem: effectiveCurrentItem
+      });
+    }
+    
     // V3 probing mode - no prompt, V3ProbingLoop handles it
     if (v3ProbingActive) {
       return null;
@@ -2781,7 +2825,7 @@ export default function CandidateInterview() {
         ? v2ClarifierState.clarifierQuestion 
         : fieldConfig.label;
       
-      return {
+      const promptObject = {
         type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
         id: effectiveCurrentItem.id,
         text: displayText,
@@ -2796,6 +2840,20 @@ export default function CandidateInterview() {
         instanceNumber: instanceNumber,
         category: packConfig?.instancesLabel || 'Follow-up'
       };
+      
+      // AUDIT LOG: Final UI question object for PACK_PRIOR_LE_APPS_STANDARD
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && effectiveCurrentItem.fieldKey === "PACK_PRLE_Q01") {
+        console.log("[V2_PACK_AUDIT][UI_QUESTION_FINAL]", {
+          packId,
+          fieldKey: effectiveCurrentItem.fieldKey,
+          displayText,
+          textField: promptObject.text,
+          hasClarifierActive,
+          rawPromptObject: promptObject
+        });
+      }
+      
+      return promptObject;
     }
 
     return null;
