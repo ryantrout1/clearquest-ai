@@ -5962,19 +5962,9 @@ async function probeEngineV2(input, base44Client) {
 }
 
 /**
- * Deno serve handler - DIAGNOSTIC STUB MODE
+ * Deno serve handler - PRIOR_LE_APPS per-field controller
  */
 Deno.serve(async (req) => {
-  // DIAGNOSTIC STUB: Always return test message
-  return Response.json({
-    "mode": "QUESTION",
-    "hasQuestion": true,
-    "question": "TEST PRIOR LE APPS V3 – IF YOU SEE THIS, PROD IS USING THE CORRECT PROMPT.",
-    "followups": [],
-    "reason": "diagnostic"
-  });
-  
-  // Original handler code (unreachable) - kept for reference
   let packId = null;
   let fieldKey = null;
   
