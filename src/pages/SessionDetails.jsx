@@ -142,6 +142,13 @@ export default function SessionDetails() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyFollowUps, setShowOnlyFollowUps] = useState(false);
   const [viewMode, setViewMode] = useState("structured");
+  
+  // Reset follow-ups filter when switching to Transcript mode
+  useEffect(() => {
+    if (viewMode === "transcript") {
+      setShowOnlyFollowUps(false);
+    }
+  }, [viewMode]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [isDeletingLast, setIsDeletingLast] = useState(false);
@@ -1534,7 +1541,11 @@ export default function SessionDetails() {
           <>
             {/* Canonical Transcript - Legal Record */}
             {session.transcript_snapshot && session.transcript_snapshot.length > 0 ? (
-              <CanonicalTranscriptRenderer session={session} />
+              <CanonicalTranscriptRenderer 
+                session={session}
+                searchTerm={searchTerm}
+                showOnlyFollowUps={showOnlyFollowUps}
+              />
             ) : (
               <UnifiedTranscriptView
                 transcriptEvents={transcriptEvents}
