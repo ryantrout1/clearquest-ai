@@ -307,6 +307,30 @@ const useProbeEngineV2 = usePerFieldProbing;
 
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
 
+// STEP 1: Helper to store backend question text
+const storeBackendQuestionText = (packId, fieldKey, instanceNumber, questionText, setMapFn) => {
+  if (!questionText) return;
+  setMapFn(prev => {
+    const existingPack = prev[packId] || {};
+    const existingField = existingPack[fieldKey] || {};
+    return {
+      ...prev,
+      [packId]: {
+        ...existingPack,
+        [fieldKey]: {
+          ...existingField,
+          [String(instanceNumber)]: questionText,
+        },
+      },
+    };
+  });
+};
+
+// STEP 1: Helper to retrieve backend question text
+const getBackendQuestionText = (map, packId, fieldKey, instanceNumber) => {
+  return map?.[packId]?.[fieldKey]?.[String(instanceNumber)] || null;
+};
+
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber } = params;
 
@@ -339,6 +363,12 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       mode: 'VALIDATE_FIELD'
     });
     
+    // STEP 1: Store backend question text immediately
+    const backendQuestionText = response.data?.questionText || response.data?.question || null;
+    if (backendQuestionText && params.setBackendQuestionTextMap) {
+      storeBackendQuestionText(packId, fieldKey, params.instanceNumber || 1, backendQuestionText, params.setBackendQuestionTextMap);
+    }
+    
     console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
     console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, { 
       mode: response.data?.mode,
@@ -367,6 +397,12 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
         questionPreview: response.data?.questionPreview || null,
         promptSource: response.data?.promptSource || response.data?.probeSource || null
       });
+    }
+    
+    // STEP 1: Store backend question text for later use in UI rendering
+    const backendQuestionText = response.data?.questionText || response.data?.question || null;
+    if (backendQuestionText && params.setBackendQuestionTextMap) {
+      storeBackendQuestionText(packId, fieldKey, params.instanceNumber || 1, backendQuestionText, params.setBackendQuestionTextMap);
     }
     
     return response.data;
@@ -443,7 +479,8 @@ const runV2FieldProbeIfNeeded = async ({
       sessionId,
       questionCode,
       baseQuestionId,
-      instanceNumber
+      instanceNumber,
+      setBackendQuestionTextMap: params.setBackendQuestionTextMap // STEP 1: Pass setter
     });
     
     // LIFECYCLE LOG: Anchors updated (structural only)
@@ -548,6 +585,9 @@ export default function CandidateInterview() {
   const [pendingProbe, setPendingProbe] = useState(null);
   const v2ProbingInProgressRef = useRef(new Set());
   const [v2ClarifierState, setV2ClarifierState] = useState(null);
+  
+  // STEP 1: Store backend question text per V2 pack field and instance
+  const [v2BackendQuestionTextMap, setV2BackendQuestionTextMap] = useState({});
   
   // Track the last AI follow-up question text per field so we can show it on history cards
   const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
@@ -1373,7 +1413,8 @@ export default function CandidateInterview() {
           aiProbingEnabled,
           aiProbingDisabledForSession,
           maxAiFollowups,
-          instanceNumber
+          instanceNumber,
+          setBackendQuestionTextMap // STEP 1: Pass setter
         });
         
 
@@ -1546,6 +1587,10 @@ export default function CandidateInterview() {
             setQueue([]);
             
             await persistStateToDatabase(newTranscript, [], nextItemForV2);
+            // STEP 2: Include backend question text for next field
+            const backendQuestionTextForNext = getBackendQuestionText(v2BackendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
+            nextItemForV2.backendQuestionText = backendQuestionTextForNext;
+            
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
             setInput("");
@@ -1706,7 +1751,8 @@ export default function CandidateInterview() {
                 aiProbingEnabled,
                 aiProbingDisabledForSession,
                 maxAiFollowups: getPackMaxAiFollowups(packId),
-                instanceNumber: 1
+                instanceNumber: 1,
+                setBackendQuestionTextMap // STEP 1: Pass setter
               });
               
               console.log(`[V2_PACK][CLUSTER_INIT] Backend response:`, {
@@ -1757,6 +1803,9 @@ export default function CandidateInterview() {
                 });
                 
                 // Keep currentItem as the first field - but it won't be shown until after AI probe
+                // STEP 2: Include backend question text
+                const backendQuestionTextForFirst = getBackendQuestionText(v2BackendQuestionTextMap, packId, firstField.fieldKey, 1);
+                
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -1765,7 +1814,8 @@ export default function CandidateInterview() {
                   fieldKey: firstField.fieldKey,
                   fieldConfig: firstField,
                   baseQuestionId: currentItem.id,
-                  instanceNumber: 1
+                  instanceNumber: 1,
+                  backendQuestionText: backendQuestionTextForFirst // STEP 2: Wire backend question
                 });
                 setQueue([]);
                 
@@ -1777,6 +1827,9 @@ export default function CandidateInterview() {
                 });
               } else {
                 // No opening message - go directly to first field
+                // STEP 2: Include backend question text in currentItem
+                const backendQuestionText = getBackendQuestionText(v2BackendQuestionTextMap, packId, firstField.fieldKey, 1);
+                
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -1785,7 +1838,8 @@ export default function CandidateInterview() {
                   fieldKey: firstField.fieldKey,
                   fieldConfig: firstField,
                   baseQuestionId: currentItem.id,
-                  instanceNumber: 1
+                  instanceNumber: 1,
+                  backendQuestionText // STEP 2: Wire backend question
                 });
                 setQueue([]);
                 
@@ -2118,7 +2172,8 @@ export default function CandidateInterview() {
             baseQuestionId,
             aiProbingEnabled,
             aiProbingDisabledForSession,
-            maxAiFollowups
+            maxAiFollowups,
+            setBackendQuestionTextMap // STEP 1: Pass setter for legacy followup path
           });
           
           // Save the answer
@@ -2829,11 +2884,28 @@ export default function CandidateInterview() {
       
       console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
       
-      // CRITICAL FIX: Use the V2 pack field's label as the question text (not the section question)
-      // If clarifier is active, show the clarifier question instead of the field label
+      // STEP 3: Priority order for question text:
+      // 1. Active clarifier question (highest priority)
+      // 2. Backend question text for this field (if provided)
+      // 3. Static fieldConfig.label (fallback)
+      const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
+      
       const displayText = hasClarifierActive 
         ? v2ClarifierState.clarifierQuestion 
-        : fieldConfig.label;
+        : (backendQuestionText || fieldConfig.label);
+      
+      // STEP 4: Verification log
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && effectiveCurrentItem.fieldKey === "PACK_PRLE_Q01") {
+        console.log("[V2_PACK_AUDIT][UI_DISPLAY_TEXT_SELECTION]", {
+          packId,
+          fieldKey: effectiveCurrentItem.fieldKey,
+          instanceNumber: instanceNumber || 1,
+          hasClarifierActive,
+          backendQuestionText,
+          fieldConfigLabel: fieldConfig.label,
+          finalDisplayText: displayText
+        });
+      }
       
       const promptObject = {
         type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
