@@ -1460,17 +1460,22 @@ export default function CandidateInterview() {
         });
         
         // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
+        let localSuggestions = {};
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01' && finalAnswer.length > 50) {
           console.log('[LLM_SUGGESTIONS] Generating field suggestions from narrative...');
           const suggestions = await generateFieldSuggestions(packId, finalAnswer);
           
           if (suggestions && Object.keys(suggestions).length > 0) {
             console.log('[LLM_SUGGESTIONS] Generated suggestions:', suggestions);
-            setFieldSuggestions(prev => ({
-              ...prev,
+            localSuggestions = {
               [`${packId}_${instanceNumber}_PACK_PRLE_Q06`]: suggestions.agency_name,
               [`${packId}_${instanceNumber}_PACK_PRLE_Q04`]: suggestions.application_date,
               [`${packId}_${instanceNumber}_PACK_PRLE_Q02`]: suggestions.application_outcome
+            };
+            
+            setFieldSuggestions(prev => ({
+              ...prev,
+              ...localSuggestions
             }));
           }
         }
@@ -1650,7 +1655,7 @@ export default function CandidateInterview() {
               fieldConfig: nextFieldConfig,
               fieldKey: nextFieldConfig.fieldKey,
               instanceNumber,
-              suggestionMap: fieldSuggestions,
+              suggestionMap: { ...fieldSuggestions, ...localSuggestions },
               sessionId,
               baseQuestionId,
               baseQuestionCode: baseQuestion?.question_id,
