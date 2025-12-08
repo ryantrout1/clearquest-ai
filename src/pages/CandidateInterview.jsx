@@ -1871,6 +1871,29 @@ export default function CandidateInterview() {
 
         const newTranscript = [...transcript, combinedEntry];
         setTranscript(newTranscript);
+        
+        // Append answer to canonical transcript (legal record)
+        try {
+          const currentTranscript = session.transcript_snapshot || [];
+          
+          // Determine exact answer text as seen by candidate
+          let answerTextForUI = value;
+          if (question.response_type === 'yes_no') {
+            answerTextForUI = value === 'Yes' ? 'Yes' : 'No';
+          }
+          
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: answerTextForUI,
+            questionId: currentItem.id,
+            packId: null,
+            fieldKey: null,
+            instanceNumber: null
+          });
+        } catch (err) {
+          console.warn("[TRANSCRIPT][ANSWER] Failed to log section question answer:", err);
+        }
 
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
@@ -2705,6 +2728,27 @@ export default function CandidateInterview() {
           base_question_code: baseQuestionCode
         });
         console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
+        
+        // Append answer to canonical transcript (legal record) - only if user actually answered
+        // (not for auto-skipped fields)
+        try {
+          const currentTranscript = session.transcript_snapshot || [];
+          
+          // Determine exact answer text as seen by candidate
+          let answerTextForUI = answer;
+          
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: answerTextForUI,
+            questionId: baseQuestionId,
+            packId,
+            fieldKey,
+            instanceNumber: instanceNumber || 1
+          });
+        } catch (err) {
+          console.warn("[TRANSCRIPT][ANSWER] Failed to log V2 pack field answer:", err);
+        }
       }
     } catch (err) {
       console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);

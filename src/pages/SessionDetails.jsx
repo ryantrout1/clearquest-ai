@@ -33,6 +33,7 @@ import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
 import { getFollowupFieldLabel } from "../components/config/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
+import CanonicalTranscriptRenderer from "../components/sessionDetails/CanonicalTranscriptRenderer";
 
 // Helper to get field label from centralized config
 const getFieldLabelForPack = (packCode, fieldCode, fallback) => {
@@ -1530,11 +1531,18 @@ export default function SessionDetails() {
             drivingFactsFromTranscript={buildDrivingFactsFromTranscript(transcriptEvents)}
           />
         ) : (
-          <UnifiedTranscriptView
-            transcriptEvents={transcriptEvents}
-            followUpQuestionEntities={followUpQuestionEntities}
-            questions={questions}
-          />
+          <>
+            {/* Canonical Transcript - Legal Record */}
+            {session.transcript_snapshot && session.transcript_snapshot.length > 0 ? (
+              <CanonicalTranscriptRenderer session={session} />
+            ) : (
+              <UnifiedTranscriptView
+                transcriptEvents={transcriptEvents}
+                followUpQuestionEntities={followUpQuestionEntities}
+                questions={questions}
+              />
+            )}
+          </>
         )}
 
         {responses.length > 0 && (
