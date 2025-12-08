@@ -409,6 +409,109 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
   }
 };
 
+/**
+ * Auto-skip helper for V2 pack fields with high-confidence suggestions
+ * Checks field config for autoSkipIfConfident and evaluates suggestion quality
+ * 
+ * @returns { shouldSkip: boolean, autoAnswerValue?: string }
+ */
+const maybeAutoSkipV2Field = async ({
+  packId,
+  fieldConfig,
+  fieldKey,
+  instanceNumber,
+  suggestionMap,
+  sessionId,
+  baseQuestionId,
+  baseQuestionCode,
+  sectionId,
+  saveFieldResponse
+}) => {
+  try {
+    // Check if auto-skip is enabled for this field
+    if (!fieldConfig?.autoSkipIfConfident) {
+      return { shouldSkip: false };
+    }
+    
+    console.log(`[V2_AUTO_SKIP][CHECK] Field ${fieldKey} has autoSkipIfConfident=true`);
+    
+    // Get suggestion for this field
+    const suggestionKey = `${packId}_${instanceNumber}_${fieldKey}`;
+    const suggestion = suggestionMap?.[suggestionKey];
+    
+    if (!suggestion) {
+      console.log(`[V2_AUTO_SKIP][NO_SUGGESTION] No suggestion found for ${suggestionKey}`);
+      return { shouldSkip: false };
+    }
+    
+    // Parse suggestion - it could be a string or {value, confidence} object
+    let value, confidence;
+    
+    if (typeof suggestion === 'string') {
+      value = suggestion;
+      confidence = 0.9; // Default high confidence for direct string suggestions
+    } else if (suggestion && typeof suggestion === 'object') {
+      value = suggestion.value;
+      confidence = suggestion.confidence ?? 0.9;
+    } else {
+      console.log(`[V2_AUTO_SKIP][INVALID_SUGGESTION] Invalid suggestion format for ${suggestionKey}`);
+      return { shouldSkip: false };
+    }
+    
+    // Validate value
+    const normalizedValue = value?.toString().trim().toLowerCase();
+    if (!normalizedValue) {
+      console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Suggestion has empty value`);
+      return { shouldSkip: false };
+    }
+    
+    // Check enum validation if configured
+    if (fieldConfig.autoSkipAllowedValues && Array.isArray(fieldConfig.autoSkipAllowedValues)) {
+      const normalizedEnum = fieldConfig.autoSkipAllowedValues.map(v => v.toLowerCase().trim());
+      if (!normalizedEnum.includes(normalizedValue)) {
+        console.log(`[V2_AUTO_SKIP][INVALID_ENUM] Value "${normalizedValue}" not in allowed: [${normalizedEnum.join(', ')}]`);
+        return { shouldSkip: false };
+      }
+    }
+    
+    // Check confidence threshold
+    const threshold = fieldConfig.autoSkipMinConfidence ?? 0.85;
+    if (confidence < threshold) {
+      console.log(`[V2_AUTO_SKIP][LOW_CONFIDENCE] ${confidence.toFixed(2)} < ${threshold}`);
+      return { shouldSkip: false };
+    }
+    
+    // All checks passed - auto-skip and persist
+    console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling ${fieldKey} with "${value}" (confidence: ${confidence.toFixed(2)})`);
+    
+    // Persist the auto-answer using existing save helper
+    if (saveFieldResponse) {
+      await saveFieldResponse({
+        sessionId,
+        packId,
+        fieldKey,
+        instanceNumber,
+        answer: value,
+        baseQuestionId,
+        baseQuestionCode,
+        sectionId,
+        questionText: fieldConfig.label
+      });
+      
+      console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered field`);
+    }
+    
+    return {
+      shouldSkip: true,
+      autoAnswerValue: value
+    };
+    
+  } catch (error) {
+    console.error(`[V2_AUTO_SKIP][ERROR]`, error.message);
+    return { shouldSkip: false };
+  }
+};
+
 // Centralized V2 probe runner for both base questions and follow-ups
 // CRITICAL: For V2 packs, we ALWAYS call the backend - it controls progression
 /**
@@ -1512,11 +1615,11 @@ export default function CandidateInterview() {
             const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
             const alwaysAsk = nextFieldConfig.alwaysAsk || false;
             const skipUnless = nextFieldConfig.skipUnless || null;
-            
+
             // Skip if field has skipUnless condition that isn't met
             if (skipUnless) {
               let shouldSkip = false;
-              
+
               // Check skipUnless.application_outcome condition
               if (skipUnless.application_outcome) {
                 const outcomeField = updatedCollectedAnswers.application_outcome || '';
@@ -1525,7 +1628,7 @@ export default function CandidateInterview() {
                   outcomeValue.includes(val.toLowerCase())
                 );
                 shouldSkip = !matchesAny;
-                
+
                 if (shouldSkip) {
                   console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - skipUnless condition not met`);
                   nextFieldIdx++;
@@ -1533,14 +1636,45 @@ export default function CandidateInterview() {
                 }
               }
             }
-            
+
             // Check if field was already answered
             if (!alwaysAsk && answeredFieldKeys.has(nextFieldConfig.fieldKey)) {
               console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - already answered`);
               nextFieldIdx++;
               continue;
             }
-            
+
+            // NEW: Check if field should be auto-skipped based on high-confidence suggestion
+            const autoSkipResult = await maybeAutoSkipV2Field({
+              packId,
+              fieldConfig: nextFieldConfig,
+              fieldKey: nextFieldConfig.fieldKey,
+              instanceNumber,
+              suggestionMap: fieldSuggestions,
+              sessionId,
+              baseQuestionId,
+              baseQuestionCode: baseQuestion?.question_id,
+              sectionId: baseQuestion?.section_id,
+              saveFieldResponse: saveV2PackFieldResponse
+            });
+
+            if (autoSkipResult.shouldSkip) {
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Auto-skipped ${nextFieldConfig.fieldKey} with value "${autoSkipResult.autoAnswerValue}"`);
+
+              // Update collected answers with auto-filled value
+              updatedCollectedAnswers = {
+                ...updatedCollectedAnswers,
+                [nextFieldConfig.fieldKey]: autoSkipResult.autoAnswerValue
+              };
+
+              // Add to answered set so it won't be checked again
+              answeredFieldKeys.add(nextFieldConfig.fieldKey);
+
+              // Continue to next field
+              nextFieldIdx++;
+              continue;
+            }
+
             console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Showing ${nextFieldConfig.fieldKey}`);
             break;
           }
