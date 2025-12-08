@@ -209,6 +209,37 @@ const WHAT_TO_EXPECT = {
 const ENABLE_LIVE_AI_FOLLOWUPS = true;
 const DEBUG_AI_PROBES = DEBUG_MODE;
 
+// Helper: Generate field suggestions using LLM based on narrative answer
+const generateFieldSuggestions = async (packId, narrativeAnswer) => {
+  try {
+    const prompt = `Based on this candidate's narrative answer about a prior law enforcement application, extract the following information if mentioned:
+- agency_name: The law enforcement agency name
+- application_date: Approximate date/time period (e.g., "March 2022", "2021")
+- application_outcome: The outcome (hired, disqualified, withdrew, or still_in_process)
+
+Narrative: "${narrativeAnswer}"
+
+Return ONLY a JSON object with these keys. If any information is not mentioned, use null for that field.`;
+
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          agency_name: { type: ["string", "null"] },
+          application_date: { type: ["string", "null"] },
+          application_outcome: { type: ["string", "null"] }
+        }
+      }
+    });
+
+    return result || {};
+  } catch (err) {
+    console.warn('[LLM_SUGGESTIONS] Failed to generate suggestions:', err);
+    return {};
+  }
+};
+
 const syncFactsToInterviewSession = async (sessionId, questionId, packId, followUpResponse) => {
   if (packId !== 'PACK_LE_APPS' || !followUpResponse || !followUpResponse.additional_details?.facts) {
     return;
@@ -475,6 +506,7 @@ export default function CandidateInterview() {
   const [aiFollowupCounts, setAiFollowupCounts] = useState({});
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false);
   const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]);
+  const [fieldSuggestions, setFieldSuggestions] = useState({});
   
   const [fieldProbingState, setFieldProbingState] = useState({});
   const [completedFields, setCompletedFields] = useState({});
@@ -1250,6 +1282,22 @@ export default function CandidateInterview() {
           sectionId: baseQuestion?.section_id,
           questionText: questionText
         });
+        
+        // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
+        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01' && finalAnswer.length > 50) {
+          console.log('[LLM_SUGGESTIONS] Generating field suggestions from narrative...');
+          const suggestions = await generateFieldSuggestions(packId, finalAnswer);
+          
+          if (suggestions && Object.keys(suggestions).length > 0) {
+            console.log('[LLM_SUGGESTIONS] Generated suggestions:', suggestions);
+            setFieldSuggestions(prev => ({
+              ...prev,
+              [`${packId}_${instanceNumber}_PACK_PRLE_Q06`]: suggestions.agency_name,
+              [`${packId}_${instanceNumber}_PACK_PRLE_Q04`]: suggestions.application_date,
+              [`${packId}_${instanceNumber}_PACK_PRLE_Q02`]: suggestions.application_outcome
+            }));
+          }
+        }
         
         // Also save to legacy FollowUpResponse for backwards compatibility
         await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
@@ -3301,34 +3349,66 @@ export default function CandidateInterview() {
               </Button>
             </div>
           ) : showTextInput && !pendingSectionTransition ? (
-          <div className="flex gap-3">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => {
-                const value = e.target.value;
-                markUserTyping(); // UX: Mark as typing to lock preview
-                saveDraft(value);  // UX: Auto-save draft
-                setInput(value);
-              }}
-              onKeyDown={handleInputKeyDown}
-              placeholder="Type your answer..."
-              className="flex-1 h-12 bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400"
-              disabled={isCommitting}
-              autoFocus
-            />
-            <Button
-              type="button"
-              onClick={() => {
-                console.log("[BOTTOM_BAR_BUTTON][CLICK]", { currentItemType: currentItem?.type, packId: currentItem?.packId, fieldKey: currentItem?.fieldKey });
-                handleBottomBarSubmit();
-              }}
-              disabled={isBottomBarSubmitDisabled}
-              className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Send
-            </Button>
+          <div className="space-y-2">
+            {/* LLM Suggestion - show if available for this field */}
+            {(() => {
+              const suggestionKey = currentItem?.packId && currentItem?.fieldKey 
+                ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
+                : null;
+              const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
+              
+              return suggestion ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
+                  <span className="text-xs text-purple-300">Suggested:</span>
+                  <span className="text-sm text-white flex-1">{suggestion}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setInput(suggestion);
+                      setFieldSuggestions(prev => {
+                        const updated = { ...prev };
+                        delete updated[suggestionKey];
+                        return updated;
+                      });
+                    }}
+                    className="h-7 text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-800/50"
+                  >
+                    Use This
+                  </Button>
+                </div>
+              ) : null;
+            })()}
+            
+            <div className="flex gap-3">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  markUserTyping(); // UX: Mark as typing to lock preview
+                  saveDraft(value);  // UX: Auto-save draft
+                  setInput(value);
+                }}
+                onKeyDown={handleInputKeyDown}
+                placeholder="Type your answer..."
+                className="flex-1 h-12 bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400"
+                disabled={isCommitting}
+                autoFocus
+              />
+              <Button
+                type="button"
+                onClick={() => {
+                  console.log("[BOTTOM_BAR_BUTTON][CLICK]", { currentItemType: currentItem?.type, packId: currentItem?.packId, fieldKey: currentItem?.fieldKey });
+                  handleBottomBarSubmit();
+                }}
+                disabled={isBottomBarSubmitDisabled}
+                className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Send
+              </Button>
+            </div>
           </div>
           ) : null}
           
