@@ -33,6 +33,7 @@ import { getSystemConfig, getEffectiveInterviewMode } from "../components/utils/
 import { getFactModelForCategory, mapPackIdToCategory } from "../components/utils/factModelHelpers";
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
+import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
