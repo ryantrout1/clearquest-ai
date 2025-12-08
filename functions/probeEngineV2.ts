@@ -4385,7 +4385,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   });
   
   // ===================================================================
-  // REAL EXTRACTION: PACK_PRLE_Q01 CANONICAL ANCHOR EXTRACTION
+  // REAL EXTRACTION: PACK_PRLE_Q01 CANONICAL ANCHOR EXTRACTION USING LLM
   // ===================================================================
   if (fieldKey === "PACK_PRLE_Q01") {
     console.log("[PRIOR_LE_Q01][EXTRACT_START]", {
@@ -4393,36 +4393,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       narrativePreview: narrativeText?.slice(0, 150)
     });
     
-    // ================================================================
-    // DIAGNOSTIC TEST: Hard-coded anchors for PACK_PRLE_Q01
-    // This proves the pipeline can create and return anchors to frontend
-    // ================================================================
-    const testAnchors = {
-      prior_le_agency: "TEST: Phoenix Police Department",
-      prior_le_position: "TEST: Police Officer",
-      prior_le_approx_date: "TEST: March 2022",
-      application_outcome: "TEST: Disqualified during background"
-    };
-
-    const testCollectedAnchors = { ...testAnchors };
-
-    console.log("[V2_TEST][PRIOR_LE_APPS_Q01] Returning hard-coded anchors for diagnostic test", {
-      packId,
-      fieldKey,
-      testAnchors,
-      testCollectedAnchors
-    });
-
-    return ensureAnchorsShape({
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      followupsCount: 0,
-      anchors: testAnchors,
-      collectedAnchors: testCollectedAnchors,
-      reason: "TEST: Hard-coded anchors for PRIOR LE APPS Q01 - proof of pipeline"
-    });
-    
-    // Use LLM-based extraction for better accuracy
+    // Use LLM-based extraction for anchor extraction
     const extractionResult = await extractPriorLeAppsAnchorsLLM({
       text: narrativeText,
       base44Client
@@ -4510,17 +4481,19 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     }
     
     // Return result with real extracted anchors
-    const result = createV2ProbeResult({
+    const result = {
+      packId,
+      fieldKey,
       mode: 'NEXT_FIELD',
       hasQuestion: false,
       followupsCount: 0,
       anchors: Object.fromEntries(
-        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null)
+        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null && v !== 'unknown')
       ),
       collectedAnchors: mergedAnchors,
-      reason: 'PACK_PRLE_Q01 narrative processed with extraction',
-      probeSource: 'PRIOR_LE_APPS_Q01_EXTRACTOR',
-    });
+      reason: 'PACK_PRLE_Q01 narrative processed with LLM extraction',
+      probeSource: 'PRIOR_LE_APPS_LLM_EXTRACTOR',
+    };
     
     console.log("[PRIOR_LE_Q01][ANCHORS_FINAL]", {
       packId,
@@ -4531,7 +4504,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       collectedAnchors: result.collectedAnchors
     });
     
-    return result;
+    return ensureAnchorsShape(result);
   }
 
   console.log("═════════════════════════════════════════════════════════════");
