@@ -1533,7 +1533,7 @@ export default function CandidateInterview() {
           questionText: questionText
         });
         
-        // Append answer to canonical transcript (legal record) with Response linkage
+        // Append question and answer to canonical transcript (legal record) with Response linkage
         try {
           const currentTranscript = session.transcript_snapshot || [];
           
@@ -1545,11 +1545,13 @@ export default function CandidateInterview() {
           });
           const baseResponseId = baseResponses[0]?.id || baseQuestionId;
           
-          if (typeof appendAnswerEntry === 'function') {
-            await appendAnswerEntry({
+          // Log question entry (if not already logged)
+          const questionKey = `${packId}::${fieldKey}::${instanceNumber || 1}`;
+          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
+            await appendQuestionEntry({
               sessionId,
               existingTranscript: currentTranscript,
-              text: finalAnswer,
+              text: displayQuestionText,
               questionId: baseQuestionId,
               packId,
               fieldKey,
@@ -1557,11 +1559,22 @@ export default function CandidateInterview() {
               responseId: v2ResponseRecord?.id || null,
               parentResponseId: baseResponseId
             });
-          } else {
-            console.warn("[TRANSCRIPT][ANSWER] appendAnswerEntry not available, skipping");
           }
+          
+          // Log answer entry
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: finalAnswer,
+            questionId: baseQuestionId,
+            packId,
+            fieldKey,
+            instanceNumber: instanceNumber || 1,
+            responseId: v2ResponseRecord?.id || null,
+            parentResponseId: baseResponseId
+          });
         } catch (err) {
-          console.warn("[TRANSCRIPT][ANSWER] Failed to log V2 pack field answer:", err);
+          console.warn("[TRANSCRIPT][Q&A] Failed to log V2 pack field question and answer:", err);
         }
         
         // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
@@ -1935,21 +1948,17 @@ export default function CandidateInterview() {
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
         
-        // Append answer to canonical transcript (legal record) with Response linkage
+        // Append question and answer to canonical transcript (legal record) with Response linkage
         try {
           const currentTranscript = session.transcript_snapshot || [];
           
-          // Determine exact answer text as seen by candidate
-          let answerTextForUI = value;
-          if (question.response_type === 'yes_no') {
-            answerTextForUI = value === 'Yes' ? 'Yes' : 'No';
-          }
-          
-          if (typeof appendAnswerEntry === 'function') {
-            await appendAnswerEntry({
+          // Log question entry (if not already logged)
+          const questionKey = currentItem.id;
+          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
+            await appendQuestionEntry({
               sessionId,
               existingTranscript: currentTranscript,
-              text: answerTextForUI,
+              text: question.question_text,
               questionId: currentItem.id,
               packId: null,
               fieldKey: null,
@@ -1957,11 +1966,28 @@ export default function CandidateInterview() {
               responseId: savedResponse?.id || null,
               parentResponseId: null
             });
-          } else {
-            console.warn("[TRANSCRIPT][ANSWER] appendAnswerEntry not available, skipping");
           }
+          
+          // Determine exact answer text as seen by candidate
+          let answerTextForUI = value;
+          if (question.response_type === 'yes_no') {
+            answerTextForUI = value === 'Yes' ? 'Yes' : 'No';
+          }
+          
+          // Log answer entry
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: answerTextForUI,
+            questionId: currentItem.id,
+            packId: null,
+            fieldKey: null,
+            instanceNumber: null,
+            responseId: savedResponse?.id || null,
+            parentResponseId: null
+          });
         } catch (err) {
-          console.warn("[TRANSCRIPT][ANSWER] Failed to log section question answer:", err);
+          console.warn("[TRANSCRIPT][Q&A] Failed to log section question and answer:", err);
         }
 
         if (value === 'Yes') {
@@ -3084,91 +3110,8 @@ export default function CandidateInterview() {
     });
   }, [currentItem, isCommitting, v3ProbingActive, pendingSectionTransition]);
   
-  // Canonical Transcript: Log question text when currentItem changes (legal record)
-  useEffect(() => {
-    if (!currentItem || !session || !engine) return;
-    if (isCommitting || v3ProbingActive) return;
-    
-    try {
-      const currentTranscript = session.transcript_snapshot || [];
-      
-      // Only log questions that will be shown to candidate (not auto-skipped)
-      if (currentItem.type === 'question') {
-        // Section question - check if already logged
-        const questionKey = currentItem.id;
-        const alreadyLogged = hasQuestionBeenLogged(sessionId, questionKey);
-        
-        if (!alreadyLogged) {
-          const question = engine.QById[currentItem.id];
-          const displayText = question?.question_text || "";
-          
-          if (displayText) {
-            appendQuestionEntry({
-              sessionId,
-              existingTranscript: currentTranscript,
-              text: displayText,
-              questionId: currentItem.id,
-              packId: null,
-              fieldKey: null,
-              instanceNumber: null,
-              responseId: null, // Will be set when answer is saved
-              parentResponseId: null
-            }).catch(err => {
-              console.warn("[TRANSCRIPT][QUESTION] Failed to log section question:", err);
-            });
-          }
-        }
-      } else if (currentItem.type === 'v2_pack_field') {
-        // V2 pack field - use composite key for unique identification
-        const questionKey = `${currentItem.packId}::${currentItem.fieldKey}::${currentItem.instanceNumber || 1}`;
-        const alreadyLogged = hasQuestionBeenLogged(sessionId, questionKey);
-        
-        if (!alreadyLogged) {
-          // Use the exact text shown to candidate (clarifier overrides field label)
-          const hasClarifier = v2ClarifierState && 
-            v2ClarifierState.packId === currentItem.packId &&
-            v2ClarifierState.fieldKey === currentItem.fieldKey &&
-            v2ClarifierState.instanceNumber === currentItem.instanceNumber;
-          
-          const backendText = currentItem.backendQuestionText;
-          const displayText = hasClarifier 
-            ? v2ClarifierState.clarifierQuestion 
-            : (backendText || currentItem.fieldConfig?.label || "");
-          
-          if (displayText) {
-            // Get base Response for parentResponseId (async IIFE to avoid TDZ)
-            (async () => {
-              try {
-                const baseResponses = await base44.entities.Response.filter({
-                  session_id: sessionId,
-                  question_id: currentItem.baseQuestionId,
-                  response_type: 'base_question'
-                });
-                const parentResponseId = baseResponses[0]?.id || null;
-                
-                await appendQuestionEntry({
-                  sessionId,
-                  existingTranscript: currentTranscript,
-                  text: displayText,
-                  questionId: currentItem.baseQuestionId || null,
-                  packId: currentItem.packId,
-                  fieldKey: currentItem.fieldKey,
-                  instanceNumber: currentItem.instanceNumber || 1,
-                  responseId: null, // Will be set when answer is saved
-                  parentResponseId
-                });
-              } catch (err) {
-                console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
-              }
-            })();
-          }
-        }
-      }
-    } catch (err) {
-      // DEFENSIVE: Don't crash the interview if transcript logging fails
-      console.error("[TRANSCRIPT][ERROR] Question logging failed, continuing interview:", err);
-    }
-  }, [currentItem, session, sessionId, isCommitting, v3ProbingActive, engine, v2ClarifierState]);
+  // Transcript logging is now handled in answer saving functions where we have Response IDs
+  // This prevents logging questions with null responseId
   
   const getCurrentPrompt = () => {
     // UX: Stabilize current item while typing
