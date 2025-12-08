@@ -131,39 +131,44 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
   );
 }
 
-function TranscriptEntry({ entry }) {
-  // Determine if this is a question or answer
-  const isQuestion = entry.eventType === 'question' || 
-                     entry.eventType === 'base_question' ||
-                     entry.eventType === 'followup_question' ||
-                     entry.kind === 'base_question' ||
-                     entry.kind === 'deterministic_followup_question' ||
-                     entry.kind === 'v2_pack_followup' ||
-                     entry.kind === 'v2_pack_ai_followup' ||
-                     entry.kind === 'ai_probe_question' ||
-                     Boolean(entry.questionText || entry.questionCode);
+function TranscriptEntry({ entry, idx }) {
+  // Determine role/speaker first
+  const rawRole = entry.actor || entry.role || entry.source;
+  let roleLabel = "System";
   
-  const isAnswer = entry.eventType === 'answer' ||
-                   entry.eventType === 'base_answer' ||
-                   entry.eventType === 'followup_answer' ||
-                   entry.kind === 'base_answer' ||
-                   entry.kind === 'deterministic_followup_answer' ||
-                   entry.kind === 'ai_probe_answer' ||
+  // Check entry kind/type to determine if question or answer
+  const entryKind = entry.kind || entry.eventType || entry.type || "";
+  
+  const isQuestion = entryKind.includes('question') || 
+                     entryKind === 'base_question' ||
+                     Boolean(entry.questionText);
+  
+  const isAnswer = entryKind.includes('answer') || 
+                   entryKind === 'base_answer' ||
                    Boolean(entry.answer || entry.answerText || entry.responseText);
   
-  const isFollowUp = Boolean(entry.packId) || 
-                     entry.eventType === 'followup_question' ||
-                     entry.kind === 'deterministic_followup_question' ||
-                     entry.kind === 'v2_pack_followup' ||
-                     entry.kind === 'v2_pack_ai_followup' ||
-                     entry.kind === 'ai_probe_question';
+  // Determine role label
+  if (rawRole) {
+    roleLabel = String(rawRole);
+  } else if (isAnswer) {
+    roleLabel = "Candidate";
+  } else if (isQuestion) {
+    roleLabel = "Interviewer";
+  }
   
-  // Extract text content
-  const text = entry.questionText || entry.text || entry.content || 
-               entry.answer || entry.answerText || entry.responseText || "";
+  // Extract text content - try all possible fields
+  const questionText = entry.questionText || entry.text || entry.content || "";
+  const answerText = entry.answer || entry.answerText || entry.responseText || "";
+  
+  // Use whichever text we have
+  const displayText = questionText || answerText || "[No text recorded for this event]";
+  
+  const isFollowUp = Boolean(entry.packId) || 
+                     entryKind.includes('followup') ||
+                     entryKind.includes('probe');
   
   // Extract metadata
-  const questionCode = entry.questionCode || "";
+  const questionCode = entry.questionCode || entry.code || "";
   const sectionName = entry.sectionName || entry.category || "";
   const timestamp = entry.timestamp || entry.createdAt;
   
