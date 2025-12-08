@@ -310,7 +310,6 @@ const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${inst
 const callProbeEngineV2PerField = async (base44Client, params) => {
   const { packId, fieldKey, fieldValue, previousProbesCount, incidentContext, sessionId, questionCode, baseQuestionId, instanceNumber } = params;
 
-  console.log("[DIAG_PRIOR_LE_APPS] probeEngineV2 DIAGNOSTIC BUILD ACTIVE");
   console.log('[V2_PER_FIELD][SEND] ========== CALLING BACKEND PER-FIELD PROBE ==========');
   console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1}`);
   console.log('[V2_PER_FIELD][SEND] params:', { 
