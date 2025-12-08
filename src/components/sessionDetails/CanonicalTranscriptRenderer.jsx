@@ -475,6 +475,8 @@ function TranscriptBlock({ block }) {
   // Follow-up question card (purple) with answer
   if (type === 'followup_question') {
     const hasAnswer = Boolean(block.answer);
+    const isYesNo = block.answer === 'Yes' || block.answer === 'No';
+    const hasTextAnswer = hasAnswer && !isYesNo;
     const packDisplayName = getPackDisplayName(block.packId);
     
     return (
@@ -483,25 +485,39 @@ function TranscriptBlock({ block }) {
         
         {/* Purple follow-up question card */}
         <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-base font-semibold text-purple-400">
-              Follow-up Pack
-            </span>
-            {packDisplayName && (
-              <>
-                <span className="text-sm text-slate-500">•</span>
-                <span className="text-sm font-medium text-purple-400">
-                  {packDisplayName}
-                  {block.instanceNumber > 1 ? ` — Instance ${block.instanceNumber}` : ''}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold text-purple-400">
+                  Follow-up Pack
                 </span>
-              </>
+                {packDisplayName && (
+                  <>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-purple-400">
+                      {packDisplayName}
+                      {block.instanceNumber > 1 ? ` — Instance ${block.instanceNumber}` : ''}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+            </div>
+            
+            {/* Yes/No chip on the right side of card */}
+            {isYesNo && (
+              <div className={cn(
+                "flex-shrink-0 px-4 py-2 rounded-lg font-semibold",
+                block.answer === 'Yes' ? "bg-green-600" : "bg-red-600"
+              )}>
+                <span className="text-white">{block.answer}</span>
+              </div>
             )}
           </div>
-          <p className="text-white text-base leading-relaxed">{block.questionText}</p>
         </div>
         
-        {/* Answer bubble (purple) */}
-        {hasAnswer && (
+        {/* Text answer bubble (purple) - only for non-Yes/No answers */}
+        {hasTextAnswer && (
           <>
             <RoleTimestamp role="Candidate" time={timeLabel} />
             <div className="flex justify-end">
