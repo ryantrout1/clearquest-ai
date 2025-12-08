@@ -1926,8 +1926,18 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
     <div className="space-y-0">
       {sortedCategories.map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
-
-        const sortedResponses = [...categoryResponses].sort((a, b) => {
+        
+        // STEP 3: Use section stats to build question list
+        const sectionStat = sectionStats[category];
+        const sectionQuestionIds = sectionStat?.questionIds || [];
+        
+        // Build list of responses for ONLY section questions
+        const sectionQuestionResponses = sectionQuestionIds
+          .map(qId => allResponsesFlat.find(r => r.question_id === qId && r.response_type === 'base_question'))
+          .filter(Boolean);
+        
+        // Sort by display_number
+        const sortedResponses = sectionQuestionResponses.sort((a, b) => {
           const aNum = typeof a.display_number === "number" ? a.display_number : Infinity;
           const bNum = typeof b.display_number === "number" ? b.display_number : Infinity;
           
@@ -1941,6 +1951,13 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
         const midpoint = Math.ceil(sortedResponses.length / 2);
         const leftColumn = sortedResponses.slice(0, midpoint);
         const rightColumn = sortedResponses.slice(midpoint);
+        
+        console.log('[SECTION_GRID]', {
+          category,
+          sectionQuestions: sectionQuestionIds.length,
+          responsesFound: sectionQuestionResponses.length,
+          displayedInGrid: sortedResponses.length
+        });
 
         return (
           <div key={category} className={isSectionCollapsed ? "mb-0" : "mb-6"}>
