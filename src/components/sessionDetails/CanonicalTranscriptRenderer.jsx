@@ -172,83 +172,52 @@ function TranscriptEntry({ entry, idx }) {
   const sectionName = entry.sectionName || entry.category || "";
   const timestamp = entry.timestamp || entry.createdAt;
   
-  if (isQuestion) {
-    return (
-      <div className="flex gap-3">
-        <div className="flex-shrink-0 w-24 pt-1">
-          <div className="text-xs font-medium text-slate-600">
-            {questionCode && <div className="mb-0.5">{questionCode}</div>}
-            <div className="text-slate-500">Interviewer</div>
-          </div>
-        </div>
-        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-slate-600" />
-              {sectionName && (
-                <span className="text-xs text-slate-600 font-medium">
-                  {sectionName}
-                </span>
-              )}
-              {isFollowUp && (
-                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                  Follow-up
-                </Badge>
-              )}
-            </div>
-            {timestamp && (
-              <span className="text-xs text-slate-400">
-                {new Date(timestamp).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-            {text}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Determine styling based on role
+  const isInterviewer = roleLabel === "Interviewer" || isQuestion;
+  const isCandidate = roleLabel === "Candidate" || isAnswer;
   
-  if (isAnswer) {
-    return (
-      <div className="flex gap-3">
-        <div className="flex-shrink-0 w-24 pt-1">
-          <div className="text-xs font-medium text-green-700">
-            Candidate
-          </div>
-        </div>
-        <div className="flex-1 bg-white border border-green-200 rounded-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs text-slate-600 font-medium">Answer</span>
-            </div>
-            {timestamp && (
-              <span className="text-xs text-slate-400">
-                {new Date(timestamp).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {text}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // Fallback for unknown entry types
+  // ALWAYS render something - never return null
   return (
     <div className="flex gap-3">
       <div className="flex-shrink-0 w-24 pt-1">
-        <div className="text-xs font-medium text-slate-500">
-          System
+        <div className="text-xs font-medium" style={{ color: isCandidate ? '#15803d' : '#475569' }}>
+          {questionCode && <div className="mb-0.5">{questionCode}</div>}
+          <div>{roleLabel}</div>
         </div>
       </div>
-      <div className="flex-1 bg-slate-100 border border-slate-200 rounded-lg p-4">
-        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-          {text}
+      <div 
+        className="flex-1 rounded-lg p-4"
+        style={{
+          backgroundColor: isCandidate ? '#ffffff' : '#f8fafc',
+          border: `1px solid ${isCandidate ? '#86efac' : '#e2e8f0'}`
+        }}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {isCandidate ? (
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+            ) : (
+              <MessageSquare className="w-4 h-4 text-slate-600" />
+            )}
+            {sectionName && (
+              <span className="text-xs text-slate-600 font-medium">
+                {sectionName}
+              </span>
+            )}
+            {isFollowUp && (
+              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                Follow-up
+              </Badge>
+            )}
+          </div>
+          {timestamp && (
+            <span className="text-xs text-slate-400">
+              {new Date(timestamp).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: isCandidate ? '#334155' : '#1e293b' }}>
+          {displayText}
         </p>
       </div>
     </div>
