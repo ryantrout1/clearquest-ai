@@ -1673,6 +1673,58 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
 }
 
 /**
+ * STEP 1: Derive "asked questions" from transcript for each pack
+ * Returns: { [packId]: { askedQuestionIds: [id1, id2, ...], orderedEvents: [...] } }
+ */
+function deriveAskedQuestionsFromTranscript(transcriptEvents, responses) {
+  const askedQuestionsByPack = {};
+  
+  // Extract follow-up question events from transcript
+  const followupQuestionEvents = transcriptEvents.filter(e => 
+    e.kind === 'deterministic_followup_question' || 
+    e.kind === 'v2_pack_field_question' ||
+    e.kind === 'ai_probe_question'
+  );
+  
+  console.log('[DERIVE_ASKED_QUESTIONS] Processing', followupQuestionEvents.length, 'follow-up events');
+  
+  followupQuestionEvents.forEach(event => {
+    const packId = event.followupPackId;
+    if (!packId) return;
+    
+    const fieldKey = event.fieldKey || event.followupQuestionId;
+    if (!fieldKey) return;
+    
+    // Initialize pack structure
+    if (!askedQuestionsByPack[packId]) {
+      askedQuestionsByPack[packId] = {
+        askedQuestionIds: new Set(),
+        orderedEvents: []
+      };
+    }
+    
+    // Add unique question ID and preserve event order
+    askedQuestionsByPack[packId].askedQuestionIds.add(fieldKey);
+    askedQuestionsByPack[packId].orderedEvents.push(event);
+  });
+  
+  // Convert Sets to Arrays for easier iteration
+  Object.keys(askedQuestionsByPack).forEach(packId => {
+    askedQuestionsByPack[packId].askedQuestionIds = Array.from(askedQuestionsByPack[packId].askedQuestionIds);
+  });
+  
+  console.log('[DERIVE_ASKED_QUESTIONS] Result', {
+    packs: Object.keys(askedQuestionsByPack),
+    summary: Object.entries(askedQuestionsByPack).map(([packId, data]) => ({
+      packId,
+      questionsAsked: data.askedQuestionIds.length
+    }))
+  });
+  
+  return askedQuestionsByPack;
+}
+
+/**
  * Build deterministic follow-ups grouped by response ID from transcript events
  * This is the NEW primary source for Structured view (replaces FollowUpResponse entity)
  * Shape: { [responseId]: { [instanceNumber]: { packId, followups: [{questionText, answerText, followupQuestionId}], aiProbes: [...] } } }
@@ -1692,21 +1744,12 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
     answerEvents: answerEvents.length,
     sampleQuestion: questionEvents[0]
   });
-
-  // Track how many times we've warned about missing responseIds to avoid console spam
-  let missingResponseIdWarnCount = 0;
-  const MAX_MISSING_RESPONSEID_WARNINGS = 3;
   
-  // Group deterministic follow-ups by responseId
+  // Group deterministic follow-ups by responseId (using parentResponseId fallback)
   questionEvents.forEach(qEvent => {
     const responseId = qEvent.responseId || qEvent.parentResponseId;
     if (!responseId) {
-      missingResponseIdWarnCount++;
-      if (missingResponseIdWarnCount <= MAX_MISSING_RESPONSEID_WARNINGS) {
-        console.warn('[BUILD_FOLLOWUPS] Question event missing responseId', qEvent);
-      } else if (missingResponseIdWarnCount === MAX_MISSING_RESPONSEID_WARNINGS + 1) {
-        console.warn('[BUILD_FOLLOWUPS] Suppressing further "missing responseId" warnings...');
-      }
+      // Silently skip - no console spam
       return;
     }
     
@@ -1825,6 +1868,9 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
   // BUILD FOLLOW-UPS FROM TRANSCRIPT (not FollowUpResponse entity)
   const followupsByResponseId = buildFollowupsByResponseIdFromTranscript(transcriptEvents);
   
+  // STEP 1: Derive asked questions from transcript
+  const askedQuestionsByPack = deriveAskedQuestionsFromTranscript(transcriptEvents, allResponsesFlat);
+  
   // Sort categories by section_order from Section entities
   const sortedCategories = Object.entries(responsesByCategory).sort((a, b) => {
     const sectionA = sections.find(s => s.section_name === a[0]);
@@ -1864,6 +1910,8 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                 isCollapsed={isSectionCollapsed}
                 onToggle={() => toggleSection(category)}
                 sectionAISummary={sectionSummariesBySectionId[category] ? { text: sectionSummariesBySectionId[category] } : null}
+                transcriptEvents={transcriptEvents}
+                askedQuestionsByPack={askedQuestionsByPack}
               />
             </div>
 
