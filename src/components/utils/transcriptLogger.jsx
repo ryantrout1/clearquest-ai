@@ -38,6 +38,8 @@ function getNextTranscriptIndex(sessionId, existingTranscript = []) {
  * @param {string} params.packId - For V2 pack fields
  * @param {string} params.fieldKey - For V2 pack fields
  * @param {number} params.instanceNumber - For multi-instance packs
+ * @param {string} params.responseId - Link to Response record
+ * @param {string} params.parentResponseId - For follow-ups, link to base Response
  * @returns {Object} New transcript entry
  */
 export async function appendQuestionEntry({
@@ -47,17 +49,22 @@ export async function appendQuestionEntry({
   questionId = null,
   packId = null,
   fieldKey = null,
-  instanceNumber = null
+  instanceNumber = null,
+  responseId = null,
+  parentResponseId = null
 }) {
   const entry = {
     sessionId,
     index: getNextTranscriptIndex(sessionId, existingTranscript),
     createdAt: new Date().toISOString(),
     role: "question",
+    eventType: packId ? "followup_question" : "question",
     questionId,
     packId,
     fieldKey,
     instanceNumber,
+    responseId,
+    parentResponseId,
     text
   };
 
@@ -94,6 +101,8 @@ export async function appendQuestionEntry({
  * @param {string} params.packId - For V2 pack fields
  * @param {string} params.fieldKey - For V2 pack fields
  * @param {number} params.instanceNumber - For multi-instance packs
+ * @param {string} params.responseId - Link to Response record
+ * @param {string} params.parentResponseId - For follow-ups, link to base Response
  * @returns {Object} New transcript entry
  */
 export async function appendAnswerEntry({
@@ -103,17 +112,22 @@ export async function appendAnswerEntry({
   questionId = null,
   packId = null,
   fieldKey = null,
-  instanceNumber = null
+  instanceNumber = null,
+  responseId = null,
+  parentResponseId = null
 }) {
   const entry = {
     sessionId,
     index: getNextTranscriptIndex(sessionId, existingTranscript),
     createdAt: new Date().toISOString(),
     role: "answer",
+    eventType: "answer",
     questionId,
     packId,
     fieldKey,
     instanceNumber,
+    responseId,
+    parentResponseId,
     text
   };
 

@@ -1521,7 +1521,7 @@ export default function CandidateInterview() {
         setTranscript(newTranscript);
         
         // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
-        await saveV2PackFieldResponse({
+        const v2ResponseRecord = await saveV2PackFieldResponse({
           sessionId,
           packId,
           fieldKey,
@@ -1533,9 +1533,17 @@ export default function CandidateInterview() {
           questionText: questionText
         });
         
-        // Append answer to canonical transcript (legal record) - only if user actually answered
+        // Append answer to canonical transcript (legal record) with Response linkage
         try {
           const currentTranscript = session.transcript_snapshot || [];
+          
+          // Get base Response for parentResponseId
+          const baseResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            question_id: baseQuestionId,
+            response_type: 'base_question'
+          });
+          const baseResponseId = baseResponses[0]?.id || baseQuestionId;
           
           if (typeof appendAnswerEntry === 'function') {
             await appendAnswerEntry({
@@ -1545,7 +1553,9 @@ export default function CandidateInterview() {
               questionId: baseQuestionId,
               packId,
               fieldKey,
-              instanceNumber: instanceNumber || 1
+              instanceNumber: instanceNumber || 1,
+              responseId: v2ResponseRecord?.id || null,
+              parentResponseId: baseResponseId
             });
           } else {
             console.warn("[TRANSCRIPT][ANSWER] appendAnswerEntry not available, skipping");
@@ -1820,6 +1830,9 @@ export default function CandidateInterview() {
               collectedAnswers: updatedCollectedAnswers
             }));
             
+            // STEP 2: Include backend question text for next field
+            const backendQuestionTextForNext = getBackendQuestionText(backendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
+            
             const nextItemForV2 = {
               id: `v2pack-${packId}-${nextFieldIdx}`,
               type: 'v2_pack_field',
@@ -1828,16 +1841,14 @@ export default function CandidateInterview() {
               fieldKey: nextFieldConfig.fieldKey,
               fieldConfig: nextFieldConfig,
               baseQuestionId: baseQuestionId,
-              instanceNumber: instanceNumber
+              instanceNumber: instanceNumber,
+              backendQuestionText: backendQuestionTextForNext
             };
             
             setCurrentItem(nextItemForV2);
             setQueue([]);
             
             await persistStateToDatabase(newTranscript, [], nextItemForV2);
-            // STEP 2: Include backend question text for next field
-            const backendQuestionTextForNext = getBackendQuestionText(backendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
-            nextItemForV2.backendQuestionText = backendQuestionTextForNext;
             
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
@@ -1921,7 +1932,10 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, combinedEntry];
         setTranscript(newTranscript);
         
-        // Append answer to canonical transcript (legal record)
+        // Save answer first to get Response ID
+        const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
+        
+        // Append answer to canonical transcript (legal record) with Response linkage
         try {
           const currentTranscript = session.transcript_snapshot || [];
           
@@ -1939,7 +1953,9 @@ export default function CandidateInterview() {
               questionId: currentItem.id,
               packId: null,
               fieldKey: null,
-              instanceNumber: null
+              instanceNumber: null,
+              responseId: savedResponse?.id || null,
+              parentResponseId: null
             });
           } else {
             console.warn("[TRANSCRIPT][ANSWER] appendAnswerEntry not available, skipping");
@@ -1991,8 +2007,8 @@ export default function CandidateInterview() {
                 console.log(`[V2_PACK][PRIOR_LE_APPS][ENTER] fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
               }
               
-              // Save the base question answer first
-              saveAnswerToDatabase(currentItem.id, value, question);
+              // Save the base question answer first and get Response ID
+              const baseResponse = await saveAnswerToDatabase(currentItem.id, value, question);
               
               // Set up V2 pack mode
               setActiveV2Pack({
@@ -2313,7 +2329,7 @@ export default function CandidateInterview() {
           advanceToNextBaseQuestion(currentItem.id);
         }
         
-        saveAnswerToDatabase(currentItem.id, value, question);
+        // Note: saveAnswerToDatabase already called above before setting newTranscript
 
       } else if (currentItem.type === 'followup') {
         const { packId, stepIndex, substanceName, baseQuestionId } = currentItem;
@@ -2697,11 +2713,12 @@ export default function CandidateInterview() {
     try {
       const existing = await base44.entities.Response.filter({
         session_id: sessionId,
-        question_id: questionId
+        question_id: questionId,
+        response_type: 'base_question'
       });
       
       if (existing.length > 0) {
-        return;
+        return existing[0];
       }
       
       const currentDisplayOrder = displayOrderRef.current++;
@@ -2710,7 +2727,7 @@ export default function CandidateInterview() {
       const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
       
-      await base44.entities.Response.create({
+      const created = await base44.entities.Response.create({
         session_id: sessionId,
         question_id: questionId,
         question_text: question.question_text,
@@ -2722,11 +2739,14 @@ export default function CandidateInterview() {
         is_flagged: false,
         flag_reason: null,
         response_timestamp: new Date().toISOString(),
-        display_order: currentDisplayOrder
+        display_order: currentDisplayOrder,
+        response_type: 'base_question'
       });
-
+      
+      return created;
     } catch (err) {
       console.error('❌ Database save error:', err);
+      return null;
     }
   };
 
@@ -2762,9 +2782,10 @@ export default function CandidateInterview() {
           response_timestamp: new Date().toISOString()
         });
         console.log('[V2_PACK_FIELD][SAVE][OK] Updated existing Response', existing[0].id);
+        return existing[0];
       } else {
         // Create new record
-        await base44.entities.Response.create({
+        const created = await base44.entities.Response.create({
           session_id: sessionId,
           question_id: baseQuestionId,
           question_text: questionText,
@@ -2781,10 +2802,12 @@ export default function CandidateInterview() {
           base_question_code: baseQuestionCode
         });
         console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
+        return created;
       }
     } catch (err) {
       console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
       // Non-blocking - log error but don't break UX
+      return null;
     }
   };
 
@@ -3087,7 +3110,9 @@ export default function CandidateInterview() {
               questionId: currentItem.id,
               packId: null,
               fieldKey: null,
-              instanceNumber: null
+              instanceNumber: null,
+              responseId: null, // Will be set when answer is saved
+              parentResponseId: null
             }).catch(err => {
               console.warn("[TRANSCRIPT][QUESTION] Failed to log section question:", err);
             });
@@ -3111,6 +3136,22 @@ export default function CandidateInterview() {
             : (backendText || currentItem.fieldConfig?.label || "");
           
           if (displayText) {
+            // Get base Response for parentResponseId
+            const getBaseResponseId = async () => {
+              try {
+                const baseResponses = await base44.entities.Response.filter({
+                  session_id: sessionId,
+                  question_id: currentItem.baseQuestionId,
+                  response_type: 'base_question'
+                });
+                return baseResponses[0]?.id || null;
+              } catch (e) {
+                return null;
+              }
+            };
+            
+            const parentResponseId = await getBaseResponseId();
+            
             appendQuestionEntry({
               sessionId,
               existingTranscript: currentTranscript,
@@ -3118,7 +3159,9 @@ export default function CandidateInterview() {
               questionId: currentItem.baseQuestionId || null,
               packId: currentItem.packId,
               fieldKey: currentItem.fieldKey,
-              instanceNumber: currentItem.instanceNumber || 1
+              instanceNumber: currentItem.instanceNumber || 1,
+              responseId: null, // Will be set when answer is saved
+              parentResponseId
             }).catch(err => {
               console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
             });
