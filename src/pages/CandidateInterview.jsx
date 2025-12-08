@@ -213,7 +213,9 @@ const DEBUG_AI_PROBES = DEBUG_MODE;
 const generateFieldSuggestions = async (packId, narrativeAnswer) => {
   try {
     const prompt = `Based on this candidate's narrative answer about a prior law enforcement application, extract the following information if mentioned:
-- agency_name: The law enforcement agency name
+- agency_name: The law enforcement agency name (full name)
+- agency_location: The city and state where the agency is located (e.g., "Phoenix, AZ")
+- position: The position/job title applied for (e.g., "Police Officer", "Deputy Sheriff")
 - application_date: Approximate date/time period (e.g., "March 2022", "2021")
 - application_outcome: The outcome (hired, disqualified, withdrew, or still_in_process)
 
@@ -227,6 +229,8 @@ Return ONLY a JSON object with these keys. If any information is not mentioned, 
         type: "object",
         properties: {
           agency_name: { type: ["string", "null"] },
+          agency_location: { type: ["string", "null"] },
+          position: { type: ["string", "null"] },
           application_date: { type: ["string", "null"] },
           application_outcome: { type: ["string", "null"] }
         }
@@ -413,6 +417,10 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
  * Auto-skip helper for V2 pack fields with high-confidence suggestions
  * Checks field config for autoSkipIfConfident and evaluates suggestion quality
  * 
+ * Supports both:
+ * - Enum fields with autoSkipAllowedValues (e.g., outcome)
+ * - Free-text fields without enum restrictions (e.g., city/state, date, position)
+ * 
  * @returns { shouldSkip: boolean, autoAnswerValue?: string }
  */
 const maybeAutoSkipV2Field = async ({
@@ -458,31 +466,69 @@ const maybeAutoSkipV2Field = async ({
       return { shouldSkip: false };
     }
     
-    // Validate value
-    const normalizedValue = value?.toString().trim().toLowerCase();
-    if (!normalizedValue) {
-      console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Suggestion has empty value`);
-      return { shouldSkip: false };
-    }
-    
-    // Check enum validation if configured
-    if (fieldConfig.autoSkipAllowedValues && Array.isArray(fieldConfig.autoSkipAllowedValues)) {
-      const normalizedEnum = fieldConfig.autoSkipAllowedValues.map(v => v.toLowerCase().trim());
-      if (!normalizedEnum.includes(normalizedValue)) {
-        console.log(`[V2_AUTO_SKIP][INVALID_ENUM] Value "${normalizedValue}" not in allowed: [${normalizedEnum.join(', ')}]`);
-        return { shouldSkip: false };
-      }
-    }
-    
-    // Check confidence threshold
+    // Check confidence threshold first
     const threshold = fieldConfig.autoSkipMinConfidence ?? 0.85;
     if (confidence < threshold) {
       console.log(`[V2_AUTO_SKIP][LOW_CONFIDENCE] ${confidence.toFixed(2)} < ${threshold}`);
       return { shouldSkip: false };
     }
     
-    // All checks passed - auto-skip and persist
-    console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling ${fieldKey} with "${value}" (confidence: ${confidence.toFixed(2)})`);
+    // ==============================
+    // ENUM FIELD BRANCH (existing)
+    // ==============================
+    if (fieldConfig.autoSkipAllowedValues && Array.isArray(fieldConfig.autoSkipAllowedValues)) {
+      // Validate value
+      const normalizedValue = value?.toString().trim().toLowerCase();
+      if (!normalizedValue) {
+        console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Suggestion has empty value`);
+        return { shouldSkip: false };
+      }
+      
+      // Check enum validation
+      const normalizedEnum = fieldConfig.autoSkipAllowedValues.map(v => v.toLowerCase().trim());
+      if (!normalizedEnum.includes(normalizedValue)) {
+        console.log(`[V2_AUTO_SKIP][INVALID_ENUM] Value "${normalizedValue}" not in allowed: [${normalizedEnum.join(', ')}]`);
+        return { shouldSkip: false };
+      }
+      
+      // All checks passed - auto-skip enum field
+      console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling enum field ${fieldKey} with "${value}" (confidence: ${confidence.toFixed(2)})`);
+      
+      // Persist the auto-answer using existing save helper
+      if (saveFieldResponse) {
+        await saveFieldResponse({
+          sessionId,
+          packId,
+          fieldKey,
+          instanceNumber,
+          answer: value,
+          baseQuestionId,
+          baseQuestionCode,
+          sectionId,
+          questionText: fieldConfig.label
+        });
+        
+        console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered enum field`);
+      }
+      
+      return {
+        shouldSkip: true,
+        autoAnswerValue: value
+      };
+    }
+    
+    // ==============================
+    // FREE-TEXT FIELD BRANCH (NEW)
+    // ==============================
+    const finalValue = typeof value === 'string' ? value.trim() : String(value).trim();
+    
+    if (!finalValue) {
+      console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Free-text suggestion has empty value`);
+      return { shouldSkip: false };
+    }
+    
+    // All checks passed - auto-skip free-text field
+    console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling free-text field ${fieldKey} with "${finalValue}" (confidence: ${confidence.toFixed(2)})`);
     
     // Persist the auto-answer using existing save helper
     if (saveFieldResponse) {
@@ -491,19 +537,19 @@ const maybeAutoSkipV2Field = async ({
         packId,
         fieldKey,
         instanceNumber,
-        answer: value,
+        answer: finalValue,
         baseQuestionId,
         baseQuestionCode,
         sectionId,
         questionText: fieldConfig.label
       });
       
-      console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered field`);
+      console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered free-text field`);
     }
     
     return {
       shouldSkip: true,
-      autoAnswerValue: value
+      autoAnswerValue: finalValue
     };
     
   } catch (error) {
@@ -1467,11 +1513,31 @@ export default function CandidateInterview() {
           
           if (suggestions && Object.keys(suggestions).length > 0) {
             console.log('[LLM_SUGGESTIONS] Generated suggestions:', suggestions);
-            localSuggestions = {
-              [`${packId}_${instanceNumber}_PACK_PRLE_Q06`]: suggestions.agency_name,
-              [`${packId}_${instanceNumber}_PACK_PRLE_Q04`]: suggestions.application_date,
-              [`${packId}_${instanceNumber}_PACK_PRLE_Q02`]: suggestions.application_outcome
-            };
+            
+            // Map to specific field keys with proper format
+            // NOTE: LLM returns { agency_name, agency_location, position, application_date, application_outcome }
+            // We need to map these to the actual field keys in the pack
+            localSuggestions = {};
+            
+            if (suggestions.agency_name) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q06`] = suggestions.agency_name;
+            }
+            
+            if (suggestions.agency_location) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q03`] = suggestions.agency_location;
+            }
+            
+            if (suggestions.position) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q05`] = suggestions.position;
+            }
+            
+            if (suggestions.application_date) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q04`] = suggestions.application_date;
+            }
+            
+            if (suggestions.application_outcome) {
+              localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q02`] = suggestions.application_outcome;
+            }
             
             setFieldSuggestions(prev => ({
               ...prev,

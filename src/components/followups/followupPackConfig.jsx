@@ -1277,7 +1277,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           minLength: 2,
           mustContainLetters: true
-        }
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85
       },
       {
         fieldKey: "PACK_PRLE_Q04",
@@ -1303,7 +1305,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           minLength: 3,
           mustContainLetters: false
-        }
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85
       },
       {
         fieldKey: "PACK_PRLE_Q05",
@@ -1329,7 +1333,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
           rejectTokens: DEFAULT_REJECT_TOKENS,
           minLength: 2,
           mustContainLetters: true
-        }
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85
       },
       {
         fieldKey: "PACK_PRLE_Q06",
