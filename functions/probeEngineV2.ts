@@ -4519,31 +4519,28 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       }
     }
     
-    // Return result with real extracted anchors AND audit trail
-    const result = {
-      packId,
-      fieldKey,
-      mode: 'NEXT_FIELD',
-      hasQuestion: false,
-      followupsCount: 0,
-      anchors: Object.fromEntries(
-        Object.entries(canonicalAnchors).filter(([k, v]) => v !== null && v !== 'unknown')
-      ),
-      collectedAnchors: mergedAnchors,
-      reason: 'PACK_PRLE_Q01 narrative processed with LLM extraction',
-      probeSource: 'PRIOR_LE_APPS_LLM_EXTRACTOR',
-      // AUDIT TRAIL: Legally-defensible extraction metadata
-      audit: extractionAudit
-    };
+    // Filter out null/unknown values for cleaner anchors
+    const cleanedAnchors = Object.fromEntries(
+      Object.entries(canonicalAnchors).filter(([k, v]) => v !== null && v !== 'unknown')
+    );
     
-    console.log("[PRIOR_LE_Q01][ANCHORS_FINAL]", {
+    // Backend debug logging for PRIOR LE APPS anchors
+    console.log("[PRIOR_LE_APPS][ANCHORS_EXTRACTED]", {
       packId,
       fieldKey,
-      anchorsKeys: Object.keys(result.anchors || {}),
-      anchors: result.anchors,
-      collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
-      collectedAnchors: result.collectedAnchors,
-      audit: result.audit
+      extractedKeys: Object.keys(cleanedAnchors),
+      anchors: cleanedAnchors,
+      prior_le_agency: cleanedAnchors.prior_le_agency || '(not found)',
+      prior_le_position: cleanedAnchors.prior_le_position || '(not found)',
+      prior_le_approx_date: cleanedAnchors.prior_le_approx_date || '(not found)',
+      application_outcome: cleanedAnchors.application_outcome || '(not found)'
+    });
+    
+    console.log("[PRIOR_LE_APPS][ANCHORS_COLLECTED]", {
+      packId,
+      fieldKey,
+      collectedKeys: Object.keys(mergedAnchors),
+      collectedAnchors: mergedAnchors
     });
     
     // Structured audit log for extraction
@@ -4554,13 +4551,39 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       instanceNumber,
       baseQuestionCode: questionCode || null,
       engineVersion: extractionAudit.engineVersion,
-      anchors: result.anchors,
+      anchors: cleanedAnchors,
       rulesApplied: extractionAudit.rulesApplied,
       extractionDurationMs: extractionAudit.extractionDurationMs,
       createdAt: extractionAudit.createdAt
     }));
     
-    return ensureAnchorsShape(result);
+    // Return result using standard helper to ensure anchors/collectedAnchors always present
+    const result = createV2ProbeResult({
+      packId,
+      fieldKey,
+      mode: 'NEXT_FIELD',
+      hasQuestion: false,
+      followupsCount: 0,
+      anchors: cleanedAnchors,
+      collectedAnchors: mergedAnchors,
+      reason: 'PACK_PRLE_Q01 narrative processed with LLM extraction',
+      probeSource: 'PRIOR_LE_APPS_LLM_EXTRACTOR',
+      audit: extractionAudit
+    });
+    
+    console.log("[PRIOR_LE_Q01][RESULT_FINAL]", {
+      packId,
+      fieldKey,
+      mode: result.mode,
+      hasAnchors: !!result.anchors,
+      hasCollected: !!result.collectedAnchors,
+      anchorsKeys: Object.keys(result.anchors || {}),
+      collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
+      anchors: result.anchors,
+      collectedAnchors: result.collectedAnchors
+    });
+    
+    return result;
   }
 
   // Other fields in PACK_PRIOR_LE_APPS_STANDARD: pass through with existing anchors
