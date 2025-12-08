@@ -3728,6 +3728,39 @@ export default function CandidateInterview() {
                   </div>
                 </div>
               )}
+              
+              {/* Section Completion Messages */}
+              {entry.type === 'system_section_complete' && (
+                <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-bold text-white mb-2">
+                        Section Complete: {entry.completedSectionName}
+                      </h2>
+                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
+                        Nice work — you've finished this section. Ready for the next one?
+                      </p>
+                      
+                      <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
+                        <p className="text-emerald-300 text-sm font-medium">
+                          Next up: {entry.nextSectionName}
+                        </p>
+                      </div>
+                      
+                      {entry.progress && (
+                        <div className="flex items-center gap-4 text-xs text-emerald-300/80">
+                          <span>{entry.progress.completedSections} of {entry.progress.totalSections} sections complete</span>
+                          <span>•</span>
+                          <span>{entry.progress.answeredQuestions} of {entry.progress.totalQuestions} questions answered</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           
