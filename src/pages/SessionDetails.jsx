@@ -1819,7 +1819,7 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
                 allFollowups={followups}
                 isCollapsed={isSectionCollapsed}
                 onToggle={() => toggleSection(category)}
-                sectionAISummary={sectionSummariesBySectionId[category] ? { text: sectionSummariesBySectionId[category] } : null}
+                sectionAISummary={sectionSummariesBySectionId[category] || null}
                 transcriptEvents={transcriptEvents}
                 sectionStats={sectionStats[category]}
               />
