@@ -4337,14 +4337,144 @@ function getPackTopicForDiscretion(packId) {
 async function handlePriorLeAppsPerFieldV2(ctx) {
   const { packId, fieldKey, fieldValue, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
 
-  console.log("[PRIOR_LE_APPS_HANDLER]", {
+  console.log("[PRIOR_LE_APPS_HANDLER][ENTRY]", {
     packId,
     fieldKey,
     instanceNumber,
-    fieldValueLength: fieldValue?.length || 0
+    probeCount,
+    fieldValueLength: fieldValue?.length || 0,
+    fieldValuePreview: fieldValue?.substring?.(0, 80)
   });
   
-  // All fields just validate and advance
+  // CRITICAL FIX: First call with empty Q01 should return mode:"NONE"
+  // This prevents AI opening question and ensures scripted Q01 is shown first
+  if (fieldKey === "PACK_PRLE_Q01" && probeCount === 0 && (!fieldValue || fieldValue.trim() === "")) {
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EMPTY_OPENING] Returning mode:NONE - no AI opening");
+    return createV2ProbeResult({
+      mode: "NONE",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "First field - show scripted question"
+    });
+  }
+  
+  // Q01 narrative field - extract anchors and advance
+  if (fieldKey === "PACK_PRLE_Q01" && fieldValue && fieldValue.trim()) {
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_NARRATIVE] Extracting anchors from narrative");
+    
+    // Extract anchors using existing extractor
+    const extractResult = await extractPriorLeAppsAnchorsLLM({ text: fieldValue, base44Client });
+    const anchors = extractResult.anchors || {};
+    
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EXTRACTED]", {
+      anchorsKeys: Object.keys(anchors),
+      application_outcome: anchors.application_outcome || '(none)',
+      prior_le_agency: anchors.prior_le_agency || '(none)',
+      prior_le_position: anchors.prior_le_position || '(none)',
+      prior_le_approx_date: anchors.prior_le_approx_date || '(none)'
+    });
+    
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "Q01 narrative validated - anchors extracted",
+      anchors,
+      collectedAnchors: anchors
+    });
+  }
+  
+  // Q02-Q09: Check if answer needs clarification
+  if (fieldValue && fieldValue.trim()) {
+    const isNoRecall = answerLooksLikeNoRecall(fieldValue);
+    
+    // If answer is "I don't recall" and probeCount < maxProbes, ask clarification
+    if (isNoRecall && probeCount === 0) {
+      console.log("[PRIOR_LE_APPS_HANDLER][CLARIFIER_NEEDED]", { fieldKey, answer: fieldValue });
+      
+      // Generate targeted clarification based on field
+      let clarifierQuestion = null;
+      switch (fieldKey) {
+        case "PACK_PRLE_Q05": // position/job title
+          clarifierQuestion = "Do you remember if the position was for a police officer or a different role within the police department?";
+          break;
+        case "PACK_PRLE_Q06": // agency name
+          clarifierQuestion = "Can you recall any part of the agency name, or the city and state where it was located?";
+          break;
+        case "PACK_PRLE_Q04": // month/year
+          clarifierQuestion = "Can you estimate even the year you applied, or what was happening in your life at that time?";
+          break;
+        default:
+          // For other fields, accept "I don't recall"
+          return createV2ProbeResult({
+            mode: "NEXT_FIELD",
+            hasQuestion: false,
+            followupsCount: 0,
+            reason: `${fieldKey} accepted (no recall)`
+          });
+      }
+      
+      if (clarifierQuestion) {
+        console.log("[PRIOR_LE_APPS_HANDLER][RETURN_CLARIFIER]", {
+          fieldKey,
+          question: clarifierQuestion.substring(0, 60)
+        });
+        
+        return createV2ProbeResult({
+          mode: "QUESTION",
+          hasQuestion: true,
+          followupsCount: 1,
+          question: clarifierQuestion,
+          reason: `Clarifying ${fieldKey}`
+        });
+      }
+    }
+    
+    // If we received a clarifier answer (probeCount > 0), accept it and advance
+    if (probeCount > 0) {
+      console.log("[PRIOR_LE_APPS_HANDLER][CLARIFIER_ANSWERED]", {
+        fieldKey,
+        answer: fieldValue.substring(0, 60)
+      });
+      
+      // Extract semantic value from clarifier answer
+      let extractedValue = null;
+      switch (fieldKey) {
+        case "PACK_PRLE_Q05": // position
+          extractedValue = fieldValue.trim();
+          return createV2ProbeResult({
+            mode: "NEXT_FIELD",
+            hasQuestion: false,
+            followupsCount: 0,
+            reason: `${fieldKey} clarified`,
+            anchors: { prior_le_position: extractedValue },
+            collectedAnchors: { prior_le_position: extractedValue }
+          });
+        case "PACK_PRLE_Q06": // agency
+          extractedValue = fieldValue.trim();
+          return createV2ProbeResult({
+            mode: "NEXT_FIELD",
+            hasQuestion: false,
+            followupsCount: 0,
+            reason: `${fieldKey} clarified`,
+            anchors: { prior_le_agency: extractedValue },
+            collectedAnchors: { prior_le_agency: extractedValue }
+          });
+        case "PACK_PRLE_Q04": // date
+          extractedValue = fieldValue.trim();
+          return createV2ProbeResult({
+            mode: "NEXT_FIELD",
+            hasQuestion: false,
+            followupsCount: 0,
+            reason: `${fieldKey} clarified`,
+            anchors: { prior_le_approx_date: extractedValue },
+            collectedAnchors: { prior_le_approx_date: extractedValue }
+          });
+      }
+    }
+  }
+  
+  // Default: accept answer and advance
   const baseResult = {
     packId,
     fieldKey,
