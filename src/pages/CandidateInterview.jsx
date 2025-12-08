@@ -1798,7 +1798,7 @@ export default function CandidateInterview() {
                 
                 // Keep currentItem as the first field - but it won't be shown until after AI probe
                 // STEP 2: Include backend question text
-                const backendQuestionTextForFirst = getBackendQuestionText(v2BackendQuestionTextMap, packId, firstField.fieldKey, 1);
+                const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
                 
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
