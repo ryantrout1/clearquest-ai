@@ -4365,44 +4365,9 @@ function getPackTopicForDiscretion(packId) {
  * Deterministically extracts application_outcome from Q01 narrative for gating
  */
 async function handlePriorLeAppsPerFieldV2(ctx) {
-  const DEBUG_PREFIX = "[TEST_PRIOR_LE_ANCHORS]";
+  const DEBUG_PREFIX = "[PRIOR_LE_APPS_HANDLER]";
   
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
-
-  // ================================================================
-  // STEP 1: DIAGNOSTIC TEST - Hard-coded anchors for PACK_PRLE_Q01
-  // This MUST execute FIRST to prove the pipeline works
-  // ================================================================
-  if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
-    const testAnchors = {
-      prior_le_agency: "TEST: Phoenix Police Department",
-      prior_le_position: "TEST: Police Officer",
-      prior_le_approx_date: "TEST: March 2022",
-      application_outcome: "TEST: Disqualified during background"
-    };
-
-    const testCollectedAnchors = { ...testAnchors };
-
-    console.log("[V2_TEST][PRIOR_LE_APPS_Q01] Returning hard-coded TEST anchors for diagnostic", {
-      packId,
-      fieldKey,
-      testAnchors,
-      testCollectedAnchors
-    });
-
-    // Return immediately - do NOT call any helpers that might drop fields
-    return {
-      packId,
-      fieldKey,
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      followupsCount: 0,
-      reason: "TEST: Hard-coded anchors for PRIOR LE APPS Q01 - proving pipeline works",
-      anchors: testAnchors,
-      collectedAnchors: testCollectedAnchors,
-      debugTag: "V2_TEST_ANCHORS"
-    };
-  }
 
   const existingCollection = collectedAnchors || {};
 
@@ -5521,8 +5486,8 @@ async function persistFactAnchorsHybrid({
  * NOTE: This is the CORE implementation - call probeEngineV2Wrapper for normalized results
  */
 async function probeEngineV2Core(input, base44Client) {
-  // VERSION BANNER - Confirms we're running the fixed code
-  console.log("[V2_DEBUG_VERSION] probeEngineV2 build 2025-12-06 PRIOR_LE_APPS anchors enabled");
+  // VERSION BANNER - Production build with real anchor extraction
+  console.log("[V2_ENGINE] probeEngineV2 production build - real anchor extraction enabled");
   
   const {
     pack_id,
