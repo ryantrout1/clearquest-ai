@@ -1684,55 +1684,86 @@ function KPICard({ label, value, subtext, variant = "neutral" }) {
 }
 
 /**
- * STEP 1: Derive "asked questions" from transcript for each pack
- * Returns: { [packId]: { askedQuestionIds: [id1, id2, ...], orderedEvents: [...] } }
+ * STEP 1: Build per-section stats from section questions + responses
+ * Returns: { [sectionName]: { questionIds: [...], totalQuestions, yesCount, noCount } }
  */
-function deriveAskedQuestionsFromTranscript(transcriptEvents, responses) {
-  const askedQuestionsByPack = {};
+function buildSectionStatsFromQuestions(allResponses, questionEntities, sectionEntities) {
+  const sectionStats = {};
   
-  // Extract follow-up question events from transcript
-  const followupQuestionEvents = transcriptEvents.filter(e => 
-    e.kind === 'deterministic_followup_question' || 
-    e.kind === 'v2_pack_field_question' ||
-    e.kind === 'ai_probe_question'
-  );
+  // Build section ID → name map
+  const sectionIdToName = {};
+  sectionEntities.forEach(section => {
+    sectionIdToName[section.id] = section.section_name;
+  });
   
-  console.log('[DERIVE_ASKED_QUESTIONS] Processing', followupQuestionEvents.length, 'follow-up events');
-  
-  followupQuestionEvents.forEach(event => {
-    const packId = event.followupPackId;
-    if (!packId) return;
+  // Group questions by section
+  const questionsBySection = {};
+  questionEntities.forEach(question => {
+    const sectionId = question.section_id;
+    const sectionName = sectionIdToName[sectionId];
     
-    const fieldKey = event.fieldKey || event.followupQuestionId;
-    if (!fieldKey) return;
+    if (!sectionName) return;
     
-    // Initialize pack structure
-    if (!askedQuestionsByPack[packId]) {
-      askedQuestionsByPack[packId] = {
-        askedQuestionIds: new Set(),
-        orderedEvents: []
-      };
+    if (!questionsBySection[sectionName]) {
+      questionsBySection[sectionName] = [];
     }
     
-    // Add unique question ID and preserve event order
-    askedQuestionsByPack[packId].askedQuestionIds.add(fieldKey);
-    askedQuestionsByPack[packId].orderedEvents.push(event);
+    questionsBySection[sectionName].push({
+      id: question.id,
+      question_id: question.question_id,
+      question_number: question.question_number,
+      display_order: question.display_order
+    });
   });
   
-  // Convert Sets to Arrays for easier iteration
-  Object.keys(askedQuestionsByPack).forEach(packId => {
-    askedQuestionsByPack[packId].askedQuestionIds = Array.from(askedQuestionsByPack[packId].askedQuestionIds);
+  // Build response map by question ID
+  const responsesByQuestionId = {};
+  allResponses.forEach(r => {
+    if (r.response_type === 'base_question') {
+      responsesByQuestionId[r.question_id] = r;
+    }
   });
   
-  console.log('[DERIVE_ASKED_QUESTIONS] Result', {
-    packs: Object.keys(askedQuestionsByPack),
-    summary: Object.entries(askedQuestionsByPack).map(([packId, data]) => ({
-      packId,
-      questionsAsked: data.askedQuestionIds.length
+  // Compute stats for each section
+  Object.entries(questionsBySection).forEach(([sectionName, questions]) => {
+    // Sort questions by their order
+    const sortedQuestions = questions.sort((a, b) => {
+      if (a.question_number !== undefined && b.question_number !== undefined) {
+        return a.question_number - b.question_number;
+      }
+      return (a.display_order || 0) - (b.display_order || 0);
+    });
+    
+    let yesCount = 0;
+    let noCount = 0;
+    
+    sortedQuestions.forEach(q => {
+      const response = responsesByQuestionId[q.id];
+      if (response) {
+        if (response.answer === 'Yes') yesCount++;
+        if (response.answer === 'No') noCount++;
+      }
+    });
+    
+    sectionStats[sectionName] = {
+      questionIds: sortedQuestions.map(q => q.id),
+      totalQuestions: sortedQuestions.length,
+      yesCount,
+      noCount
+    };
+  });
+  
+  console.log('[BUILD_SECTION_STATS] Computed stats', {
+    sections: Object.keys(sectionStats),
+    sample: Object.entries(sectionStats).slice(0, 2).map(([name, stats]) => ({
+      section: name,
+      questions: stats.totalQuestions,
+      yes: stats.yesCount,
+      no: stats.noCount
     }))
   });
   
-  return askedQuestionsByPack;
+  return sectionStats;
 }
 
 /**
