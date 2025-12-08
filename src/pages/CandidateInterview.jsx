@@ -43,32 +43,7 @@ const ENABLE_V3_PROBING = true;
 // Feature flag: Enable chat virtualization for long interviews
 const ENABLE_CHAT_VIRTUALIZATION = false;
 
-// ============================================================================
-// DIAGNOSTIC HELPER: FACT ANCHOR TRACE FOR PACK_PRIOR_LE_APPS_STANDARD
-// ============================================================================
-const PRIOR_LE_FACT_ANCHOR_KEYS = [
-  'prior_le_agency',
-  'prior_le_position',
-  'prior_le_approx_date',
-  'application_outcome',
-];
-
-function logPriorLeClientAnchors(stage, anchorsObj) {
-  try {
-    console.log(
-      `[DIAG_PRIOR_LE_APPS][${stage}] keys present:`,
-      anchorsObj ? Object.keys(anchorsObj) : []
-    );
-    PRIOR_LE_FACT_ANCHOR_KEYS.forEach((k) => {
-      const v = anchorsObj && Object.prototype.hasOwnProperty.call(anchorsObj, k)
-        ? anchorsObj[k]
-        : '(MISSING)';
-      console.log(`[DIAG_PRIOR_LE_APPS][${stage}] ${k}:`, v);
-    });
-  } catch (err) {
-    console.log('[DIAG_PRIOR_LE_APPS][ERROR]', stage, err?.message || err);
-  }
-}
+// Removed anchor-based gating diagnostic helpers - V2 now uses field-based gating only
 
 // File revision: 2025-12-02 - Cleaned and validated
 
@@ -319,10 +294,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     instanceNumber: instanceNumber || 1
   });
   
-  // CRITICAL: Log full field value for PACK_PRIOR_LE_APPS_STANDARD to verify we're sending the complete narrative
-  if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-    console.log('[DIAG_PRIOR_LE_APPS][SEND] Full narrative being sent to backend:', fieldValue);
-  }
+
 
   try {
     const response = await base44Client.functions.invoke('probeEngineV2', {
@@ -1317,16 +1289,7 @@ export default function CandidateInterview() {
           instanceNumber
         });
         
-        console.log("[DIAG_PRIOR_LE_APPS][LIFECYCLE][BEFORE_MERGE]", { packId, result: v2Result });
-        
-        // DIAGNOSTIC: Log raw anchors from backend for PACK_PRIOR_LE_APPS_STANDARD
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] ========== RAW ANCHORS FROM BACKEND ==========');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.anchors:', v2Result?.anchors || '(none)');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
-          logPriorLeClientAnchors('MERGE_INPUT_ANCHORS', v2Result?.anchors || {});
-          logPriorLeClientAnchors('MERGE_INPUT_COLLECTED', v2Result?.collectedAnchors || {});
-        }
+
         
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
@@ -1335,182 +1298,20 @@ export default function CandidateInterview() {
           instanceNumber,
           mode: v2Result?.mode,
           hasQuestion: !!v2Result?.question,
-          questionPreview: v2Result?.question?.substring?.(0, 60),
-          nextField: v2Result?.nextField || null,
-          isComplete: v2Result?.isComplete || false,
-          hasAnchors: !!v2Result?.anchors,
-          hasCollectedAnchors: !!v2Result?.collectedAnchors,
-          anchorKeys: v2Result?.anchors ? Object.keys(v2Result.anchors) : [],
-          collectedAnchorsKeys: v2Result?.collectedAnchorsKeys || [],
-          targetAnchors: v2Result?.targetAnchors || []
+          questionPreview: v2Result?.question?.substring?.(0, 60)
         });
         
-        // CRITICAL: Merge backend-returned anchors into collectedAnswers for field gating
-        // This is the universal anchor merge path used by ALL V2 anchor-aware packs
-        let updatedCollectedAnswers = { ...activeV2Pack.collectedAnswers };
-
-        // Universal anchor merge: check ALL possible anchor return formats from backend
-        // Backend may return: anchors, collectedAnchors, or both
-        const backendAnchors = {};
-
-        // Merge from v2Result.anchors (primary format)
-        if (v2Result?.anchors && typeof v2Result.anchors === 'object') {
-          Object.assign(backendAnchors, v2Result.anchors);
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Found anchors:`, v2Result.anchors);
-        }
-
-        // Merge from v2Result.collectedAnchors (alternate format)
-        if (v2Result?.collectedAnchors && typeof v2Result.collectedAnchors === 'object') {
-          Object.assign(backendAnchors, v2Result.collectedAnchors);
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Found collectedAnchors:`, v2Result.collectedAnchors);
-        }
-
-        // PACK_PRIOR_LE_APPS_STANDARD: Extra diagnostic before merge
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] ========== RAW BACKEND RESPONSE ==========');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.anchors:', v2Result?.anchors || '(none)');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] v2Result.collectedAnchors:', v2Result?.collectedAnchors || '(none)');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] backendAnchors combined:', backendAnchors);
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_INPUT] Canonical keys check:', {
-            prior_le_agency: backendAnchors.prior_le_agency || '(missing)',
-            prior_le_position: backendAnchors.prior_le_position || '(missing)',
-            prior_le_approx_date: backendAnchors.prior_le_approx_date || '(missing)',
-            application_outcome: backendAnchors.application_outcome || '(missing)'
-          });
-        }
-
-        if (Object.keys(backendAnchors).length > 0) {
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] ========== MERGING BACKEND ANCHORS ==========`);
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Pack: ${packId}, Instance: ${instanceNumber}`);
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Before merge:`, Object.keys(updatedCollectedAnswers));
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] Backend anchors:`, backendAnchors);
-
-          // Merge backend-extracted anchors (semantic keys like 'application_outcome', 'month_year', etc.)
-          Object.assign(updatedCollectedAnswers, backendAnchors);
-
-          console.log(`[V2_PACK_FIELD][MERGE_ANCHORS] After merge:`, Object.keys(updatedCollectedAnswers));
-          console.log(`[V2_PACK][ANCHORS_MERGED]`, {
-            packId,
-            instanceNumber,
-            anchors: updatedCollectedAnswers
-          });
-
-          // Log specific anchors for PACK_PRIOR_LE_APPS_STANDARD
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-            console.log(`[V2_PACK_FIELD][MERGE_ANCHORS][PRIOR_LE_APPS] Merged anchors:`, {
-              agency_name: updatedCollectedAnswers.agency_name || '(missing)',
-              position: updatedCollectedAnswers.position || '(missing)',
-              month_year: updatedCollectedAnswers.month_year || '(missing)',
-              application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
-            });
-          }
-        }
-
-        // ========================================================================
-        // CLIENT-SIDE ANCHOR INJECTION: PACK_PRIOR_LE_APPS_STANDARD
-        // ========================================================================
-
-        // CLIENT ANCHOR: Short Q01 answer = agency name
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-          const answerText = (finalAnswer || '').trim();
-
-          if (answerText && !updatedCollectedAnswers.prior_le_agency && answerText.length <= 60) {
-            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q01] Injecting prior_le_agency from short Q01:', answerText);
-            updatedCollectedAnswers.prior_le_agency = answerText;
-          }
-        }
-
-        // CLIENT ANCHOR: Q02 normalizes application_outcome
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q02') {
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== NORMALIZING APPLICATION OUTCOME ==========');
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Raw answer:', finalAnswer);
-
-          const rawOutcome = (finalAnswer || '').toLowerCase().trim();
-          let normalizedOutcome = 'unknown';
-
-          if (rawOutcome.includes('disqual')) {
-            normalizedOutcome = 'disqualified';
-          } else if (rawOutcome.includes('withdrew') || rawOutcome.includes('withdraw')) {
-            normalizedOutcome = 'withdrew';
-          } else if (
-            rawOutcome.includes('still in process') ||
-            rawOutcome.includes('still pending') ||
-            rawOutcome.includes('in process') ||
-            rawOutcome.includes('pending')
-          ) {
-            normalizedOutcome = 'still_in_process';
-          } else if (
-            rawOutcome.includes('hired') ||
-            rawOutcome.includes('offer') ||
-            rawOutcome.includes('offered the job') ||
-            rawOutcome.includes('sworn in') ||
-            rawOutcome.includes('onboarding') ||
-            rawOutcome.includes('background cleared')
-          ) {
-            normalizedOutcome = 'hired';
-          } else if (
-            rawOutcome.includes('not selected') ||
-            rawOutcome.includes('not hired') ||
-            rawOutcome.includes('rejected')
-          ) {
-            normalizedOutcome = 'disqualified';
-          }
-
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Normalized outcome:', normalizedOutcome);
-
-          // Inject application_outcome into anchors used by gating
-          updatedCollectedAnswers.application_outcome = normalizedOutcome;
-
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] ========== ANCHOR INJECTED ==========');
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] Updated anchors:', updatedCollectedAnswers);
-          console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q02] application_outcome:', normalizedOutcome);
-          }
-
-          // CLIENT ANCHOR: Q04 normalizes date
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q04') {
-          const approx = finalAnswer?.trim();
-          if (approx) {
-            updatedCollectedAnswers.prior_le_approx_date = approx;
-            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q04] Injecting prior_le_approx_date:', approx);
-          }
-          }
-
-          // CLIENT ANCHOR: Q05 normalizes position
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q05') {
-          const position = finalAnswer?.trim();
-          if (position) {
-            updatedCollectedAnswers.prior_le_position = position;
-            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q05] Injecting prior_le_position:', position);
-          }
-          }
-
-          // CLIENT ANCHOR: Q06 normalizes agency (backup)
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q06') {
-          const agency = finalAnswer?.trim();
-          if (agency) {
-            updatedCollectedAnswers.prior_le_agency = agency;
-            console.log('[CLIENT_ANCHOR][PRIOR_LE_APPS][Q06] Injecting prior_le_agency:', agency);
-          }
-          }
-
-        // ALWAYS update activeV2Pack state with merged anchors (even if no new anchors)
+        // Update collectedAnswers with the current field value
+        let updatedCollectedAnswers = {
+          ...activeV2Pack.collectedAnswers,
+          [fieldKey]: finalAnswer
+        };
+        
+        // Update activeV2Pack state
         setActiveV2Pack(prev => ({
           ...prev,
           collectedAnswers: updatedCollectedAnswers
         }));
-
-        // DIAGNOSTIC: Extra detail for PACK_PRIOR_LE_APPS_STANDARD
-        if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] ========== GLOBAL ANCHORS AFTER MERGE ==========');
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] All anchor keys:', Object.keys(updatedCollectedAnswers));
-          console.log('[DIAG_PRIOR_LE_APPS][MERGE_OUTPUT] Canonical anchor values:', {
-            prior_le_agency: updatedCollectedAnswers.prior_le_agency || '(missing)',
-            prior_le_position: updatedCollectedAnswers.prior_le_position || '(missing)',
-            prior_le_approx_date: updatedCollectedAnswers.prior_le_approx_date || '(missing)',
-            application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
-          });
-          logPriorLeClientAnchors('MERGE_OUTPUT_GLOBAL', updatedCollectedAnswers);
-        }
         
         // Handle backend errors gracefully - fallback to deterministic advancement
         if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
@@ -1574,86 +1375,70 @@ export default function CandidateInterview() {
         
         // Advance to next field or complete pack (only after backend says NEXT_FIELD)
         if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
-          // NARRATIVE-FIRST GATING: For PACK_PRIOR_LE_APPS_STANDARD, skip fields whose anchors are already captured
+          // Field-based gating: Check saved responses to determine next field
           let nextFieldIdx = fieldIndex + 1;
-          let nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
           
-          // Check if we need to skip fields based on requiresMissing anchors
-          if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] ========== CHECKING FIELD GATING ==========`);
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Starting at field ${nextFieldIdx + 1}/${totalFieldsInPack}: ${nextFieldConfig.fieldKey}`);
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchors (CANONICAL):`, updatedCollectedAnswers);
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Current anchor keys:`, Object.keys(updatedCollectedAnswers));
-            console.log(`[V2_PACK_FIELD][GATE_CHECK] Canonical anchors:`, {
-              prior_le_agency: updatedCollectedAnswers.prior_le_agency || '(missing)',
-              prior_le_position: updatedCollectedAnswers.prior_le_position || '(missing)',
-              prior_le_approx_date: updatedCollectedAnswers.prior_le_approx_date || '(missing)',
-              application_outcome: updatedCollectedAnswers.application_outcome || '(missing)'
-            });
-
-            // DIAGNOSTIC: Extra logging for PACK_PRIOR_LE_APPS_STANDARD gating
-            console.log('[DIAG_PRIOR_LE_APPS][GATING] ========== FIELD GATING CHECK ==========');
-            logPriorLeClientAnchors('GATING_CURRENT', updatedCollectedAnswers);
+          // Get all saved responses for this pack instance to check what's answered
+          const savedResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            pack_id: packId,
+            instance_number: instanceNumber,
+            response_type: 'v2_pack_field'
+          });
+          
+          const answeredFieldKeys = new Set(savedResponses.map(r => r.field_key));
+          
+          console.log(`[V2_PACK_FIELD][GATE_CHECK] Field-based gating`, {
+            packId,
+            currentFieldIdx: fieldIndex,
+            nextFieldIdx,
+            totalFields: totalFieldsInPack,
+            answeredFieldKeys: Array.from(answeredFieldKeys)
+          });
+          
+          // Skip fields that are already answered or should be skipped based on field config
+          while (nextFieldIdx < totalFieldsInPack) {
+            const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
+            const alwaysAsk = nextFieldConfig.alwaysAsk || false;
+            const skipUnless = nextFieldConfig.skipUnless || null;
             
-            // Skip fields whose requiresMissing anchors are already present
-            while (nextFieldIdx < totalFieldsInPack) {
-              nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
-              const requiresMissing = nextFieldConfig.requiresMissing || [];
-              const alwaysAsk = nextFieldConfig.alwaysAsk || false;
-              const skipUnless = nextFieldConfig.skipUnless || null;
+            // Skip if field has skipUnless condition that isn't met
+            if (skipUnless) {
+              let shouldSkip = false;
               
-              console.log(`[V2_PACK_FIELD][GATE_CHECK] Checking field ${nextFieldIdx + 1}: ${nextFieldConfig.fieldKey}`, {
-                requiresMissing,
-                alwaysAsk,
-                skipUnless
-              });
-              
-              // Check if all required anchors are present (meaning we should skip this field)
-              const allAnchorsPresent = requiresMissing.length === 0 || 
-                requiresMissing.every(anchor => {
-                  const value = updatedCollectedAnswers[anchor];
-                  return value && value.trim() && value.trim() !== '';
-                });
-              
-              // Check skipUnless condition (only ask if outcome matches)
-              let shouldSkipDueToOutcome = false;
-              if (skipUnless && updatedCollectedAnswers.application_outcome) {
-                const outcomeValue = updatedCollectedAnswers.application_outcome.toLowerCase();
+              // Check skipUnless.application_outcome condition
+              if (skipUnless.application_outcome) {
+                const outcomeField = updatedCollectedAnswers.application_outcome || '';
+                const outcomeValue = outcomeField.toLowerCase();
                 const matchesAny = skipUnless.application_outcome.some(val => 
                   outcomeValue.includes(val.toLowerCase())
                 );
-                shouldSkipDueToOutcome = !matchesAny;
-                console.log(`[V2_PACK_FIELD][GATE_CHECK] skipUnless check: outcome="${outcomeValue}", shouldSkip=${shouldSkipDueToOutcome}`);
-              }
-              
-              if (alwaysAsk) {
-                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Field ${nextFieldConfig.fieldKey} is alwaysAsk - SHOWING`);
-                break;
-              } else if (shouldSkipDueToOutcome) {
-                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Field ${nextFieldConfig.fieldKey} SKIPPED - outcome doesn't match skipUnless`);
-                nextFieldIdx++;
-              } else if (allAnchorsPresent && requiresMissing.length > 0) {
-                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Field ${nextFieldConfig.fieldKey} SKIPPED - anchors already present: [${requiresMissing.join(', ')}]`);
-                nextFieldIdx++;
-              } else {
-                const missingAnchors = requiresMissing.filter(a => !updatedCollectedAnswers[a] || !updatedCollectedAnswers[a].trim());
-                console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Field ${nextFieldConfig.fieldKey} NEEDED - missing: [${missingAnchors.join(', ')}]`);
-                break;
+                shouldSkip = !matchesAny;
+                
+                if (shouldSkip) {
+                  console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - skipUnless condition not met`);
+                  nextFieldIdx++;
+                  continue;
+                }
               }
             }
             
-            // If we've skipped past all fields, pack is complete
-            if (nextFieldIdx >= totalFieldsInPack) {
-              console.log(`[V2_PACK_FIELD][GATE_CHECK] All fields skipped or complete - pack is done`);
-              // Fall through to pack completion logic below
+            // Check if field was already answered
+            if (!alwaysAsk && answeredFieldKeys.has(nextFieldConfig.fieldKey)) {
+              console.log(`[V2_PACK_FIELD][GATE_CHECK] ✗ Skipping ${nextFieldConfig.fieldKey} - already answered`);
+              nextFieldIdx++;
+              continue;
             }
+            
+            console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Showing ${nextFieldConfig.fieldKey}`);
+            break;
           }
           
-          // Check if we've reached the end
           if (nextFieldIdx >= totalFieldsInPack) {
-            console.log(`[V2_PACK_FIELD][PACK_COMPLETE] All fields processed - pack finished`);
-            // Continue to pack completion below (don't return here)
+            console.log(`[V2_PACK_FIELD][PACK_COMPLETE] All fields processed`);
+            // Fall through to pack completion
           } else {
+            const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
             console.log(`[V2_PACK_FIELD][NEXT_FIELD] ========== ADVANCING TO NEXT FIELD ==========`);
             console.log(`[V2_PACK_FIELD][NEXT_FIELD]`, {
               packId,
