@@ -1248,7 +1248,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
           rejectTokens: DEFAULT_REJECT_TOKENS,
           minLength: 2,
           mustContainLetters: true
-        }
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85,
+        allowedEnumValues: ["hired", "disqualified", "withdrew", "still in process", "not selected", "rejected", "not hired", "dq", "dq'd"]
       },
       {
         fieldKey: "PACK_PRLE_Q03",
