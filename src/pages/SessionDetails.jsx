@@ -1544,6 +1544,7 @@ export default function SessionDetails() {
             {session.transcript_snapshot && session.transcript_snapshot.length > 0 ? (
               <CanonicalTranscriptRenderer 
                 session={session}
+                questions={questions}
                 searchTerm={searchTerm}
                 showOnlyFollowUps={showOnlyFollowUps}
               />

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function CanonicalTranscriptRenderer({ session, searchTerm = "", showOnlyFollowUps = false }) {
+export default function CanonicalTranscriptRenderer({ session, questions = [], searchTerm = "", showOnlyFollowUps = false }) {
   const originalEntries = session?.transcript_snapshot || [];
   
   console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
@@ -107,7 +107,7 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
   });
   
   // Group entries into renderable blocks that match the candidate UI
-  const blocks = buildTranscriptBlocks(sortedEntries);
+  const blocks = buildTranscriptBlocks(sortedEntries, questions);
   
   return (
     <div className="space-y-4 max-w-5xl">
@@ -122,9 +122,16 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
  * Build renderable blocks from raw transcript entries
  * Each block represents a visual card/bubble in the candidate interview UI
  */
-function buildTranscriptBlocks(entries) {
+function buildTranscriptBlocks(entries, questions = []) {
   const blocks = [];
   let i = 0;
+  
+  // Build question lookup map for quick access to question_number
+  const questionMap = {};
+  questions.forEach(q => {
+    const qId = q.id || q.question_id;
+    questionMap[qId] = q.question_number;
+  });
   
   while (i < entries.length) {
     const entry = entries[i];
@@ -196,10 +203,12 @@ function buildTranscriptBlocks(entries) {
         }
       }
       
+      const questionNumber = questionMap[entry.questionId] || null;
+      
       blocks.push({
         id: `block-${i}`,
         type: 'main_question',
-        questionNumber: null, // Will be computed during render
+        questionNumber: questionNumber,
         questionCode: entry.questionCode || entry.code,
         questionText: entry.questionText || entry.text || entry.content,
         answer: entry.answer || answerEntry?.answer || answerEntry?.text,
