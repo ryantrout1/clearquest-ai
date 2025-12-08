@@ -250,65 +250,7 @@ export default function SessionDetails() {
         base44.entities.FollowUpQuestion.list()
       ]);
 
-      // DIAGNOSTIC LOG: Inspect raw session data and AI summaries
-      console.log("[SESSION DETAILS RAW DATA]", {
-        sessionId,
-        responsesCount: responsesData.length,
-        followupsCount: followupsData.length,
-        followUpQuestionEntitiesCount: followUpQuestionsData.length,
-        sampleFollowup: followupsData[0],
-        sampleFollowUpQuestion: followUpQuestionsData.find(q => q.followup_pack_id === 'PACK_LE_APPS')
-      });
 
-      console.log('[SESSIONDETAILS] Loaded AI summaries', {
-        hasGlobalAISummary: !!sessionData.global_ai_summary,
-        globalSummaryText: sessionData.global_ai_summary?.text?.substring(0, 100),
-        hasSectionAISummaries: !!sessionData.section_ai_summaries,
-        sectionAISummariesType: typeof sessionData.section_ai_summaries,
-        sectionSummaryKeys: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries) : [],
-        sectionSummaryCount: sessionData.section_ai_summaries ? Object.keys(sessionData.section_ai_summaries).length : 0,
-        sectionSummariesFullData: sessionData.section_ai_summaries,
-        sectionSummarySample: sessionData.section_ai_summaries ? Object.entries(sessionData.section_ai_summaries)[0] : null,
-        responsesWithSummaries: responsesData.filter(r => r.investigator_summary).length,
-        totalResponses: responsesData.length,
-        yesResponses: responsesData.filter(r => r.answer === 'Yes').length,
-        lastGenerated: sessionData.ai_summaries_last_generated_at,
-        sampleQuestionSummaries: responsesData
-          .filter(r => r.investigator_summary)
-          .slice(0, 3)
-          .map(r => ({ questionId: r.question_id, summary: r.investigator_summary?.substring(0, 80) }))
-      });
-
-      // DIAGNOSTIC LOG: Check for AI probing data
-      const followupsWithProbing = followupsData.filter(f => 
-        f.additional_details?.investigator_probing?.length > 0
-      );
-      console.log("SESSIONDETAILS: Loaded AI probing exchanges", {
-        sessionId,
-        followupsWithProbing: followupsWithProbing.length,
-        totalProbingExchanges: followupsWithProbing.reduce(
-          (sum, f) => sum + (f.additional_details.investigator_probing?.length || 0), 
-          0
-        ),
-        samples: followupsWithProbing.slice(0, 2).map(f => ({
-          packId: f.followup_pack,
-          instanceNumber: f.instance_number,
-          probingCount: f.additional_details.investigator_probing?.length,
-          firstExchange: f.additional_details.investigator_probing?.[0]
-        }))
-      });
-      
-      // DIAGNOSTIC: Log PACK_LE_APPS question metadata
-      const packLeAppsQuestions = followUpQuestionsData.filter(q => q.followup_pack_id === 'PACK_LE_APPS');
-      console.log("[FOLLOWUP QUESTION METADATA] PACK_LE_APPS", {
-        totalQuestions: packLeAppsQuestions.length,
-        questions: packLeAppsQuestions.map(q => ({
-          id: q.id,
-          pack: q.followup_pack_id,
-          displayOrder: q.display_order,
-          text: q.question_text
-        }))
-      });
 
       setResponses(responsesData);
       setFollowups(followupsData);
@@ -318,13 +260,6 @@ export default function SessionDetails() {
       
       // Build unified transcript events from session's transcript_snapshot (canonical source)
       const transcriptSnapshot = sessionData.transcript_snapshot || [];
-      
-      console.log('[SESSIONDETAILS] Transcript snapshot check', {
-        hasSnapshot: transcriptSnapshot.length > 0,
-        snapshotLength: transcriptSnapshot.length,
-        responsesCount: responsesData.length,
-        followupsCount: followupsData.length
-      });
       
       // If no transcript snapshot, rebuild from Response entities (fallback for old sessions)
       let events = [];
@@ -564,20 +499,10 @@ export default function SessionDetails() {
         
         // Sort by sortKey to ensure chronological order
         events.sort((a, b) => a.sortKey - b.sortKey);
-        
-        console.log(`📋 Loaded ${events.length} transcript events from ${transcriptSnapshot.length} snapshot entries`);
       } else {
         // Fallback: Rebuild from Response entities (for old sessions)
-        console.log('[SESSIONDETAILS] No transcript_snapshot - rebuilding from Response entities');
         events = await buildTranscriptEventsForSession(sessionId, base44, { Questions: questionsData });
-        console.log(`📋 Rebuilt ${events.length} transcript events from Response entities`);
       }
-      
-      console.log('[SESSIONDETAILS] Final transcript events', {
-        totalEvents: events.length,
-        eventKinds: [...new Set(events.map(e => e.kind))],
-        sampleEvents: events.slice(0, 3)
-      });
       
       setTranscriptEvents(events);
 
@@ -617,14 +542,11 @@ export default function SessionDetails() {
           const data = qs.data || qs;
           const questionId = data.question_id || data.questionId;
           const summaryText = data.question_summary_text || data.questionSummaryText;
-          
+
           if (questionId && summaryText) {
             qMap[questionId] = summaryText;
           }
-        });
-        
-        console.log('[SESSIONDETAILS] QuestionSummary raw rows', questionSummaries.slice(0, 2));
-        console.log('[SESSIONDETAILS] QuestionSummary mapped keys', Object.keys(qMap));
+          });
 
         // Build section ID to name map from Section entities
         const sectionIdToName = {};
@@ -664,31 +586,7 @@ export default function SessionDetails() {
           if (sectionName) {
             sMapByName[sectionName] = summaryText;
           }
-        });
-
-        console.log('[SESSIONDETAILS] Section summary mapping', {
-          sectionSummariesCount: sectionSummaries.length,
-          sectionIdToNameKeys: Object.keys(sectionIdToName).slice(0, 5),
-          sMapByNameKeys: Object.keys(sMapByName),
-          sampleMapping: Object.entries(sMapByName).slice(0, 3).map(([name, text]) => ({
-            sectionName: name,
-            textPreview: text?.substring(0, 60)
-          }))
-        });
-
-        // DEBUG: Log sample response question_id for matching verification
-        const sampleResponseQuestionIds = responsesData.filter(r => r.answer === 'Yes').slice(0, 3).map(r => r.question_id);
-
-        console.log('[SESSIONDETAILS] AI summaries mapped', {
-          sessionId,
-          questionSummaryKeys: Object.keys(qMap),
-          sectionSummaryKeys: Object.keys(sMapByName),
-          instanceSummaryKeys: Object.keys(instMap),
-          sampleResponseQuestionIds,
-          keysMatch: sampleResponseQuestionIds.some(id => qMap[id]),
-          // Deep debug: show what we're actually mapping
-          qMapSample: Object.entries(qMap).slice(0, 2).map(([k, v]) => ({ key: k, textPreview: v?.substring(0, 50) }))
-        });
+          });
 
         setInstanceSummariesByKey(instMap);
         setQuestionSummariesByQuestionId(qMap);
@@ -1752,18 +1650,8 @@ function buildSectionStatsFromQuestions(allResponses, questionEntities, sectionE
       totalQuestions: sortedQuestions.length,
       yesCount,
       noCount
-    };
-  });
-  
-  console.log('[BUILD_SECTION_STATS] Computed stats', {
-    sections: Object.keys(sectionStats),
-    sample: Object.entries(sectionStats).slice(0, 2).map(([name, stats]) => ({
-      section: name,
-      questions: stats.totalQuestions,
-      yes: stats.yesCount,
-      no: stats.noCount
-    }))
-  });
+      };
+      });
   
   return sectionStats;
 }
@@ -1781,13 +1669,6 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
   const answerEvents = transcriptEvents.filter(e => e.kind === 'deterministic_followup_answer');
   const aiQuestionEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_question');
   const aiAnswerEvents = transcriptEvents.filter(e => e.kind === 'ai_probe_answer');
-  
-  console.log('[BUILD_FOLLOWUPS] Input', {
-    totalEvents: transcriptEvents.length,
-    questionEvents: questionEvents.length,
-    answerEvents: answerEvents.length,
-    sampleQuestion: questionEvents[0]
-  });
   
   // Group deterministic follow-ups by responseId (using parentResponseId fallback)
   questionEvents.forEach(qEvent => {
@@ -1877,27 +1758,7 @@ function buildFollowupsByResponseIdFromTranscript(transcriptEvents) {
       candidate_response: matchingAnswer?.text || '',
       sequence_number: qEvent.probeIndex || followupsByResponseId[targetResponseId][instanceNum].aiProbes.length + 1
     });
-  });
-  
-  // DIAGNOSTIC: Log detailed summary for debugging in required format
-  const debugSummary = Object.entries(followupsByResponseId).map(([responseId, instances]) => {
-    const firstInstance = instances[1] || Object.values(instances)[0];
-    // Find the baseQuestionId from the first followup
-    const sampleFollowup = firstInstance?.followups?.[0];
-    return {
-      responseId: responseId.substring(0, 8) + '...',
-      questionId: sampleFollowup?.baseQuestionId || 'unknown',
-      qCount: firstInstance?.followups?.length || 0,
-      aCount: firstInstance?.followups?.filter(f => f.answerText).length || 0
-    };
-  });
-  
-  console.log('[SESSIONDEBUG] followupsByResponseId:', debugSummary);
-  console.log('[SESSIONDETAILS] Built followupsByResponseId from transcript', {
-    responseIdCount: Object.keys(followupsByResponseId).length,
-    totalFollowupQAPairs: debugSummary.reduce((sum, r) => sum + r.qCount, 0),
-    sampleEntry: Object.entries(followupsByResponseId)[0]
-  });
+    });
   
   return followupsByResponseId;
 }
@@ -2374,14 +2235,8 @@ function UnifiedTranscriptView({ transcriptEvents, followUpQuestionEntities, que
     if (event.kind === 'base_question' && event.baseQuestionId && !sequentialNumberMap[event.baseQuestionId]) {
       sequentialQuestionNumber++;
       sequentialNumberMap[event.baseQuestionId] = sequentialQuestionNumber;
-    }
-  });
-  
-  console.log('[TRANSCRIPT VIEW] Question number map', {
-    totalBaseQuestions: sequentialQuestionNumber,
-    mapSize: Object.keys(sequentialNumberMap).length,
-    sample: Object.entries(sequentialNumberMap).slice(0, 5)
-  });
+      }
+      });
 
   return (
     <div className="space-y-4">
