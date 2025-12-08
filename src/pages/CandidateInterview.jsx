@@ -3081,7 +3081,7 @@ export default function CandidateInterview() {
       resizeObserver.observe(questionCardRef.current);
       return () => resizeObserver.disconnect();
     }
-  }, [currentPrompt, validationHint]);
+  }, [currentItem, validationHint]);
 
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
