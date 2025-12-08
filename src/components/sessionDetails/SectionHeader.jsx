@@ -181,7 +181,7 @@ export default function SectionHeader({
               <span className="text-purple-400 text-base">🧠</span>
               <span className="text-sm text-slate-400 italic">Section summary is being generated…</span>
             </div>
-          ) : aiSummary && (typeof aiSummary === 'string' || aiSummary.text) ? (
+          ) : aiSummary && (typeof aiSummary === 'string' || (typeof aiSummary === 'object' && aiSummary.text)) ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div className="flex items-center gap-2">

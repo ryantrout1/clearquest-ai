@@ -1232,39 +1232,43 @@ export default function SessionDetails() {
         {/* Global AI Investigator Assist */}
         <div className="mb-4 rounded-xl bg-slate-900/50 border border-slate-700 overflow-hidden">
           <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🧠</span>
-                <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
-                  AI Investigator Assist
-                </h3>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🧠</span>
+                  <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
+                    AI Investigator Assist
+                  </h3>
+                </div>
+                {(session.aiSummary?.status === 'completed' || session.global_ai_summary) && (
+                  <Badge className="text-xs bg-amber-500/20 text-amber-300 border-amber-500/30">
+                    AI Interview Signal: {session.global_ai_summary?.riskLevel === "High" ? "High Concern" : 
+                      session.global_ai_summary?.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
+                  </Badge>
+                )}
               </div>
-              {session.global_ai_summary && (
-                <Badge className="text-xs bg-amber-500/20 text-amber-300 border-amber-500/30">
-                  AI Interview Signal: {session.global_ai_summary.riskLevel === "High" ? "High Concern" : 
-                    session.global_ai_summary.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
-                </Badge>
-              )}
-            </div>
 
-            {/* PRIORITY 1: Check InterviewSession.aiSummary.overallSummaryText */}
-                  {session.aiSummary?.overallSummaryText && session.aiSummary?.status === 'completed' ? (
-                    <>
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
-                          ✓ Interview Summary Generated
-                        </Badge>
-                      </div>
+              {/* PRIORITY 1: Check InterviewSession.aiSummary.overallSummaryText */}
+              {session.aiSummary?.overallSummaryText && session.aiSummary?.status === 'completed' ? (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
+                      ✓ Interview Summary Generated
+                    </Badge>
+                  </div>
 
-                      <div className="text-sm text-slate-300 leading-relaxed mb-3">
-                        {session.aiSummary.overallSummaryText}
-                      </div>
-                    </>
-                  ) : session.aiSummary?.status === 'pending' ? (
-                    <div className="text-sm text-slate-400 italic">
-                      Investigative summary is being generated…
-                    </div>
-                  ) : session.global_ai_summary ? (
+                  <div className="text-sm text-slate-300 leading-relaxed mb-3">
+                    {session.aiSummary.overallSummaryText}
+                  </div>
+                </>
+              ) : session.aiSummary?.status === 'pending' ? (
+                <div className="text-sm text-slate-400 italic">
+                  Overall Investigator Assist summary is being generated…
+                </div>
+              ) : session.status !== 'completed' && session.status !== 'under_review' ? (
+                <div className="text-sm text-slate-400 italic">
+                  Investigator Assist summary will be available after the interview is completed.
+                </div>
+              ) : session.global_ai_summary ? (
                     <>
                       {session.global_ai_summary.patterns && session.global_ai_summary.patterns.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -1293,30 +1297,10 @@ export default function SessionDetails() {
                       )}
                     </>
                   ) : (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
-                    ✓ No Major Disclosures
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
-                    ✓ Consistent Patterns
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
-                    ✓ Normal Response Timing
-                  </Badge>
-                </div>
-                
-                <p className="text-sm text-slate-400 italic">
-                  The interview results indicate a significant lack of disclosures, with only one affirmative response out of a total of 14 questions. The consistency of answers is notably high, as almost all responses were negative, which may suggest a lack of transparency or possible concerns that warrant further investigation.
-                </p>
-                
-                <button
-                  onClick={handleGenerateAllAISummaries}
-                  disabled={isGeneratingAI || responses.length === 0}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-                >
-                  Show more
-                </button>
+              <div className="text-sm text-slate-400 italic">
+                {session.status !== 'completed' && session.status !== 'under_review' 
+                  ? 'Investigator Assist summary will be available after the interview is completed.'
+                  : 'No summary available. Use purple brain button to generate.'}
               </div>
             )}
           </div>
@@ -1998,7 +1982,6 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
             onClick={onToggleExpand}
           >
             <div className="flex items-center gap-2 flex-1">
-              {/* Only show 'unresolved' if there are DB followups and we're not using transcript (for now) */}
               {hasDbFollowups && !hasTranscriptFollowups && instanceNumbers.some(instNum => {
                 const instance = instancesMap[instNum];
                 const packId = instance?.followupPackId;
@@ -2008,10 +1991,12 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                   ⚠ Unresolved details (legacy)
                 </Badge>
               )}
-              {summary ? (
+              {response.aiSummary?.status === 'pending' ? (
+                <p className="text-xs text-slate-400 italic flex-1 leading-relaxed">Summary is being generated…</p>
+              ) : summary ? (
                 <p className="text-xs text-amber-100 italic flex-1 leading-relaxed">{summary}</p>
               ) : (
-                <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">No summary available. Use 'Generate AI' to create one.</p>
+                <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">Summary not yet generated.</p>
               )}
             </div>
             {isExpanded ? (
