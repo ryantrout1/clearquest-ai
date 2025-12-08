@@ -4393,6 +4393,35 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       narrativePreview: narrativeText?.slice(0, 150)
     });
     
+    // ================================================================
+    // DIAGNOSTIC TEST: Hard-coded anchors for PACK_PRLE_Q01
+    // This proves the pipeline can create and return anchors to frontend
+    // ================================================================
+    const testAnchors = {
+      prior_le_agency: "TEST: Phoenix Police Department",
+      prior_le_position: "TEST: Police Officer",
+      prior_le_approx_date: "TEST: March 2022",
+      application_outcome: "TEST: Disqualified during background"
+    };
+
+    const testCollectedAnchors = { ...testAnchors };
+
+    console.log("[V2_TEST][PRIOR_LE_APPS_Q01] Returning hard-coded anchors for diagnostic test", {
+      packId,
+      fieldKey,
+      testAnchors,
+      testCollectedAnchors
+    });
+
+    return ensureAnchorsShape({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      anchors: testAnchors,
+      collectedAnchors: testCollectedAnchors,
+      reason: "TEST: Hard-coded anchors for PRIOR LE APPS Q01 - proof of pipeline"
+    });
+    
     // Use LLM-based extraction for better accuracy
     const extractionResult = await extractPriorLeAppsAnchorsLLM({
       text: narrativeText,
