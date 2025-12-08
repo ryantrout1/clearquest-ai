@@ -1862,12 +1862,24 @@ export function buildInstanceHeaderSummary(packId, values) {
 // AUDIT LOG: PACK_PRIOR_LE_APPS_STANDARD config (safe - runs after FOLLOWUP_PACK_CONFIGS is initialized)
 const priorLePack = FOLLOWUP_PACK_CONFIGS && FOLLOWUP_PACK_CONFIGS["PACK_PRIOR_LE_APPS_STANDARD"];
 if (priorLePack) {
-  console.log("[FOLLOWUP_CONFIG_AUDIT][PRIOR_LE]", {
-    packId: "PACK_PRIOR_LE_APPS_STANDARD",
-    fieldConfig: priorLePack.field_config || priorLePack.fields || null,
-    maxAiFollowups: priorLePack.maxAiFollowups,
-    factAnchors: priorLePack.factAnchors || null
-  });
+  const fieldConfig = priorLePack.field_config || priorLePack.fields || [];
+  
+  const priorLeSummary = Array.isArray(fieldConfig) 
+    ? fieldConfig.map((fc) => ({
+        fieldKey: fc.fieldKey || fc.id || null,
+        label: fc.label || null,
+        fallbackQuestion: fc.fallbackQuestion || null,
+      }))
+    : Object.keys(fieldConfig).map((fieldKey) => {
+        const fc = fieldConfig[fieldKey] || {};
+        return {
+          fieldKey,
+          label: fc.label || null,
+          fallbackQuestion: fc.fallbackQuestion || null,
+        };
+      });
+
+  console.log("[FOLLOWUP_CONFIG_AUDIT][PRIOR_LE]", priorLeSummary);
 }
 
 /**

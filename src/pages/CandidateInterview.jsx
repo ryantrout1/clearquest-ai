@@ -358,6 +358,15 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
         mode: response.data?.mode,
         rawResult: response.data
       });
+      
+      console.log("[V2_PACK_AUDIT][FRONTEND_RECV_SUMMARY]", {
+        packId,
+        fieldKey,
+        instanceNumber: params.instanceNumber || 1,
+        questionText: response.data?.question || response.data?.questionText || null,
+        questionPreview: response.data?.questionPreview || null,
+        promptSource: response.data?.promptSource || response.data?.probeSource || null
+      });
     }
     
     return response.data;
@@ -2850,6 +2859,14 @@ export default function CandidateInterview() {
           textField: promptObject.text,
           hasClarifierActive,
           rawPromptObject: promptObject
+        });
+        
+        console.log("[V2_PACK_AUDIT][UI_QUESTION_TEXT]", {
+          packId,
+          fieldKey: effectiveCurrentItem.fieldKey,
+          instanceNumber: instanceNumber || 1,
+          from: hasClarifierActive ? 'clarifier' : 'fieldConfig',
+          text: promptObject.text || null
         });
       }
       
