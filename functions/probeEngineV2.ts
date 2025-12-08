@@ -4369,6 +4369,41 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
   
   const { packId, fieldKey, fieldValue, collectedAnchors, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
 
+  // ================================================================
+  // STEP 1: DIAGNOSTIC TEST - Hard-coded anchors for PACK_PRLE_Q01
+  // This MUST execute FIRST to prove the pipeline works
+  // ================================================================
+  if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+    const testAnchors = {
+      prior_le_agency: "TEST: Phoenix Police Department",
+      prior_le_position: "TEST: Police Officer",
+      prior_le_approx_date: "TEST: March 2022",
+      application_outcome: "TEST: Disqualified during background"
+    };
+
+    const testCollectedAnchors = { ...testAnchors };
+
+    console.log("[V2_TEST][PRIOR_LE_APPS_Q01] Returning hard-coded TEST anchors for diagnostic", {
+      packId,
+      fieldKey,
+      testAnchors,
+      testCollectedAnchors
+    });
+
+    // Return immediately - do NOT call any helpers that might drop fields
+    return {
+      packId,
+      fieldKey,
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "TEST: Hard-coded anchors for PRIOR LE APPS Q01 - proving pipeline works",
+      anchors: testAnchors,
+      collectedAnchors: testCollectedAnchors,
+      debugTag: "V2_TEST_ANCHORS"
+    };
+  }
+
   const existingCollection = collectedAnchors || {};
 
   // Use centralized helper to get full narrative text - tries multiple possible keys
@@ -5251,9 +5286,11 @@ function createV2ProbeResult(base, anchors, collectedAnchors) {
       followupsCount: base?.followupsCount || 0,
       reason: base?.reason || "",
       question: base?.question,
+      questionPreview: base?.questionPreview,
       // CRITICAL: ALWAYS include these, even if empty
       anchors: base?.anchors || {},
       collectedAnchors: base?.collectedAnchors || {},
+      debugTag: base?.debugTag,
       // Include any other fields from base
       ...base
     };
@@ -6992,7 +7029,47 @@ Deno.serve(async (req) => {
       }
     }
 
-    return Response.json(result);
+    // ================================================================
+    // STEP 2: Ensure final response includes anchors and collectedAnchors
+    // Build explicit response object to guarantee no fields are dropped
+    // ================================================================
+    const finalResponse = {
+      packId: result.packId || result.pack_id || packId,
+      fieldKey: result.fieldKey || result.field_key || fieldKey,
+      mode: result.mode,
+      hasQuestion: result.hasQuestion,
+      followupsCount: result.followupsCount ?? 0,
+      question: result.question,
+      questionPreview: result.questionPreview,
+      reason: result.reason,
+      // CRITICAL: Always include anchors, even if empty
+      anchors: result.anchors || {},
+      collectedAnchors: result.collectedAnchors || {},
+      debugTag: result.debugTag,
+      // Pass through any other fields
+      instanceNumber: result.instanceNumber,
+      semanticField: result.semanticField,
+      validationResult: result.validationResult,
+      previousProbeCount: result.previousProbeCount,
+      maxProbesPerField: result.maxProbesPerField,
+      collectedAnchorsKeys: result.collectedAnchorsKeys,
+      message: result.message,
+      probeSource: result.probeSource,
+      isFallback: result.isFallback
+    };
+
+    console.log("[HTTP_HANDLER][FINAL_RESPONSE]", {
+      packId: finalResponse.packId,
+      fieldKey: finalResponse.fieldKey,
+      mode: finalResponse.mode,
+      hasAnchors: !!finalResponse.anchors && Object.keys(finalResponse.anchors).length > 0,
+      hasCollected: !!finalResponse.collectedAnchors && Object.keys(finalResponse.collectedAnchors).length > 0,
+      anchorsKeys: Object.keys(finalResponse.anchors || {}),
+      collectedKeys: Object.keys(finalResponse.collectedAnchors || {}),
+      debugTag: finalResponse.debugTag
+    });
+
+    return Response.json(finalResponse);
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
     // This allows frontend to treat it as "no probe available"
