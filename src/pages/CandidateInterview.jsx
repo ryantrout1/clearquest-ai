@@ -3083,6 +3083,17 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
+  // Auto-scroll to bottom when transcript updates (e.g., section completion messages)
+  useEffect(() => {
+    if (historyRef.current && transcript.length > 0) {
+      setTimeout(() => {
+        if (historyRef.current) {
+          historyRef.current.scrollTop = historyRef.current.scrollHeight;
+        }
+      }, 50);
+    }
+  }, [transcript]);
+
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
     if (!currentItem) return;
