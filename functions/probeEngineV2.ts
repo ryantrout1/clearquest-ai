@@ -398,8 +398,11 @@ async function extractPriorLeAppsAnchorsLLM({ text, base44Client }) {
     application_outcome: "unknown"
   };
   
+  const rulesUsed = [];
+  let method = "none";
+  
   if (!text || text.trim().length < 10) {
-    return { anchors, collectedAnchors: anchors };
+    return { anchors, collectedAnchors: anchors, rulesUsed, method };
   }
 
   console.log("[EXTRACTOR][PRIOR_LE_APPS][LLM_START]", {
@@ -477,6 +480,8 @@ ${text}`;
     // Validate and use LLM result
     if (llmResult?.status === "ok" && llmResult?.anchors) {
       const llmAnchors = llmResult.anchors;
+      method = "llm";
+      rulesUsed.push("llm_strict_schema");
       
       // Replace "unknown" with null for cleaner output, but keep non-unknown values
       if (llmAnchors.prior_le_agency && llmAnchors.prior_le_agency !== "unknown") {
@@ -506,11 +511,18 @@ ${text}`;
 
   } catch (llmErr) {
     console.warn("[EXTRACTOR][PRIOR_LE_APPS][LLM_ERROR]", llmErr.message);
+    method = "fallback";
+    rulesUsed.push("llm_error_fallback");
     // Fall back to regex extraction
   }
 
   // Fallback regex extraction if LLM failed
-  if (Object.keys(anchors).length === 0) {
+  if (Object.keys(anchors).length === 0 || method === "fallback") {
+    if (method !== "fallback") {
+      method = "deterministic";
+    }
+    rulesUsed.push("regex_patterns");
+    
     const clean = text.trim();
     const lower = clean.toLowerCase();
 
@@ -544,14 +556,23 @@ ${text}`;
     }
   }
 
+  // If we used both LLM and regex, mark as hybrid
+  if (rulesUsed.includes("llm_strict_schema") && rulesUsed.includes("regex_patterns")) {
+    method = "hybrid";
+  }
+  
   console.log("[EXTRACTOR][PRIOR_LE_APPS][FINAL]", {
     extractedKeys: Object.keys(anchors),
-    anchors
+    anchors,
+    method,
+    rulesUsed
   });
   
   return {
     anchors,
-    collectedAnchors: anchors
+    collectedAnchors: anchors,
+    rulesUsed,
+    method
   };
 }
 
@@ -4393,13 +4414,31 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       narrativePreview: narrativeText?.slice(0, 150)
     });
     
+    const extractionStartTime = Date.now();
+    
     // Use LLM-based extraction for anchor extraction
     const extractionResult = await extractPriorLeAppsAnchorsLLM({
       text: narrativeText,
       base44Client
     });
     
+    const extractionDuration = Date.now() - extractionStartTime;
+    
     const canonicalAnchors = extractionResult.anchors || {};
+    
+    // Build audit trail for this extraction
+    const extractionAudit = {
+      engineVersion: "v2.6-llm-production",
+      packId,
+      fieldKey,
+      baseQuestionCode: questionCode || null,
+      rulesApplied: extractionResult.rulesUsed || ["llm_strict_schema", "regex_fallback"],
+      extractionMethod: extractionResult.method || "hybrid",
+      extractionDurationMs: extractionDuration,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log("[PRIOR_LE_Q01][AUDIT]", extractionAudit);
     
     console.log("[PRIOR_LE_Q01][EXTRACTED]", {
       canonicalAnchors,
@@ -4480,7 +4519,7 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       }
     }
     
-    // Return result with real extracted anchors
+    // Return result with real extracted anchors AND audit trail
     const result = {
       packId,
       fieldKey,
@@ -4493,6 +4532,8 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       collectedAnchors: mergedAnchors,
       reason: 'PACK_PRLE_Q01 narrative processed with LLM extraction',
       probeSource: 'PRIOR_LE_APPS_LLM_EXTRACTOR',
+      // AUDIT TRAIL: Legally-defensible extraction metadata
+      audit: extractionAudit
     };
     
     console.log("[PRIOR_LE_Q01][ANCHORS_FINAL]", {
@@ -4501,8 +4542,23 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
       anchorsKeys: Object.keys(result.anchors || {}),
       anchors: result.anchors,
       collectedAnchorsKeys: Object.keys(result.collectedAnchors || {}),
-      collectedAnchors: result.collectedAnchors
+      collectedAnchors: result.collectedAnchors,
+      audit: result.audit
     });
+    
+    // Structured audit log for extraction
+    console.log("[ANCHOR_AUDIT][EXTRACT]", JSON.stringify({
+      sessionId,
+      packId,
+      fieldKey,
+      instanceNumber,
+      baseQuestionCode: questionCode || null,
+      engineVersion: extractionAudit.engineVersion,
+      anchors: result.anchors,
+      rulesApplied: extractionAudit.rulesApplied,
+      extractionDurationMs: extractionAudit.extractionDurationMs,
+      createdAt: extractionAudit.createdAt
+    }));
     
     return ensureAnchorsShape(result);
   }
