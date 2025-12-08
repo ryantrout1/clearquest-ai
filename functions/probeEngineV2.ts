@@ -4346,19 +4346,94 @@ async function handlePriorLeAppsPerFieldV2(ctx) {
     fieldValuePreview: fieldValue?.substring?.(0, 80)
   });
   
-  // CRITICAL FIX: First call with empty Q01 should return the EXACT scripted narrative question
-  // This ensures production matches Preview behavior
+  // CRITICAL: PACK_PRLE_Q01 opening - return exact narrative question
   if (fieldKey === "PACK_PRLE_Q01" && probeCount === 0 && (!fieldValue || fieldValue.trim() === "")) {
-    console.log("[PRIOR_LE_APPS_HANDLER][Q01_EMPTY_OPENING] Returning scripted narrative question");
-    
-    const scriptedQuestion = "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.";
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_OPENING] Returning scripted narrative question");
     
     return createV2ProbeResult({
       mode: "QUESTION",
       hasQuestion: true,
       followupsCount: 1,
-      question: scriptedQuestion,
+      question: "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.",
       reason: "Opening narrative question for PACK_PRLE_Q01"
+    });
+  }
+  
+  // PACK_PRLE_Q01 with answer - extract anchors and advance
+  if (fieldKey === "PACK_PRLE_Q01" && fieldValue && fieldValue.trim().length > 0) {
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_ANSWERED] Extracting anchors from narrative");
+    
+    const anchors = {};
+    const lowerValue = fieldValue.toLowerCase();
+    
+    // Try to extract anchors from narrative
+    if (lowerValue.includes('disqualified')) {
+      anchors.outcome = 'disqualified';
+    } else if (lowerValue.includes('hired') || lowerValue.includes('accepted')) {
+      anchors.outcome = 'hired';
+    } else if (lowerValue.includes('withdrew') || lowerValue.includes('withdrew')) {
+      anchors.outcome = 'withdrew';
+    } else if (lowerValue.includes('pending') || lowerValue.includes('in progress')) {
+      anchors.outcome = 'still_in_process';
+    }
+    
+    return createV2ProbeResult({
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "Narrative captured for PACK_PRLE_Q01; proceed to PACK_PRLE_Q02",
+      anchors: Object.keys(anchors).length > 0 ? { prior_le_application: anchors } : undefined
+    });
+  }
+  
+  // Subsequent fields (Q02-Q08) - validate and advance or clarify once
+  if (["PACK_PRLE_Q02", "PACK_PRLE_Q03", "PACK_PRLE_Q04", "PACK_PRLE_Q05", "PACK_PRLE_Q06", "PACK_PRLE_Q07", "PACK_PRLE_Q08"].includes(fieldKey)) {
+    if (fieldValue && fieldValue.trim().length > 0) {
+      console.log(`[PRIOR_LE_APPS_HANDLER][${fieldKey}] Answer accepted, advancing`);
+      return createV2ProbeResult({
+        mode: "NEXT_FIELD",
+        hasQuestion: false,
+        followupsCount: 0,
+        reason: `Answer accepted for ${fieldKey}; move to next field`
+      });
+    } else if (probeCount === 0) {
+      // Empty answer - ask one clarification
+      const fieldLabels = {
+        "PACK_PRLE_Q02": "outcome",
+        "PACK_PRLE_Q03": "location",
+        "PACK_PRLE_Q04": "date",
+        "PACK_PRLE_Q05": "position",
+        "PACK_PRLE_Q06": "contact person",
+        "PACK_PRLE_Q07": "contact information",
+        "PACK_PRLE_Q08": "additional details"
+      };
+      const label = fieldLabels[fieldKey] || "this field";
+      return createV2ProbeResult({
+        mode: "QUESTION",
+        hasQuestion: true,
+        followupsCount: 1,
+        question: `Could you provide the ${label} for this application?`,
+        reason: `Clarifying ${fieldKey} due to empty answer`
+      });
+    } else {
+      // Already probed once, accept whatever we have
+      return createV2ProbeResult({
+        mode: "NEXT_FIELD",
+        hasQuestion: false,
+        followupsCount: 0,
+        reason: `Accepting answer after clarification for ${fieldKey}`
+      });
+    }
+  }
+  
+  // Final field (Q09) - mark complete
+  if (fieldKey === "PACK_PRLE_Q09" && fieldValue && fieldValue.trim().length > 0) {
+    console.log("[PRIOR_LE_APPS_HANDLER][Q09_COMPLETE] All fields satisfied");
+    return createV2ProbeResult({
+      mode: "COMPLETE",
+      hasQuestion: false,
+      followupsCount: 0,
+      reason: "All PRIOR_LE_APPS fields satisfied for this incident"
     });
   }
   
