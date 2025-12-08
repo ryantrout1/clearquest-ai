@@ -2304,7 +2304,7 @@ function CompactQuestionRow({ response, followups, followUpQuestionEntities, isE
                       if (instance.lastOccurrence) addTopLevelField('Last Occurrence', instance.lastOccurrence, 'last_occurrence');
                       if (instance.legalOutcome) addTopLevelField('Legal Outcome', instance.legalOutcome, 'legal_outcome');
                       if (instance.accountabilityResponse) addTopLevelField('Accountability', instance.accountabilityResponse, 'accountability_response');
-                      if (instance.candidateNarrative) addTopLevelField('Candidate Narrative', instance.candidateNarrative, 'candidate_narrative');
+                      // Skip candidateNarrative - already included in additional_details
 
 
                       const uniqueAiExchangesForFallback = Array.from(new Map((instance.aiExchanges || []).map(ex => [`${ex.sequence_number}-${ex.probing_question}`, ex])).values());
