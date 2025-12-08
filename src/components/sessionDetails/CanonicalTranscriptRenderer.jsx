@@ -533,25 +533,28 @@ function TranscriptBlock({ block }) {
   
   // Multi-instance question
   if (type === 'multi_instance') {
+    const isYesNo = block.answer === 'Yes' || block.answer === 'No';
+    
     return (
       <div className="space-y-2 ml-4">
         <RoleTimestamp role="Investigator" time={timeLabel} />
         <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-          <p className="text-white text-base leading-relaxed">{block.questionText}</p>
-        </div>
-        {block.answer && (
-          <>
-            <RoleTimestamp role="Candidate" time={timeLabel} />
-            <div className="flex justify-end">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+            </div>
+            
+            {/* Yes/No chip on the right side of card */}
+            {isYesNo && (
               <div className={cn(
-                "rounded-xl px-5 py-3",
+                "flex-shrink-0 px-4 py-2 rounded-lg font-semibold",
                 block.answer === 'Yes' ? "bg-green-600" : "bg-red-600"
               )}>
-                <p className="text-white">{block.answer}</p>
+                <span className="text-white">{block.answer}</span>
               </div>
-            </div>
-          </>
-        )}
+            )}
+          </div>
+        </div>
       </div>
     );
   }
