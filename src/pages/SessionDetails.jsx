@@ -1536,6 +1536,7 @@ export default function SessionDetails() {
             transcriptEvents={transcriptEvents}
             sectionSummariesBySectionId={sectionSummariesBySectionId}
             drivingFactsFromTranscript={buildDrivingFactsFromTranscript(transcriptEvents)}
+            questions={questions}
           />
         ) : (
           <>
