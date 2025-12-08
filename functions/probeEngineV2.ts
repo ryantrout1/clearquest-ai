@@ -1411,7 +1411,7 @@ Object.assign(FALLBACK_PROBES, {
   "prevention_steps": "What steps have you taken to ensure this will not happen again?",
   
   // === PACK_PRIOR_LE_APPS_STANDARD (question codes) ===
-  "PACK_PRLE_Q01": "For this application, what was the name of the law enforcement department or agency, what position did you apply for, and about what month and year did you apply?",
+  "PACK_PRLE_Q01": "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.\n\nExample: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation.",
   "PACK_PRLE_Q02": "What was the outcome of that application? (For example: hired, disqualified, withdrew, or still in process.)",
   "PACK_PRLE_Q03": "Which city and state was that agency in?",
   "PACK_PRLE_Q04": "About when did you apply there? Month and year is fine.",
