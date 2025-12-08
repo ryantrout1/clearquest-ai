@@ -97,137 +97,65 @@ export default function CanonicalTranscriptRenderer({ session, searchTerm = "", 
     );
   }
   
-  // STEP 2: Sort chronologically by timestamp
-  const sortedEntries = [...filteredEntries].sort((a, b) => {
-    const timeA = a.timestamp || a.createdAt || a.index || 0;
-    const timeB = b.timestamp || b.createdAt || b.index || 0;
-    return timeA - timeB;
-  });
+  const pairs = groupTranscriptIntoPairs(filteredEntries);
   
   return (
-    <div className="space-y-3 max-w-4xl">
-      {sortedEntries.map((entry, idx) => (
-        <TranscriptEntry key={entry.index || idx} entry={entry} />
+    <div className="space-y-4">
+      {pairs.map((pair, idx) => (
+        <TranscriptPair key={pair.question.index} pair={pair} pairNumber={idx + 1} />
       ))}
     </div>
   );
 }
 
-function TranscriptEntry({ entry }) {
-  // Determine if this is a question or answer
-  const isQuestion = entry.eventType === 'question' || 
-                     entry.eventType === 'base_question' ||
-                     entry.eventType === 'followup_question' ||
-                     entry.kind === 'base_question' ||
-                     entry.kind === 'deterministic_followup_question' ||
-                     entry.kind === 'v2_pack_followup' ||
-                     entry.kind === 'v2_pack_ai_followup' ||
-                     entry.kind === 'ai_probe_question' ||
-                     Boolean(entry.questionText || entry.questionCode);
+function TranscriptPair({ pair, pairNumber }) {
+  const question = pair.question;
+  const answers = pair.answers;
   
-  const isAnswer = entry.eventType === 'answer' ||
-                   entry.eventType === 'base_answer' ||
-                   entry.eventType === 'followup_answer' ||
-                   entry.kind === 'base_answer' ||
-                   entry.kind === 'deterministic_followup_answer' ||
-                   entry.kind === 'ai_probe_answer' ||
-                   Boolean(entry.answer || entry.answerText || entry.responseText);
+  const isFollowUp = Boolean(question.packId);
   
-  const isFollowUp = Boolean(entry.packId) || 
-                     entry.eventType === 'followup_question' ||
-                     entry.kind === 'deterministic_followup_question' ||
-                     entry.kind === 'v2_pack_followup' ||
-                     entry.kind === 'v2_pack_ai_followup' ||
-                     entry.kind === 'ai_probe_question';
-  
-  // Extract text content
-  const text = entry.questionText || entry.text || entry.content || 
-               entry.answer || entry.answerText || entry.responseText || "";
-  
-  // Extract metadata
-  const questionCode = entry.questionCode || "";
-  const sectionName = entry.sectionName || entry.category || "";
-  const timestamp = entry.timestamp || entry.createdAt;
-  
-  if (isQuestion) {
-    return (
-      <div className="flex gap-3">
-        <div className="flex-shrink-0 w-24 pt-1">
-          <div className="text-xs font-medium text-slate-600">
-            {questionCode && <div className="mb-0.5">{questionCode}</div>}
-            <div className="text-slate-500">Interviewer</div>
-          </div>
-        </div>
-        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-slate-600" />
-              {sectionName && (
-                <span className="text-xs text-slate-600 font-medium">
-                  {sectionName}
-                </span>
-              )}
-              {isFollowUp && (
-                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                  Follow-up
-                </Badge>
-              )}
-            </div>
-            {timestamp && (
-              <span className="text-xs text-slate-400">
-                {new Date(timestamp).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-            {text}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (isAnswer) {
-    return (
-      <div className="flex gap-3">
-        <div className="flex-shrink-0 w-24 pt-1">
-          <div className="text-xs font-medium text-green-700">
-            Candidate
-          </div>
-        </div>
-        <div className="flex-1 bg-white border border-green-200 rounded-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs text-slate-600 font-medium">Answer</span>
-            </div>
-            {timestamp && (
-              <span className="text-xs text-slate-400">
-                {new Date(timestamp).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {text}
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // Fallback for unknown entry types
   return (
-    <div className="flex gap-3">
-      <div className="flex-shrink-0 w-24 pt-1">
-        <div className="text-xs font-medium text-slate-500">
-          System
+    <Card className="bg-white border-slate-200">
+      <CardContent className="p-5 space-y-3">
+        {/* Question */}
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-slate-500">
+                  Question {pairNumber}
+                </span>
+                {isFollowUp && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                    Follow-up
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-slate-800 leading-relaxed">
+                {question.text}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="flex-1 bg-slate-100 border border-slate-200 rounded-lg p-4">
-        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-          {text}
-        </p>
-      </div>
-    </div>
+        
+        {/* Answers */}
+        {answers.map((answer, ansIdx) => (
+          <div key={answer.index} className="ml-6 pl-4 border-l-2 border-slate-200">
+            <div className="flex items-start gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-500 mb-1">
+                  Answer
+                </p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {answer.text}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
