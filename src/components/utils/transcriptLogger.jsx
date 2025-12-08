@@ -140,36 +140,7 @@ export async function appendAnswerEntry({
   return entry;
 }
 
-/**
- * Check if a question has already been logged in the transcript
- * (to avoid duplicates on re-renders)
- * @param {Array} transcript
- * @param {Object} identifiers
- * @returns {boolean}
- */
-export function hasQuestionBeenLogged(transcript = [], { questionId, packId, fieldKey, instanceNumber }) {
-  if (!transcript || transcript.length === 0) return false;
 
-  return transcript.some(entry => {
-    if (entry.role !== "question") return false;
-    
-    // Section question match
-    if (questionId && entry.questionId === questionId && !entry.packId) {
-      return true;
-    }
-    
-    // V2 pack field match
-    if (packId && fieldKey) {
-      return (
-        entry.packId === packId &&
-        entry.fieldKey === fieldKey &&
-        entry.instanceNumber === instanceNumber
-      );
-    }
-    
-    return false;
-  });
-}
 
 /**
  * Get the canonical transcript for a session
