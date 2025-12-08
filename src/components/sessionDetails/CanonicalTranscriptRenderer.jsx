@@ -133,6 +133,9 @@ function buildTranscriptBlocks(entries, questions = []) {
     questionMap[qId] = q.question_number;
   });
   
+  // Build sequential counter for questions without question_number
+  let sequentialNumber = 0;
+  
   while (i < entries.length) {
     const entry = entries[i];
     const kind = entry.kind || entry.eventType || entry.type || "";
@@ -203,7 +206,15 @@ function buildTranscriptBlocks(entries, questions = []) {
         }
       }
       
-      const questionNumber = questionMap[entry.questionId] || null;
+      // Get question ID from various possible field names
+      const questionId = entry.questionId || entry.baseQuestionId || entry.id;
+      
+      // Try to get question_number from Question entity, fallback to sequential
+      let questionNumber = questionMap[questionId];
+      if (!questionNumber) {
+        sequentialNumber++;
+        questionNumber = sequentialNumber;
+      }
       
       blocks.push({
         id: `block-${i}`,
@@ -214,7 +225,7 @@ function buildTranscriptBlocks(entries, questions = []) {
         answer: entry.answer || answerEntry?.answer || answerEntry?.text,
         sectionName: entry.sectionName || entry.category,
         timestamp: entry.timestamp,
-        questionId: entry.questionId
+        questionId: questionId
       });
       
       // Skip the answer entry if we consumed it
