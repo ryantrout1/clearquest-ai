@@ -580,8 +580,8 @@ export default function CandidateInterview() {
   const v2ProbingInProgressRef = useRef(new Set());
   const [v2ClarifierState, setV2ClarifierState] = useState(null);
   
-  // STEP 1: Store backend question text per V2 pack field and instance
-  const [v2BackendQuestionTextMap, setV2BackendQuestionTextMap] = useState({});
+  // Store backend question text per V2 pack field and instance
+  const [backendQuestionTextMap, setBackendQuestionTextMap] = useState({});
   
   // Track the last AI follow-up question text per field so we can show it on history cards
   const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
