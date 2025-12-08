@@ -2943,6 +2943,48 @@ export default function CandidateInterview() {
     }
   }, [currentItem, sessionId, buildDraftKey]);
   
+  // UX: Auto-focus answer input whenever a new question appears
+  useEffect(() => {
+    if (!currentItem) return;
+    if (isCommitting || v3ProbingActive || pendingSectionTransition) return;
+    
+    const isAnswerable = currentItem.type === 'question' || 
+                         currentItem.type === 'v2_pack_field' || 
+                         currentItem.type === 'followup';
+    
+    if (!isAnswerable) return;
+    
+    const currentItemType = currentItem.type;
+    const currentItemId = currentItem.id;
+    const packId = currentItem.packId;
+    const fieldKey = currentItem.fieldKey;
+    const instanceNumber = currentItem.instanceNumber;
+    
+    console.log("[UX][FOCUS] Auto-focusing answer input for", {
+      currentItemType,
+      currentItemId,
+      packId,
+      fieldKey,
+      instanceNumber
+    });
+    
+    window.requestAnimationFrame(() => {
+      if (!inputRef.current) return;
+      
+      try {
+        inputRef.current.focus();
+        
+        // Put cursor at end of any existing text (desktop + mobile friendly)
+        if (inputRef.current.setSelectionRange) {
+          const len = inputRef.current.value.length;
+          inputRef.current.setSelectionRange(len, len);
+        }
+      } catch (err) {
+        console.warn("[UX][FOCUS] Failed to focus answer input", err);
+      }
+    });
+  }, [currentItem, isCommitting, v3ProbingActive, pendingSectionTransition]);
+  
   const getCurrentPrompt = () => {
     // UX: Stabilize current item while typing
     let effectiveCurrentItem = currentItem;
