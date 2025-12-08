@@ -1505,6 +1505,23 @@ export default function CandidateInterview() {
           questionText: questionText
         });
         
+        // Append answer to canonical transcript (legal record) - only if user actually answered
+        try {
+          const currentTranscript = session.transcript_snapshot || [];
+          
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: finalAnswer,
+            questionId: baseQuestionId,
+            packId,
+            fieldKey,
+            instanceNumber: instanceNumber || 1
+          });
+        } catch (err) {
+          console.warn("[TRANSCRIPT][ANSWER] Failed to log V2 pack field answer:", err);
+        }
+        
         // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
         let localSuggestions = {};
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01' && finalAnswer.length > 50) {
@@ -2728,27 +2745,6 @@ export default function CandidateInterview() {
           base_question_code: baseQuestionCode
         });
         console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
-        
-        // Append answer to canonical transcript (legal record) - only if user actually answered
-        // (not for auto-skipped fields)
-        try {
-          const currentTranscript = session.transcript_snapshot || [];
-          
-          // Determine exact answer text as seen by candidate
-          let answerTextForUI = answer;
-          
-          await appendAnswerEntry({
-            sessionId,
-            existingTranscript: currentTranscript,
-            text: answerTextForUI,
-            questionId: baseQuestionId,
-            packId,
-            fieldKey,
-            instanceNumber: instanceNumber || 1
-          });
-        } catch (err) {
-          console.warn("[TRANSCRIPT][ANSWER] Failed to log V2 pack field answer:", err);
-        }
       }
     } catch (err) {
       console.error('[V2_PACK_FIELD][SAVE][ERROR]', err);
@@ -3031,7 +3027,7 @@ export default function CandidateInterview() {
   
   // Canonical Transcript: Log question text when currentItem changes (legal record)
   useEffect(() => {
-    if (!currentItem || !session) return;
+    if (!currentItem || !session || !engine) return;
     if (isCommitting || v3ProbingActive) return;
     
     const currentTranscript = session.transcript_snapshot || [];
@@ -3047,44 +3043,60 @@ export default function CandidateInterview() {
       });
       
       if (!alreadyLogged) {
-        const displayText = currentItem.question_text || currentItem.text || "";
+        const question = engine.QById[currentItem.id];
+        const displayText = question?.question_text || "";
         
-        appendQuestionEntry({
-          sessionId,
-          existingTranscript: currentTranscript,
-          text: displayText,
-          questionId: currentItem.id,
-          packId: null,
-          fieldKey: null,
-          instanceNumber: null
-        }).catch(err => {
-          console.warn("[TRANSCRIPT][QUESTION] Failed to log section question:", err);
-        });
+        if (displayText) {
+          appendQuestionEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: displayText,
+            questionId: currentItem.id,
+            packId: null,
+            fieldKey: null,
+            instanceNumber: null
+          }).catch(err => {
+            console.warn("[TRANSCRIPT][QUESTION] Failed to log section question:", err);
+          });
+        }
       }
     } else if (currentItem.type === 'v2_pack_field') {
       // V2 pack field - check if already logged
       const alreadyLogged = hasQuestionBeenLogged(currentTranscript, {
-        questionId: currentItem.triggeringQuestionId || null,
+        questionId: currentItem.baseQuestionId || null,
         packId: currentItem.packId,
         fieldKey: currentItem.fieldKey,
         instanceNumber: currentItem.instanceNumber || 1
       });
       
-      if (!alreadyLogged && currentItem.label) {
-        appendQuestionEntry({
-          sessionId,
-          existingTranscript: currentTranscript,
-          text: currentItem.label,
-          questionId: currentItem.triggeringQuestionId || null,
-          packId: currentItem.packId,
-          fieldKey: currentItem.fieldKey,
-          instanceNumber: currentItem.instanceNumber || 1
-        }).catch(err => {
-          console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
-        });
+      if (!alreadyLogged) {
+        // Use the exact text shown to candidate (clarifier overrides field label)
+        const hasClarifier = v2ClarifierState && 
+          v2ClarifierState.packId === currentItem.packId &&
+          v2ClarifierState.fieldKey === currentItem.fieldKey &&
+          v2ClarifierState.instanceNumber === currentItem.instanceNumber;
+        
+        const backendText = currentItem.backendQuestionText;
+        const displayText = hasClarifier 
+          ? v2ClarifierState.clarifierQuestion 
+          : (backendText || currentItem.fieldConfig?.label || "");
+        
+        if (displayText) {
+          appendQuestionEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: displayText,
+            questionId: currentItem.baseQuestionId || null,
+            packId: currentItem.packId,
+            fieldKey: currentItem.fieldKey,
+            instanceNumber: currentItem.instanceNumber || 1
+          }).catch(err => {
+            console.warn("[TRANSCRIPT][QUESTION] Failed to log V2 pack field:", err);
+          });
+        }
       }
     }
-  }, [currentItem, session, sessionId, isCommitting, v3ProbingActive]);
+  }, [currentItem, session, sessionId, isCommitting, v3ProbingActive, engine, v2ClarifierState]);
   
   const getCurrentPrompt = () => {
     // UX: Stabilize current item while typing
