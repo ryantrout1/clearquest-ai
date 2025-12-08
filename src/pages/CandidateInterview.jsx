@@ -4,6 +4,7 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Shield, Send, Loader2, Check, X, AlertCircle, Layers, CheckCircle2, Pause, Copy, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -798,6 +799,7 @@ export default function CandidateInterview() {
   const noButtonRef = useRef(null);
   const questionCardRef = useRef(null);
   const [questionCardHeight, setQuestionCardHeight] = useState(0);
+  const [textareaRows, setTextareaRows] = useState(1);
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
@@ -3100,6 +3102,29 @@ export default function CandidateInterview() {
     }
   }, [transcript]);
 
+  // UX: Auto-resize textarea based on content (max 3 lines)
+  useEffect(() => {
+    if (!inputRef.current) return;
+    
+    const textarea = inputRef.current;
+    textarea.style.height = 'auto';
+    
+    const lineHeight = 24; // Approximate line height in pixels
+    const maxLines = 3;
+    const maxHeight = lineHeight * maxLines;
+    const scrollHeight = textarea.scrollHeight;
+    
+    if (scrollHeight <= maxHeight) {
+      textarea.style.height = `${scrollHeight}px`;
+      textarea.style.overflowY = 'hidden';
+      setTextareaRows(Math.min(Math.ceil(scrollHeight / lineHeight), maxLines));
+    } else {
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = 'auto';
+      setTextareaRows(maxLines);
+    }
+  }, [input]);
+
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
     if (!currentItem) return;
@@ -3950,20 +3975,21 @@ export default function CandidateInterview() {
             })()}
             
             <div className="flex gap-3">
-              <Input
+              <Textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => {
                   const value = e.target.value;
-                  markUserTyping(); // UX: Mark as typing to lock preview
-                  saveDraft(value);  // UX: Auto-save draft
+                  markUserTyping();
+                  saveDraft(value);
                   setInput(value);
                 }}
                 onKeyDown={handleInputKeyDown}
                 placeholder="Type your answer..."
-                className="flex-1 h-12 bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400"
+                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200"
                 disabled={isCommitting}
                 autoFocus
+                rows={1}
               />
               <Button
                 type="button"
