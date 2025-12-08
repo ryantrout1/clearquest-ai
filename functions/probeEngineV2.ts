@@ -6161,6 +6161,20 @@ Deno.serve(async (req) => {
       fullNormalizedObject: JSON.stringify(result, null, 2)
     });
     
+    // ================================================================
+    // SURGICAL OVERRIDE: Force PACK_PRLE_Q01 question text to narrative
+    // ================================================================
+    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+      const narrative = "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.\n\nExample: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation.";
+      
+      // Override question text in all variants
+      if (result.questionText) result.questionText = narrative;
+      if (result.question) result.question = narrative;
+      if (result.questionPreview) result.questionPreview = narrative.slice(0, 120);
+      
+      console.log('[PACK_PRLE_Q01][OVERRIDE] Applied narrative text override');
+    }
+    
     // CRITICAL: Final log before returning to frontend
     console.log('[V2_ENGINE][RETURN]', {
       packId: result.pack_id || packId,
