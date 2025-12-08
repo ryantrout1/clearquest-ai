@@ -1360,7 +1360,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           minLength: 2,
           mustContainLetters: true
-        }
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85
       },
       {
         fieldKey: "PACK_PRLE_Q07",
