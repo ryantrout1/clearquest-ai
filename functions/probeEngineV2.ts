@@ -6134,15 +6134,15 @@ Deno.serve(async (req) => {
     }
     
     // Normalize input - handle both direct payload and { params: {...} } wrapper
-    const input = (raw && typeof raw === "object" && raw.params) ? raw.params : raw || {};
+    const params = (raw && typeof raw === "object" && raw.params) ? raw.params : raw || {};
     
     // Assign to top-level variables so they're available in catch block
-    packId = input.pack_id || input.packId;
-    fieldKey = input.field_key || input.fieldKey;
-    instanceNumber = input.instance_number || input.instanceNumber || 1;
-    probeCount = input.previous_probes_count || input.probeCount || 0;
-    collectedAnchorsKeys = input.collectedAnchorsKeys || [];
-    const fieldValue = input.field_value || input.fieldValue || input.answer || "";
+    packId = params.pack_id || params.packId;
+    fieldKey = params.field_key || params.fieldKey;
+    instanceNumber = params.instance_number || params.instanceNumber || 1;
+    probeCount = params.previous_probes_count || params.probeCount || 0;
+    collectedAnchorsKeys = params.collectedAnchorsKeys || [];
+    const fieldValue = params.field_value || params.fieldValue || params.answer || "";
     
     // Guardrail: require packId and fieldKey
     if (!packId || !fieldKey) {
@@ -6160,7 +6160,7 @@ Deno.serve(async (req) => {
     logger.info('[V2] Request received', { packId, fieldKey, instanceNumber, probeCount });
     
     // Call the core probe engine with normalized params
-    const result = await probeEngineV2(input, base44);
+    const result = await probeEngineV2(params, base44);
     
     logger.info('[V2] Returning result', { mode: result.mode, packId, fieldKey });
     return Response.json(result);
