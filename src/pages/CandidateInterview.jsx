@@ -610,7 +610,8 @@ const runV2FieldProbeIfNeeded = async ({
   aiProbingEnabled,
   aiProbingDisabledForSession,
   maxAiFollowups,
-  instanceNumber
+  instanceNumber,
+  setBackendQuestionTextMap
 }) => {
   const probeCount = previousProbesCount || 0;
 
@@ -653,7 +654,7 @@ const runV2FieldProbeIfNeeded = async ({
       questionCode,
       baseQuestionId,
       instanceNumber,
-      setBackendQuestionTextMap: params.setBackendQuestionTextMap // STEP 1: Pass setter
+      setBackendQuestionTextMap // STEP 1: Pass setter
     });
     
     // LIFECYCLE LOG: Anchors updated (structural only)
