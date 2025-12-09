@@ -4974,6 +4974,39 @@ function normalizeAnchorsToArray({
   return anchors;
 }
 
+// --- V2 BACKEND DIAGNOSTIC HELPERS (do not change engine behavior) ---
+
+function buildV2DebugSnapshot(rawParams) {
+  const safe = rawParams && typeof rawParams === "object" ? rawParams : {};
+  const keys = safe ? Object.keys(safe).sort().slice(0, 30) : [];
+
+  return {
+    paramType: typeof rawParams,
+    paramKeys: keys,
+    packId: safe.packId ?? safe.pack_id ?? null,
+    fieldKey: safe.fieldKey ?? safe.field_key ?? null,
+    probeCount: safe.probeCount ?? safe.previous_probes_count ?? null,
+    instanceNumber: safe.instanceNumber ?? safe.instance_number ?? null,
+  };
+}
+
+function logV2BackendAudit(label, rawParams, extra = {}) {
+  try {
+    const snapshot = buildV2DebugSnapshot(rawParams);
+    console.log("[V2_BACKEND_AUDIT]", label, {
+      ...snapshot,
+      ...extra,
+    });
+  } catch (e) {
+    // Never let diagnostics break the engine
+    console.log("[V2_BACKEND_AUDIT][ERROR_LOGGING]", {
+      error: e && e.message,
+    });
+  }
+}
+
+// --- END V2 BACKEND DIAGNOSTIC HELPERS ---
+
 /**
  * Persist fact anchors to BOTH Response.fact_atoms AND InterviewSession.structured_followup_facts
  * Implements Hybrid Fact Model (Option C)
@@ -5093,7 +5126,7 @@ async function persistFactAnchorsHybrid({
  * 
  * SYSTEMIC FIX: All return paths now include anchors and collectedAnchors
  * 
- * NOTE: This is the CORE implementation - call probeEngineV2Wrapper for normalized results
+ * NOTE: This is the CORE implementation - call probeEngineV2Entry for normalized results with diagnostics
  */
 async function probeEngineV2Core(params, base44Client) {
   // Defensive normalization - ensure params is always an object
@@ -5101,6 +5134,14 @@ async function probeEngineV2Core(params, base44Client) {
   
   // VERSION BANNER - Production build with real anchor extraction
   console.log("[V2_ENGINE] probeEngineV2 production build - real anchor extraction enabled");
+  
+  // Diagnostic checkpoint for PACK_PRIOR_LE_APPS_STANDARD
+  if (params && (params.packId === "PACK_PRIOR_LE_APPS_STANDARD" || params.pack_id === "PACK_PRIOR_LE_APPS_STANDARD")) {
+    logV2BackendAudit("PACK_PRIOR_LE_APPS_STANDARD_CORE_ENTRY", params, {
+      hasParamsInScope: true,
+      paramsIsObject: typeof params === 'object'
+    });
+  }
   
   const {
     pack_id,
@@ -5140,6 +5181,13 @@ async function probeEngineV2Core(params, base44Client) {
     
     // DISPATCH LOGGING for PACK_PRIOR_LE_APPS_STANDARD
     if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD') {
+      logV2BackendAudit("PACK_PRIOR_LE_APPS_STANDARD_BEFORE_HANDLER", params, {
+        packId: pack_id,
+        fieldKey: field_key,
+        instanceNumber: instance_number,
+        probeCount: previous_probes_count,
+        narrativePreview: field_value?.slice?.(0, 100)
+      });
       console.log('[V2_PRIOR_LE_APPS][DISPATCH]', {
         packId: pack_id,
         fieldKey: field_key,
@@ -5257,11 +5305,11 @@ async function probeEngineV2Core(params, base44Client) {
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
       // Get canonical field text from input
       const fieldText =
-        params.field_value ??
-        params.fieldValue ??
-        params.answer ??
-        params.narrative ??
-        params.fullNarrative ??
+        input.field_value ??
+        input.fieldValue ??
+        input.answer ??
+        input.narrative ??
+        input.fullNarrative ??
         "";
       
       const { anchors: outcomeAnchors, collectedAnchors: outcomeCollected } =
@@ -5383,6 +5431,15 @@ async function probeEngineV2Core(params, base44Client) {
       applicationOutcome: handlerResult?.anchors?.application_outcome || '(MISSING)',
       RESULT_BEING_RETURNED: handlerResult
     });
+    
+    // Diagnostic audit after handler
+    if (pack_id === 'PACK_PRIOR_LE_APPS_STANDARD') {
+      logV2BackendAudit("PACK_PRIOR_LE_APPS_STANDARD_AFTER_HANDLER", params, {
+        resultMode: handlerResult?.mode,
+        hasAnchors: !!handlerResult?.anchors,
+        anchorKeys: Object.keys(handlerResult?.anchors || {})
+      });
+    }
     
     // CRITICAL: Return handler result with merged fact anchors
     // This returns DIRECTLY to the HTTP handler, bypassing all remaining logic
@@ -6087,6 +6144,44 @@ async function probeEngineV2(params, base44Client) {
 }
 
 /**
+ * Diagnostic entry wrapper - catches errors and adds audit trail
+ * This is the exported entrypoint used by the HTTP handler
+ */
+async function probeEngineV2Entry(params, base44Client) {
+  // Safe diagnostics at the top
+  logV2BackendAudit("ENTRY", params, {
+    hasParamsVariableInScope: true,
+  });
+
+  try {
+    const result = await probeEngineV2(params, base44Client);
+    logV2BackendAudit("RESULT", params, {
+      resultMode: result && result.mode,
+      hasQuestion: result && result.hasQuestion,
+      error: result && result.error,
+    });
+    return result;
+  } catch (err) {
+    // Catch any ReferenceError or other runtime error
+    logV2BackendAudit("ERROR", params, {
+      errorName: err && err.name,
+      errorMessage: err && err.message,
+      errorStack: err && err.stack,
+    });
+
+    // Return a structured error so the frontend doesn't just see "params is not defined"
+    return {
+      mode: "ERROR",
+      hasQuestion: false,
+      error: err && err.message ? String(err.message) : "Unknown V2 backend error",
+      errorName: err && err.name,
+      anchors: {},
+      collectedAnchors: {}
+    };
+  }
+}
+
+/**
  * Safe V2 probe engine - no-crash orchestrator
  * Returns well-formed results, lets frontend drive progression
  */
@@ -6166,8 +6261,8 @@ Deno.serve(async (req) => {
     
     logger.info('[V2] Request received', { packId, fieldKey, instanceNumber, probeCount });
     
-    // Call the core probe engine with normalized params
-    const result = await probeEngineV2(params, base44);
+    // Call the diagnostic entry wrapper (which calls probeEngineV2)
+    const result = await probeEngineV2Entry(params, base44);
     
     logger.info('[V2] Returning result', { mode: result.mode, packId, fieldKey });
     return Response.json(result);
