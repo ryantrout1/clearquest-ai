@@ -5088,7 +5088,10 @@ async function persistFactAnchorsHybrid({
  * 
  * NOTE: This is the CORE implementation - call probeEngineV2Wrapper for normalized results
  */
-async function probeEngineV2Core(input, base44Client) {
+async function probeEngineV2Core(params, base44Client) {
+  // Defensive normalization - ensure params is always an object
+  params = params && typeof params === 'object' ? params : {};
+  
   // VERSION BANNER - Production build with real anchor extraction
   console.log("[V2_ENGINE] probeEngineV2 production build - real anchor extraction enabled");
   
@@ -5107,7 +5110,7 @@ async function probeEngineV2Core(input, base44Client) {
     instance_number = 1,
     instance_anchors = {},
     session_id = null
-  } = input;
+  } = params;
 
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
@@ -5150,18 +5153,18 @@ async function probeEngineV2Core(input, base44Client) {
       });
     }
     
-    // Build context for per-field handler - pass entire input for narrative extraction
+    // Build context for per-field handler - pass entire params for narrative extraction
     const ctx = {
       packId: pack_id,
       fieldKey: field_key,
       fieldValue: field_value,
       field_value: field_value,
-      fullNarrative: input.fullNarrative,
-      fullAnswer: input.fullAnswer,
-      answer: input.answer,
-      narrative: input.narrative,
-      fieldValuePreview: input.fieldValuePreview,
-      answerPreview: input.answerPreview,
+      fullNarrative: params.fullNarrative,
+      fullAnswer: params.fullAnswer,
+      answer: params.answer,
+      narrative: params.narrative,
+      fieldValuePreview: params.fieldValuePreview,
+      answerPreview: params.answerPreview,
       instanceNumber: instance_number,
       collectedAnchors: incident_context || {},
       probeCount: previous_probes_count,
@@ -5401,11 +5404,11 @@ async function probeEngineV2Core(input, base44Client) {
   
   // CRITICAL: Extract narrative text - frontend sends it as field_value
   const narrativeText = 
-    input.field_value || 
-    input.fieldValue || 
-    input.answer || 
-    input.fullNarrative || 
-    input.narrative || 
+    params.field_value || 
+    params.fieldValue || 
+    params.answer || 
+    params.fullNarrative || 
+    params.narrative || 
     '';
   
   console.log(`[EARLY_ROUTER_CHECK] pack_id="${pack_id}", field_key="${field_key}"`);
@@ -6026,16 +6029,26 @@ async function probeEngineV2Core(input, base44Client) {
  * Main probe engine function - Normalized wrapper around core logic
  * BACKWARDS-COMPATIBLE: Guarantees anchors/collectedAnchors on ALL responses
  * 
- * @param {object} input - Probe parameters
+ * @param {object} params - Probe parameters (standardized name)
  * @param {object} base44Client - Base44 SDK client
  * @returns {object} Normalized V2 probe result with anchors/collectedAnchors
  */
-async function probeEngineV2(input, base44Client) {
+async function probeEngineV2(params, base44Client) {
+  // Defensive normalization - ensure params is always an object
+  params = params && typeof params === 'object' ? params : {};
+  
+  console.log('[V2_PROBE][ENTRY]', {
+    packId: params.pack_id || params.packId,
+    fieldKey: params.field_key || params.fieldKey,
+    instanceNumber: params.instance_number || params.instanceNumber,
+    probeCount: params.previous_probes_count || params.probeCount || 0,
+  });
+  
   console.log("═════════════════════════════════════════════════════════════");
   console.log("FORENSIC CHECKPOINT 9: WRAPPER CALLING CORE");
   console.log("═════════════════════════════════════════════════════════════");
   
-  const rawResult = await probeEngineV2Core(input, base44Client);
+  const rawResult = await probeEngineV2Core(params, base44Client);
   
   console.log("═════════════════════════════════════════════════════════════");
   console.log("FORENSIC CHECKPOINT 10: CORE RETURNED TO WRAPPER");
@@ -6146,18 +6159,10 @@ Deno.serve(async (req) => {
     
     logger.info('[V2] Request received', { packId, fieldKey, instanceNumber, probeCount });
     
-    // MVP: Safe no-op orchestrator
-    // Frontend drives progression via field config, gating, and auto-skip
-    // Backend simply acknowledges and returns NEXT_FIELD
-    const result = buildSafeResult({
-      packId,
-      fieldKey,
-      instanceNumber,
-      probeCount,
-      collectedAnchors: collectedAnchorsKeys
-    });
+    // Call the core probe engine with normalized params
+    const result = await probeEngineV2(input, base44);
     
-    logger.info('[V2] Returning safe result', { mode: result.mode, packId, fieldKey });
+    logger.info('[V2] Returning result', { mode: result.mode, packId, fieldKey });
     return Response.json(result);
   } catch (error) {
     const message = error?.message || String(error);
