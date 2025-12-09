@@ -5163,6 +5163,40 @@ async function probeEngineV2Core(params, base44Client) {
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
+  // WORKPLACE INTEGRITY OVERRIDE - Force narrative label as opening question
+  // SHORT-CIRCUIT for PACK_WORKPLACE_STANDARD / PACK_WORKPLACE_Q01 first touch
+  // ============================================================================
+  if (pack_id === "PACK_WORKPLACE_STANDARD" &&
+      field_key === "PACK_WORKPLACE_Q01" &&
+      (previous_probes_count === 0 || !previous_probes_count)) {
+    
+    // Get label from pack config or use hardcoded narrative
+    const label = "Can you walk me through what happened during that testing incident — what the situation was, which part of the test was involved, when it took place, and how it ended? Please include as much detail as you can.";
+    
+    console.log("[V2_PER_FIELD][WORKPLACE_OVERRIDE] Forced narrative opening for PACK_WORKPLACE_Q01", {
+      packId: pack_id,
+      fieldKey: field_key,
+      labelLength: label.length
+    });
+    
+    // Build deterministic result - exactly what frontend expects
+    const result = createV2ProbeResult({
+      mode: "QUESTION",
+      hasQuestion: true,
+      followupsCount: 0,
+      question: label,
+      questionText: label,
+      questionPreview: label.substring(0, 60) + "...",
+      showAsOpening: true,
+      reason: "Forced narrative opening for PACK_WORKPLACE_Q01",
+      anchors: {},
+      collectedAnchors: {}
+    });
+    
+    return result;
+  }
+  
+  // ============================================================================
   // PER-FIELD HANDLER ROUTER
   // Check if this pack has a dedicated perFieldHandler before generic logic
   // CRITICAL: This runs BEFORE the early router to give perFieldHandlers priority

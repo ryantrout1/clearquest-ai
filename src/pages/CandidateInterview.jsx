@@ -2150,7 +2150,12 @@ export default function CandidateInterview() {
               });
               
               // If backend returned an opening question/message, show it as AI probe
-              if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question) {
+              // OVERRIDE: For PACK_WORKPLACE_STANDARD, treat as normal field question (no separate opening)
+              const isWorkplaceOverride = packId === "PACK_WORKPLACE_STANDARD" && 
+                                          firstField.fieldKey === "PACK_WORKPLACE_Q01" &&
+                                          initialCallResult?.showAsOpening === true;
+              
+              if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question && !isWorkplaceOverride) {
                 console.log(`[V2_PACK][CLUSTER_INIT] Showing AI opening message before fields`);
                 
                 // Add AI opening question to transcript
@@ -2215,7 +2220,10 @@ export default function CandidateInterview() {
                   fieldIndex: 0
                 });
               } else {
-                // No opening message - go directly to first field
+                // No opening message OR workplace override - go directly to first field
+                if (isWorkplaceOverride) {
+                  console.log(`[V2_PACK][OPENING_OVERRIDE] Using narrative label as opening for PACK_WORKPLACE_STANDARD/Q01`);
+                }
                 // STEP 2: Include backend question text in currentItem
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
                 

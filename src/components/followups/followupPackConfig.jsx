@@ -1163,6 +1163,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Please describe this integrity issue in your own words.",
     multiInstanceDescription: "Please describe this integrity issue in your own words.",
     maxAiFollowups: 4,
+    forceNarrativeOpening: true,
+    openingFieldKey: "PACK_WORKPLACE_Q01",
     requiredAnchors: ["incident_type", "date_approx", "agency_or_org", "outcome"],
     targetAnchors: ["incident_type", "date_approx", "agency_or_org", "test_component", "action_taken", "outcome", "eligibility_to_reapply"],
     factAnchors: [
