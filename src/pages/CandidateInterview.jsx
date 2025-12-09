@@ -3924,8 +3924,8 @@ export default function CandidateInterview() {
                 )}
               </div>
               
-              {/* Show prior context for follow-up questions */}
-              {(isV2PackField || currentPrompt.type === 'ai_probe') && (() => {
+              {/* Show prior context for follow-up questions (only on resumed sessions) */}
+              {(isV2PackField || currentPrompt.type === 'ai_probe') && !isNewSession && (() => {
                 // Get the prior answer that triggered this follow-up pack
                 const baseQuestionEntry = [...transcript].reverse().find(t => 
                   t.type === 'question' &&
