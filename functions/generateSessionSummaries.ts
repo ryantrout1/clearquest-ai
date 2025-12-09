@@ -514,6 +514,17 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
   const sectionCompletionStatus = {};
   let allSectionsComplete = true;
   
+  // Helper: Check if a specific section is complete for this session
+  const isSectionComplete = (sectionDbId) => {
+    const status = sectionCompletionStatus[sectionDbId];
+    if (!status) return false;
+    
+    // A section is complete if:
+    // 1. It has at least one answered question, AND
+    // 2. All answered questions are complete (including their follow-ups)
+    return status.answered > 0 && status.complete;
+  };
+  
   for (const section of sections) {
     const sectionId = section.id;
     const sectionQuestions = questionsBySectionId[sectionId] || [];
@@ -581,8 +592,11 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
   
   console.log('[SSUM] Existing summaries by name:', [...existingSSummaryByName]);
   
-  // GATE: Only process on section_complete or interview_complete
-  const shouldProcessSections = eventType === "section_complete" || eventType === "interview_complete";
+  // GATE: Process sections on question_complete, section_complete, or interview_complete
+  // This allows section summaries to generate as soon as the last question in a section is answered
+  const shouldProcessSections = eventType === "question_complete" || 
+                                 eventType === "section_complete" || 
+                                 eventType === "interview_complete";
   
   // Generate section summaries for sections with answered questions
   const sectionsToProcess = shouldProcessSections ? Object.entries(sectionCompletionStatus) : [];
@@ -592,6 +606,13 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
     
     // Skip sections with no answered questions
     if (!status.responses || status.responses.length === 0) {
+      continue;
+    }
+    
+    // Check if section is complete using helper
+    if (!isSectionComplete(sectionDbId)) {
+      console.log('[SSUM][SKIP-INCOMPLETE]', { session: sessionId, sectionName, reason: 'section_not_complete' });
+      result.skippedIncomplete.section++;
       continue;
     }
     
