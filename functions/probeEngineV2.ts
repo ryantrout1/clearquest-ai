@@ -6073,6 +6073,13 @@ async function probeEngineV2(input, base44Client) {
 Deno.serve(async (req) => {
   const logger = console;
   
+  // Declare variables at top scope so they're available in catch block
+  let packId = null;
+  let fieldKey = null;
+  let instanceNumber = null;
+  let probeCount = 0;
+  let collectedAnchorsKeys = [];
+  
   // Helper: build consistent result object
   function buildSafeResult(overrides = {}) {
     return {
@@ -6116,14 +6123,13 @@ Deno.serve(async (req) => {
     // Normalize input - handle both direct payload and { params: {...} } wrapper
     const input = (raw && typeof raw === "object" && raw.params) ? raw.params : raw || {};
     
-    const {
-      packId = input.pack_id,
-      fieldKey = input.field_key || input.fieldKey,
-      instanceNumber = input.instance_number || input.instanceNumber || 1,
-      probeCount = input.previous_probes_count || input.probeCount || 0,
-      collectedAnchorsKeys = input.collectedAnchorsKeys || [],
-      fieldValue = input.field_value || input.fieldValue || input.answer || ""
-    } = input;
+    // Assign to top-level variables so they're available in catch block
+    packId = input.pack_id || input.packId;
+    fieldKey = input.field_key || input.fieldKey;
+    instanceNumber = input.instance_number || input.instanceNumber || 1;
+    probeCount = input.previous_probes_count || input.probeCount || 0;
+    collectedAnchorsKeys = input.collectedAnchorsKeys || [];
+    const fieldValue = input.field_value || input.fieldValue || input.answer || "";
     
     // Guardrail: require packId and fieldKey
     if (!packId || !fieldKey) {
@@ -6157,7 +6163,7 @@ Deno.serve(async (req) => {
     const message = error?.message || String(error);
     logger.error('[V2] Unhandled error:', message);
     
-    // Still return valid shape
+    // Still return valid shape - use top-level variables which are now defined
     return Response.json(buildSafeResult({
       packId: packId || null,
       fieldKey: fieldKey || null,
