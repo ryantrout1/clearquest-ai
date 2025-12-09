@@ -3922,38 +3922,23 @@ export default function CandidateInterview() {
                 )}
               </div>
               
-              {/* Show prior context only for first field in pack - hide for subsequent fields */}
+              {/* Show prior context for follow-up questions */}
               {(isV2PackField || currentPrompt.type === 'ai_probe') && (() => {
-                // Check if this is the first field (fieldIndex === 0) or a narrative field
-                const isFirstField = currentItem?.fieldIndex === 0;
-                const isPrimaryNarrative = currentItem?.fieldConfig?.isPrimaryNarrativeField || 
-                                          currentItem?.fieldConfig?.isNarrativeOpener;
-                
-                // Only show context for first field or primary narrative - hide for subsequent fields
-                if (!isFirstField && !isPrimaryNarrative) {
-                  return null;
-                }
-                
-                const priorEntry = [...transcript].reverse().find(t => 
-                  (t.type === 'followup_question' || t.type === 'question') &&
-                  t.packId === currentItem?.packId &&
-                  t.instanceNumber === currentItem?.instanceNumber &&
+                // Get the prior answer that triggered this follow-up pack
+                const baseQuestionEntry = [...transcript].reverse().find(t => 
+                  t.type === 'question' &&
+                  t.questionId === currentItem?.baseQuestionId &&
                   t.answer
                 );
                 
-                if (!priorEntry) return null;
+                if (!baseQuestionEntry) return null;
                 
-                const priorQuestionText = (priorEntry.questionText || priorEntry.text || '').trim();
-                const currentQuestionText = (currentPrompt.text || '').trim();
-                const isDuplicate = priorQuestionText === currentQuestionText;
-                
+                // For follow-ups, show the base question and answer as context
                 return (
-                  <div className="mb-3 pb-3 border-b border-slate-700/50">
-                    {!isDuplicate && priorQuestionText && (
-                      <p className="text-slate-400 text-sm mb-2">{priorQuestionText}</p>
-                    )}
-                    <p className="text-slate-300 text-sm italic">{priorEntry.answer}</p>
-                  </div>
+                  <FollowUpContext
+                    originalQuestionText={baseQuestionEntry.questionText}
+                    priorAnswer={baseQuestionEntry.answer}
+                  />
                 );
               })()}
               
