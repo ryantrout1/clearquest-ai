@@ -1502,6 +1502,7 @@ export default function CandidateInterview() {
         const questionText = fieldConfig?.label || fieldKey;
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
+        const isLastField = fieldIndex >= totalFieldsInPack - 1;
         
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
         
@@ -1714,8 +1715,6 @@ export default function CandidateInterview() {
             v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null' };
           }
         }
-        
-        const isLastField = fieldIndex >= totalFieldsInPack - 1;
         
         // Handle AI clarifier from backend
         if (v2Result?.mode === 'QUESTION' && v2Result.question) {
