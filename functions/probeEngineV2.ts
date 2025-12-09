@@ -4490,7 +4490,10 @@ function getPackTopicForDiscretion(packId) {
  * V2 Per-Field Handler for PACK_PRIOR_LE_APPS_STANDARD
  * Deterministically extracts application_outcome from Q01 narrative for gating
  */
-async function handlePriorLeAppsPerFieldV2(ctx) {
+async function handlePriorLeAppsPerFieldV2(params) {
+  // Defensive normalization - ensure params is always an object
+  const ctx = params && typeof params === 'object' ? params : {};
+  
   const { packId, fieldKey, fieldValue, probeCount, base44Client, instanceNumber, questionCode, sessionId } = ctx;
 
   console.log("[PRIOR_LE_APPS_HANDLER][ENTRY]", {
