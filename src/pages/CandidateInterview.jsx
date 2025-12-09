@@ -3920,6 +3920,32 @@ export default function CandidateInterview() {
                   </>
                 )}
               </div>
+              
+              {/* Show prior context for V2 pack fields - but only if question text is different */}
+              {(isV2PackField || currentPrompt.type === 'ai_probe') && (() => {
+                const priorEntry = [...transcript].reverse().find(t => 
+                  (t.type === 'followup_question' || t.type === 'question') &&
+                  t.packId === currentItem?.packId &&
+                  t.instanceNumber === currentItem?.instanceNumber &&
+                  t.answer
+                );
+                
+                if (!priorEntry) return null;
+                
+                const priorQuestionText = (priorEntry.questionText || priorEntry.text || '').trim();
+                const currentQuestionText = (currentPrompt.text || '').trim();
+                const isDuplicate = priorQuestionText === currentQuestionText;
+                
+                return (
+                  <div className="mb-3 pb-3 border-b border-slate-700/50">
+                    {!isDuplicate && priorQuestionText && (
+                      <p className="text-slate-400 text-sm mb-2">{priorQuestionText}</p>
+                    )}
+                    <p className="text-slate-300 text-sm italic">{priorEntry.answer}</p>
+                  </div>
+                );
+              })()}
+              
               <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
               {currentPrompt.placeholder && (
                 <p className="text-slate-400 text-sm mt-1">{currentPrompt.placeholder}</p>
