@@ -3921,8 +3921,18 @@ export default function CandidateInterview() {
                 )}
               </div>
               
-              {/* Show prior context for V2 pack fields - but only if question text is different */}
+              {/* Show prior context only for first field in pack - hide for subsequent fields */}
               {(isV2PackField || currentPrompt.type === 'ai_probe') && (() => {
+                // Check if this is the first field (fieldIndex === 0) or a narrative field
+                const isFirstField = currentItem?.fieldIndex === 0;
+                const isPrimaryNarrative = currentItem?.fieldConfig?.isPrimaryNarrativeField || 
+                                          currentItem?.fieldConfig?.isNarrativeOpener;
+                
+                // Only show context for first field or primary narrative - hide for subsequent fields
+                if (!isFirstField && !isPrimaryNarrative) {
+                  return null;
+                }
+                
                 const priorEntry = [...transcript].reverse().find(t => 
                   (t.type === 'followup_question' || t.type === 'question') &&
                   t.packId === currentItem?.packId &&
