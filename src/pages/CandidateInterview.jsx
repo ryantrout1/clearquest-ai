@@ -3363,10 +3363,10 @@ export default function CandidateInterview() {
 
     // V2 Pack field question
     if (effectiveCurrentItem.type === 'v2_pack_field') {
-      const { packId, fieldIndex, fieldConfig, instanceNumber } = effectiveCurrentItem;
+      const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
       
       // GUARD: Prevent crash when pack state cleared but currentItem hasn't updated yet
-      if (!fieldConfig || !packId) {
+      if (!fieldConfig || !packId || !fieldKey) {
         console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state for v2_pack_field - transitional state');
         return null;
       }
@@ -3377,10 +3377,10 @@ export default function CandidateInterview() {
       // Check if we're showing a clarifier for this field
       const hasClarifierActive = v2ClarifierState &&
         v2ClarifierState.packId === packId &&
-        v2ClarifierState.fieldKey === effectiveCurrentItem.fieldKey &&
+        v2ClarifierState.fieldKey === fieldKey &&
         v2ClarifierState.instanceNumber === instanceNumber;
       
-      console.log("[V2_PACK] Rendering question", currentItem.fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
+      console.log("[V2_PACK] Rendering question", fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
       
       // STEP 3: Priority order for question text:
       // 1. Active clarifier question (highest priority)
@@ -3414,7 +3414,7 @@ export default function CandidateInterview() {
         placeholder: fieldConfig.placeholder,
         options: fieldConfig.options,
         packId: packId,
-        fieldKey: effectiveCurrentItem.fieldKey,
+        fieldKey: fieldKey,
         stepNumber: fieldIndex + 1,
         totalSteps: totalFields,
         instanceNumber: instanceNumber,
@@ -3422,10 +3422,10 @@ export default function CandidateInterview() {
       };
       
       // AUDIT LOG: Final UI question object for PACK_PRIOR_LE_APPS_STANDARD
-      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && effectiveCurrentItem.fieldKey === "PACK_PRLE_Q01") {
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
         console.log("[V2_PACK_AUDIT][UI_QUESTION_FINAL]", {
           packId,
-          fieldKey: effectiveCurrentItem.fieldKey,
+          fieldKey: fieldKey,
           displayText,
           textField: promptObject.text,
           hasClarifierActive,
@@ -3434,7 +3434,7 @@ export default function CandidateInterview() {
         
         console.log("[V2_PACK_AUDIT][UI_QUESTION_TEXT]", {
           packId,
-          fieldKey: effectiveCurrentItem.fieldKey,
+          fieldKey: fieldKey,
           instanceNumber: instanceNumber || 1,
           from: hasClarifierActive ? 'clarifier' : 'fieldConfig',
           text: promptObject.text || null
