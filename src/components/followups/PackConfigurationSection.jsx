@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -22,12 +23,23 @@ export default function PackConfigurationSection({
   const [localData, setLocalData] = useState({});
 
   useEffect(() => {
+    // Compute effective opening strategy with backwards compatibility
+    let effectiveOpeningStrategy = 'none';
+    if (pack?.openingStrategy) {
+      effectiveOpeningStrategy = pack.openingStrategy;
+    } else if (pack?.forceNarrativeOpening === true && pack?.openingFieldKey) {
+      effectiveOpeningStrategy = 'fixed_narrative';
+    }
+    
     setLocalData({
       behavior_type: pack?.behavior_type || 'standard',
       requires_completion: pack?.requires_completion !== false,
       max_probe_loops: pack?.max_probe_loops || '',
       max_ai_followups: pack?.max_ai_followups ?? 3,
-      active: pack?.active !== false
+      active: pack?.active !== false,
+      openingStrategy: effectiveOpeningStrategy,
+      openingFieldKey: pack?.openingFieldKey || null,
+      openingLabelOverride: pack?.openingLabelOverride || ''
     });
   }, [pack?.id]);
 
@@ -37,18 +49,34 @@ export default function PackConfigurationSection({
       requires_completion: localData.requires_completion,
       max_probe_loops: localData.max_probe_loops ? parseInt(localData.max_probe_loops) : null,
       max_ai_followups: localData.max_ai_followups ? parseInt(localData.max_ai_followups) : 3,
-      active: localData.active
+      active: localData.active,
+      openingStrategy: localData.openingStrategy || 'none',
+      openingFieldKey: localData.openingFieldKey || null,
+      openingLabelOverride: localData.openingLabelOverride || '',
+      // Preserve legacy flags for backwards compatibility
+      forceNarrativeOpening: localData.openingStrategy === 'fixed_narrative',
     });
     setIsEditing(false);
   };
 
   const handleCancel = () => {
+    // Compute effective opening strategy with backwards compatibility
+    let effectiveOpeningStrategy = 'none';
+    if (pack?.openingStrategy) {
+      effectiveOpeningStrategy = pack.openingStrategy;
+    } else if (pack?.forceNarrativeOpening === true && pack?.openingFieldKey) {
+      effectiveOpeningStrategy = 'fixed_narrative';
+    }
+    
     setLocalData({
       behavior_type: pack?.behavior_type || 'standard',
       requires_completion: pack?.requires_completion !== false,
       max_probe_loops: pack?.max_probe_loops || '',
       max_ai_followups: pack?.max_ai_followups ?? 3,
-      active: pack?.active !== false
+      active: pack?.active !== false,
+      openingStrategy: effectiveOpeningStrategy,
+      openingFieldKey: pack?.openingFieldKey || null,
+      openingLabelOverride: pack?.openingLabelOverride || ''
     });
     setIsEditing(false);
   };
@@ -153,6 +181,73 @@ export default function PackConfigurationSection({
               className="data-[state=checked]:bg-emerald-600"
             />
           </div>
+
+          {/* Opening Strategy Section */}
+          <div className="border-t border-slate-700/50 pt-4 mt-4">
+            <h4 className="text-sm font-semibold text-slate-300 mb-3">Opening Strategy</h4>
+            
+            <div>
+              <Label className="text-sm text-slate-400 mb-1 block">Opening Strategy</Label>
+              <Select
+                value={localData.openingStrategy || 'none'}
+                onValueChange={(v) => setLocalData({...localData, openingStrategy: v})}
+              >
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (start with first field normally)</SelectItem>
+                  <SelectItem value="fixed_narrative">Fixed narrative opening (use a defined field)</SelectItem>
+                  <SelectItem value="ai_narrative">AI-generated opening (LLM)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(localData.openingStrategy === 'fixed_narrative' || localData.openingStrategy === 'ai_narrative') && (
+              <div className="mt-3">
+                <Label className="text-sm text-slate-400 mb-1 block">Opening Field</Label>
+                <Select
+                  value={localData.openingFieldKey || ''}
+                  onValueChange={(v) => setLocalData({...localData, openingFieldKey: v})}
+                >
+                  <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
+                    <SelectValue placeholder="Select opening field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pack?.field_config && Array.isArray(pack.field_config) && pack.field_config.length > 0 ? (
+                      pack.field_config.map((field) => (
+                        <SelectItem key={field.fieldKey || field.id} value={field.fieldKey || field.id}>
+                          {field.fieldKey || field.id} — {(field.label || '').substring(0, 40)}...
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value={null} disabled>No fields configured yet</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {localData.openingStrategy !== 'none' && !localData.openingFieldKey && (
+                  <p className="text-xs text-amber-400 mt-1">
+                    Select which pack field is used as the opening narrative.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {localData.openingStrategy === 'fixed_narrative' && (
+              <div className="mt-3">
+                <Label className="text-sm text-slate-400 mb-1 block">Opening Label Override (optional)</Label>
+                <Textarea
+                  value={localData.openingLabelOverride || ''}
+                  onChange={(e) => setLocalData({...localData, openingLabelOverride: e.target.value})}
+                  className="bg-slate-800 border-slate-600 text-white min-h-20"
+                  placeholder="If set, this text will replace the selected field's label for the opening narrative question."
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  If set, this text will replace the selected field's label for the opening narrative question.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -176,6 +271,33 @@ export default function PackConfigurationSection({
               <p className="text-sm text-slate-300">{localData.active ? 'Active' : 'Inactive'}</p>
             </div>
           </div>
+          
+          {/* Opening Strategy Display */}
+          {(localData.openingStrategy && localData.openingStrategy !== 'none') && (
+            <div className="border-t border-slate-700/50 pt-3 mt-3">
+              <Label className="text-xs text-slate-500 mb-2 block">Opening Strategy</Label>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm text-slate-300">
+                    {localData.openingStrategy === 'fixed_narrative' && 'Fixed narrative opening (use a defined field)'}
+                    {localData.openingStrategy === 'ai_narrative' && 'AI-generated opening (LLM)'}
+                  </p>
+                </div>
+                {localData.openingFieldKey && (
+                  <div>
+                    <Label className="text-xs text-slate-500">Opening Field</Label>
+                    <p className="text-sm text-slate-300 font-mono">{localData.openingFieldKey}</p>
+                  </div>
+                )}
+                {localData.openingStrategy === 'fixed_narrative' && localData.openingLabelOverride && (
+                  <div>
+                    <Label className="text-xs text-slate-500">Label Override</Label>
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{localData.openingLabelOverride}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </CollapsibleSection>
