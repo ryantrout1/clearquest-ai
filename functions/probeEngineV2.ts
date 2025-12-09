@@ -5303,13 +5303,13 @@ async function probeEngineV2Core(params, base44Client) {
     
     // === PRIOR LE APPS: deterministic outcome anchors for PACK_PRLE_Q01 ===
     if (pack_id === "PACK_PRIOR_LE_APPS_STANDARD" && field_key === "PACK_PRLE_Q01") {
-      // Get canonical field text from input
+      // Get canonical field text from params
       const fieldText =
-        input.field_value ??
-        input.fieldValue ??
-        input.answer ??
-        input.narrative ??
-        input.fullNarrative ??
+        params.field_value ??
+        params.fieldValue ??
+        params.answer ??
+        params.narrative ??
+        params.fullNarrative ??
         "";
       
       const { anchors: outcomeAnchors, collectedAnchors: outcomeCollected } =
