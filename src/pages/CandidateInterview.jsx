@@ -1675,6 +1675,15 @@ export default function CandidateInterview() {
         });
         
 
+        // Check if this was the last field in the pack - if so, trigger summaries
+        const isPackComplete = isLastField || v2Result?.mode === 'COMPLETE' || v2Result?.mode === 'NEXT_FIELD';
+        if (isPackComplete) {
+          // Trigger summary generation in background
+          base44.functions.invoke('triggerSummaries', {
+            sessionId,
+            triggerType: 'question_complete'
+          }).catch(() => {}); // Fire and forget
+        }
         
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
