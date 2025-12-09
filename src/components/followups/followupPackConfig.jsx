@@ -1196,10 +1196,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "narrative",
-        label: "In your own words, tell the complete story of this prior law enforcement application. Please include:\n• The name of the agency and the city/state\n• The position you applied for\n• When you applied and when the process ended (month and year are fine)\n• How far you progressed (written test, oral board, background, polygraph, medical, psych, etc.)\n• The final outcome (hired, not selected, disqualified, withdrew, or process closed)\n• Why it ended that way, if known (e.g., driving record, work history, honesty concerns, credit, substance use)\n• Whether you were told you could reapply or were not eligible for rehire\nPlease provide as much detail as possible.",
+        label: "Tell me the story of this prior law-enforcement application in your own words — who you applied with, the job, when it happened, how far you got, and how it ended. If you know the reason the process ended or whether you could reapply, include that too.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "Example: I applied to Phoenix Police Department in Phoenix, Arizona for a Police Officer Recruit position around March 2022. I passed the written test and physical agility test and completed a full background packet. In May 2022, I interviewed with a background investigator and discussed my driving history, including a 2018 at-fault collision and a 2020 speeding citation, both of which I disclosed. In June 2022, the investigator informed me that I was no longer being considered due to my overall driving record. I was not accused of withholding information, and I did not withdraw. The investigator said I could reapply after two years if I had no additional violations.",
+        placeholder: "I applied to Phoenix PD in March 2022 for a Police Recruit position. I passed the written and fitness tests and completed a background interview. The investigator later told me I didn't move forward because of my driving record. I wasn't accused of withholding anything, and they said I could reapply after two years.",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
