@@ -178,6 +178,13 @@ export const PACK_FACT_ANCHORS = {
     severity: "strict",
     maxProbes: 5,
     multiInstance: true
+  },
+  "PACK_WORKPLACE_STANDARD": {
+    required: ["incident_type", "incident_date", "agency_or_org", "final_outcome"], // Critical 4
+    optional: ["affected_component", "staff_response", "reapply_window"],
+    severity: "strict",
+    maxProbes: 4,
+    multiInstance: true
   }
 };
 
