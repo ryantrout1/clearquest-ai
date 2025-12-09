@@ -195,14 +195,19 @@ function buildQuestionContext(response, followUps) {
 /**
  * Core orchestrator for all summary types.
  * Incremental, idempotent, never overwrites existing summaries.
+ * 
+ * @param eventType - "question_complete" | "section_complete" | "interview_complete"
  */
-async function runSummariesForSession(base44, sessionId) {
+async function runSummariesForSession(base44, sessionId, eventType = "interview_complete") {
   const result = {
     created: { question: 0, section: 0, interview: 0 },
     skippedExists: { question: 0, section: 0, interview: 0 },
     skippedIncomplete: { question: 0, section: 0, interview: 0 },
-    errors: []
+    errors: [],
+    eventType
   };
+  
+  console.log('[SUMMARIES] EVENT_TYPE', { sessionId, eventType });
   
   // 1) Load all data
   let responses, followUps, questions, sections, globalSettingsResult, session;
@@ -289,13 +294,18 @@ async function runSummariesForSession(base44, sessionId) {
   });
   
   // 3) Process QUESTION SUMMARIES
+  // GATE: Only process on question_complete, section_complete, or interview_complete
+  const shouldProcessQuestions = eventType === "question_complete" || 
+                                  eventType === "section_complete" || 
+                                  eventType === "interview_complete";
+  
   // OPTIMIZATION: Only generate summaries for Yes answers OR questions with follow-ups
   // This prevents hammering the LLM with 100+ "No" answer summaries
-  const questionsNeedingSummary = responses.filter(response => {
+  const questionsNeedingSummary = shouldProcessQuestions ? responses.filter(response => {
     const hasFollowUps = (followUpsByResponseId[response.id] || []).length > 0;
     const isYes = response.answer === 'Yes';
     return isYes || hasFollowUps;
-  });
+  }) : [];
   
   // Iterate over filtered responses only
   for (const response of questionsNeedingSummary) {
@@ -399,8 +409,11 @@ ${contextText}`;
   }
   
   // 3.5) Process INSTANCE SUMMARIES (FollowUpResponse)
+  // GATE: Only process on question_complete, section_complete, or interview_complete
   // Generate narrative for each completed follow-up instance
-  for (const followUp of followUps) {
+  const followUpsToProcess = shouldProcessQuestions ? followUps : [];
+  
+  for (const followUp of followUpsToProcess) {
     // Skip if instance already has summary
     if (followUp.aiSummary?.instanceNarrativeText && followUp.aiSummary?.status === 'completed') {
       result.skippedExists.instance = (result.skippedExists.instance || 0) + 1;
@@ -568,8 +581,13 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
   
   console.log('[SSUM] Existing summaries by name:', [...existingSSummaryByName]);
   
+  // GATE: Only process on section_complete or interview_complete
+  const shouldProcessSections = eventType === "section_complete" || eventType === "interview_complete";
+  
   // Generate section summaries for sections with answered questions
-  for (const [sectionDbId, status] of Object.entries(sectionCompletionStatus)) {
+  const sectionsToProcess = shouldProcessSections ? Object.entries(sectionCompletionStatus) : [];
+  
+  for (const [sectionDbId, status] of sectionsToProcess) {
     const sectionName = status.name;
     
     // Skip sections with no answered questions
@@ -703,7 +721,10 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     // Continue without contradictions
   }
   
-  // 6) Process INTERVIEW SUMMARY (only if all sections complete)
+  // 6) Process INTERVIEW SUMMARY
+  // CRITICAL GATE: Only generate when eventType === "interview_complete" AND interview is actually completed
+  const shouldProcessInterview = eventType === "interview_complete";
+  
   const hasExistingOverallSummary = session?.aiSummary?.overallSummaryText && 
                                      session?.aiSummary?.status === 'completed';
   
@@ -712,9 +733,19 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     session.global_ai_summary.text.length > 0 &&
     !session.global_ai_summary.text.includes('lack of disclosures');
   
-  if (hasExistingOverallSummary || hasLegacyGlobalSummary) {
+  // Check if interview is actually completed
+  const isInterviewCompleted = session?.status === 'completed' || session?.status === 'under_review';
+  
+  if (!shouldProcessInterview) {
+    console.log('[ISUM][SKIP-EVENT]', { sessionId, eventType, reason: 'not_interview_complete_event' });
+    result.skippedIncomplete.interview++;
+  } else if (!isInterviewCompleted) {
+    console.log('[ISUM][SKIP-STATUS]', { sessionId, status: session?.status, reason: 'interview_not_completed' });
+    result.skippedIncomplete.interview++;
+  } else if (hasExistingOverallSummary || hasLegacyGlobalSummary) {
     result.skippedExists.interview++;
   } else if (!allSectionsComplete) {
+    console.log('[ISUM][SKIP-SECTIONS]', { sessionId, reason: 'sections_not_complete' });
     result.skippedIncomplete.interview++;
   } else {
     // All sections complete - generate interview summary
@@ -847,10 +878,13 @@ Deno.serve(async (req) => {
       }, { status: 200 });
     }
 
+    // Extract eventType from request
+    const eventType = body?.eventType || "interview_complete";
+    
     // Run with top-level try/catch to ensure we never return 5xx
     let result;
     try {
-      result = await runSummariesForSession(base44, sessionId);
+      result = await runSummariesForSession(base44, sessionId, eventType);
     } catch (runErr) {
       console.error('[SUMMARIES] RUN_ERROR', { sessionId, error: runErr.message, stack: runErr.stack?.substring(0, 500) });
       return Response.json({

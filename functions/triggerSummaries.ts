@@ -30,7 +30,8 @@ Deno.serve(async (req) => {
     // Enqueue background summary generation (non-blocking)
     // Using service role to ensure it runs regardless of user permissions
     base44.asServiceRole.functions.invoke('generateSessionSummaries', {
-      sessionId
+      sessionId,
+      eventType: triggerType
     }).catch(err => {
       console.error('[TRIGGER_SUMMARIES] Background job failed:', err.message);
       // Don't throw - this is fire-and-forget

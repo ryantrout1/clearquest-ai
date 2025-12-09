@@ -1239,7 +1239,7 @@ export default function SessionDetails() {
                     AI Investigator Assist
                   </h3>
                 </div>
-                {(session.aiSummary?.status === 'completed' || session.global_ai_summary) && (
+                {(session.status === 'completed' || session.status === 'under_review') && (session.aiSummary?.status === 'completed' || session.global_ai_summary) && (
                   <Badge className="text-xs bg-amber-500/20 text-amber-300 border-amber-500/30">
                     AI Interview Signal: {session.global_ai_summary?.riskLevel === "High" ? "High Concern" : 
                       session.global_ai_summary?.riskLevel === "Medium" ? "Moderate Concern" : "Low Concern"}
@@ -1247,8 +1247,8 @@ export default function SessionDetails() {
                 )}
               </div>
 
-              {/* PRIORITY 1: Check InterviewSession.aiSummary.overallSummaryText */}
-              {session.aiSummary?.overallSummaryText && session.aiSummary?.status === 'completed' ? (
+              {/* PRIORITY 1: Check InterviewSession.aiSummary.overallSummaryText - only if interview is completed */}
+              {(session.status === 'completed' || session.status === 'under_review') && session.aiSummary?.overallSummaryText && session.aiSummary?.status === 'completed' ? (
                 <>
                   <div className="flex flex-wrap gap-2 mb-3">
                     <Badge variant="outline" className="text-xs text-green-300 border-green-500/30">
@@ -1260,7 +1260,7 @@ export default function SessionDetails() {
                     {session.aiSummary.overallSummaryText}
                   </div>
                 </>
-              ) : session.aiSummary?.status === 'pending' ? (
+              ) : session.aiSummary?.status === 'pending' && (session.status === 'completed' || session.status === 'under_review') ? (
                 <div className="text-sm text-slate-400 italic">
                   Overall Investigator Assist summary is being generated…
                 </div>
@@ -1268,7 +1268,7 @@ export default function SessionDetails() {
                 <div className="text-sm text-slate-400 italic">
                   Investigator Assist summary will be available after the interview is completed.
                 </div>
-              ) : session.global_ai_summary ? (
+              ) : (session.status === 'completed' || session.status === 'under_review') && session.global_ai_summary ? (
                     <>
                       {session.global_ai_summary.patterns && session.global_ai_summary.patterns.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3">
