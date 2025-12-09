@@ -39,7 +39,8 @@ export default function PackConfigurationSection({
       active: pack?.active !== false,
       openingStrategy: effectiveOpeningStrategy,
       openingFieldKey: pack?.openingFieldKey || null,
-      openingLabelOverride: pack?.openingLabelOverride || ''
+      openingLabelOverride: pack?.openingLabelOverride || '',
+      openingExample: pack?.openingExample || ''
     });
   }, [pack?.id]);
 
@@ -53,6 +54,7 @@ export default function PackConfigurationSection({
       openingStrategy: localData.openingStrategy || 'none',
       openingFieldKey: localData.openingFieldKey || null,
       openingLabelOverride: localData.openingLabelOverride || '',
+      openingExample: localData.openingExample || '',
       // Preserve legacy flags for backwards compatibility
       forceNarrativeOpening: localData.openingStrategy === 'fixed_narrative',
     });
@@ -76,7 +78,8 @@ export default function PackConfigurationSection({
       active: pack?.active !== false,
       openingStrategy: effectiveOpeningStrategy,
       openingFieldKey: pack?.openingFieldKey || null,
-      openingLabelOverride: pack?.openingLabelOverride || ''
+      openingLabelOverride: pack?.openingLabelOverride || '',
+      openingExample: pack?.openingExample || ''
     });
     setIsEditing(false);
   };
@@ -234,18 +237,33 @@ export default function PackConfigurationSection({
             )}
 
             {localData.openingStrategy === 'fixed_narrative' && (
-              <div className="mt-3">
-                <Label className="text-sm text-slate-400 mb-1 block">Opening Label Override (optional)</Label>
-                <Textarea
-                  value={localData.openingLabelOverride || ''}
-                  onChange={(e) => setLocalData({...localData, openingLabelOverride: e.target.value})}
-                  className="bg-slate-800 border-slate-600 text-white min-h-20"
-                  placeholder="If set, this text will replace the selected field's label for the opening narrative question."
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  If set, this text will replace the selected field's label for the opening narrative question.
-                </p>
-              </div>
+              <>
+                <div className="mt-3">
+                  <Label className="text-sm text-slate-400 mb-1 block">Opening Question Text (Narrative)</Label>
+                  <Textarea
+                    value={localData.openingLabelOverride || ''}
+                    onChange={(e) => setLocalData({...localData, openingLabelOverride: e.target.value})}
+                    className="bg-slate-800 border-slate-600 text-white min-h-20"
+                    placeholder="Describe what happened during the incident..."
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    This text will be shown as the opening narrative question to the candidate.
+                  </p>
+                </div>
+                
+                <div className="mt-3">
+                  <Label className="text-sm text-slate-400 mb-1 block">Example Response (Shown to Candidate as Guidance)</Label>
+                  <Textarea
+                    value={localData.openingExample || ''}
+                    onChange={(e) => setLocalData({...localData, openingExample: e.target.value})}
+                    className="bg-slate-800 border-slate-600 text-white min-h-24"
+                    placeholder="For example: In 2021 during a written test, I looked at another applicant's answers..."
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Optional example response to guide the candidate on how to answer.
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -289,11 +307,21 @@ export default function PackConfigurationSection({
                     <p className="text-sm text-slate-300 font-mono">{localData.openingFieldKey}</p>
                   </div>
                 )}
-                {localData.openingStrategy === 'fixed_narrative' && localData.openingLabelOverride && (
-                  <div>
-                    <Label className="text-xs text-slate-500">Label Override</Label>
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{localData.openingLabelOverride}</p>
-                  </div>
+                {localData.openingStrategy === 'fixed_narrative' && (
+                  <>
+                    {localData.openingLabelOverride && (
+                      <div>
+                        <Label className="text-xs text-slate-500">Opening Question</Label>
+                        <p className="text-sm text-slate-300 whitespace-pre-wrap">{localData.openingLabelOverride}</p>
+                      </div>
+                    )}
+                    {localData.openingExample && (
+                      <div>
+                        <Label className="text-xs text-slate-500">Example Response</Label>
+                        <p className="text-sm text-slate-300 whitespace-pre-wrap">{localData.openingExample}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
