@@ -196,7 +196,8 @@ function buildQuestionContext(response, followUps) {
  * Core orchestrator for all summary types.
  * Incremental, idempotent, never overwrites existing summaries.
  * 
- * @param eventType - "question_complete" | "section_complete" | "interview_complete"
+ * @param eventType - "question_complete" | "section_complete" | "interview_complete" | "backfill"
+ * - "backfill": Admin/dev mode - re-runs all logic for the session, generating any missing summaries
  */
 async function runSummariesForSession(base44, sessionId, eventType = "interview_complete") {
   const result = {
@@ -294,10 +295,11 @@ async function runSummariesForSession(base44, sessionId, eventType = "interview_
   });
   
   // 3) Process QUESTION SUMMARIES
-  // GATE: Only process on question_complete, section_complete, or interview_complete
+  // GATE: Process on question_complete, section_complete, interview_complete, or backfill
   const shouldProcessQuestions = eventType === "question_complete" || 
                                   eventType === "section_complete" || 
-                                  eventType === "interview_complete";
+                                  eventType === "interview_complete" ||
+                                  eventType === "backfill";
   
   // OPTIMIZATION: Only generate summaries for Yes answers OR questions with follow-ups
   // This prevents hammering the LLM with 100+ "No" answer summaries
@@ -409,7 +411,7 @@ ${contextText}`;
   }
   
   // 3.5) Process INSTANCE SUMMARIES (FollowUpResponse)
-  // GATE: Only process on question_complete, section_complete, or interview_complete
+  // GATE: Process on question_complete, section_complete, interview_complete, or backfill
   // Generate narrative for each completed follow-up instance
   const followUpsToProcess = shouldProcessQuestions ? followUps : [];
   
@@ -592,11 +594,12 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
   
   console.log('[SSUM] Existing summaries by name:', [...existingSSummaryByName]);
   
-  // GATE: Process sections on question_complete, section_complete, or interview_complete
+  // GATE: Process sections on question_complete, section_complete, interview_complete, or backfill
   // This allows section summaries to generate as soon as the last question in a section is answered
   const shouldProcessSections = eventType === "question_complete" || 
                                  eventType === "section_complete" || 
-                                 eventType === "interview_complete";
+                                 eventType === "interview_complete" ||
+                                 eventType === "backfill";
   
   // Generate section summaries for sections with answered questions
   const sectionsToProcess = shouldProcessSections ? Object.entries(sectionCompletionStatus) : [];
@@ -744,8 +747,8 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
   }
   
   // 6) Process INTERVIEW SUMMARY
-  // CRITICAL GATE: Only generate when eventType === "interview_complete" AND interview is actually completed
-  const shouldProcessInterview = eventType === "interview_complete";
+  // CRITICAL GATE: Only generate when eventType === "interview_complete" (or backfill) AND interview is actually completed
+  const shouldProcessInterview = eventType === "interview_complete" || eventType === "backfill";
   
   const hasExistingOverallSummary = session?.aiSummary?.overallSummaryText && 
                                      session?.aiSummary?.status === 'completed';
