@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
 import SectionCompletionMessage from "../components/interview/SectionCompletionMessage";
 import StartResumeMessage from "../components/interview/StartResumeMessage";
+import FollowUpContext from "../components/interview/FollowUpContext";
 import { updateFactForField } from "../components/followups/factsManager";
 import { validateFollowupValue, answerLooksLikeNoRecall } from "../components/followups/semanticValidator";
 import { FOLLOWUP_PACK_CONFIGS, getPackMaxAiFollowups, usePerFieldProbing } from "../components/followups/followupPackConfig";
