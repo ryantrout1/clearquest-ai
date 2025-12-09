@@ -541,14 +541,21 @@ Write a brief narrative (2-3 sentences) describing this specific incident. Use t
     const sectionResponses = [];
     
     for (const q of sectionQuestions) {
-      // Use question_id (string code) to look up response
-      const questionCode = q.question_id;
-      const resp = responsesByQuestionCode[questionCode];
+      // CRITICAL: Use database ID to look up response (not question_id string code)
+      // Response.question_id stores the database ID for base questions
+      const questionDbId = q.id;
+      
+      // Find base_question response by matching Response.question_id to Question.id
+      const resp = responses.find(r => 
+        r.question_id === questionDbId && r.response_type === 'base_question'
+      );
       
       if (resp) {
         answeredCount++;
         sectionResponses.push(resp);
         
+        // Check completion using the question's string code for follow-up lookup
+        const questionCode = q.question_id;
         const status = isQuestionComplete(questionCode, responsesByQuestionCode, followUpsByResponseId);
         if (status.complete) {
           completeCount++;
