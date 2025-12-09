@@ -1030,15 +1030,16 @@ export default function CandidateInterview() {
       }
 
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
-      const isNewSession = !hasAnyResponses;
+      const sessionIsNew = !hasAnyResponses;
 
       console.log("[CandidateInterview] init", {
-        isNewSession,
-        screenMode: isNewSession ? "WELCOME" : "QUESTION",
+        isNewSession: sessionIsNew,
+        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
         layoutVersion: "section-first"
       });
 
-      setScreenMode(isNewSession ? "WELCOME" : "QUESTION");
+      setIsNewSession(sessionIsNew);
+      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
       setIsLoading(false);
 
     } catch (err) {
