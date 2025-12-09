@@ -1506,6 +1506,9 @@ export default function CandidateInterview() {
         
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
         
+        // CRITICAL: Declare v2Result early so it can be referenced throughout this handler
+        let v2Result = null;
+        
         // Determine if this is a clarifier answer or first field answer
         const isAiFollowupAnswer = isAnsweringClarifier;
         
@@ -1635,17 +1638,7 @@ export default function CandidateInterview() {
         // Also save to legacy FollowUpResponse for backwards compatibility
         await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
         
-        // Check if this was the last field in the pack - if so, trigger summaries
-        const isPackComplete = isLastField || v2Result?.mode === 'COMPLETE' || v2Result?.mode === 'NEXT_FIELD';
-        if (isPackComplete) {
-          // Trigger summary generation in background
-          base44.functions.invoke('triggerSummaries', {
-            sessionId,
-            triggerType: 'question_complete'
-          }).catch(() => {}); // Fire and forget
-        }
-        
-        // Call V2 backend engine
+        // Call V2 backend engine BEFORE checking if pack is complete
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
@@ -1664,7 +1657,7 @@ export default function CandidateInterview() {
           currentCollectedAnswers: Object.keys(activeV2Pack.collectedAnswers || {})
         });
         
-        const v2Result = await runV2FieldProbeIfNeeded({
+        v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
           fieldKey,
