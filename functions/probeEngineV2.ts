@@ -6067,583 +6067,104 @@ async function probeEngineV2(input, base44Client) {
 }
 
 /**
- * Deno serve handler - PRIOR_LE_APPS per-field controller
+ * Safe V2 probe engine - no-crash orchestrator
+ * Returns well-formed results, lets frontend drive progression
  */
 Deno.serve(async (req) => {
-  let packId = null;
-  let fieldKey = null;
+  const logger = console;
+  
+  // Helper: build consistent result object
+  function buildSafeResult(overrides = {}) {
+    return {
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
+      questionText: null,
+      anchors: [],
+      collectedAnchors: overrides.collectedAnchors || [],
+      metadata: {
+        packId: overrides.packId || null,
+        fieldKey: overrides.fieldKey || null,
+        instanceNumber: overrides.instanceNumber || null,
+        probeCount: overrides.probeCount || 0
+      },
+      ...overrides
+    };
+  }
   
   try {
-    // Only accept POST requests
+    // Only accept POST
     if (req.method !== "POST") {
-      return Response.json(createV2ProbeResult({
+      return Response.json(buildSafeResult({
         mode: "NONE",
-        hasQuestion: false,
-        reason: "Method not allowed - use POST"
+        error: "Method not allowed - use POST"
       }), { status: 405 });
     }
     
     const base44 = createClientFromRequest(req);
     
-    // Parse JSON body - SINGLE SOURCE OF TRUTH for all input
-    let input;
+    // Parse JSON body
+    let raw;
     try {
-      input = await req.json();
-      // Handle both snake_case and camelCase from frontend
-      packId = input.pack_id || input.packId;
-      fieldKey = input.field_key || input.fieldKey;
+      raw = await req.json();
     } catch (parseError) {
-      console.error('[V2-PER-FIELD][PARSE-ERROR]', { error: parseError.message });
-      return Response.json(createV2ProbeResult({
-        mode: "NONE",
-        hasQuestion: false,
-        reason: parseError.message || "Invalid request body"
+      logger.error('[V2] Parse error:', parseError.message);
+      return Response.json(buildSafeResult({
+        error: "Invalid JSON body"
       }), { status: 200 });
     }
     
-    // Auth check with graceful failure
-    let user;
-    try {
-      user = await base44.auth.me();
-    } catch (authError) {
-      console.error('[V2-PER-FIELD][AUTH-ERROR]', { fieldKey, packId, error: authError.message });
-      
-      const packConfig = PACK_CONFIG[packId];
-      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const probeCount = input.previous_probes_count || input.probeCount || 0;
-      
-      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
-      if (fallback) {
-        console.log('[V2-PER-FIELD] Auth error → using fallback probe', { packId, fieldKey, probeCount });
-        return Response.json(createV2ProbeResult({
-          mode: fallback.mode,
-          pack_id: packId,
-          field_key: fieldKey,
-          question: fallback.question,
-          isFallback: true
-        }), { status: 200 });
-      }
-      
-      return Response.json(createV2ProbeResult({ 
-        mode: "NONE",
-        hasQuestion: false,
-        reason: authError.message || "Authentication failed"
-      }), { status: 200 });
-    }
+    // Normalize input - handle both direct payload and { params: {...} } wrapper
+    const input = (raw && typeof raw === "object" && raw.params) ? raw.params : raw || {};
     
-    if (!user) {
-      console.error('[V2-PER-FIELD][NO-USER]', { fieldKey, packId });
-      
-      const packConfig = PACK_CONFIG[packId];
-      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const probeCount = input.previous_probes_count || input.probeCount || 0;
-      
-      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
-      if (fallback) {
-        console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
-        return Response.json(createV2ProbeResult({
-          mode: fallback.mode,
-          hasQuestion: true,
-          followupsCount: 1,
-          question: fallback.question,
-          reason: "Fallback probe - no user"
-        }), { status: 200 });
-      }
-      
-      return Response.json(createV2ProbeResult({
-        mode: "NONE",
-        hasQuestion: false,
-        reason: "User not authenticated"
-      }), { status: 200 });
-    }
+    const {
+      packId = input.pack_id,
+      fieldKey = input.field_key || input.fieldKey,
+      instanceNumber = input.instance_number || input.instanceNumber || 1,
+      probeCount = input.previous_probes_count || input.probeCount || 0,
+      collectedAnchorsKeys = input.collectedAnchorsKeys || [],
+      fieldValue = input.field_value || input.fieldValue || input.answer || ""
+    } = input;
     
-    console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
-    
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 12: HTTP HANDLER CALLING WRAPPER");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log('[HTTP_HANDLER][PRE_CALL]', {
-      packId: input.pack_id || input.packId,
-      fieldKey: input.field_key || input.fieldKey,
-      inputKeys: Object.keys(input),
-      field_value: input.field_value?.slice?.(0, 100),
-      fieldValue: input.fieldValue?.slice?.(0, 100),
-      narrative: input.narrative?.slice?.(0, 100),
-      fullNarrative: input.fullNarrative?.slice?.(0, 100)
-    });
-    
-    let result = await probeEngineV2Core(input, base44);
-    
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 13: CORE RETURNED TO HTTP HANDLER");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log('[HTTP_HANDLER][POST_CALL]', {
-      resultType: typeof result,
-      resultMode: result?.mode,
-      resultKeys: Object.keys(result || {}),
-      anchorsExists: Object.prototype.hasOwnProperty.call(result || {}, "anchors"),
-      collectedExists: Object.prototype.hasOwnProperty.call(result || {}, "collectedAnchors"),
-      anchorsValue: result?.anchors,
-      collectedValue: result?.collectedAnchors,
-      anchorsKeys: Object.keys(result?.anchors || {}),
-      collectedKeys: Object.keys(result?.collectedAnchors || {}),
-      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
-      fullResultObject: JSON.stringify(result, null, 2)
-    });
-    
-    // ========================================================================
-    // GOLDEN MVP CONTRACT ENFORCEMENT: Attach deterministic anchors
-    // This runs for EVERY per-field V2 probe before returning to frontend
-    // SKIP for PACK_PRIOR_LE_APPS_STANDARD/PACK_PRLE_Q01 - already handled in early router
-    // ========================================================================
-    if (!(packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01")) {
-      result = attachDeterministicAnchorsForField(input, result);
-    } else {
-      console.log('[V2_ENGINE][SKIP_ATTACH] Skipping attachDeterministicAnchorsForField for PACK_PRLE_Q01 - already handled');
-    }
-    
-    // ========================================================================
-    // SAFETY NET: Normalize result to guarantee anchors/collectedAnchors exist
-    // ========================================================================
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 14: BEFORE normalizeV2Result");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log('[HTTP_HANDLER][PRE_NORMALIZE]', {
-      resultKeys: Object.keys(result || {}),
-      resultAnchors: result?.anchors,
-      resultCollected: result?.collectedAnchors,
-      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)'
-    });
-    
-    result = normalizeV2Result(result);
-    
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 15: AFTER normalizeV2Result");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log('[HTTP_HANDLER][POST_NORMALIZE]', {
-      resultKeys: Object.keys(result || {}),
-      resultAnchors: result?.anchors,
-      resultCollected: result?.collectedAnchors,
-      resultAnchorsKeys: Object.keys(result?.anchors || {}),
-      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
-      fullNormalizedObject: JSON.stringify(result, null, 2)
-    });
-    
-    // ================================================================
-    // SURGICAL OVERRIDE: Force PACK_PRLE_Q01 question text to narrative
-    // ================================================================
-    if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
-      console.log("[V2_PACK_AUDIT][BACKEND_OVERRIDE_BEFORE]", {
+    // Guardrail: require packId and fieldKey
+    if (!packId || !fieldKey) {
+      logger.warn('[V2] Missing packId or fieldKey', { packId, fieldKey });
+      return Response.json(buildSafeResult({
         packId,
         fieldKey,
-        originalQuestion: result?.question || null,
-        originalQuestionText: result?.questionText || null,
-        originalQuestionPreview: result?.questionPreview || null,
-        resultKeys: Object.keys(result || {})
-      });
-      
-      const narrative = "In your own words, tell the complete story of this prior law enforcement application. Include the name of the agency, the position you applied for, roughly when you applied, what happened with that application, and why (if you know). Please provide as much detail as you can.\n\nExample: I applied to Phoenix Police Department for a police officer position around March 2022. I made it through the written test and interview but was disqualified during the background investigation because of a previous traffic violation.";
-      
-      // Override question text in all variants
-      if (result.questionText) result.questionText = narrative;
-      if (result.question) result.question = narrative;
-      if (result.questionPreview) result.questionPreview = narrative.slice(0, 120);
-      
-      console.log('[PACK_PRLE_Q01][OVERRIDE] Applied narrative text override');
-      console.log("[V2_PACK_AUDIT][BACKEND_OVERRIDE_AFTER]", {
-        packId,
-        fieldKey,
-        updatedQuestion: result?.question || null,
-        updatedQuestionText: result?.questionText || null,
-        updatedQuestionPreview: result?.questionPreview || null
-      });
-    }
-    
-    // CRITICAL: Final log before returning to frontend
-    console.log('[V2_ENGINE][RETURN]', {
-      packId: result.pack_id || packId,
-      fieldKey: result.field_key || fieldKey,
-      mode: result.mode,
-      anchorKeys: Object.keys(result.collectedAnchors || {}),
-      hasAnchors: !!(result.anchors),
-      hasCollectedAnchors: !!(result.collectedAnchors)
-    });
-    
-    // UNIVERSAL DEBUG LOG: Show anchors for all V2 probes before returning
-    console.log(
-      "[V2_PER_FIELD][BACKEND_RESULT]",
-      "packId=" + (result.pack_id || packId),
-      "fieldKey=" + (result.field_key || fieldKey),
-      "mode=" + result.mode,
-      "anchors keys=" + (result.anchors ? Object.keys(result.anchors).join(",") : "(none)")
-    );
-    
-    // ================================================================
-    // PRIOR_LE_APPS: Log final anchors returned from handler
-    // ================================================================
-    if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01') {
-      console.log('[V2_PRIOR_LE_APPS][INPUT]', {
-        packId,
-        fieldKey,
-        instanceNumber: input.instance_number || 1,
-        narrativeLength: (input.field_value || input.fieldValue || '').length,
-        narrativePreview: (input.field_value || input.fieldValue || '').substring(0, 120)
-      });
-      
-      console.log('[V2_PRIOR_LE_APPS][EXTRACTION_RAW]', {
-        extractedFromHandler: result.anchors,
-        extractedKeys: Object.keys(result.anchors || {})
-      });
-      
-      console.log('[V2_PRIOR_LE_APPS][ANCHORS_FINAL]', {
-        packId,
-        fieldKey,
-        anchorsKeys: Object.keys(result.anchors || {}),
-        collectedKeys: Object.keys(result.collectedAnchors || {}),
-        anchors: result.anchors,
-        collectedAnchors: result.collectedAnchors
-      });
-    }
-    
-    console.log('[PROBE_ENGINE_V2] Response:', JSON.stringify(result));
-    
-    // Log final result before returning
-    console.log("[V2_ENGINE][FINAL_RESULT]", {
-      packId: result.pack_id || packId,
-      fieldKey: result.field_key || fieldKey,
-      mode: result.mode,
-      hasAnchors: !!result.anchors,
-      anchorKeys: Object.keys(result.anchors || {})
-    });
-    
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log("FORENSIC CHECKPOINT 16: HTTP RESPONSE BEING SENT");
-    console.log("═════════════════════════════════════════════════════════════");
-    console.log('[HTTP_HANDLER][RESPONSE]', {
-      statusCode: 200,
-      resultKeys: Object.keys(result || {}),
-      resultAnchors: result?.anchors,
-      resultCollected: result?.collectedAnchors,
-      resultAnchorsKeys: Object.keys(result?.anchors || {}),
-      applicationOutcome: result?.anchors?.application_outcome || '(MISSING)',
-      jsonStringified: JSON.stringify(result)
-    });
-    
-    // ================================================================
-    // PRIOR LE APPS ANCHOR EXTRACTION & PERSISTENCE (REMOVED - HANDLED IN HANDLER)
-    // ================================================================
-      const sessionId = input.session_id || input.sessionId;
-      const instanceNumber = input.instance_number || input.instanceNumber || 1;
-      const baseQuestionId = input.baseQuestionId || input.base_question_id;
-      const narrativeText = input.field_value || input.fieldValue || input.narrative || '';
-      
-      console.log('[V2_PRIOR_LE_APPS][EXTRACT][START]', {
-        packId,
-        fieldKey,
-        sessionId,
         instanceNumber,
-        baseQuestionId,
-        narrativeLength: narrativeText?.length || 0,
-        narrativePreview: narrativeText?.slice?.(0, 150),
-        hasSessionId: !!sessionId,
-        hasNarrative: !!narrativeText && narrativeText.trim().length > 0
-      });
-      
-      // Extract anchors from narrative using existing extractor
-      let extractedAnchors = {
-        prior_le_agency: null,
-        prior_le_position: null,
-        prior_le_approx_date: null,
-        application_outcome: null
-      };
-      
-      if (narrativeText && narrativeText.trim().length > 0) {
-        console.log('[V2_PRIOR_LE_APPS][EXTRACT][CALLING_EXTRACTOR]', {
-          extractorFunction: 'extractPriorLeAppsAnchors',
-          textLength: narrativeText.length
-        });
-        
-        // Use existing extractor function
-        const extractResult = extractPriorLeAppsAnchors({ text: narrativeText });
-        
-        console.log('[V2_PRIOR_LE_APPS][EXTRACT][RAW_RESULT]', {
-          extractResult,
-          hasAnchors: !!extractResult.anchors,
-          anchorsKeys: extractResult.anchors ? Object.keys(extractResult.anchors) : []
-        });
-        
-        // Map to canonical keys
-        if (extractResult.anchors) {
-          extractedAnchors.prior_le_agency = extractResult.anchors.prior_le_agency || null;
-          extractedAnchors.prior_le_position = extractResult.anchors.prior_le_position || null;
-          extractedAnchors.prior_le_approx_date = extractResult.anchors.prior_le_approx_date || null;
-          extractedAnchors.application_outcome = extractResult.anchors.application_outcome || null;
-        }
-        
-        console.log('[V2_PRIOR_LE_APPS][EXTRACT]', {
-          session: sessionId,
-          pack: packId,
-          field: fieldKey,
-          instance: instanceNumber,
-          anchors: extractedAnchors
-        });
-      } else {
-        console.warn('[V2_PRIOR_LE_APPS][EXTRACT][NO_NARRATIVE]', {
-          packId,
-          fieldKey,
-          sessionId,
-          message: 'No narrative text available for extraction'
-        });
-      }
-      
-      // Persist anchors to Response record
-      if (sessionId && Object.values(extractedAnchors).some(v => v !== null)) {
-        try {
-          console.log('[V2_PRIOR_LE_APPS][PERSIST][QUERYING_RESPONSE]', {
-            sessionId,
-            packId,
-            fieldKey,
-            instanceNumber,
-            queryFilter: {
-              session_id: sessionId,
-              pack_id: packId,
-              field_key: fieldKey,
-              instance_number: instanceNumber
-            }
-          });
-          
-          // Find the Response record that was just created for this field
-          const responses = await base44.asServiceRole.entities.Response.filter({
-            session_id: sessionId,
-            pack_id: packId,
-            field_key: fieldKey,
-            instance_number: instanceNumber
-          }, '-created_date', 1);
-          
-          console.log('[V2_PRIOR_LE_APPS][PERSIST][QUERY_RESULT]', {
-            foundCount: responses?.length || 0,
-            hasResponse: responses && responses.length > 0
-          });
-          
-          if (responses && responses.length > 0) {
-            const responseRecord = responses[0];
-            const responseId = responseRecord.id;
-            
-            console.log('[V2_PRIOR_LE_APPS][PERSIST][RESPONSE_FOUND]', {
-              responseId,
-              hasAdditionalDetails: !!responseRecord.additional_details,
-              currentAdditionalDetails: responseRecord.additional_details
-            });
-            
-            // Build anchor payload
-            const anchorPayload = {
-              pack_id: packId,
-              field_key: fieldKey,
-              instance_number: instanceNumber,
-              anchors: extractedAnchors,
-              extracted_at: new Date().toISOString()
-            };
-            
-            // Get existing additional_details or initialize
-            const existingDetails = responseRecord.additional_details || {};
-            const updatedDetails = {
-              ...existingDetails,
-              v2_anchors: anchorPayload
-            };
-            
-            console.log('[V2_PRIOR_LE_APPS][PERSIST][UPDATING]', {
-              responseId,
-              anchorPayload,
-              updatedDetails
-            });
-            
-            // Update Response with anchors
-            await base44.asServiceRole.entities.Response.update(responseId, {
-              additional_details: updatedDetails
-            });
-            
-            console.log('[V2_PRIOR_LE_APPS][SAVE_ANCHORS]', {
-              session: sessionId,
-              responseId,
-              pack: packId,
-              field: fieldKey,
-              instance: instanceNumber,
-              anchors: extractedAnchors
-            });
-            
-            // READ-BACK: Verify anchors were saved
-            console.log('[V2_PRIOR_LE_APPS][READ_BACK][QUERYING]', {
-              responseId,
-              queryFilter: { id: responseId }
-            });
-            
-            const verifyResponses = await base44.asServiceRole.entities.Response.filter({
-              id: responseId
-            });
-            
-            if (verifyResponses && verifyResponses.length > 0) {
-              const verifyRecord = verifyResponses[0];
-              const savedAnchors = verifyRecord.additional_details?.v2_anchors?.anchors;
-              
-              console.log('[V2_PRIOR_LE_APPS][READ_BACK]', {
-                session: sessionId,
-                pack: 'PACK_PRIOR_LE_APPS_STANDARD',
-                field: 'PACK_PRLE_Q01',
-                instance: instanceNumber,
-                anchors: savedAnchors
-              });
-              
-              if (savedAnchors) {
-                // Log individual anchor values
-                console.log('[V2_PRIOR_LE_APPS][READ_BACK][DETAILS]', {
-                  prior_le_agency: savedAnchors.prior_le_agency || '(null)',
-                  prior_le_position: savedAnchors.prior_le_position || '(null)',
-                  prior_le_approx_date: savedAnchors.prior_le_approx_date || '(null)',
-                  application_outcome: savedAnchors.application_outcome || '(null)'
-                });
-              } else {
-                console.warn('[V2_PRIOR_LE_APPS][READ_BACK][NO_ANCHORS]', {
-                  message: 'additional_details.v2_anchors.anchors is null/undefined',
-                  additional_details: verifyRecord.additional_details
-                });
-              }
-            } else {
-              console.warn('[V2_PRIOR_LE_APPS][READ_BACK][NO_RECORD]', {
-                responseId,
-                message: 'Could not find Response record for read-back'
-              });
-            }
-          } else {
-            console.warn('[V2_PRIOR_LE_APPS][SAVE_ANCHORS][NO_RESPONSE]', {
-              sessionId,
-              packId,
-              fieldKey,
-              instanceNumber,
-              message: 'No Response record found to attach anchors to'
-            });
-          }
-        } catch (persistErr) {
-          console.error('[V2_PRIOR_LE_APPS][SAVE_ANCHORS][ERROR]', {
-            error: persistErr.message,
-            stack: persistErr.stack
-          });
-        }
-      } else {
-        console.warn('[V2_PRIOR_LE_APPS][PERSIST][SKIPPED]', {
-          hasSessionId: !!sessionId,
-          hasAnyAnchors: Object.values(extractedAnchors).some(v => v !== null),
-          extractedAnchors,
-          message: 'Skipping persistence - missing sessionId or no anchors extracted'
-        });
-      }
-      
-      // WIRE EXTRACTED ANCHORS INTO RESULT: Use real anchors instead of TEST values
-      // Only set if we have non-null extracted anchors
-      const hasExtractedAnchors = Object.values(extractedAnchors).some(v => v !== null);
-      
-      if (hasExtractedAnchors) {
-        // Filter out null values for cleaner result
-        const nonNullAnchors = Object.fromEntries(
-          Object.entries(extractedAnchors).filter(([k, v]) => v !== null)
-        );
-        
-        result.anchors = {
-          ...(result.anchors || {}),
-          ...nonNullAnchors
-        };
-        result.collectedAnchors = {
-          ...(result.collectedAnchors || {}),
-          ...nonNullAnchors
-        };
-        
-        console.log('[V2_PRIOR_LE_APPS][RESULT_ANCHORS_ATTACHED]', {
-          packId,
-          fieldKey,
-          anchorsKeys: Object.keys(result.anchors),
-          collectedKeys: Object.keys(result.collectedAnchors),
-          anchorsValues: result.anchors,
-          collectedValues: result.collectedAnchors
-        });
-      } else {
-        // Ensure anchors/collectedAnchors exist even if empty
-        result.anchors = result.anchors || {};
-        result.collectedAnchors = result.collectedAnchors || {};
-        
-        console.log('[V2_PRIOR_LE_APPS][RESULT_NO_ANCHORS]', {
-          packId,
-          fieldKey,
-          message: 'No anchors extracted from narrative'
-        });
-      }
-    }
-
-    // ================================================================
-    // STEP 2: Ensure final response includes anchors and collectedAnchors
-    // Build explicit response object to guarantee no fields are dropped
-    // ================================================================
-    const finalResponse = {
-      packId: result.packId || result.pack_id || packId,
-      fieldKey: result.fieldKey || result.field_key || fieldKey,
-      mode: result.mode,
-      hasQuestion: result.hasQuestion,
-      followupsCount: result.followupsCount ?? 0,
-      question: result.question,
-      questionPreview: result.questionPreview,
-      reason: result.reason,
-      // CRITICAL: Always include anchors, even if empty
-      anchors: result.anchors || {},
-      collectedAnchors: result.collectedAnchors || {},
-      debugTag: result.debugTag,
-      // Pass through any other fields
-      instanceNumber: result.instanceNumber,
-      semanticField: result.semanticField,
-      validationResult: result.validationResult,
-      previousProbeCount: result.previousProbeCount,
-      maxProbesPerField: result.maxProbesPerField,
-      collectedAnchorsKeys: result.collectedAnchorsKeys,
-      message: result.message,
-      probeSource: result.probeSource,
-      isFallback: result.isFallback
-    };
-
-    console.log("[HTTP_HANDLER][FINAL_RESPONSE]", {
-      packId: finalResponse.packId,
-      fieldKey: finalResponse.fieldKey,
-      mode: finalResponse.mode,
-      hasAnchors: !!finalResponse.anchors && Object.keys(finalResponse.anchors).length > 0,
-      hasCollected: !!finalResponse.collectedAnchors && Object.keys(finalResponse.collectedAnchors).length > 0,
-      anchorsKeys: Object.keys(finalResponse.anchors || {}),
-      collectedKeys: Object.keys(finalResponse.collectedAnchors || {}),
-      debugTag: finalResponse.debugTag
-    });
-
-    return Response.json(finalResponse);
-  } catch (error) {
-    // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
-    // This allows frontend to treat it as "no probe available"
-    console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: error.message, stack: error.stack });
-    
-    // Try fallback probe for this field
-    const packConfig = PACK_CONFIG[packId];
-    const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-    const probeCount = 0; // Default to first probe level
-    
-    const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
-    if (fallback) {
-      console.log('[V2-PER-FIELD] Unhandled error → using fallback probe', { packId, fieldKey, probeCount });
-      return Response.json(createV2ProbeResult({
-        mode: fallback.mode,
-        hasQuestion: true,
-        question: fallback.question,
-        reason: "Fallback probe due to backend error"
+        probeCount,
+        collectedAnchors: collectedAnchorsKeys,
+        error: "Missing packId or fieldKey"
       }), { status: 200 });
     }
     
-    return Response.json(createV2ProbeResult({ 
-      mode: "NEXT_FIELD",
-      hasQuestion: false,
-      reason: "BACKEND_ERROR",
-      debug: { error: error.message || "Unexpected error during probing" }
+    logger.info('[V2] Request received', { packId, fieldKey, instanceNumber, probeCount });
+    
+    // MVP: Safe no-op orchestrator
+    // Frontend drives progression via field config, gating, and auto-skip
+    // Backend simply acknowledges and returns NEXT_FIELD
+    const result = buildSafeResult({
+      packId,
+      fieldKey,
+      instanceNumber,
+      probeCount,
+      collectedAnchors: collectedAnchorsKeys
+    });
+    
+    logger.info('[V2] Returning safe result', { mode: result.mode, packId, fieldKey });
+    return Response.json(result);
+  } catch (error) {
+    const message = error?.message || String(error);
+    logger.error('[V2] Unhandled error:', message);
+    
+    // Still return valid shape
+    return Response.json(buildSafeResult({
+      packId: packId || null,
+      fieldKey: fieldKey || null,
+      instanceNumber: instanceNumber || null,
+      probeCount: probeCount || 0,
+      collectedAnchors: collectedAnchorsKeys || [],
+      error: message
     }), { status: 200 });
   }
 });
