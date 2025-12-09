@@ -2931,15 +2931,21 @@ function normalizeV2Result(result) {
 
   if (!result || typeof result !== 'object') {
     console.log("[normalizeV2Result][ERROR] Invalid input, returning error result");
-    return ensureAnchorsShape(createV2ProbeResult({
+    return createV2ProbeResult({
       mode: 'ERROR',
       hasQuestion: false,
       reason: "Invalid probe result object",
-    }));
+      anchors: {},
+      collectedAnchors: {}
+    });
   }
   
   // Route through createV2ProbeResult to guarantee shape
-  const normalized = ensureAnchorsShape(createV2ProbeResult(result));
+  const normalized = createV2ProbeResult({
+    ...result,
+    anchors: result.anchors || {},
+    collectedAnchors: result.collectedAnchors || {}
+  });
   
   console.log("[normalizeV2Result][RETURN]", {
     normalizedKeys: Object.keys(normalized || {}),
@@ -3033,14 +3039,15 @@ function normalizeV2ProbeResult(rawResult, extra = {}) {
  * Attach deterministic anchors to v2Result before returning to frontend
  * GOLDEN MVP CONTRACT: Every per-field return MUST include anchors/collectedAnchors
  */
-function attachDeterministicAnchorsForField(params, v2Result) {
-  const { pack_id: packId, field_key: fieldKey } = params || {};
+function attachDeterministicAnchorsForField(input, v2Result) {
+  const packId = input?.pack_id || input?.packId;
+  const fieldKey = input?.field_key || input?.fieldKey;
 
   const answerText =
-    params.field_value ||
-    params.fieldValue ||
-    params.answerText ||
-    params.narrative ||
+    input?.field_value ||
+    input?.fieldValue ||
+    input?.answerText ||
+    input?.narrative ||
     '';
 
   console.log(`[V2_FACTS][ATTACH] pack="${packId}", field="${fieldKey}", answerLength=${answerText?.length || 0}`);
@@ -4843,6 +4850,8 @@ function createV2ProbeResult(base) {
     reason: base?.reason || "",
     question: base?.question,
     questionPreview: base?.questionPreview,
+    anchors: base?.anchors || {},
+    collectedAnchors: base?.collectedAnchors || {},
     ...base
   };
   return result;
@@ -5588,11 +5597,10 @@ async function probeEngineV2Core(input, base44Client) {
           followupsCount: 1,
           question,
           reason: "Opening question from Discretion Engine",
-          // CRITICAL: Include anchors directly in baseResult for 1-arg signature
           anchors: currentAnchors || {},
           collectedAnchors: currentAnchors || {}
         };
-        return ensureAnchorsShape(createV2ProbeResult(baseResult));
+        return createV2ProbeResult(baseResult);
       } else {
         console.warn(`[V2-UNIVERSAL][OPENING] Invalid discretion response - falling back`);
       }
@@ -5789,27 +5797,26 @@ async function probeEngineV2Core(input, base44Client) {
             hasQuestion: false,
             followupsCount: 0,
             reason: discretionResult.data.reason,
-            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
             anchors: currentAnchors || {},
             collectedAnchors: currentAnchors || {}
           };
-          return ensureAnchorsShape(createV2ProbeResult(baseResult));
+          return createV2ProbeResult(baseResult);
         } else if (discretionResult.data.question && discretionResult.data.question.trim()) {
           // HARDENED: Validate question text before returning
           const question = discretionResult.data.question.trim();
           if (question.length < 10 || question.length > 500) {
             console.warn(`[V2-UNIVERSAL] Invalid question length (${question.length}) - advancing instead`);
-            return ensureAnchorsShape(createV2ProbeResult({
+            return createV2ProbeResult({
               mode: "NEXT_FIELD",
               pack_id,
               field_key,
               semanticField: field_key,
               validationResult: "invalid_question",
               previousProbeCount: previous_probes_count + 1,
-              anchors: currentAnchors,
-              collectedAnchors: currentAnchors,
+              anchors: currentAnchors || {},
+              collectedAnchors: currentAnchors || {},
               message: 'Invalid question from Discretion - advancing'
-            }));
+            });
           }
           
           // Discretion wants to ask another question
@@ -5820,11 +5827,10 @@ async function probeEngineV2Core(input, base44Client) {
             followupsCount: 1,
             question,
             reason: `Probing for: ${discretionResult.data.targetAnchors?.join(', ')}`,
-            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
             anchors: currentAnchors || {},
             collectedAnchors: currentAnchors || {}
           };
-          return ensureAnchorsShape(createV2ProbeResult(baseResult));
+          return createV2ProbeResult(baseResult);
         } else {
           // No valid question returned
           console.warn(`[V2-UNIVERSAL] Discretion action=${discretionResult.data.action} but no valid question - advancing`);
@@ -5833,11 +5839,10 @@ async function probeEngineV2Core(input, base44Client) {
             hasQuestion: false,
             followupsCount: 0,
             reason: 'No question from Discretion - advancing',
-            // CRITICAL: Include anchors directly in baseResult for 1-arg signature
             anchors: currentAnchors || {},
             collectedAnchors: currentAnchors || {}
           };
-          return ensureAnchorsShape(createV2ProbeResult(baseResult));
+          return createV2ProbeResult(baseResult);
         }
       } else {
         console.warn(`[V2-UNIVERSAL] Invalid discretion result - advancing`);
@@ -5888,11 +5893,10 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Pack ${pack_id} not configured for V2 probing`,
-      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
       anchors: currentAnchors || {},
       collectedAnchors: currentAnchors || {}
     };
-    return ensureAnchorsShape(createV2ProbeResult(baseResult));
+    return createV2ProbeResult(baseResult);
   }
 
   // Map raw field key to semantic name
@@ -5965,11 +5969,10 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Max probes reached for ${semanticField}`,
-      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
       anchors: currentAnchors || {},
       collectedAnchors: currentAnchors || {}
     };
-    return ensureAnchorsShape(createV2ProbeResult(baseResult));
+    return createV2ProbeResult(baseResult);
   }
 
   // If field is complete (valid answer), move to next field
@@ -5981,11 +5984,10 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `Field ${semanticField} validated successfully`,
-      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
       anchors: currentAnchors || {},
       collectedAnchors: currentAnchors || {}
     };
-    return ensureAnchorsShape(createV2ProbeResult(baseResult));
+    return createV2ProbeResult(baseResult);
   }
 
   // Field is incomplete - generate probe question using LLM (with static fallback)
@@ -6015,11 +6017,10 @@ async function probeEngineV2Core(input, base44Client) {
       hasQuestion: false,
       followupsCount: 0,
       reason: `LLM determined field ${semanticField} is acceptable`,
-      // CRITICAL: Include anchors directly in baseResult for 1-arg signature
       anchors: currentAnchors || {},
       collectedAnchors: currentAnchors || {}
     };
-    return ensureAnchorsShape(createV2ProbeResult(baseResult));
+    return createV2ProbeResult(baseResult);
   }
   
   console.log(`[V2-PER-FIELD] Field ${semanticField} incomplete → returning QUESTION mode (source: ${probeResult.source})`);
@@ -6030,11 +6031,10 @@ async function probeEngineV2Core(input, base44Client) {
     followupsCount: 1,
     question: probeResult.question,
     reason: `Probing for more information about ${semanticField}`,
-    // CRITICAL: Include anchors directly in baseResult for 1-arg signature
     anchors: currentAnchors || {},
     collectedAnchors: currentAnchors || {}
   };
-  return ensureAnchorsShape(createV2ProbeResult(baseResult));
+  return createV2ProbeResult(baseResult);
 }
 
 /**
@@ -6115,7 +6115,7 @@ Deno.serve(async (req) => {
       const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
       if (fallback) {
         console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json(ensureAnchorsShape(withAnchorDefaults(createV2ProbeResult({
+        return Response.json(createV2ProbeResult({
           mode: fallback.mode,
           pack_id: packId,
           field_key: fieldKey,
@@ -6123,16 +6123,16 @@ Deno.serve(async (req) => {
           isFallback: true,
           anchors: {},
           collectedAnchors: {}
-        }))), { status: 200 });
+        }), { status: 200 });
       }
       
-      return Response.json(ensureAnchorsShape(createV2ProbeResult({ 
+      return Response.json(createV2ProbeResult({ 
         mode: "NONE",
         hasQuestion: false,
         reason: authError.message || "Authentication failed",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
     if (!user) {
@@ -6158,8 +6158,10 @@ Deno.serve(async (req) => {
         hasQuestion: false,
         followupsCount: 0,
         reason: "User not authenticated",
+        anchors: {},
+        collectedAnchors: {}
       };
-      return Response.json(ensureAnchorsShape(createV2ProbeResult(baseResult, {}, {})), { status: 200 });
+      return Response.json(createV2ProbeResult(baseResult), { status: 200 });
     }
     
     let input;
@@ -6175,8 +6177,10 @@ Deno.serve(async (req) => {
         hasQuestion: false,
         followupsCount: 0,
         reason: parseError.message || "Invalid request body",
+        anchors: {},
+        collectedAnchors: {}
       };
-      return Response.json(ensureAnchorsShape(createV2ProbeResult(baseResult, {}, {})), { status: 200 });
+      return Response.json(createV2ProbeResult(baseResult), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
@@ -6658,17 +6662,17 @@ Deno.serve(async (req) => {
     const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
     if (fallback) {
       console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-      return Response.json(ensureAnchorsShape(createV2ProbeResult({
+      return Response.json(createV2ProbeResult({
         mode: fallback.mode,
         hasQuestion: true,
         question: fallback.question,
         reason: "Fallback probe due to auth error",
         anchors: {},
         collectedAnchors: {}
-      })), { status: 200 });
+      }), { status: 200 });
     }
     
-    return Response.json(withAnchorDefaults(createV2ProbeResult({ 
+    return Response.json(createV2ProbeResult({ 
       mode: "NONE",
       pack_id: packId,
       field_key: fieldKey,
@@ -6676,6 +6680,6 @@ Deno.serve(async (req) => {
       details: error.message || "Unexpected error during probing.",
       anchors: {},
       collectedAnchors: {}
-    })), { status: 200 });
+    }), { status: 200 });
   }
 });
