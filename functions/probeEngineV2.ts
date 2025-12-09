@@ -4642,16 +4642,20 @@ async function handlePriorLeAppsPerFieldV2(params) {
  * CRITICAL: Must be called FIRST for this pack/field combination
  * @deprecated - Replaced by handlePriorLeAppsPerFieldV2 for proof-of-life testing
  */
-async function handlePriorLeAppsQ01({
-  pack_id,
-  field_key,
-  field_value,
-  incident_context = {},
-  extractedAnchors = {},
-  previous_probes_count = 0,
-  instance_number = 1,
-  base44Client
-}) {
+async function handlePriorLeAppsQ01(params) {
+  // Defensive normalization - ensure params is always an object
+  const safeParams = params && typeof params === 'object' ? params : {};
+  
+  const {
+    pack_id,
+    field_key,
+    field_value,
+    incident_context = {},
+    extractedAnchors = {},
+    previous_probes_count = 0,
+    instance_number = 1,
+    base44Client
+  } = safeParams;
   const narrative = (field_value || '').trim();
   
   console.log("[V2_PRIOR_LE_APPS][PACK_PRLE_Q01] ========== HANDLER EXECUTING ==========");
