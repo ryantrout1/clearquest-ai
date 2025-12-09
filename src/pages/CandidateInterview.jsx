@@ -2146,16 +2146,26 @@ export default function CandidateInterview() {
               
               console.log(`[V2_PACK][CLUSTER_INIT] Backend response:`, {
                 mode: initialCallResult?.mode,
-                hasQuestion: !!initialCallResult?.question
+                hasQuestion: !!initialCallResult?.question,
+                probeSource: initialCallResult?.probeSource
               });
               
-              // If backend returned an opening question/message, show it as AI probe
-              // OVERRIDE: For PACK_WORKPLACE_STANDARD, treat as normal field question (no separate opening)
-              const isWorkplaceOverride = packId === "PACK_WORKPLACE_STANDARD" && 
-                                          firstField.fieldKey === "PACK_WORKPLACE_Q01" &&
-                                          initialCallResult?.showAsOpening === true;
+              // Detect opening strategy from backend response
+              const isFixedNarrativeOpening = 
+                initialCallResult?.probeSource === 'fixed_narrative_opening' &&
+                initialCallResult?.mode === 'QUESTION';
               
-              if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question && !isWorkplaceOverride) {
+              // Decide whether to show AI opening bubble
+              const shouldShowAiOpening =
+                initialCallResult?.mode === 'QUESTION' &&
+                initialCallResult.question &&
+                !isFixedNarrativeOpening;
+              
+              if (isFixedNarrativeOpening) {
+                console.log(`[V2_PACK][OPENING] Fixed narrative opening for ${packId}/${firstField.fieldKey} - showing as normal field`);
+              }
+              
+              if (shouldShowAiOpening) {
                 console.log(`[V2_PACK][CLUSTER_INIT] Showing AI opening message before fields`);
                 
                 // Add AI opening question to transcript
@@ -2220,10 +2230,7 @@ export default function CandidateInterview() {
                   fieldIndex: 0
                 });
               } else {
-                // No opening message OR workplace override - go directly to first field
-                if (isWorkplaceOverride) {
-                  console.log(`[V2_PACK][OPENING_OVERRIDE] Using narrative label as opening for PACK_WORKPLACE_STANDARD/Q01`);
-                }
+                // No AI opening OR fixed narrative opening - go directly to first field
                 // STEP 2: Include backend question text in currentItem
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
                 

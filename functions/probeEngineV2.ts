@@ -27,6 +27,35 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // ============================================================================
+// V2 OPENING STRATEGY HELPER
+// ============================================================================
+
+/**
+ * Get V2 pack opening meta with backwards compatibility
+ * @param {object} packMeta - Pack metadata object (from FollowUpPack entity)
+ * @returns {{strategy: string, fieldKey: string|null, labelOverride: string}}
+ */
+function getV2OpeningMeta(packMeta = {}) {
+  const openingStrategy = packMeta.openingStrategy || 'none';
+  const openingFieldKey = packMeta.openingFieldKey || null;
+  const openingLabelOverride = packMeta.openingLabelOverride || '';
+
+  // Backwards compat with old flags
+  const forceNarrative = packMeta.forceNarrativeOpening === true && packMeta.openingFieldKey;
+
+  const effectiveStrategy =
+    openingStrategy && openingStrategy !== 'none'
+      ? openingStrategy
+      : (forceNarrative ? 'fixed_narrative' : 'none');
+
+  return {
+    strategy: effectiveStrategy,
+    fieldKey: openingFieldKey || packMeta.openingFieldKey || null,
+    labelOverride: openingLabelOverride,
+  };
+}
+
+// ============================================================================
 // DETERMINISTIC FACT EXTRACTION HELPERS (Phase 4)
 // ============================================================================
 
@@ -5163,37 +5192,69 @@ async function probeEngineV2Core(params, base44Client) {
   console.log(`[V2-UNIVERSAL][ENTRY] pack=${pack_id}, field=${field_key}, value="${field_value?.substring?.(0, 50)}", probes=${previous_probes_count}, instance=${instance_number}`);
   
   // ============================================================================
-  // WORKPLACE INTEGRITY OVERRIDE - Force narrative label as opening question
-  // SHORT-CIRCUIT for PACK_WORKPLACE_STANDARD / PACK_WORKPLACE_Q01 first touch
+  // V2 OPENING STRATEGY - Use pack meta to control opening behavior
   // ============================================================================
-  if (pack_id === "PACK_WORKPLACE_STANDARD" &&
-      field_key === "PACK_WORKPLACE_Q01" &&
-      (previous_probes_count === 0 || !previous_probes_count)) {
+  const isFirstProbe = (previous_probes_count || 0) === 0;
+  
+  // Fetch pack meta to check opening strategy
+  let packMeta = {};
+  let fieldConfig = null;
+  
+  if (isFirstProbe) {
+    try {
+      const packs = await base44Client.entities.FollowUpPack.filter({
+        followup_pack_id: pack_id,
+        active: true
+      });
+      
+      if (packs.length > 0) {
+        const packEntity = packs[0];
+        packMeta = packEntity || {};
+        
+        // Get field config for this field
+        if (packEntity.field_config && Array.isArray(packEntity.field_config)) {
+          fieldConfig = packEntity.field_config.find(f => 
+            (f.fieldKey === field_key || f.id === field_key)
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('[V2_OPENING] Failed to fetch pack meta:', err.message);
+    }
+  }
+  
+  const openingMeta = getV2OpeningMeta(packMeta);
+  const isOpeningField = openingMeta.fieldKey && openingMeta.fieldKey === field_key;
+  
+  // SHORT-CIRCUIT for fixed_narrative opening
+  if (
+    openingMeta.strategy === 'fixed_narrative' &&
+    isFirstProbe &&
+    isOpeningField
+  ) {
+    const label =
+      (openingMeta.labelOverride && openingMeta.labelOverride.trim()) ||
+      (fieldConfig && fieldConfig.label) ||
+      'Please describe what happened in your own words.';
     
-    // Get label from pack config or use hardcoded narrative
-    const label = "Can you walk me through what happened during that testing incident — what the situation was, which part of the test was involved, when it took place, and how it ended? Please include as much detail as you can.";
-    
-    console.log("[V2_PER_FIELD][WORKPLACE_OVERRIDE] Forced narrative opening for PACK_WORKPLACE_Q01", {
+    console.log('[V2_PER_FIELD][FIXED_NARRATIVE_OPENING]', {
       packId: pack_id,
       fieldKey: field_key,
       labelLength: label.length
     });
     
-    // Build deterministic result - exactly what frontend expects
-    const result = createV2ProbeResult({
-      mode: "QUESTION",
+    return createV2ProbeResult({
+      mode: 'QUESTION',
       hasQuestion: true,
       followupsCount: 0,
       question: label,
       questionText: label,
-      questionPreview: label.substring(0, 60) + "...",
-      showAsOpening: true,
-      reason: "Forced narrative opening for PACK_WORKPLACE_Q01",
+      questionPreview: label.substring(0, 60) + '...',
+      probeSource: 'fixed_narrative_opening',
+      reason: 'Fixed narrative opening',
       anchors: {},
       collectedAnchors: {}
     });
-    
-    return result;
   }
   
   // ============================================================================
