@@ -1944,9 +1944,11 @@ export default function CandidateInterview() {
           triggerType: 'question_complete'
         }).catch(() => {}); // Fire and forget
         
+        // CRITICAL: Clear V2 pack state AND currentItem atomically to prevent transitional render crash
         setActiveV2Pack(null);
         setV2PackMode("BASE");
         setCurrentFollowUpAnswers({});
+        setCurrentItem(null); // Clear immediately to prevent stale v2_pack_field renders
         lastLoggedV2PackFieldRef.current = null;
 
         // UX: Clear draft on successful pack completion
@@ -3362,6 +3364,13 @@ export default function CandidateInterview() {
     // V2 Pack field question
     if (effectiveCurrentItem.type === 'v2_pack_field') {
       const { packId, fieldIndex, fieldConfig, instanceNumber } = effectiveCurrentItem;
+      
+      // GUARD: Prevent crash when pack state cleared but currentItem hasn't updated yet
+      if (!fieldConfig || !packId) {
+        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state for v2_pack_field - transitional state');
+        return null;
+      }
+      
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const totalFields = packConfig?.fields?.length || 0;
       
