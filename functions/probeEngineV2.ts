@@ -4854,36 +4854,25 @@ If any field is not clearly stated, set it to null.`,
  */
 /**
  * Universal V2 result builder - creates standard response structure
+ * SINGLE SOURCE OF TRUTH for all V2 probe results
  * 
- * Signature: createV2ProbeResult(baseResult, anchors?, collectedAnchors?)
+ * Signature: createV2ProbeResult(base = {})
  */
-function createV2ProbeResult(baseResult, anchors = undefined, collectedAnchors = undefined) {
-  // Determine safe anchors
-  const safeAnchors = anchors !== undefined 
-    ? anchors 
-    : (baseResult?.anchors && typeof baseResult.anchors === 'object' && !Array.isArray(baseResult.anchors))
-      ? baseResult.anchors
-      : {};
-  
-  // Determine safe collectedAnchors
-  const safeCollectedAnchors = collectedAnchors !== undefined
-    ? collectedAnchors
-    : (baseResult?.collectedAnchors && typeof baseResult.collectedAnchors === 'object' && !Array.isArray(baseResult.collectedAnchors))
-      ? baseResult.collectedAnchors
-      : {};
-  
-  const result = {
-    mode: baseResult?.mode || "NONE",
-    hasQuestion: baseResult?.hasQuestion || false,
-    followupsCount: baseResult?.followupsCount || 0,
-    reason: baseResult?.reason || "",
-    question: baseResult?.question,
-    questionPreview: baseResult?.questionPreview,
-    ...baseResult,
-    anchors: safeAnchors,
-    collectedAnchors: safeCollectedAnchors
+function createV2ProbeResult(base = {}) {
+  return {
+    mode: base.mode ?? "NEXT_FIELD",
+    hasQuestion: base.hasQuestion ?? false,
+    followupsCount: base.followupsCount ?? 0,
+    reason: base.reason ?? "",
+    question: base.question ?? null,
+    questionText: base.questionText ?? base.question ?? null,
+    questionPreview: base.questionPreview ?? null,
+    anchors: (base.anchors && typeof base.anchors === 'object' && !Array.isArray(base.anchors)) ? base.anchors : {},
+    collectedAnchors: (base.collectedAnchors && typeof base.collectedAnchors === 'object' && !Array.isArray(base.collectedAnchors)) ? base.collectedAnchors : {},
+    aiNotes: base.aiNotes ?? null,
+    debug: base.debug ?? {},
+    ...base
   };
-  return result;
 }
 
 /**
@@ -6085,81 +6074,18 @@ Deno.serve(async (req) => {
   let fieldKey = null;
   
   try {
+    // Only accept POST requests
+    if (req.method !== "POST") {
+      return Response.json(createV2ProbeResult({
+        mode: "NONE",
+        hasQuestion: false,
+        reason: "Method not allowed - use POST"
+      }), { status: 405 });
+    }
+    
     const base44 = createClientFromRequest(req);
     
-    // Auth check with graceful failure
-    let user;
-    let probeCount = 0;
-    try {
-      user = await base44.auth.me();
-    } catch (authError) {
-      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: authError.message });
-      
-      // Try to parse input for fallback even if auth fails
-      try {
-        const bodyText = await req.text();
-        const parsed = JSON.parse(bodyText);
-        packId = parsed.pack_id;
-        fieldKey = parsed.field_key;
-        probeCount = parsed.previous_probes_count || 0;
-      } catch (e) {
-        // Ignore parse errors here
-      }
-      
-      const packConfig = PACK_CONFIG[packId];
-      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
-      if (fallback) {
-        console.log('[V2-PER-FIELD] Auth error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
-        return Response.json(createV2ProbeResult({
-          mode: fallback.mode,
-          pack_id: packId,
-          field_key: fieldKey,
-          question: fallback.question,
-          isFallback: true,
-          anchors: {},
-          collectedAnchors: {}
-        }), { status: 200 });
-      }
-      
-      return Response.json(createV2ProbeResult({ 
-        mode: "NONE",
-        hasQuestion: false,
-        reason: authError.message || "Authentication failed",
-        anchors: {},
-        collectedAnchors: {}
-      }), { status: 200 });
-    }
-    
-    if (!user) {
-      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: "User not authenticated" });
-      
-      const packConfig = PACK_CONFIG[packId];
-      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
-      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
-      if (fallback) {
-        console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
-        const baseResult = {
-          mode: fallback.mode,
-          hasQuestion: true,
-          followupsCount: 1,
-          question: fallback.question,
-          reason: "Fallback probe - no user",
-        };
-        return Response.json(createV2ProbeResult(baseResult), { status: 200 });
-      }
-      
-      const baseResult = {
-        mode: "NONE",
-        hasQuestion: false,
-        followupsCount: 0,
-        reason: "User not authenticated",
-        anchors: {},
-        collectedAnchors: {}
-      };
-      return Response.json(createV2ProbeResult(baseResult), { status: 200 });
-    }
-    
+    // Parse JSON body - SINGLE SOURCE OF TRUTH for all input
     let input;
     try {
       input = await req.json();
@@ -6167,16 +6093,68 @@ Deno.serve(async (req) => {
       packId = input.pack_id || input.packId;
       fieldKey = input.field_key || input.fieldKey;
     } catch (parseError) {
-      console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: parseError.message });
-      const baseResult = {
+      console.error('[V2-PER-FIELD][PARSE-ERROR]', { error: parseError.message });
+      return Response.json(createV2ProbeResult({
         mode: "NONE",
         hasQuestion: false,
-        followupsCount: 0,
-        reason: parseError.message || "Invalid request body",
-        anchors: {},
-        collectedAnchors: {}
-      };
-      return Response.json(createV2ProbeResult(baseResult), { status: 200 });
+        reason: parseError.message || "Invalid request body"
+      }), { status: 200 });
+    }
+    
+    // Auth check with graceful failure
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('[V2-PER-FIELD][AUTH-ERROR]', { fieldKey, packId, error: authError.message });
+      
+      const packConfig = PACK_CONFIG[packId];
+      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
+      const probeCount = input.previous_probes_count || input.probeCount || 0;
+      
+      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
+      if (fallback) {
+        console.log('[V2-PER-FIELD] Auth error → using fallback probe', { packId, fieldKey, probeCount });
+        return Response.json(createV2ProbeResult({
+          mode: fallback.mode,
+          pack_id: packId,
+          field_key: fieldKey,
+          question: fallback.question,
+          isFallback: true
+        }), { status: 200 });
+      }
+      
+      return Response.json(createV2ProbeResult({ 
+        mode: "NONE",
+        hasQuestion: false,
+        reason: authError.message || "Authentication failed"
+      }), { status: 200 });
+    }
+    
+    if (!user) {
+      console.error('[V2-PER-FIELD][NO-USER]', { fieldKey, packId });
+      
+      const packConfig = PACK_CONFIG[packId];
+      const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
+      const probeCount = input.previous_probes_count || input.probeCount || 0;
+      
+      const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
+      if (fallback) {
+        console.log('[V2-PER-FIELD] No user → using fallback probe', { packId, fieldKey });
+        return Response.json(createV2ProbeResult({
+          mode: fallback.mode,
+          hasQuestion: true,
+          followupsCount: 1,
+          question: fallback.question,
+          reason: "Fallback probe - no user"
+        }), { status: 200 });
+      }
+      
+      return Response.json(createV2ProbeResult({
+        mode: "NONE",
+        hasQuestion: false,
+        reason: "User not authenticated"
+      }), { status: 200 });
     }
     
     console.log('[PROBE_ENGINE_V2] Request received:', JSON.stringify(input));
@@ -6185,8 +6163,8 @@ Deno.serve(async (req) => {
     console.log("FORENSIC CHECKPOINT 12: HTTP HANDLER CALLING WRAPPER");
     console.log("═════════════════════════════════════════════════════════════");
     console.log('[HTTP_HANDLER][PRE_CALL]', {
-      packId: input.pack_id,
-      fieldKey: input.field_key,
+      packId: input.pack_id || input.packId,
+      fieldKey: input.field_key || input.fieldKey,
       inputKeys: Object.keys(input),
       field_value: input.field_value?.slice?.(0, 100),
       fieldValue: input.fieldValue?.slice?.(0, 100),
@@ -6643,39 +6621,29 @@ Deno.serve(async (req) => {
   } catch (error) {
     // CRITICAL: Return 200 with structured response, NOT 500 or mode="ERROR"
     // This allows frontend to treat it as "no probe available"
-    console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: error.message });
-    
-    // Try to get probeCount from request for multi-level fallback
-    let probeCount = 0;
-    try {
-      // Note: req.json() might have already been consumed, so this is best-effort
-      probeCount = 0; // Default to first probe level
-    } catch (e) {}
+    console.error('[V2-PER-FIELD][BACKEND-ERROR]', { fieldKey, packId, error: error.message, stack: error.stack });
     
     // Try fallback probe for this field
     const packConfig = PACK_CONFIG[packId];
     const semanticField = packConfig ? mapFieldKey(packConfig, fieldKey) : null;
+    const probeCount = 0; // Default to first probe level
+    
     const fallback = await buildFallbackProbeForField({ packId, fieldKey, semanticField, probeCount, base44Client: base44 });
     if (fallback) {
-      console.log('[V2-PER-FIELD] Unhandled error → using deterministic fallback probe for field', { packId, fieldKey, probeCount });
+      console.log('[V2-PER-FIELD] Unhandled error → using fallback probe', { packId, fieldKey, probeCount });
       return Response.json(createV2ProbeResult({
         mode: fallback.mode,
         hasQuestion: true,
         question: fallback.question,
-        reason: "Fallback probe due to auth error",
-        anchors: {},
-        collectedAnchors: {}
+        reason: "Fallback probe due to backend error"
       }), { status: 200 });
     }
     
     return Response.json(createV2ProbeResult({ 
-      mode: "NONE",
-      pack_id: packId,
-      field_key: fieldKey,
+      mode: "NEXT_FIELD",
+      hasQuestion: false,
       reason: "BACKEND_ERROR",
-      details: error.message || "Unexpected error during probing.",
-      anchors: {},
-      collectedAnchors: {}
+      debug: { error: error.message || "Unexpected error during probing" }
     }), { status: 200 });
   }
 });
