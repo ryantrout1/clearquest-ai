@@ -45,6 +45,18 @@ export default function PackConfigurationSection({
   }, [pack?.id]);
 
   const handleSave = async () => {
+    // Validation for fixed_narrative strategy
+    if (localData.openingStrategy === 'fixed_narrative') {
+      if (!localData.openingFieldKey) {
+        alert('Opening Field is required when using fixed narrative strategy');
+        return;
+      }
+      if (!localData.openingLabelOverride || localData.openingLabelOverride.trim() === '') {
+        alert('Opening Question Text is required when using fixed narrative strategy');
+        return;
+      }
+    }
+    
     await onSave({
       behavior_type: localData.behavior_type,
       requires_completion: localData.requires_completion,
