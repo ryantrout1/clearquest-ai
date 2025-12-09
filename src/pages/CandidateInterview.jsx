@@ -827,6 +827,7 @@ export default function CandidateInterview() {
   // V3 Debug mode
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isNewSession, setIsNewSession] = useState(true);
   
   const displayNumberMapRef = useRef({});
   
