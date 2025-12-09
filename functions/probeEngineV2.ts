@@ -2785,6 +2785,21 @@ Object.assign(PACK_CONFIG, {
 
 
 /**
+ * Minimal extractor for PACK_PRIOR_LE_APPS_STANDARD / PACK_PRLE_Q01
+ * Safe fallback that never throws
+ */
+function extractPriorLeAppsAnchors(params) {
+  const text = params?.text || '';
+  const existingAnchors = params?.existingAnchors || {};
+  
+  // Return safe defaults - real extraction happens in extractPriorLeAppsAnchorsLLM
+  return {
+    anchors: existingAnchors,
+    collectedAnchors: existingAnchors
+  };
+}
+
+/**
  * Legacy registry - kept for backward compatibility with other code paths
  * NOTE: New code should use ANCHOR_EXTRACTORS instead
  */
@@ -4830,7 +4845,7 @@ If any field is not clearly stated, set it to null.`,
     collectedAnchors: anchors || {}
   };
   
-  return ensureAnchorsShape(createV2ProbeResult(legacyResult));
+  return createV2ProbeResult(legacyResult);
 }
 
 /**
@@ -4840,19 +4855,33 @@ If any field is not clearly stated, set it to null.`,
 /**
  * Universal V2 result builder - creates standard response structure
  * 
- * Signature: createV2ProbeResult({ mode, hasQuestion, question, ... })
+ * Signature: createV2ProbeResult(baseResult, anchors?, collectedAnchors?)
  */
-function createV2ProbeResult(base) {
+function createV2ProbeResult(baseResult, anchors = undefined, collectedAnchors = undefined) {
+  // Determine safe anchors
+  const safeAnchors = anchors !== undefined 
+    ? anchors 
+    : (baseResult?.anchors && typeof baseResult.anchors === 'object' && !Array.isArray(baseResult.anchors))
+      ? baseResult.anchors
+      : {};
+  
+  // Determine safe collectedAnchors
+  const safeCollectedAnchors = collectedAnchors !== undefined
+    ? collectedAnchors
+    : (baseResult?.collectedAnchors && typeof baseResult.collectedAnchors === 'object' && !Array.isArray(baseResult.collectedAnchors))
+      ? baseResult.collectedAnchors
+      : {};
+  
   const result = {
-    mode: base?.mode || "NONE",
-    hasQuestion: base?.hasQuestion || false,
-    followupsCount: base?.followupsCount || 0,
-    reason: base?.reason || "",
-    question: base?.question,
-    questionPreview: base?.questionPreview,
-    anchors: base?.anchors || {},
-    collectedAnchors: base?.collectedAnchors || {},
-    ...base
+    mode: baseResult?.mode || "NONE",
+    hasQuestion: baseResult?.hasQuestion || false,
+    followupsCount: baseResult?.followupsCount || 0,
+    reason: baseResult?.reason || "",
+    question: baseResult?.question,
+    questionPreview: baseResult?.questionPreview,
+    ...baseResult,
+    anchors: safeAnchors,
+    collectedAnchors: safeCollectedAnchors
   };
   return result;
 }
@@ -5296,42 +5325,9 @@ async function probeEngineV2Core(input, base44Client) {
       });
     }
     
-    // CRITICAL: Wire FactAnchorEngine for additional extraction (secondary layer)
-    const answerText = field_value || input.fullNarrative || input.fullAnswer || input.answer || '';
-    const factCtx = {
-      packId: pack_id,
-      fieldKey: field_key,
-      questionId: input.questionCode || input.question_code || null,
-      answerText,
-      sessionId: input.session_id || null,
-      instanceNumber: instance_number,
-      existingAnchors: handlerResult?.anchors || {}
-    };
-    
-    if (V2_DEBUG_ENABLED && pack_id === "PACK_PRIOR_LE_APPS_STANDARD") {
-      console.log("[V2_PER_FIELD][FACT_ENGINE][CTX]", {
-        answerTextLength: factCtx.answerText?.length || 0,
-        answerTextPreview: factCtx.answerText?.slice?.(0, 100) || '(empty)',
-      });
-    }
-    
-    const factResult = FactAnchorEngine.extract(factCtx) || {};
-    const factAnchors = factResult.anchors || {};
-    const factCollectedAnchors = factResult.collectedAnchors || {};
-    
-    if (V2_DEBUG_ENABLED) {
-      console.log("[V2_PER_FIELD][FACT_ENGINE][EXTRACTED]", {
-        packId: pack_id,
-        fieldKey: field_key,
-        extractedKeys: Object.keys(factAnchors),
-        application_outcome: factAnchors.application_outcome || '(none)'
-      });
-    }
-    
-    // Merge FactAnchorEngine results into handler result
-    // CRITICAL: Use fresh object assignment to avoid mutation issues
-    const mergedAnchors = mergeAnchors(handlerResult?.anchors || {}, factAnchors);
-    const mergedCollected = mergeAnchors(handlerResult?.collectedAnchors || {}, factCollectedAnchors);
+    // Fact anchor extraction - use existing handler anchors as base
+    const mergedAnchors = handlerResult?.anchors || {};
+    const mergedCollected = handlerResult?.collectedAnchors || {};
     
     handlerResult.anchors = mergedAnchors;
     handlerResult.collectedAnchors = mergedCollected;
@@ -6150,7 +6146,7 @@ Deno.serve(async (req) => {
           question: fallback.question,
           reason: "Fallback probe - no user",
         };
-        return Response.json(createV2ProbeResult(baseResult, {}, {}), { status: 200 });
+        return Response.json(createV2ProbeResult(baseResult), { status: 200 });
       }
       
       const baseResult = {
