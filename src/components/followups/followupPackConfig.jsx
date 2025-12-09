@@ -1156,9 +1156,58 @@ export const FOLLOWUP_PACK_CONFIGS = {
   // Prior Law Enforcement Applications pack (v2.5)
   // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
   // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
+  "PACK_WORKPLACE_STANDARD": {
+    packId: "PACK_WORKPLACE_STANDARD",
+    supportedBaseQuestions: ["Q002", "Q004"],
+    instancesLabel: "Workplace Integrity Issues",
+    packDescription: "Please describe this integrity issue in your own words.",
+    multiInstanceDescription: "Please describe this integrity issue in your own words.",
+    maxAiFollowups: 3,
+    requiredAnchors: [],
+    targetAnchors: [],
+    factAnchors: [],
+    excludeFromProbing: [],
+    requiresCompletion: true,
+    flagOnUnresolved: "red_flag",
+    usePerFieldProbing: true,
+    useNarrativeFirst: true,
+    multiInstance: true,
+    fields: [
+      {
+        fieldKey: "PACK_WORKPLACE_Q01",
+        semanticKey: "narrative",
+        label: "In your own words, describe what happened. What information was withheld, when this occurred, how it came up, and what the outcome was. Give as much detail as you can.",
+        factsLabel: "Narrative",
+        inputType: "textarea",
+        placeholder: "Example: In 2021, I didn't disclose a previous law-enforcement test failure when I applied to Mesa PD. During the background interview, the investigator asked about prior testing history, and I realized I had left it off. I explained the oversight and updated my packet.",
+        required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: [],
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1,
+        includeInNarrative: true,
+        allowUnknown: false,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not provided",
+        validation: {
+          type: "free_text",
+          allowUnknown: false,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 10,
+          mustContainLetters: true
+        }
+      }
+    ]
+  },
+
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
-    supportedBaseQuestions: ["Q001"],
+    supportedBaseQuestions: ["Q001", "Q003"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
