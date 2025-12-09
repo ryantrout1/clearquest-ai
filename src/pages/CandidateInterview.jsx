@@ -3913,7 +3913,7 @@ export default function CandidateInterview() {
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-slate-300">{currentPrompt.category || 'Applications with other Law Enforcement Agencies'}</span>
                   </>
-                ) : (
+                ) : currentItem ? (
                   <>
                     <span className="text-base font-semibold text-blue-400">
                       Question {getQuestionDisplayNumber(currentItem.id)}
@@ -3921,7 +3921,7 @@ export default function CandidateInterview() {
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
                   </>
-                )}
+                ) : null}
               </div>
               
               {/* Show prior context for follow-up questions (only on resumed sessions) */}
