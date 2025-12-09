@@ -1675,9 +1675,42 @@ export default function CandidateInterview() {
         });
         
 
-        // Check if this was the last field in the pack - if so, trigger summaries
+        // Check if this was the last field in the pack - if so, mark complete and trigger summaries
         const isPackComplete = isLastField || v2Result?.mode === 'COMPLETE' || v2Result?.mode === 'NEXT_FIELD';
         if (isPackComplete) {
+          // Mark FollowUpResponse as completed for this instance
+          try {
+            const baseResponses = await base44.entities.Response.filter({
+              session_id: sessionId,
+              question_id: baseQuestionId,
+              response_type: 'base_question'
+            });
+            const baseResponseId = baseResponses[0]?.id;
+            
+            if (baseResponseId) {
+              const existingFollowups = await base44.entities.FollowUpResponse.filter({
+                session_id: sessionId,
+                response_id: baseResponseId,
+                followup_pack: packId,
+                instance_number: instanceNumber
+              });
+              
+              if (existingFollowups.length > 0) {
+                await base44.entities.FollowUpResponse.update(existingFollowups[0].id, {
+                  completed: true,
+                  completed_timestamp: new Date().toISOString()
+                });
+                console.log('[V2_PACK_COMPLETE] Marked FollowUpResponse as completed', {
+                  followUpResponseId: existingFollowups[0].id,
+                  packId,
+                  instanceNumber
+                });
+              }
+            }
+          } catch (completionErr) {
+            console.warn('[V2_PACK_COMPLETE] Failed to mark FollowUpResponse as completed:', completionErr);
+          }
+          
           // Trigger summary generation in background
           base44.functions.invoke('triggerSummaries', {
             sessionId,
