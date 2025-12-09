@@ -1196,10 +1196,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_PRLE_Q01",
         semanticKey: "narrative",
-        label: "Tell me the story of this prior law-enforcement application in your own words — who you applied with, the job, when it happened, how far you got, and how it ended. If you know the reason the process ended or whether you could reapply, include that too.",
+        label: "In your own words, tell me the story of this prior law-enforcement application — who you applied with, the job, when it happened, how far you got, and how it ended. If you know why the process ended or whether you could reapply, include that too.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "I applied to Phoenix PD in March 2022 for a Police Recruit position. I passed the written and fitness tests and completed a background interview. The investigator later told me I didn't move forward because of my driving record. I wasn't accused of withholding anything, and they said I could reapply after two years.",
+        placeholder: "Example: I applied to Phoenix PD in March 2022 for a Police Recruit position. I passed the written and fitness tests and completed a background interview. The investigator later told me I didn't move forward because of my driving record, and I was told I could reapply after two years.",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true, // Marks this as the narrative opener
