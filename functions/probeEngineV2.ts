@@ -36,21 +36,21 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * @returns {{strategy: string, fieldKey: string|null, labelOverride: string}}
  */
 function getV2OpeningMeta(packMeta = {}) {
-  const openingStrategy = packMeta.openingStrategy || 'none';
+  const rawOpeningStrategy = packMeta.openingStrategy || 'none';
   const openingFieldKey = packMeta.openingFieldKey || null;
   const openingLabelOverride = packMeta.openingLabelOverride || '';
 
   // Backwards compat with old flags
-  const forceNarrative = packMeta.forceNarrativeOpening === true && packMeta.openingFieldKey;
+  const forceNarrative = packMeta.forceNarrativeOpening === true && !!openingFieldKey;
 
   const effectiveStrategy =
-    openingStrategy && openingStrategy !== 'none'
-      ? openingStrategy
+    rawOpeningStrategy && rawOpeningStrategy !== 'none'
+      ? rawOpeningStrategy
       : (forceNarrative ? 'fixed_narrative' : 'none');
 
   return {
     strategy: effectiveStrategy,
-    fieldKey: openingFieldKey || packMeta.openingFieldKey || null,
+    fieldKey: openingFieldKey,
     labelOverride: openingLabelOverride,
   };
 }
@@ -5194,7 +5194,13 @@ async function probeEngineV2Core(params, base44Client) {
   // ============================================================================
   // V2 OPENING STRATEGY - Use pack meta to control opening behavior
   // ============================================================================
-  const isFirstProbe = (previous_probes_count || 0) === 0;
+  
+  // Normalize probe count from different possible parameter names
+  const probeCount = typeof previous_probes_count === 'number'
+    ? previous_probes_count
+    : (typeof probeCount === 'number' ? probeCount : 0);
+  
+  const isFirstProbe = probeCount === 0;
   
   // Fetch pack meta to check opening strategy
   let packMeta = {};
@@ -5219,14 +5225,23 @@ async function probeEngineV2Core(params, base44Client) {
         }
       }
     } catch (err) {
-      console.warn('[V2_OPENING] Failed to fetch pack meta:', err.message);
+      console.warn('[V2_BACKEND][OPENING_META] Failed to fetch pack meta:', err.message);
     }
   }
   
   const openingMeta = getV2OpeningMeta(packMeta);
   const isOpeningField = openingMeta.fieldKey && openingMeta.fieldKey === field_key;
   
-  // SHORT-CIRCUIT for fixed_narrative opening
+  console.log('[V2_BACKEND][OPENING_META]', {
+    packId: pack_id,
+    fieldKey: field_key,
+    probeCount,
+    openingMeta,
+    isFirstProbe,
+    isOpeningField,
+  });
+  
+  // SHORT-CIRCUIT for fixed_narrative opening (BEFORE any discretion/AI logic)
   if (
     openingMeta.strategy === 'fixed_narrative' &&
     isFirstProbe &&
@@ -5237,10 +5252,10 @@ async function probeEngineV2Core(params, base44Client) {
       (fieldConfig && fieldConfig.label) ||
       'Please describe what happened in your own words.';
     
-    console.log('[V2_PER_FIELD][FIXED_NARRATIVE_OPENING]', {
+    console.log('[V2_BACKEND][FIXED_OPENING_TRIGGERED]', {
       packId: pack_id,
       fieldKey: field_key,
-      labelLength: label.length
+      label,
     });
     
     return createV2ProbeResult({
@@ -5251,7 +5266,7 @@ async function probeEngineV2Core(params, base44Client) {
       questionText: label,
       questionPreview: label.substring(0, 60) + '...',
       probeSource: 'fixed_narrative_opening',
-      reason: 'Fixed narrative opening',
+      reason: 'Fixed narrative opening from pack meta',
       anchors: {},
       collectedAnchors: {}
     });

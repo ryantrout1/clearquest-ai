@@ -2127,6 +2127,29 @@ export default function CandidateInterview() {
               console.log(`[V2_PACK][CLUSTER_INIT] Making initial backend call for pack opening...`);
               
               const firstField = orderedFields[0];
+              
+              // Compute effective opening strategy from pack meta
+              const packMeta = v2PacksById?.[packId]?.meta || {};
+              const rawOpeningStrategy = packMeta.openingStrategy || 'none';
+              const openingFieldKey = packMeta.openingFieldKey || null;
+              const forceNarrative = packMeta.forceNarrativeOpening === true && !!openingFieldKey;
+              
+              const effectiveOpeningStrategy =
+                rawOpeningStrategy && rawOpeningStrategy !== 'none'
+                  ? rawOpeningStrategy
+                  : (forceNarrative ? 'fixed_narrative' : 'none');
+              
+              const isOpeningField = openingFieldKey && openingFieldKey === firstField.fieldKey;
+              
+              console.log('[V2_FRONTEND][OPENING_META]', {
+                packId,
+                fieldKey: firstField.fieldKey,
+                probeCount: 0,
+                effectiveOpeningStrategy,
+                openingFieldKey,
+                isOpeningField,
+              });
+              
               const initialCallResult = await runV2FieldProbeIfNeeded({
                 base44Client: base44,
                 packId,
@@ -2150,23 +2173,18 @@ export default function CandidateInterview() {
                 probeSource: initialCallResult?.probeSource
               });
               
-              // Detect opening strategy from backend response
+              // Detect fixed narrative opening
               const isFixedNarrativeOpening = 
-                initialCallResult?.probeSource === 'fixed_narrative_opening' &&
-                initialCallResult?.mode === 'QUESTION';
-              
-              // Decide whether to show AI opening bubble
-              const shouldShowAiOpening =
-                initialCallResult?.mode === 'QUESTION' &&
-                initialCallResult.question &&
-                !isFixedNarrativeOpening;
+                effectiveOpeningStrategy === 'fixed_narrative' &&
+                isOpeningField &&
+                (initialCallResult?.probeSource === 'fixed_narrative_opening' || initialCallResult?.mode === 'QUESTION');
               
               if (isFixedNarrativeOpening) {
-                console.log(`[V2_PACK][OPENING] Fixed narrative opening for ${packId}/${firstField.fieldKey} - showing as normal field`);
-              }
-              
-              if (shouldShowAiOpening) {
-                console.log(`[V2_PACK][CLUSTER_INIT] Showing AI opening message before fields`);
+                console.log('[V2_PACK][OPENING_FIXED_NARRATIVE]', {
+                  packId,
+                  fieldKey: firstField.fieldKey,
+                  probeSource: initialCallResult?.probeSource,
+                });
                 
                 // Add AI opening question to transcript
                 const aiOpeningEntry = createChatEvent('ai_probe_question', {
@@ -2229,7 +2247,17 @@ export default function CandidateInterview() {
                   packId: packId,
                   fieldIndex: 0
                 });
-              } else {
+              }
+              
+              // Decide whether to show AI opening bubble
+              const shouldShowAiOpening =
+                (effectiveOpeningStrategy === 'ai_narrative' || effectiveOpeningStrategy === 'none') &&
+                initialCallResult?.mode === 'QUESTION' &&
+                initialCallResult.question &&
+                initialCallResult?.probeSource !== 'fixed_narrative_opening' &&
+                !isFixedNarrativeOpening;
+              
+              if (!shouldShowAiOpening) {
                 // No AI opening OR fixed narrative opening - go directly to first field
                 // STEP 2: Include backend question text in currentItem
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
