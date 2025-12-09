@@ -650,24 +650,20 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
     
     if (summaryText) {
       try {
-        // Create/update SectionResult entity (NEW primary storage)
+        // LAZY CREATE/UPDATE: Ensure SectionResult exists, then update with summary
+        let sectionResultId = null;
+        
         const existingSectionResults = await base44.asServiceRole.entities.SectionResult.filter({
           session_id: sessionId,
           section_id: sectionDbId
         });
         
         if (existingSectionResults.length > 0) {
-          // Update existing
-          await base44.asServiceRole.entities.SectionResult.update(existingSectionResults[0].id, {
-            aiSummary: {
-              sectionSummaryText: summaryText,
-              status: 'completed',
-              lastUpdatedAt: new Date().toISOString()
-            }
-          });
+          sectionResultId = existingSectionResults[0].id;
         } else {
-          // Create new
-          await base44.asServiceRole.entities.SectionResult.create({
+          // Create new SectionResult record if it doesn't exist
+          console.log('[SSUM][CREATE-RESULT]', { sessionId, sectionDbId, sectionName });
+          const created = await base44.asServiceRole.entities.SectionResult.create({
             session_id: sessionId,
             section_id: sectionDbId,
             section_name: sectionName,
@@ -675,14 +671,19 @@ ${JSON.stringify(status.responses.map(r => ({ question: r.question_text, answer:
             answered_questions: status.answered || 0,
             yes_count: yesAnswers.length,
             no_count: noAnswers.length,
-            completion_status: status.complete ? 'completed' : 'in_progress',
-            aiSummary: {
-              sectionSummaryText: summaryText,
-              status: 'completed',
-              lastUpdatedAt: new Date().toISOString()
-            }
+            completion_status: status.complete ? 'completed' : 'in_progress'
           });
+          sectionResultId = created.id;
         }
+        
+        // Update with AI summary
+        await base44.asServiceRole.entities.SectionResult.update(sectionResultId, {
+          aiSummary: {
+            sectionSummaryText: summaryText,
+            status: 'completed',
+            lastUpdatedAt: new Date().toISOString()
+          }
+        });
         
         result.created.section++;
         
