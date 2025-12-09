@@ -1158,7 +1158,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
   // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
   "PACK_WORKPLACE_STANDARD": {
     packId: "PACK_WORKPLACE_STANDARD",
-    supportedBaseQuestions: ["Q002", "Q004"],
+    supportedBaseQuestions: ["Q004"],
     instancesLabel: "Workplace Integrity Issues",
     packDescription: "Please describe this integrity issue in your own words.",
     multiInstanceDescription: "Please describe this integrity issue in your own words.",
@@ -1207,7 +1207,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
 
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
-    supportedBaseQuestions: ["Q001", "Q003"],
+    supportedBaseQuestions: ["Q001", "Q002", "Q003"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
