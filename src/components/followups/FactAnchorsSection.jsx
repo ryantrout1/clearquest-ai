@@ -144,8 +144,16 @@ export default function FactAnchorsSection({
     }
   };
 
-  // Only show for V2 packs (ide_version V2 or is_standard_cluster)
-  const isV2Pack = pack?.ide_version === "V2" || pack?.is_standard_cluster === true;
+  /**
+   * V2 packs store Fact Anchors directly on the FollowUpPack record (fact_anchors).
+   * Legacy packs continue using the original anchors collection.
+   * Only show this section for V2 packs.
+   */
+  const isV2Pack = 
+    pack?.openingStrategy && pack.openingStrategy !== 'none' ||
+    pack?.is_standard_cluster === true ||
+    pack?.ide_version === 'V2' ||
+    pack?.ide_version === 'V3';
   
   if (!isV2Pack) {
     return null;
