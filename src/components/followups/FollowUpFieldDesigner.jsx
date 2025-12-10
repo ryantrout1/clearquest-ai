@@ -99,6 +99,7 @@ export default function FollowUpFieldDesigner({ pack, onSaveFields, isExpanded, 
 
   // Sync fields when pack changes
   React.useEffect(() => {
+    console.log('[PACK_DEBUG] Follow-up fields for pack', pack?.followup_pack_id, pack?.field_config?.length, pack?.field_config);
     setFields(pack?.field_config || []);
   }, [pack?.id, pack?.field_config]);
 
