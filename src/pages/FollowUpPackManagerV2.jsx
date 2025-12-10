@@ -61,7 +61,21 @@ export default function FollowUpPackManagerV2() {
 
   const { data: allPacks = [], isLoading: packsLoading } = useQuery({
     queryKey: ['followUpPacks'],
-    queryFn: () => base44.entities.FollowUpPack.list(),
+    queryFn: async () => {
+      const packs = await base44.entities.FollowUpPack.list();
+      // Ensure V2 fields are present (they should be from the DB, but this ensures consistency)
+      return packs.map(pack => ({
+        ...pack,
+        openingStrategy: pack.openingStrategy ?? null,
+        openingFieldKey: pack.openingFieldKey ?? null,
+        openingLabelOverride: pack.openingLabelOverride ?? null,
+        openingExample: pack.openingExample ?? null,
+        fact_anchors: pack.fact_anchors ?? [],
+        field_config: pack.field_config ?? [],
+        max_ai_followups: pack.max_ai_followups ?? null,
+        is_standard_cluster: pack.is_standard_cluster ?? null
+      }));
+    },
     enabled: !!user
   });
 
