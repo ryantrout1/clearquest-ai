@@ -2128,11 +2128,18 @@ export default function CandidateInterview() {
               
               const firstField = orderedFields[0];
               
-              // Compute effective opening strategy from pack meta
-              const packMeta = v2PacksById?.[packId]?.meta || {};
-              const rawOpeningStrategy = packMeta.openingStrategy || 'none';
-              const openingFieldKey = packMeta.openingFieldKey || null;
-              const forceNarrative = packMeta.forceNarrativeOpening === true && !!openingFieldKey;
+              // Compute effective opening strategy from pack meta (read from engine state)
+              const packMeta = engine?.v2PacksById?.[packId]?.meta || null;
+              
+              if (!packMeta) {
+                console.warn(`[V2_PACK][CLUSTER_INIT] No V2 pack meta found for packId ${packId}`, {
+                  availablePackIds: Object.keys(engine?.v2PacksById || {})
+                });
+              }
+              
+              const rawOpeningStrategy = packMeta?.openingStrategy || 'none';
+              const openingFieldKey = packMeta?.openingFieldKey || null;
+              const forceNarrative = packMeta?.forceNarrativeOpening === true && !!openingFieldKey;
               
               const effectiveOpeningStrategy =
                 rawOpeningStrategy && rawOpeningStrategy !== 'none'

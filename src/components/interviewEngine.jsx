@@ -1872,6 +1872,23 @@ export async function bootstrapEngine(base44) {
     // DEBUG: Print full section order summary
     debugPrintSectionOrderSummary(engineState, sections);
 
+    // Build v2PacksById map from v2Packs array for frontend access
+    const v2PacksById = {};
+    v2Packs.forEach(pack => {
+      if (pack.followup_pack_id) {
+        v2PacksById[pack.followup_pack_id] = {
+          meta: pack,
+          packId: pack.followup_pack_id,
+          packName: pack.pack_name
+        };
+      }
+    });
+    
+    console.log(`📦 Built v2PacksById map with ${Object.keys(v2PacksById).length} V2 pack metadata entries`);
+    
+    // Add v2PacksById to engine state for frontend access
+    engineState.v2PacksById = v2PacksById;
+
     // V2 PACK DEBUG: Print detailed info for PACK_PRIOR_LE_APPS_STANDARD
     const priorLePack = v2Packs.find(p => p.followup_pack_id === 'PACK_PRIOR_LE_APPS_STANDARD');
     if (priorLePack) {
@@ -1900,6 +1917,7 @@ export async function bootstrapEngine(base44) {
     console.log(`   - Questions with follow-ups: ${Object.keys(MatrixYesByQ).length}`);
     console.log(`   - Legacy packs: ${Object.keys(FOLLOWUP_PACK_STEPS).length}`);
     console.log(`   - V2 packs: ${Object.keys(V2PackStepsById).length}`);
+    console.log(`   - V2 pack metadata entries: ${Object.keys(v2PacksById).length}`);
     console.log(`   - Total packs available: ${Object.keys(PackStepsById).length}`);
 
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
