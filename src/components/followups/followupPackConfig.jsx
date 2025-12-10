@@ -180,8 +180,8 @@ export const PACK_FACT_ANCHORS = {
     multiInstance: true
   },
   "PACK_WORKPLACE_STANDARD": {
-    required: ["incident_type", "incident_date", "agency_or_org", "final_outcome"], // Critical 4
-    optional: ["affected_component", "staff_response", "reapply_window"],
+    required: ["employer_name", "role_or_position", "incident_date", "misconduct_type", "final_outcome"], // Critical 5
+    optional: ["staff_response", "reapply_or_eligibility"],
     severity: "strict",
     maxProbes: 4,
     multiInstance: true
@@ -1160,30 +1160,33 @@ export const FOLLOWUP_PACK_CONFIGS = {
     ]
   },
 
-  // Prior Law Enforcement Applications pack (v2.5)
-  // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
-  // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
+  // GOLDEN V2 TEMPLATE EXAMPLE:
+  // PACK_WORKPLACE_STANDARD is configured as a narrative-first V2 pack:
+  // - openingStrategy: "fixed_narrative" with openingFieldKey pointing to the narrative field
+  // - fact_anchors: 7 workplace-specific BI-critical anchors with priority + required flags
+  // - field_config: 14 structured fields (first = narrative, then critical facts, then context)
+  // Future V2 upgrades should follow this pattern.
   "PACK_WORKPLACE_STANDARD": {
     packId: "PACK_WORKPLACE_STANDARD",
     supportedBaseQuestions: ["Q004", "Q127", "Q128", "Q129", "Q130", "Q136", "Q137", "Q138", "Q163", "Q203"],
     instancesLabel: "Workplace Integrity Issues",
-    packDescription: "Please describe this integrity issue in your own words.",
-    multiInstanceDescription: "Please describe this integrity issue in your own words.",
+    packDescription: "Please describe this workplace integrity or misconduct incident in your own words.",
+    multiInstanceDescription: "Please describe this workplace integrity or misconduct incident in your own words.",
     maxAiFollowups: 4,
     openingStrategy: "fixed_narrative",
     openingFieldKey: "PACK_WORKPLACE_Q01",
-    openingLabelOverride: "Can you walk me through what happened during that testing incident — what the situation was, which part of the test was involved, when it took place, and how it ended? Please include as much detail as you can.",
-    openingExample: "In 2021, during a written police exam, I looked at another applicant's answers during a timed section. The proctor saw it and documented it. I wasn't accused of anything else, but the department disqualified me from moving forward.",
-    requiredAnchors: ["incident_type", "incident_date", "agency_or_org", "final_outcome"],
-    targetAnchors: ["incident_type", "incident_date", "agency_or_org", "affected_component", "staff_response", "final_outcome", "reapply_window"],
+    openingLabelOverride: "In your own words, walk me through the workplace integrity or misconduct incident we're talking about — what happened, which employer or setting was involved, when it took place, and how it ended. Please include as much detail as you can.",
+    openingExample: "In 2021, while working at a logistics company, I edited my timecard to show two extra hours that I didn't actually work. My supervisor noticed a discrepancy during payroll review, met with me, and I admitted what I had done. I was written up for falsifying time records and told that another incident could result in termination.",
+    requiredAnchors: ["employer_name", "role_or_position", "incident_date", "misconduct_type", "final_outcome"],
+    targetAnchors: ["employer_name", "role_or_position", "incident_date", "misconduct_type", "staff_response", "final_outcome", "reapply_or_eligibility"],
     factAnchors: [
-      { key: "incident_type", label: "Type of testing/exam", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "incident_date", label: "Approximate date (month/year)", answerType: "month_year", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "agency_or_org", label: "Agency/organization", answerType: "text", priority: 3, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "affected_component", label: "Part of exam/process affected", answerType: "text", priority: 4, multiInstanceAware: false, clarifierStyle: "micro", required: false },
-      { key: "staff_response", label: "Actions taken by staff/examiners", answerType: "text", priority: 5, multiInstanceAware: false, clarifierStyle: "micro", required: false },
-      { key: "final_outcome", label: "Final outcome", answerType: "text", priority: 6, multiInstanceAware: false, clarifierStyle: "micro", required: true },
-      { key: "reapply_window", label: "Reapply info / waiting period", answerType: "text", priority: 7, multiInstanceAware: false, clarifierStyle: "micro", required: false }
+      { key: "employer_name", label: "Employer / organization name", answerType: "text", priority: 1, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "role_or_position", label: "Role or position at the time", answerType: "text", priority: 2, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "incident_date", label: "Approximate date of incident (month/year)", answerType: "month_year", priority: 3, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "misconduct_type", label: "Type of integrity or misconduct issue", answerType: "text", priority: 4, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "staff_response", label: "Actions taken by supervisors/HR", answerType: "text", priority: 5, multiInstanceAware: false, clarifierStyle: "micro", required: false },
+      { key: "final_outcome", label: "Final outcome (discipline / resignation / termination)", answerType: "text", priority: 6, multiInstanceAware: false, clarifierStyle: "micro", required: true },
+      { key: "reapply_or_eligibility", label: "Rehire or reapply eligibility (if discussed)", answerType: "text", priority: 7, multiInstanceAware: false, clarifierStyle: "micro", required: false }
     ],
     excludeFromProbing: [],
     requiresCompletion: true,
@@ -1195,16 +1198,16 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_WORKPLACE_Q01",
         semanticKey: "narrative",
-        label: "Can you walk me through what happened during that testing incident — what the situation was, which part of the test was involved, when it took place, and how it ended? Please include as much detail as you can.",
+        label: "In your own words, walk me through the workplace integrity or misconduct incident we're talking about — what happened, which employer or setting was involved, when it took place, and how it ended. Please include as much detail as you can.",
         factsLabel: "Narrative",
         inputType: "textarea",
-        placeholder: "Example: In 2021, during a written police exam, I looked at another applicant's answers during a timed section. The proctor saw it and documented it. I wasn't accused of anything else, but the department disqualified me from moving forward.",
-        exampleAnswer: "In 2021, during a written police exam, I looked at another applicant's answers during a timed section. The proctor saw it and documented it. I wasn't accused of anything else, but the department disqualified me from moving forward.",
+        placeholder: "In 2021, while working at a logistics company, I edited my timecard to show two extra hours that I didn't actually work. My supervisor noticed a discrepancy during payroll review, met with me, and I admitted what I had done. I was written up for falsifying time records and told that another incident could result in termination.",
+        exampleAnswer: "In 2021, while working at a logistics company, I edited my timecard to show two extra hours that I didn't actually work. My supervisor noticed a discrepancy during payroll review, met with me, and I admitted what I had done. I was written up for falsifying time records and told that another incident could result in termination.",
         required: true,
         aiProbingEnabled: true,
         isNarrativeOpener: true,
         isPrimaryNarrativeField: true,
-        captures: ["incident_type", "incident_date", "agency_or_org", "affected_component", "staff_response", "final_outcome", "reapply_window"],
+        captures: ["employer_name", "role_or_position", "incident_date", "misconduct_type", "staff_response", "final_outcome", "reapply_or_eligibility"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
@@ -1224,14 +1227,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_WORKPLACE_Q02",
-        semanticKey: "incident_type",
-        label: "What type of testing or exam was this?",
-        factsLabel: "Test Type",
+        semanticKey: "employer_name",
+        label: "Which employer or organization was this with?",
+        factsLabel: "Employer",
         inputType: "text",
-        placeholder: "e.g., Written test, Physical agility, Polygraph, etc.",
+        placeholder: "Enter employer name",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["incident_type"],
+        requiresMissing: ["employer_name"],
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
@@ -1282,14 +1285,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_WORKPLACE_Q04",
-        semanticKey: "agency_or_org",
-        label: "Which agency or testing organization was involved?",
-        factsLabel: "Agency/Organization",
+        semanticKey: "role_or_position",
+        label: "What was your role or position at the time?",
+        factsLabel: "Role/Position",
         inputType: "text",
-        placeholder: "Enter agency or testing organization name",
+        placeholder: "Enter job title or role",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["agency_or_org"],
+        requiresMissing: ["role_or_position"],
         includeInFacts: true,
         factsOrder: 4,
         includeInInstanceHeader: false,
@@ -1298,7 +1301,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled",
         validation: {
-          type: "agency_name",
+          type: "free_text",
           allowUnknown: true,
           unknownTokens: DEFAULT_UNKNOWN_TOKENS,
           minLength: 2,
@@ -1309,14 +1312,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_WORKPLACE_Q05",
-        semanticKey: "affected_component",
-        label: "Which part of the exam or process was affected?",
-        factsLabel: "Test Component",
+        semanticKey: "misconduct_type",
+        label: "What type of integrity or misconduct issue was this?",
+        factsLabel: "Misconduct Type",
         inputType: "text",
-        placeholder: "e.g., Written section, physical test, background check, etc.",
-        required: false,
+        placeholder: "e.g., Dishonesty, policy violation, attendance, etc.",
+        required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["affected_component"],
+        requiresMissing: ["misconduct_type"],
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,
@@ -1337,10 +1340,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
       {
         fieldKey: "PACK_WORKPLACE_Q06",
         semanticKey: "staff_response",
-        label: "What actions were taken by staff or examiners?",
+        label: "What actions were taken by supervisors or HR?",
         factsLabel: "Actions Taken",
         inputType: "textarea",
-        placeholder: "Describe what staff/examiners did",
+        placeholder: "Describe what supervisors or HR did",
         required: false,
         aiProbingEnabled: true,
         requiresMissing: ["staff_response"],
@@ -1367,7 +1370,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         label: "What was the final outcome?",
         factsLabel: "Outcome",
         inputType: "textarea",
-        placeholder: "Describe the final result or decision",
+        placeholder: "Describe the final result (write-up, suspension, termination, etc.)",
         required: true,
         aiProbingEnabled: true,
         requiresMissing: ["final_outcome"],
@@ -1390,14 +1393,14 @@ export const FOLLOWUP_PACK_CONFIGS = {
       },
       {
         fieldKey: "PACK_WORKPLACE_Q08",
-        semanticKey: "reapply_window",
-        label: "Were you told you could reapply? If yes, when?",
+        semanticKey: "reapply_or_eligibility",
+        label: "Were you told you could be rehired or reapply? If yes, when?",
         factsLabel: "Reapply Eligibility",
         inputType: "text",
-        placeholder: "e.g., Yes, after 2 years / No / Not told",
+        placeholder: "e.g., Yes, after 1 year / No / Not discussed",
         required: false,
         aiProbingEnabled: true,
-        requiresMissing: ["reapply_window"],
+        requiresMissing: ["reapply_or_eligibility"],
         includeInFacts: true,
         factsOrder: 8,
         includeInInstanceHeader: false,
@@ -1418,6 +1421,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
     ]
   },
 
+  // Prior Law Enforcement Applications pack (v2.5)
+  // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
+  // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001", "Q002", "Q003"],
