@@ -13,6 +13,7 @@ import FollowUpCategorySidebar from "../components/followups/FollowUpCategorySid
 import FollowUpPackList from "../components/followups/FollowUpPackList";
 import FollowUpPackDetails from "../components/followups/FollowUpPackDetails";
 import { FOLLOWUP_CATEGORIES, getPacksByCategory, mapPackToCategory } from "../components/followups/categoryMapping";
+import { buildV2PackFromDbRow } from "../components/followups/followupPackConfig";
 
 export default function FollowUpPackManagerV2() {
   const navigate = useNavigate();
@@ -62,19 +63,9 @@ export default function FollowUpPackManagerV2() {
   const { data: allPacks = [], isLoading: packsLoading } = useQuery({
     queryKey: ['followUpPacks'],
     queryFn: async () => {
-      const packs = await base44.entities.FollowUpPack.list();
-      // Ensure V2 fields are present (they should be from the DB, but this ensures consistency)
-      return packs.map(pack => ({
-        ...pack,
-        openingStrategy: pack.openingStrategy ?? null,
-        openingFieldKey: pack.openingFieldKey ?? null,
-        openingLabelOverride: pack.openingLabelOverride ?? null,
-        openingExample: pack.openingExample ?? null,
-        fact_anchors: pack.fact_anchors ?? [],
-        field_config: pack.field_config ?? [],
-        max_ai_followups: pack.max_ai_followups ?? null,
-        is_standard_cluster: pack.is_standard_cluster ?? null
-      }));
+      const rawPacks = await base44.entities.FollowUpPack.list();
+      // Use the shared V2 pack builder to merge DB + static config
+      return rawPacks.map(buildV2PackFromDbRow);
     },
     enabled: !!user
   });

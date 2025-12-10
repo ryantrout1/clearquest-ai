@@ -42,6 +42,7 @@ export default function FactAnchorsSection({
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
+    console.log('[PACK_DEBUG] Fact anchors for pack', pack?.followup_pack_id, pack?.fact_anchors?.length, pack?.fact_anchors);
     if (pack?.fact_anchors) {
       setAnchors([...pack.fact_anchors].sort((a, b) => a.priority - b.priority));
     } else {

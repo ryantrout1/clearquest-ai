@@ -2007,6 +2007,73 @@ export const FOLLOWUP_PACK_CONFIGS = {
 };
 
 /**
+ * Build a full V2 FollowUpPack config from a DB row and static defaults.
+ * This is the SINGLE source of truth for V2 packs, used by both CandidateInterview and FollowUpPackManagerV2.
+ * 
+ * GOLDEN PATH: All V2 pack processing MUST use this helper to ensure:
+ * - Database V2 fields (openingStrategy, fact_anchors, field_config, etc.) are preserved
+ * - Static config provides defaults when DB is null/undefined
+ * - Opening narrative, fact anchors, and fields are consistently available to UI and engine
+ * 
+ * @param {Object} dbPackRow - Raw FollowUpPack row from database
+ * @returns {Object} Full V2 pack config object
+ */
+export function buildV2PackFromDbRow(dbPackRow) {
+  if (!dbPackRow) return null;
+  
+  const packId = dbPackRow.followup_pack_id;
+  const staticConfig = FOLLOWUP_PACK_CONFIGS[packId] || {};
+  
+  // DB ALWAYS WINS for V2-specific fields
+  // Static config fills defaults when DB is null/undefined
+  return {
+    // Core identity (DB wins)
+    ...dbPackRow,
+    
+    // V2 opening narrative (DB wins, static provides defaults)
+    openingStrategy: dbPackRow.openingStrategy || staticConfig.openingStrategy || 'none',
+    openingFieldKey: dbPackRow.openingFieldKey || staticConfig.openingFieldKey || null,
+    openingLabelOverride: dbPackRow.openingLabelOverride || staticConfig.openingLabelOverride || '',
+    openingExample: dbPackRow.openingExample || staticConfig.openingExample || '',
+    
+    // V2 fact anchors (DB wins, static provides defaults)
+    fact_anchors: dbPackRow.fact_anchors && dbPackRow.fact_anchors.length > 0 
+      ? dbPackRow.fact_anchors 
+      : staticConfig.factAnchors || [],
+    
+    // V2 field config (DB wins, static provides defaults)
+    field_config: dbPackRow.field_config && dbPackRow.field_config.length > 0 
+      ? dbPackRow.field_config 
+      : staticConfig.fields || [],
+    
+    // Behavioral settings (DB wins, static provides defaults)
+    max_ai_followups: dbPackRow.max_ai_followups ?? staticConfig.maxAiFollowups ?? 3,
+    behavior_type: dbPackRow.behavior_type || staticConfig.behavior_type || 'standard',
+    requires_completion: dbPackRow.requires_completion ?? staticConfig.requiresCompletion ?? true,
+    max_probe_loops: dbPackRow.max_probe_loops ?? staticConfig.max_probe_loops ?? null,
+    
+    // Metadata (preserve all)
+    version: dbPackRow.version || 'v1',
+    is_standard_cluster: dbPackRow.is_standard_cluster ?? false,
+    cluster_code: dbPackRow.cluster_code || packId,
+    
+    // Static config references (for engine compatibility)
+    packId: packId,
+    instancesLabel: staticConfig.instancesLabel || dbPackRow.pack_name || packId,
+    packDescription: staticConfig.packDescription || dbPackRow.description || '',
+    multiInstanceDescription: staticConfig.multiInstanceDescription || dbPackRow.description || '',
+    supportedBaseQuestions: staticConfig.supportedBaseQuestions || [],
+    requiredAnchors: staticConfig.requiredAnchors || [],
+    targetAnchors: staticConfig.targetAnchors || [],
+    excludeFromProbing: staticConfig.excludeFromProbing || [],
+    flagOnUnresolved: staticConfig.flagOnUnresolved || 'warning',
+    usePerFieldProbing: staticConfig.usePerFieldProbing ?? true,
+    useNarrativeFirst: staticConfig.useNarrativeFirst ?? false,
+    multiInstance: staticConfig.multiInstance ?? true
+  };
+}
+
+/**
  * Get pack config by pack ID
  * @param {string} packId 
  * @returns {FollowUpPackConfig|undefined}
