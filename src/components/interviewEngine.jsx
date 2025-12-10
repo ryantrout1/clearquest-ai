@@ -2532,10 +2532,11 @@ export function checkFollowUpTrigger(engine, questionDbId, answer, effectiveMode
   const questionCode = QuestionCodeById[questionDbId] || `db_${questionDbId}`;
   console.log(`🔍 Entity-driven follow-up check for db_id=${questionDbId} (code: ${questionCode}), answer="${answer}"`);
 
-  // GUARD: Block all deterministic PACK_* follow-ups in AI_PROBING mode
+  // CHANGED: AI_PROBING mode no longer blocks PACK-based follow-ups
+  // AI_PROBING only affects how clarifiers are generated INSIDE the pack
   if (effectiveMode === "AI_PROBING") {
-    console.log(`   🚫 AI_PROBING mode active - skipping all deterministic PACK_* follow-ups`);
-    return null;
+    console.log(`   [ENTITY_FOLLOWUP] AI_PROBING mode is ON, but PACK-based triggers are now allowed to run normally.`);
+    // IMPORTANT: DO NOT RETURN HERE ANYMORE.
   }
 
   // DEFENSIVE: Check exemption list (using code for backward compatibility)
@@ -2570,6 +2571,7 @@ export function checkFollowUpTrigger(engine, questionDbId, answer, effectiveMode
     
     const stepCount = PackStepsById[packId]?.length || 0;
     console.log(`   ✅ Follow-up triggered: ${packId} (${stepCount} deterministic steps${isV3Pack ? ', V3 probing will be used' : ''})`);
+    console.log(`   [ENTITY_FOLLOWUP] Scheduled pack follow-up`, { packId, questionCode, aiProbingMode: effectiveMode === "AI_PROBING" });
     if (substanceName) {
       console.log(`   💊 Substance detected: ${substanceName} - will inject into PACK_DRUG_USE prompts`);
     }
