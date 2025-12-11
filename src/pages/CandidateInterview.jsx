@@ -2105,8 +2105,9 @@ export default function CandidateInterview() {
           }
           
           // Advance to next section
+          const currentSection = sections[currentSectionIndex];
           const nextSection = sections[gateResult.nextSectionIndex];
-          const whatToExpect = WHAT_TO_EXPECT[nextSection.id] || 'important background information';
+          const whatToExpect = WHAT_TO_EXPECT[nextSection?.id] || 'important background information';
           
           setCompletedSectionsCount(prev => Math.max(prev, gateResult.nextSectionIndex));
           
@@ -2120,10 +2121,10 @@ export default function CandidateInterview() {
             timestamp: new Date().toISOString(),
             kind: 'section_completion',
             role: 'system',
-            completedSectionId: currentSection.id,
-            completedSectionName: currentSection.displayName,
-            nextSectionId: nextSection.id,
-            nextSectionName: nextSection.displayName,
+            completedSectionId: currentSection?.id,
+            completedSectionName: currentSection?.displayName,
+            nextSectionId: nextSection?.id,
+            nextSectionName: nextSection?.displayName,
             whatToExpect: whatToExpect,
             progress: {
               completedSections: gateResult.nextSectionIndex,
