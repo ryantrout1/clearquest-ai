@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Package, Edit, Trash, AlertTriangle } from "lucide-react";
+import { Package, Edit, Trash, AlertTriangle, Zap, FileJson, List } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +58,9 @@ export default function FollowUpPackDetails({
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
   const [isFactAnchorsExpanded, setIsFactAnchorsExpanded] = useState(false);
   const [isAuthorOpenerExpanded, setIsAuthorOpenerExpanded] = useState(false);
+  const [isFactModelExpanded, setIsFactModelExpanded] = useState(false);
+  const [isProbeSeqExpanded, setIsProbeSeqExpanded] = useState(false);
+  const [isSummaryTplExpanded, setIsSummaryTplExpanded] = useState(false);
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
@@ -127,6 +130,9 @@ export default function FollowUpPackDetails({
     setIsFieldsExpanded(false);
     setIsFactAnchorsExpanded(false);
     setIsAuthorOpenerExpanded(false);
+    setIsFactModelExpanded(false);
+    setIsProbeSeqExpanded(false);
+    setIsSummaryTplExpanded(false);
   }, [pack?.id]);
 
   if (!pack) {
@@ -278,89 +284,193 @@ export default function FollowUpPackDetails({
         )}
       </div>
 
-      {/* Display / Template Settings */}
-      <DisplayTemplateSettings
-        pack={pack}
-        isExpanded={isDisplaySettingsExpanded}
-        onToggleExpand={() => setIsDisplaySettingsExpanded(!isDisplaySettingsExpanded)}
-        onSave={handleSectionSave}
-      />
+      {/* ========== GROUP 1: V3 CORE BEHAVIOR ========== */}
+      <div className="border-t-2 border-blue-500/30 pt-4 mt-6">
+        <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5" />
+          V3 Core Behavior
+        </h2>
 
-      {/* Pack Configuration */}
-      <PackConfigurationSection
-        pack={pack}
-        isExpanded={isConfigExpanded}
-        onToggleExpand={() => setIsConfigExpanded(!isConfigExpanded)}
-        onSave={handleSectionSave}
-      />
+        {/* Pack Configuration */}
+        <PackConfigurationSection
+          pack={pack}
+          isExpanded={isConfigExpanded}
+          onToggleExpand={() => setIsConfigExpanded(!isConfigExpanded)}
+          onSave={handleSectionSave}
+        />
 
-      {/* Fact Anchors (AI Clarifiers) - V2 packs only */}
-      <FactAnchorsSection
-        pack={pack}
-        isExpanded={isFactAnchorsExpanded}
-        onToggleExpand={() => setIsFactAnchorsExpanded(!isFactAnchorsExpanded)}
-        onSave={handleSectionSave}
-      />
+        {/* Triggering Questions */}
+        <TriggeringQuestionsSection
+          triggeringQuestions={triggeringQuestions}
+          isExpanded={isTriggeringExpanded}
+          onToggleExpand={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
+        />
 
-      {/* Author-Controlled Opener - V2 packs only */}
-      <AuthorControlledOpenerSection
-        pack={pack}
-        isExpanded={isAuthorOpenerExpanded}
-        onToggleExpand={() => setIsAuthorOpenerExpanded(!isAuthorOpenerExpanded)}
-        onSave={handleSectionSave}
-      />
+        {/* V3 Fact Model */}
+        {pack.fact_model && (
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden mb-4">
+            <button
+              onClick={() => setIsFactModelExpanded(!isFactModelExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <FileJson className="w-5 h-5 text-blue-400" />
+                <div className="text-left">
+                  <h3 className="text-sm font-semibold text-white">Fact Model (V3)</h3>
+                  <p className="text-xs text-slate-400">Structured incident schema</p>
+                </div>
+              </div>
+              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">V3</Badge>
+            </button>
+            {isFactModelExpanded && (
+              <div className="px-4 pb-4 border-t border-slate-700">
+                <pre className="bg-slate-950 rounded p-3 text-xs text-slate-300 overflow-auto max-h-96 mt-3">
+                  {JSON.stringify(pack.fact_model, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* AI Probe Instructions */}
-      <AIInstructionsSection
-        pack={pack}
-        type="probe"
-        isExpanded={isProbeInstructionsExpanded}
-        onToggleExpand={() => setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
-        onSave={handleSectionSave}
-      />
+        {/* V3 Probe Sequence */}
+        {pack.probe_sequence && (
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden mb-4">
+            <button
+              onClick={() => setIsProbeSeqExpanded(!isProbeSeqExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <List className="w-5 h-5 text-blue-400" />
+                <div className="text-left">
+                  <h3 className="text-sm font-semibold text-white">Probe Sequence (V3)</h3>
+                  <p className="text-xs text-slate-400">{pack.probe_sequence.length} steps defined</p>
+                </div>
+              </div>
+              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">V3</Badge>
+            </button>
+            {isProbeSeqExpanded && (
+              <div className="px-4 pb-4 border-t border-slate-700">
+                <pre className="bg-slate-950 rounded p-3 text-xs text-slate-300 overflow-auto max-h-96 mt-3">
+                  {JSON.stringify(pack.probe_sequence, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* AI Investigator Summary Instructions */}
-      <AIInstructionsSection
-        pack={pack}
-        type="summary"
-        isExpanded={isSummaryInstructionsExpanded}
-        onToggleExpand={() => setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
-        onSave={handleSectionSave}
-      />
+        {/* V3 Summary Template */}
+        {pack.summary_template && (
+          <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden mb-4">
+            <button
+              onClick={() => setIsSummaryTplExpanded(!isSummaryTplExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <FileJson className="w-5 h-5 text-blue-400" />
+                <div className="text-left">
+                  <h3 className="text-sm font-semibold text-white">Summary Template (V3)</h3>
+                  <p className="text-xs text-slate-400">Investigator output format</p>
+                </div>
+              </div>
+              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">V3</Badge>
+            </button>
+            {isSummaryTplExpanded && (
+              <div className="px-4 pb-4 border-t border-slate-700">
+                <pre className="bg-slate-950 rounded p-3 text-xs text-slate-300 overflow-auto max-h-96 mt-3 whitespace-pre-wrap">
+                  {pack.summary_template}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Triggering Questions */}
-      <TriggeringQuestionsSection
-        triggeringQuestions={triggeringQuestions}
-        isExpanded={isTriggeringExpanded}
-        onToggleExpand={() => setIsTriggeringExpanded(!isTriggeringExpanded)}
-      />
+        {/* Follow-Up Fields (Structured Data) */}
+        <FollowUpFieldDesigner
+          pack={pack}
+          isExpanded={isFieldsExpanded}
+          onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
+          onSaveFields={async (updatedFields) => {
+            try {
+              const updatedPack = await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
+              onUpdate({ ...pack, field_config: updatedFields });
+              toast.success('Fields saved');
+              return true;
+            } catch (err) {
+              toast.error('Failed to save fields');
+              throw err;
+            }
+          }}
+        />
+      </div>
 
-      {/* Follow-Up Questions */}
-      <FollowUpQuestionsSection
-        pack={pack}
-        questions={questions}
-        isExpanded={isFollowupQuestionsExpanded}
-        onToggleExpand={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
-        onUpdate={onUpdate}
-      />
+      {/* ========== GROUP 2: TONE & OUTPUT FORMATTING ========== */}
+      <div className="border-t-2 border-purple-500/30 pt-4 mt-6">
+        <h2 className="text-lg font-bold text-purple-400 mb-4">Tone & Output Formatting</h2>
 
-      {/* Follow-Up Fields (Structured Data) */}
-      <FollowUpFieldDesigner
-        pack={pack}
-        isExpanded={isFieldsExpanded}
-        onToggleExpand={() => setIsFieldsExpanded(!isFieldsExpanded)}
-        onSaveFields={async (updatedFields) => {
-          try {
-            const updatedPack = await base44.entities.FollowUpPack.update(pack.id, { field_config: updatedFields });
-            onUpdate({ ...pack, field_config: updatedFields });
-            toast.success('Fields saved');
-            return true;
-          } catch (err) {
-            toast.error('Failed to save fields');
-            throw err;
-          }
-        }}
-      />
+        {/* Author-Controlled Opener */}
+        <AuthorControlledOpenerSection
+          pack={pack}
+          isExpanded={isAuthorOpenerExpanded}
+          onToggleExpand={() => setIsAuthorOpenerExpanded(!isAuthorOpenerExpanded)}
+          onSave={handleSectionSave}
+        />
+
+        {/* AI Probe Instructions */}
+        <div className="mb-4">
+          <AIInstructionsSection
+            pack={pack}
+            type="probe"
+            isExpanded={isProbeInstructionsExpanded}
+            onToggleExpand={() => setIsProbeInstructionsExpanded(!isProbeInstructionsExpanded)}
+            onSave={handleSectionSave}
+          />
+          <p className="text-xs text-slate-500 mt-1 ml-4">
+            Controls tone, guardrails, and style for AI probing. The V3 Probe Sequence defines the logic.
+          </p>
+        </div>
+
+        {/* AI Investigator Summary Instructions */}
+        <AIInstructionsSection
+          pack={pack}
+          type="summary"
+          isExpanded={isSummaryInstructionsExpanded}
+          onToggleExpand={() => setIsSummaryInstructionsExpanded(!isSummaryInstructionsExpanded)}
+          onSave={handleSectionSave}
+        />
+
+        {/* Display / Template Settings */}
+        <DisplayTemplateSettings
+          pack={pack}
+          isExpanded={isDisplaySettingsExpanded}
+          onToggleExpand={() => setIsDisplaySettingsExpanded(!isDisplaySettingsExpanded)}
+          onSave={handleSectionSave}
+        />
+      </div>
+
+      {/* ========== GROUP 3: LEGACY V2 SETTINGS ========== */}
+      <div className="border-t-2 border-amber-500/30 pt-4 mt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-lg font-bold text-amber-400">Legacy V2 Settings</h2>
+          <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">Transitional</Badge>
+        </div>
+
+        {/* Fact Anchors (V2 - Legacy Clarifiers) */}
+        <FactAnchorsSection
+          pack={pack}
+          isExpanded={isFactAnchorsExpanded}
+          onToggleExpand={() => setIsFactAnchorsExpanded(!isFactAnchorsExpanded)}
+          onSave={handleSectionSave}
+        />
+
+        {/* Follow-Up Questions (V2 - Legacy sequence) */}
+        <FollowUpQuestionsSection
+          pack={pack}
+          questions={questions}
+          isExpanded={isFollowupQuestionsExpanded}
+          onToggleExpand={() => setIsFollowupQuestionsExpanded(!isFollowupQuestionsExpanded)}
+          onUpdate={onUpdate}
+        />
+      </div>
 
       {/* Delete Confirmation Dialog - Step 1 */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
