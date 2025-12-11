@@ -35,6 +35,7 @@ import AIInstructionsSection from "./AIInstructionsSection";
 import TriggeringQuestionsSection from "./TriggeringQuestionsSection";
 import FollowUpQuestionsSection from "./FollowUpQuestionsSection";
 import FactAnchorsSection from "./FactAnchorsSection";
+import AuthorControlledOpenerSection from "./AuthorControlledOpenerSection";
 
 export default function FollowUpPackDetails({ 
   pack, 
@@ -56,6 +57,7 @@ export default function FollowUpPackDetails({
   const [isFollowupQuestionsExpanded, setIsFollowupQuestionsExpanded] = useState(false);
   const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
   const [isFactAnchorsExpanded, setIsFactAnchorsExpanded] = useState(false);
+  const [isAuthorOpenerExpanded, setIsAuthorOpenerExpanded] = useState(false);
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFinalDeleteConfirm, setShowFinalDeleteConfirm] = useState(false);
@@ -124,6 +126,7 @@ export default function FollowUpPackDetails({
     setIsFollowupQuestionsExpanded(false);
     setIsFieldsExpanded(false);
     setIsFactAnchorsExpanded(false);
+    setIsAuthorOpenerExpanded(false);
   }, [pack?.id]);
 
   if (!pack) {
@@ -296,6 +299,14 @@ export default function FollowUpPackDetails({
         pack={pack}
         isExpanded={isFactAnchorsExpanded}
         onToggleExpand={() => setIsFactAnchorsExpanded(!isFactAnchorsExpanded)}
+        onSave={handleSectionSave}
+      />
+
+      {/* Author-Controlled Opener - V2 packs only */}
+      <AuthorControlledOpenerSection
+        pack={pack}
+        isExpanded={isAuthorOpenerExpanded}
+        onToggleExpand={() => setIsAuthorOpenerExpanded(!isAuthorOpenerExpanded)}
         onSave={handleSectionSave}
       />
 

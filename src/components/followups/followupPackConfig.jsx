@@ -1863,6 +1863,12 @@ export function buildV2PackFromDbRow(dbPackRow) {
     behavior_type: dbPackRow.behavior_type || staticConfig.behavior_type || 'standard',
     requires_completion: dbPackRow.requires_completion ?? staticConfig.requiresCompletion ?? true,
     max_probe_loops: dbPackRow.max_probe_loops ?? staticConfig.max_probe_loops ?? null,
+
+    // Author-controlled opener settings (DB wins, static provides defaults)
+    use_author_defined_openers: dbPackRow.use_author_defined_openers ?? staticConfig.use_author_defined_openers ?? false,
+    opening_question_text: dbPackRow.opening_question_text || staticConfig.opening_question_text || null,
+    opening_example_narrative: dbPackRow.opening_example_narrative || staticConfig.opening_example_narrative || null,
+    probing_instruction_text: dbPackRow.probing_instruction_text || staticConfig.probing_instruction_text || null,
     
     // Metadata (preserve all)
     version: dbPackRow.version || 'v1',
