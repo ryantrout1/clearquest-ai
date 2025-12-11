@@ -29,12 +29,12 @@ export default function V3ProbingLoop({
   sectionId,
   instanceNumber,
   onComplete,
-  onTranscriptUpdate
+  onTranscriptUpdate,
+  onAnswer // NEW: callback to handle candidate answers via parent's global input
 }) {
   const [incidentId, setIncidentId] = useState(initialIncidentId);
   const [probeCount, setProbeCount] = useState(0);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
@@ -71,20 +71,29 @@ export default function V3ProbingLoop({
         timestamp: initialMessage.timestamp
       });
     }
+    
+    // Expose handleSubmit to parent via callback
+    if (onAnswer) {
+      onAnswer(handleSubmit);
+    }
   }, []);
+  
+  // Update parent's answer handler when it changes
+  useEffect(() => {
+    if (onAnswer) {
+      onAnswer(handleSubmit);
+    }
+  }, [handleSubmit, onAnswer]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-    const answer = input.trim();
+  const handleSubmit = async (answer) => {
     if (!answer || isLoading || isComplete) return;
 
     setIsLoading(true);
-    setInput("");
 
     // Add user message immediately
     const userMessage = {
@@ -269,6 +278,9 @@ export default function V3ProbingLoop({
         </div>
       )}
 
+      {/* Input area removed - uses global bottom bar */}
+      <div ref={messagesEndRef} />
+      
       {/* Continue button after completion */}
       {isComplete && (
         <div className="flex justify-center mt-4">
