@@ -824,7 +824,6 @@ export default function CandidateInterview() {
   // V3 Probing state
   const [v3ProbingActive, setV3ProbingActive] = useState(false);
   const [v3ProbingContext, setV3ProbingContext] = useState(null);
-  const v3AnswerHandlerRef = useRef(null); // Store V3's answer handler
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
   const [v3EnabledPacks, setV3EnabledPacks] = useState({});
   // V3 Debug mode
@@ -2210,17 +2209,13 @@ export default function CandidateInterview() {
                 incidentId: null // Will be created by decisionEngineV3
               });
               
-              // Clear currentItem so the question card doesn't show - V3 takes over
-              const v3Item = {
+              await persistStateToDatabase(newTranscript, [], {
                 id: `v3-probing-${packId}`,
                 type: 'v3_probing',
                 packId,
                 categoryId,
                 baseQuestionId: currentItem.id
-              };
-              
-              setCurrentItem(v3Item);
-              await persistStateToDatabase(newTranscript, [], v3Item);
+              });
               
               setIsCommitting(false);
               setInput("");
@@ -2509,17 +2504,13 @@ export default function CandidateInterview() {
                       incidentId: null // Will be created by decisionEngineV3
                     });
                     
-                    // Clear currentItem so the question card doesn't show - V3 takes over
-                    const v3Item = {
+                    await persistStateToDatabase(newTranscript, [], {
                       id: `v3-probing-${packId}`,
                       type: 'v3_probing',
                       packId,
                       categoryId,
                       baseQuestionId: currentItem.id
-                    };
-                    
-                    setCurrentItem(v3Item);
-                    await persistStateToDatabase(newTranscript, [], v3Item);
+                    });
                     
                     setIsCommitting(false);
                       setInput("");
@@ -3430,12 +3421,11 @@ export default function CandidateInterview() {
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
     if (!currentItem) return;
-    if (isCommitting || pendingSectionTransition) return;
+    if (isCommitting || v3ProbingActive || pendingSectionTransition) return;
     
     const isAnswerable = currentItem.type === 'question' || 
                          currentItem.type === 'v2_pack_field' || 
-                         currentItem.type === 'followup' ||
-                         currentItem.type === 'v3_probing';
+                         currentItem.type === 'followup';
     
     if (!isAnswerable) return;
     
@@ -3501,8 +3491,8 @@ export default function CandidateInterview() {
       });
     }
     
-    // V3 probing mode - no question card prompt, V3ProbingLoop handles conversation
-    if (v3ProbingActive || effectiveCurrentItem?.type === 'v3_probing') {
+    // V3 probing mode - no prompt, V3ProbingLoop handles it
+    if (v3ProbingActive) {
       return null;
     }
     
@@ -3714,10 +3704,10 @@ export default function CandidateInterview() {
 
   const currentPrompt = getCurrentPrompt();
 
-  // Treat v2_pack_field and v3_probing the same as a normal question for bottom-bar input
+  // Treat v2_pack_field the same as a normal question for bottom-bar input
   const isAnswerableItem = (item) => {
     if (!item) return false;
-    return item.type === "question" || item.type === "v2_pack_field" || item.type === "followup" || item.type === "v3_probing";
+    return item.type === "question" || item.type === "v2_pack_field" || item.type === "followup";
   };
 
   // Normalize bottom-bar mode flags
@@ -3732,7 +3722,7 @@ export default function CandidateInterview() {
                           (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no');
 
   // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
-  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe' || v3ProbingActive) && !isYesNoQuestion;
+  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -3750,7 +3740,7 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
-  // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
+  // Unified bottom bar submit handler for question, v2_pack_field, and followup
   const handleBottomBarSubmit = async () => {
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
       hasCurrentItem: !!currentItem,
@@ -3759,12 +3749,11 @@ export default function CandidateInterview() {
       packId: currentItem?.packId,
       fieldKey: currentItem?.fieldKey,
       instanceNumber: currentItem?.instanceNumber,
-      v3ProbingActive,
       inputSnapshot: input?.substring?.(0, 50) || input,
     });
 
-    if (!currentItem && !v3ProbingActive) {
-      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem and not in V3 mode – aborting submit");
+    if (!currentItem) {
+      console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
       return;
     }
 
@@ -3776,14 +3765,6 @@ export default function CandidateInterview() {
     const trimmed = (input ?? "").trim();
     if (!trimmed) {
       console.log("[BOTTOM_BAR_SUBMIT] blocked: empty input");
-      return;
-    }
-
-    // V3 probing mode - use V3's answer handler
-    if (v3ProbingActive && v3AnswerHandlerRef.current) {
-      console.log("[BOTTOM_BAR_SUBMIT] V3 mode - calling V3 answer handler");
-      await v3AnswerHandlerRef.current(trimmed);
-      setInput("");
       return;
     }
 
@@ -3999,19 +3980,18 @@ export default function CandidateInterview() {
               {entry.type === 'question' && entry.answer && (
                 <div className="space-y-3">
                   <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
                         Question {getQuestionDisplayNumber(entry.questionId)}
                       </span>
                       <span className="text-sm text-slate-500">•</span>
                       <span className="text-sm font-medium text-slate-300">{entry.category}</span>
                     </div>
-                    <p className="text-white text-base leading-relaxed mb-3">{entry.questionText}</p>
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-700/40">
-                      <span className="text-xs text-slate-400">Your answer:</span>
-                      <span className="inline-flex items-center px-3 py-1 bg-blue-600/30 border border-blue-500/40 rounded-md text-blue-200 text-sm font-medium">
-                        {entry.answer}
-                      </span>
+                    <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 rounded-xl px-5 py-3">
+                      <p className="text-white">{entry.answer}</p>
                     </div>
                   </div>
                 </div>
@@ -4120,7 +4100,6 @@ export default function CandidateInterview() {
             <V3ProbingLoop
               sessionId={sessionId}
               categoryId={v3ProbingContext.categoryId}
-              categoryLabel={FOLLOWUP_PACK_CONFIGS[v3ProbingContext.packId]?.instancesLabel || v3ProbingContext.categoryId}
               incidentId={v3ProbingContext.incidentId}
               baseQuestionId={v3ProbingContext.baseQuestionId}
               questionCode={v3ProbingContext.questionCode}
@@ -4128,7 +4107,6 @@ export default function CandidateInterview() {
               instanceNumber={v3ProbingContext.instanceNumber}
               onComplete={handleV3ProbingComplete}
               onTranscriptUpdate={handleV3TranscriptUpdate}
-              onAnswer={(handler) => { v3AnswerHandlerRef.current = handler; }}
             />
           )}
           
@@ -4148,7 +4126,7 @@ export default function CandidateInterview() {
                 {isV2PackField || currentPrompt.type === 'ai_probe' ? (
                   <>
                     <span className="text-base font-semibold text-purple-400">
-                      AI Follow-up
+                      Follow-up of
                     </span>
                     <span className="text-sm text-slate-500">•</span>
                     <span className="text-sm font-medium text-purple-400">
@@ -4231,9 +4209,9 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : v3ProbingActive || currentItem?.type === 'v3_probing' ? (
-                <p className="text-xs text-purple-400 text-center">
-                  Respond to the AI follow-up above using the text input
+          ) : v3ProbingActive ? (
+                <p className="text-xs text-emerald-400 text-center">
+                  Please respond to the AI follow-up questions above.
                 </p>
               ) : isYesNoQuestion && !isV2PackField ? (
             <div className="flex gap-3">

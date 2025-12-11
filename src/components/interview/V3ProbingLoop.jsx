@@ -29,12 +29,12 @@ export default function V3ProbingLoop({
   sectionId,
   instanceNumber,
   onComplete,
-  onTranscriptUpdate,
-  onAnswer // NEW: callback to handle candidate answers via parent's global input
+  onTranscriptUpdate
 }) {
   const [incidentId, setIncidentId] = useState(initialIncidentId);
   const [probeCount, setProbeCount] = useState(0);
   const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
@@ -71,29 +71,20 @@ export default function V3ProbingLoop({
         timestamp: initialMessage.timestamp
       });
     }
-    
-    // Expose handleSubmit to parent via callback
-    if (onAnswer) {
-      onAnswer(handleSubmit);
-    }
   }, []);
-  
-  // Update parent's answer handler when it changes
-  useEffect(() => {
-    if (onAnswer) {
-      onAnswer(handleSubmit);
-    }
-  }, [handleSubmit, onAnswer]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (answer) => {
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
+    const answer = input.trim();
     if (!answer || isLoading || isComplete) return;
 
     setIsLoading(true);
+    setInput("");
 
     // Add user message immediately
     const userMessage = {
@@ -278,9 +269,46 @@ export default function V3ProbingLoop({
         </div>
       )}
 
-      {/* Input area removed - uses global bottom bar */}
+      {isLoading && (
+        <div className="ml-4">
+          <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+              <span className="text-sm text-slate-300">Thinking...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div ref={messagesEndRef} />
-      
+
+      {/* Input Form - shown inline unless complete */}
+      {!isComplete && (
+        <div className="mt-4">
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your response..."
+              className="flex-1 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400"
+              disabled={isLoading}
+              autoFocus
+            />
+            <Button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
+          </form>
+        </div>
+      )}
+
       {/* Continue button after completion */}
       {isComplete && (
         <div className="flex justify-center mt-4">
