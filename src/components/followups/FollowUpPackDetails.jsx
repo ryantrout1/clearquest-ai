@@ -318,16 +318,15 @@ export default function FollowUpPackDetails({
             <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden shadow-sm">
               <button
                 onClick={() => setIsProbeSeqExpanded(!isProbeSeqExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <List className="w-5 h-5 text-slate-400" />
-                  <div className="text-left">
-                    <h3 className="text-sm font-semibold text-white">Probe Sequence (V3)</h3>
-                    <p className="text-xs text-slate-400">{pack.probe_sequence.length} steps defined</p>
-                  </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${isProbeSeqExpanded ? 'rotate-180' : ''}`} />
+                <List className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                <div className="flex-1 text-left">
+                  <h3 className="text-sm font-semibold text-white">Probe Sequence (V3)</h3>
+                  <p className="text-xs text-slate-400">{pack.probe_sequence.length} steps defined</p>
                 </div>
-                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">V3</Badge>
+                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs flex-shrink-0">V3</Badge>
               </button>
               {isProbeSeqExpanded && (
                 <div className="px-4 pb-4 border-t border-slate-700">
@@ -344,16 +343,15 @@ export default function FollowUpPackDetails({
             <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden shadow-sm">
               <button
                 onClick={() => setIsSummaryTplExpanded(!isSummaryTplExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <FileJson className="w-5 h-5 text-slate-400" />
-                  <div className="text-left">
-                    <h3 className="text-sm font-semibold text-white">Summary Template (V3)</h3>
-                    <p className="text-xs text-slate-400">Investigator output format</p>
-                  </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${isSummaryTplExpanded ? 'rotate-180' : ''}`} />
+                <FileJson className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                <div className="flex-1 text-left">
+                  <h3 className="text-sm font-semibold text-white">Summary Template (V3)</h3>
+                  <p className="text-xs text-slate-400">Investigator output format</p>
                 </div>
-                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">V3</Badge>
+                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs flex-shrink-0">V3</Badge>
               </button>
               {isSummaryTplExpanded && (
                 <div className="px-4 pb-4 border-t border-slate-700">
@@ -370,16 +368,15 @@ export default function FollowUpPackDetails({
             <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden shadow-sm">
               <button
                 onClick={() => setIsFactModelExpanded(!isFactModelExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <FileJson className="w-5 h-5 text-slate-400" />
-                  <div className="text-left">
-                    <h3 className="text-sm font-semibold text-white">Fact Model (V3)</h3>
-                    <p className="text-xs text-slate-400">Structured incident schema</p>
-                  </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 flex-shrink-0 transition-transform ${isFactModelExpanded ? 'rotate-180' : ''}`} />
+                <FileJson className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                <div className="flex-1 text-left">
+                  <h3 className="text-sm font-semibold text-white">Fact Model (V3)</h3>
+                  <p className="text-xs text-slate-400">Structured incident schema</p>
                 </div>
-                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">V3</Badge>
+                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs flex-shrink-0">V3</Badge>
               </button>
               {isFactModelExpanded && (
                 <div className="px-4 pb-4 border-t border-slate-700">
