@@ -2180,11 +2180,44 @@ export default function CandidateInterview() {
                 probeSource: initialCallResult?.probeSource
               });
               
+              // CRITICAL FIX: When backend returns mode='QUESTION', immediately transition to v2_pack_field
+              // This ensures the UI shows the pack question instead of repeating the base question
+              if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question) {
+                console.log('[V2_PACK][IMMEDIATE_TRANSITION] Backend returned QUESTION - showing pack field immediately');
+                
+                // Get backend question text (already stored by callProbeEngineV2PerField)
+                const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1) 
+                  || initialCallResult.questionText 
+                  || initialCallResult.question;
+                
+                // Immediately set currentItem to v2_pack_field to show the pack question
+                const firstPackItem = {
+                  id: `v2pack-${packId}-0`,
+                  type: 'v2_pack_field',
+                  packId: packId,
+                  fieldIndex: 0,
+                  fieldKey: firstField.fieldKey,
+                  fieldConfig: firstField,
+                  baseQuestionId: currentItem.id,
+                  instanceNumber: 1,
+                  backendQuestionText: backendQuestionTextForFirst
+                };
+                
+                setCurrentItem(firstPackItem);
+                setQueue([]);
+                
+                await persistStateToDatabase(newTranscript, [], firstPackItem);
+                setIsCommitting(false);
+                setInput("");
+                return;
+              }
+              
+              // Legacy opening logic (for packs without QUESTION response)
               // Detect fixed narrative opening
               const isFixedNarrativeOpening = 
                 effectiveOpeningStrategy === 'fixed_narrative' &&
                 isOpeningField &&
-                (initialCallResult?.probeSource === 'fixed_narrative_opening' || initialCallResult?.mode === 'QUESTION');
+                initialCallResult?.probeSource === 'fixed_narrative_opening';
               
               if (isFixedNarrativeOpening) {
                 console.log('[V2_PACK][OPENING_FIXED_NARRATIVE]', {
@@ -2254,18 +2287,8 @@ export default function CandidateInterview() {
                   packId: packId,
                   fieldIndex: 0
                 });
-              }
-              
-              // Decide whether to show AI opening bubble
-              const shouldShowAiOpening =
-                (effectiveOpeningStrategy === 'ai_narrative' || effectiveOpeningStrategy === 'none') &&
-                initialCallResult?.mode === 'QUESTION' &&
-                initialCallResult.question &&
-                initialCallResult?.probeSource !== 'fixed_narrative_opening' &&
-                !isFixedNarrativeOpening;
-              
-              if (!shouldShowAiOpening) {
-                // No AI opening OR fixed narrative opening - go directly to first field
+              } else {
+                // No special opening - go directly to first field
                 // STEP 2: Include backend question text in currentItem
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
                 
