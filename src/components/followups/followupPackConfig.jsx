@@ -1167,6 +1167,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
   // - field_config: 14 structured fields (first = narrative, then critical facts, then context)
   // Future V2 upgrades should follow this pattern.
   // Q004 (cheating on testing) triggers this workplace integrity pack
+  // AUTHOR-CONTROLLED OPENER: Enabled for this pack
   "PACK_WORKPLACE_STANDARD": {
     packId: "PACK_WORKPLACE_STANDARD",
     supportedBaseQuestions: ["Q004", "Q127", "Q128", "Q129", "Q130", "Q136", "Q137", "Q138", "Q163", "Q203"],
@@ -1174,6 +1175,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
     packDescription: "Please describe this workplace integrity or misconduct incident in your own words.",
     multiInstanceDescription: "Please describe this workplace integrity or misconduct incident in your own words.",
     maxAiFollowups: 4,
+    use_author_defined_openers: true,
+    opening_question_text: "In your own words, walk me through the workplace integrity or misconduct incident we're talking about — what happened, which employer or setting was involved, when it took place, and how it ended. Please include as much detail as you can.",
+    opening_example_narrative: "In 2021, while working at a logistics company, I edited my timecard to show two extra hours that I didn't actually work. My supervisor noticed a discrepancy during payroll review, met with me, and I admitted what I had done. I was written up for falsifying time records and told that another incident could result in termination.",
+    probing_instruction_text: "This pack collects facts about workplace integrity and misconduct incidents. Focus on extracting: (1) employer name or organization, (2) role/position at the time, (3) date of the incident (month/year), (4) type of misconduct (cheating, falsification, policy violation, etc.), and (5) final outcome (discipline, termination, resignation). Ask follow-up questions ONLY when one of these core facts is missing or unclear.",
     openingStrategy: "fixed_narrative",
     openingFieldKey: "PACK_WORKPLACE_Q01",
     openingLabelOverride: "In your own words, walk me through the workplace integrity or misconduct incident we're talking about — what happened, which employer or setting was involved, when it took place, and how it ended. Please include as much detail as you can.",
