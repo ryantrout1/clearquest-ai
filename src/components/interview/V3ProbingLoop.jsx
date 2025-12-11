@@ -25,6 +25,9 @@ export default function V3ProbingLoop({
   categoryLabel,
   incidentId: initialIncidentId,
   baseQuestionId,
+  questionCode,
+  sectionId,
+  instanceNumber,
   onComplete,
   onTranscriptUpdate
 }) {
@@ -112,7 +115,11 @@ export default function V3ProbingLoop({
         sessionId,
         categoryId,
         incidentId,
-        latestAnswerText: answer
+        latestAnswerText: answer,
+        baseQuestionId: baseQuestionId || null,
+        questionCode: questionCode || null,
+        sectionId: sectionId || null,
+        instanceNumber: instanceNumber || 1
       });
 
       const data = result.data || result;

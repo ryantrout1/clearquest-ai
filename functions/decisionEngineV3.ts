@@ -343,10 +343,14 @@ async function decisionEngineV3Probe(base44, {
   categoryId,
   incidentId,
   latestAnswerText,
+  baseQuestionId,
+  questionCode,
+  sectionId,
+  instanceNumber,
   config = {}
 }) {
   console.log("[IDE-V3] decisionEngineV3Probe called", { 
-    sessionId, categoryId, incidentId, 
+    sessionId, categoryId, incidentId, baseQuestionId, questionCode, sectionId, instanceNumber,
     answerLength: latestAnswerText?.length 
   });
   
@@ -394,25 +398,47 @@ async function decisionEngineV3Probe(base44, {
     };
   }
   
-  // Find or create incident
+  // Find or create incident - SCOPED by (sectionId, questionId, instanceNumber)
   let incidents = [...(session.incidents || [])];
   let incident = null;
   let isNewIncident = false;
   
   if (incidentId) {
+    // Look up by explicit incident ID
     incident = incidents.find(inc => inc.incident_id === incidentId);
+  } else if (baseQuestionId && sectionId) {
+    // Find existing incident for this (section, question, instance) tuple
+    const effectiveInstance = instanceNumber || 1;
+    incident = incidents.find(inc => 
+      inc.question_id === baseQuestionId && 
+      inc.category_id === categoryId &&
+      inc.instance_number === effectiveInstance
+    );
+    
+    if (incident) {
+      incidentId = incident.incident_id;
+      console.log("[IDE-V3] Found existing incident by (questionId, categoryId, instance)", {
+        incidentId,
+        baseQuestionId,
+        categoryId,
+        instanceNumber: effectiveInstance
+      });
+    }
   }
   
   if (!incident) {
-    // Create new V3 incident
-    const newIncidentId = `v3_${categoryId}_${factModel.incident_type || 'incident'}_${Date.now()}`;
+    // Create new V3 incident with unique scoping
+    const effectiveInstance = instanceNumber || 1;
+    const timestamp = Date.now();
+    const newIncidentId = `v3_${categoryId}_q${baseQuestionId || 'unknown'}_i${effectiveInstance}_${timestamp}`;
+    
     incident = {
       incident_id: newIncidentId,
       category_id: categoryId,
       incident_type: factModel.incident_type || null,
-      question_code: null,
-      question_id: null,
-      instance_number: 1,
+      question_code: questionCode || null,
+      question_id: baseQuestionId || null,
+      instance_number: effectiveInstance,
       facts: {},
       narrative_summary: null,
       risk_score: null,
@@ -430,6 +456,15 @@ async function decisionEngineV3Probe(base44, {
     incidents.push(incident);
     incidentId = newIncidentId;
     isNewIncident = true;
+    
+    console.log("[IDE-V3] Created new incident", {
+      incidentId: newIncidentId,
+      baseQuestionId,
+      questionCode,
+      sectionId,
+      categoryId,
+      instanceNumber: effectiveInstance
+    });
   }
   
   // Initialize/get V3 fact_state
@@ -599,7 +634,7 @@ Deno.serve(async (req) => {
       });
     }
     
-    const { sessionId, categoryId, incidentId, latestAnswerText, config } = body;
+    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, config } = body;
     
     if (!sessionId || !categoryId) {
       return Response.json({ 
@@ -612,6 +647,10 @@ Deno.serve(async (req) => {
       categoryId,
       incidentId: incidentId || null,
       latestAnswerText: latestAnswerText || "",
+      baseQuestionId: baseQuestionId || null,
+      questionCode: questionCode || null,
+      sectionId: sectionId || null,
+      instanceNumber: instanceNumber || 1,
       config: config || {}
     });
     

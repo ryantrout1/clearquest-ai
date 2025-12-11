@@ -2445,6 +2445,8 @@ export default function CandidateInterview() {
                       categoryId,
                       baseQuestionId: currentItem.id,
                       questionCode: question.question_id,
+                      sectionId: question.section_id,
+                      instanceNumber: 1,
                       incidentId: null // Will be created by decisionEngineV3
                     });
                     
@@ -4046,6 +4048,9 @@ export default function CandidateInterview() {
               categoryId={v3ProbingContext.categoryId}
               incidentId={v3ProbingContext.incidentId}
               baseQuestionId={v3ProbingContext.baseQuestionId}
+              questionCode={v3ProbingContext.questionCode}
+              sectionId={v3ProbingContext.sectionId}
+              instanceNumber={v3ProbingContext.instanceNumber}
               onComplete={handleV3ProbingComplete}
               onTranscriptUpdate={handleV3TranscriptUpdate}
             />
