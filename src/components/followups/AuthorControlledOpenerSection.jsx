@@ -27,8 +27,12 @@ export default function AuthorControlledOpenerSection({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Determine if this is a V2 pack
-  const isV2Pack = pack?.ide_version === 'V2' || pack?.is_standard_cluster === true;
+  // Determine if this is a V2 pack - check multiple indicators
+  const isV2Pack = 
+    pack?.ide_version === 'V2' || 
+    pack?.is_standard_cluster === true ||
+    pack?.fact_anchors?.length > 0 ||
+    pack?.field_config?.length > 0;
 
   // Load data from pack
   useEffect(() => {
