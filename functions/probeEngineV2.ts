@@ -4536,7 +4536,7 @@ async function handlePriorLeAppsPerFieldV2(params) {
   
 
   
-  // Q01 narrative field - extract anchors and advance
+  // Q01 narrative field - extract anchors and check if clarifier is needed
   if (fieldKey === "PACK_PRLE_Q01" && fieldValue && fieldValue.trim()) {
     console.log("[PRIOR_LE_APPS_HANDLER][Q01_NARRATIVE] Extracting anchors from narrative");
     
@@ -4552,11 +4552,68 @@ async function handlePriorLeAppsPerFieldV2(params) {
       prior_le_approx_date: anchors.prior_le_approx_date || '(none)'
     });
     
+    // CRITICAL: Check if we have the 3 core anchors (agency, position, date)
+    // Only ask clarifier if one or more is missing or equals "unknown"
+    const hasAgency = anchors.prior_le_agency && anchors.prior_le_agency !== "unknown";
+    const hasPosition = anchors.prior_le_position && anchors.prior_le_position !== "unknown";
+    const hasDate = anchors.prior_le_approx_date && anchors.prior_le_approx_date !== "unknown";
+    const hasCoreAnchors = hasAgency && hasPosition && hasDate;
+    
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_CORE_ANCHORS_CHECK]", {
+      hasAgency,
+      hasPosition,
+      hasDate,
+      hasCoreAnchors,
+      agency: anchors.prior_le_agency,
+      position: anchors.prior_le_position,
+      date: anchors.prior_le_approx_date
+    });
+    
+    if (hasCoreAnchors) {
+      // All 3 core anchors present - NO clarifier needed
+      console.log("[PRIOR_LE_APPS_HANDLER][Q01_SKIP_CLARIFIER] All core anchors present - advancing to next field");
+      
+      return createV2ProbeResult({
+        mode: "NEXT_FIELD",
+        hasQuestion: false,
+        followupsCount: 0,
+        reason: "Q01 narrative contains agency, position, and date - no clarifier needed",
+        anchors,
+        collectedAnchors: anchors
+      });
+    }
+    
+    // One or more core anchors missing - ask clarifier if this is first probe
+    if (probeCount === 0) {
+      console.log("[PRIOR_LE_APPS_HANDLER][Q01_CLARIFIER_NEEDED]", {
+        reason: "Missing core anchors",
+        hasAgency,
+        hasPosition,
+        hasDate
+      });
+      
+      const clarifierQuestion = "For this application, what was the name of the law enforcement agency you applied for, and about what month and year did you apply?";
+      
+      return createV2ProbeResult({
+        mode: "QUESTION",
+        hasQuestion: true,
+        followupsCount: 1,
+        question: clarifierQuestion,
+        questionText: clarifierQuestion,
+        reason: "Narrative missing agency, position, or date",
+        anchors,
+        collectedAnchors: anchors
+      });
+    }
+    
+    // Already probed once - accept what we have
+    console.log("[PRIOR_LE_APPS_HANDLER][Q01_ACCEPT_AFTER_PROBE] Accepting after clarifier attempt");
+    
     return createV2ProbeResult({
       mode: "NEXT_FIELD",
       hasQuestion: false,
       followupsCount: 0,
-      reason: "Q01 narrative validated - anchors extracted",
+      reason: "Q01 accepted after clarifier probe",
       anchors,
       collectedAnchors: anchors
     });
