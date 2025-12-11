@@ -1401,29 +1401,41 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                   <SelectContent className="max-h-96 bg-slate-900 border-slate-700">
                     <SelectItem value={null} className="text-slate-300 hover:bg-slate-800">None</SelectItem>
                     {(() => {
+                      // Defensive: ensure followUpPacks is an array
+                      const allPacks = Array.isArray(followUpPacks) ? followUpPacks : [];
+                      
+                      if (allPacks.length === 0) {
+                        return (
+                          <div className="px-3 py-2 text-xs text-slate-500">
+                            No follow-up packs available
+                          </div>
+                        );
+                      }
+
                       // Check if a pack is V2
                       const isV2Pack = (pack) => {
+                        if (!pack) return false;
                         return pack.ide_version === 'V2' || 
                                pack.is_standard_cluster === true ||
-                               (pack.fact_anchors && pack.fact_anchors.length > 0) ||
-                               (pack.field_config && pack.field_config.length > 0);
+                               (Array.isArray(pack.fact_anchors) && pack.fact_anchors.length > 0) ||
+                               (Array.isArray(pack.field_config) && pack.field_config.length > 0);
                       };
 
                       // Filter to V2 + active packs only
-                      const v2ActivePacks = followUpPacks.filter(p => 
-                        isV2Pack(p) && p.active !== false
+                      const v2ActivePacks = allPacks.filter(p => 
+                        p && isV2Pack(p) && p.active !== false
                       );
 
                       // Check if current selection is legacy/inactive
                       const currentPackId = formData.followup_pack;
-                      const currentPack = followUpPacks.find(p => p.followup_pack_id === currentPackId);
-                      const isCurrentLegacy = currentPack && !v2ActivePacks.some(p => p.followup_pack_id === currentPack.followup_pack_id);
+                      const currentPack = currentPackId ? allPacks.find(p => p && p.followup_pack_id === currentPackId) : null;
+                      const isCurrentLegacy = currentPack && !v2ActivePacks.some(p => p && p.followup_pack_id === currentPack.followup_pack_id);
 
                       // Build options list
                       let options = [...v2ActivePacks];
 
                       // Preserve legacy/inactive pack if currently selected
-                      if (isCurrentLegacy) {
+                      if (isCurrentLegacy && currentPack) {
                         console.debug('[FOLLOWUP PACK SELECTOR] Question is wired to legacy pack', currentPack.followup_pack_id);
                         options = [currentPack, ...options];
                       }
@@ -1432,11 +1444,19 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                       const uniquePacks = [];
                       const seenIds = new Set();
                       options.forEach(pack => {
-                        if (!seenIds.has(pack.followup_pack_id)) {
+                        if (pack && pack.followup_pack_id && !seenIds.has(pack.followup_pack_id)) {
                           seenIds.add(pack.followup_pack_id);
                           uniquePacks.push(pack);
                         }
                       });
+
+                      if (uniquePacks.length === 0) {
+                        return (
+                          <div className="px-3 py-2 text-xs text-slate-500">
+                            No V2 packs available
+                          </div>
+                        );
+                      }
 
                       // Group active packs by category_id
                       const groupedActivePacks = {};
@@ -1453,7 +1473,7 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
 
                       return sortedGroups.map(groupName => {
                         const isDefaultGroup = defaultPackGroup === groupName;
-                        const packsInGroup = groupedActivePacks[groupName];
+                        const packsInGroup = groupedActivePacks[groupName] || [];
 
                         return (
                           <div key={groupName}>

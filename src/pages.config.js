@@ -3,13 +3,13 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
+import CandidateInterview from './pages/CandidateInterview';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
 import EditDepartment from './pages/EditDepartment';
 import FactModelAdmin from './pages/FactModelAdmin';
-import FollowUpPackAuditV2 from './pages/FollowUpPackAuditV2';
 import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
 import FollowupPackManager from './pages/FollowupPackManager';
@@ -26,6 +26,7 @@ import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
+import FollowUpPackAuditV2 from './pages/FollowUpPackAuditV2';
 import __Layout from './Layout.jsx';
 
 
@@ -35,13 +36,13 @@ export const PAGES = {
     "AdminLogin": AdminLogin,
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
+    "CandidateInterview": CandidateInterview,
     "CandidateInterview.backup": candidateinterviewBackup,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,
     "EditDepartment": EditDepartment,
     "FactModelAdmin": FactModelAdmin,
-    "FollowUpPackAuditV2": FollowUpPackAuditV2,
     "FollowUpPackManagerV2": FollowUpPackManagerV2,
     "FollowUpPackQuickAssign": FollowUpPackQuickAssign,
     "FollowupPackManager": FollowupPackManager,
@@ -58,6 +59,7 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
+    "FollowUpPackAuditV2": FollowUpPackAuditV2,
 }
 
 export const pagesConfig = {
