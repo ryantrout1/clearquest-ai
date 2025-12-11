@@ -2783,7 +2783,12 @@ function validateEngineConfigurationInternal(MatrixYesByQ, PackStepsById, QById)
   Object.keys(PackStepsById).forEach(packId => {
     const steps = PackStepsById[packId];
     if (!steps || steps.length === 0) {
-      errors.push(`Pack ${packId} has no steps defined.`);
+      // V3 packs don't use deterministic steps - skip warning for V3
+      const isV3Pack = steps?._isV3 === true;
+      
+      if (!isV3Pack) {
+        errors.push(`Pack ${packId} has no steps defined.`);
+      }
     }
   });
   
