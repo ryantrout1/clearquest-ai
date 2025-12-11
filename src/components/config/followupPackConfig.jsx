@@ -28,31 +28,7 @@ export const FOLLOWUP_PACK_CONFIG = {
     },
   },
   
-  //
-  // 🔍 PACK: Application Integrity Issues
-  //
-  PACK_INTEGRITY_APPS: {
-    displayName: "Application Integrity Issue",
-    pills: ["Integrity", "Disclosure", "Omissions"],
-    fields: {
-      agency_name: { label: "Agency Name" },
-      incident_date: { label: "Application Date (Month/Year)" },
-      issue_type: { label: "Type of Issue" },
-      what_omitted: { label: "What Was Omitted/Falsified" },
-      reason_omitted: { label: "Why It Was Omitted" },
-      discovery_method: { label: "How Discovered" },
-      consequences: { label: "Consequences" },
-      corrected: { label: "Has Been Corrected" },
-      // Legacy question mappings
-      PACK_INTEGRITY_APPS_Q01: { label: "Agency" },
-      PACK_INTEGRITY_APPS_Q02: { label: "Application Date" },
-      PACK_INTEGRITY_APPS_Q03: { label: "What Was Omitted" },
-      PACK_INTEGRITY_APPS_Q04: { label: "Reason" },
-      PACK_INTEGRITY_APPS_Q05: { label: "How Discovered" },
-      PACK_INTEGRITY_APPS_Q06: { label: "Consequences" },
-      PACK_INTEGRITY_APPS_Q07: { label: "Corrected" },
-    },
-  },
+
   
   //
   // ⚠️ PACK: Prior Law Enforcement Misconduct
