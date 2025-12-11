@@ -147,19 +147,22 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
   const [currentSectionEntity, setCurrentSectionEntity] = useState(null);
   const [currentCategoryEntity, setCurrentCategoryEntity] = useState(null);
   const [defaultPackGroup, setDefaultPackGroup] = useState(null);
+  const [followUpPacks, setFollowUpPacks] = useState([]);
 
   useEffect(() => {
     async function loadSections() {
       try {
-        const [secs, cats] = await Promise.all([
+        const [secs, cats, packs] = await Promise.all([
           base44.entities.Section.list(),
-          base44.entities.Category.list()
+          base44.entities.Category.list(),
+          base44.entities.FollowUpPack.list()
         ]);
         const sortedSecs = secs
           .filter(s => s.active !== false)
           .sort((a, b) => (a.section_order || 0) - (b.section_order || 0));
         setSections(sortedSecs);
         setCategories(cats);
+        setFollowUpPacks(packs);
       } catch (err) {
         console.error('Error loading sections:', err);
         toast.error('Failed to load sections');
@@ -420,36 +423,88 @@ export default function QuestionEditModal({ question, onClose, onSave }) {
                 <SelectItem value={null} className="text-slate-300 hover:bg-slate-800 focus:bg-slate-800">
                   <span className="font-medium">None</span>
                 </SelectItem>
-                {Object.entries(GROUPED_PACKS).map(([groupName, packs]) => {
-                  const isDefaultGroup = defaultPackGroup === groupName;
-                  return (
-                    <React.Fragment key={groupName}>
-                      <div 
-                        id={`group-${groupName.replace(/\s+/g, '-')}`}
-                        className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 z-10 ${
-                          isDefaultGroup ? 'text-green-400' : 'text-blue-400'
-                        }`}
-                      >
-                        {groupName}
-                        {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
-                      </div>
-                      {packs.map(pack => (
-                        <SelectItem
-                          key={pack}
-                          value={pack}
-                          className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
-                        >
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium text-white">
-                              {FOLLOWUP_PACK_NAMES[pack] || pack}
-                            </span>
-                            <span className="text-xs text-slate-500 font-mono">{pack}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </React.Fragment>
+                {(() => {
+                  // Check if a pack is V2
+                  const isV2Pack = (pack) => {
+                    return pack.ide_version === 'V2' || 
+                           pack.is_standard_cluster === true ||
+                           (pack.fact_anchors && pack.fact_anchors.length > 0) ||
+                           (pack.field_config && pack.field_config.length > 0);
+                  };
+
+                  // Filter to V2 + active packs only
+                  const v2ActivePacks = followUpPacks.filter(p => 
+                    isV2Pack(p) && p.active !== false
                   );
-                })}
+
+                  // Check if current selection is legacy/inactive
+                  const currentPackId = formData.followup_pack;
+                  const currentPack = followUpPacks.find(p => p.followup_pack_id === currentPackId);
+                  const isCurrentLegacy = currentPack && !v2ActivePacks.some(p => p.followup_pack_id === currentPack.followup_pack_id);
+
+                  // Build options list
+                  let options = [...v2ActivePacks];
+
+                  // Preserve legacy/inactive pack if currently selected
+                  if (isCurrentLegacy) {
+                    console.debug('[FOLLOWUP PACK SELECTOR] Question is wired to legacy pack', currentPack.followup_pack_id);
+                    options = [currentPack, ...options];
+                  }
+
+                  // Deduplicate by followup_pack_id
+                  const uniqueOptions = [];
+                  const seenIds = new Set();
+                  options.forEach(pack => {
+                    if (!seenIds.has(pack.followup_pack_id)) {
+                      seenIds.add(pack.followup_pack_id);
+                      uniqueOptions.push(pack);
+                    }
+                  });
+
+                  // Group by category
+                  const grouped = {};
+                  uniqueOptions.forEach(pack => {
+                    const category = pack.category_id || 'Other';
+                    if (!grouped[category]) grouped[category] = [];
+                    grouped[category].push(pack);
+                  });
+
+                  const sortedGroups = Object.keys(grouped).sort();
+
+                  return sortedGroups.map(groupName => {
+                    const isDefaultGroup = defaultPackGroup === groupName;
+                    return (
+                      <React.Fragment key={groupName}>
+                        <div 
+                          className={`px-3 py-2 text-xs font-bold bg-slate-950 border-b border-slate-800 sticky top-0 z-10 ${
+                            isDefaultGroup ? 'text-green-400' : 'text-blue-400'
+                          }`}
+                        >
+                          {groupName}
+                          {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
+                        </div>
+                        {grouped[groupName].map(pack => {
+                          const isLegacy = pack.followup_pack_id === currentPackId && isCurrentLegacy;
+                          return (
+                            <SelectItem
+                              key={pack.id}
+                              value={pack.followup_pack_id}
+                              className="pl-8 py-2.5 text-slate-200 hover:bg-slate-800/70 focus:bg-slate-800 cursor-pointer"
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-white">
+                                  {pack.pack_name || pack.followup_pack_id}
+                                  {isLegacy && <span className="ml-2 text-xs text-yellow-400">(legacy)</span>}
+                                </span>
+                                <span className="text-xs text-slate-500 font-mono">{pack.followup_pack_id}</span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </SelectContent>
             </Select>
             {formData.followup_pack && (

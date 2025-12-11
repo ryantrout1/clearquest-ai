@@ -1401,15 +1401,37 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                   <SelectContent className="max-h-96 bg-slate-900 border-slate-700">
                     <SelectItem value={null} className="text-slate-300 hover:bg-slate-800">None</SelectItem>
                     {(() => {
-                      // Only show packs that exist in the database and are active
-                      const activePacks = followUpPacks
-                        .filter(p => p.active !== false)
-                        .sort((a, b) => (a.pack_name || '').localeCompare(b.pack_name || ''));
+                      // Check if a pack is V2
+                      const isV2Pack = (pack) => {
+                        return pack.ide_version === 'V2' || 
+                               pack.is_standard_cluster === true ||
+                               (pack.fact_anchors && pack.fact_anchors.length > 0) ||
+                               (pack.field_config && pack.field_config.length > 0);
+                      };
+
+                      // Filter to V2 + active packs only
+                      const v2ActivePacks = followUpPacks.filter(p => 
+                        isV2Pack(p) && p.active !== false
+                      );
+
+                      // Check if current selection is legacy/inactive
+                      const currentPackId = formData.followup_pack;
+                      const currentPack = followUpPacks.find(p => p.followup_pack_id === currentPackId);
+                      const isCurrentLegacy = currentPack && !v2ActivePacks.some(p => p.followup_pack_id === currentPack.followup_pack_id);
+
+                      // Build options list
+                      let options = [...v2ActivePacks];
+
+                      // Preserve legacy/inactive pack if currently selected
+                      if (isCurrentLegacy) {
+                        console.debug('[FOLLOWUP PACK SELECTOR] Question is wired to legacy pack', currentPack.followup_pack_id);
+                        options = [currentPack, ...options];
+                      }
 
                       // Deduplicate by followup_pack_id (keep first occurrence)
                       const uniquePacks = [];
                       const seenIds = new Set();
-                      activePacks.forEach(pack => {
+                      options.forEach(pack => {
                         if (!seenIds.has(pack.followup_pack_id)) {
                           seenIds.add(pack.followup_pack_id);
                           uniquePacks.push(pack);
@@ -1441,20 +1463,24 @@ function DetailPanel({ selectedItem, sections, categories, questions, followUpPa
                               {groupName}
                               {isDefaultGroup && <span className="ml-2 text-[10px] text-green-500">✓ Suggested</span>}
                             </div>
-                            {packsInGroup.map(pack => (
-                              <SelectItem 
-                                key={pack.id} 
-                                value={pack.followup_pack_id} 
-                                className="pl-6 py-2.5 text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:text-white"
-                              >
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-sm font-medium text-slate-100">
-                                    {pack.pack_name || pack.followup_pack_id}
-                                  </span>
-                                  <span className="text-xs text-slate-400 font-mono">{pack.followup_pack_id}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
+                            {packsInGroup.map(pack => {
+                              const isLegacy = pack.followup_pack_id === currentPackId && isCurrentLegacy;
+                              return (
+                                <SelectItem 
+                                  key={pack.id} 
+                                  value={pack.followup_pack_id} 
+                                  className="pl-6 py-2.5 text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:text-white"
+                                >
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-sm font-medium text-slate-100">
+                                      {pack.pack_name || pack.followup_pack_id}
+                                      {isLegacy && <span className="ml-2 text-xs text-yellow-400">(legacy)</span>}
+                                    </span>
+                                    <span className="text-xs text-slate-400 font-mono">{pack.followup_pack_id}</span>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
                           </div>
                         );
                       });
