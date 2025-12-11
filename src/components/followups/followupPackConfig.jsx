@@ -1233,16 +1233,20 @@ export const FOLLOWUP_PACK_CONFIGS = {
     ]
   },
 
-  // Prior Law Enforcement Applications pack (v2.5)
-  // NARRATIVE-FIRST APPROACH: Q01 is an open-ended narrative prompt.
-  // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
+  // Prior Law Enforcement Applications pack (V3)
+  // V3 ARCHITECTURE: Uses FactModel + probe_sequence + summary_template
+  // All V2 fields are schema-only and do NOT render as questions
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
     supportedBaseQuestions: ["Q001", "Q002", "Q003", "Q004"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
-    maxAiFollowups: 4, // Allows clarifiers for all 4 required anchors if needed
+    maxAiFollowups: 4,
+    isV2Pack: false, // CRITICAL: Not a V2 pack - uses V3 probing
+    isV3Pack: true,  // CRITICAL: V3-only pack
+    mode: "V3_ONLY", // Engine version flag
+    engineVersion: "v3", // Explicit version marker
     // Required anchors that MUST be collected from Q01 before advancing (CANONICAL KEYS)
     requiredAnchors: [
       "prior_le_agency",
@@ -1269,9 +1273,10 @@ export const FOLLOWUP_PACK_CONFIGS = {
     excludeFromProbing: [], // All anchors can be probed if missing
     requiresCompletion: true,
     flagOnUnresolved: "warning",
-    usePerFieldProbing: true,
-    useNarrativeFirst: true, // Flag for narrative-first approach
+    usePerFieldProbing: false, // DISABLED: V3 uses probe_sequence not per-field probing
+    useNarrativeFirst: false, // DISABLED: V3 uses opening prompt from decisionEngineV3
     multiInstance: true,
+    deterministicSteps: [], // V3: All deterministic steps replaced by V3 probing
     fields: [
       {
         fieldKey: "PACK_PRLE_Q01",
@@ -1282,9 +1287,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Example: I applied to Phoenix PD in March 2022 for a Police Recruit position. I passed the written and fitness tests and completed a background interview. The investigator later told me I didn't move forward because of my driving record, and I was told I could reapply after two years.",
         required: true,
         aiProbingEnabled: true,
-        isNarrativeOpener: true, // Marks this as the narrative opener
-        isPrimaryNarrativeField: true, // Must capture ALL required anchors before advancing
-        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"], // CANONICAL KEYS
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"],
         includeInFacts: true,
         factsOrder: 1,
         includeInInstanceHeader: true,
@@ -1293,6 +1298,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: false,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not provided",
+        schemaOnly: true, // V3: Schema-only field - not rendered as UI question
+        hiddenFromUI: true, // V3: Hidden from UI - V3 probing handles conversation
         validation: {
           type: "free_text",
           allowUnknown: false,
@@ -1311,8 +1318,8 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
         required: true,
         aiProbingEnabled: false,
-        capturesAnchor: "application_outcome", // This field persists the application_outcome anchor
-        requiresMissing: ["application_outcome"], // Only ask if application_outcome anchor is missing
+        capturesAnchor: "application_outcome",
+        requiresMissing: ["application_outcome"],
         includeInFacts: true,
         factsOrder: 2,
         includeInInstanceHeader: true,
@@ -1321,6 +1328,75 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: false,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not provided",
+        schemaOnly: true, // V3: Schema-only field - not rendered as UI question
+        hiddenFromUI: true, // V3: Hidden from UI - V3 probing handles conversation
+        validation: {
+          type: "outcome",
+          allowUnknown: false,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 2,
+          mustContainLetters: true
+        },
+        autoSkipIfConfident: true,
+        autoSkipMinConfidence: 0.85,
+        allowedEnumValues: ["hired", "disqualified", "withdrew", "still in process", "not selected", "rejected", "not hired", "dq", "dq'd"]
+      },
+    fields: [
+      {
+        fieldKey: "PACK_PRLE_Q01",
+        semanticKey: "narrative",
+        label: "In your own words, tell me the story of this prior law-enforcement application — who you applied with, the job, when it happened, how far you got, and how it ended. If you know why the process ended or whether you could reapply, include that too.",
+        factsLabel: "Narrative",
+        inputType: "textarea",
+        placeholder: "Example: I applied to Phoenix PD in March 2022 for a Police Recruit position. I passed the written and fitness tests and completed a background interview. The investigator later told me I didn't move forward because of my driving record, and I was told I could reapply after two years.",
+        required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["prior_le_agency", "prior_le_position", "prior_le_approx_date", "application_outcome"],
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1,
+        includeInNarrative: true,
+        allowUnknown: false,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not provided",
+        schemaOnly: true, // V3: Schema-only - not shown as question
+        hiddenFromUI: true, // V3: UI hidden - V3 engine controls conversation
+        internalOnly: true, // V3: Internal field - fact model slot only
+        validation: {
+          type: "free_text",
+          allowUnknown: false,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 10,
+          mustContainLetters: true
+        }
+      },
+      {
+        fieldKey: "PACK_PRLE_Q02",
+        semanticKey: "application_outcome",
+        label: "What was the outcome of that application? (For example: hired, disqualified, withdrew, or still in process.)",
+        factsLabel: "Outcome",
+        inputType: "text",
+        placeholder: "Describe the outcome (hired, disqualified, withdrew, still in process)...",
+        required: true,
+        aiProbingEnabled: false,
+        capturesAnchor: "application_outcome",
+        requiresMissing: ["application_outcome"],
+        includeInFacts: true,
+        factsOrder: 2,
+        includeInInstanceHeader: true,
+        headerOrder: 2,
+        includeInNarrative: true,
+        allowUnknown: false,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not provided",
+        schemaOnly: true, // V3: Schema-only - not shown as question
+        hiddenFromUI: true, // V3: UI hidden - V3 engine controls conversation
+        internalOnly: true, // V3: Internal field - fact model slot only
         validation: {
           type: "outcome",
           allowUnknown: false,
@@ -1342,7 +1418,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "e.g., Phoenix, AZ",
         required: false,
         aiProbingEnabled: true,
-        requiresMissing: ["application_city", "application_state"], // Only ask if not extracted
+        requiresMissing: ["application_city", "application_state"],
         includeInFacts: true,
         factsOrder: 3,
         includeInInstanceHeader: true,
@@ -1351,6 +1427,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "free_text",
           allowUnknown: true,
@@ -1370,7 +1449,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "e.g., June 2020 or around 2019",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["prior_le_approx_date"], // CANONICAL KEY - ONLY ask if date NOT extracted from narrative
+        requiresMissing: ["prior_le_approx_date"],
         probeInstructionOverride: "The candidate gave a vague date. Ask for at least an approximate timeframe like 'around 2020' or 'early 2019'.",
         includeInFacts: true,
         factsOrder: 4,
@@ -1379,6 +1458,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled after probing",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "month_year",
           allowUnknown: true,
@@ -1398,7 +1480,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Enter position title",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["prior_le_position"], // CANONICAL KEY - Only ask if not extracted from narrative
+        requiresMissing: ["prior_le_position"],
         includeInFacts: true,
         factsOrder: 5,
         includeInInstanceHeader: false,
@@ -1406,6 +1488,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "job_title",
           allowUnknown: true,
@@ -1426,7 +1511,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
         placeholder: "Enter agency name",
         required: true,
         aiProbingEnabled: true,
-        requiresMissing: ["prior_le_agency"], // CANONICAL KEY - Only ask if not extracted from narrative
+        requiresMissing: ["prior_le_agency"],
         includeInFacts: true,
         factsOrder: 6,
         includeInInstanceHeader: false,
@@ -1434,6 +1519,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not recalled",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "agency_name",
           allowUnknown: true,
@@ -1461,6 +1549,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not specified",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "free_text",
           allowUnknown: true,
@@ -1485,6 +1576,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not specified",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "free_text",
           allowUnknown: true,
@@ -1509,6 +1603,9 @@ export const FOLLOWUP_PACK_CONFIGS = {
         allowUnknown: true,
         unknownTokens: DEFAULT_UNKNOWN_TOKENS,
         unknownDisplayLabel: "Not specified",
+        schemaOnly: true, // V3: Schema-only
+        hiddenFromUI: true, // V3: UI hidden
+        internalOnly: true, // V3: Internal field
         validation: {
           type: "free_text",
           allowUnknown: true,

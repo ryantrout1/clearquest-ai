@@ -2164,12 +2164,66 @@ export default function CandidateInterview() {
             const { packId, substanceName, isV3Pack } = followUpResult;
 
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
-            const isV2Pack = useProbeEngineV2(packId);
-            console.log(`[FOLLOWUP-TRIGGER] ${packId} isV2Pack=${isV2Pack}`);
+            
+            // Check pack config flags to determine V3 vs V2
+            const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+            const isV3PackExplicit = packConfig?.isV3Pack === true;
+            const isV2PackExplicit = packConfig?.isV2Pack === true;
+            const usesPerFieldProbing = useProbeEngineV2(packId);
+            
+            // V3 takes precedence over V2 - explicit V3 flag wins
+            const isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
+            const isV2PackFinal = !isV3PackFinal && (isV2PackExplicit || usesPerFieldProbing);
+            
+            console.log(`[FOLLOWUP-TRIGGER] ${packId} isV3Pack=${isV3PackFinal} isV2Pack=${isV2PackFinal}`);
+            
+            // === V3 PACK HANDLING: Takes precedence ===
+            if (isV3PackFinal) {
+              console.log(`[V3_PACK][ENTER] ========== ENTERING V3 PACK MODE ==========`);
+              console.log(`[V3_PACK][ENTER] pack=${packId} categoryId=${mapPackIdToCategory(packId)}`);
+              
+              // Get category for V3 probing
+              const categoryId = mapPackIdToCategory(packId);
+              
+              if (!categoryId) {
+                console.warn("[V3_PACK] No category mapping for pack:", packId);
+                saveAnswerToDatabase(currentItem.id, value, question);
+                advanceToNextBaseQuestion(currentItem.id);
+                setIsCommitting(false);
+                setInput("");
+                return;
+              }
+              
+              // Save base question answer
+              saveAnswerToDatabase(currentItem.id, value, question);
+              
+              // Enter V3 probing mode
+              setV3ProbingActive(true);
+              setV3ProbingContext({
+                packId,
+                categoryId,
+                baseQuestionId: currentItem.id,
+                questionCode: question.question_id,
+                sectionId: question.section_id,
+                instanceNumber: 1,
+                incidentId: null // Will be created by decisionEngineV3
+              });
+              
+              await persistStateToDatabase(newTranscript, [], {
+                id: `v3-probing-${packId}`,
+                type: 'v3_probing',
+                packId,
+                categoryId,
+                baseQuestionId: currentItem.id
+              });
+              
+              setIsCommitting(false);
+              setInput("");
+              return;
+            }
             
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
-            // V2 packs take priority - check V2 first before any V3 logic
-            if (isV2Pack) {
+            if (isV2PackFinal) {
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
@@ -2413,10 +2467,10 @@ export default function CandidateInterview() {
               return;
             }
             
-            // === V3 PROBING CHECK (only for non-V2 packs) ===
+            // === LEGACY V3 PROBING CHECK (for packs without explicit version flags) ===
             const categoryId = mapPackIdToCategory(packId);
             
-            if (ENABLE_V3_PROBING && categoryId && !isV2Pack) {
+            if (ENABLE_V3_PROBING && categoryId && !isV2PackFinal && !isV3PackFinal) {
               try {
                 // Check system config V3 enabled categories
                 const { config } = await getSystemConfig();
