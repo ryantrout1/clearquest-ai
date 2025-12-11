@@ -170,12 +170,10 @@ export default function FactAnchorsSection({
           <Anchor className="w-5 h-5 text-amber-400" />
           <div className="text-left">
             <h4 className="text-sm font-semibold text-white">
-              Fact Anchors (AI Clarifiers)
+              Fact Anchors (V2 – Legacy Clarifiers)
             </h4>
             <p className="text-xs text-slate-400">
-              {anchors.length > 0 
-                ? `${anchors.length} anchor${anchors.length !== 1 ? 's' : ''} configured`
-                : "Configure BI-critical facts for AI clarifiers"}
+              Legacy V2 clarifier keys. In V3, the Fact Model replaces these. Keep for reference while migrating.
             </p>
           </div>
         </div>

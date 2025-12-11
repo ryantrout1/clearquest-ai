@@ -159,8 +159,8 @@ export default function FollowUpQuestionsSection({
 
   return (
     <CollapsibleSection
-      title="Follow-Up Questions"
-      subtitle={subtitle}
+      title="Follow-Up Questions (V2 – Legacy sequence)"
+      subtitle="Legacy V2 follow-up configuration. V3 uses the Fact Model + Probe Sequence instead."
       icon={MessageSquare}
       iconColor="text-amber-400"
       bgColor="bg-amber-950/20"
