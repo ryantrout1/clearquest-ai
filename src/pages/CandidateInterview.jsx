@@ -36,6 +36,7 @@ import { getFactModelForCategory, mapPackIdToCategory } from "../components/util
 import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
+import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -2061,6 +2062,99 @@ export default function CandidateInterview() {
 
         // UX: Clear draft on successful submit
         clearDraft();
+
+        // SECTION GATE LOGIC: Check if this is a gate question with "No" answer
+        // This must run BEFORE follow-up trigger check to properly skip remaining section questions
+        const gateResult = await applySectionGateIfNeeded({
+          sessionId,
+          currentQuestion: question,
+          answer: value,
+          engine,
+          currentSectionIndex,
+          sections,
+          answeredQuestionIds: new Set(newTranscript.filter(t => t.type === 'question').map(t => t.questionId))
+        });
+        
+        if (gateResult?.gateTriggered) {
+          console.log('[GATE_APPLIED] Section gate triggered - advancing to next section or completing', {
+            skippedCount: gateResult.skippedQuestionIds?.length || 0,
+            nextSectionIndex: gateResult.nextSectionIndex,
+            interviewComplete: gateResult.interviewComplete
+          });
+          
+          if (gateResult.interviewComplete) {
+            // No more sections - complete interview
+            const completionMessage = {
+              id: `interview-complete-${Date.now()}`,
+              type: 'system_message',
+              content: 'Interview complete! Thank you for your thorough and honest responses.',
+              timestamp: new Date().toISOString(),
+              kind: 'interview_complete',
+              role: 'system'
+            };
+            
+            const finalTranscript = [...newTranscript, completionMessage];
+            setTranscript(finalTranscript);
+            setCurrentItem(null);
+            setQueue([]);
+            await persistStateToDatabase(finalTranscript, [], null);
+            setShowCompletionModal(true);
+            setIsCommitting(false);
+            setInput("");
+            return;
+          }
+          
+          // Advance to next section
+          const nextSection = sections[gateResult.nextSectionIndex];
+          const whatToExpect = WHAT_TO_EXPECT[nextSection.id] || 'important background information';
+          
+          setCompletedSectionsCount(prev => Math.max(prev, gateResult.nextSectionIndex));
+          
+          const totalSectionsCount = sections.length;
+          const answeredQuestionsCount = newTranscript.filter(t => t.type === 'question').length;
+          const totalQuestionsCount = engine?.TotalQuestions || 0;
+          
+          const completionMessage = {
+            id: `section-complete-${Date.now()}`,
+            type: 'system_section_complete',
+            timestamp: new Date().toISOString(),
+            kind: 'section_completion',
+            role: 'system',
+            completedSectionId: currentSection.id,
+            completedSectionName: currentSection.displayName,
+            nextSectionId: nextSection.id,
+            nextSectionName: nextSection.displayName,
+            whatToExpect: whatToExpect,
+            progress: {
+              completedSections: gateResult.nextSectionIndex,
+              totalSections: totalSectionsCount,
+              answeredQuestions: answeredQuestionsCount,
+              totalQuestions: totalQuestionsCount
+            }
+          };
+          
+          const gateTranscript = [...newTranscript, completionMessage];
+          setTranscript(gateTranscript);
+          
+          // Trigger section summary generation (background)
+          base44.functions.invoke('triggerSummaries', {
+            sessionId,
+            triggerType: 'section_complete'
+          }).catch(() => {}); // Fire and forget
+          
+          setPendingSectionTransition({
+            nextSectionIndex: gateResult.nextSectionIndex,
+            nextQuestionId: gateResult.nextQuestionId,
+            nextSectionName: nextSection.displayName
+          });
+          
+          setQueue([]);
+          setCurrentItem(null);
+          await persistStateToDatabase(gateTranscript, [], null);
+          setIsCommitting(false);
+          setInput("");
+          return;
+        }
 
         if (value === 'Yes') {
           const followUpResult = checkFollowUpTrigger(engine, currentItem.id, value, interviewMode);
