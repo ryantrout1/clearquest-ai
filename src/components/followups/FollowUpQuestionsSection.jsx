@@ -233,38 +233,6 @@ export default function FollowUpQuestionsSection({
               </div>
             </div>
           </div>
-          {showAddForm && (
-            <div className="bg-slate-900/50 border border-amber-500/50 rounded-lg p-3 mb-3">
-              <div className="space-y-2">
-                <Textarea
-                  placeholder="Question text..."
-                  value={newQuestion.question_text}
-                  onChange={(e) => setNewQuestion({...newQuestion, question_text: e.target.value})}
-                  className="bg-slate-800 border-slate-600 text-white min-h-20"
-                />
-                <div className="flex gap-2">
-                  <Select
-                    value={newQuestion.response_type}
-                    onValueChange={(v) => setNewQuestion({...newQuestion, response_type: v})}
-                  >
-                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(RESPONSE_TYPE_NAMES).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleAddQuestion} className="bg-emerald-600 hover:bg-emerald-700">
-                    Save
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowAddForm(false)} className="border-slate-600">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* Questions List */}
