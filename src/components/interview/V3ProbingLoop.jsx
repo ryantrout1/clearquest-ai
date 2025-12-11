@@ -181,6 +181,13 @@ export default function V3ProbingLoop({
         } else {
           logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
         }
+        
+        // Trigger incident summary generation (fire and forget)
+        base44.functions.invoke('generateV3IncidentSummary', {
+          sessionId,
+          incidentId: currentIncidentId,
+          categoryId
+        }).catch(err => console.warn("[V3] Failed to trigger incident summary:", err));
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {

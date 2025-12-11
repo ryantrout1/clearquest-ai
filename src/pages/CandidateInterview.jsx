@@ -1287,9 +1287,9 @@ export default function CandidateInterview() {
         setTranscript(newTranscript);
         
         // Trigger section summary generation (background)
-        base44.functions.invoke('triggerSummaries', {
+        base44.functions.invoke('generateSectionSummary', {
           sessionId,
-          triggerType: 'section_complete'
+          sectionId: nextResult.completedSection.id
         }).catch(() => {}); // Fire and forget
         
         setPendingSectionTransition({
