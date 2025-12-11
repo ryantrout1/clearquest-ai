@@ -235,66 +235,7 @@ export const FOLLOWUP_PACK_CONFIG = {
     },
   },
 
-  //
-  // 🏛️ PACK: Law Enforcement Applications
-  //
-  PACK_LE_APPS: {
-    displayName: "Law Enforcement Application",
-    pills: ["LE Application", "Hiring Process", "Background"],
-    fields: {
-      // v2.4 field_config fields
-      agency_name: { label: "Agency / Department" },
-      agency_location: { label: "Agency Location" },
-      position: { label: "Position Applied For" },
-      application_date: { label: "Application Date" },
-      outcome: { label: "Application Status" },
-      stage_reached: { label: "Stage Reached" },
-      reason_not_selected: { label: "Reason for Status" },
-      background_issues: { label: "Background Issues Cited" },
-      full_disclosure: { label: "Full Disclosure" },
-      has_documentation: { label: "Documentation Available" },
-      // Legacy question mappings
-      PACK_LE_APPS_Q1: { label: "Agency Name" },
-      PACK_LE_APPS_Q1764025170356: { label: "Position" },
-      PACK_LE_APPS_Q1764025187292: { label: "Application Date" },
-      PACK_LE_APPS_Q1764025199138: { label: "Outcome" },
-      PACK_LE_APPS_Q1764025212764: { label: "Reason Not Selected" },
-      PACK_LE_APPS_Q1764025246583: { label: "Stage Reached" },
-    },
-  },
 
-  //
-  // 🏛️ PACK: Prior Law Enforcement Misconduct
-  //
-  PACK_LE_MISCONDUCT_STANDARD: {
-    displayName: "Prior LE Misconduct Incident",
-    pills: ["LE Misconduct", "Internal Affairs", "Discipline", "Background Risk"],
-    fields: {
-      // v2.4 field_config fields
-      agency_name: { label: "Agency / Department" },
-      position_held: { label: "Position at Time" },
-      employment_dates: { label: "Employment Dates" },
-      incident_date: { label: "Incident Date" },
-      allegation_type: { label: "Allegation / Misconduct Type" },
-      allegation_description: { label: "Allegation Description" },
-      discovery_method: { label: "Investigation Type" },
-      ia_case_number: { label: "IA Case Number" },
-      finding: { label: "Investigation Outcome" },
-      discipline: { label: "Disciplinary Action" },
-      separation_type: { label: "Separation Type" },
-      appealed: { label: "Appealed" },
-      has_documentation: { label: "Documentation Available" },
-      remediation_steps: { label: "Corrective Steps Since Incident" },
-      // Legacy question mappings
-      PACK_LE_MISCONDUCT_Q01: { label: "Agency" },
-      PACK_LE_MISCONDUCT_Q02: { label: "Position" },
-      PACK_LE_MISCONDUCT_Q03: { label: "Incident Date" },
-      PACK_LE_MISCONDUCT_Q04: { label: "Allegation Type" },
-      PACK_LE_MISCONDUCT_Q05: { label: "Description" },
-      PACK_LE_MISCONDUCT_Q06: { label: "Finding" },
-      PACK_LE_MISCONDUCT_Q07: { label: "Discipline" },
-    },
-  },
 
   //
   // 💰 PACK: Financial Misconduct
