@@ -144,6 +144,10 @@ export default function InterviewStructureManager() {
   const [searchTerm, setSearchTerm] = useState("");
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [middleCollapsed, setMiddleCollapsed] = useState(false);
+  const [leftWidth, setLeftWidth] = useState(20);
+  const [middleWidth, setMiddleWidth] = useState(30);
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -249,6 +253,54 @@ export default function InterviewStructureManager() {
       }
     }
   }, [selectedSection?.id, questions]);
+
+  // Resizable dividers
+  const handleMouseDownLeft = (e) => {
+    e.preventDefault();
+    setIsDraggingLeft(true);
+  };
+
+  const handleMouseDownRight = (e) => {
+    e.preventDefault();
+    setIsDraggingRight(true);
+  };
+
+  useEffect(() => {
+    if (!isDraggingLeft && !isDraggingRight) return;
+
+    const handleMouseMove = (e) => {
+      const container = document.getElementById('interview-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const mouseX = e.clientX - containerRect.left;
+      const totalWidth = containerRect.width;
+
+      if (isDraggingLeft) {
+        const newLeftWidth = (mouseX / totalWidth) * 100;
+        const clampedLeft = Math.min(Math.max(newLeftWidth, 15), 40);
+        setLeftWidth(clampedLeft);
+      } else if (isDraggingRight) {
+        const newMiddleEnd = (mouseX / totalWidth) * 100;
+        const newMiddleWidth = newMiddleEnd - leftWidth;
+        const clampedMiddle = Math.min(Math.max(newMiddleWidth, 20), 60);
+        setMiddleWidth(clampedMiddle);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingLeft(false);
+      setIsDraggingRight(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingLeft, isDraggingRight, leftWidth]);
 
   const toggleSectionActive = async (e, section) => {
     e.stopPropagation();
@@ -384,6 +436,23 @@ export default function InterviewStructureManager() {
     );
   }
 
+  // Calculate widths dynamically based on collapsed state
+  const getEffectiveWidths = () => {
+    const collapsedWidth = 2.5; // ~40px as percentage
+    
+    if (leftCollapsed && middleCollapsed) {
+      return { left: collapsedWidth, middle: collapsedWidth, right: 100 - collapsedWidth * 2 };
+    } else if (leftCollapsed) {
+      return { left: collapsedWidth, middle: middleWidth, right: 100 - collapsedWidth - middleWidth };
+    } else if (middleCollapsed) {
+      return { left: leftWidth, middle: collapsedWidth, right: 100 - leftWidth - collapsedWidth };
+    } else {
+      return { left: leftWidth, middle: middleWidth, right: 100 - leftWidth - middleWidth };
+    }
+  };
+  
+  const effectiveWidths = getEffectiveWidths();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Header */}
@@ -427,7 +496,10 @@ export default function InterviewStructureManager() {
             </span>
           </div>
         ) : (
-          <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: '20%' }}>
+          <div 
+            style={{ width: `${effectiveWidths.left}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/40 backdrop-blur-sm p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold text-white">Sections</h3>
               <div className="flex gap-1">
@@ -551,6 +623,17 @@ export default function InterviewStructureManager() {
           </div>
         )}
 
+        {/* Left Drag Handle */}
+        {!leftCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingLeft ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownLeft}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
+
         {/* Middle Panel - Questions List */}
         {middleCollapsed ? (
           <div 
@@ -566,7 +649,10 @@ export default function InterviewStructureManager() {
             </span>
           </div>
         ) : (
-          <div className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600" style={{ width: leftCollapsed ? '35%' : '30%' }}>
+          <div 
+            style={{ width: `${effectiveWidths.middle}%` }}
+            className="overflow-auto border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+          >
             <div className="p-4">
               {!selectedSection ? (
                 <div className="text-center py-12">
@@ -644,8 +730,22 @@ export default function InterviewStructureManager() {
           </div>
         )}
 
+        {/* Right Drag Handle */}
+        {!middleCollapsed && (
+          <div 
+            className={`w-1 flex-shrink-0 transition-colors ${
+              isDraggingRight ? 'bg-amber-500/50' : 'bg-slate-800/30 hover:bg-amber-600/30'
+            }`}
+            onMouseDown={handleMouseDownRight}
+            style={{ cursor: 'col-resize', userSelect: 'none' }}
+          />
+        )}
+
         {/* Right Panel - Details */}
-        <div className="overflow-auto bg-slate-900/30 backdrop-blur-sm flex-1 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600">
+        <div 
+          style={{ width: `${effectiveWidths.right}%` }}
+          className="overflow-auto bg-slate-900/30 backdrop-blur-sm [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-900/50 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-600"
+        >
           <div className="p-4">
             <DetailPanel
               selectedItem={selectedItem}
