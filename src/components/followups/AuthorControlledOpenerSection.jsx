@@ -84,8 +84,7 @@ export default function AuthorControlledOpenerSection({
       subtitle="V2 Packs Only"
       icon={Sparkles}
       isExpanded={isExpanded}
-      onToggle={onToggleExpand}
-      hasChanges={hasChanges}
+      onToggleExpand={onToggleExpand}
     >
       <div className="space-y-4">
         {/* Enable/Disable Toggle */}
