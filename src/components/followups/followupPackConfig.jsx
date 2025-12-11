@@ -1166,6 +1166,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
   // - fact_anchors: 7 workplace-specific BI-critical anchors with priority + required flags
   // - field_config: 14 structured fields (first = narrative, then critical facts, then context)
   // Future V2 upgrades should follow this pattern.
+  // Q004 (cheating on testing) triggers this workplace integrity pack
   "PACK_WORKPLACE_STANDARD": {
     packId: "PACK_WORKPLACE_STANDARD",
     supportedBaseQuestions: ["Q004", "Q127", "Q128", "Q129", "Q130", "Q136", "Q137", "Q138", "Q163", "Q203"],
@@ -1194,7 +1195,37 @@ export const FOLLOWUP_PACK_CONFIGS = {
     usePerFieldProbing: true,
     useNarrativeFirst: true,
     multiInstance: true,
-    fields: [] // Fields are in the DB - buildV2PackFromDbRow will merge them
+    fields: [
+      {
+        fieldKey: "PACK_WORKPLACE_Q01",
+        semanticKey: "narrative",
+        label: "In your own words, walk me through the workplace integrity or misconduct incident we're talking about — what happened, which employer or setting was involved, when it took place, and how it ended. Please include as much detail as you can.",
+        factsLabel: "Narrative",
+        inputType: "textarea",
+        placeholder: "Example: In 2021, while working at a logistics company, I edited my timecard to show two extra hours that I didn't actually work. My supervisor noticed a discrepancy during payroll review, met with me, and I admitted what I had done. I was written up for falsifying time records and told that another incident could result in termination.",
+        required: true,
+        aiProbingEnabled: true,
+        isNarrativeOpener: true,
+        isPrimaryNarrativeField: true,
+        captures: ["employer_name", "role_or_position", "incident_date", "misconduct_type", "staff_response", "final_outcome"],
+        includeInFacts: true,
+        factsOrder: 1,
+        includeInInstanceHeader: true,
+        headerOrder: 1,
+        includeInNarrative: true,
+        allowUnknown: false,
+        unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+        unknownDisplayLabel: "Not provided",
+        validation: {
+          type: "free_text",
+          allowUnknown: false,
+          unknownTokens: DEFAULT_UNKNOWN_TOKENS,
+          rejectTokens: DEFAULT_REJECT_TOKENS,
+          minLength: 10,
+          mustContainLetters: true
+        }
+      }
+    ]
   },
 
   // Prior Law Enforcement Applications pack (v2.5)
