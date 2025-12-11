@@ -1078,7 +1078,28 @@ function getAiRuntimeConfig(globalSettings) {
  * 
  * V2.5 MVP: Anchored to section context, enforces topic boundaries
  */
-async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes, sectionContext) {
+async function buildFieldProbeInstructions(base44Client, packId, fieldName, fieldLabel, maxProbes, sectionContext, packEntity = null) {
+  // AUTHOR-CONTROLLED OPENER: Check if pack has custom probing instructions
+  if (packEntity?.use_author_defined_openers && packEntity?.probing_instruction_text) {
+    console.log(`[V2-PER-FIELD] Using author-controlled probing instructions for ${packId}`);
+    
+    const authorInstructions = `You are the ClearQuest AI V2 per-field probing engine.
+
+${packEntity.probing_instruction_text}
+
+CRITICAL RULES:
+- Stay within the "${sectionContext.sectionName || 'current section'}" section topic
+- Never expose internal field keys to the candidate
+- Respect "I don't recall" answers - ask at most ONE gentle clarifying question
+- Keep follow-ups brief (under 30 words)
+- If the answer is already clear and complete, respond with exactly: "NO_PROBE_NEEDED"`;
+
+    return {
+      instructions: authorInstructions,
+      aiConfig: getAiRuntimeConfig(null)
+    };
+  }
+  
   const coreRules = `You are the ClearQuest AI V2 per-field probing engine.
 
 Your ONLY job is to decide:
@@ -1157,6 +1178,11 @@ No preamble, no explanation, just the question or the exact phrase "NO_PROBE_NEE
 
     const settings = globalSettingsResult.length > 0 ? globalSettingsResult[0] : null;
     const pack = packResult.length > 0 ? packResult[0] : null;
+    
+    // AUTHOR-CONTROLLED OPENER: Pass pack entity to parent for instruction override check
+    if (packEntity === null) {
+      packEntity = pack;
+    }
 
     // Get AI runtime config from GlobalSettings
     aiConfig = getAiRuntimeConfig(settings);
@@ -4273,7 +4299,8 @@ async function generateFieldProbeQuestion(base44Client, {
   incidentContext = {},
   packId,
   maxProbesPerField,
-  sectionContext = {}
+  sectionContext = {},
+  packEntity = null
 }) {
   console.log(`[V2-PER-FIELD] Generating probe for ${fieldName} (probe #${probeCount + 1})`);
   
@@ -4287,7 +4314,8 @@ async function generateFieldProbeQuestion(base44Client, {
       fieldName,
       fieldLabel,
       maxProbesPerField,
-      sectionContext
+      sectionContext,
+      packEntity
     );
     
     // Build user prompt with context
@@ -5298,6 +5326,29 @@ async function probeEngineV2Core(params, base44Client) {
     isOpeningField,
   });
   
+  // SHORT-CIRCUIT for author-controlled opener (HIGHEST PRIORITY)
+  if (isFirstProbe && isOpeningField && packMeta.use_author_defined_openers && packMeta.opening_question_text) {
+    console.log('[V2_BACKEND][AUTHOR_OPENER]', {
+      packId: pack_id,
+      fieldKey: field_key,
+      questionPreview: packMeta.opening_question_text.substring(0, 60)
+    });
+    
+    return createV2ProbeResult({
+      mode: 'QUESTION',
+      hasQuestion: true,
+      followupsCount: 0,
+      question: packMeta.opening_question_text,
+      questionText: packMeta.opening_question_text,
+      questionPreview: packMeta.opening_question_text.substring(0, 60) + '...',
+      exampleNarrative: packMeta.opening_example_narrative || null,
+      probeSource: 'author_controlled_opener',
+      reason: 'Author-controlled opening question',
+      anchors: {},
+      collectedAnchors: {}
+    });
+  }
+  
   // SHORT-CIRCUIT for fixed_narrative opening (BEFORE any discretion/AI logic)
   if (
     openingMeta.strategy === 'fixed_narrative' &&
@@ -6224,7 +6275,8 @@ async function probeEngineV2Core(params, base44Client) {
     incidentContext: currentAnchors,
     packId: pack_id,
     maxProbesPerField,
-    sectionContext
+    sectionContext,
+    packEntity: packMeta // Pass pack entity for author-controlled instructions
   });
   
   // If LLM explicitly said no probe needed, advance to next field
