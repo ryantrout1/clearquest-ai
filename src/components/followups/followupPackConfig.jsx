@@ -1202,7 +1202,7 @@ export const FOLLOWUP_PACK_CONFIGS = {
   // The system extracts anchors from the narrative and MUST collect all 4 required anchors before advancing.
   "PACK_PRIOR_LE_APPS_STANDARD": {
     packId: "PACK_PRIOR_LE_APPS_STANDARD",
-    supportedBaseQuestions: ["Q001", "Q002", "Q003"],
+    supportedBaseQuestions: ["Q001", "Q002", "Q003", "Q004"],
     instancesLabel: "Prior Law Enforcement Applications",
     packDescription: "Please describe this prior law enforcement application in your own words.",
     multiInstanceDescription: "Please describe this prior law enforcement application in your own words.",
