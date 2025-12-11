@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Edit, Check, X } from "lucide-react";
+import { ChevronDown, Edit, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,13 +36,6 @@ export default function CollapsibleSection({
           className="flex items-center gap-3 group flex-1 text-left"
           disabled={isEditing}
         >
-          <ChevronRight 
-            className={cn(
-              "w-5 h-5 transition-transform flex-shrink-0",
-              iconColor,
-              isExpanded ? "rotate-90" : ""
-            )} 
-          />
           {Icon && <Icon className={cn("w-5 h-5 flex-shrink-0", iconColor)} />}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -63,6 +56,12 @@ export default function CollapsibleSection({
               <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
             )}
           </div>
+          <ChevronDown 
+            className={cn(
+              "w-5 h-5 transition-transform flex-shrink-0 text-slate-400",
+              isExpanded ? "rotate-180" : ""
+            )} 
+          />
         </button>
 
         {/* Edit/Save buttons */}
