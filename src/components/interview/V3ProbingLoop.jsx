@@ -230,98 +230,56 @@ export default function V3ProbingLoop({
   };
 
   return (
-    <div className="bg-gradient-to-br from-emerald-900/20 to-slate-900/40 border border-emerald-600/30 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="bg-emerald-900/40 border-b border-emerald-700/30 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Bot className="w-4 h-4 text-emerald-400" />
-          <span className="text-sm font-medium text-emerald-300">AI Follow-Up (V3)</span>
-          {isComplete && (
-            <span className="ml-auto text-xs text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
-              Complete
-            </span>
+    <div className="space-y-3">
+      {/* V3 Messages - using existing ClearQuest bubble style */}
+      {messages.map((msg) => (
+        <div key={msg.id}>
+          {msg.role === "ai" && (
+            <div className="space-y-2 ml-4">
+              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs text-purple-400 font-medium">AI Follow-Up (V3)</span>
+                  {msg.isCompletion && (
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400 ml-auto" />
+                  )}
+                </div>
+                <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+              </div>
+            </div>
+          )}
+          {msg.role === "user" && (
+            <div className="flex justify-end">
+              <div className="bg-purple-600 rounded-xl px-5 py-3">
+                <p className="text-white text-sm">{msg.answer || msg.content}</p>
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      ))}
 
-      {/* Messages */}
-      <div className="max-h-80 overflow-y-auto p-4 space-y-3">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-xl px-4 py-2.5 ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : msg.isCompletion
-                  ? "bg-emerald-600/30 border border-emerald-500/40 text-emerald-100"
-                  : msg.isError
-                  ? "bg-red-900/30 border border-red-700/40 text-red-200"
-                  : "bg-slate-700/60 text-slate-100"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                {msg.role === "ai" && !msg.isCompletion && (
-                  <Bot className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                )}
-                {msg.isCompletion && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                )}
-                <p className="text-sm leading-relaxed">{msg.content}</p>
-              </div>
+      {isLoading && (
+        <div className="ml-4">
+          <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+              <span className="text-sm text-slate-300">Thinking...</span>
             </div>
           </div>
-        ))}
+        </div>
+      )}
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-slate-700/60 rounded-xl px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                <span className="text-sm text-slate-300">Thinking...</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input or Continue Button */}
-      <div className="border-t border-emerald-700/30 p-3 bg-slate-900/50">
-        {isComplete ? (
+      {/* Continue button after completion */}
+      {isComplete && (
+        <div className="flex justify-center mt-4">
           <Button
             onClick={handleContinue}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
           >
             Continue to Next Question
           </Button>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your response..."
-              className="flex-1 bg-slate-800 border-slate-600 text-white placeholder:text-slate-400"
-              disabled={isLoading}
-            />
-            <Button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
-          </form>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
