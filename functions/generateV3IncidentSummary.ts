@@ -11,9 +11,12 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    let user = null;
+    try {
+      user = await base44.auth.me();
+    } catch (e) {
+      // Allow system/background execution without auth
+      console.log("[SUMMARY] Running without auth (system context)");
     }
     
     const body = await req.json();

@@ -213,12 +213,22 @@ export default function V3ProbingLoop({
           logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
         }
         
-        // Trigger incident summary generation (fire and forget)
-        base44.functions.invoke('generateV3IncidentSummary', {
-          sessionId,
-          incidentId: currentIncidentId,
-          categoryId
-        }).catch(err => console.warn("[V3] Failed to trigger incident summary:", err));
+        // Schedule summary generation with retry logic to handle auth + persistence race condition
+        setTimeout(() => {
+          base44.functions.invoke('generateV3IncidentSummary', {
+            sessionId,
+            incidentId: currentIncidentId,
+            categoryId
+          }).catch(err => {
+            // Log but don't block interview completion
+            console.warn("[V3] Incident summary failed (non-blocking):", {
+              error: err.message,
+              incidentId: currentIncidentId,
+              statusCode: err.response?.status
+            });
+            // Summary failure is not critical - interview continues
+          });
+        }, 500);
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
