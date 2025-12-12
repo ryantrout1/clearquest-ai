@@ -14,14 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function CanonicalTranscriptRenderer({ session, questions = [], searchTerm = "", showOnlyFollowUps = false }) {
+export default function CanonicalTranscriptRenderer({ session, questions = [], searchTerm = "", showOnlyFollowUps = false, viewMode = "candidate" }) {
   const originalEntries = session?.transcript_snapshot || [];
   
   console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
   console.log("[TRANSCRIPT][ENTRY_SAMPLE]", originalEntries?.slice(0, 3));
   
-  // Apply filters
-  let filteredEntries = originalEntries;
+  // Filter by view mode FIRST
+  let filteredEntries = viewMode === "candidate"
+    ? originalEntries.filter(entry => entry.visibleToCandidate !== false)
+    : originalEntries; // Audit shows all
   
   // Filter by search term
   if (searchTerm && searchTerm.trim() !== "") {
@@ -111,8 +113,22 @@ export default function CanonicalTranscriptRenderer({ session, questions = [], s
   
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
+      {viewMode === "audit" && (
+        <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-3 mb-4">
+          <p className="text-xs text-purple-300">
+            <strong>Audit View:</strong> Showing complete transcript including system events
+          </p>
+        </div>
+      )}
+      {viewMode === "candidate" && (
+        <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-4">
+          <p className="text-xs text-blue-300">
+            <strong>Candidate View:</strong> Showing only what the candidate saw
+          </p>
+        </div>
+      )}
       {blocks.map((block, idx) => (
-        <TranscriptBlock key={block.id || `block-${idx}`} block={block} />
+        <TranscriptBlock key={block.id || `block-${idx}`} block={block} viewMode={viewMode} />
       ))}
     </div>
   );
@@ -141,12 +157,40 @@ function buildTranscriptBlocks(entries, questions = []) {
     const kind = entry.kind || entry.eventType || entry.type || "";
     
     // System welcome message
-    if (kind === 'system_welcome') {
+    if (kind === 'system_welcome' || entry.messageType === 'WELCOME') {
       blocks.push({
         id: `block-${i}`,
         type: 'system_welcome',
         text: entry.text || entry.content || 'Welcome to your ClearQuest Interview.',
-        timestamp: entry.timestamp
+        timestamp: entry.timestamp,
+        visibleToCandidate: entry.visibleToCandidate !== false
+      });
+      i++;
+      continue;
+    }
+    
+    // Resume marker
+    if (entry.messageType === 'RESUME') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'resume_marker',
+        text: entry.text || 'Welcome back. Resuming where you left off.',
+        timestamp: entry.timestamp,
+        visibleToCandidate: entry.visibleToCandidate !== false
+      });
+      i++;
+      continue;
+    }
+    
+    // System event (audit only)
+    if (entry.messageType === 'SYSTEM_EVENT') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'system_event',
+        eventType: entry.eventType,
+        metadata: entry.metadata || {},
+        timestamp: entry.timestamp,
+        visibleToCandidate: false
       });
       i++;
       continue;
@@ -326,9 +370,39 @@ function buildTranscriptBlocks(entries, questions = []) {
 /**
  * Render a single transcript block matching the candidate UI
  */
-function TranscriptBlock({ block }) {
+function TranscriptBlock({ block, viewMode }) {
   const { type, timestamp } = block;
   const timeLabel = formatTranscriptTime(timestamp);
+  
+  // System events only show in audit view
+  if (type === 'system_event') {
+    if (viewMode !== 'audit') return null;
+    
+    return (
+      <div className="bg-slate-800/30 border border-slate-600/40 rounded-lg p-2">
+        <p className="text-xs text-slate-400">
+          <span className="font-mono text-purple-400">[SYS]</span> {block.eventType}
+          {block.metadata && Object.keys(block.metadata).length > 0 && (
+            <span className="ml-2 text-slate-500">
+              {JSON.stringify(block.metadata)}
+            </span>
+          )}
+        </p>
+      </div>
+    );
+  }
+  
+  // Resume marker
+  if (type === 'resume_marker') {
+    return (
+      <div className="space-y-2">
+        <RoleTimestamp role="System" time={timeLabel} />
+        <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
+          <p className="text-blue-300 text-sm">{block.text}</p>
+        </div>
+      </div>
+    );
+  }
   
   // System welcome message
   if (type === 'system_welcome') {
