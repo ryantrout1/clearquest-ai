@@ -46,6 +46,7 @@ export default function V3ProbingLoop({
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
+  const [showMultiInstancePrompt, setShowMultiInstancePrompt] = useState(false);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
 
@@ -318,48 +319,50 @@ export default function V3ProbingLoop({
         </div>
       )}
 
-      {isLoading && (
-        <div className="ml-4">
-          <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-              <span className="text-sm text-slate-300">Thinking...</span>
+      <div ref={messagesEndRef} />
+
+      {/* Multi-instance gate after probing completes */}
+      {showMultiInstancePrompt && !isComplete && (
+        <div className="ml-4 mt-4">
+          <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+            <p className="text-white text-base mb-4">
+              Do you have another {categoryLabel || 'incident'} to add?
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  console.log('[V3_MULTI_INSTANCE] User selected: Yes - starting new instance');
+                  setShowMultiInstancePrompt(false);
+                  setMessages([]);
+                  setProbeCount(0);
+                  setCompletionReason(null);
+                  const newInstanceId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                  setIncidentId(newInstanceId);
+                  if (openerAnswer) {
+                    handleSubmit(null, openerAnswer, true);
+                  }
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                Yes
+              </Button>
+              <Button
+                onClick={() => {
+                  console.log('[V3_MULTI_INSTANCE] User selected: No - exiting V3 mode');
+                  setShowMultiInstancePrompt(false);
+                  setIsComplete(true);
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+              >
+                No
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      <div ref={messagesEndRef} />
-
-      {/* Input Form - shown inline unless complete */}
-      {!isComplete && (
-        <div className="mt-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your response..."
-              className="flex-1 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400"
-              disabled={isLoading}
-              autoFocus
-            />
-            <Button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
-          </form>
-        </div>
-      )}
-
-      {/* Continue button after completion */}
-      {isComplete && (
+      {/* Continue button - shown after user answers "No" to multi-instance */}
+      {isComplete && !showMultiInstancePrompt && (
         <div className="flex justify-center mt-4">
           <Button
             onClick={handleContinue}
