@@ -38,31 +38,47 @@ export const OPENING_PROMPTS_BY_CATEGORY = {
 };
 
 /**
- * Get the opening prompt for a V3 probing session.
- * @param {string} categoryId - Category identifier (e.g., "DUI", "THEFT")
- * @param {string} categoryLabel - Human-readable category label
- * @param {object} packData - Optional pack metadata with author-defined opener
- * @returns {string} Opening prompt text
+ * Synthesize a V3 opener question when pack has no configured opening_question_text.
+ * Used as deterministic opener before AI probing starts.
+ * 
+ * @param {string} categoryId - Category identifier
+ * @param {string} categoryLabel - Category label  
+ * @param {object} packData - Pack metadata
+ * @returns {string} Synthesized opener question
  */
-export function getOpeningPrompt(categoryId, categoryLabel, packData = null) {
-  // PRIORITY 1: Author-controlled opener from pack (if enabled)
+export function synthesizeV3Opener(categoryId, categoryLabel, packData = null) {
+  const label = categoryLabel || categoryId || "incident";
+  
+  return `In your own words, walk me through what happened with this ${label.toLowerCase()} — who was involved, when it took place, what occurred, and how it ended. Please include as much detail as you can.`;
+}
+
+/**
+ * Get deterministic opener for V3 pack.
+ * This is shown as a non-AI question card before V3 probing starts.
+ * 
+ * @param {object} packData - Pack metadata with author-defined opener
+ * @param {string} categoryId - Category identifier
+ * @param {string} categoryLabel - Category label
+ * @returns {{ text: string, example: string|null, isSynthesized: boolean }}
+ */
+export function getV3DeterministicOpener(packData, categoryId, categoryLabel) {
+  // PRIORITY 1: Author-controlled opener (configured)
   if (packData?.use_author_defined_openers && packData?.opening_question_text) {
-    return packData.opening_question_text;
+    return {
+      text: packData.opening_question_text,
+      example: packData.opening_example_narrative || null,
+      isSynthesized: false
+    };
   }
   
-  // PRIORITY 2: Category-specific template
-  const categoryKey = categoryId?.toUpperCase();
-  if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
-    return OPENING_PROMPTS_BY_CATEGORY[categoryKey];
-  }
+  // PRIORITY 2: Synthesize from category/pack context
+  const synthesized = synthesizeV3Opener(categoryId, categoryLabel, packData);
   
-  // PRIORITY 3: Generic with category context
-  if (categoryLabel) {
-    return `Thanks for letting me know about this ${categoryLabel.toLowerCase()} matter. Walk me through what happened, starting with when this occurred.`;
-  }
-  
-  // PRIORITY 4: Fully generic fallback
-  return OPENING_PROMPT_GENERIC;
+  return {
+    text: synthesized,
+    example: null,
+    isSynthesized: true
+  };
 }
 
 // ============================================================================
@@ -287,7 +303,8 @@ export function getCompletionMessage(nextAction, stopReason) {
 // ============================================================================
 
 export default {
-  getOpeningPrompt,
+  synthesizeV3Opener,
+  getV3DeterministicOpener,
   generateFieldQuestion,
   buildFollowUpAIPrompt,
   buildRecapPrompt,

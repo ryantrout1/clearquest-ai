@@ -42,35 +42,13 @@ export default function V3ProbingLoop({
   const messagesEndRef = useRef(null);
   const hasLoggedOpening = useRef(false);
 
-  // Initial prompt on mount - use author-controlled opener if available
+  // V3 Probing Loop starts AFTER deterministic opener has been answered
+  // No initial opening message - we go straight to probing based on opener answer
   useEffect(() => {
-    const openingText = getOpeningPrompt(categoryId, categoryLabel, packData);
-    const initialMessage = {
-      id: `v3-ai-${Date.now()}`,
-      role: "ai",
-      content: openingText,
-      timestamp: new Date().toISOString()
-    };
-    setMessages([initialMessage]);
-    
-    // Log to InterviewTranscript entity
-    if (!hasLoggedOpening.current) {
+    // Log incident creation if needed
+    if (initialIncidentId && !hasLoggedOpening.current) {
       hasLoggedOpening.current = true;
-      logAIOpening(sessionId, initialIncidentId, categoryId, openingText);
-      if (initialIncidentId) {
-        logIncidentCreated(sessionId, initialIncidentId, categoryId);
-      }
-    }
-    
-    // Persist to local transcript
-    if (onTranscriptUpdate) {
-      onTranscriptUpdate({
-        type: 'v3_probe_question',
-        content: initialMessage.content,
-        categoryId,
-        incidentId: initialIncidentId,
-        timestamp: initialMessage.timestamp
-      });
+      logIncidentCreated(sessionId, initialIncidentId, categoryId);
     }
   }, []);
 

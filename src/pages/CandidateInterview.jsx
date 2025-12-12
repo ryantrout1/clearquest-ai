@@ -1974,6 +1974,123 @@ export default function CandidateInterview() {
       }
       
       // ========================================================================
+      // V3 PACK OPENER HANDLER - Deterministic opener answered, now enter AI probing
+      // ========================================================================
+      if (currentItem.type === 'v3_pack_opener') {
+        const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
+        
+        console.log(`[V3_OPENER][ANSWERED] ========== OPENER ANSWERED ==========`);
+        console.log(`[V3_OPENER][ANSWERED]`, {
+          packId,
+          categoryId,
+          answerLength: value?.length || 0
+        });
+        
+        // Add opener Q&A to transcript
+        const openerQuestionEvent = createChatEvent('followup_question', {
+          questionId: `v3-opener-${packId}`,
+          questionText: openerText,
+          packId,
+          kind: 'v3_pack_opener',
+          text: openerText,
+          content: openerText,
+          categoryId,
+          instanceNumber,
+          baseQuestionId
+        });
+        
+        const openerEntry = {
+          ...openerQuestionEvent,
+          answer: value,
+          text: value
+        };
+        
+        const newTranscript = [...transcript, openerEntry];
+        setTranscript(newTranscript);
+        
+        // Save opener answer to database
+        await saveV2PackFieldResponse({
+          sessionId,
+          packId,
+          fieldKey: 'v3_opener_narrative',
+          instanceNumber,
+          answer: value,
+          baseQuestionId,
+          baseQuestionCode: questionCode,
+          sectionId,
+          questionText: openerText
+        });
+        
+        // Append to canonical transcript
+        try {
+          const currentTranscript = session.transcript_snapshot || [];
+          const baseResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            question_id: baseQuestionId,
+            response_type: 'base_question'
+          });
+          const baseResponseId = baseResponses[0]?.id || baseQuestionId;
+          
+          const questionKey = `v3_opener::${packId}::${instanceNumber}`;
+          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
+            await appendQuestionEntry({
+              sessionId,
+              existingTranscript: currentTranscript,
+              text: openerText,
+              questionId: baseQuestionId,
+              packId,
+              fieldKey: 'v3_opener_narrative',
+              instanceNumber,
+              responseId: null,
+              parentResponseId: baseResponseId
+            });
+          }
+          
+          await appendAnswerEntry({
+            sessionId,
+            existingTranscript: currentTranscript,
+            text: value,
+            questionId: baseQuestionId,
+            packId,
+            fieldKey: 'v3_opener_narrative',
+            instanceNumber,
+            responseId: null,
+            parentResponseId: baseResponseId
+          });
+        } catch (err) {
+          console.warn("[TRANSCRIPT][V3_OPENER] Failed to log:", err);
+        }
+        
+        console.log(`[V3_OPENER][ENTER_PROBING] Now entering V3ProbingLoop with opener context`);
+        
+        // STEP 2: Enter V3 AI probing with opener answer as context
+        setV3ProbingActive(true);
+        setV3ProbingContext({
+          packId,
+          categoryId,
+          baseQuestionId,
+          questionCode,
+          sectionId,
+          instanceNumber,
+          incidentId: null, // Will be created by decisionEngineV3
+          packData,
+          openerAnswer: value // Pass opener answer to probing engine
+        });
+        
+        await persistStateToDatabase(newTranscript, [], {
+          id: `v3-probing-${packId}`,
+          type: 'v3_probing',
+          packId,
+          categoryId,
+          baseQuestionId
+        });
+        
+        setIsCommitting(false);
+        setInput("");
+        return;
+      }
+      
+      // ========================================================================
       // REGULAR QUESTION HANDLER
       // ========================================================================
       if (currentItem.type === 'question') {
@@ -2178,7 +2295,7 @@ export default function CandidateInterview() {
             
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV3Pack=${isV3PackFinal} isV2Pack=${isV2PackFinal}`);
             
-            // === V3 PACK HANDLING: Takes precedence ===
+            // === V3 PACK HANDLING: Two-layer flow (Deterministic Opener → AI Probing) ===
             if (isV3PackFinal) {
               console.log(`[V3_PACK][ENTER] ========== ENTERING V3 PACK MODE ==========`);
               console.log(`[V3_PACK][ENTER] pack=${packId} categoryId=${mapPackIdToCategory(packId)}`);
@@ -2195,7 +2312,7 @@ export default function CandidateInterview() {
                 return;
               }
               
-              // Load pack metadata for author-controlled opener
+              // Load pack metadata for opener
               let packMetadata = null;
               try {
                 const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
@@ -2204,29 +2321,43 @@ export default function CandidateInterview() {
                 console.warn("[V3_PACK] Could not load pack metadata:", err);
               }
               
+              // Get deterministic opener (configured or synthesized)
+              const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+              const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel || packMetadata?.pack_name);
+              
+              if (opener.isSynthesized) {
+                console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
+              }
+              
+              console.log(`[V3_PACK][OPENER] Showing deterministic opener before AI probing`, {
+                packId,
+                hasExample: !!opener.example,
+                isSynthesized: opener.isSynthesized
+              });
+              
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
               
-              // Enter V3 probing mode
-              setV3ProbingActive(true);
-              setV3ProbingContext({
+              // STEP 1: Show deterministic opener (non-AI)
+              const openerItem = {
+                id: `v3-opener-${packId}-${currentItem.id}`,
+                type: 'v3_pack_opener',
                 packId,
                 categoryId,
+                categoryLabel,
+                openerText: opener.text,
+                exampleNarrative: opener.example,
                 baseQuestionId: currentItem.id,
                 questionCode: question.question_id,
                 sectionId: question.section_id,
                 instanceNumber: 1,
-                incidentId: null, // Will be created by decisionEngineV3
-                packData: packMetadata // Pass pack metadata for opener
-              });
+                packData: packMetadata
+              };
               
-              await persistStateToDatabase(newTranscript, [], {
-                id: `v3-probing-${packId}`,
-                type: 'v3_probing',
-                packId,
-                categoryId,
-                baseQuestionId: currentItem.id
-              });
+              setCurrentItem(openerItem);
+              setQueue([]);
+              
+              await persistStateToDatabase(newTranscript, [], openerItem);
               
               setIsCommitting(false);
               setInput("");
@@ -3447,6 +3578,7 @@ export default function CandidateInterview() {
     
     const isAnswerable = currentItem.type === 'question' || 
                          currentItem.type === 'v2_pack_field' || 
+                         currentItem.type === 'v3_pack_opener' ||
                          currentItem.type === 'followup';
     
     if (!isAnswerable) return;
@@ -3611,6 +3743,24 @@ export default function CandidateInterview() {
       };
     }
 
+    // V3 Pack opener question (deterministic, non-AI)
+    if (effectiveCurrentItem.type === 'v3_pack_opener') {
+      const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
+      const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      
+      return {
+        type: 'v3_pack_opener',
+        id: effectiveCurrentItem.id,
+        text: openerText,
+        exampleNarrative: exampleNarrative,
+        responseType: 'text',
+        packId,
+        categoryId,
+        instanceNumber,
+        category: packConfig?.instancesLabel || categoryId || 'Follow-up'
+      };
+    }
+    
     // V2 Pack field question
     if (effectiveCurrentItem.type === 'v2_pack_field') {
       const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
@@ -3726,18 +3876,19 @@ export default function CandidateInterview() {
 
   const currentPrompt = getCurrentPrompt();
 
-  // Treat v2_pack_field the same as a normal question for bottom-bar input
+  // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
   const isAnswerableItem = (item) => {
-    if (!item) return false;
-    return item.type === "question" || item.type === "v2_pack_field" || item.type === "followup";
+  if (!item) return false;
+  return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
   // Normalize bottom-bar mode flags
   const currentItemType = currentItem?.type || null;
-  const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field";
+  const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field" || currentItemType === "v3_pack_opener";
   const isV2PackField = currentItemType === "v2_pack_field";
+  const isV3PackOpener = currentItemType === "v3_pack_opener";
   const isFollowup = currentItemType === "followup";
-  const answerable = isAnswerableItem(currentItem) || isV2PackField;
+  const answerable = isAnswerableItem(currentItem) || isV2PackField || isV3PackOpener;
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no') ||
@@ -4146,7 +4297,17 @@ export default function CandidateInterview() {
           <div className="max-w-5xl mx-auto">
             <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
-                {isV2PackField || currentPrompt.type === 'ai_probe' ? (
+                {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
+                  <>
+                    <span className="text-base font-semibold text-purple-400">
+                      Follow-up
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-purple-400">
+                      {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
+                    </span>
+                  </>
+                ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
                   <>
                     <span className="text-base font-semibold text-purple-400">
                       Follow-up of
@@ -4196,7 +4357,13 @@ export default function CandidateInterview() {
               })()}
               
               <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
-              {currentPrompt.placeholder && (
+              {currentPrompt.exampleNarrative && (
+                <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                  <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                  <p className="text-slate-300 text-sm italic">{currentPrompt.exampleNarrative}</p>
+                </div>
+              )}
+              {currentPrompt.placeholder && !currentPrompt.exampleNarrative && (
                 <p className="text-slate-400 text-sm mt-1">{currentPrompt.placeholder}</p>
               )}
               {validationHint && (
