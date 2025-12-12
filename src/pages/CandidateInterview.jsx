@@ -959,16 +959,9 @@ export default function CandidateInterview() {
       const v3DebugMode = config.v3?.debug_mode_enabled || false;
       setV3DebugEnabled(v3DebugMode);
 
-      // Check if current user is admin - candidate mode does not require auth
+      // Candidate mode: Do NOT call User/me - interviews run anonymously
       console.log("[AUTH] Candidate mode: skipping /User/me");
-      try {
-        const user = await base44.auth.me();
-        setIsAdminUser(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
-      } catch (e) {
-        // No user context - this is expected for candidate interviews
-        console.log("[AUTH] No user context (candidate mode) - continuing without auth");
-        setIsAdminUser(false);
-      }
+      setIsAdminUser(false);
       
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
