@@ -4158,7 +4158,7 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div 
           className="max-w-5xl mx-auto px-4 pt-6 flex flex-col justify-end min-h-full"
-          style={{ paddingBottom: `${questionCardHeight + 120}px` }}
+          style={{ paddingBottom: `${questionCardHeight + 200}px` }}
         >
           <div className="space-y-4">
           {/* Welcome message for first question only */}
