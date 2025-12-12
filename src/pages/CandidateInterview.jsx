@@ -339,6 +339,29 @@ const createChatEvent = (type, data = {}) => {
   return baseEvent;
 };
 
+// Ensure Welcome message is in transcript (only once, at start)
+const ensureWelcomeInTranscript = (currentTranscript) => {
+  const hasWelcome = currentTranscript.some(t => t.id === 'WELCOME' || (t.kind === 'SYSTEM' && t.subtype === 'WELCOME'));
+  
+  if (hasWelcome) {
+    console.log('[TRANSCRIPT][WELCOME][SKIP_EXISTS]');
+    return currentTranscript;
+  }
+  
+  const welcomeEntry = {
+    id: 'WELCOME',
+    kind: 'SYSTEM',
+    subtype: 'WELCOME',
+    role: 'system',
+    type: 'system_welcome',
+    text: "Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.",
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('[TRANSCRIPT][WELCOME][ADD]');
+  return [welcomeEntry, ...currentTranscript];
+};
+
 const useProbeEngineV2 = usePerFieldProbing;
 
 const getFieldProbeKey = (packId, instanceNumber, fieldKey) => `${packId}_${instanceNumber || 1}_${fieldKey}`;
@@ -4088,6 +4111,9 @@ export default function CandidateInterview() {
             <Button
               onClick={() => {
                 console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
+                // Add Welcome to transcript when starting
+                const updatedTranscript = ensureWelcomeInTranscript(transcript);
+                setTranscript(updatedTranscript);
                 setScreenMode("QUESTION");
                 setTimeout(() => autoScrollToBottom(), 100);
               }}
@@ -4163,6 +4189,13 @@ export default function CandidateInterview() {
           <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+              {/* SYSTEM Welcome message */}
+              {entry.kind === 'SYSTEM' && entry.subtype === 'WELCOME' && (
+                <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
+                  <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
+                </div>
+              )}
+              
               {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -4354,16 +4387,7 @@ export default function CandidateInterview() {
       {/* Floating question card - positioned above footer */}
       {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
         <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
-          <div className="max-w-5xl mx-auto space-y-3">
-            {/* Welcome banner - only for first question */}
-            {currentPrompt.type === 'question' && currentItem?.id === engine?.ActiveOrdered?.[0] && transcript.length === 0 && (
-              <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.
-                </p>
-              </div>
-            )}
-            
+          <div className="max-w-5xl mx-auto">
             <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
                 {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
