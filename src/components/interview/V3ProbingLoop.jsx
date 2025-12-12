@@ -102,6 +102,14 @@ export default function V3ProbingLoop({
     }
 
     try {
+      console.log('[V3_PROBING][CALLING_ENGINE]', {
+        sessionId,
+        categoryId,
+        incidentId: incidentId || '(will create)',
+        answerLength: answer?.length || 0,
+        isInitialCall
+      });
+      
       // Call V3 decision engine
       const result = await base44.functions.invoke('decisionEngineV3', {
         sessionId,
@@ -115,6 +123,37 @@ export default function V3ProbingLoop({
       });
 
       const data = result.data || result;
+      
+      console.log('[V3_PROBING][ENGINE_RESPONSE]', {
+        ok: data.ok,
+        nextAction: data.nextAction,
+        hasPrompt: !!data.nextPrompt,
+        errorCode: data.errorCode,
+        incidentId: data.incidentId
+      });
+      
+      // Handle controlled errors from engine
+      if (data.ok === false) {
+        console.error('[V3_PROBING][ENGINE_ERROR]', {
+          errorCode: data.errorCode,
+          errorMessage: data.errorMessage,
+          details: data.details
+        });
+        
+        // Show error message and allow graceful exit
+        const errorMessage = {
+          id: `v3-error-${Date.now()}`,
+          role: "ai",
+          content: data.nextPrompt || "I apologize, there was a technical issue. Let's continue with the interview.",
+          isError: true,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setIsComplete(true);
+        setCompletionReason("ERROR");
+        setIsLoading(false);
+        return;
+      }
 
       // Update incident ID if new one was created
       const currentIncidentId = data.incidentId || incidentId;
@@ -124,8 +163,8 @@ export default function V3ProbingLoop({
         logIncidentCreated(sessionId, data.incidentId, categoryId);
       }
       
-      // Update probe count
-      const newProbeCount = probeCount + 1;
+      // Update probe count (skip for initial call)
+      const newProbeCount = isInitialCall ? 0 : probeCount + 1;
       setProbeCount(newProbeCount);
 
       // Handle next action
@@ -194,17 +233,24 @@ export default function V3ProbingLoop({
         }
       }
     } catch (err) {
-      console.error("[V3 PROBING] Error calling decision engine:", err);
+      console.error("[V3_PROBING][EXCEPTION] Error calling decision engine:", err);
+      console.error("[V3_PROBING][EXCEPTION_DETAILS]", {
+        message: err.message,
+        name: err.name,
+        stack: err.stack
+      });
       
-      // Show error and allow retry
+      // Show error and allow graceful exit
       const errorMessage = {
         id: `v3-error-${Date.now()}`,
         role: "ai",
-        content: "I apologize, there was an issue processing your response. Please try again.",
+        content: "I apologize, there was a technical issue. Let's continue with the interview.",
         isError: true,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
+      setIsComplete(true);
+      setCompletionReason("ERROR");
     } finally {
       setIsLoading(false);
     }

@@ -622,25 +622,42 @@ async function decisionEngineV3Probe(base44, {
 // ========== HTTP HANDLER ==========
 
 Deno.serve(async (req) => {
+  console.log('[DECISION_V3][HTTP_ENTRY] ========== REQUEST RECEIVED ==========');
+  
   try {
     const base44 = createClientFromRequest(req);
     
     const user = await base44.auth.me();
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ 
+        ok: false,
+        errorCode: 'UNAUTHORIZED',
+        errorMessage: 'User not authenticated'
+      }, { status: 401 });
     }
     
     let body;
     try {
       body = await req.json();
+      console.log('[DECISION_V3][PAYLOAD]', {
+        hasSessionId: !!body.sessionId,
+        hasCategoryId: !!body.categoryId,
+        hasIncidentId: !!body.incidentId,
+        hasAnswerText: !!body.latestAnswerText,
+        answerLength: body.latestAnswerText?.length || 0
+      });
     } catch (e) {
-      return Response.json({ error: 'Invalid JSON' }, { status: 400 });
+      console.error('[DECISION_V3][PARSE_ERROR]', e.message);
+      return Response.json({ 
+        ok: false,
+        errorCode: 'INVALID_JSON',
+        errorMessage: 'Request body is not valid JSON'
+      }, { status: 400 });
     }
     
     // ========== HEALTHCHECK MODE ==========
-    // For readiness checks - no actual probing, just validate function is callable
     if (body.mode === "healthcheck" || body.isReadinessCheck === true) {
-      console.log("[IDE-V3] Healthcheck mode - returning OK");
+      console.log("[DECISION_V3][HEALTHCHECK] OK");
       return Response.json({ 
         ok: true, 
         mode: "healthcheck",
@@ -648,13 +665,29 @@ Deno.serve(async (req) => {
       });
     }
     
+    // ========== VALIDATE REQUIRED FIELDS ==========
     const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, config } = body;
     
     if (!sessionId || !categoryId) {
+      console.error('[DECISION_V3][BAD_PAYLOAD] Missing required fields', {
+        sessionId: !!sessionId,
+        categoryId: !!categoryId,
+        payload: body
+      });
       return Response.json({ 
-        error: 'Missing required fields: sessionId, categoryId' 
+        ok: false,
+        errorCode: 'BAD_REQUEST',
+        errorMessage: 'Missing required fields: sessionId and categoryId are required'
       }, { status: 400 });
     }
+    
+    // ========== CALL DECISION ENGINE ==========
+    console.log('[DECISION_V3][CALLING_ENGINE]', {
+      sessionId,
+      categoryId,
+      incidentId: incidentId || '(will create)',
+      answerLength: latestAnswerText?.length || 0
+    });
     
     const result = await decisionEngineV3Probe(base44, {
       sessionId,
@@ -668,14 +701,38 @@ Deno.serve(async (req) => {
       config: config || {}
     });
     
-    return Response.json(result);
+    console.log('[DECISION_V3][RESULT]', {
+      nextAction: result.nextAction,
+      hasPrompt: !!result.nextPrompt,
+      incidentId: result.incidentId,
+      missingFieldsCount: result.missingFields?.length || 0
+    });
+    
+    // ========== RETURN SUCCESS ==========
+    return Response.json({
+      ok: true,
+      ...result
+    });
     
   } catch (error) {
-    console.error("[IDE-V3] Fatal error:", error.message);
+    console.error('[DECISION_V3][FATAL_ERROR] ========== UNHANDLED EXCEPTION ==========');
+    console.error('[DECISION_V3][FATAL_ERROR]', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
+    
+    // Return 200 with controlled error (not 500)
     return Response.json({ 
-      error: error.message,
+      ok: false,
+      errorCode: 'DECISION_ENGINE_ERROR',
+      errorMessage: error.message || 'Unknown error in decisionEngineV3',
       nextAction: "STOP",
-      decisionTraceEntry: { error: error.message }
-    }, { status: 500 });
+      nextPrompt: "I apologize, there was a technical issue. Let's continue with the interview.",
+      details: {
+        errorName: error.name,
+        timestamp: new Date().toISOString()
+      }
+    }, { status: 200 });
   }
 });
