@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Loader2, Bot, User, CheckCircle2 } from "lucide-react";
-import { getOpeningPrompt, getCompletionMessage } from "../utils/v3ProbingPrompts";
+import { getCompletionMessage } from "../utils/v3ProbingPrompts";
 import { 
   logAIOpening, 
   logAIFollowUp, 
