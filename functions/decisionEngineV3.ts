@@ -627,14 +627,28 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ 
-        ok: false,
-        errorCode: 'UNAUTHORIZED',
-        errorMessage: 'User not authenticated'
-      }, { status: 401 });
+    // Safe user lookup - treat as optional for public/anonymous sessions
+    let userContext = null;
+    try {
+      userContext = await base44.auth.me();
+    } catch (authErr) {
+      console.warn('[DECISION_V3][USER_LOOKUP_FAILED] Continuing with anonymous context', {
+        message: authErr?.message
+      });
+      // Non-fatal - continue with anonymous context
+      userContext = null;
     }
+    
+    const effectiveUserContext = userContext || {
+      id: null,
+      email: null,
+      role: 'anonymous'
+    };
+    
+    console.log('[DECISION_V3][USER_CONTEXT]', {
+      authenticated: !!userContext,
+      role: effectiveUserContext.role
+    });
     
     let body;
     try {
