@@ -2321,9 +2321,21 @@ export default function CandidateInterview() {
                 console.warn("[V3_PACK] Could not load pack metadata:", err);
               }
               
+              // Derive categoryLabel from available sources
+              let categoryLabel = 
+                packMetadata?.pack_name || 
+                packMetadata?.category_label ||
+                FOLLOWUP_PACK_CONFIGS[packId]?.instancesLabel ||
+                categoryId?.replace(/_/g, ' ').toLowerCase() ||
+                "this topic";
+              
+              if (categoryLabel === "this topic") {
+                console.warn(`[V3_PACK][WARN] Missing categoryLabel for pack ${packId} / categoryId=${categoryId}, using generic fallback`);
+              }
+              
               // Get deterministic opener (configured or synthesized)
               const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
-              const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel || packMetadata?.pack_name);
+              const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
               
               if (opener.isSynthesized) {
                 console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
