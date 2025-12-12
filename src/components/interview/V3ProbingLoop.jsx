@@ -257,8 +257,7 @@ export default function V3ProbingLoop({
             
             if (statusCode === 404) {
               errorType = '404_NOT_FOUND';
-              console.error("[V3_SUMMARY_404_NOT_FOUND] Function missing or wrong environment", {
-                error: err.message,
+              console.log("[V3_SUMMARY_404] Function not deployed - using fallback (expected during dev)", {
                 incidentId: finalIncidentId
               });
             } else if (statusCode === 401) {
@@ -281,11 +280,14 @@ export default function V3ProbingLoop({
               });
             }
             
-            console.error("[V3_SUMMARY_FALLBACK] Summary generator failed — saving fallback summary", {
-              errorType,
-              error: err.message,
-              incidentId: finalIncidentId
-            });
+            // Only log as error for non-404 failures (404 is expected during dev)
+            if (errorType !== '404_NOT_FOUND') {
+              console.error("[V3_SUMMARY_FALLBACK] Summary generator failed — saving fallback summary", {
+                errorType,
+                error: err.message,
+                incidentId: finalIncidentId
+              });
+            }
             
             // Create and save fallback summary directly
             try {
