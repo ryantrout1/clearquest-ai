@@ -84,6 +84,11 @@ export async function appendQuestionEntry({
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
+    console.log("[TRANSCRIPT][APPEND_OK]", {
+      newLength: updatedTranscript.length,
+      lastIndex: entry.index,
+      role: "question"
+    });
   } catch (err) {
     console.error("[TRANSCRIPT][ERROR] Failed to append question entry:", err);
   }
@@ -146,6 +151,11 @@ export async function appendAnswerEntry({
   try {
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
+    });
+    console.log("[TRANSCRIPT][APPEND_OK]", {
+      newLength: updatedTranscript.length,
+      lastIndex: entry.index,
+      role: "answer"
     });
   } catch (err) {
     console.error("[TRANSCRIPT][ERROR] Failed to append answer entry:", err);

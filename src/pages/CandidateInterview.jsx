@@ -1037,6 +1037,14 @@ export default function CandidateInterview() {
         layoutVersion: "section-first"
       });
 
+      // FIX #2: Write welcome message to transcript on first load
+      if (sessionIsNew) {
+        const { appendWelcomeMessage } = await import("../components/utils/chatTranscriptHelpers");
+        const welcomeTranscript = await appendWelcomeMessage(sessionId, loadedSession.transcript_snapshot || []);
+        setTranscript(welcomeTranscript);
+        console.log("[TRANSCRIPT][WELCOME] Added welcome message to new session");
+      }
+
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
       setIsLoading(false);
@@ -1982,26 +1990,30 @@ export default function CandidateInterview() {
           answerLength: value?.length || 0
         });
         
-        // Add opener Q&A to transcript
-        const openerQuestionEvent = createChatEvent('followup_question', {
-          questionId: `v3-opener-${packId}`,
-          questionText: openerText,
+        // FIX #3: Append opener as assistant+user messages to transcript
+        const { appendAssistantMessage, appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        const currentTranscript = session.transcript_snapshot || [];
+        
+        // Append assistant opener question
+        const transcriptAfterQuestion = await appendAssistantMessage(sessionId, currentTranscript, openerText, {
+          messageType: 'v3_opener_question',
           packId,
-          kind: 'v3_pack_opener',
-          text: openerText,
-          content: openerText,
           categoryId,
           instanceNumber,
           baseQuestionId
         });
         
-        const openerEntry = {
-          ...openerQuestionEvent,
-          answer: value,
-          text: value
-        };
+        // Append user opener answer
+        const transcriptAfterAnswer = await appendUserMessage(sessionId, transcriptAfterQuestion, value, {
+          messageType: 'v3_opener_answer',
+          packId,
+          categoryId,
+          instanceNumber,
+          baseQuestionId
+        });
         
-        const newTranscript = [...transcript, openerEntry];
+        // Update local UI transcript
+        const newTranscript = transcriptAfterAnswer;
         setTranscript(newTranscript);
         
         // Save opener answer to database
@@ -4158,7 +4170,65 @@ export default function CandidateInterview() {
         >
           <div className="space-y-4">
           {transcript.map((entry, index) => (
-            <div key={`${entry.type}-${entry.id || index}`}>
+            <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+              {/* FIX #5: Render assistant messages (welcome, questions, AI probes) */}
+              {entry.role === 'assistant' && entry.messageType === 'WELCOME' && (
+                <div className="bg-[#1a2744] border border-blue-500/50 rounded-xl p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                      <Shield className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-slate-200 text-sm leading-relaxed">{entry.text}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                </div>
+              )}
+              
+              {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
+                </div>
+              )}
+              
+              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-purple-400 font-medium">AI Follow-Up</span>
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                </div>
+              )}
+              
+              {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
+                </div>
+              )}
+              
+              {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
+                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4 ml-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-emerald-400 font-medium">Complete</span>
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                </div>
+              )}
+              
               {/* Base questions with answers - only show if answered */}
               {entry.type === 'question' && entry.answer && (
                 <div className="space-y-3">
