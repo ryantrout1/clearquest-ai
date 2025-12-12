@@ -213,35 +213,54 @@ export default function V3ProbingLoop({
         setIsComplete(true);
         setCompletionReason(data.nextAction);
         
+        // Determine final incident ID - use engine's if provided, otherwise local
+        const finalIncidentId = (data.incidentId && data.incidentId.trim() !== '') ? data.incidentId : incidentId;
+        
         // Log completion to InterviewTranscript
         if (data.nextAction === "RECAP") {
-          logIncidentCompleted(sessionId, currentIncidentId, categoryId, "RECAP");
+          logIncidentCompleted(sessionId, finalIncidentId, categoryId, "RECAP");
         } else {
-          logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
+          logProbingStopped(sessionId, finalIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
         }
         
-        // Summary generation guard - only attempt if we have a valid incidentId
-        if (currentIncidentId && typeof currentIncidentId === 'string' && currentIncidentId.trim() !== '') {
-          // Schedule summary generation with retry logic to handle auth + persistence race condition
-          setTimeout(() => {
-            base44.functions.invoke('generateV3IncidentSummary', {
+        // ALWAYS generate summary after opener submission - with fallback on failure
+        setTimeout(async () => {
+          try {
+            await base44.functions.invoke('generateV3IncidentSummary', {
               sessionId,
-              incidentId: currentIncidentId,
+              incidentId: finalIncidentId,
               categoryId
-            }).catch(err => {
-              // Log but don't block interview completion
-              console.warn("[V3] Incident summary failed (non-blocking):", {
-                error: err.message,
-                incidentId: currentIncidentId,
-                statusCode: err.response?.status
-              });
-              // Summary failure is not critical - interview continues
             });
-          }, 500);
-        } else {
-          // STOP early without incident created - this is normal for some V3 flows
-          console.log("[V3_SUMMARY_SKIP] No incidentId (STOP early) — skipping summary and continuing interview");
-        }
+            console.log("[V3_SUMMARY_OK] Saved summary", {
+              categoryId,
+              finalIncidentId
+            });
+          } catch (err) {
+            console.error("[V3_SUMMARY_FALLBACK] Summary generator failed — saved fallback summary", {
+              error: err.message,
+              incidentId: finalIncidentId
+            });
+            
+            // Create and save fallback summary directly
+            try {
+              const session = await base44.entities.InterviewSession.get(sessionId);
+              const fallbackSummary = `[Auto-generated] ${categoryLabel || categoryId}: ${openerAnswer?.substring(0, 200) || 'Details provided'}${openerAnswer?.length > 200 ? '...' : ''}`;
+              
+              const updatedIncidents = (session.incidents || []).map(inc => {
+                if (inc.incident_id === finalIncidentId) {
+                  return { ...inc, narrative_summary: fallbackSummary };
+                }
+                return inc;
+              });
+              
+              await base44.entities.InterviewSession.update(sessionId, {
+                incidents: updatedIncidents
+              });
+            } catch (fallbackErr) {
+              console.error("[V3_SUMMARY_FALLBACK_ERROR] Could not save fallback", fallbackErr);
+            }
+          }
+        }, 500);
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
@@ -249,7 +268,7 @@ export default function V3ProbingLoop({
             type: 'v3_probe_complete',
             content: completionMessage,
             categoryId,
-            incidentId: currentIncidentId,
+            incidentId: finalIncidentId,
             nextAction: data.nextAction,
             timestamp: aiMessage.timestamp
           });
