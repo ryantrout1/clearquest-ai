@@ -1023,7 +1023,7 @@ export default function CandidateInterview() {
       if (needsRebuild) {
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
-        const restoreSuccessful = restoreFromSnapshots(engineData, loadedSession);
+        const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
 
         if (!restoreSuccessful) {
           await rebuildSessionFromResponses(engineData, loadedSession);
@@ -1071,7 +1071,7 @@ export default function CandidateInterview() {
     }
   };
 
-  const restoreFromSnapshots = (engineData, loadedSession) => {
+  const restoreFromSnapshots = async (engineData, loadedSession) => {
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
