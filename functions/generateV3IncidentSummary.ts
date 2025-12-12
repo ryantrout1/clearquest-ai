@@ -20,11 +20,19 @@ Deno.serve(async (req) => {
     }
     
     const body = await req.json();
-    const { sessionId, incidentId, categoryId } = body;
+    const { sessionId, incidentId, categoryId, transcriptTurns, openerAnswer, createdAt } = body;
     
-    if (!sessionId || !incidentId || !categoryId) {
+    if (!sessionId || !categoryId) {
       return Response.json({ 
-        error: 'Missing required fields: sessionId, incidentId, categoryId' 
+        ok: false,
+        error: 'MISSING_FIELD:sessionId or categoryId'
+      }, { status: 400 });
+    }
+    
+    if (!incidentId) {
+      return Response.json({ 
+        ok: false,
+        error: 'MISSING_FIELD:incidentId'
       }, { status: 400 });
     }
     
@@ -82,18 +90,27 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'No summary template' }, { status: 404 });
     }
     
-    // Build facts text for LLM
+    // Build facts text for LLM - use incident facts or fallback to opener/transcript
     const facts = incident.facts || {};
     const factsText = Object.entries(facts)
       .filter(([_, v]) => v !== null && v !== undefined && v !== '')
       .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
       .join('\n');
     
+    // Include opener answer and transcript if provided
+    let contextText = '';
+    if (openerAnswer) {
+      contextText += `\nOpener Response: ${openerAnswer}`;
+    }
+    if (transcriptTurns && transcriptTurns.length > 0) {
+      contextText += '\n\nTranscript:\n' + transcriptTurns.map(t => `${t.role}: ${t.content}`).join('\n');
+    }
+    
     // Generate summary using LLM
     const prompt = `${summaryTemplate}
 
 INCIDENT FACTS:
-${factsText || '(No facts collected)'}
+${factsText || '(No facts collected)'}${contextText}
 
 Generate a concise, factual investigator summary (2-4 sentences):`;
     
@@ -128,12 +145,17 @@ Generate a concise, factual investigator summary (2-4 sentences):`;
     return Response.json({
       ok: true,
       incidentId,
-      narrativeSummary,
+      incidentSummary: narrativeSummary,
+      generatedAt: new Date().toISOString(),
+      modelVersion: 'v3',
       factsCount: Object.keys(facts).length
     });
     
   } catch (error) {
     console.error('[V3_INCIDENT_SUMMARY] Error:', error.message);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ 
+      ok: false, 
+      error: `SERVER_ERROR:${error.message}` 
+    }, { status: 500 });
   }
 });

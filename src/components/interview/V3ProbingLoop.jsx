@@ -226,17 +226,63 @@ export default function V3ProbingLoop({
         // ALWAYS generate summary after opener submission - with fallback on failure
         setTimeout(async () => {
           try {
-            await base44.functions.invoke('generateV3IncidentSummary', {
+            const result = await base44.functions.invoke('generateV3IncidentSummary', {
               sessionId,
               incidentId: finalIncidentId,
-              categoryId
-            });
-            console.log("[V3_SUMMARY_OK] Saved summary", {
               categoryId,
-              finalIncidentId
+              transcriptTurns: messages.map(m => ({ role: m.role, content: m.content })),
+              openerAnswer: openerAnswer,
+              createdAt: new Date().toISOString()
             });
+            
+            const data = result.data || result;
+            
+            if (data.ok) {
+              console.log("[V3_SUMMARY_OK] Saved summary", {
+                categoryId,
+                finalIncidentId,
+                summaryLength: data.incidentSummary?.length
+              });
+            } else {
+              console.error("[V3_SUMMARY_VALIDATION_ERROR]", {
+                error: data.error,
+                incidentId: finalIncidentId
+              });
+              throw new Error(data.error);
+            }
           } catch (err) {
-            console.error("[V3_SUMMARY_FALLBACK] Summary generator failed — saved fallback summary", {
+            // Categorize error type
+            const statusCode = err.response?.status;
+            let errorType = 'UNKNOWN_ERROR';
+            
+            if (statusCode === 404) {
+              errorType = '404_NOT_FOUND';
+              console.error("[V3_SUMMARY_404_NOT_FOUND] Function missing or wrong environment", {
+                error: err.message,
+                incidentId: finalIncidentId
+              });
+            } else if (statusCode === 401) {
+              errorType = '401_UNAUTHORIZED';
+              console.error("[V3_SUMMARY_401_UNAUTHORIZED] User context missing", {
+                error: err.message,
+                incidentId: finalIncidentId
+              });
+            } else if (statusCode === 500 || err.message?.includes('SERVER_ERROR')) {
+              errorType = '500_SERVER_ERROR';
+              console.error("[V3_SUMMARY_500_SERVER_ERROR] Function threw exception", {
+                error: err.message,
+                incidentId: finalIncidentId
+              });
+            } else if (err.message?.includes('MISSING_FIELD') || err.message?.includes('VALIDATION')) {
+              errorType = 'VALIDATION_ERROR';
+              console.error("[V3_SUMMARY_VALIDATION_ERROR] Missing required field", {
+                error: err.message,
+                incidentId: finalIncidentId
+              });
+            }
+            
+            console.error("[V3_SUMMARY_FALLBACK] Summary generator failed — saving fallback summary", {
+              errorType,
               error: err.message,
               incidentId: finalIncidentId
             });
