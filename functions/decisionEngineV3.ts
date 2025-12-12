@@ -570,6 +570,29 @@ async function decisionEngineV3Probe(base44, {
   incident.fact_state = legacyFactState;
   incident.updated_at = new Date().toISOString();
   
+  // Generate narrative summary on STOP/RECAP
+  if (nextAction === "STOP" || nextAction === "RECAP") {
+    console.log('[IDE-V3] Generating summary server-side', { incidentId, nextAction, stopReason });
+    
+    const categoryLabel = factModel.category_label || categoryId.replace(/_/g, ' ');
+    const factsText = Object.entries(incident.facts || {})
+      .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+      .join('; ');
+    
+    let summary = '';
+    if (factsText.length > 100) {
+      summary = `${categoryLabel}: ${factsText.substring(0, 200)}${factsText.length > 200 ? '...' : ''}`;
+    } else if (factsText.length > 0) {
+      summary = `${categoryLabel}: ${factsText}`;
+    } else {
+      summary = `${categoryLabel}: Details recorded.`;
+    }
+    
+    incident.narrative_summary = summary;
+    console.log('[IDE-V3] Summary generated', { incidentId, summaryLength: summary.length });
+  }
+  
   // Replace incident in array
   const incidentIndex = incidents.findIndex(inc => inc.incident_id === incidentId);
   if (incidentIndex >= 0) {
@@ -591,6 +614,7 @@ async function decisionEngineV3Probe(base44, {
       fact_state: updatedSession.fact_state,
       ide_version: "V3"
     });
+    console.log('[IDE-V3] Session persisted', { sessionId, incidentsCount: incidents.length });
   } catch (err) {
     console.error("[IDE-V3] Error persisting session:", err);
   }
