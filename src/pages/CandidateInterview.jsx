@@ -1037,14 +1037,6 @@ export default function CandidateInterview() {
         layoutVersion: "section-first"
       });
 
-      // FIX #2: Write welcome message to transcript on first load
-      if (sessionIsNew) {
-        const { appendWelcomeMessage } = await import("../components/utils/chatTranscriptHelpers");
-        const welcomeTranscript = await appendWelcomeMessage(sessionId, loadedSession.transcript_snapshot || []);
-        setTranscript(welcomeTranscript);
-        console.log("[TRANSCRIPT][WELCOME] Added welcome message to new session");
-      }
-
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
       setIsLoading(false);
@@ -4171,15 +4163,6 @@ export default function CandidateInterview() {
           <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              {/* FIX #5: Render assistant messages (welcome, questions, AI probes) */}
-              {entry.role === 'assistant' && entry.messageType === 'WELCOME' && (
-                <div className="ml-4">
-                  <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-4">
-                    <p className="text-slate-200 text-sm leading-relaxed">{entry.text}</p>
-                  </div>
-                </div>
-              )}
-              
               {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
                   <div className="flex items-center gap-2 mb-2">
