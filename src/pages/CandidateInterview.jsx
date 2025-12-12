@@ -38,6 +38,15 @@ import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
+import { 
+  ensureWelcomeMessage, 
+  appendReturnMarker, 
+  preserveSystemMessages,
+  logSystemEvent,
+  appendQuestionShown,
+  appendAnswerSubmitted,
+  rebuildCandidateTranscript
+} from "../components/utils/dualTranscript";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -339,28 +348,8 @@ const createChatEvent = (type, data = {}) => {
   return baseEvent;
 };
 
-// Ensure Welcome message is in transcript (only once, at start)
-const ensureWelcomeInTranscript = (currentTranscript) => {
-  const hasWelcome = currentTranscript.some(t => t.id === 'WELCOME' || (t.kind === 'SYSTEM' && t.subtype === 'WELCOME'));
-  
-  if (hasWelcome) {
-    console.log('[TRANSCRIPT][WELCOME][SKIP_EXISTS]');
-    return currentTranscript;
-  }
-  
-  const welcomeEntry = {
-    id: 'WELCOME',
-    kind: 'SYSTEM',
-    subtype: 'WELCOME',
-    role: 'system',
-    type: 'system_welcome',
-    text: "Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.",
-    timestamp: new Date().toISOString()
-  };
-  
-  console.log('[TRANSCRIPT][WELCOME][ADD]');
-  return [welcomeEntry, ...currentTranscript];
-};
+// Legacy helper - now delegates to dualTranscript module
+const ensureWelcomeInTranscript = ensureWelcomeMessage;
 
 const useProbeEngineV2 = usePerFieldProbing;
 
@@ -1062,6 +1051,27 @@ export default function CandidateInterview() {
 
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
+      
+      // Log system event: SESSION_CREATED or SESSION_RESUMED
+      if (sessionIsNew) {
+        await logSystemEvent(sessionId, 'SESSION_CREATED', {
+          department_code: loadedSession.department_code,
+          file_number: loadedSession.file_number
+        });
+      } else {
+        // Add return marker for resumed sessions
+        const transcriptWithMarker = appendReturnMarker(sessionId, loadedSession.transcript_snapshot || []);
+        setTranscript(transcriptWithMarker);
+        
+        await base44.entities.InterviewSession.update(sessionId, {
+          transcript_snapshot: transcriptWithMarker
+        });
+        
+        await logSystemEvent(sessionId, 'SESSION_RESUMED', {
+          questions_answered: loadedSession.total_questions_answered
+        });
+      }
+      
       setIsLoading(false);
 
     } catch (err) {
@@ -1088,7 +1098,10 @@ export default function CandidateInterview() {
       return false;
     }
 
-    setTranscript(restoredTranscript);
+    // Ensure Welcome message is present in restored transcript
+    const transcriptWithWelcome = ensureWelcomeMessage(restoredTranscript);
+    
+    setTranscript(transcriptWithWelcome);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
 
@@ -2027,8 +2040,8 @@ export default function CandidateInterview() {
           baseQuestionId
         });
         
-        // Update local UI transcript
-        const newTranscript = transcriptAfterAnswer;
+        // Update local UI transcript - preserve system messages
+        const newTranscript = preserveSystemMessages(transcript, transcriptAfterAnswer);
         setTranscript(newTranscript);
         
         // Save opener answer to database
@@ -4189,8 +4202,22 @@ export default function CandidateInterview() {
           <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              {/* SYSTEM Welcome message */}
-              {entry.kind === 'SYSTEM' && entry.subtype === 'WELCOME' && (
+              {/* SYSTEM Welcome message - dual transcript format */}
+              {entry.eventType === 'SYSTEM_WELCOME' && entry.visibleToCandidate && (
+                <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
+                  <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
+                </div>
+              )}
+              
+              {/* Session resumed marker */}
+              {entry.eventType === 'SESSION_RESUMED_MARKER' && entry.visibleToCandidate && (
+                <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
+                  <p className="text-blue-300 text-sm">{entry.text}</p>
+                </div>
+              )}
+              
+              {/* Legacy SYSTEM Welcome (backward compat) */}
+              {entry.kind === 'SYSTEM' && entry.subtype === 'WELCOME' && !entry.eventType && (
                 <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
                   <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
                 </div>
