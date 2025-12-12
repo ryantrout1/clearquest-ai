@@ -4173,14 +4173,9 @@ export default function CandidateInterview() {
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {/* FIX #5: Render assistant messages (welcome, questions, AI probes) */}
               {entry.role === 'assistant' && entry.messageType === 'WELCOME' && (
-                <div className="bg-[#1a2744] border border-blue-500/50 rounded-xl p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                      <Shield className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-slate-200 text-sm leading-relaxed">{entry.text}</p>
-                    </div>
+                <div className="ml-4">
+                  <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-4">
+                    <p className="text-slate-200 text-sm leading-relaxed">{entry.text}</p>
                   </div>
                 </div>
               )}
