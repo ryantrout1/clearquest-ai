@@ -212,38 +212,23 @@ export default function V3ProbingLoop({
         } else {
           logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
         }
-
-        // Guard: Log incident ID availability for debugging
-        console.log('[V3_SUMMARY_GUARD]', {
-          currentIncidentId,
-          fromEngineData: data.incidentId,
-          fromState: incidentId,
-          sessionId,
-          categoryId,
-          isValid: !!currentIncidentId
-        });
-
-        // Only call summary if we have a valid incident ID
-        if (currentIncidentId) {
-          // Schedule summary generation with retry logic to handle auth + persistence race condition
-          setTimeout(() => {
-            base44.functions.invoke('generateV3IncidentSummary', {
-              sessionId,
+        
+        // Schedule summary generation with retry logic to handle auth + persistence race condition
+        setTimeout(() => {
+          base44.functions.invoke('generateV3IncidentSummary', {
+            sessionId,
+            incidentId: currentIncidentId,
+            categoryId
+          }).catch(err => {
+            // Log but don't block interview completion
+            console.warn("[V3] Incident summary failed (non-blocking):", {
+              error: err.message,
               incidentId: currentIncidentId,
-              categoryId
-            }).catch(err => {
-              // Log but don't block interview completion
-              console.warn("[V3] Incident summary failed (non-blocking):", {
-                error: err.message,
-                incidentId: currentIncidentId,
-                statusCode: err.response?.status
-              });
-              // Summary failure is not critical - interview continues
+              statusCode: err.response?.status
             });
-          }, 500);
-        } else {
-          console.warn('[V3_SUMMARY_SKIP] Cannot generate summary - no valid incidentId available');
-        }
+            // Summary failure is not critical - interview continues
+          });
+        }, 500);
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
