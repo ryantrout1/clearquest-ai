@@ -161,6 +161,7 @@ export default function SessionDetails() {
   const [instanceSummariesByKey, setInstanceSummariesByKey] = useState({});
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [v3ActiveTab, setV3ActiveTab] = useState("incidents");
+  const [transcriptViewMode, setTranscriptViewMode] = useState("candidate"); // "candidate" | "audit"
 
   const categoryRefs = useRef({});
   
@@ -1426,6 +1427,34 @@ export default function SessionDetails() {
           />
         ) : (
           <>
+            {/* Dual Transcript Tabs */}
+            <div className="mb-4 flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded-lg p-1">
+              <Button
+                size="sm"
+                onClick={() => setTranscriptViewMode("candidate")}
+                className={cn(
+                  "flex-1 transition-all",
+                  transcriptViewMode === "candidate" 
+                    ? "bg-blue-600 text-white hover:bg-blue-700" 
+                    : "bg-transparent text-slate-300 hover:bg-slate-700"
+                )}
+              >
+                Candidate View
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setTranscriptViewMode("audit")}
+                className={cn(
+                  "flex-1 transition-all",
+                  transcriptViewMode === "audit" 
+                    ? "bg-purple-600 text-white hover:bg-purple-700" 
+                    : "bg-transparent text-slate-300 hover:bg-slate-700"
+                )}
+              >
+                Audit View
+              </Button>
+            </div>
+            
             {/* Canonical Transcript - Legal Record */}
             {session.transcript_snapshot && session.transcript_snapshot.length > 0 ? (
               <CanonicalTranscriptRenderer 
@@ -1433,6 +1462,7 @@ export default function SessionDetails() {
                 questions={questions}
                 searchTerm={searchTerm}
                 showOnlyFollowUps={showOnlyFollowUps}
+                viewMode={transcriptViewMode}
               />
             ) : (
               <UnifiedTranscriptView

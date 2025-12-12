@@ -38,15 +38,7 @@ import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
-import { 
-  ensureWelcomeMessage, 
-  appendReturnMarker, 
-  preserveSystemMessages,
-  logSystemEvent,
-  appendQuestionShown,
-  appendAnswerSubmitted,
-  rebuildCandidateTranscript
-} from "../components/utils/dualTranscript";
+import { appendWelcomeMessage, appendResumeMarker, logSystemEvent as logSystemEventHelper } from "../components/utils/chatTranscriptHelpers";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -348,8 +340,10 @@ const createChatEvent = (type, data = {}) => {
   return baseEvent;
 };
 
-// Legacy helper - now delegates to dualTranscript module
-const ensureWelcomeInTranscript = ensureWelcomeMessage;
+// Ensure Welcome is in transcript at session start (only once)
+const ensureWelcomeInTranscript = async (sessionId, currentTranscript) => {
+  return await appendWelcomeMessage(sessionId, currentTranscript);
+};
 
 const useProbeEngineV2 = usePerFieldProbing;
 
@@ -1052,22 +1046,18 @@ export default function CandidateInterview() {
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
       
-      // Log system event: SESSION_CREATED or SESSION_RESUMED
+      // Log system events
       if (sessionIsNew) {
-        await logSystemEvent(sessionId, 'SESSION_CREATED', {
+        await logSystemEventHelper(sessionId, 'SESSION_CREATED', {
           department_code: loadedSession.department_code,
           file_number: loadedSession.file_number
         });
       } else {
-        // Add return marker for resumed sessions
-        const transcriptWithMarker = appendReturnMarker(sessionId, loadedSession.transcript_snapshot || []);
+        // Add resume marker for returning candidates
+        const transcriptWithMarker = await appendResumeMarker(sessionId, loadedSession.transcript_snapshot || []);
         setTranscript(transcriptWithMarker);
         
-        await base44.entities.InterviewSession.update(sessionId, {
-          transcript_snapshot: transcriptWithMarker
-        });
-        
-        await logSystemEvent(sessionId, 'SESSION_RESUMED', {
+        await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
           questions_answered: loadedSession.total_questions_answered
         });
       }
@@ -1098,8 +1088,8 @@ export default function CandidateInterview() {
       return false;
     }
 
-    // Ensure Welcome message is present in restored transcript
-    const transcriptWithWelcome = ensureWelcomeMessage(restoredTranscript);
+    // Ensure Welcome message is present
+    const transcriptWithWelcome = await ensureWelcomeInTranscript(sessionId, restoredTranscript);
     
     setTranscript(transcriptWithWelcome);
     setQueue(restoredQueue);
@@ -2040,8 +2030,8 @@ export default function CandidateInterview() {
           baseQuestionId
         });
         
-        // Update local UI transcript - preserve system messages
-        const newTranscript = preserveSystemMessages(transcript, transcriptAfterAnswer);
+        // Update local UI transcript
+        const newTranscript = transcriptAfterAnswer;
         setTranscript(newTranscript);
         
         // Save opener answer to database
@@ -4122,10 +4112,10 @@ export default function CandidateInterview() {
         <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
           <div className="max-w-5xl mx-auto flex flex-col items-center">
             <Button
-              onClick={() => {
+              onClick={async () => {
                 console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
                 // Add Welcome to transcript when starting
-                const updatedTranscript = ensureWelcomeInTranscript(transcript);
+                const updatedTranscript = await ensureWelcomeInTranscript(sessionId, transcript);
                 setTranscript(updatedTranscript);
                 setScreenMode("QUESTION");
                 setTimeout(() => autoScrollToBottom(), 100);
@@ -4202,24 +4192,17 @@ export default function CandidateInterview() {
           <div className="space-y-4">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              {/* SYSTEM Welcome message - dual transcript format */}
-              {entry.eventType === 'SYSTEM_WELCOME' && entry.visibleToCandidate && (
+              {/* SYSTEM Welcome message */}
+              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
                   <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
                 </div>
               )}
               
               {/* Session resumed marker */}
-              {entry.eventType === 'SESSION_RESUMED_MARKER' && entry.visibleToCandidate && (
+              {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
                 <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
                   <p className="text-blue-300 text-sm">{entry.text}</p>
-                </div>
-              )}
-              
-              {/* Legacy SYSTEM Welcome (backward compat) */}
-              {entry.kind === 'SYSTEM' && entry.subtype === 'WELCOME' && !entry.eventType && (
-                <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
-                  <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
                 </div>
               )}
               
