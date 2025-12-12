@@ -33,7 +33,13 @@ export default function V3ProbingLoop({
   packData, // Pack metadata with author-controlled opener
   openerAnswer // NEW: Opener narrative from candidate
 }) {
-  const [incidentId, setIncidentId] = useState(initialIncidentId);
+  // Create local incidentId if not provided to ensure summary generation always has a target
+  const [incidentId, setIncidentId] = useState(() => {
+    if (initialIncidentId) return initialIncidentId;
+    const localId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log("[V3_PROBING_LOOP][INIT] Created local incidentId:", localId);
+    return localId;
+  });
   const [probeCount, setProbeCount] = useState(0);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -50,6 +56,7 @@ export default function V3ProbingLoop({
     
     console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
       categoryId,
+      incidentId,
       openerAnswerLength: openerAnswer?.length || 0
     });
     
@@ -213,22 +220,28 @@ export default function V3ProbingLoop({
           logProbingStopped(sessionId, currentIncidentId, categoryId, data.stopReason || "UNKNOWN", newProbeCount);
         }
         
-        // Schedule summary generation with retry logic to handle auth + persistence race condition
-        setTimeout(() => {
-          base44.functions.invoke('generateV3IncidentSummary', {
-            sessionId,
-            incidentId: currentIncidentId,
-            categoryId
-          }).catch(err => {
-            // Log but don't block interview completion
-            console.warn("[V3] Incident summary failed (non-blocking):", {
-              error: err.message,
+        // Summary generation guard - only attempt if we have a valid incidentId
+        if (currentIncidentId && typeof currentIncidentId === 'string' && currentIncidentId.trim() !== '') {
+          // Schedule summary generation with retry logic to handle auth + persistence race condition
+          setTimeout(() => {
+            base44.functions.invoke('generateV3IncidentSummary', {
+              sessionId,
               incidentId: currentIncidentId,
-              statusCode: err.response?.status
+              categoryId
+            }).catch(err => {
+              // Log but don't block interview completion
+              console.warn("[V3] Incident summary failed (non-blocking):", {
+                error: err.message,
+                incidentId: currentIncidentId,
+                statusCode: err.response?.status
+              });
+              // Summary failure is not critical - interview continues
             });
-            // Summary failure is not critical - interview continues
-          });
-        }, 500);
+          }, 500);
+        } else {
+          // STOP early without incident created - this is normal for some V3 flows
+          console.log("[V3_SUMMARY_SKIP] No incidentId (STOP early) — skipping summary and continuing interview");
+        }
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
