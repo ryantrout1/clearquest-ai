@@ -2068,6 +2068,7 @@ export default function CandidateInterview() {
         setV3ProbingContext({
           packId,
           categoryId,
+          categoryLabel, // Add categoryLabel to context
           baseQuestionId,
           questionCode,
           sectionId,
@@ -3475,7 +3476,8 @@ export default function CandidateInterview() {
 
   // V3 probing completion handler
   const handleV3ProbingComplete = useCallback(async (result) => {
-    console.log("[V3 PROBING] Complete", result);
+    console.log("[V3_PROBING][COMPLETE] ========== V3 PROBING FINISHED ==========");
+    console.log("[V3_PROBING][COMPLETE]", result);
     
     const { incidentId, categoryId, completionReason, messages } = result;
     const baseQuestionId = v3ProbingContext?.baseQuestionId;
@@ -3500,7 +3502,7 @@ export default function CandidateInterview() {
     
     // Advance to next base question
     if (baseQuestionId) {
-      await advanceToNextBaseQuestion(baseQuestionId);
+      await advanceToNextBaseQuestion(baseQuestionId, newTranscript);
     }
     
     await persistStateToDatabase(newTranscript, [], null);
@@ -4285,12 +4287,14 @@ export default function CandidateInterview() {
             <V3ProbingLoop
               sessionId={sessionId}
               categoryId={v3ProbingContext.categoryId}
+              categoryLabel={v3ProbingContext.categoryLabel}
               incidentId={v3ProbingContext.incidentId}
               baseQuestionId={v3ProbingContext.baseQuestionId}
               questionCode={v3ProbingContext.questionCode}
               sectionId={v3ProbingContext.sectionId}
               instanceNumber={v3ProbingContext.instanceNumber}
               packData={v3ProbingContext.packData}
+              openerAnswer={v3ProbingContext.openerAnswer}
               onComplete={handleV3ProbingComplete}
               onTranscriptUpdate={handleV3TranscriptUpdate}
             />

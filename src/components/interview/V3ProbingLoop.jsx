@@ -30,7 +30,8 @@ export default function V3ProbingLoop({
   instanceNumber,
   onComplete,
   onTranscriptUpdate,
-  packData // NEW: Pack metadata with author-controlled opener
+  packData, // Pack metadata with author-controlled opener
+  openerAnswer // NEW: Opener narrative from candidate
 }) {
   const [incidentId, setIncidentId] = useState(initialIncidentId);
   const [probeCount, setProbeCount] = useState(0);
@@ -40,15 +41,21 @@ export default function V3ProbingLoop({
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
   const messagesEndRef = useRef(null);
-  const hasLoggedOpening = useRef(false);
+  const hasInitialized = useRef(false);
 
-  // V3 Probing Loop starts AFTER deterministic opener has been answered
-  // No initial opening message - we go straight to probing based on opener answer
+  // Initialize V3 probing with opener answer
   useEffect(() => {
-    // Log incident creation if needed
-    if (initialIncidentId && !hasLoggedOpening.current) {
-      hasLoggedOpening.current = true;
-      logIncidentCreated(sessionId, initialIncidentId, categoryId);
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
+    console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
+      categoryId,
+      openerAnswerLength: openerAnswer?.length || 0
+    });
+    
+    // Call decision engine with opener to get first probe
+    if (openerAnswer) {
+      handleSubmit(null, openerAnswer, true);
     }
   }, []);
 
@@ -57,34 +64,40 @@ export default function V3ProbingLoop({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, initialAnswer = null, isInitialCall = false) => {
     e?.preventDefault();
-    const answer = input.trim();
+    
+    const answer = isInitialCall ? initialAnswer : input.trim();
     if (!answer || isLoading || isComplete) return;
 
     setIsLoading(true);
-    setInput("");
+    if (!isInitialCall) {
+      setInput("");
+    }
 
-    // Add user message immediately
-    const userMessage = {
-      id: `v3-user-${Date.now()}`,
-      role: "user",
-      content: answer,
-      timestamp: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, userMessage]);
+    // Add user message (skip for initial opener - it's already in transcript)
+    if (!isInitialCall) {
+      const userMessage = {
+        id: `v3-user-${Date.now()}`,
+        role: "user",
+        content: answer,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, userMessage]);
 
-    // Log candidate answer to InterviewTranscript
-    logCandidateAnswer(sessionId, incidentId, categoryId, answer, probeCount);
+      // Log candidate answer to InterviewTranscript
+      logCandidateAnswer(sessionId, incidentId, categoryId, answer, probeCount);
+    }
 
-    // Persist user message to local transcript
-    if (onTranscriptUpdate) {
+    // Persist user message to local transcript (skip for initial call)
+    if (onTranscriptUpdate && !isInitialCall) {
+      const userMessage = messages[messages.length - 1];
       onTranscriptUpdate({
         type: 'v3_probe_answer',
         content: answer,
         categoryId,
         incidentId,
-        timestamp: userMessage.timestamp
+        timestamp: userMessage?.timestamp || new Date().toISOString()
       });
     }
 
