@@ -226,7 +226,7 @@ export default function V3ProbingLoop({
         // ALWAYS generate summary after opener submission - with fallback on failure
         setTimeout(async () => {
           try {
-            const result = await base44.functions.invoke('generateV3IncidentSummary', {
+            const result = await base44.functions.invoke('v3FinalizeIncident', {
               sessionId,
               incidentId: finalIncidentId,
               categoryId,
@@ -241,7 +241,7 @@ export default function V3ProbingLoop({
               console.log("[V3_SUMMARY_OK] Saved summary", {
                 categoryId,
                 finalIncidentId,
-                summaryLength: data.incidentSummary?.length
+                summaryLength: data.summary?.length || data.incidentSummary?.length
               });
             } else {
               console.error("[V3_SUMMARY_VALIDATION_ERROR]", {
