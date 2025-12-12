@@ -4356,6 +4356,14 @@ export default function CandidateInterview() {
         <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
           <div className="max-w-5xl mx-auto">
             <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
+              {/* Inline Welcome for Q001 only */}
+              {currentPrompt.type === 'question' && currentItem?.id === engine?.ActiveOrdered?.[0] && transcript.length === 0 && (
+                <div className="mb-4 pb-4 border-b border-slate-700/40">
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2 mb-2">
                 {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
                   <>
