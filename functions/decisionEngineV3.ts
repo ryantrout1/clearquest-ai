@@ -546,6 +546,26 @@ async function decisionEngineV3Probe(base44, {
     nextPrompt = getCompletionMessage("RECAP", null);
   }
   
+  // Generate narrative summary on STOP/RECAP
+  if (nextAction === "STOP" || nextAction === "RECAP") {
+    const categoryLabel = factModel.category_label || categoryId.replace(/_/g, ' ');
+    const factsText = Object.entries(incident.facts || {})
+      .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+      .join('; ');
+    
+    let summary = '';
+    if (factsText.length > 100) {
+      summary = `${categoryLabel}: ${factsText.substring(0, 200)}${factsText.length > 200 ? '...' : ''}`;
+    } else if (factsText.length > 0) {
+      summary = `${categoryLabel}: ${factsText}`;
+    } else {
+      summary = `${categoryLabel}: Details recorded.`;
+    }
+    
+    incident.narrative_summary = summary;
+  }
+  
   legacyFactState.stop_reason = stopReason;
   incident.fact_state = legacyFactState;
   incident.updated_at = new Date().toISOString();
