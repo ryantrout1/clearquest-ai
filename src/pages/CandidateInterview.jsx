@@ -4161,15 +4161,6 @@ export default function CandidateInterview() {
           style={{ paddingBottom: `${questionCardHeight + 200}px` }}
         >
           <div className="space-y-4">
-          {/* Welcome message for first question only */}
-          {currentPrompt?.type === 'question' && currentItem?.id === engine?.ActiveOrdered?.[0] && transcript.length === 0 && (
-            <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
-              <p className="text-slate-300 text-sm leading-relaxed">
-                Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.
-              </p>
-            </div>
-          )}
-          
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
@@ -4363,7 +4354,16 @@ export default function CandidateInterview() {
       {/* Floating question card - positioned above footer */}
       {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
         <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
-          <div className="max-w-5xl mx-auto">
+          <div className="max-w-5xl mx-auto space-y-3">
+            {/* Welcome banner - only for first question */}
+            {currentPrompt.type === 'question' && currentItem?.id === engine?.ActiveOrdered?.[0] && transcript.length === 0 && (
+              <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.
+                </p>
+              </div>
+            )}
+            
             <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
               <div className="flex items-center gap-2 mb-2">
                 {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
