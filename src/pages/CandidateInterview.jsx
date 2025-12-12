@@ -21,7 +21,8 @@ import {
   computeNextQuestionId,
   injectSubstanceIntoPackSteps,
   shouldSkipFollowUpStep,
-  shouldSkipProbingForHired
+  shouldSkipProbingForHired,
+  V3_ONLY_MODE
 } from "../components/interviewEngine";
 import { toast } from "sonner";
 import { getAiAgentConfig } from "../components/utils/aiConfig";
@@ -2194,6 +2195,15 @@ export default function CandidateInterview() {
                 return;
               }
               
+              // Load pack metadata for author-controlled opener
+              let packMetadata = null;
+              try {
+                const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
+                packMetadata = packs[0] || null;
+              } catch (err) {
+                console.warn("[V3_PACK] Could not load pack metadata:", err);
+              }
+              
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
               
@@ -2206,7 +2216,8 @@ export default function CandidateInterview() {
                 questionCode: question.question_id,
                 sectionId: question.section_id,
                 instanceNumber: 1,
-                incidentId: null // Will be created by decisionEngineV3
+                incidentId: null, // Will be created by decisionEngineV3
+                packData: packMetadata // Pass pack metadata for opener
               });
               
               await persistStateToDatabase(newTranscript, [], {
@@ -2224,6 +2235,16 @@ export default function CandidateInterview() {
             
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
             if (isV2PackFinal) {
+              // V3-ONLY MODE: Block V2 packs in production
+              if (V3_ONLY_MODE) {
+                console.warn(`[LEGACY_V2_DISABLED] Attempted to trigger V2-only pack ${packId} in V3-only mode - skipping follow-up`);
+                saveAnswerToDatabase(currentItem.id, value, question);
+                advanceToNextBaseQuestion(currentItem.id, newTranscript);
+                setIsCommitting(false);
+                setInput("");
+                return;
+              }
+              
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
@@ -2501,7 +2522,8 @@ export default function CandidateInterview() {
                       questionCode: question.question_id,
                       sectionId: question.section_id,
                       instanceNumber: 1,
-                      incidentId: null // Will be created by decisionEngineV3
+                      incidentId: null, // Will be created by decisionEngineV3
+                      packData: pack // Pass pack metadata for opener
                     });
                     
                     await persistStateToDatabase(newTranscript, [], {
@@ -4105,6 +4127,7 @@ export default function CandidateInterview() {
               questionCode={v3ProbingContext.questionCode}
               sectionId={v3ProbingContext.sectionId}
               instanceNumber={v3ProbingContext.instanceNumber}
+              packData={v3ProbingContext.packData}
               onComplete={handleV3ProbingComplete}
               onTranscriptUpdate={handleV3TranscriptUpdate}
             />

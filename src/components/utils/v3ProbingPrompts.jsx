@@ -41,20 +41,27 @@ export const OPENING_PROMPTS_BY_CATEGORY = {
  * Get the opening prompt for a V3 probing session.
  * @param {string} categoryId - Category identifier (e.g., "DUI", "THEFT")
  * @param {string} categoryLabel - Human-readable category label
+ * @param {object} packData - Optional pack metadata with author-defined opener
  * @returns {string} Opening prompt text
  */
-export function getOpeningPrompt(categoryId, categoryLabel) {
-  const categoryKey = categoryId?.toUpperCase();
+export function getOpeningPrompt(categoryId, categoryLabel, packData = null) {
+  // PRIORITY 1: Author-controlled opener from pack (if enabled)
+  if (packData?.use_author_defined_openers && packData?.opening_question_text) {
+    return packData.opening_question_text;
+  }
   
+  // PRIORITY 2: Category-specific template
+  const categoryKey = categoryId?.toUpperCase();
   if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
     return OPENING_PROMPTS_BY_CATEGORY[categoryKey];
   }
   
-  // Fallback to generic with category context
+  // PRIORITY 3: Generic with category context
   if (categoryLabel) {
     return `Thanks for letting me know about this ${categoryLabel.toLowerCase()} matter. Walk me through what happened, starting with when this occurred.`;
   }
   
+  // PRIORITY 4: Fully generic fallback
   return OPENING_PROMPT_GENERIC;
 }
 

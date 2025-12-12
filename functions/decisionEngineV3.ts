@@ -52,15 +52,29 @@ const COMPLETION_MESSAGES = {
 
 /**
  * Get opening prompt for a category
+ * @param {string} categoryId - Category identifier
+ * @param {string} categoryLabel - Category label
+ * @param {object} packData - Optional pack metadata with author-controlled opener
+ * @returns {string} Opening prompt text
  */
-function getOpeningPrompt(categoryId, categoryLabel) {
+function getOpeningPrompt(categoryId, categoryLabel, packData = null) {
+  // PRIORITY 1: Author-controlled opener from pack (if enabled)
+  if (packData?.use_author_defined_openers && packData?.opening_question_text) {
+    return packData.opening_question_text;
+  }
+  
+  // PRIORITY 2: Category-specific template
   const categoryKey = categoryId?.toUpperCase();
   if (OPENING_PROMPTS_BY_CATEGORY[categoryKey]) {
     return OPENING_PROMPTS_BY_CATEGORY[categoryKey];
   }
+  
+  // PRIORITY 3: Generic with category context
   if (categoryLabel) {
     return `Thanks for letting me know about this ${categoryLabel.toLowerCase()} matter. Walk me through what happened, starting with when this occurred.`;
   }
+  
+  // PRIORITY 4: Fully generic fallback
   return "Thanks for letting me know. Walk me through what happened, starting with when this occurred.";
 }
 

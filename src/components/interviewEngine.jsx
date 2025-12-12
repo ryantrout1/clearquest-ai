@@ -2531,6 +2531,16 @@ function normalizeToYesNo(answer) {
 }
 
 // ============================================================================
+// V3-ONLY MODE CONFIGURATION
+// ============================================================================
+
+/**
+ * V3_ONLY_MODE flag - when true, V2 deterministic packs are disabled for new interviews.
+ * Set to false only for emergency rollback to V2 behavior.
+ */
+export const V3_ONLY_MODE = true;
+
+// ============================================================================
 // FOLLOW-UP TRIGGER LOGIC (UNCHANGED)
 // ============================================================================
 

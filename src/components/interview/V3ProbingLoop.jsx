@@ -29,7 +29,8 @@ export default function V3ProbingLoop({
   sectionId,
   instanceNumber,
   onComplete,
-  onTranscriptUpdate
+  onTranscriptUpdate,
+  packData // NEW: Pack metadata with author-controlled opener
 }) {
   const [incidentId, setIncidentId] = useState(initialIncidentId);
   const [probeCount, setProbeCount] = useState(0);
@@ -41,9 +42,9 @@ export default function V3ProbingLoop({
   const messagesEndRef = useRef(null);
   const hasLoggedOpening = useRef(false);
 
-  // Initial prompt on mount - use centralized template
+  // Initial prompt on mount - use author-controlled opener if available
   useEffect(() => {
-    const openingText = getOpeningPrompt(categoryId, categoryLabel);
+    const openingText = getOpeningPrompt(categoryId, categoryLabel, packData);
     const initialMessage = {
       id: `v3-ai-${Date.now()}`,
       role: "ai",

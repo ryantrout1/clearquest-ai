@@ -27,9 +27,10 @@ export default function AuthorControlledOpenerSection({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Determine if this is a V2 pack - check multiple indicators
-  const isV2Pack = 
+  // Determine if this is a V2 or V3 conversational pack
+  const isConversationalPack = 
     pack?.ide_version === 'V2' || 
+    pack?.ide_version === 'V3' ||
     pack?.is_standard_cluster === true ||
     pack?.fact_anchors?.length > 0 ||
     pack?.field_config?.length > 0;
@@ -71,8 +72,8 @@ export default function AuthorControlledOpenerSection({
     }
   };
 
-  // Don't render if not a V2 pack
-  if (!isV2Pack) {
+  // Don't render if not a conversational pack
+  if (!isConversationalPack) {
     return null;
   }
 
@@ -81,7 +82,7 @@ export default function AuthorControlledOpenerSection({
   return (
     <CollapsibleSection
       title="Author-Controlled Opener"
-      subtitle="V2 Packs Only"
+      subtitle="Used by V3 conversational packs as the first AI message"
       icon={Sparkles}
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
