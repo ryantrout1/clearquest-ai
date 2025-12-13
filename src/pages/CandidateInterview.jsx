@@ -38,9 +38,9 @@ import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
-import { 
-  appendWelcomeMessage, 
-  appendResumeMarker, 
+import {
+  appendWelcomeMessage,
+  appendResumeMarker,
   logSystemEvent as logSystemEventHelper,
   logQuestionShown,
   logSectionComplete,
@@ -109,7 +109,7 @@ function buildSectionsFromEngine(engineData) {
     const sectionEntities = engineData.Sections || [];
     const sectionOrder = engineData.sectionOrder || [];
     const questionsBySection = engineData.questionsBySection || {};
-    
+
     if (sectionEntities.length > 0) {
       const orderedSections = sectionEntities
         .filter(section => section.active !== false)
@@ -118,7 +118,7 @@ function buildSectionsFromEngine(engineData) {
           const sectionId = section.section_id;
           const sectionQuestions = questionsBySection[sectionId] || [];
           const questionIds = sectionQuestions.map(q => q.id || q.question_id);
-          
+
           return {
             id: sectionId,
             dbId: section.id,
@@ -135,7 +135,7 @@ function buildSectionsFromEngine(engineData) {
         return orderedSections;
       }
     }
-    
+
     if (sectionOrder.length > 0) {
       const orderedSections = sectionOrder
         .filter(s => s.active !== false)
@@ -143,7 +143,7 @@ function buildSectionsFromEngine(engineData) {
           const sectionId = section.id || section.section_id;
           const sectionQuestions = questionsBySection[sectionId] || [];
           const questionIds = sectionQuestions.map(q => q.id || q.question_id);
-          
+
           return {
             id: sectionId,
             dbId: section.dbId || section.id,
@@ -160,7 +160,7 @@ function buildSectionsFromEngine(engineData) {
         return orderedSections;
       }
     }
-    
+
     return [];
   } catch (err) {
     console.warn('[SECTIONS] Error building sections (non-fatal):', err.message);
@@ -180,7 +180,7 @@ function getNextQuestionInSectionFlow({ sections, currentSectionIndex, currentQu
 
   const sectionQuestions = currentSection.questionIds || [];
   const currentIdx = sectionQuestions.indexOf(currentQuestionId);
-  
+
   if (currentIdx === -1) {
     const firstUnanswered = sectionQuestions.find(qId => !answeredQuestionIds.has(qId));
     if (firstUnanswered) {
@@ -206,10 +206,10 @@ function getNextQuestionInSectionFlow({ sections, currentSectionIndex, currentQu
   for (let nextIdx = currentSectionIndex + 1; nextIdx < sections.length; nextIdx++) {
     const nextSection = sections[nextIdx];
     if (!nextSection.active) continue;
-    
+
     const nextSectionQuestions = nextSection.questionIds || [];
     const firstUnanswered = nextSectionQuestions.find(qId => !answeredQuestionIds.has(qId));
-    
+
     if (firstUnanswered) {
       return {
         mode: 'SECTION_TRANSITION',
@@ -226,12 +226,12 @@ function getNextQuestionInSectionFlow({ sections, currentSectionIndex, currentQu
 
 function determineInitialSectionIndex(orderedSections, sessionData, engineData) {
   if (!orderedSections || orderedSections.length === 0) return 0;
-  
+
   const currentItemSnapshot = sessionData.current_item_snapshot;
   if (currentItemSnapshot?.id && currentItemSnapshot?.type === 'question') {
     const questionId = currentItemSnapshot.id;
     const location = engineData.questionIdToSection?.[questionId];
-    
+
     if (location?.sectionId) {
       const sectionIndex = orderedSections.findIndex(s => s.id === location.sectionId);
       if (sectionIndex !== -1) {
@@ -239,7 +239,7 @@ function determineInitialSectionIndex(orderedSections, sessionData, engineData) 
       }
     }
   }
-  
+
   return 0;
 }
 
@@ -340,7 +340,7 @@ const createChatEvent = (type, data = {}) => {
     timestamp: new Date().toISOString(),
     ...data
   };
-  
+
   if (['system_welcome', 'progress_message', 'section_transition', 'system_message'].includes(type)) {
     baseEvent.role = 'system';
   } else if (['question', 'followup_question', 'ai_probe_question', 'ai_question', 'multi_instance_question'].includes(type)) {
@@ -356,7 +356,7 @@ const createChatEvent = (type, data = {}) => {
       baseEvent.kind = 'ai_probe_answer';
     }
   }
-  
+
   return baseEvent;
 };
 
@@ -398,9 +398,9 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 
   console.log('[V2_PER_FIELD][SEND] ========== CALLING BACKEND PER-FIELD PROBE ==========');
   console.log(`[V2_PER_FIELD][SEND] pack=${packId} field=${fieldKey} instance=${instanceNumber || 1}`);
-  console.log('[V2_PER_FIELD][SEND] params:', { 
-    packId, 
-    fieldKey, 
+  console.log('[V2_PER_FIELD][SEND] params:', {
+    packId,
+    fieldKey,
     fieldValueLength: fieldValue?.length || 0,
     fieldValuePreview: fieldValue?.substring?.(0, 50) || fieldValue,
     previousProbesCount,
@@ -409,7 +409,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
     baseQuestionId,
     instanceNumber: instanceNumber || 1
   });
-  
+
 
 
   try {
@@ -424,15 +424,15 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
       instance_number: instanceNumber || 1,
       mode: 'VALIDATE_FIELD'
     });
-    
+
     console.log('[V2_PER_FIELD][RECV] ========== BACKEND RESPONSE RECEIVED ==========');
-    console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, { 
+    console.log(`[V2_PER_FIELD][RECV] pack=${packId} field=${fieldKey} result:`, {
       mode: response.data?.mode,
       hasQuestion: !!response.data?.question,
       questionPreview: response.data?.question?.substring?.(0, 60),
       followupsCount: response.data?.followups?.length || 0
     });
-    
+
     // AUDIT LOG: Full result for PACK_PRIOR_LE_APPS_STANDARD
     if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
       console.log("[V2_PACK_AUDIT][FRONTEND_RECV]", {
@@ -444,7 +444,7 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
         mode: response.data?.mode,
         rawResult: response.data
       });
-      
+
       console.log("[V2_PACK_AUDIT][FRONTEND_RECV_SUMMARY]", {
         packId,
         fieldKey,
@@ -454,13 +454,13 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
         promptSource: response.data?.promptSource || response.data?.probeSource || null
       });
     }
-    
+
     // STEP 1: Store backend question text for later use in UI rendering
     const backendQuestionText = response.data?.questionText || response.data?.question || null;
     if (backendQuestionText && params.setBackendQuestionTextMap) {
       storeBackendQuestionText(packId, fieldKey, params.instanceNumber || 1, backendQuestionText, params.setBackendQuestionTextMap);
     }
-    
+
     return response.data;
   } catch (err) {
     console.error('[V2_PER_FIELD][ERROR] Backend call failed:', { packId, fieldKey, message: err?.message });
@@ -474,11 +474,11 @@ const callProbeEngineV2PerField = async (base44Client, params) => {
 /**
  * Auto-skip helper for V2 pack fields with high-confidence suggestions
  * Checks field config for autoSkipIfConfident and evaluates suggestion quality
- * 
+ *
  * Supports both:
  * - Enum fields with autoSkipAllowedValues (e.g., outcome)
  * - Free-text fields without enum restrictions (e.g., city/state, date, position)
- * 
+ *
  * @returns { shouldSkip: boolean, autoAnswerValue?: string }
  */
 const maybeAutoSkipV2Field = async ({
@@ -498,21 +498,21 @@ const maybeAutoSkipV2Field = async ({
     if (!fieldConfig?.autoSkipIfConfident) {
       return { shouldSkip: false };
     }
-    
+
     console.log(`[V2_AUTO_SKIP][CHECK] Field ${fieldKey} has autoSkipIfConfident=true`);
-    
+
     // Get suggestion for this field
     const suggestionKey = `${packId}_${instanceNumber}_${fieldKey}`;
     const suggestion = suggestionMap?.[suggestionKey];
-    
+
     if (!suggestion) {
       console.log(`[V2_AUTO_SKIP][NO_SUGGESTION] No suggestion found for ${suggestionKey}`);
       return { shouldSkip: false };
     }
-    
+
     // Parse suggestion - it could be a string or {value, confidence} object
     let value, confidence;
-    
+
     if (typeof suggestion === 'string') {
       value = suggestion;
       confidence = 0.9; // Default high confidence for direct string suggestions
@@ -523,14 +523,14 @@ const maybeAutoSkipV2Field = async ({
       console.log(`[V2_AUTO_SKIP][INVALID_SUGGESTION] Invalid suggestion format for ${suggestionKey}`);
       return { shouldSkip: false };
     }
-    
+
     // Check confidence threshold first
     const threshold = fieldConfig.autoSkipMinConfidence ?? 0.85;
     if (confidence < threshold) {
       console.log(`[V2_AUTO_SKIP][LOW_CONFIDENCE] ${confidence.toFixed(2)} < ${threshold}`);
       return { shouldSkip: false };
     }
-    
+
     // ==============================
     // ENUM FIELD BRANCH (existing)
     // ==============================
@@ -541,17 +541,17 @@ const maybeAutoSkipV2Field = async ({
         console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Suggestion has empty value`);
         return { shouldSkip: false };
       }
-      
+
       // Check enum validation
       const normalizedEnum = fieldConfig.autoSkipAllowedValues.map(v => v.toLowerCase().trim());
       if (!normalizedEnum.includes(normalizedValue)) {
         console.log(`[V2_AUTO_SKIP][INVALID_ENUM] Value "${normalizedValue}" not in allowed: [${normalizedEnum.join(', ')}]`);
         return { shouldSkip: false };
       }
-      
+
       // All checks passed - auto-skip enum field
       console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling enum field ${fieldKey} with "${value}" (confidence: ${confidence.toFixed(2)})`);
-      
+
       // Persist the auto-answer using existing save helper
       if (saveFieldResponse) {
         await saveFieldResponse({
@@ -565,29 +565,29 @@ const maybeAutoSkipV2Field = async ({
           sectionId,
           questionText: fieldConfig.label
         });
-        
+
         console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered enum field`);
       }
-      
+
       return {
         shouldSkip: true,
         autoAnswerValue: value
       };
     }
-    
+
     // ==============================
     // FREE-TEXT FIELD BRANCH (NEW)
     // ==============================
     const finalValue = typeof value === 'string' ? value.trim() : String(value).trim();
-    
+
     if (!finalValue) {
       console.log(`[V2_AUTO_SKIP][EMPTY_VALUE] Free-text suggestion has empty value`);
       return { shouldSkip: false };
     }
-    
+
     // All checks passed - auto-skip free-text field
     console.log(`[V2_AUTO_SKIP][APPLY] Auto-filling free-text field ${fieldKey} with "${finalValue}" (confidence: ${confidence.toFixed(2)})`);
-    
+
     // Persist the auto-answer using existing save helper
     if (saveFieldResponse) {
       await saveFieldResponse({
@@ -601,15 +601,15 @@ const maybeAutoSkipV2Field = async ({
         sectionId,
         questionText: fieldConfig.label
       });
-      
+
       console.log(`[V2_AUTO_SKIP][PERSISTED] Created Response for auto-answered free-text field`);
     }
-    
+
     return {
       shouldSkip: true,
       autoAnswerValue: finalValue
     };
-    
+
   } catch (error) {
     console.error(`[V2_AUTO_SKIP][ERROR]`, error.message);
     return { shouldSkip: false };
@@ -622,7 +622,7 @@ const maybeAutoSkipV2Field = async ({
  * V2.6 Universal MVP: All V2 packs use Discretion Engine
  * NO deterministic follow-up questions surface to candidates
  * Backend controls all probing decisions through Discretion Engine
- * 
+ *
  * HARDENED: Comprehensive incident lifecycle logging (structural data only, no PII)
  */
 const runV2FieldProbeIfNeeded = async ({
@@ -684,10 +684,10 @@ const runV2FieldProbeIfNeeded = async ({
       instanceNumber,
       setBackendQuestionTextMap // STEP 1: Pass setter
     });
-    
+
     // LIFECYCLE LOG: Anchors updated (structural only)
     // NOTE: This log is now consolidated with the per-field handler below
-    
+
     // LIFECYCLE LOG: Discretion decision
     if (v2Result?.probeSource?.includes('discretion')) {
       console.log(`[V2_LIFECYCLE][DISCRETION_DECISION]`, {
@@ -699,7 +699,7 @@ const runV2FieldProbeIfNeeded = async ({
         maxProbes: v2Result?.maxProbesPerField || maxAiFollowups
       });
     }
-    
+
     // LIFECYCLE LOG: Probing stopped
     if (v2Result?.mode === 'NEXT_FIELD' || v2Result?.mode === 'COMPLETE') {
       const stopReason = v2Result?.reason || v2Result?.validationResult || 'unknown';
@@ -710,7 +710,7 @@ const runV2FieldProbeIfNeeded = async ({
         finalProbeCount: probeCount + 1
       });
     }
-    
+
     console.log(`[V2_UNIVERSAL][RESPONSE]`, {
       packId,
       mode: v2Result?.mode,
@@ -718,7 +718,7 @@ const runV2FieldProbeIfNeeded = async ({
       probeSource: v2Result?.probeSource,
       reason: v2Result?.reason || v2Result?.message
     });
-    
+
     // AUDIT LOG: Full response for PACK_PRIOR_LE_APPS_STANDARD
     if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
       console.log("[V2_PACK_AUDIT][UNIVERSAL_RESPONSE]", {
@@ -731,13 +731,13 @@ const runV2FieldProbeIfNeeded = async ({
         rawResult: v2Result
       });
     }
-    
+
     // If AI is disabled at session level, skip any probe questions
     if (aiProbingDisabledForSession && v2Result?.mode === 'QUESTION') {
       console.log(`[V2_UNIVERSAL][SKIP] Session has AI probing disabled`);
       return { mode: 'NEXT_FIELD', reason: 'Session AI probing disabled' };
     }
-    
+
     return v2Result;
   } catch (err) {
     console.error('[V2_UNIVERSAL][ERROR]', { packId, fieldKey, error: err?.message });
@@ -756,18 +756,18 @@ export default function CandidateInterview() {
   const [department, setDepartment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [sections, setSections] = useState([]);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const activeSection = sections[currentSectionIndex] || null;
-  
+
   const [transcript, setTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
-  
+
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
-  
+
   const [aiSessionId, setAiSessionId] = useState(null);
   const [aiProbingPackInstanceKey, setAiProbingPackInstanceKey] = useState(null);
   const [agentMessages, setAgentMessages] = useState([]);
@@ -780,47 +780,47 @@ export default function CandidateInterview() {
   const [isInvokeLLMMode, setIsInvokeLLMMode] = useState(false);
   const [invokeLLMProbingExchanges, setInvokeLLMProbingExchanges] = useState([]);
   const [fieldSuggestions, setFieldSuggestions] = useState({});
-  
+
   const [fieldProbingState, setFieldProbingState] = useState({});
   const [completedFields, setCompletedFields] = useState({});
   const [currentFieldProbe, setCurrentFieldProbe] = useState(null);
   const [pendingProbe, setPendingProbe] = useState(null);
   const v2ProbingInProgressRef = useRef(new Set());
   const [v2ClarifierState, setV2ClarifierState] = useState(null);
-  
+
   // Store backend question text per V2 pack field and instance
   const [backendQuestionTextMap, setBackendQuestionTextMap] = useState({});
-  
+
   // Track the last AI follow-up question text per field so we can show it on history cards
   const [lastAiFollowupQuestionByField, setLastAiFollowupQuestionByField] = useState({});
 
   const [aiProbingEnabled, setAiProbingEnabled] = useState(true);
   const [aiFailureReason, setAiFailureReason] = useState(null);
   const [handoffProcessed, setHandoffProcessed] = useState(false);
-  
+
   const [input, setInput] = useState("");
   const [validationHint, setValidationHint] = useState(null);
   const [isCommitting, setIsCommitting] = useState(false);
-  
+
   // UX: Typing lock to prevent preview refreshes while user is typing
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingLockTimeoutRef = useRef(null);
   const currentItemRef = useRef(null);
   const frozenPreviewRef = useRef(null);
-  
+
   const triggeredPacksRef = useRef(new Set());
   const lastLoggedV2PackFieldRef = useRef(null);
   const lastLoggedFollowupCardIdRef = useRef(null);
-  
+
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
-  
+
   const [screenMode, setScreenMode] = useState("LOADING");
   const introLoggedRef = useRef(false);
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
-  
+
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
@@ -837,21 +837,21 @@ export default function CandidateInterview() {
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
-  
+
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
   const [ideEnabled, setIdeEnabled] = useState(false);
   const [currentIncidentId, setCurrentIncidentId] = useState(null);
   const [inIdeProbingLoop, setInIdeProbingLoop] = useState(false);
   const [currentIdeQuestion, setCurrentIdeQuestion] = useState(null);
   const [currentIdeCategoryId, setCurrentIdeCategoryId] = useState(null);
-  
+
   // V2_PACK mode state: 'BASE' = normal flow, 'V2_PACK' = running a V2 follow-up pack
   const [v2PackMode, setV2PackMode] = useState("BASE");
   // activeV2Pack: { packId, fields, currentIndex, baseQuestionId, instanceNumber, substanceName } | null
   const [activeV2Pack, setActiveV2Pack] = useState(null);
   // Track the base question ID that triggered the V2 pack so we can resume after
   const [v2PackTriggerQuestionId, setV2PackTriggerQuestionId] = useState(null);
-  
+
   // V3 Probing state
   const [v3ProbingActive, setV3ProbingActive] = useState(false);
   const [v3ProbingContext, setV3ProbingContext] = useState(null);
@@ -861,7 +861,7 @@ export default function CandidateInterview() {
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
-  
+
   // V3 GATE: Authoritative multi-instance gate state
   const [v3Gate, setV3Gate] = useState({
     active: false,
@@ -871,53 +871,53 @@ export default function CandidateInterview() {
     instanceNumber: null
   });
   const v3GateActive = v3Gate.active === true;
-  
+
   // V3 Multi-instance handler (callback from V3ProbingLoop)
   const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
-  
+
   // V3 gate decision intent (prevents setState during render)
   const [v3GateDecision, setV3GateDecision] = useState(null);
-  
+
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
   const exitV3HandledRef = useRef(false);
-  
+
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
     if (!v3Gate.active && v3Gate.promptText) {
-      console.log('[V3_GATE][ACTIVATE]', { 
-        promptText: v3Gate.promptText?.substring(0, 50), 
+      console.log('[V3_GATE][ACTIVATE]', {
+        promptText: v3Gate.promptText?.substring(0, 50),
         categoryId: v3Gate.categoryId,
-        instanceNumber: v3Gate.instanceNumber 
+        instanceNumber: v3Gate.instanceNumber
       });
-      
+
       setV3Gate(prev => ({ ...prev, active: true }));
     }
   }, [v3Gate]);
-  
+
   // V3 gate decision handler (prevents setState during render)
   useEffect(() => {
     if (!v3GateDecision) return;
-    
+
     console.log('[V3_GATE][DECISION_CONSUMED]', v3GateDecision);
-    
+
     if (v3MultiInstanceHandler) {
       v3MultiInstanceHandler(v3GateDecision);
     }
-    
+
     // Mark blocker resolved
-    setTranscript(prev => prev.map(e => 
+    setTranscript(prev => prev.map(e =>
       e.type === 'V3_GATE' && e.blocking === true && e.resolved === false
         ? { ...e, resolved: true, answer: v3GateDecision }
         : e
     ));
-    
+
     // Clear decision
     setV3GateDecision(null);
   }, [v3GateDecision, v3MultiInstanceHandler]);
-  
+
   const displayNumberMapRef = useRef({});
-  
+
   const totalQuestionsAllSections = engine?.TotalQuestions || 0;
   const answeredQuestionsAllSections = React.useMemo(
     () => transcript.filter(t => t.type === 'question').length,
@@ -926,15 +926,15 @@ export default function CandidateInterview() {
   const questionCompletionPct = totalQuestionsAllSections > 0
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
-  
+
   // Derive activeBlocker from transcript (must be declared before any early returns)
   const activeBlocker = React.useMemo(() => {
-    return transcript.find(entry => 
-      entry.blocking === true && 
+    return transcript.find(entry =>
+      entry.blocking === true &&
       entry.resolved === false
     ) || null;
   }, [transcript]);
-  
+
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
   const uiCurrentItem = React.useMemo(() => {
@@ -949,7 +949,7 @@ export default function CandidateInterview() {
         instanceNumber: v3Gate.instanceNumber
       };
     }
-    
+
     // Priority 2: V3 probing active
     if (v3ProbingActive) {
       return {
@@ -958,7 +958,7 @@ export default function CandidateInterview() {
         packId: v3ProbingContext?.packId
       };
     }
-    
+
     // Priority 3: Section transition pending
     if (pendingSectionTransition) {
       return {
@@ -966,11 +966,11 @@ export default function CandidateInterview() {
         id: `section-transition-${pendingSectionTransition.nextSectionIndex}`
       };
     }
-    
+
     // Priority 4: Base current item
     return currentItem;
   }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext, pendingSectionTransition, currentItem]);
-  
+
   const MAX_PROBE_TURNS = 6;
   const AI_RESPONSE_TIMEOUT_MS = 45000;
   const TYPING_TIMEOUT_MS = 240000;
@@ -990,55 +990,55 @@ export default function CandidateInterview() {
       }
     });
   }, []);
-  
+
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
     if (!isUserTyping) {
       console.log("[UX][TYPING] User started typing – locking preview updates");
       setIsUserTyping(true);
     }
-    
+
     if (typingLockTimeoutRef.current) {
       clearTimeout(typingLockTimeoutRef.current);
     }
-    
+
     typingLockTimeoutRef.current = setTimeout(() => {
       console.log("[UX][TYPING] User idle – unlocking preview updates");
       setIsUserTyping(false);
       typingLockTimeoutRef.current = null;
     }, TYPING_IDLE_MS);
   }, [isUserTyping]);
-  
+
   // UX: Build draft key for sessionStorage
   const buildDraftKey = useCallback((sessionId, packId, fieldKey, instanceNumber) => {
     return `cq_draft_${sessionId}_${packId || "none"}_${fieldKey || "none"}_${instanceNumber || 0}`;
   }, []);
-  
+
   // UX: Save draft to sessionStorage
   const saveDraft = useCallback((value) => {
     if (!sessionId) return;
-    
+
     const packId = currentItem?.packId || activeV2Pack?.packId || null;
     const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
     const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-    
+
     try {
       window.sessionStorage.setItem(draftKey, value);
     } catch (e) {
       console.warn("[UX][DRAFT] Failed to save draft", e);
     }
   }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
-  
+
   // UX: Clear draft from sessionStorage
   const clearDraft = useCallback(() => {
     if (!sessionId) return;
-    
+
     const packId = currentItem?.packId || activeV2Pack?.packId || null;
     const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
     const instanceNumber = currentItem?.instanceNumber || activeV2Pack?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-    
+
     try {
       window.sessionStorage.removeItem(draftKey);
     } catch (e) {
@@ -1060,7 +1060,7 @@ export default function CandidateInterview() {
       return;
     }
     initializeInterview();
-    
+
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
@@ -1074,18 +1074,18 @@ export default function CandidateInterview() {
   const initializeInterview = async () => {
     try {
       const { config } = await getSystemConfig();
-      let effectiveMode = await getEffectiveInterviewMode({ 
+      let effectiveMode = await getEffectiveInterviewMode({
         isSandbox: false,
         departmentCode: null
       });
-      
+
       const isSandboxLike = window?.location?.href?.includes('/preview');
       if (isSandboxLike && config.sandboxAiProbingOnly) {
         effectiveMode = "AI_PROBING";
       }
-      
+
       setInterviewMode(effectiveMode);
-      
+
       const ideActive = effectiveMode === "AI_PROBING" || effectiveMode === "HYBRID";
       setIdeEnabled(ideActive);
 
@@ -1096,7 +1096,7 @@ export default function CandidateInterview() {
       // Candidate mode: Do NOT call User/me - interviews run anonymously
       console.log("[AUTH] Candidate mode: skipping /User/me");
       setIsAdminUser(false);
-      
+
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
       if (!loadedSession) {
@@ -1106,7 +1106,7 @@ export default function CandidateInterview() {
       if (!loadedSession.id) {
         throw new Error('Invalid session object returned from database');
       }
-      
+
       if (loadedSession.status === 'paused') {
         await base44.entities.InterviewSession.update(sessionId, {
           status: 'in_progress'
@@ -1117,8 +1117,8 @@ export default function CandidateInterview() {
       setSession(loadedSession);
 
       try {
-        const departments = await base44.entities.Department.filter({ 
-          department_code: loadedSession.department_code 
+        const departments = await base44.entities.Department.filter({
+          department_code: loadedSession.department_code
         });
         if (departments.length > 0) {
           setDepartment(departments[0]);
@@ -1129,11 +1129,11 @@ export default function CandidateInterview() {
 
       const engineData = await bootstrapEngine(base44);
       setEngine(engineData);
-      
+
       try {
         const orderedSections = buildSectionsFromEngine(engineData);
         setSections(orderedSections);
-        
+
         if (orderedSections.length > 0) {
           const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
           setCurrentSectionIndex(initialSectionIndex);
@@ -1149,11 +1149,11 @@ export default function CandidateInterview() {
       } catch (sectionErr) {
         console.error('[SECTIONS] Error initializing sections:', sectionErr);
       }
-      
-      const hasValidSnapshots = loadedSession.transcript_snapshot && 
+
+      const hasValidSnapshots = loadedSession.transcript_snapshot &&
                                  loadedSession.transcript_snapshot.length > 0;
 
-      const needsRebuild = loadedSession.status === 'in_progress' && 
+      const needsRebuild = loadedSession.status === 'in_progress' &&
                            (!loadedSession.current_item_snapshot || !hasValidSnapshots);
 
       if (needsRebuild) {
@@ -1167,7 +1167,7 @@ export default function CandidateInterview() {
       } else {
         // New session - PART B: No Welcome transcript injection
         setTranscript([]);
-        
+
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
@@ -1184,7 +1184,7 @@ export default function CandidateInterview() {
 
       setIsNewSession(sessionIsNew);
       setScreenMode("QUESTION");
-      
+
       // Add blocking intro message for new sessions
       if (sessionIsNew) {
         const introBlocker = {
@@ -1196,7 +1196,7 @@ export default function CandidateInterview() {
         };
         setTranscript([introBlocker]);
       }
-      
+
       // Log system events
       if (sessionIsNew) {
         await logSystemEventHelper(sessionId, 'SESSION_CREATED', {
@@ -1208,7 +1208,7 @@ export default function CandidateInterview() {
           last_question_id: loadedSession.current_question_id
         });
       }
-      
+
       setIsLoading(false);
 
     } catch (err) {
@@ -1222,11 +1222,11 @@ export default function CandidateInterview() {
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-    
+
     const hasTranscript = restoredTranscript.length > 0;
     const isCompleted = loadedSession.status === 'completed';
-    const hasValidCurrentItem = restoredCurrentItem && 
-                                 typeof restoredCurrentItem === 'object' && 
+    const hasValidCurrentItem = restoredCurrentItem &&
+                                 typeof restoredCurrentItem === 'object' &&
                                  !Array.isArray(restoredCurrentItem) &&
                                  restoredCurrentItem.type;
     const hasQueue = restoredQueue.length > 0;
@@ -1260,22 +1260,22 @@ export default function CandidateInterview() {
 
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
     try {
-      const responses = await base44.entities.Response.filter({ 
-        session_id: sessionId 
+      const responses = await base44.entities.Response.filter({
+        session_id: sessionId
       });
-      
-      const sortedResponses = responses.sort((a, b) => 
+
+      const sortedResponses = responses.sort((a, b) =>
         new Date(a.response_timestamp) - new Date(b.response_timestamp)
       );
-      
+
       const restoredTranscript = [];
-      
+
       for (const response of sortedResponses) {
         const question = engineData.QById[response.question_id];
         if (question) {
           const sectionEntity = engineData.Sections.find(s => s.id === question.section_id);
           const sectionName = sectionEntity?.section_name || question.category || '';
-          
+
           restoredTranscript.push({
             id: `q-${response.id}`,
             questionId: response.question_id,
@@ -1287,22 +1287,22 @@ export default function CandidateInterview() {
           });
         }
       }
-      
+
       setTranscript(restoredTranscript);
       displayOrderRef.current = restoredTranscript.length;
 
       let nextQuestionId = null;
-      
+
       if (sortedResponses.length > 0) {
         const lastResponse = sortedResponses[sortedResponses.length - 1];
         const lastQuestionId = lastResponse.question_id;
         const lastAnswer = lastResponse.answer;
-        
+
         nextQuestionId = computeNextQuestionId(engineData, lastQuestionId, lastAnswer);
       } else {
         nextQuestionId = engineData.ActiveOrdered[0];
       }
-      
+
       if (!nextQuestionId || !engineData.QById[nextQuestionId]) {
         setCurrentItem(null);
         setQueue([]);
@@ -1332,7 +1332,7 @@ export default function CandidateInterview() {
           status: 'in_progress'
         });
       }
-      
+
     } catch (err) {
       throw err;
     }
@@ -1373,7 +1373,7 @@ export default function CandidateInterview() {
     const now = Date.now();
     const timeSinceLastPersist = now - lastPersistTimeRef.current;
 
-    if (persistCountSinceLastWriteRef.current >= PERSIST_BATCH_COUNT || 
+    if (persistCountSinceLastWriteRef.current >= PERSIST_BATCH_COUNT ||
         timeSinceLastPersist >= PERSIST_THROTTLE_MS) {
       await flushPersist();
     } else {
@@ -1417,7 +1417,7 @@ export default function CandidateInterview() {
 
       if (nextResult.mode === 'QUESTION') {
         const newTranscript = [...transcript];
-        
+
         setCurrentSectionIndex(nextResult.nextSectionIndex);
         setQueue([]);
         setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
@@ -1425,13 +1425,13 @@ export default function CandidateInterview() {
         return;
       } else if (nextResult.mode === 'SECTION_TRANSITION') {
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
-        
+
         setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
-        
+
         const totalSectionsCount = sections.length;
         const answeredQuestionsCount = transcript.filter(t => t.type === 'question').length + 1;
         const totalQuestionsCount = engine?.TotalQuestions || 0;
-        
+
         // Log section complete to transcript
         await logSectionComplete(sessionId, {
           completedSectionId: nextResult.completedSection.id,
@@ -1450,13 +1450,13 @@ export default function CandidateInterview() {
         const updatedSession = await base44.entities.InterviewSession.get(sessionId);
         const newTranscript = updatedSession.transcript_snapshot || [];
         setTranscript(newTranscript);
-        
+
         // Trigger section summary generation (background)
         base44.functions.invoke('generateSectionSummary', {
           sessionId,
           sectionId: nextResult.completedSection.id
         }).catch(() => {}); // Fire and forget
-        
+
         // Add section transition blocker
         const sectionBlocker = {
           id: `blocker-section-${nextResult.nextSectionIndex}-${Date.now()}`,
@@ -1469,16 +1469,16 @@ export default function CandidateInterview() {
           nextQuestionId: nextResult.nextQuestionId,
           timestamp: new Date().toISOString()
         };
-        
+
         const transcriptWithBlocker = [...newTranscript, sectionBlocker];
         setTranscript(transcriptWithBlocker);
-        
+
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
           nextQuestionId: nextResult.nextQuestionId,
           nextSectionName: nextResult.nextSection.displayName
         });
-        
+
         setQueue([]);
         setCurrentItem(null);
         await persistStateToDatabase(transcriptWithBlocker, [], null);
@@ -1492,10 +1492,10 @@ export default function CandidateInterview() {
           kind: 'interview_complete',
           role: 'system'
         };
-        
+
         const newTranscript = [...effectiveTranscript, completionMessage];
         setTranscript(newTranscript);
-        
+
         setCurrentItem(null);
         setQueue([]);
         await persistStateToDatabase(newTranscript, [], null);
@@ -1523,20 +1523,20 @@ export default function CandidateInterview() {
       advanceToNextBaseQuestion(baseQuestionId);
       return;
     }
-    
+
     if (question.followup_multi_instance) {
       const maxInstances = question.max_instances_per_question || 5;
-      
+
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         question_id: baseQuestionId,
         followup_pack: packId
       });
-      
+
       const currentInstanceCount = existingFollowups.length;
 
       if (currentInstanceCount < maxInstances) {
-        const multiInstancePrompt = question.multi_instance_prompt || 
+        const multiInstancePrompt = question.multi_instance_prompt ||
           'Do you have another instance we should discuss for this question?';
 
         const multiInstanceQuestionEntry = {
@@ -1575,7 +1575,7 @@ export default function CandidateInterview() {
         return;
       }
     }
-    
+
     advanceToNextBaseQuestion(baseQuestionId);
   }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
 
@@ -1607,7 +1607,7 @@ export default function CandidateInterview() {
         hasActiveV2Pack: !!activeV2Pack
       });
     }
-    
+
     if (isCommitting || !currentItem || !engine) {
       console.log(`[HANDLE_ANSWER][SKIP] Skipping - isCommitting=${isCommitting}, hasCurrentItem=${!!currentItem}, hasEngine=${!!engine}`);
       return;
@@ -1615,7 +1615,7 @@ export default function CandidateInterview() {
 
     setIsCommitting(true);
     setValidationHint(null);
-    
+
     if (sectionCompletionMessage) {
       setSectionCompletionMessage(null);
     }
@@ -1628,13 +1628,13 @@ export default function CandidateInterview() {
       // ========================================================================
       if (currentItem.type === 'v2_pack_field') {
         const { packId, fieldIndex, fieldKey, fieldConfig, baseQuestionId, instanceNumber } = currentItem;
-        
+
         // Check if we're answering a clarifier for this field
         const isAnsweringClarifier = v2ClarifierState &&
           v2ClarifierState.packId === packId &&
           v2ClarifierState.fieldKey === fieldKey &&
           v2ClarifierState.instanceNumber === instanceNumber;
-        
+
         console.log(`[V2_PACK_FIELD][CLARIFIER_CHECK]`, {
           packId,
           fieldKey,
@@ -1643,14 +1643,14 @@ export default function CandidateInterview() {
           isAnsweringClarifier,
           clarifierState: v2ClarifierState
         });
-        
+
         // CRITICAL: Declare baseQuestion FIRST before any usage to avoid TDZ errors
         const baseQuestion = baseQuestionId && engine?.QById ? engine.QById[baseQuestionId] : null;
-        
+
         if (!baseQuestion) {
           console.warn('[V2_PACK_FIELD][WARN] baseQuestion not found for baseQuestionId', baseQuestionId, 'packId=', packId, 'fieldKey=', fieldKey);
         }
-        
+
         // EXPLICIT ENTRY LOG for V2 pack field answers
         console.log(`[V2_PACK_FIELD][ENTRY] ========== V2 PACK FIELD ANSWER RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][ENTRY]`, {
@@ -1666,7 +1666,7 @@ export default function CandidateInterview() {
           hasActiveV2Pack: !!activeV2Pack,
           hasBaseQuestion: !!baseQuestion
         });
-        
+
         // Validate we have an active V2 pack
         if (!activeV2Pack) {
           console.error("[HANDLE_ANSWER][V2_PACK_FIELD][ERROR] No active V2 pack - recovering by exiting pack mode");
@@ -1675,7 +1675,7 @@ export default function CandidateInterview() {
           setInput("");
           return;
         }
-        
+
         // Validate answer for required fields
         const normalizedAnswer = value.trim();
         if (!normalizedAnswer && fieldConfig?.required) {
@@ -1683,25 +1683,25 @@ export default function CandidateInterview() {
           setIsCommitting(false);
           return;
         }
-        
+
         const finalAnswer = normalizedAnswer || "(No response provided)";
         const questionText = fieldConfig?.label || fieldKey;
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         const totalFieldsInPack = activeV2Pack.fields?.length || packConfig?.fields?.length || 0;
         const isLastField = fieldIndex >= totalFieldsInPack - 1;
-        
+
         console.log(`[HANDLE_ANSWER][V2_PACK_FIELD] Processing field ${fieldIndex + 1}/${totalFieldsInPack}: ${fieldKey}`);
-        
+
         // CRITICAL: Declare v2Result early so it can be referenced throughout this handler
         let v2Result = null;
-        
+
         // Determine if this is a clarifier answer or first field answer
         const isAiFollowupAnswer = isAnsweringClarifier;
-        
+
         // Use the clarifier question text if this is answering a clarifier
         const displayQuestionText = isAiFollowupAnswer ? v2ClarifierState.clarifierQuestion : questionText;
         const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
-        
+
         // Log Q&A to transcript
         const v2CombinedEntry = createChatEvent('followup_question', {
           questionId: `v2pack-${packId}-${fieldIndex}-${isAiFollowupAnswer ? 'ai' : 'field'}-${Date.now()}`,
@@ -1719,10 +1719,10 @@ export default function CandidateInterview() {
           totalSteps: totalFieldsInPack,
           answer: finalAnswer
         });
-        
+
         const newTranscript = [...transcript, v2CombinedEntry];
         setTranscript(newTranscript);
-        
+
         // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
         const v2ResponseRecord = await saveV2PackFieldResponse({
           sessionId,
@@ -1735,11 +1735,11 @@ export default function CandidateInterview() {
           sectionId: baseQuestion?.section_id,
           questionText: questionText
         });
-        
+
         // Append question and answer to canonical transcript (legal record) with Response linkage
         try {
           const currentTranscript = session.transcript_snapshot || [];
-          
+
           // Get base Response for parentResponseId
           const baseResponses = await base44.entities.Response.filter({
             session_id: sessionId,
@@ -1747,7 +1747,7 @@ export default function CandidateInterview() {
             response_type: 'base_question'
           });
           const baseResponseId = baseResponses[0]?.id || baseQuestionId;
-          
+
           // Log question entry (if not already logged)
           const questionKey = `${packId}::${fieldKey}::${instanceNumber || 1}`;
           if (!hasQuestionBeenLogged(sessionId, questionKey)) {
@@ -1763,7 +1763,7 @@ export default function CandidateInterview() {
               parentResponseId: baseResponseId
             });
           }
-          
+
           // Log answer entry
           await appendAnswerEntry({
             sessionId,
@@ -1779,56 +1779,56 @@ export default function CandidateInterview() {
         } catch (err) {
           console.warn("[TRANSCRIPT][Q&A] Failed to log V2 pack field question and answer:", err);
         }
-        
+
         // LLM-assist: Generate suggestions after PACK_PRLE_Q01 narrative field
         let localSuggestions = {};
         if (packId === 'PACK_PRIOR_LE_APPS_STANDARD' && fieldKey === 'PACK_PRLE_Q01' && finalAnswer.length > 50) {
           console.log('[LLM_SUGGESTIONS] Generating field suggestions from narrative...');
           const suggestions = await generateFieldSuggestions(packId, finalAnswer);
-          
+
           if (suggestions && Object.keys(suggestions).length > 0) {
             console.log('[LLM_SUGGESTIONS] Generated suggestions:', suggestions);
-            
+
             // Map to specific field keys with proper format
             // NOTE: LLM returns { agency_name, agency_location, position, application_date, application_outcome }
             // We need to map these to the actual field keys in the pack
             localSuggestions = {};
-            
+
             if (suggestions.agency_name) {
               localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q06`] = suggestions.agency_name;
             }
-            
+
             if (suggestions.agency_location) {
               localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q03`] = suggestions.agency_location;
             }
-            
+
             if (suggestions.position) {
               localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q05`] = suggestions.position;
             }
-            
+
             if (suggestions.application_date) {
               localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q04`] = suggestions.application_date;
             }
-            
+
             if (suggestions.application_outcome) {
               localSuggestions[`${packId}_${instanceNumber}_PACK_PRLE_Q02`] = suggestions.application_outcome;
             }
-            
+
             setFieldSuggestions(prev => ({
               ...prev,
               ...localSuggestions
             }));
           }
         }
-        
+
         // Also save to legacy FollowUpResponse for backwards compatibility
         await saveFollowUpAnswer(packId, fieldKey, finalAnswer, activeV2Pack.substanceName, instanceNumber, 'user');
-        
+
         // Call V2 backend engine BEFORE checking if pack is complete
         const maxAiFollowups = getPackMaxAiFollowups(packId);
         const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
         const probeCount = aiFollowupCounts[fieldCountKey] || 0;
-        
+
         // CRITICAL: V2 pack fields ALWAYS consult the backend probe engine (same as regular V2 follow-ups)
         console.log(`[V2_PACK_FIELD][PROBE_CALL] ========== CALLING BACKEND PROBE ENGINE ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_CALL]`, {
@@ -1842,7 +1842,7 @@ export default function CandidateInterview() {
           aiProbingDisabledForSession,
           currentCollectedAnswers: Object.keys(activeV2Pack.collectedAnswers || {})
         });
-        
+
         v2Result = await runV2FieldProbeIfNeeded({
           base44Client: base44,
           packId,
@@ -1859,7 +1859,7 @@ export default function CandidateInterview() {
           instanceNumber,
           setBackendQuestionTextMap // STEP 1: Pass setter
         });
-        
+
 
         // Check if this was the last field in the pack - if so, mark complete and trigger summaries
         const isPackComplete = isLastField || v2Result?.mode === 'COMPLETE' || v2Result?.mode === 'NEXT_FIELD';
@@ -1872,7 +1872,7 @@ export default function CandidateInterview() {
               response_type: 'base_question'
             });
             const baseResponseId = baseResponses[0]?.id;
-            
+
             if (baseResponseId) {
               const existingFollowups = await base44.entities.FollowUpResponse.filter({
                 session_id: sessionId,
@@ -1880,7 +1880,7 @@ export default function CandidateInterview() {
                 followup_pack: packId,
                 instance_number: instanceNumber
               });
-              
+
               if (existingFollowups.length > 0) {
                 await base44.entities.FollowUpResponse.update(existingFollowups[0].id, {
                   completed: true,
@@ -1896,14 +1896,14 @@ export default function CandidateInterview() {
           } catch (completionErr) {
             console.warn('[V2_PACK_COMPLETE] Failed to mark FollowUpResponse as completed:', completionErr);
           }
-          
+
           // Trigger summary generation in background
           base44.functions.invoke('triggerSummaries', {
             sessionId,
             triggerType: 'question_complete'
           }).catch(() => {}); // Fire and forget
         }
-        
+
         console.log(`[V2_PACK_FIELD][PROBE_RESULT] ========== BACKEND RESPONSE RECEIVED ==========`);
         console.log(`[V2_PACK_FIELD][PROBE_RESULT]`, {
           packId,
@@ -1913,19 +1913,19 @@ export default function CandidateInterview() {
           hasQuestion: !!v2Result?.question,
           questionPreview: v2Result?.question?.substring?.(0, 60)
         });
-        
+
         // Update collectedAnswers with the current field value
         let updatedCollectedAnswers = {
           ...activeV2Pack.collectedAnswers,
           [fieldKey]: finalAnswer
         };
-        
+
         // Update activeV2Pack state
         setActiveV2Pack(prev => ({
           ...prev,
           collectedAnswers: updatedCollectedAnswers
         }));
-        
+
         // Handle backend errors gracefully - fallback to deterministic advancement
         if (v2Result?.mode === 'NONE' || v2Result?.mode === 'ERROR' || !v2Result) {
           console.log(`[V2_PACK_FIELD][FALLBACK] Backend returned ${v2Result?.mode || 'null'} - using deterministic fallback`);
@@ -1936,7 +1936,7 @@ export default function CandidateInterview() {
             v2Result = { mode: 'NEXT_FIELD', reason: 'backend returned null' };
           }
         }
-        
+
         // Handle AI clarifier from backend
         if (v2Result?.mode === 'QUESTION' && v2Result.question) {
           console.log(`[V2_PACK_FIELD][CLARIFIER][SET] ========== CLARIFIER NEEDED ==========`);
@@ -1947,7 +1947,7 @@ export default function CandidateInterview() {
             question: v2Result.question?.substring?.(0, 80),
             probeCount: probeCount + 1
           });
-          
+
           // Set clarifier state - keeps us on this field
           setV2ClarifierState({
             packId,
@@ -1955,29 +1955,29 @@ export default function CandidateInterview() {
             instanceNumber,
             clarifierQuestion: v2Result.question
           });
-          
+
           setAiFollowupCounts(prev => ({
             ...prev,
             [fieldCountKey]: probeCount + 1
           }));
-          
+
           await persistStateToDatabase(newTranscript, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
         }
-        
+
         // Clear clarifier state if we got NEXT_FIELD
         if (v2Result?.mode === 'NEXT_FIELD' && v2ClarifierState?.packId === packId && v2ClarifierState?.fieldKey === fieldKey) {
           console.log(`[V2_PACK_FIELD][CLARIFIER][CLEAR] Field resolved`);
           setV2ClarifierState(null);
         }
-        
+
         // Advance to next field or complete pack (only after backend says NEXT_FIELD)
         if (v2Result?.mode === 'NEXT_FIELD' && !isLastField) {
           // Field-based gating: Check saved responses to determine next field
           let nextFieldIdx = fieldIndex + 1;
-          
+
           // Get all saved responses for this pack instance to check what's answered
           const savedResponses = await base44.entities.Response.filter({
             session_id: sessionId,
@@ -1985,9 +1985,9 @@ export default function CandidateInterview() {
             instance_number: instanceNumber,
             response_type: 'v2_pack_field'
           });
-          
+
           const answeredFieldKeys = new Set(savedResponses.map(r => r.field_key));
-          
+
           console.log(`[V2_PACK_FIELD][GATE_CHECK] Field-based gating`, {
             packId,
             currentFieldIdx: fieldIndex,
@@ -1995,7 +1995,7 @@ export default function CandidateInterview() {
             totalFields: totalFieldsInPack,
             answeredFieldKeys: Array.from(answeredFieldKeys)
           });
-          
+
           // Skip fields that are already answered or should be skipped based on field config
           while (nextFieldIdx < totalFieldsInPack) {
             const nextFieldConfig = activeV2Pack.fields[nextFieldIdx];
@@ -2010,7 +2010,7 @@ export default function CandidateInterview() {
               if (skipUnless.application_outcome) {
                 const outcomeField = updatedCollectedAnswers.application_outcome || '';
                 const outcomeValue = outcomeField.toLowerCase();
-                const matchesAny = skipUnless.application_outcome.some(val => 
+                const matchesAny = skipUnless.application_outcome.some(val =>
                   outcomeValue.includes(val.toLowerCase())
                 );
                 shouldSkip = !matchesAny;
@@ -2064,7 +2064,7 @@ export default function CandidateInterview() {
             console.log(`[V2_PACK_FIELD][GATE_CHECK] ✓ Showing ${nextFieldConfig.fieldKey}`);
             break;
           }
-          
+
           if (nextFieldIdx >= totalFieldsInPack) {
             console.log(`[V2_PACK_FIELD][PACK_COMPLETE] All fields processed`);
             // Fall through to pack completion
@@ -2079,16 +2079,16 @@ export default function CandidateInterview() {
               instanceNumber,
               skippedFields: nextFieldIdx - (fieldIndex + 1)
             });
-            
+
             setActiveV2Pack(prev => ({
               ...prev,
               currentIndex: nextFieldIdx,
               collectedAnswers: updatedCollectedAnswers
             }));
-            
+
             // STEP 2: Include backend question text for next field
             const backendQuestionTextForNext = getBackendQuestionText(backendQuestionTextMap, packId, nextFieldConfig.fieldKey, instanceNumber);
-            
+
             const nextItemForV2 = {
               id: `v2pack-${packId}-${nextFieldIdx}`,
               type: 'v2_pack_field',
@@ -2100,19 +2100,19 @@ export default function CandidateInterview() {
               instanceNumber: instanceNumber,
               backendQuestionText: backendQuestionTextForNext
             };
-            
+
             setCurrentItem(nextItemForV2);
             setQueue([]);
-            
+
             await persistStateToDatabase(newTranscript, [], nextItemForV2);
-            
+
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
             setInput("");
             return;
           }
         }
-        
+
         // Pack complete - exit V2 pack mode (either isLastField or backend said COMPLETE)
         console.log(`[V2_PACK_FIELD][PACK_COMPLETE] ========== PACK FINISHED ==========`);
         console.log(`[V2_PACK_FIELD][PACK_COMPLETE]`, {
@@ -2123,16 +2123,16 @@ export default function CandidateInterview() {
           isLastField,
           returningToSectionFlow: true
         });
-        
+
         // Log pack exited (audit only)
         await logPackExited(sessionId, { packId, instanceNumber });
-        
+
         // Trigger summary generation for completed question (background)
         base44.functions.invoke('triggerSummaries', {
           sessionId,
           triggerType: 'question_complete'
         }).catch(() => {}); // Fire and forget
-        
+
         // CRITICAL: Clear V2 pack state AND currentItem atomically to prevent transitional render crash
         setActiveV2Pack(null);
         setV2PackMode("BASE");
@@ -2155,28 +2155,28 @@ export default function CandidateInterview() {
         setInput("");
         return;
       }
-      
+
       // ========================================================================
       // V3 PACK OPENER HANDLER - Deterministic opener answered, now enter AI probing
       // ========================================================================
       if (currentItem.type === 'v3_pack_opener') {
         const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
-        
+
         console.log(`[V3_OPENER][ANSWERED] ========== OPENER ANSWERED ==========`);
         console.log(`[V3_OPENER][ANSWERED]`, {
           packId,
           categoryId,
           answerLength: value?.length || 0
         });
-        
+
         // FIX A: Do NOT append duplicate v3_opener_question - FOLLOWUP_CARD_SHOWN already logged it
         // Only append the user's answer
         const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
-        
+
         console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
-        
+
         // Append user opener answer only (question already in transcript via FOLLOWUP_CARD_SHOWN)
         const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, value, {
           messageType: 'v3_opener_answer',
@@ -2185,13 +2185,13 @@ export default function CandidateInterview() {
           instanceNumber,
           baseQuestionId
         });
-        
+
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
-        
+
         // Update local UI transcript
         const newTranscript = transcriptAfterAnswer;
         setTranscript(newTranscript);
-        
+
         // Save opener answer to database
         await saveV2PackFieldResponse({
           sessionId,
@@ -2204,7 +2204,7 @@ export default function CandidateInterview() {
           sectionId,
           questionText: openerText
         });
-        
+
         // Legacy canonical transcript append - DISABLED for V3 (causes transcript overwrite)
         // V3 uses chat-style transcript (appendAssistantMessage/appendUserMessage above)
         // Keeping this block disabled prevents duplicate/conflicting transcript writes
@@ -2212,14 +2212,14 @@ export default function CandidateInterview() {
           try {
             const freshSessionForCanonical = await base44.entities.InterviewSession.get(sessionId);
             const canonicalTranscript = freshSessionForCanonical.transcript_snapshot || [];
-            
+
             const baseResponses = await base44.entities.Response.filter({
               session_id: sessionId,
               question_id: baseQuestionId,
               response_type: 'base_question'
             });
             const baseResponseId = baseResponses[0]?.id || baseQuestionId;
-            
+
             const questionKey = `v3_opener::${packId}::${instanceNumber}`;
             if (!hasQuestionBeenLogged(sessionId, questionKey)) {
               await appendQuestionEntry({
@@ -2234,7 +2234,7 @@ export default function CandidateInterview() {
                 parentResponseId: baseResponseId
               });
             }
-            
+
             await appendAnswerEntry({
               sessionId,
               existingTranscript: canonicalTranscript,
@@ -2250,7 +2250,7 @@ export default function CandidateInterview() {
             console.warn("[TRANSCRIPT][V3_OPENER] Failed to log:", err);
           }
         }
-        
+
         console.log(`[V3_OPENER][ENTER_PROBING] Now entering V3ProbingLoop with opener context`);
 
         // Store baseQuestionId in ref for exit
@@ -2271,7 +2271,7 @@ export default function CandidateInterview() {
           packData,
           openerAnswer: value // Pass opener answer to probing engine
         });
-        
+
         await persistStateToDatabase(newTranscript, [], {
           id: `v3-probing-${packId}`,
           type: 'v3_probing',
@@ -2279,12 +2279,12 @@ export default function CandidateInterview() {
           categoryId,
           baseQuestionId
         });
-        
+
         setIsCommitting(false);
         setInput("");
         return;
       }
-      
+
       // ========================================================================
       // REGULAR QUESTION HANDLER
       // ========================================================================
@@ -2297,7 +2297,7 @@ export default function CandidateInterview() {
         const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
         const sectionName = sectionEntity?.section_name || question.category || '';
         const questionNumber = getQuestionDisplayNumber(currentItem.id);
-        
+
         // Create separate question and answer entries for chat-style rendering
         const questionEntry = {
           id: `q-${currentItem.id}-${Date.now()}`,
@@ -2330,10 +2330,10 @@ export default function CandidateInterview() {
 
         const newTranscript = [...transcript, questionEntry, answerEntry];
         setTranscript(newTranscript);
-        
+
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
-        
+
         // Log answer submitted (audit only)
         await logAnswerSubmitted(sessionId, {
           questionDbId: currentItem.id,
@@ -2355,14 +2355,14 @@ export default function CandidateInterview() {
           sections,
           answeredQuestionIds: new Set(newTranscript.filter(t => t.type === 'question').map(t => t.questionId))
         });
-        
+
         if (gateResult?.gateTriggered) {
           console.log('[GATE_APPLIED] Section gate triggered - advancing to next section or completing', {
             skippedCount: gateResult.skippedQuestionIds?.length || 0,
             nextSectionIndex: gateResult.nextSectionIndex,
             interviewComplete: gateResult.interviewComplete
           });
-          
+
           if (gateResult.interviewComplete) {
             // No more sections - complete interview
             const completionMessage = {
@@ -2373,7 +2373,7 @@ export default function CandidateInterview() {
               kind: 'interview_complete',
               role: 'system'
             };
-            
+
             const finalTranscript = [...newTranscript, completionMessage];
             setTranscript(finalTranscript);
             setCurrentItem(null);
@@ -2384,18 +2384,18 @@ export default function CandidateInterview() {
             setInput("");
             return;
           }
-          
+
           // Advance to next section
           const currentSection = sections[currentSectionIndex];
           const nextSection = sections[gateResult.nextSectionIndex];
           const whatToExpect = WHAT_TO_EXPECT[nextSection?.id] || 'important background information';
-          
+
           setCompletedSectionsCount(prev => Math.max(prev, gateResult.nextSectionIndex));
-          
+
           const totalSectionsCount = sections.length;
           const answeredQuestionsCount = newTranscript.filter(t => t.type === 'question').length;
           const totalQuestionsCount = engine?.TotalQuestions || 0;
-          
+
           // Log section complete to transcript
           await logSectionComplete(sessionId, {
             completedSectionId: currentSection?.id,
@@ -2409,12 +2409,12 @@ export default function CandidateInterview() {
               totalQuestions: totalQuestionsCount
             }
           });
-          
+
           // Reload transcript after logging
           const updatedSession = await base44.entities.InterviewSession.get(sessionId);
           const gateTranscript = updatedSession.transcript_snapshot || [];
           setTranscript(gateTranscript);
-          
+
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
            sessionId,
@@ -2458,27 +2458,27 @@ export default function CandidateInterview() {
             const { packId, substanceName, isV3Pack } = followUpResult;
 
             console.log(`[FOLLOWUP-TRIGGER] Pack triggered: ${packId}, checking versions...`);
-            
+
             // Check pack config flags to determine V3 vs V2
             const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
             const isV3PackExplicit = packConfig?.isV3Pack === true;
             const isV2PackExplicit = packConfig?.isV2Pack === true;
             const usesPerFieldProbing = useProbeEngineV2(packId);
-            
+
             // V3 takes precedence over V2 - explicit V3 flag wins
             const isV3PackFinal = isV3PackExplicit || (isV3Pack && !isV2PackExplicit);
             const isV2PackFinal = !isV3PackFinal && (isV2PackExplicit || usesPerFieldProbing);
-            
+
             console.log(`[FOLLOWUP-TRIGGER] ${packId} isV3Pack=${isV3PackFinal} isV2Pack=${isV2PackFinal}`);
-            
+
             // === V3 PACK HANDLING: Two-layer flow (Deterministic Opener → AI Probing) ===
             if (isV3PackFinal) {
               console.log(`[V3_PACK][ENTER] ========== ENTERING V3 PACK MODE ==========`);
               console.log(`[V3_PACK][ENTER] pack=${packId} categoryId=${mapPackIdToCategory(packId)}`);
-              
+
               // Get category for V3 probing
               const categoryId = mapPackIdToCategory(packId);
-              
+
               if (!categoryId) {
                 console.warn("[V3_PACK] No category mapping for pack:", packId);
                 saveAnswerToDatabase(currentItem.id, value, question);
@@ -2487,7 +2487,7 @@ export default function CandidateInterview() {
                 setInput("");
                 return;
               }
-              
+
               // Load pack metadata for opener
               let packMetadata = null;
               try {
@@ -2496,39 +2496,39 @@ export default function CandidateInterview() {
               } catch (err) {
                 console.warn("[V3_PACK] Could not load pack metadata:", err);
               }
-              
+
               // Derive categoryLabel from available sources
-              let categoryLabel = 
-                packMetadata?.pack_name || 
+              let categoryLabel =
+                packMetadata?.pack_name ||
                 packMetadata?.category_label ||
                 FOLLOWUP_PACK_CONFIGS[packId]?.instancesLabel ||
                 categoryId?.replace(/_/g, ' ').toLowerCase() ||
                 "this topic";
-              
+
               if (categoryLabel === "this topic") {
                 console.warn(`[V3_PACK][WARN] Missing categoryLabel for pack ${packId} / categoryId=${categoryId}, using generic fallback`);
               }
-              
+
               // Get deterministic opener (configured or synthesized)
               const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
               const opener = getV3DeterministicOpener(packMetadata, categoryId, categoryLabel);
-              
+
               if (opener.isSynthesized) {
                 console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
               }
-              
+
               console.log(`[V3_PACK][OPENER] Showing deterministic opener before AI probing`, {
                 packId,
                 hasExample: !!opener.example,
                 isSynthesized: opener.isSynthesized
               });
-              
+
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
-              
+
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
-              
+
               // STEP 1: Show deterministic opener (non-AI)
               const openerItem = {
                 id: `v3-opener-${packId}-${currentItem.id}`,
@@ -2544,17 +2544,17 @@ export default function CandidateInterview() {
                 instanceNumber: 1,
                 packData: packMetadata
               };
-              
+
               setCurrentItem(openerItem);
               setQueue([]);
-              
+
               await persistStateToDatabase(newTranscript, [], openerItem);
-              
+
               setIsCommitting(false);
               setInput("");
               return;
             }
-            
+
             // === V2 PACK HANDLING: Enter V2_PACK mode ===
             if (isV2PackFinal) {
               // V3-ONLY MODE: Block V2 packs in production
@@ -2566,7 +2566,7 @@ export default function CandidateInterview() {
                 setInput("");
                 return;
               }
-              
+
               const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
 
               if (!packConfig || !Array.isArray(packConfig.fields) || packConfig.fields.length === 0) {
@@ -2578,31 +2578,31 @@ export default function CandidateInterview() {
                 setInput("");
                 return;
               }
-              
+
               // Build ordered list of fields in this V2 pack
               const orderedFields = packConfig.fields
                 .filter(f => f.fieldKey && f.label)
                 .sort((a, b) => (a.factsOrder || 0) - (b.factsOrder || 0));
-              
+
               // EXPLICIT LOGGING: Entering V2 pack mode
               console.log(`[V2_PACK][ENTER] ========== ENTERING V2 PACK MODE ==========`);
               console.log(`[V2_PACK][ENTER] pack=${packId} firstField=${orderedFields[0].fieldKey}`);
               console.log(`[V2_PACK][ENTER] totalFields=${orderedFields.length}, fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
               console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem.id} (${question.question_id}), instanceNumber=1`);
               console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
-              
+
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
-              
+
               // Special log for PACK_PRIOR_LE_APPS_STANDARD
               if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
                 console.log(`[V2_PACK][PRIOR_LE_APPS][ENTER] ========== ENTERING PRIOR LE APPS PACK ==========`);
                 console.log(`[V2_PACK][PRIOR_LE_APPS][ENTER] fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
               }
-              
+
               // Save the base question answer first and get Response ID
               const baseResponse = await saveAnswerToDatabase(currentItem.id, value, question);
-              
+
               // Set up V2 pack mode
               setActiveV2Pack({
                 packId,
@@ -2616,33 +2616,33 @@ export default function CandidateInterview() {
               setV2PackTriggerQuestionId(currentItem.id);
               setV2PackMode("V2_PACK");
               setCurrentFollowUpAnswers({});
-              
+
               // For V2 standard cluster packs: Make initial backend call to get AI opening
               // This allows the AI to acknowledge the "yes" and set context before asking fields
               console.log(`[V2_PACK][CLUSTER_INIT] Making initial backend call for pack opening...`);
-              
+
               const firstField = orderedFields[0];
-              
+
               // Compute effective opening strategy from pack meta (read from engine state)
               const packMeta = engine?.v2PacksById?.[packId]?.meta || null;
-              
+
               if (!packMeta) {
                 console.warn(`[V2_PACK][CLUSTER_INIT] No V2 pack meta found for packId ${packId}`, {
                   availablePackIds: Object.keys(engine?.v2PacksById || {})
                 });
               }
-              
+
               const rawOpeningStrategy = packMeta?.openingStrategy || 'none';
               const openingFieldKey = packMeta?.openingFieldKey || null;
               const forceNarrative = packMeta?.forceNarrativeOpening === true && !!openingFieldKey;
-              
+
               const effectiveOpeningStrategy =
                 rawOpeningStrategy && rawOpeningStrategy !== 'none'
                   ? rawOpeningStrategy
                   : (forceNarrative ? 'fixed_narrative' : 'none');
-              
+
               const isOpeningField = openingFieldKey && openingFieldKey === firstField.fieldKey;
-              
+
               console.log('[V2_FRONTEND][OPENING_META]', {
                 packId,
                 fieldKey: firstField.fieldKey,
@@ -2651,7 +2651,7 @@ export default function CandidateInterview() {
                 openingFieldKey,
                 isOpeningField,
               });
-              
+
               const initialCallResult = await runV2FieldProbeIfNeeded({
                 base44Client: base44,
                 packId,
@@ -2668,23 +2668,23 @@ export default function CandidateInterview() {
                 instanceNumber: 1,
                 setBackendQuestionTextMap // STEP 1: Pass setter
               });
-              
+
               console.log(`[V2_PACK][CLUSTER_INIT] Backend response:`, {
                 mode: initialCallResult?.mode,
                 hasQuestion: !!initialCallResult?.question,
                 probeSource: initialCallResult?.probeSource
               });
-              
+
               // CRITICAL FIX: When backend returns mode='QUESTION', immediately transition to v2_pack_field
               // This ensures the UI shows the pack question instead of repeating the base question
               if (initialCallResult?.mode === 'QUESTION' && initialCallResult.question) {
                 console.log('[V2_PACK][IMMEDIATE_TRANSITION] Backend returned QUESTION - showing pack field immediately');
-                
+
                 // Get backend question text (already stored by callProbeEngineV2PerField)
-                const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1) 
-                  || initialCallResult.questionText 
+                const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1)
+                  || initialCallResult.questionText
                   || initialCallResult.question;
-                
+
                 // Immediately set currentItem to v2_pack_field to show the pack question
                 const firstPackItem = {
                   id: `v2pack-${packId}-0`,
@@ -2697,30 +2697,30 @@ export default function CandidateInterview() {
                   instanceNumber: 1,
                   backendQuestionText: backendQuestionTextForFirst
                 };
-                
+
                 setCurrentItem(firstPackItem);
                 setQueue([]);
-                
+
                 await persistStateToDatabase(newTranscript, [], firstPackItem);
                 setIsCommitting(false);
                 setInput("");
                 return;
               }
-              
+
               // Legacy opening logic (for packs without QUESTION response)
               // Detect fixed narrative opening
-              const isFixedNarrativeOpening = 
+              const isFixedNarrativeOpening =
                 effectiveOpeningStrategy === 'fixed_narrative' &&
                 isOpeningField &&
                 initialCallResult?.probeSource === 'fixed_narrative_opening';
-              
+
               if (isFixedNarrativeOpening) {
                 console.log('[V2_PACK][OPENING_FIXED_NARRATIVE]', {
                   packId,
                   fieldKey: firstField.fieldKey,
                   probeSource: initialCallResult?.probeSource,
                 });
-                
+
                 // Add AI opening question to transcript
                 const aiOpeningEntry = createChatEvent('ai_probe_question', {
                   questionId: `v2pack-opening-${packId}`,
@@ -2735,10 +2735,10 @@ export default function CandidateInterview() {
                   baseQuestionId: currentItem.id,
                   source: 'V2_PACK_CLUSTER_OPENING'
                 });
-                
+
                 const updatedTranscript = [...newTranscript, aiOpeningEntry];
                 setTranscript(updatedTranscript);
-                
+
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
                 setIsInvokeLLMMode(true);
@@ -2758,11 +2758,11 @@ export default function CandidateInterview() {
                   isV2PackMode: true,
                   isClusterOpening: true
                 });
-                
+
                 // Keep currentItem as the first field - but it won't be shown until after AI probe
-                // STEP 2: Include backend question text
+                // STEP 2: Include backend question text for first field
                 const backendQuestionTextForFirst = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
-                
+
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -2775,7 +2775,7 @@ export default function CandidateInterview() {
                   backendQuestionText: backendQuestionTextForFirst // STEP 2: Wire backend question
                 });
                 setQueue([]);
-                
+
                 await persistStateToDatabase(updatedTranscript, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -2786,7 +2786,7 @@ export default function CandidateInterview() {
                 // No special opening - go directly to first field
                 // STEP 2: Include backend question text in currentItem
                 const backendQuestionText = getBackendQuestionText(backendQuestionTextMap, packId, firstField.fieldKey, 1);
-                
+
                 setCurrentItem({
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -2799,7 +2799,7 @@ export default function CandidateInterview() {
                   backendQuestionText // STEP 2: Wire backend question
                 });
                 setQueue([]);
-                
+
                 await persistStateToDatabase(newTranscript, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
@@ -2807,37 +2807,37 @@ export default function CandidateInterview() {
                   fieldIndex: 0
                 });
               }
-              
+
               setIsCommitting(false);
               setInput("");
               return;
             }
-            
+
             // === LEGACY V3 PROBING CHECK (for packs without explicit version flags) ===
             const categoryId = mapPackIdToCategory(packId);
-            
+
             if (ENABLE_V3_PROBING && categoryId && !isV2PackFinal && !isV3PackFinal) {
               try {
                 // Check system config V3 enabled categories
                 const { config } = await getSystemConfig();
                 const v3EnabledCategories = config.v3?.enabled_categories || [];
                 const isV3EnabledForCategory = v3EnabledCategories.includes(categoryId);
-                
+
                 if (isV3EnabledForCategory) {
                   // Check if pack has ide_version = "V3"
                   const packs = await base44.entities.FollowUpPack.filter({ followup_pack_id: packId });
                   const pack = packs[0];
-                  
+
                   if (pack?.ide_version === "V3") {
                     // Check if FactModel is ready
                     const factModel = await getFactModelForCategory(categoryId);
-                    
+
                     if (factModel && (factModel.isReadyForAiProbing || factModel.status === "ACTIVE")) {
                       console.log("[V3 PROBING] Triggering V3 probing loop", { packId, categoryId });
-                    
+
                     // Save base question answer
                     saveAnswerToDatabase(currentItem.id, value, question);
-                    
+
                     // Enter V3 probing mode
                     setV3ProbingActive(true);
                     setV3ProbingContext({
@@ -2850,7 +2850,7 @@ export default function CandidateInterview() {
                       incidentId: null, // Will be created by decisionEngineV3
                       packData: pack // Pass pack metadata for opener
                     });
-                    
+
                     await persistStateToDatabase(newTranscript, [], {
                       id: `v3-probing-${packId}`,
                       type: 'v3_probing',
@@ -2858,7 +2858,7 @@ export default function CandidateInterview() {
                       categoryId,
                       baseQuestionId: currentItem.id
                     });
-                    
+
                     setIsCommitting(false);
                       setInput("");
                       return;
@@ -2869,7 +2869,7 @@ export default function CandidateInterview() {
                 console.warn("[V3 PROBING] Error checking V3 status, falling back:", v3Err);
               }
             }
-            
+
             if (interviewMode === "AI_PROBING") {
               saveAnswerToDatabase(currentItem.id, value, question);
               advanceToNextBaseQuestion(currentItem.id);
@@ -2877,10 +2877,10 @@ export default function CandidateInterview() {
               setInput("");
               return;
             }
-            
+
             if (ideEnabled && categoryId) {
               const factModel = await getFactModelForCategory(categoryId);
-              
+
               if (factModel && factModel.isReadyForAiProbing) {
                 try {
                   const ideResult = await base44.functions.invoke('decisionEngineProbe', {
@@ -2894,13 +2894,13 @@ export default function CandidateInterview() {
                       sectionId: question.section_id
                     }
                   });
-                  
+
                   if (ideResult.continue && ideResult.nextQuestion) {
                     setCurrentIncidentId(ideResult.incidentId);
                     setCurrentIdeCategoryId(categoryId);
                     setCurrentIdeQuestion(ideResult.nextQuestion);
                     setInIdeProbingLoop(true);
-                    
+
                     await persistStateToDatabase(newTranscript, [], currentItem);
                     setIsCommitting(false);
                     setInput("");
@@ -2916,7 +2916,7 @@ export default function CandidateInterview() {
                   }
                 } catch (ideError) {
                   console.error("[IDE] Error calling decision engine", ideError);
-                  
+
                   if (interviewMode === "HYBRID") {
                     // Continue to deterministic
                   } else {
@@ -2931,7 +2931,7 @@ export default function CandidateInterview() {
                 // Continue to deterministic
               }
             }
-            
+
             const triggerKey = `${currentItem.id}:${packId}`;
             if (triggeredPacksRef.current.has(triggerKey)) {
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
@@ -2950,14 +2950,14 @@ export default function CandidateInterview() {
               saveAnswerToDatabase(currentItem.id, value, question);
               return;
             }
-            
+
             triggeredPacksRef.current.add(triggerKey);
-            
+
             const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-            
+
             if (packSteps && packSteps.length > 0) {
               setCurrentFollowUpAnswers({});
-              
+
               const followupQueue = [];
               for (let i = 0; i < packSteps.length; i++) {
                 followupQueue.push({
@@ -2970,13 +2970,13 @@ export default function CandidateInterview() {
                   baseQuestionId: currentItem.id
                 });
               }
-              
+
               const firstItem = followupQueue[0];
               const remainingQueue = followupQueue.slice(1);
-              
+
               setQueue(remainingQueue);
               setCurrentItem(firstItem);
-              
+
               await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
             } else {
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
@@ -2997,19 +2997,19 @@ export default function CandidateInterview() {
         } else {
           advanceToNextBaseQuestion(currentItem.id, newTranscript);
         }
-        
+
         // Note: saveAnswerToDatabase already called above before setting newTranscript
 
       } else if (currentItem.type === 'followup') {
         const { packId, stepIndex, substanceName, baseQuestionId } = currentItem;
-        
+
         const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
-        
+
         if (!packSteps || !packSteps[stepIndex]) {
           throw new Error(`Follow-up pack ${packId} step ${stepIndex} not found`);
         }
         const step = packSteps[stepIndex];
-        
+
         const instanceNumber = currentItem.instanceNumber || 1;
         const fieldKey = step.Field_Key;
 
@@ -3051,40 +3051,40 @@ export default function CandidateInterview() {
 
           let updatedQueue = [...queue];
           let nextItem = updatedQueue.shift() || null;
-          
+
           while (nextItem && nextItem.type === 'followup') {
             const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
             const nextStep = nextPackSteps[nextItem.stepIndex];
-            
+
             if (shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
               nextItem = updatedQueue.shift() || null;
             } else {
               break;
             }
           }
-          
+
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
-          
+
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
           await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem.instanceNumber || 1);
-          
+
           setIsCommitting(false);
           setInput("");
-          
+
           if (!nextItem) {
             setShowCompletionModal(true);
           }
-          
+
           return;
         }
 
         const validation = validateFollowUpAnswer(value, step.Expected_Type || 'TEXT', step.Options);
-        
+
         if (!validation.valid) {
           setValidationHint(validation.hint);
           setIsCommitting(false);
-          
+
           setTimeout(() => {
             if (inputRef.current) {
               inputRef.current.focus();
@@ -3094,10 +3094,10 @@ export default function CandidateInterview() {
         }
 
         const normalizedAnswer = validation.normalized || value;
-        
+
         // Check if this is a V2 pack
         const isV2Pack = useProbeEngineV2(packId);
-        
+
         console.log('[FOLLOWUP ANSWER] V2 pack check', {
           packId,
           isV2Pack,
@@ -3118,7 +3118,7 @@ export default function CandidateInterview() {
           const fieldCountKey = `${packId}:${fieldKey}:${instanceNumber}`;
           const probeCount = aiFollowupCounts[fieldCountKey] || 0;
           const question = engine.QById[baseQuestionId];
-          
+
           // Run V2 probe
           const v2Result = await runV2FieldProbeIfNeeded({
             base44Client: base44,
@@ -3135,10 +3135,10 @@ export default function CandidateInterview() {
             maxAiFollowups,
             setBackendQuestionTextMap // STEP 1: Pass setter for legacy followup path
           });
-          
+
           // Save the answer
           await saveFollowUpAnswer(packId, fieldKey, normalizedAnswer, substanceName, instanceNumber, 'user');
-          
+
           // If probe returned a question, show it
           if (v2Result?.mode === 'QUESTION' && v2Result.question) {
             // Increment probe count
@@ -3146,7 +3146,7 @@ export default function CandidateInterview() {
               ...prev,
               [fieldCountKey]: probeCount + 1
             }));
-            
+
             // Add current answer to transcript
             const followupQuestionEvent = createChatEvent('followup_question', {
               questionId: currentItem.id,
@@ -3171,12 +3171,12 @@ export default function CandidateInterview() {
 
             const newTranscript = [...transcript, followupEntry];
             setTranscript(newTranscript);
-            
+
             setCurrentFollowUpAnswers(prev => ({
               ...prev,
               [fieldKey]: normalizedAnswer
             }));
-            
+
             // Show AI probe question
             setIsWaitingForAgent(true);
             setIsInvokeLLMMode(true);
@@ -3189,12 +3189,12 @@ export default function CandidateInterview() {
               currentItem,
               question: v2Result.question
             });
-            
+
             setIsCommitting(false);
             setInput("");
             return;
           }
-          
+
           // No probe needed - continue to next followup step
         }
 
@@ -3230,36 +3230,36 @@ export default function CandidateInterview() {
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
         await saveFollowUpAnswer(packId, step.Field_Key, normalizedAnswer, substanceName, instanceNumber);
-        
+
         let updatedQueue = [...queue];
         let nextItem = updatedQueue.shift() || null;
-        
+
         while (nextItem && nextItem.type === 'followup') {
           const nextPackSteps = injectSubstanceIntoPackSteps(engine, nextItem.packId, nextItem.substanceName);
           const nextStep = nextPackSteps?.[nextItem.stepIndex];
-          
+
           if (nextStep && shouldSkipFollowUpStep(nextStep, updatedFollowUpAnswers)) {
             nextItem = updatedQueue.shift() || null;
           } else {
             break;
           }
         }
-        
+
         const isLastFollowUp = !nextItem || nextItem.type !== 'followup' || nextItem.packId !== packId;
-        
+
         if (isLastFollowUp) {
           if (shouldSkipProbingForHired(packId, updatedFollowUpAnswers)) {
-            const triggeringQuestion = [...newTranscript].reverse().find(t => 
-              t.type === 'question' && 
+            const triggeringQuestion = [...newTranscript].reverse().find(t =>
+              t.type === 'question' &&
               engine.QById[t.questionId]?.followup_pack === packId &&
               t.answer === 'Yes'
             );
-            
+
             if (triggeringQuestion) {
               const nextQuestionId = computeNextQuestionId(engine, triggeringQuestion.questionId, 'Yes');
-              
+
               setCurrentFollowUpAnswers({});
-              
+
               if (nextQuestionId && engine.QById[nextQuestionId]) {
                 setQueue([]);
                 setCurrentItem({ id: nextQuestionId, type: 'question' });
@@ -3286,23 +3286,23 @@ export default function CandidateInterview() {
         } else {
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
-          
+
           await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
         }
       } else if (currentItem.type === 'multi_instance') {
         const { questionId, packId, instanceNumber } = currentItem;
-        
+
         const normalized = value.trim().toLowerCase();
         if (normalized !== 'yes' && normalized !== 'no') {
           setValidationHint('Please answer "Yes" or "No".');
           setIsCommitting(false);
           return;
         }
-        
+
         const answer = normalized === 'yes' ? 'Yes' : 'No';
-        
+
         const question = engine.QById[questionId];
-        
+
         console.log('[PRIOR_LE_APPS][MULTI_INSTANCE]', {
           questionId,
           packId,
@@ -3385,17 +3385,17 @@ export default function CandidateInterview() {
         question_id: questionId,
         response_type: 'base_question'
       });
-      
+
       if (existing.length > 0) {
         return existing[0];
       }
-      
+
       const currentDisplayOrder = displayOrderRef.current++;
       const triggersFollowup = question.followup_pack && answer.toLowerCase() === 'yes';
-      
+
       const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
-      
+
       const created = await base44.entities.Response.create({
         session_id: sessionId,
         question_id: questionId,
@@ -3411,7 +3411,7 @@ export default function CandidateInterview() {
         display_order: currentDisplayOrder,
         response_type: 'base_question'
       });
-      
+
       return created;
     } catch (err) {
       console.error('❌ Database save error:', err);
@@ -3487,35 +3487,35 @@ export default function CandidateInterview() {
         followup_pack: packId,
         triggered_followup: true
       });
-      
+
       if (responses.length === 0) {
         return;
       }
-      
+
       const triggeringResponse = responses[responses.length - 1];
-      
+
       const existingFollowups = await base44.entities.FollowUpResponse.filter({
         session_id: sessionId,
         response_id: triggeringResponse.id,
         followup_pack: packId,
         instance_number: instanceNumber
       });
-      
+
       let factsUpdate = null;
       let unresolvedUpdate = null;
       if (packId === "PACK_LE_APPS") {
         const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
         const fieldConfig = packConfig?.fields?.find(f => f.fieldKey === fieldKey);
-        
+
         if (fieldConfig?.semanticKey) {
           const semanticResult = validateFollowupValue({ packId, fieldKey, rawValue: answer });
-          
+
           const maxAiFollowups = getPackMaxAiFollowups(packId);
           const wasProbed = factSource === "ai_probed";
-          
+
           const probeCount = wasProbed ? maxAiFollowups : 0;
           const isUnresolved = wasProbed && (semanticResult.status === "invalid" || semanticResult.status === "unknown");
-          
+
           if (isUnresolved) {
             const displayValue = fieldConfig.unknownDisplayLabel || `Not recalled after full probing`;
             factsUpdate = {
@@ -3549,7 +3549,7 @@ export default function CandidateInterview() {
           }
         }
       }
-      
+
       if (existingFollowups.length === 0) {
         const createData = {
           session_id: sessionId,
@@ -3562,42 +3562,42 @@ export default function CandidateInterview() {
           completed: false,
           additional_details: { [fieldKey]: answer }
         };
-        
+
         if (factsUpdate) {
           createData.additional_details.facts = factsUpdate;
         }
-        
+
         if (unresolvedUpdate) {
           createData.additional_details.unresolvedFields = [unresolvedUpdate];
         }
-        
+
         const createdRecord = await base44.entities.FollowUpResponse.create(createData);
-        
+
         if (packId === 'PACK_LE_APPS') {
           await syncFactsToInterviewSession(sessionId, triggeringResponse.question_id, packId, createdRecord);
         }
       } else {
         const existing = existingFollowups[0];
-        
+
         const updatedDetails = {
           ...(existing.additional_details || {}),
           [fieldKey]: answer
         };
-        
+
         if (factsUpdate) {
           updatedDetails.facts = {
             ...(updatedDetails.facts || {}),
             ...factsUpdate
           };
         }
-        
+
         if (unresolvedUpdate) {
           const existingUnresolved = updatedDetails.unresolvedFields || [];
           const filtered = existingUnresolved.filter(u => u.semanticKey !== unresolvedUpdate.semanticKey);
           filtered.push(unresolvedUpdate);
           updatedDetails.unresolvedFields = filtered;
         }
-        
+
         await base44.entities.FollowUpResponse.update(existing.id, {
           substance_name: substanceName || existing.substance_name,
           additional_details: updatedDetails
@@ -3616,20 +3616,20 @@ export default function CandidateInterview() {
 
   const handleCompletionConfirm = async () => {
     setIsCompletingInterview(true);
-    
+
     try {
       await base44.entities.InterviewSession.update(sessionId, {
         status: 'completed',
         completed_date: new Date().toISOString(),
         completion_percentage: 100,
       });
-      
+
       // Trigger overall summary generation when interview completes (background)
       base44.functions.invoke('triggerSummaries', {
         sessionId,
         triggerType: 'interview_complete'
       }).catch(() => {}); // Fire and forget
-      
+
       navigate(createPageUrl("Home"));
     } catch (err) {
       console.error('❌ Error completing interview:', err);
@@ -3640,18 +3640,18 @@ export default function CandidateInterview() {
 
   const getQuestionDisplayNumber = useCallback((questionId) => {
     if (!engine) return '';
-    
+
     if (displayNumberMapRef.current[questionId]) {
       return displayNumberMapRef.current[questionId];
     }
-    
+
     const index = engine.ActiveOrdered.indexOf(questionId);
     if (index !== -1) {
       const displayNum = index + 1;
       displayNumberMapRef.current[questionId] = displayNum;
       return displayNum;
     }
-    
+
     return '';
   }, [engine]);
 
@@ -3661,25 +3661,25 @@ export default function CandidateInterview() {
       console.log('[EXIT_V3][SKIP] Already handled');
       return;
     }
-    
+
     exitV3HandledRef.current = true;
     console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
-    
+
     // Queue transition (executed in useEffect)
     setPendingTransition({
       type: 'EXIT_V3',
       payload: { ...payload, reason }
     });
   }, []);
-  
+
   // V3 probing completion handler - deferred transition pattern
   const handleV3ProbingComplete = useCallback((result) => {
     console.log("[V3_PROBING][COMPLETE][DEFERRED] ========== V3 EXIT REQUESTED ==========");
     console.log("[V3_PROBING][COMPLETE][DEFERRED]", result);
-    
+
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
-  
+
   // V3 transcript update handler
   const handleV3TranscriptUpdate = useCallback((entry) => {
     setTranscript(prev => [...prev, {
@@ -3687,62 +3687,62 @@ export default function CandidateInterview() {
       id: `v3-${entry.type}-${Date.now()}`
     }]);
   }, []);
-  
+
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
     if (!pendingTransition) return;
-    
+
     const executePendingTransition = async () => {
       console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
-      
+
       if (pendingTransition.type === 'EXIT_V3') {
         const result = pendingTransition.payload;
         const { incidentId, categoryId, completionReason, messages, reason } = result;
         const baseQuestionId = v3BaseQuestionIdRef.current; // Use ref (retained across renders)
-        
+
         console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, hasRef: !!v3BaseQuestionIdRef.current });
-        
+
         // Clear gate FIRST
         setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-        
+
         // Clear V3 state
         setV3ProbingActive(false);
         setV3ProbingContext(null);
-        
+
         // Log pack exited (audit only)
         if (v3ProbingContext?.packId) {
-          await logPackExited(sessionId, { 
-            packId: v3ProbingContext.packId, 
-            instanceNumber: v3ProbingContext.instanceNumber || 1 
+          await logPackExited(sessionId, {
+            packId: v3ProbingContext.packId,
+            instanceNumber: v3ProbingContext.instanceNumber || 1
           });
         }
-        
+
         // Advance to next base question AFTER clearing V3 state
         if (baseQuestionId) {
           console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
           await advanceToNextBaseQuestion(baseQuestionId, transcript);
         }
-        
+
         // Reset idempotency guard for next V3 pack
         exitV3HandledRef.current = false;
       }
-      
+
       // Clear transition
       setPendingTransition(null);
     };
-    
+
     executePendingTransition();
   }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
     if (!currentItem || !sessionId) return;
-    
+
     const packId = currentItem?.packId || null;
     const fieldKey = currentItem?.fieldKey || currentItem?.id || null;
     const instanceNumber = currentItem?.instanceNumber || 0;
     const draftKey = buildDraftKey(sessionId, packId, fieldKey, instanceNumber);
-    
+
     try {
       const savedDraft = window.sessionStorage.getItem(draftKey);
       if (savedDraft != null && savedDraft !== "") {
@@ -3755,7 +3755,7 @@ export default function CandidateInterview() {
       console.warn("[UX][DRAFT] Failed to restore draft", e);
     }
   }, [currentItem, sessionId, buildDraftKey]);
-  
+
   // Measure question card height dynamically
   useEffect(() => {
     if (questionCardRef.current) {
@@ -3777,15 +3777,15 @@ export default function CandidateInterview() {
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
     if (!inputRef.current) return;
-    
+
     const textarea = inputRef.current;
     textarea.style.height = 'auto';
-    
+
     const lineHeight = 24; // Approximate line height in pixels
     const maxLines = 3;
     const maxHeight = lineHeight * maxLines;
     const scrollHeight = textarea.scrollHeight;
-    
+
     if (scrollHeight <= maxHeight) {
       textarea.style.height = `${scrollHeight}px`;
       textarea.style.overflowY = 'hidden';
@@ -3801,20 +3801,20 @@ export default function CandidateInterview() {
   useEffect(() => {
     if (!currentItem) return;
     if (isCommitting || v3ProbingActive || pendingSectionTransition) return;
-    
-    const isAnswerable = currentItem.type === 'question' || 
-                         currentItem.type === 'v2_pack_field' || 
+
+    const isAnswerable = currentItem.type === 'question' ||
+                         currentItem.type === 'v2_pack_field' ||
                          currentItem.type === 'v3_pack_opener' ||
                          currentItem.type === 'followup';
-    
+
     if (!isAnswerable) return;
-    
+
     const currentItemType = currentItem.type;
     const currentItemId = currentItem.id;
     const packId = currentItem.packId;
     const fieldKey = currentItem.fieldKey;
     const instanceNumber = currentItem.instanceNumber;
-    
+
     console.log("[UX][FOCUS] Auto-focusing answer input for", {
       currentItemType,
       currentItemId,
@@ -3822,13 +3822,13 @@ export default function CandidateInterview() {
       fieldKey,
       instanceNumber
     });
-    
+
     window.requestAnimationFrame(() => {
       if (!inputRef.current) return;
-      
+
       try {
         inputRef.current.focus();
-        
+
         // Put cursor at end of any existing text (desktop + mobile friendly)
         if (inputRef.current.setSelectionRange) {
           const len = inputRef.current.value.length;
@@ -3839,31 +3839,31 @@ export default function CandidateInterview() {
       }
     });
   }, [currentItem, isCommitting, v3ProbingActive, pendingSectionTransition]);
-  
+
   // Transcript logging is now handled in answer saving functions where we have Response IDs
   // This prevents logging questions with null responseId
-  
+
   const getCurrentPrompt = () => {
     // HARD GATE: Block all base question rendering/logging while V3 gate is active
     if (v3GateActive) {
       console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
       return null;
     }
-    
+
     // UX: Stabilize current item while typing
     let effectiveCurrentItem = currentItem;
-    
+
     if (isUserTyping && currentItemRef.current) {
       effectiveCurrentItem = currentItemRef.current;
     } else {
       currentItemRef.current = currentItem;
     }
-    
+
     // V3 probing mode - no prompt, V3ProbingLoop handles it
     if (v3ProbingActive) {
       return null;
     }
-    
+
     if (inIdeProbingLoop && currentIdeQuestion) {
       return {
         type: 'ide_probe',
@@ -3872,10 +3872,10 @@ export default function CandidateInterview() {
         category: currentIdeCategoryId || 'Follow-up'
       };
     }
-    
+
     // Use effectiveCurrentItem (stabilized while typing) for all prompt logic below
     if (!effectiveCurrentItem || !engine) return null;
-    
+
     // If waiting for agent and we have a field probe question, show it
     if (isWaitingForAgent && currentFieldProbe) {
       const packConfig = FOLLOWUP_PACK_CONFIGS[currentFieldProbe.packId];
@@ -3890,29 +3890,29 @@ export default function CandidateInterview() {
         category: packConfig?.instancesLabel || 'Follow-up'
       };
     }
-    
+
     if (isWaitingForAgent) {
       return null;
     }
 
     if (effectiveCurrentItem.type === 'question') {
       const question = engine.QById[effectiveCurrentItem.id];
-      
+
       if (!question) {
         setCurrentItem(null);
         setQueue([]);
         setShowCompletionModal(true);
         return null;
       }
-      
+
       const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
-      
+
       // RENDER-POINT LOGGING: Log question when it's shown (once per question)
       const itemSig = `question:${effectiveCurrentItem.id}::`;
       const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
-      
+
       if (lastLoggedSig !== itemSig) {
         lastLoggedFollowupCardIdRef.current = itemSig;
         logQuestionShown(sessionId, {
@@ -3923,7 +3923,7 @@ export default function CandidateInterview() {
           sectionName
         }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       }
-      
+
       return {
         type: 'question',
         id: effectiveCurrentItem.id,
@@ -3935,12 +3935,12 @@ export default function CandidateInterview() {
 
     if (effectiveCurrentItem.type === 'followup') {
       const { packId, stepIndex, substanceName } = effectiveCurrentItem;
-      
+
       const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
       if (!packSteps) return null;
-      
+
       const step = packSteps[stepIndex];
-      
+
       if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
         const triggerAutoFill = () => {
           handleAnswer(step.PrefilledAnswer);
@@ -3948,7 +3948,7 @@ export default function CandidateInterview() {
         setTimeout(triggerAutoFill, 100);
         return null;
       }
-      
+
       return {
         type: 'followup',
         id: effectiveCurrentItem.id,
@@ -3978,14 +3978,14 @@ export default function CandidateInterview() {
       const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
-      
+
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID)
       const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
       if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
         lastLoggedFollowupCardIdRef.current = openerCardId;
-        
+
         const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
-        
+
         logFollowupCardShown(sessionId, {
           packId,
           variant: 'opener',
@@ -3998,7 +3998,7 @@ export default function CandidateInterview() {
           baseQuestionId: effectiveCurrentItem.baseQuestionId
         }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
-      
+
       return {
         type: 'v3_pack_opener',
         id: effectiveCurrentItem.id,
@@ -4011,31 +4011,31 @@ export default function CandidateInterview() {
         category: packLabel
       };
     }
-    
+
     // V2 Pack field question
     if (effectiveCurrentItem.type === 'v2_pack_field') {
       const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
-      
+
       if (!fieldConfig || !packId || !fieldKey) {
         console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
         return null;
       }
-      
+
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const totalFields = packConfig?.fields?.length || 0;
-      
+
       const hasClarifierActive = v2ClarifierState &&
         v2ClarifierState.packId === packId &&
         v2ClarifierState.fieldKey === fieldKey &&
         v2ClarifierState.instanceNumber === instanceNumber;
-      
+
       const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
-      const displayText = hasClarifierActive 
-        ? v2ClarifierState.clarifierQuestion 
+      const displayText = hasClarifierActive
+        ? v2ClarifierState.clarifierQuestion
         : (backendQuestionText || fieldConfig.label);
-      
+
       const packLabel = packConfig?.instancesLabel || 'Follow-up';
-      
+
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
       if (!hasClarifierActive) {
         const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
@@ -4054,7 +4054,7 @@ export default function CandidateInterview() {
           }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
         }
       }
-      
+
       return {
         type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
         id: effectiveCurrentItem.id,
@@ -4235,16 +4235,16 @@ export default function CandidateInterview() {
               Pause
             </Button>
           </div>
-          
+
           {sections.length > 0 && activeSection && (
             <div>
               <div className="text-sm font-medium text-blue-400 mb-1">
                 {activeSection.displayName}
               </div>
               <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                  style={{ 
+                  style={{
                     width: `${questionCompletionPct}%`,
                     boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
                   }}
@@ -4268,7 +4268,7 @@ export default function CandidateInterview() {
           {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
-            
+
             // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
             if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
@@ -4281,22 +4281,22 @@ export default function CandidateInterview() {
                 </div>
               );
             }
-            
+
             // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
             if (entry.role === 'assistant' && typeof entry.text === 'string') {
               const textLower = entry.text.trim().toLowerCase();
               if (textLower.startsWith('do you have another')) {
-                console.log('[V3 UX] Suppressed transcript gate prompt', { 
+                console.log('[V3 UX] Suppressed transcript gate prompt', {
                   messageType: entry.messageType,
                   textPreview: entry.text?.slice(0, 80)
                 });
                 return null;
               }
             }
-            
+
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              
+
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
                 <ContentContainer>
@@ -4305,9 +4305,9 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* V3 opener question (FOLLOWUP_CARD_SHOWN or v3_opener_question) */}
-              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' || 
+              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' ||
                 (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
@@ -4326,7 +4326,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
                 <ContentContainer>
                 <div className="flex justify-end">
@@ -4336,7 +4336,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
@@ -4347,7 +4347,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
                 <ContentContainer>
                 <div className="flex justify-end">
@@ -4357,7 +4357,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
                 <ContentContainer>
@@ -4373,7 +4373,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
                 <ContentContainer>
@@ -4384,7 +4384,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* Legacy combined question+answer entries (backward compatibility) */}
               {entry.type === 'question' && entry.answer && !entry.role && (
                <ContentContainer>
@@ -4407,7 +4407,7 @@ export default function CandidateInterview() {
                </div>
                </ContentContainer>
               )}
-              
+
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
                 <ContentContainer>
@@ -4431,7 +4431,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* Legacy/deterministic followup entries (combined question+answer) */}
               {entry.type === 'followup' && !entry.source && (
                 <ContentContainer>
@@ -4449,7 +4449,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
               {entry.type === 'ai_probe_question' && entry.answer && (
                 <ContentContainer>
@@ -4470,7 +4470,7 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
+
               {/* Section Completion Messages */}
               {entry.type === 'system_section_complete' && (
                 <ContentContainer>
@@ -4486,13 +4486,13 @@ export default function CandidateInterview() {
                       <p className="text-emerald-200 text-sm leading-relaxed mb-4">
                         Nice work — you've finished this section. Ready for the next one?
                       </p>
-                      
+
                       <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
                         <p className="text-emerald-300 text-sm font-medium">
                           Next up: {entry.nextSectionName}
                         </p>
                       </div>
-                      
+
                       {entry.progress && (
                         <div className="flex items-center gap-4 text-xs text-emerald-300/80">
                           <span>{entry.progress.completedSections} of {entry.progress.totalSections} sections complete</span>
@@ -4504,12 +4504,13 @@ export default function CandidateInterview() {
                   </div>
                 </div>
                 </ContentContainer>
-              </div>
-              );
-              })}
+              )}
+            </div>
+            );
+          })}
 
-              {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
-              {activeBlocker && (
+          {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
+          {activeBlocker && (
               <ContentContainer>
               {activeBlocker.type === 'SYSTEM_INTRO' && (
                 <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
@@ -4537,7 +4538,7 @@ export default function CandidateInterview() {
                   </div>
                 </div>
               )}
-              
+
               {activeBlocker.type === 'SECTION_MESSAGE' && (
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
@@ -4560,7 +4561,7 @@ export default function CandidateInterview() {
                   </div>
                 </div>
               )}
-              
+
               {activeBlocker.type === 'V3_GATE' && (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                   <div className="flex items-center gap-2 mb-2">
@@ -4573,7 +4574,7 @@ export default function CandidateInterview() {
               )}
             </ContentContainer>
           )}
-          
+
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
            <ContentContainer>
@@ -4626,7 +4627,7 @@ export default function CandidateInterview() {
            />
            </ContentContainer>
           )}
-          
+
           {/* Base Question Card - shown when no blocker and not in V3 probing */}
           {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
            <ContentContainer>
@@ -4634,11 +4635,11 @@ export default function CandidateInterview() {
              {(() => {
                const question = engine.QById[currentItem.id];
                if (!question) return null;
-               
+
                const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
                const sectionName = sectionEntity?.section_name || question.category || '';
                const questionNumber = getQuestionDisplayNumber(currentItem.id);
-               
+
                return (
                  <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                    <div className="flex items-center gap-2 mb-2">
@@ -4652,7 +4653,7 @@ export default function CandidateInterview() {
                  </div>
                );
              })()}
-             
+
              {validationHint && (
                <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
                  <p className="text-yellow-200 text-sm">{validationHint}</p>
@@ -4706,7 +4707,7 @@ export default function CandidateInterview() {
               <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
             </div>
           )}
-          
+
               {validationHint && (
                 <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
                   <p className="text-yellow-200 text-sm">{validationHint}</p>
@@ -4727,7 +4728,7 @@ export default function CandidateInterview() {
               <Button
                 onClick={() => {
                   console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO");
-                  setTranscript(prev => prev.map(e => 
+                  setTranscript(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
                   setTimeout(() => autoScrollToBottom(), 100);
@@ -4746,7 +4747,7 @@ export default function CandidateInterview() {
               <Button
                 onClick={async () => {
                   console.log("[BLOCKER][RESOLVE] SECTION_MESSAGE");
-                  
+
                   // Log section started
                   const nextSection = sections[activeBlocker.nextSectionIndex];
                   if (nextSection) {
@@ -4755,17 +4756,17 @@ export default function CandidateInterview() {
                       sectionName: nextSection.displayName
                     });
                   }
-                  
+
                   // Mark blocker resolved
-                  setTranscript(prev => prev.map(e => 
+                  setTranscript(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
-                  
+
                   // Update section index and current item
                   setCurrentSectionIndex(activeBlocker.nextSectionIndex);
                   setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
-                  
+
                   await persistStateToDatabase(transcript, [], { id: activeBlocker.nextQuestionId, type: 'question' });
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
@@ -4808,7 +4809,7 @@ export default function CandidateInterview() {
               <Button
                 onClick={async () => {
                   console.log("[CandidateInterview] Beginning next section", pendingSectionTransition);
-                  
+
                   // Log section started (audit only)
                   const nextSection = sections[pendingSectionTransition.nextSectionIndex];
                   if (nextSection) {
@@ -4817,7 +4818,7 @@ export default function CandidateInterview() {
                       sectionName: nextSection.displayName
                     });
                   }
-                  
+
                   setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
                   setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
@@ -4919,11 +4920,11 @@ export default function CandidateInterview() {
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
-              const suggestionKey = currentItem?.packId && currentItem?.fieldKey 
+              const suggestionKey = currentItem?.packId && currentItem?.fieldKey
                 ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
                 : null;
               const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
-              
+
               return suggestion ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
                   <span className="text-xs text-purple-300">Suggested:</span>
@@ -4946,7 +4947,7 @@ export default function CandidateInterview() {
                 </div>
               ) : null;
             })()}
-            
+
             <div className="flex gap-3">
               <Textarea
                 ref={inputRef}
@@ -4979,7 +4980,7 @@ export default function CandidateInterview() {
             </div>
           </div>
           ) : null}
-          
+
           {!isV3Gate && !v3ProbingActive && uiCurrentItem && (
             <p className="text-xs text-slate-400 text-center mt-3">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
@@ -5019,8 +5020,8 @@ export default function CandidateInterview() {
 
       {/* V3 Debug Panel - Admin only */}
       {v3DebugEnabled && isAdminUser && session?.ide_version === "V3" && (
-        <V3DebugPanel 
-          sessionId={sessionId} 
+        <V3DebugPanel
+          sessionId={sessionId}
           incidentId={v3ProbingContext?.incidentId}
         />
       )}
