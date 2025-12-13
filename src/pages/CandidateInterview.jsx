@@ -2162,36 +2162,39 @@ export default function CandidateInterview() {
 
         const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
         const sectionName = sectionEntity?.section_name || question.category || '';
+        const questionNumber = getQuestionDisplayNumber(currentItem.id);
         
-        const questionEvent = createChatEvent('question', {
+        // Create separate question and answer entries for chat-style rendering
+        const questionEntry = {
+          id: `q-${currentItem.id}-${Date.now()}`,
+          role: 'assistant',
+          type: 'base_question',
           questionId: currentItem.id,
           questionCode: question.question_id,
           questionText: question.question_text,
+          text: question.question_text,
           category: sectionName,
           sectionId: question.section_id,
-          kind: 'base_question',
-          text: question.question_text,
-          content: question.question_text
-        });
+          questionNumber,
+          timestamp: new Date().toISOString(),
+          visibleToCandidate: true
+        };
 
-        const answerEvent = createChatEvent('answer', {
+        const answerEntry = {
+          id: `a-${currentItem.id}-${Date.now()}`,
+          role: 'user',
+          type: 'base_answer',
           questionId: currentItem.id,
           questionCode: question.question_id,
           answer: value,
+          text: value,
           category: sectionName,
           sectionId: question.section_id,
-          kind: 'base_answer',
-          text: value,
-          content: value
-        });
-
-        const combinedEntry = {
-          ...questionEvent,
-          answer: value,
-          text: value
+          timestamp: new Date().toISOString(),
+          visibleToCandidate: true
         };
 
-        const newTranscript = [...transcript, combinedEntry];
+        const newTranscript = [...transcript, questionEntry, answerEntry];
         setTranscript(newTranscript);
         
         // Save answer first to get Response ID
@@ -4174,8 +4177,7 @@ export default function CandidateInterview() {
 
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div 
-          className="max-w-5xl mx-auto px-4 pt-6 flex flex-col justify-end min-h-full"
-          style={{ paddingBottom: `${questionCardHeight + 200}px` }}
+          className="max-w-5xl mx-auto px-4 pt-6 pb-6 flex flex-col justify-end min-h-full"
         >
           <div className="space-y-2">
           {transcript.map((entry, index) => (
@@ -4258,8 +4260,31 @@ export default function CandidateInterview() {
                 </div>
               )}
               
-              {/* Base questions with answers - only show if answered */}
-              {entry.type === 'question' && entry.answer && (
+              {/* Base question (assistant) */}
+              {entry.role === 'assistant' && entry.type === 'base_question' && (
+                <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base font-semibold text-blue-400">
+                      Question {entry.questionNumber || getQuestionDisplayNumber(entry.questionId)}
+                    </span>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+                  </div>
+                  <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
+                </div>
+              )}
+              
+              {/* Base answer (user) */}
+              {entry.role === 'user' && entry.type === 'base_answer' && (
+                <div className="flex justify-end">
+                  <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.answer || entry.text}</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Legacy combined question+answer entries (backward compatibility) */}
+              {entry.type === 'question' && entry.answer && !entry.role && (
                 <div className="space-y-2">
                   <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
@@ -4282,26 +4307,20 @@ export default function CandidateInterview() {
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
                 <div className="space-y-2 ml-4">
-                  <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base font-semibold text-purple-400">
-                        Follow-up Pack
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-purple-400">Follow-up</span>
+                      <span className="text-xs text-slate-500">•</span>
+                      <span className="text-xs font-medium text-purple-400">
+                        {FOLLOWUP_PACK_CONFIGS[entry.packId]?.instancesLabel || entry.packId}
+                        {entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
                       </span>
-                      {entry.content && (
-                        <>
-                          <span className="text-sm text-slate-500">•</span>
-                          <span className="text-sm font-medium text-purple-400">
-                            {FOLLOWUP_PACK_CONFIGS[entry.packId]?.instancesLabel || entry.packId}
-                            {entry.instanceNumber > 1 ? ` — Instance ${entry.instanceNumber}` : ''}
-                          </span>
-                        </>
-                      )}
                     </div>
-                    <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
+                    <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text}</p>
                   </div>
                   <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-5 py-3">
-                      <p className="text-white">{entry.answer}</p>
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.answer}</p>
                     </div>
                   </div>
                 </div>
@@ -4329,13 +4348,13 @@ export default function CandidateInterview() {
                   <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-purple-400 font-medium">
-                        {entry.source === 'V2_PACK_CLUSTER_OPENING' ? 'Follow-up Pack' : 'AI Clarification'}
+                        {entry.source === 'V2_PACK_CLUSTER_OPENING' ? 'Follow-up' : 'AI Follow-up'}
                       </span>
                     </div>
-                    <p className="text-white text-sm">{entry.questionText || entry.text || entry.content}</p>
+                    <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text || entry.content}</p>
                   </div>
                   <div className="flex justify-end">
-                    <div className="bg-purple-600 rounded-xl px-4 py-2">
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
                       <p className="text-white text-sm">{entry.answer}</p>
                     </div>
                   </div>
@@ -4404,93 +4423,60 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      {/* Floating question card - positioned above footer */}
+      {/* Current question inline in transcript */}
       {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-        <div className="fixed bottom-[140px] left-0 right-0 px-4 z-10">
-          <div className="max-w-5xl mx-auto">
-            <div ref={questionCardRef} className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5 shadow-xl shadow-black/40">
+        <div ref={questionCardRef}>
+          {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
+            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
               <div className="flex items-center gap-2 mb-2">
-                {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
-                  <>
-                    <span className="text-base font-semibold text-purple-400">
-                      Follow-up
-                    </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-purple-400">
-                      {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
-                    </span>
-                  </>
-                ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
-                  <>
-                    <span className="text-base font-semibold text-purple-400">
-                      Follow-up of
-                    </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-purple-400">
-                      {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
-                    </span>
-                  </>
-                ) : currentPrompt.type === 'multi_instance' ? (
-                  <>
-                    <span className="text-base font-semibold text-blue-400">
-                      Question {getQuestionDisplayNumber(currentItem.questionId)}
-                    </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category || 'Applications with other Law Enforcement Agencies'}</span>
-                  </>
-                ) : currentItem ? (
-                  <>
-                    <span className="text-base font-semibold text-blue-400">
-                      Question {getQuestionDisplayNumber(currentItem.id)}
-                    </span>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
-                    </>
-                    ) : null}
-                    </div>
-
-                    {/* Show prior context for follow-up questions (only on resumed sessions) */}
-              {(isV2PackField || currentPrompt.type === 'ai_probe') && !isNewSession && (() => {
-                // Get the prior answer that triggered this follow-up pack
-                const baseQuestionEntry = [...transcript].reverse().find(t => 
-                  t.type === 'question' &&
-                  t.questionId === currentItem?.baseQuestionId &&
-                  t.answer
-                );
-                
-                if (!baseQuestionEntry) return null;
-                
-                // For follow-ups, show the base question and answer as context
-                return (
-                  <FollowUpContext
-                    originalQuestionText={baseQuestionEntry.questionText}
-                    priorAnswer={baseQuestionEntry.answer}
-                  />
-                );
-              })()}
-              
-              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
+                <span className="text-sm font-semibold text-purple-400">Follow-up</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-xs font-medium text-purple-400">
+                  {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
+                </span>
+              </div>
+              <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
               {currentPrompt.exampleNarrative && (
                 <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
                   <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                  <p className="text-slate-300 text-sm italic">{currentPrompt.exampleNarrative}</p>
-                </div>
-              )}
-              {currentPrompt.placeholder && !currentPrompt.exampleNarrative && (
-                <p className="text-slate-400 text-sm mt-1">{currentPrompt.placeholder}</p>
-              )}
-              {validationHint && (
-                <div className="mt-3 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                  <p className="text-yellow-200 text-sm">{validationHint}</p>
+                  <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
                 </div>
               )}
             </div>
-          </div>
+          ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
+            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-semibold text-purple-400">Follow-up</span>
+                <span className="text-xs text-slate-500">•</span>
+                <span className="text-xs font-medium text-purple-400">
+                  {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
+                </span>
+              </div>
+              <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
+            </div>
+          ) : (
+            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold text-blue-400">
+                  Question {currentItem ? getQuestionDisplayNumber(currentItem.id) : ''}
+                </span>
+                <span className="text-sm text-slate-500">•</span>
+                <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+              </div>
+              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
+            </div>
+          )}
+          
+          {validationHint && (
+            <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+              <p className="text-yellow-200 text-sm">{validationHint}</p>
+            </div>
+          )}
         </div>
       )}
 
       <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
-        <div className="w-full max-w-[900px] mx-auto px-4">
+        <div className="w-full max-w-5xl mx-auto">
           {/* Section transition: show "Begin Next Section" button */}
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
