@@ -92,6 +92,15 @@ const ENABLE_CHAT_VIRTUALIZATION = false;
 // File revision: 2025-12-02 - Cleaned and validated
 
 // ============================================================================
+// CONTENT CONTAINER - Enforce max-width for all cards
+// ============================================================================
+const ContentContainer = ({ children, className = "" }) => (
+  <div className={`mx-auto w-full max-w-5xl ${className}`}>
+    {children}
+  </div>
+);
+
+// ============================================================================
 // SECTION-BASED HELPER FUNCTIONS (HOISTED)
 // ============================================================================
 
@@ -4176,15 +4185,14 @@ export default function CandidateInterview() {
       </header>
 
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
-        <div 
-          className="max-w-5xl mx-auto px-4 pt-6 pb-6 flex flex-col justify-end min-h-full"
-        >
+        <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {/* SYSTEM Welcome message */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
-                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+                <ContentContainer>
+                <div className="w-full bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
                       <Shield className="w-6 h-6 text-blue-400" />
@@ -4207,62 +4215,76 @@ export default function CandidateInterview() {
                     </div>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Session resumed marker */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
-                <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
+                <ContentContainer>
+                <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
                   <p className="text-blue-300 text-sm">{entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
               {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+                <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs text-purple-400 font-medium">Follow-up</span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
               {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
+                <ContentContainer>
                 <div className="flex justify-end">
                   <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
                     <p className="text-white text-sm">{entry.text}</p>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+                <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-purple-400 font-medium">AI Follow-Up</span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
+                <ContentContainer>
                 <div className="flex justify-end">
                   <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
                     <p className="text-white text-sm">{entry.text}</p>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
-                <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4 ml-4">
+                <ContentContainer>
+                <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span className="text-xs text-emerald-400 font-medium">Complete</span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
-                <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                <ContentContainer>
+                <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-base font-semibold text-blue-400">
                       Question {entry.questionNumber || getQuestionDisplayNumber(entry.questionId)}
@@ -4272,21 +4294,25 @@ export default function CandidateInterview() {
                   </div>
                   <p className="text-white text-base leading-relaxed">{entry.questionText || entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Base answer (user) */}
               {entry.role === 'user' && entry.type === 'base_answer' && (
+                <ContentContainer>
                 <div className="flex justify-end">
                   <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
                     <p className="text-white text-sm">{entry.answer || entry.text}</p>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Legacy combined question+answer entries (backward compatibility) */}
               {entry.type === 'question' && entry.answer && !entry.role && (
+                <ContentContainer>
                 <div className="space-y-2">
-                  <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
                         Question {getQuestionDisplayNumber(entry.questionId)}
@@ -4306,8 +4332,9 @@ export default function CandidateInterview() {
               
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
-                <div className="space-y-2 ml-4">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <ContentContainer>
+                <div className="space-y-2">
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                       <span className="text-xs text-slate-500">•</span>
@@ -4324,12 +4351,14 @@ export default function CandidateInterview() {
                     </div>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Legacy/deterministic followup entries (combined question+answer) */}
               {entry.type === 'followup' && !entry.source && (
-                <div className="space-y-2 ml-4">
-                  <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                <ContentContainer>
+                <div className="space-y-2">
+                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
                     <p className="text-slate-300 text-sm">{entry.questionText || entry.text}</p>
                   </div>
                   {entry.answer && (
@@ -4340,12 +4369,14 @@ export default function CandidateInterview() {
                     </div>
                   )}
                 </div>
+                </ContentContainer>
               )}
               
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
               {entry.type === 'ai_probe_question' && entry.answer && (
-                <div className="space-y-2 ml-4">
-                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <ContentContainer>
+                <div className="space-y-2">
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-purple-400 font-medium">
                         {entry.source === 'V2_PACK_CLUSTER_OPENING' ? 'Follow-up' : 'AI Follow-up'}
@@ -4359,11 +4390,13 @@ export default function CandidateInterview() {
                     </div>
                   </div>
                 </div>
+                </ContentContainer>
               )}
               
               {/* Section Completion Messages */}
               {entry.type === 'system_section_complete' && (
-                <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+                <ContentContainer>
+                <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
                       <CheckCircle2 className="w-6 h-6 text-emerald-400" />
@@ -4392,12 +4425,14 @@ export default function CandidateInterview() {
                     </div>
                   </div>
                 </div>
+                </ContentContainer>
               )}
             </div>
           ))}
           
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
+            <ContentContainer>
             <V3ProbingLoop
               sessionId={sessionId}
               categoryId={v3ProbingContext.categoryId}

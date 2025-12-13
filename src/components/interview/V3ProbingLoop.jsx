@@ -356,13 +356,13 @@ export default function V3ProbingLoop({
   }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
 
   return (
-    <div className="space-y-3">
+    <div className="w-full space-y-2">
       {/* V3 Messages - using existing ClearQuest bubble style */}
       {messages.map((msg) => (
         <div key={msg.id}>
           {msg.role === "ai" && (
-            <div className="space-y-2 ml-4">
-              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+            <div className="space-y-2">
+              <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Bot className="w-4 h-4 text-purple-400" />
                   <span className="text-xs text-purple-400 font-medium">AI Follow-Up (V3)</span>
@@ -385,8 +385,8 @@ export default function V3ProbingLoop({
       ))}
 
       {isLoading && (
-        <div className="ml-4">
-          <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+        <div>
+          <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
             <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
               <span className="text-sm text-slate-300">Thinking...</span>
@@ -399,8 +399,8 @@ export default function V3ProbingLoop({
 
       {/* Multi-instance prompt text (Yes/No buttons moved to footer) */}
       {showMultiInstancePrompt && !isComplete && (
-        <div className="ml-4">
-          <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+        <div>
+          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
             <p className="text-white text-sm">
               Do you have another {categoryLabel || 'incident'} to add?
             </p>
