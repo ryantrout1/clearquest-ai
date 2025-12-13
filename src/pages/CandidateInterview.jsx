@@ -4468,7 +4468,7 @@ export default function CandidateInterview() {
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
               return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
@@ -4492,7 +4492,7 @@ export default function CandidateInterview() {
             // User answer (ANSWER from chatTranscriptHelpers)
             if (entry.role === 'user' && entry.messageType === 'ANSWER') {
               return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -4507,7 +4507,7 @@ export default function CandidateInterview() {
             // Multi-instance gate prompt shown
             if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
               return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
@@ -4523,7 +4523,7 @@ export default function CandidateInterview() {
             // Multi-instance gate answer (user's Yes/No)
             if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
               return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="flex justify-end">
                     <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
@@ -4538,7 +4538,7 @@ export default function CandidateInterview() {
             // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
             if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
                     <p className="text-white text-sm leading-relaxed">{entry.text}</p>
