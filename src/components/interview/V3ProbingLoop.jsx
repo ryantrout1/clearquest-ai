@@ -267,6 +267,27 @@ export default function V3ProbingLoop({
           shouldOffer: shouldOfferAnotherInstance
         });
 
+        // If multi-instance, call onComplete immediately (don't wait for button)
+        if (shouldOfferAnotherInstance) {
+          console.log('[V3_PROBING][COMPLETE][AUTO] Calling onComplete immediately for multi-instance');
+          if (onComplete) {
+            onComplete({
+              incidentId: finalIncidentId,
+              categoryId,
+              completionReason: data.nextAction,
+              messages,
+              reason: 'AUTO_COMPLETE',
+              shouldOfferAnotherInstance: true,
+              packId: packData?.followup_pack_id,
+              categoryLabel,
+              instanceNumber,
+              packData
+            });
+          }
+          // Don't show "Continue" button - parent will show gate
+          return;
+        }
+
         setIsComplete(true);
 
         // Persist completion to local transcript
@@ -319,9 +340,6 @@ export default function V3ProbingLoop({
   const handleContinue = () => {
     console.log('[V3_PROBING_LOOP][EXIT_REQUESTED] handleContinue clicked');
 
-    const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
-                                        packData?.followup_multi_instance === true;
-
     setExitRequested(true);
     setExitPayload({
       incidentId,
@@ -329,7 +347,7 @@ export default function V3ProbingLoop({
       completionReason,
       messages,
       reason: 'CONTINUE_BUTTON',
-      shouldOfferAnotherInstance,
+      shouldOfferAnotherInstance: false, // Single-instance packs only
       packId: packData?.followup_pack_id,
       categoryLabel,
       instanceNumber,
