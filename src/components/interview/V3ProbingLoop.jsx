@@ -265,12 +265,14 @@ export default function V3ProbingLoop({
         
         setShowMultiInstancePrompt(true);
         
-        // Notify parent to show Yes/No in footer (with "Next • " prefix)
-        if (onMultiInstancePrompt) {
-          const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
-          onMultiInstancePrompt(promptText);
-          console.log('[V3_PROBING][MULTI_INSTANCE] Sent prompt to parent:', promptText);
-        }
+        // PART C: Defer parent notification to next tick (prevent setState during render)
+        setTimeout(() => {
+          if (onMultiInstancePrompt) {
+            const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
+            onMultiInstancePrompt(promptText);
+            console.log('[V3_PROBING][MULTI_INSTANCE] Sent prompt to parent:', promptText);
+          }
+        }, 0);
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {

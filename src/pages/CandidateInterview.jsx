@@ -4009,7 +4009,107 @@ export default function CandidateInterview() {
     );
   }
 
+  // PART A: Welcome Gate - Full-screen blocking overlay (early return)
+  if (screenMode === 'WELCOME' && !welcomeAcknowledged) {
+    const welcomeEntry = transcript.find(e => e.messageType === 'WELCOME');
+    const title = welcomeEntry?.title || "Welcome to your ClearQuest Interview";
+    const lines = welcomeEntry?.lines || [
+      "This interview is part of your application process.",
+      "One question at a time, at your own pace.",
+      "Clear, complete, and honest answers help investigators understand the full picture.",
+      "You can pause and come back — we'll pick up where you left off."
+    ];
+
+    return (
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className={`max-w-2xl w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
+          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                <Shield className="w-7 h-7 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-4">{title}</h2>
+                <div className="space-y-3">
+                  {lines.map((line, idx) => (
+                    <p key={idx} className="text-slate-300 text-base leading-relaxed">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center mt-8">
+              <Button
+                onClick={() => {
+                  console.log("[WELCOME][ACKNOWLEDGE] Starting transition to Q1");
+                  setIsDismissingWelcome(true);
+                  
+                  const storageKey = `cqai_welcome_ack_${sessionId}`;
+                  localStorage.setItem(storageKey, "1");
+                  
+                  logSystemEventHelper(sessionId, 'WELCOME_ACKNOWLEDGED', {
+                    timestamp: new Date().toISOString()
+                  }).catch(err => console.warn('[WELCOME][LOG] Failed:', err));
+                  
+                  setTimeout(() => {
+                    setWelcomeAcknowledged(true);
+                    setScreenMode("QUESTION");
+                    setIsDismissingWelcome(false);
+                  }, 300);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
+                size="lg"
+              >
+                Got it — Let's Begin
+              </Button>
+              <p className="text-sm text-blue-400 text-center mt-4">
+                Click to start your interview
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const currentPrompt = getCurrentPrompt();
+
+  // PART B: Derive UI current item (prioritize gates over base question)
+  const uiCurrentItem = React.useMemo(() => {
+    // Priority 1: V3 gate
+    if (v3GateActive) {
+      return {
+        type: 'v3_gate',
+        id: `v3-gate-${v3Gate.packId}-${v3Gate.instanceNumber}`,
+        packId: v3Gate.packId,
+        categoryId: v3Gate.categoryId,
+        promptText: v3Gate.promptText,
+        instanceNumber: v3Gate.instanceNumber
+      };
+    }
+    
+    // Priority 2: V3 probing active
+    if (v3ProbingActive) {
+      return {
+        type: 'v3_probing',
+        id: `v3-probing-${v3ProbingContext?.packId}`,
+        packId: v3ProbingContext?.packId
+      };
+    }
+    
+    // Priority 3: Section transition pending
+    if (pendingSectionTransition) {
+      return {
+        type: 'section_transition',
+        id: `section-transition-${pendingSectionTransition.nextSectionIndex}`
+      };
+    }
+    
+    // Priority 4: Base current item
+    return currentItem;
+  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext, pendingSectionTransition, currentItem]);
 
   // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
   const isAnswerableItem = (item) => {
@@ -4017,20 +4117,22 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
-  // Normalize bottom-bar mode flags
-  const currentItemType = currentItem?.type || null;
+  // Normalize bottom-bar mode flags (use uiCurrentItem instead of currentItem)
+  const currentItemType = uiCurrentItem?.type || null;
   const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field" || currentItemType === "v3_pack_opener";
   const isV2PackField = currentItemType === "v2_pack_field";
   const isV3PackOpener = currentItemType === "v3_pack_opener";
   const isFollowup = currentItemType === "followup";
-  const answerable = isAnswerableItem(currentItem) || isV2PackField || isV3PackOpener;
+  const isV3Gate = currentItemType === "v3_gate";
+  const answerable = isAnswerableItem(uiCurrentItem) || isV2PackField || isV3PackOpener;
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no') ||
-                          (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no');
+                          (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no') ||
+                          isV3Gate;
 
   // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
-  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion;
+  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion && !isV3Gate;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -4197,36 +4299,7 @@ export default function CandidateInterview() {
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               
-              {/* SYSTEM Welcome message - gates interview until acknowledged */}
-              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
-                <ContentContainer>
-                <div className={`w-full transition-all duration-300 ${!welcomeAcknowledged ? 'opacity-100 translate-y-0' : (isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0')}`}>
-                  <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                        <Shield className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <div className="flex-1">
-                        {entry.uiVariant === 'WELCOME_CARD' && entry.title && entry.lines ? (
-                          <>
-                            <h2 className="text-xl font-bold text-white mb-3">{entry.title}</h2>
-                            <div className="space-y-2">
-                              {entry.lines.map((line, idx) => (
-                                <p key={idx} className="text-slate-300 text-sm leading-relaxed">
-                                  {line}
-                                </p>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
+              {/* PART A: Welcome - Don't render in transcript (blocking overlay handles it) */}
               
               {/* Session resumed marker */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
@@ -4476,8 +4549,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
           
-          {/* V3 GATE: Multi-instance prompt as main card (takes full priority) */}
-          {welcomeAcknowledged && v3GateActive && !v3ProbingActive && (
+          {/* PART B: V3 Gate Card - Highest priority when active */}
+          {isV3Gate && uiCurrentItem.type === 'v3_gate' && (
            <ContentContainer>
            <div className="w-full">
              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
@@ -4485,15 +4558,15 @@ export default function CandidateInterview() {
                  <span className="text-base font-semibold text-purple-400">Next</span>
                </div>
                <p className="text-white text-base leading-relaxed">
-                 {v3Gate.promptText || 'Do you have another incident to add?'}
+                 {uiCurrentItem.promptText || 'Do you have another incident to add?'}
                </p>
              </div>
            </div>
            </ContentContainer>
           )}
 
-          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' AND welcome acknowledged */}
-          {welcomeAcknowledged && !v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
+          {/* Base Question Card - BLOCKED by V3 gate */}
+          {!isV3Gate && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -4528,7 +4601,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {welcomeAcknowledged && currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
+          {!isV3Gate && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
@@ -4586,43 +4659,8 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Welcome Acknowledgement Button */}
-          {!welcomeAcknowledged && screenMode === 'WELCOME' && (
-            <div className="flex flex-col items-center">
-              <Button
-                onClick={() => {
-                  console.log("[WELCOME][ACKNOWLEDGE] Starting transition to Q1");
-                  setIsDismissingWelcome(true);
-                  
-                  // Persist acknowledgement to localStorage
-                  const storageKey = `cqai_welcome_ack_${sessionId}`;
-                  localStorage.setItem(storageKey, "1");
-                  
-                  // Log to transcript (system event)
-                  logSystemEventHelper(sessionId, 'WELCOME_ACKNOWLEDGED', {
-                    timestamp: new Date().toISOString()
-                  }).catch(err => console.warn('[WELCOME][LOG] Failed:', err));
-                  
-                  setTimeout(() => {
-                    setWelcomeAcknowledged(true);
-                    setScreenMode("QUESTION");
-                    setIsDismissingWelcome(false);
-                    setTimeout(() => autoScrollToBottom(), 100);
-                  }, 300);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 text-base font-semibold"
-                size="lg"
-              >
-                Got it — Let's Begin
-              </Button>
-              <p className="text-xs text-blue-400 text-center mt-3">
-                Click to start your interview
-              </p>
-            </div>
-          )}
-
           {/* Section transition: show "Begin Next Section" button */}
-          {welcomeAcknowledged && pendingSectionTransition && !currentItem && !v3ProbingActive ? (
+          {pendingSectionTransition && uiCurrentItem?.type === 'section_transition' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -4652,7 +4690,7 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : welcomeAcknowledged && v3GateActive ? (
+          ) : isV3Gate ? (
            <div className="flex gap-3">
              <Button
                onClick={() => {
@@ -4681,11 +4719,11 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : welcomeAcknowledged && v3ProbingActive && !v3GateActive ? (
+          ) : v3ProbingActive && !isV3Gate ? (
                <p className="text-xs text-slate-400 text-center">
                  Please respond to the follow-up questions above.
                </p>
-             ) : welcomeAcknowledged && isYesNoQuestion && !isV2PackField && !v3GateActive ? (
+             ) : isYesNoQuestion && !isV2PackField && !isV3Gate ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -4706,7 +4744,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !isV3Gate ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt.options.map((option) => (
                 <Button
@@ -4719,7 +4757,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !isV3Gate ? (
             <div className="flex gap-3">
               <Button
                 onClick={() => handleAnswer("Yes")}
@@ -4738,7 +4776,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : welcomeAcknowledged && showTextInput && !pendingSectionTransition && !v3GateActive ? (
+          ) : showTextInput && !isV3Gate ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
@@ -4803,7 +4841,7 @@ export default function CandidateInterview() {
           </div>
           ) : null}
           
-          {welcomeAcknowledged && !v3ProbingActive && (
+          {!isV3Gate && !v3ProbingActive && uiCurrentItem && (
             <p className="text-xs text-slate-400 text-center mt-3">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
             </p>
