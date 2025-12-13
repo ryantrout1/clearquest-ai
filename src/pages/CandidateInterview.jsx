@@ -3708,6 +3708,17 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
   
   const getCurrentPrompt = () => {
+    // HARD GATE: Block all base question rendering/logging while V3 multi-instance gate is active
+    const isV3MultiInstanceGateActive = 
+      !!v3MultiInstancePrompt && 
+      !pendingSectionTransition && 
+      !v3ProbingActive;
+    
+    if (isV3MultiInstanceGateActive) {
+      console.log('[GATE][ACTIVE] V3 multi-instance gate blocks base question rendering');
+      return null; // Prevents both rendering AND logging
+    }
+    
     // UX: Stabilize current item while typing
     let effectiveCurrentItem = currentItem;
     
