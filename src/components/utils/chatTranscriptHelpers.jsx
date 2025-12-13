@@ -13,6 +13,18 @@
 
 import { base44 } from "@/api/base44Client";
 
+/**
+ * Generate unique transcript ID
+ * Uses crypto.randomUUID() if available, otherwise fallback
+ */
+function makeTranscriptId() {
+  try {
+    return crypto.randomUUID();
+  } catch (e) {
+    return `t_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+}
+
 // In-flight protection: Prevent concurrent writes for the same transcript ID
 const inFlightTranscriptIds = new Set();
 
@@ -54,11 +66,18 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   }
   
   // Generate stable ID if not provided (prefer metadata.id for deterministic IDs)
-  const stableId = metadata.id || `assistant-${metadata.messageType || 'msg'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const stableId = metadata.id || makeTranscriptId();
+  const stableKey = metadata.stableKey || null;
   
-  // HARD DEDUPE: Check if stable ID already exists in transcript
+  // HARD DEDUPE #1: Check if stable ID already exists
   if (existingTranscript.some(e => e.id === stableId)) {
     console.log('[TRANSCRIPT][DEDUPE_BY_ID] Skipping - ID already exists:', stableId);
+    return existingTranscript;
+  }
+  
+  // HARD DEDUPE #2: Check if stableKey already exists (for idempotent cards)
+  if (stableKey && existingTranscript.some(e => e.stableKey === stableKey)) {
+    console.log('[TRANSCRIPT][DEDUPE_BY_KEY] Skipping - stableKey already exists:', stableKey);
     return existingTranscript;
   }
   
@@ -99,10 +118,12 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   
   const entry = {
     id: stableId,
-    index: getNextIndex(existingTranscript),
+    stableKey: stableKey,
+    index: getNextIndex(existingTranscript), // Legacy/debug only - do NOT use as key
     role: "assistant",
     text,
     timestamp: new Date().toISOString(),
+    createdAt: Date.now(),
     ...metadata
   };
 
@@ -137,14 +158,27 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
  */
 export async function appendUserMessage(sessionId, existingTranscript = [], text, metadata = {}) {
   // Generate stable ID if not provided
-  const stableId = metadata.id || `user-answer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const stableId = metadata.id || makeTranscriptId();
+  const stableKey = metadata.stableKey || null;
+  
+  // HARD DEDUPE: Check if stable ID or key already exists
+  if (existingTranscript.some(e => e.id === stableId)) {
+    console.log('[TRANSCRIPT][DEDUPE_BY_ID] Skipping user message - ID already exists:', stableId);
+    return existingTranscript;
+  }
+  if (stableKey && existingTranscript.some(e => e.stableKey === stableKey)) {
+    console.log('[TRANSCRIPT][DEDUPE_BY_KEY] Skipping user message - stableKey already exists:', stableKey);
+    return existingTranscript;
+  }
   
   const entry = {
     id: stableId,
-    index: getNextIndex(existingTranscript),
+    stableKey: stableKey,
+    index: getNextIndex(existingTranscript), // Legacy/debug only - do NOT use as key
     role: "user",
     text,
     timestamp: new Date().toISOString(),
+    createdAt: Date.now(),
     visibleToCandidate: true, // User messages always visible
     ...metadata
   };
@@ -231,11 +265,13 @@ export async function logSystemEvent(sessionId, eventType, metadata = {}) {
     const existingTranscript = session.transcript_snapshot || [];
     
     const entry = {
-      id: `sys-${eventType}-${Date.now()}`,
+      id: makeTranscriptId(),
+      stableKey: null, // System events don't need idempotency (audit only)
       index: getNextIndex(existingTranscript),
       role: "system",
       text: null,
       timestamp: new Date().toISOString(),
+      createdAt: Date.now(),
       messageType: 'SYSTEM_EVENT',
       eventType,
       visibleToCandidate: false,
@@ -265,8 +301,9 @@ export async function logQuestionShown(sessionId, { questionId, questionText, qu
   const existingTranscript = session.transcript_snapshot || [];
   
   const id = `question-shown-${sessionId}-${questionId}`;
+  const stableKey = `question-shown:${questionId}`;
   
-  if (existingTranscript.some(e => e.id === id)) {
+  if (existingTranscript.some(e => e.id === id || e.stableKey === stableKey)) {
     console.log("[TRANSCRIPT][QUESTION] Already logged, skipping");
     return existingTranscript;
   }
@@ -275,6 +312,7 @@ export async function logQuestionShown(sessionId, { questionId, questionText, qu
   
   const updated = await appendAssistantMessage(sessionId, existingTranscript, questionText, {
     id,
+    stableKey,
     messageType: 'QUESTION_SHOWN',
     uiVariant: 'QUESTION_CARD',
     title,
@@ -322,9 +360,11 @@ export async function logSectionComplete(sessionId, { completedSectionId, comple
     `Next up: ${nextSectionName}`
   ];
   
-  // CRITICAL: Pass stable ID explicitly to prevent auto-generation
+  // CRITICAL: Pass stable ID AND stableKey for double-layer dedupe
+  const stableKey = `section-complete:${completedSectionId}`;
   const updated = await appendAssistantMessage(sessionId, existingTranscript, `${title}`, {
     id, // Stable ID: section-complete-{sessionId}-{completedSectionId}
+    stableKey, // Idempotency key for runtime dedupe
     messageType: 'SECTION_COMPLETE',
     uiVariant: 'SECTION_COMPLETE_CARD',
     title,
@@ -389,13 +429,16 @@ export async function logSectionStarted(sessionId, { sectionId, sectionName }) {
  * Stable ID: followup-card-{sessionId}-{packId}-opener-{instanceNumber} OR
  *            followup-card-{sessionId}-{packId}-field-{fieldKey}-{instanceNumber}
  */
-export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null, categoryLabel = null }) {
-  // CANONICAL ID GENERATION: Ignore stableKey, build from canonical rules only
+export async function logFollowupCardShown(sessionId, { packId, variant, stableKey: legacyStableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null, categoryLabel = null }) {
+  // CANONICAL ID GENERATION: Build from canonical rules
   let id;
+  let stableKey;
   if (variant === 'opener') {
     id = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
+    stableKey = `followup-card:${packId}:opener:${instanceNumber}`;
   } else if (variant === 'field') {
     id = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
+    stableKey = `followup-card:${packId}:field:${fieldKey}:${instanceNumber}`;
   } else {
     console.error("[TRANSCRIPT][FOLLOWUP_CARD] Invalid variant:", variant);
     return null;
@@ -427,6 +470,7 @@ export async function logFollowupCardShown(sessionId, { packId, variant, stableK
     // ✓ ONLY REACHED IF ALL GUARDS PASSED
     const updated = await appendAssistantMessage(sessionId, existingTranscript, promptText, {
       id,
+      stableKey, // Idempotency key for runtime dedupe
       messageType: 'FOLLOWUP_CARD_SHOWN',
       uiVariant: 'FOLLOWUP_CARD',
       title,

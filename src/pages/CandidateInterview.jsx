@@ -765,6 +765,23 @@ export default function CandidateInterview() {
   const [transcript, setTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
+  
+  // Dev guardrail: Ensure transcript never shrinks
+  const setTranscriptSafe = useCallback((updater) => {
+    setTranscript(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (process.env.NODE_ENV !== 'production') {
+        if (next.length < prev.length) {
+          console.error('[TRANSCRIPT_BUG] length decreased!', { 
+            prevLen: prev.length, 
+            nextLen: next.length,
+            diff: prev.length - next.length
+          });
+        }
+      }
+      return next;
+    });
+  }, []);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
@@ -916,7 +933,7 @@ export default function CandidateInterview() {
     }
 
     // Mark blocker resolved
-    setTranscript(prev => prev.map(e =>
+    setTranscriptSafe(prev => prev.map(e =>
       e.type === 'V3_GATE' && e.blocking === true && e.resolved === false
         ? { ...e, resolved: true, answer: v3GateDecision }
         : e
@@ -1217,7 +1234,7 @@ export default function CandidateInterview() {
         }
       } else {
         // New session - PART B: No Welcome transcript injection
-        setTranscript([]);
+        setTranscriptSafe([]);
 
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
@@ -1240,12 +1257,14 @@ export default function CandidateInterview() {
       if (sessionIsNew) {
         const introBlocker = {
           id: `blocker-intro-${sessionId}`,
+          stableKey: `blocker-intro:${sessionId}`,
           type: 'SYSTEM_INTRO',
           blocking: true,
           resolved: false,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now()
         };
-        setTranscript([introBlocker]);
+        setTranscriptSafe([introBlocker]);
       }
 
       // Log system events
@@ -1287,7 +1306,7 @@ export default function CandidateInterview() {
     }
 
     // PART B: No Welcome injection on resume
-    setTranscript(restoredTranscript);
+    setTranscriptSafe(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
 
@@ -1329,17 +1348,19 @@ export default function CandidateInterview() {
 
           restoredTranscript.push({
             id: `q-${response.id}`,
+            stableKey: `question-rebuild:${response.question_id}:${response.id}`,
             questionId: response.question_id,
             questionText: question.question_text,
             answer: response.answer,
             category: sectionName,
             type: 'question',
-            timestamp: response.response_timestamp
+            timestamp: response.response_timestamp,
+            createdAt: Date.now()
           });
         }
       }
 
-      setTranscript(restoredTranscript);
+      setTranscriptSafe(restoredTranscript);
       displayOrderRef.current = restoredTranscript.length;
 
       let nextQuestionId = null;
@@ -1521,7 +1542,7 @@ export default function CandidateInterview() {
         // Reload transcript after logging
         const updatedSession = await base44.entities.InterviewSession.get(sessionId);
         const newTranscript = updatedSession.transcript_snapshot || [];
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         // Trigger section summary generation (background)
         base44.functions.invoke('generateSectionSummary', {
@@ -1532,6 +1553,7 @@ export default function CandidateInterview() {
         // Add section transition blocker
         const sectionBlocker = {
           id: `blocker-section-${nextResult.nextSectionIndex}-${Date.now()}`,
+          stableKey: `blocker-section:${nextResult.nextSectionIndex}`,
           type: 'SECTION_MESSAGE',
           blocking: true,
           resolved: false,
@@ -1539,11 +1561,12 @@ export default function CandidateInterview() {
           nextSectionName: nextResult.nextSection.displayName,
           nextSectionIndex: nextResult.nextSectionIndex,
           nextQuestionId: nextResult.nextQuestionId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now()
         };
 
         const transcriptWithBlocker = [...newTranscript, sectionBlocker];
-        setTranscript(transcriptWithBlocker);
+        setTranscriptSafe(transcriptWithBlocker);
 
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
@@ -1558,15 +1581,17 @@ export default function CandidateInterview() {
       } else {
         const completionMessage = {
           id: `interview-complete-${Date.now()}`,
+          stableKey: `interview-complete:${sessionId}`,
           type: 'system_message',
           content: 'Interview complete! Thank you for your thorough and honest responses.',
           timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
           kind: 'interview_complete',
           role: 'system'
         };
 
         const newTranscript = [...effectiveTranscript, completionMessage];
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         setCurrentItem(null);
         setQueue([]);
@@ -1613,16 +1638,18 @@ export default function CandidateInterview() {
 
         const multiInstanceQuestionEntry = {
           id: `mi-q-${Date.now()}`,
+          stableKey: `multi-instance-gate:${packId}:${currentInstanceCount + 1}`,
           type: 'multi_instance_question',
           content: multiInstancePrompt,
           questionId: baseQuestionId,
           packId: packId,
           instanceNumber: currentInstanceCount + 1,
           maxInstances: maxInstances,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now()
         };
 
-        setTranscript(prev => {
+        setTranscriptSafe(prev => {
           const newTranscript = [...prev, multiInstanceQuestionEntry];
 
           setCurrentItem({
@@ -1801,25 +1828,28 @@ export default function CandidateInterview() {
         const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
 
         // Log Q&A to transcript
-        const v2CombinedEntry = createChatEvent('followup_question', {
-          questionId: `v2pack-${packId}-${fieldIndex}-${isAiFollowupAnswer ? 'ai' : 'field'}-${Date.now()}`,
-          questionText: displayQuestionText,
-          packId: packId,
-          kind: isAiFollowupAnswer ? 'v2_pack_ai_followup' : 'v2_pack_followup',
-          text: displayQuestionText,
-          content: displayQuestionText,
-          fieldKey: fieldKey,
-          followupPackId: packId,
-          instanceNumber: instanceNumber,
-          baseQuestionId: baseQuestionId,
-          source: entrySource,
-          stepNumber: fieldIndex + 1,
-          totalSteps: totalFieldsInPack,
-          answer: finalAnswer
-        });
+        const v2CombinedEntry = {
+          ...createChatEvent('followup_question', {
+            questionId: `v2pack-${packId}-${fieldIndex}-${isAiFollowupAnswer ? 'ai' : 'field'}-${Date.now()}`,
+            questionText: displayQuestionText,
+            packId: packId,
+            kind: isAiFollowupAnswer ? 'v2_pack_ai_followup' : 'v2_pack_followup',
+            text: displayQuestionText,
+            content: displayQuestionText,
+            fieldKey: fieldKey,
+            followupPackId: packId,
+            instanceNumber: instanceNumber,
+            baseQuestionId: baseQuestionId,
+            source: entrySource,
+            stepNumber: fieldIndex + 1,
+            totalSteps: totalFieldsInPack,
+            answer: finalAnswer
+          }),
+          stableKey: `v2-pack-field:${packId}:${fieldKey}:${instanceNumber}`
+        };
 
         const newTranscript = [...transcript, v2CombinedEntry];
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
         const v2ResponseRecord = await saveV2PackFieldResponse({
@@ -2288,7 +2318,7 @@ export default function CandidateInterview() {
 
         // Update local UI transcript
         const newTranscript = transcriptAfterAnswer;
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         // Save opener answer to database
         await saveV2PackFieldResponse({
@@ -2399,6 +2429,7 @@ export default function CandidateInterview() {
         // Create separate question and answer entries for chat-style rendering
         const questionEntry = {
           id: `q-${currentItem.id}-${Date.now()}`,
+          stableKey: `base-question:${currentItem.id}`,
           role: 'assistant',
           type: 'base_question',
           questionId: currentItem.id,
@@ -2409,11 +2440,13 @@ export default function CandidateInterview() {
           sectionId: question.section_id,
           questionNumber,
           timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
           visibleToCandidate: true
         };
 
         const answerEntry = {
           id: `a-${currentItem.id}-${Date.now()}`,
+          stableKey: `base-answer:${currentItem.id}:${Date.now()}`,
           role: 'user',
           type: 'base_answer',
           questionId: currentItem.id,
@@ -2423,11 +2456,12 @@ export default function CandidateInterview() {
           category: sectionName,
           sectionId: question.section_id,
           timestamp: new Date().toISOString(),
+          createdAt: Date.now(),
           visibleToCandidate: true
         };
 
         const newTranscript = [...transcript, questionEntry, answerEntry];
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
@@ -2476,15 +2510,17 @@ export default function CandidateInterview() {
             // No more sections - complete interview
             const completionMessage = {
               id: `interview-complete-${Date.now()}`,
+              stableKey: `interview-complete:${sessionId}`,
               type: 'system_message',
               content: 'Interview complete! Thank you for your thorough and honest responses.',
               timestamp: new Date().toISOString(),
+              createdAt: Date.now(),
               kind: 'interview_complete',
               role: 'system'
             };
 
             const finalTranscript = [...newTranscript, completionMessage];
-            setTranscript(finalTranscript);
+            setTranscriptSafe(finalTranscript);
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(finalTranscript, [], null);
@@ -2543,7 +2579,7 @@ export default function CandidateInterview() {
           // Reload transcript after logging
           const updatedSession = await base44.entities.InterviewSession.get(sessionId);
           const gateTranscript = updatedSession.transcript_snapshot || [];
-          setTranscript(gateTranscript);
+          setTranscriptSafe(gateTranscript);
 
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
@@ -2554,6 +2590,7 @@ export default function CandidateInterview() {
           // Add section transition blocker
           const sectionBlocker = {
            id: `blocker-section-${gateResult.nextSectionIndex}-${Date.now()}`,
+           stableKey: `blocker-section-gate:${gateResult.nextSectionIndex}`,
            type: 'SECTION_MESSAGE',
            blocking: true,
            resolved: false,
@@ -2561,11 +2598,12 @@ export default function CandidateInterview() {
            nextSectionName: nextSection.displayName,
            nextSectionIndex: gateResult.nextSectionIndex,
            nextQuestionId: gateResult.nextQuestionId,
-           timestamp: new Date().toISOString()
+           timestamp: new Date().toISOString(),
+           createdAt: Date.now()
           };
 
           const transcriptWithBlocker = [...gateTranscript, sectionBlocker];
-          setTranscript(transcriptWithBlocker);
+          setTranscriptSafe(transcriptWithBlocker);
 
           setPendingSectionTransition({
            nextSectionIndex: gateResult.nextSectionIndex,
@@ -2852,22 +2890,25 @@ export default function CandidateInterview() {
                 });
 
                 // Add AI opening question to transcript
-                const aiOpeningEntry = createChatEvent('ai_probe_question', {
-                  questionId: `v2pack-opening-${packId}`,
-                  questionText: initialCallResult.question,
-                  packId: packId,
-                  kind: 'v2_pack_opening',
-                  text: initialCallResult.question,
-                  content: initialCallResult.question,
-                  fieldKey: firstField.fieldKey,
-                  followupPackId: packId,
-                  instanceNumber: 1,
-                  baseQuestionId: currentItem.id,
-                  source: 'V2_PACK_CLUSTER_OPENING'
-                });
+                const aiOpeningEntry = {
+                  ...createChatEvent('ai_probe_question', {
+                    questionId: `v2pack-opening-${packId}`,
+                    questionText: initialCallResult.question,
+                    packId: packId,
+                    kind: 'v2_pack_opening',
+                    text: initialCallResult.question,
+                    content: initialCallResult.question,
+                    fieldKey: firstField.fieldKey,
+                    followupPackId: packId,
+                    instanceNumber: 1,
+                    baseQuestionId: currentItem.id,
+                    source: 'V2_PACK_CLUSTER_OPENING'
+                  }),
+                  stableKey: `v2-pack-opening:${packId}:1`
+                };
 
                 const updatedTranscript = [...newTranscript, aiOpeningEntry];
-                setTranscript(updatedTranscript);
+                setTranscriptSafe(updatedTranscript);
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -3155,12 +3196,14 @@ export default function CandidateInterview() {
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
           const prefilledEntry = {
             id: `fu-${Date.now()}`,
+            stableKey: `followup-prefilled:${packId}:${step.Field_Key}:${currentItem.instanceNumber || 1}`,
             questionId: currentItem.id,
             questionText: step.Prompt,
             packId: packId,
             substanceName: substanceName,
             type: 'followup',
             timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
             kind: 'deterministic_followup',
             role: 'candidate',
             answer: step.PrefilledAnswer,
@@ -3171,7 +3214,7 @@ export default function CandidateInterview() {
           };
 
           const newTranscript = [...transcript, prefilledEntry];
-          setTranscript(newTranscript);
+          setTranscriptSafe(newTranscript);
 
           const updatedFollowUpAnswers = {
             ...currentFollowUpAnswers,
@@ -3294,13 +3337,14 @@ export default function CandidateInterview() {
 
             const followupEntry = {
               ...followupQuestionEvent,
+              stableKey: `followup:${packId}:${step.Field_Key}:${instanceNumber}`,
               type: 'followup',
               answer: normalizedAnswer,
               text: normalizedAnswer
             };
 
             const newTranscript = [...transcript, followupEntry];
-            setTranscript(newTranscript);
+            setTranscriptSafe(newTranscript);
 
             setCurrentFollowUpAnswers(prev => ({
               ...prev,
@@ -3345,13 +3389,14 @@ export default function CandidateInterview() {
 
         const followupEntry = {
           ...followupQuestionEvent,
+          stableKey: `followup-legacy:${packId}:${step.Field_Key}:${instanceNumber}`,
           type: 'followup',
           answer: normalizedAnswer,
           text: normalizedAnswer
         };
 
         const newTranscript = [...transcript, followupEntry];
-        setTranscript(newTranscript);
+        setTranscriptSafe(newTranscript);
 
         const updatedFollowUpAnswers = {
           ...currentFollowUpAnswers,
@@ -3443,15 +3488,17 @@ export default function CandidateInterview() {
 
         const transcriptEntry = {
           id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
+          stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
           type: 'multi_instance_answer',
           content: answer,
           questionId: questionId,
           packId: packId,
           instanceNumber: instanceNumber,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          createdAt: Date.now()
         };
 
-        setTranscript(prev => {
+        setTranscriptSafe(prev => {
           const newTranscript = [...prev, transcriptEntry];
 
           if (answer === 'Yes') {
@@ -3812,9 +3859,11 @@ export default function CandidateInterview() {
 
   // V3 transcript update handler
   const handleV3TranscriptUpdate = useCallback((entry) => {
-    setTranscript(prev => [...prev, {
+    setTranscriptSafe(prev => [...prev, {
       ...entry,
-      id: `v3-${entry.type}-${Date.now()}`
+      id: `v3-${entry.type}-${Date.now()}`,
+      stableKey: `v3:${entry.type}:${entry.incidentId || Date.now()}`,
+      createdAt: Date.now()
     }]);
   }, []);
 
@@ -3853,7 +3902,7 @@ export default function CandidateInterview() {
           
           // Reload transcript after appending
           const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-          setTranscript(updatedSession.transcript_snapshot || []);
+          setTranscriptSafe(updatedSession.transcript_snapshot || []);
           
           // Clear V3 probing state but DO NOT advance yet
           setV3ProbingActive(false);
@@ -5008,7 +5057,7 @@ export default function CandidateInterview() {
                   }
 
                   // Mark blocker resolved
-                  setTranscript(prev => prev.map(e =>
+                  setTranscriptSafe(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
 
@@ -5035,9 +5084,9 @@ export default function CandidateInterview() {
                onClick={() => {
                  console.log('[V3_GATE][CLICKED] YES');
                  setV3GateDecision('Yes');
-               }}
-               disabled={isCommitting}
-               className="flex-1 bg-green-600 hover:bg-green-700"
+                 }}
+                 disabled={isCommitting}
+                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
              >
                <Check className="w-5 h-5 mr-2" />
                Yes
@@ -5046,9 +5095,9 @@ export default function CandidateInterview() {
                onClick={() => {
                  console.log('[V3_GATE][CLICKED] NO');
                  setV3GateDecision('No');
-               }}
-               disabled={isCommitting}
-               className="flex-1 bg-red-600 hover:bg-red-700"
+                 }}
+                 disabled={isCommitting}
+                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
              >
                <X className="w-5 h-5 mr-2" />
                No
