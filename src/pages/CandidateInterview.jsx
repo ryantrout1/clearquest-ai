@@ -4559,7 +4559,7 @@ export default function CandidateInterview() {
             }
 
             return (
-            <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+            <div key={entry.id || `${entry.messageType || entry.type}-${entry.index || index}`}>
 
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
@@ -4735,7 +4735,7 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* FIX B: Section Completion Messages (messageType = SECTION_COMPLETE from chatTranscriptHelpers) */}
+              {/* FIX B: Section Completion Messages - ONLY render assistant SECTION_COMPLETE, skip system events */}
               {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
@@ -4769,6 +4769,9 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
+              
+              {/* SYSTEM EVENTS: Do NOT render SECTION_COMPLETED as UI card (audit only) */}
+              {entry.messageType === 'SYSTEM_EVENT' && entry.eventType === 'SECTION_COMPLETED' && null}
             </div>
             );
           });
