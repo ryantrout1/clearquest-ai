@@ -4589,10 +4589,34 @@ export default function CandidateInterview() {
         </div>
       </main>
 
-      <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
-        <div className="w-full max-w-5xl mx-auto">
+      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+        <div className="max-w-5xl mx-auto">
+          {/* Welcome Acknowledgement Button */}
+          {!welcomeAcknowledged && (
+            <div className="flex flex-col items-center">
+              <Button
+                onClick={() => {
+                  console.log("[WELCOME][ACKNOWLEDGE] Starting transition to Q1");
+                  setIsDismissingWelcome(true);
+                  setTimeout(() => {
+                    setWelcomeAcknowledged(true);
+                    setIsDismissingWelcome(false);
+                    setTimeout(() => autoScrollToBottom(), 100);
+                  }, 300);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 text-base font-semibold"
+                size="lg"
+              >
+                Got it — Let's Begin
+              </Button>
+              <p className="text-xs text-blue-400 text-center mt-3">
+                Click to start your interview
+              </p>
+            </div>
+          )}
+
           {/* Section transition: show "Begin Next Section" button */}
-          {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
+          {welcomeAcknowledged && pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -4622,7 +4646,7 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : v3GateActive ? (
+          ) : welcomeAcknowledged && v3GateActive ? (
            <div className="flex gap-3">
              <Button
                onClick={() => {
@@ -4651,11 +4675,11 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : v3ProbingActive && !v3GateActive ? (
-                <p className="text-xs text-slate-400 text-center">
-                  Please respond to the follow-up questions above.
-                </p>
-              ) : isYesNoQuestion && !isV2PackField && !v3GateActive ? (
+          ) : welcomeAcknowledged && v3ProbingActive && !v3GateActive ? (
+               <p className="text-xs text-slate-400 text-center">
+                 Please respond to the follow-up questions above.
+               </p>
+             ) : welcomeAcknowledged && isYesNoQuestion && !isV2PackField && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -4676,7 +4700,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
+          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt.options.map((option) => (
                 <Button
@@ -4689,7 +4713,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
+          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 onClick={() => handleAnswer("Yes")}
@@ -4708,7 +4732,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : showTextInput && !pendingSectionTransition && !v3GateActive ? (
+          ) : welcomeAcknowledged && showTextInput && !pendingSectionTransition && !v3GateActive ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
@@ -4773,7 +4797,7 @@ export default function CandidateInterview() {
           </div>
           ) : null}
           
-          {!v3ProbingActive && (
+          {welcomeAcknowledged && !v3ProbingActive && (
             <p className="text-xs text-slate-400 text-center mt-3">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
             </p>
