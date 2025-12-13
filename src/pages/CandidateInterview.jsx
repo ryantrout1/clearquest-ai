@@ -849,6 +849,9 @@ export default function CandidateInterview() {
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
+  // V3 Multi-instance state (for footer Yes/No)
+  const [v3MultiInstancePrompt, setV3MultiInstancePrompt] = useState(null);
+  const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
   
   const displayNumberMapRef = useRef({});
   
@@ -4180,7 +4183,7 @@ export default function CandidateInterview() {
           className="max-w-5xl mx-auto px-4 pt-6 flex flex-col justify-end min-h-full"
           style={{ paddingBottom: `${questionCardHeight + 200}px` }}
         >
-          <div className="space-y-4">
+          <div className="space-y-2">
           {transcript.map((entry, index) => (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {/* SYSTEM Welcome message */}
@@ -4395,6 +4398,8 @@ export default function CandidateInterview() {
               openerAnswer={v3ProbingContext.openerAnswer}
               onComplete={handleV3ProbingComplete}
               onTranscriptUpdate={handleV3TranscriptUpdate}
+              onMultiInstancePrompt={setV3MultiInstancePrompt}
+              onMultiInstanceAnswer={setV3MultiInstanceHandler}
             />
           )}
           
@@ -4522,6 +4527,33 @@ export default function CandidateInterview() {
               <p className="text-xs text-emerald-400 text-center mt-3">
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
+            </div>
+          ) : v3ProbingActive && v3MultiInstancePrompt ? (
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  if (v3MultiInstanceHandler) {
+                    v3MultiInstanceHandler('Yes');
+                  }
+                }}
+                disabled={isCommitting}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                <Check className="w-5 h-5 mr-2" />
+                Yes
+              </Button>
+              <Button
+                onClick={() => {
+                  if (v3MultiInstanceHandler) {
+                    v3MultiInstanceHandler('No');
+                  }
+                }}
+                disabled={isCommitting}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+              >
+                <X className="w-5 h-5 mr-2" />
+                No
+              </Button>
             </div>
           ) : v3ProbingActive ? (
                 <p className="text-xs text-emerald-400 text-center">

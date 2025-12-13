@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,9 @@ export default function V3ProbingLoop({
   onComplete,
   onTranscriptUpdate,
   packData, // Pack metadata with author-controlled opener
-  openerAnswer // NEW: Opener narrative from candidate
+  openerAnswer, // NEW: Opener narrative from candidate
+  onMultiInstancePrompt, // NEW: Callback when multi-instance question is shown
+  onMultiInstanceAnswer // NEW: Callback to handle Yes/No from footer
 }) {
   // Create local incidentId if not provided to ensure summary generation always has a target
   const [incidentId, setIncidentId] = useState(() => {
@@ -256,6 +258,11 @@ export default function V3ProbingLoop({
         // Show multi-instance gate before setting isComplete
         setIsComplete(false); // Keep probing interface active
         setShowMultiInstancePrompt(true); // New state for multi-instance gate
+        
+        // Notify parent to show Yes/No in footer
+        if (onMultiInstancePrompt) {
+          onMultiInstancePrompt(`Do you have another ${categoryLabel || 'incident'} to add?`);
+        }
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
@@ -314,6 +321,39 @@ export default function V3ProbingLoop({
       });
     }
   };
+  
+  // Expose multi-instance handler to parent
+  const handleMultiInstanceAnswer = useCallback((answer) => {
+    if (answer === 'Yes') {
+      console.log('[V3_MULTI_INSTANCE] User selected: Yes - starting new instance');
+      setShowMultiInstancePrompt(false);
+      setMessages([]);
+      setProbeCount(0);
+      setCompletionReason(null);
+      const newInstanceId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      setIncidentId(newInstanceId);
+      if (openerAnswer) {
+        handleSubmit(null, openerAnswer, true);
+      }
+      if (onMultiInstancePrompt) {
+        onMultiInstancePrompt(null); // Clear prompt
+      }
+    } else {
+      console.log('[V3_MULTI_INSTANCE] User selected: No - exiting V3 mode');
+      setShowMultiInstancePrompt(false);
+      setIsComplete(true);
+      if (onMultiInstancePrompt) {
+        onMultiInstancePrompt(null); // Clear prompt
+      }
+    }
+  }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt]);
+  
+  // Notify parent when multi-instance answer is ready to be handled
+  useEffect(() => {
+    if (onMultiInstanceAnswer) {
+      onMultiInstanceAnswer(handleMultiInstanceAnswer);
+    }
+  }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
 
   return (
     <div className="space-y-3">
@@ -357,42 +397,13 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
-      {/* Multi-instance gate after probing completes */}
+      {/* Multi-instance prompt text (Yes/No buttons moved to footer) */}
       {showMultiInstancePrompt && !isComplete && (
-        <div className="ml-4 mt-4">
-          <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-            <p className="text-white text-base mb-4">
+        <div className="ml-4">
+          <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+            <p className="text-white text-sm">
               Do you have another {categoryLabel || 'incident'} to add?
             </p>
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  console.log('[V3_MULTI_INSTANCE] User selected: Yes - starting new instance');
-                  setShowMultiInstancePrompt(false);
-                  setMessages([]);
-                  setProbeCount(0);
-                  setCompletionReason(null);
-                  const newInstanceId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                  setIncidentId(newInstanceId);
-                  if (openerAnswer) {
-                    handleSubmit(null, openerAnswer, true);
-                  }
-                }}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                Yes
-              </Button>
-              <Button
-                onClick={() => {
-                  console.log('[V3_MULTI_INSTANCE] User selected: No - exiting V3 mode');
-                  setShowMultiInstancePrompt(false);
-                  setIsComplete(true);
-                }}
-                className="flex-1 bg-red-600 hover:bg-red-700"
-              >
-                No
-              </Button>
-            </div>
           </div>
         </div>
       )}
