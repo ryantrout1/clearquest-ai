@@ -2049,6 +2049,7 @@ export default function CandidateInterview() {
           messageType: 'v3_opener_question',
           packId,
           categoryId,
+          categoryLabel, // Add for rendering "Follow-up • {Pack Title}"
           instanceNumber,
           baseQuestionId,
           visibleToCandidate: true
@@ -4231,7 +4232,9 @@ export default function CandidateInterview() {
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
+                    <span className="text-xs text-purple-400 font-medium">
+                      Follow-up • {entry.categoryLabel || 'Details'}
+                    </span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
@@ -4252,9 +4255,7 @@ export default function CandidateInterview() {
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">
-                      Follow-up • {entry.meta?.packLabel || v3ProbingContext?.categoryLabel || 'Details'}
-                    </span>
+                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
@@ -4544,11 +4545,13 @@ export default function CandidateInterview() {
               </p>
             </div>
           ) : v3ProbingActive && v3MultiInstancePrompt ? (
-            <div className="space-y-3">
-              <div className="text-center">
-                <p className="text-white text-sm font-medium">
-                  Next • {v3MultiInstancePrompt.replace(/^Next • /, '')}
-                </p>
+            <div className="space-y-2">
+              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-purple-400 font-medium">
+                    Next • {v3MultiInstancePrompt.replace(/^Next • /, '')}
+                  </span>
+                </div>
               </div>
               <div className="flex gap-3">
                 <Button
