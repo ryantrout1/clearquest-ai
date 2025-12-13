@@ -4468,13 +4468,14 @@ export default function CandidateInterview() {
               </div>
               <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
               {currentPrompt.exampleNarrative && (
-                <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                  <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                  <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
-                </div>
+               <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                 <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                 <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
+               </div>
               )}
+              </div>
               ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
@@ -4497,13 +4498,17 @@ export default function CandidateInterview() {
             </div>
           )}
           
-          {validationHint && (
-            <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-              <p className="text-yellow-200 text-sm">{validationHint}</p>
+              {validationHint && (
+                <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+                  <p className="text-yellow-200 text-sm">{validationHint}</p>
+                </div>
+              )}
             </div>
+            </ContentContainer>
           )}
+          </div>
         </div>
-      )}
+      </main>
 
       <footer className="flex-shrink-0 bg-[#0a1628] border-t border-slate-800 px-4 py-4">
         <div className="w-full max-w-5xl mx-auto">
