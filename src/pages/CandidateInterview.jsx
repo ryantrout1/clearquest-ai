@@ -898,7 +898,7 @@ export default function CandidateInterview() {
     ) || null;
   }, [transcript]);
   
-  // Hooks must remain unconditional; gating via enabled flags / safe fallbacks.
+  // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
   const uiCurrentItem = React.useMemo(() => {
     // Priority 1: V3 gate
