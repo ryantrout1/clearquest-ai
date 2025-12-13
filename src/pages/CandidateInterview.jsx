@@ -4195,7 +4195,7 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {transcript.map((entry, index) => {
-            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO label)
+            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
             if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
                 <div key={`${entry.role}-${entry.index || entry.id || index}`}>

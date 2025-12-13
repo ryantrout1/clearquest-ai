@@ -53,6 +53,28 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     metadata.visibleToCandidate = false;
   }
   
+  // DEDUPE GUARD: Prevent duplicate opener questions (FOLLOWUP_CARD_SHOWN vs v3_opener_question)
+  if (text && text.trim() !== '') {
+    const trimmedText = text.trim();
+    const last10 = existingTranscript.slice(-10);
+    const duplicate = last10.reverse().find(e => 
+      e.role === 'assistant' && 
+      e.text && 
+      e.text.trim() === trimmedText
+    );
+    
+    if (duplicate && (
+      duplicate.messageType === 'FOLLOWUP_CARD_SHOWN' || 
+      metadata.messageType === 'v3_opener_question'
+    )) {
+      console.log('[TRANSCRIPT][DEDUPED] Skipping duplicate opener question', {
+        existingType: duplicate.messageType,
+        newType: metadata.messageType
+      });
+      return existingTranscript; // Skip appending, return unchanged
+    }
+  }
+  
   const entry = {
     index: getNextIndex(existingTranscript),
     role: "assistant",

@@ -49,6 +49,7 @@ export default function V3ProbingLoop({
   const [isComplete, setIsComplete] = useState(false);
   const [completionReason, setCompletionReason] = useState(null);
   const [showMultiInstancePrompt, setShowMultiInstancePrompt] = useState(false);
+  const [exitRequested, setExitRequested] = useState(false);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
 
@@ -341,7 +342,7 @@ export default function V3ProbingLoop({
     } else {
       console.log('[V3_MULTI_INSTANCE] User selected: No - exiting V3 mode');
       setShowMultiInstancePrompt(false);
-      setIsComplete(true);
+      setExitRequested(true); // Set flag instead of calling onComplete directly
       if (onMultiInstancePrompt) {
         onMultiInstancePrompt(null); // Clear prompt
       }
@@ -354,6 +355,14 @@ export default function V3ProbingLoop({
       onMultiInstanceAnswer(handleMultiInstanceAnswer);
     }
   }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
+  
+  // Exit V3 mode after render (fixes React warning)
+  useEffect(() => {
+    if (exitRequested) {
+      setIsComplete(true);
+      setExitRequested(false);
+    }
+  }, [exitRequested]);
 
   return (
     <div className="w-full space-y-2">
