@@ -4844,18 +4844,30 @@ export default function CandidateInterview() {
                     <span className="text-base font-semibold text-blue-400">Welcome to your ClearQuest Interview</span>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-slate-200 text-sm leading-relaxed">
-                      This interview is part of your application process.
-                    </p>
-                    <p className="text-slate-200 text-sm leading-relaxed">
-                      One question at a time, at your own pace.
-                    </p>
-                    <p className="text-slate-200 text-sm leading-relaxed">
-                      Clear, complete, and honest answers help investigators understand the full picture.
-                    </p>
-                    <p className="text-slate-200 text-sm leading-relaxed">
-                      You can pause and come back — we'll pick up where you left off.
-                    </p>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-200 text-sm leading-relaxed">
+                        This interview is part of your application process.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-200 text-sm leading-relaxed">
+                        One question at a time, at your own pace.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-200 text-sm leading-relaxed">
+                        Clear, complete, and honest answers help investigators understand the full picture.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-200 text-sm leading-relaxed">
+                        You can pause and come back — we'll pick up where you left off.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </ContentContainer>
@@ -5422,7 +5434,7 @@ export default function CandidateInterview() {
           </div>
           ) : null}
 
-          {!isV3Gate && !v3ProbingActive && uiCurrentItem && (
+          {!isV3Gate && !v3ProbingActive && (screenMode === 'WELCOME' || uiCurrentItem) && (
             <p className="text-xs text-slate-400 text-center mt-3">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
             </p>
