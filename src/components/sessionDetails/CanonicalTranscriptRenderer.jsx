@@ -171,6 +171,23 @@ function buildTranscriptBlocks(entries, questions = []) {
       i++;
       continue;
     }
+
+    // Follow-up card shown (V2 field or V3 opener)
+    if (entry.messageType === 'FOLLOWUP_CARD_SHOWN') {
+      blocks.push({
+        id: `block-${i}`,
+        type: 'followup_card',
+        uiVariant: entry.uiVariant,
+        title: entry.title,
+        questionText: entry.text,
+        example: entry.example,
+        meta: entry.meta,
+        timestamp: entry.timestamp,
+        visibleToCandidate: entry.visibleToCandidate !== false
+      });
+      i++;
+      continue;
+    }
     
     // Resume marker
     if (entry.messageType === 'RESUME') {
