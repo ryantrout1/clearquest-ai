@@ -4983,11 +4983,14 @@ export default function CandidateInterview() {
           {activeBlocker?.type === 'SYSTEM_INTRO' ? (
             <div className="flex flex-col items-center">
               <Button
-                onClick={() => {
+                onClick={async () => {
                   console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO");
-                  setTranscript(prev => prev.map(e =>
+                  
+                  // Mark blocker resolved
+                  setTranscriptSafe(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
+                  
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
@@ -4995,9 +4998,6 @@ export default function CandidateInterview() {
               >
                 Got it — Let's Begin
               </Button>
-              <p className="text-sm text-blue-400 text-center mt-4">
-                Click to start your interview
-              </p>
             </div>
           ) : activeBlocker?.type === 'SECTION_MESSAGE' ? (
             <div className="flex flex-col items-center">
