@@ -890,6 +890,14 @@ export default function CandidateInterview() {
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
   
+  // Derive activeBlocker from transcript (must be declared before any early returns)
+  const activeBlocker = React.useMemo(() => {
+    return transcript.find(entry => 
+      entry.blocking === true && 
+      entry.resolved === false
+    ) || null;
+  }, [transcript]);
+  
   const MAX_PROBE_TURNS = 6;
   const AI_RESPONSE_TIMEOUT_MS = 45000;
   const TYPING_TIMEOUT_MS = 240000;
@@ -4020,14 +4028,6 @@ export default function CandidateInterview() {
       </div>
     );
   }
-
-  // Derive activeBlocker from transcript (highest priority unresolved blocker)
-  const activeBlocker = React.useMemo(() => {
-    return transcript.find(entry => 
-      entry.blocking === true && 
-      entry.resolved === false
-    ) || null;
-  }, [transcript]);
 
   const currentPrompt = getCurrentPrompt();
 
