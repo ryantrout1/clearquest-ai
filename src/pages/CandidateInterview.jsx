@@ -3769,6 +3769,19 @@ export default function CandidateInterview() {
     if (effectiveCurrentItem.type === 'v3_pack_opener') {
       const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
+      const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
+      
+      // RENDER-POINT LOGGING: Log follow-up card when shown
+      logFollowupCardShown(sessionId, {
+        packId,
+        variant: 'opener',
+        stableKey: `${instanceNumber}`,
+        promptText: openerText,
+        exampleText: exampleNarrative,
+        packLabel,
+        instanceNumber,
+        baseQuestionId: effectiveCurrentItem.baseQuestionId
+      }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       
       return {
         type: 'v3_pack_opener',
@@ -3779,7 +3792,7 @@ export default function CandidateInterview() {
         packId,
         categoryId,
         instanceNumber,
-        category: packConfig?.instancesLabel || categoryId || 'Follow-up'
+        category: packLabel
       };
     }
     
@@ -3787,47 +3800,42 @@ export default function CandidateInterview() {
     if (effectiveCurrentItem.type === 'v2_pack_field') {
       const { packId, fieldIndex, fieldConfig, instanceNumber, fieldKey } = effectiveCurrentItem;
       
-      // GUARD: Prevent crash when pack state cleared but currentItem hasn't updated yet
       if (!fieldConfig || !packId || !fieldKey) {
-        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state for v2_pack_field - transitional state');
+        console.warn('[V2_PACK][PROMPT_GUARD] Missing V2 pack state');
         return null;
       }
       
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const totalFields = packConfig?.fields?.length || 0;
       
-      // Check if we're showing a clarifier for this field
       const hasClarifierActive = v2ClarifierState &&
         v2ClarifierState.packId === packId &&
         v2ClarifierState.fieldKey === fieldKey &&
         v2ClarifierState.instanceNumber === instanceNumber;
       
-      console.log("[V2_PACK] Rendering question", fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
-      
-      // STEP 3: Priority order for question text:
-      // 1. Active clarifier question (highest priority)
-      // 2. Backend question text for this field (if provided)
-      // 3. Static fieldConfig.label (fallback)
       const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
-      
       const displayText = hasClarifierActive 
         ? v2ClarifierState.clarifierQuestion 
         : (backendQuestionText || fieldConfig.label);
       
-      // STEP 4: Verification log
-      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && effectiveCurrentItem.fieldKey === "PACK_PRLE_Q01") {
-        console.log("[V2_PACK_AUDIT][UI_DISPLAY_TEXT_SELECTION]", {
+      const packLabel = packConfig?.instancesLabel || 'Follow-up';
+      
+      // RENDER-POINT LOGGING: Log follow-up card when shown (non-clarifier only)
+      if (!hasClarifierActive) {
+        logFollowupCardShown(sessionId, {
           packId,
-          fieldKey: effectiveCurrentItem.fieldKey,
-          instanceNumber: instanceNumber || 1,
-          hasClarifierActive,
-          backendQuestionText,
-          fieldConfigLabel: fieldConfig.label,
-          finalDisplayText: displayText
-        });
+          variant: 'field',
+          stableKey: `${fieldKey}-${instanceNumber}`,
+          promptText: displayText,
+          exampleText: null,
+          packLabel,
+          instanceNumber,
+          baseQuestionId: effectiveCurrentItem.baseQuestionId,
+          fieldKey
+        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
       
-      const promptObject = {
+      return {
         type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
         id: effectiveCurrentItem.id,
         text: displayText,
@@ -3835,35 +3843,13 @@ export default function CandidateInterview() {
         inputType: fieldConfig.inputType,
         placeholder: fieldConfig.placeholder,
         options: fieldConfig.options,
-        packId: packId,
-        fieldKey: fieldKey,
+        packId,
+        fieldKey,
         stepNumber: fieldIndex + 1,
         totalSteps: totalFields,
-        instanceNumber: instanceNumber,
-        category: packConfig?.instancesLabel || 'Follow-up'
+        instanceNumber,
+        category: packLabel
       };
-      
-      // AUDIT LOG: Final UI question object for PACK_PRIOR_LE_APPS_STANDARD
-      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
-        console.log("[V2_PACK_AUDIT][UI_QUESTION_FINAL]", {
-          packId,
-          fieldKey: fieldKey,
-          displayText,
-          textField: promptObject.text,
-          hasClarifierActive,
-          rawPromptObject: promptObject
-        });
-        
-        console.log("[V2_PACK_AUDIT][UI_QUESTION_TEXT]", {
-          packId,
-          fieldKey: fieldKey,
-          instanceNumber: instanceNumber || 1,
-          from: hasClarifierActive ? 'clarifier' : 'fieldConfig',
-          text: promptObject.text || null
-        });
-      }
-      
-      return promptObject;
     }
 
     return null;

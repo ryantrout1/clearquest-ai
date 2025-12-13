@@ -596,18 +596,51 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
+  // Follow-up card - render from stored structured fields
+  if (type === 'followup_card') {
+    return (
+      <div className="space-y-2 ml-4">
+        <RoleTimestamp role="Investigator" time={timeLabel} />
+
+        <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold text-purple-400">
+                  {block.title || 'Follow-up'}
+                </span>
+                {block.meta?.instanceNumber > 1 && (
+                  <>
+                    <span className="text-sm text-slate-500">•</span>
+                    <span className="text-sm font-medium text-purple-400">Instance {block.meta.instanceNumber}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-white text-base leading-relaxed">{block.questionText || block.text}</p>
+              {block.example && (
+                <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                  <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                  <p className="text-slate-300 text-sm italic">{block.example}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Follow-up question card (purple) with answer
   if (type === 'followup_question') {
     const hasAnswer = Boolean(block.answer);
     const isYesNo = block.answer === 'Yes' || block.answer === 'No';
     const hasTextAnswer = hasAnswer && !isYesNo;
     const packDisplayName = getPackDisplayName(block.packId);
-    
+
     return (
       <div className="space-y-2 ml-4">
         <RoleTimestamp role={block.isAiProbe ? "AI Investigator" : "Investigator"} time={timeLabel} />
-        
-        {/* Purple follow-up question card */}
+
         <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
@@ -627,8 +660,7 @@ function TranscriptBlock({ block, viewMode }) {
               </div>
               <p className="text-white text-base leading-relaxed">{block.questionText}</p>
             </div>
-            
-            {/* Yes/No chip on the right side of card */}
+
             {isYesNo && (
               <div className={cn(
                 "flex-shrink-0 px-4 py-2 rounded-lg font-semibold",
@@ -639,8 +671,7 @@ function TranscriptBlock({ block, viewMode }) {
             )}
           </div>
         </div>
-        
-        {/* Text answer bubble (purple) - only for non-Yes/No answers */}
+
         {hasTextAnswer && (
           <>
             <RoleTimestamp role="Candidate" time={timeLabel} />

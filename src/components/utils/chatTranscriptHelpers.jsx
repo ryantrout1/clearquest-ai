@@ -340,6 +340,37 @@ export async function logSectionStarted(sessionId, { sectionId, sectionName }) {
 }
 
 /**
+ * Log follow-up card shown to candidate (at render time)
+ * Stable ID: followup-card-{sessionId}-{packId}-{variant}-{stableKey}
+ */
+export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null }) {
+  const session = await base44.entities.InterviewSession.get(sessionId);
+  const existingTranscript = session.transcript_snapshot || [];
+  
+  const id = `followup-card-${sessionId}-${packId}-${variant}-${stableKey}`;
+  
+  if (existingTranscript.some(e => e.id === id)) {
+    console.log("[TRANSCRIPT][FOLLOWUP_CARD] Already logged, skipping");
+    return existingTranscript;
+  }
+  
+  const title = packLabel || "Follow-up";
+  
+  const updated = await appendAssistantMessage(sessionId, existingTranscript, promptText, {
+    id,
+    messageType: 'FOLLOWUP_CARD_SHOWN',
+    uiVariant: 'FOLLOWUP_CARD',
+    title,
+    example: exampleText,
+    meta: { packId, variant, instanceNumber, baseQuestionId, fieldKey },
+    visibleToCandidate: true
+  });
+  
+  await logSystemEvent(sessionId, 'FOLLOWUP_CARD_SHOWN', { packId, variant, stableKey, instanceNumber, fieldKey });
+  return updated;
+}
+
+/**
  * QA Self-Check: Verify transcript integrity (dev only)
  */
 if (typeof window !== 'undefined') {
