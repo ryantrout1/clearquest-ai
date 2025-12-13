@@ -113,32 +113,35 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 
 /**
  * Append welcome message (one-time, session start)
+ * Stable ID: welcome-{sessionId}
  */
 export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
-  // Guard: Don't add welcome if already exists
-  const hasWelcome = existingTranscript.some(e => e.messageType === 'WELCOME' || e.id === `welcome-${sessionId}`);
-  if (hasWelcome) {
+  const id = `welcome-${sessionId}`;
+  
+  if (existingTranscript.some(e => e.id === id)) {
     console.log("[TRANSCRIPT][WELCOME] Already exists, skipping");
     return existingTranscript;
   }
 
+  const title = "Welcome to your ClearQuest Interview";
+  const lines = [
+    "This interview is part of your application process.",
+    "One question at a time, at your own pace.",
+    "Clear, complete, and honest answers help investigators understand the full picture.",
+    "You can pause and come back — we'll pick up where you left off."
+  ];
+
   const entry = {
-    id: `welcome-${sessionId}`, // Deterministic ID
+    id,
     index: getNextIndex(existingTranscript),
     role: "assistant",
-    text: "Welcome to your ClearQuest Interview", // Fallback text
+    text: title,
     timestamp: new Date().toISOString(),
     messageType: 'WELCOME',
     uiVariant: 'WELCOME_CARD',
-    title: "Welcome to your ClearQuest Interview",
-    lines: [
-      "This interview is part of your application process.",
-      "One question at a time, at your own pace.",
-      "Clear, complete, and honest answers help investigators understand the full picture.",
-      "You can pause and come back — we'll pick up where you left off."
-    ],
-    visibleToCandidate: true,
-    source: 'SYSTEM'
+    title,
+    lines,
+    visibleToCandidate: true
   };
 
   const updatedTranscript = [...existingTranscript, entry];
@@ -147,7 +150,7 @@ export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
-    console.log("[TRANSCRIPT][WELCOME][ADD] Added welcome message to session");
+    console.log("[TRANSCRIPT][WELCOME][ADD] id=", id);
   } catch (err) {
     console.error("[TRANSCRIPT][ERROR]", err);
   }
@@ -156,28 +159,29 @@ export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
 }
 
 /**
- * Append resume/return marker
+ * Append resume/return marker (EVERY resume)
+ * Stable ID: resume-{sessionId}-{resumeIndex} where resumeIndex = count of true resume events
  */
 export async function appendResumeMarker(sessionId, existingTranscript = [], sessionData = {}) {
-  const resumeCount = existingTranscript.filter(e => e.messageType === 'RESUME').length;
-  const resumeId = `resume-${sessionId}-${resumeCount}`;
+  const resumeIndex = existingTranscript.filter(e => e.messageType === 'RESUME').length;
+  const id = `resume-${sessionId}-${resumeIndex}`;
   
-  // Guard: Don't duplicate if this exact resume marker already exists
-  if (existingTranscript.some(e => e.id === resumeId)) {
-    console.log("[TRANSCRIPT][RESUME] Marker already exists, skipping");
+  if (existingTranscript.some(e => e.id === id)) {
+    console.log("[TRANSCRIPT][RESUME] Already exists, skipping");
     return existingTranscript;
   }
 
+  const text = "Welcome back. Resuming where you left off.";
+
   const entry = {
-    id: resumeId,
+    id,
     index: getNextIndex(existingTranscript),
     role: "assistant",
-    text: "Welcome back. Resuming where you left off.",
+    text,
     timestamp: new Date().toISOString(),
     messageType: 'RESUME',
     uiVariant: 'RESUME_BANNER',
-    visibleToCandidate: true,
-    source: 'SYSTEM'
+    visibleToCandidate: true
   };
 
   const updatedTranscript = [...existingTranscript, entry];
@@ -186,14 +190,11 @@ export async function appendResumeMarker(sessionId, existingTranscript = [], ses
     await base44.entities.InterviewSession.update(sessionId, {
       transcript_snapshot: updatedTranscript
     });
-    console.log("[TRANSCRIPT][RESUME][ADD] Added resume marker");
+    console.log("[TRANSCRIPT][RESUME][ADD] id=", id);
     
-    // Log audit event with session position
     await logSystemEvent(sessionId, 'SESSION_RESUMED', {
-      resumeCount: resumeCount + 1,
-      lastSectionId: sessionData.current_category || null,
-      lastQuestionId: sessionData.current_question_id || null,
-      questionsAnswered: sessionData.total_questions_answered || 0
+      resumeIndex,
+      lastQuestionId: sessionData.current_question_id || null
     });
   } catch (err) {
     console.error("[TRANSCRIPT][ERROR]", err);
@@ -238,22 +239,27 @@ export async function logSystemEvent(sessionId, eventType, metadata = {}) {
 
 /**
  * Log question shown to candidate (at render time)
+ * Stable ID: question-shown-{sessionId}-{questionId}
  */
 export async function logQuestionShown(sessionId, { questionId, questionText, questionNumber, sectionId, sectionName, responseId = null }) {
   const session = await base44.entities.InterviewSession.get(sessionId);
   const existingTranscript = session.transcript_snapshot || [];
   
-  const renderCount = existingTranscript.filter(e => e.messageType === 'QUESTION_SHOWN' && e.meta?.questionDbId === questionId).length;
-  const id = `q-render-${sessionId}-${questionId}-${renderCount}`;
+  const id = `question-shown-${sessionId}-${questionId}`;
   
-  if (existingTranscript.some(e => e.id === id)) return existingTranscript;
+  if (existingTranscript.some(e => e.id === id)) {
+    console.log("[TRANSCRIPT][QUESTION] Already logged, skipping");
+    return existingTranscript;
+  }
+  
+  const title = `Question ${questionNumber}${sectionName ? ` • ${sectionName}` : ''}`;
   
   const updated = await appendAssistantMessage(sessionId, existingTranscript, questionText, {
     id,
     messageType: 'QUESTION_SHOWN',
     uiVariant: 'QUESTION_CARD',
-    title: `Question ${questionNumber}${sectionName ? ` • ${sectionName}` : ''}`,
-    meta: { questionDbId: questionId, sectionId, sectionTitle: sectionName, questionNumber, responseId },
+    title,
+    meta: { questionDbId: questionId, sectionId, sectionName, questionNumber, responseId },
     visibleToCandidate: true
   });
   
@@ -263,25 +269,32 @@ export async function logQuestionShown(sessionId, { questionId, questionText, qu
 
 /**
  * Log section completion shown to candidate
+ * Stable ID: section-complete-{sessionId}-{sectionId}-{sectionCompleteIndex}
  */
 export async function logSectionComplete(sessionId, { completedSectionId, completedSectionName, nextSectionId, nextSectionName, progress }) {
   const session = await base44.entities.InterviewSession.get(sessionId);
   const existingTranscript = session.transcript_snapshot || [];
   
-  const sectionCompleteCount = existingTranscript.filter(e => e.messageType === 'SECTION_COMPLETE' && e.meta?.completedSectionId === completedSectionId).length;
-  const id = `section-complete-${sessionId}-${completedSectionId}-${sectionCompleteCount}`;
+  const sectionCompleteIndex = existingTranscript.filter(e => e.messageType === 'SECTION_COMPLETE' && e.meta?.completedSectionId === completedSectionId).length;
+  const id = `section-complete-${sessionId}-${completedSectionId}-${sectionCompleteIndex}`;
   
-  if (existingTranscript.some(e => e.id === id)) return existingTranscript;
+  if (existingTranscript.some(e => e.id === id)) {
+    console.log("[TRANSCRIPT][SECTION_COMPLETE] Already logged, skipping");
+    return existingTranscript;
+  }
   
-  const updated = await appendAssistantMessage(sessionId, existingTranscript, `Section complete: ${completedSectionName}`, {
+  const title = `Section Complete: ${completedSectionName}`;
+  const lines = [
+    "Nice work — you've finished this section. Ready for the next one?",
+    `Next up: ${nextSectionName}`
+  ];
+  
+  const updated = await appendAssistantMessage(sessionId, existingTranscript, `${title}`, {
     id,
     messageType: 'SECTION_COMPLETE',
     uiVariant: 'SECTION_COMPLETE_CARD',
-    title: `Section Complete: ${completedSectionName}`,
-    lines: [
-      "Nice work — you've finished this section. Ready for the next one?",
-      `Next up: ${nextSectionName}`
-    ],
+    title,
+    lines,
     meta: { completedSectionId, nextSectionId, progress },
     visibleToCandidate: true
   });

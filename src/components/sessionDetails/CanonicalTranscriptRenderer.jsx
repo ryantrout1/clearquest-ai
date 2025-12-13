@@ -415,9 +415,8 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // System welcome message - match CandidateInterview UI exactly
+  // System welcome message - render from stored structured fields
   if (type === 'system_welcome') {
-    // Use structured data if available (new format), fallback to text
     if (block.uiVariant === 'WELCOME_CARD' && block.title && block.lines) {
       return (
         <div className="space-y-2">
@@ -442,8 +441,7 @@ function TranscriptBlock({ block, viewMode }) {
         </div>
       );
     }
-    
-    // Fallback for old format
+
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
@@ -461,9 +459,8 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // Section complete card - match CandidateInterview UI exactly
+  // Section complete card - render from stored structured fields
   if (type === 'section_complete') {
-    // Use structured data if available (new format), fallback to text
     if (block.uiVariant === 'SECTION_COMPLETE_CARD' && block.title && block.lines) {
       return (
         <div className="space-y-2">
@@ -495,8 +492,7 @@ function TranscriptBlock({ block, viewMode }) {
         </div>
       );
     }
-    
-    // Fallback for old format
+
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
@@ -534,21 +530,19 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // Main question card (blue) - match CandidateInterview UI exactly
+  // Main question card - render from stored structured fields
   if (type === 'main_question') {
     const isYesNo = block.answer === 'Yes' || block.answer === 'No';
     const hasTextAnswer = block.answer && !isYesNo;
-    
-    // Use structured data if available (new format), fallback to text
+
     const displayTitle = block.uiVariant === 'QUESTION_CARD' && block.title 
       ? block.title 
       : `Question ${block.questionNumber || ''}${block.sectionName ? ` • ${block.sectionName}` : ''}`;
-    
+
     return (
       <div className="space-y-3">
         <RoleTimestamp role="Investigator" time={timeLabel} />
-        
-        {/* Blue question card matching candidate UI */}
+
         <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
@@ -576,8 +570,7 @@ function TranscriptBlock({ block, viewMode }) {
                 </>
               )}
             </div>
-            
-            {/* Yes/No chip on the right side of card */}
+
             {isYesNo && (
               <div className={cn(
                 "flex-shrink-0 px-4 py-2 rounded-lg font-semibold",
@@ -588,8 +581,7 @@ function TranscriptBlock({ block, viewMode }) {
             )}
           </div>
         </div>
-        
-        {/* Text answer bubble (purple) below question */}
+
         {hasTextAnswer && (
           <>
             <RoleTimestamp role="Candidate" time={timeLabel} />
