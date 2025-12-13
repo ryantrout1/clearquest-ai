@@ -859,9 +859,23 @@ export default function CandidateInterview() {
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
-  // V3 Multi-instance state (for footer Yes/No)
-  const [v3MultiInstancePrompt, setV3MultiInstancePrompt] = useState(null);
+  
+  // V3 GATE: Authoritative multi-instance gate state
+  const [v3Gate, setV3Gate] = useState({
+    active: false,
+    packId: null,
+    categoryId: null,
+    promptText: null,
+    instanceNumber: null
+  });
+  const v3GateActive = v3Gate.active === true;
+  
+  // V3 Multi-instance handler (callback from V3ProbingLoop)
   const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
+  
+  // V3 EXIT: Idempotency guard + baseQuestionId retention
+  const v3BaseQuestionIdRef = useRef(null);
+  const exitV3HandledRef = useRef(false);
   
   const displayNumberMapRef = useRef({});
   
@@ -2139,7 +2153,11 @@ export default function CandidateInterview() {
         }
         
         console.log(`[V3_OPENER][ENTER_PROBING] Now entering V3ProbingLoop with opener context`);
-        
+
+        // Store baseQuestionId in ref for exit
+        v3BaseQuestionIdRef.current = baseQuestionId;
+        console.log('[V3_ENTER] Stored baseQuestionId in ref:', baseQuestionId);
+
         // STEP 2: Enter V3 AI probing with opener answer as context
         setV3ProbingActive(true);
         setV3ProbingContext({
@@ -3522,17 +3540,30 @@ export default function CandidateInterview() {
     return '';
   }, [engine]);
 
+  // V3 EXIT: Idempotent exit function (only runs once)
+  const exitV3Once = useCallback((reason, payload) => {
+    if (exitV3HandledRef.current) {
+      console.log('[EXIT_V3][SKIP] Already handled');
+      return;
+    }
+    
+    exitV3HandledRef.current = true;
+    console.log('[EXIT_V3][ONCE]', { reason, baseQuestionId: v3BaseQuestionIdRef.current });
+    
+    // Queue transition (executed in useEffect)
+    setPendingTransition({
+      type: 'EXIT_V3',
+      payload: { ...payload, reason }
+    });
+  }, []);
+  
   // V3 probing completion handler - deferred transition pattern
   const handleV3ProbingComplete = useCallback((result) => {
     console.log("[V3_PROBING][COMPLETE][DEFERRED] ========== V3 EXIT REQUESTED ==========");
     console.log("[V3_PROBING][COMPLETE][DEFERRED]", result);
     
-    // DO NOT call state setters here - queue transition instead
-    setPendingTransition({
-      type: 'EXIT_V3',
-      payload: result
-    });
-  }, []);
+    exitV3Once('PROBING_COMPLETE', result);
+  }, [exitV3Once]);
   
   // V3 transcript update handler
   const handleV3TranscriptUpdate = useCallback((entry) => {
@@ -3552,28 +3583,16 @@ export default function CandidateInterview() {
       if (pendingTransition.type === 'EXIT_V3') {
         const result = pendingTransition.payload;
         const { incidentId, categoryId, completionReason, messages, reason } = result;
-        const baseQuestionId = v3ProbingContext?.baseQuestionId;
+        const baseQuestionId = v3BaseQuestionIdRef.current; // Use ref (retained across renders)
         
-        console.log('[PENDING_TRANSITION][EXIT_V3] Exiting V3 mode', { reason, baseQuestionId });
+        console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, hasRef: !!v3BaseQuestionIdRef.current });
         
-        // Add V3 completion to transcript
-        const v3CompleteEntry = {
-          id: `v3-complete-${Date.now()}`,
-          type: 'v3_probing_complete',
-          categoryId,
-          incidentId,
-          completionReason,
-          messageCount: messages?.length || 0,
-          timestamp: new Date().toISOString()
-        };
+        // Clear gate FIRST
+        setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
         
-        const newTranscript = [...transcript, v3CompleteEntry];
-        setTranscript(newTranscript);
-        
-        // Exit V3 probing mode
+        // Clear V3 state
         setV3ProbingActive(false);
         setV3ProbingContext(null);
-        setV3MultiInstancePrompt(null); // Clear multi-instance prompt
         
         // Log pack exited (audit only)
         if (v3ProbingContext?.packId) {
@@ -3583,12 +3602,14 @@ export default function CandidateInterview() {
           });
         }
         
-        // Advance to next base question
+        // Advance to next base question AFTER clearing V3 state
         if (baseQuestionId) {
-          await advanceToNextBaseQuestion(baseQuestionId, newTranscript);
+          console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
+          await advanceToNextBaseQuestion(baseQuestionId, transcript);
         }
         
-        await persistStateToDatabase(newTranscript, [], null);
+        // Reset idempotency guard for next V3 pack
+        exitV3HandledRef.current = false;
       }
       
       // Clear transition
@@ -3596,7 +3617,7 @@ export default function CandidateInterview() {
     };
     
     executePendingTransition();
-  }, [pendingTransition, v3ProbingContext, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId]);
+  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
@@ -3708,15 +3729,10 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
   
   const getCurrentPrompt = () => {
-    // HARD GATE: Block all base question rendering/logging while V3 multi-instance gate is active
-    const isV3MultiInstanceGateActive = 
-      !!v3MultiInstancePrompt && 
-      !pendingSectionTransition && 
-      !v3ProbingActive;
-    
-    if (isV3MultiInstanceGateActive) {
-      console.log('[GATE][ACTIVE] V3 multi-instance gate blocks base question rendering');
-      return null; // Prevents both rendering AND logging
+    // HARD GATE: Block all base question rendering/logging while V3 gate is active
+    if (v3GateActive) {
+      console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
+      return null;
     }
     
     // UX: Stabilize current item while typing
@@ -3778,14 +3794,21 @@ export default function CandidateInterview() {
       const sectionName = sectionEntity?.section_name || question.category || '';
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
       
-      // RENDER-POINT LOGGING: Log question when it's shown
-      logQuestionShown(sessionId, {
-        questionId: effectiveCurrentItem.id,
-        questionText: question.question_text,
-        questionNumber,
-        sectionId: question.section_id,
-        sectionName
-      }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+      // RENDER-POINT LOGGING: Log question when it's shown (once per question)
+      // Track with stable signature to prevent duplicate logging
+      const itemSig = `question:${effectiveCurrentItem.id}::`;
+      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
+      
+      if (lastLoggedSig !== itemSig) {
+        lastLoggedFollowupCardIdRef.current = itemSig;
+        logQuestionShown(sessionId, {
+          questionId: effectiveCurrentItem.id,
+          questionText: question.question_text,
+          questionNumber,
+          sectionId: question.section_id,
+          sectionName
+        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+      }
       
       return {
         type: 'question',
@@ -4523,14 +4546,28 @@ export default function CandidateInterview() {
              openerAnswer={v3ProbingContext.openerAnswer}
              onComplete={handleV3ProbingComplete}
              onTranscriptUpdate={handleV3TranscriptUpdate}
-             onMultiInstancePrompt={setV3MultiInstancePrompt}
+             onMultiInstancePrompt={(promptData) => {
+               if (promptData) {
+                 console.log('[V3_GATE][SET_ACTIVE]', promptData);
+                 setV3Gate({
+                   active: true,
+                   packId: v3ProbingContext?.packId || null,
+                   categoryId: v3ProbingContext?.categoryId || null,
+                   promptText: promptData,
+                   instanceNumber: v3ProbingContext?.instanceNumber || 1
+                 });
+               } else {
+                 console.log('[V3_GATE][CLEAR]');
+                 setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+               }
+             }}
              onMultiInstanceAnswer={setV3MultiInstanceHandler}
            />
            </ContentContainer>
           )}
 
           {/* Current question inline in transcript */}
-          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3MultiInstancePrompt && (
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
@@ -4619,46 +4656,48 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : (v3ProbingActive || !v3ProbingActive) && v3MultiInstancePrompt ? (
-            <div className="space-y-2">
-              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                <p className="text-white text-sm leading-relaxed">
-                  <span className="text-purple-400 font-medium">Next • </span>
-                  {v3MultiInstancePrompt.replace(/^Next • /, '')}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => {
-                    if (v3MultiInstanceHandler) {
-                      v3MultiInstanceHandler('Yes');
-                    }
-                  }}
-                  disabled={isCommitting}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="w-5 h-5 mr-2" />
-                  Yes
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (v3MultiInstanceHandler) {
-                      v3MultiInstanceHandler('No');
-                    }
-                  }}
-                  disabled={isCommitting}
-                  className="flex-1 bg-red-600 hover:bg-red-700"
-                >
-                  <X className="w-5 h-5 mr-2" />
-                  No
-                </Button>
-              </div>
-            </div>
-          ) : v3ProbingActive && !v3MultiInstancePrompt ? (
+          ) : v3GateActive ? (
+           <div className="space-y-2">
+             <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+               <p className="text-white text-sm leading-relaxed">
+                 <span className="text-purple-400 font-medium">Next • </span>
+                 {v3Gate.promptText?.replace(/^Next • /, '') || 'Do you have another incident to add?'}
+               </p>
+             </div>
+             <div className="flex gap-3">
+               <Button
+                 onClick={() => {
+                   console.log('[V3_GATE][YES_CLICKED]');
+                   if (v3MultiInstanceHandler) {
+                     v3MultiInstanceHandler('Yes');
+                   }
+                 }}
+                 disabled={isCommitting}
+                 className="flex-1 bg-green-600 hover:bg-green-700"
+               >
+                 <Check className="w-5 h-5 mr-2" />
+                 Yes
+               </Button>
+               <Button
+                 onClick={() => {
+                   console.log('[V3_GATE][NO_CLICKED]');
+                   if (v3MultiInstanceHandler) {
+                     v3MultiInstanceHandler('No');
+                   }
+                 }}
+                 disabled={isCommitting}
+                 className="flex-1 bg-red-600 hover:bg-red-700"
+               >
+                 <X className="w-5 h-5 mr-2" />
+                 No
+               </Button>
+             </div>
+           </div>
+          ) : v3ProbingActive && !v3GateActive ? (
                 <p className="text-xs text-slate-400 text-center">
                   Please respond to the follow-up questions above.
                 </p>
-              ) : isYesNoQuestion && !isV2PackField && !v3MultiInstancePrompt ? (
+              ) : isYesNoQuestion && !isV2PackField && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -4679,7 +4718,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3MultiInstancePrompt ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt.options.map((option) => (
                 <Button
@@ -4692,7 +4731,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3MultiInstancePrompt ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 onClick={() => handleAnswer("Yes")}
@@ -4711,7 +4750,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : showTextInput && !pendingSectionTransition && !v3MultiInstancePrompt ? (
+          ) : showTextInput && !pendingSectionTransition && !v3GateActive ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {

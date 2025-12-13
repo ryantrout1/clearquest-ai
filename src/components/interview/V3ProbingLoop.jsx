@@ -345,11 +345,12 @@ export default function V3ProbingLoop({
         handleSubmit(null, openerAnswer, true);
       }
       if (onMultiInstancePrompt) {
-        onMultiInstancePrompt(null); // Clear prompt
+        onMultiInstancePrompt(null); // Clear gate
       }
     } else {
-      console.log('[V3_MULTI_INSTANCE][EXIT_REQUESTED] User selected: No - requesting exit');
+      console.log('[V3_MULTI_INSTANCE][EXIT_REQUESTED] User selected: No - requesting deferred exit');
       setShowMultiInstancePrompt(false);
+      // DO NOT call state setters here - queue exit instead
       setExitRequested(true);
       setExitPayload({
         incidentId,
@@ -358,9 +359,6 @@ export default function V3ProbingLoop({
         messages,
         reason: 'USER_SELECTED_NO'
       });
-      if (onMultiInstancePrompt) {
-        onMultiInstancePrompt(null); // Clear prompt
-      }
     }
   }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt, incidentId, completionReason, messages]);
   
@@ -372,17 +370,27 @@ export default function V3ProbingLoop({
   }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
   
   // Deferred exit: call parent callback ONLY from useEffect (fixes React warning)
+  const completeCalledRef = useRef(false);
   useEffect(() => {
-    if (exitRequested && exitPayload) {
-      console.log('[V3_PROBING_LOOP][EXIT_EXECUTING] Calling onComplete from useEffect', exitPayload);
+    if (exitRequested && exitPayload && !completeCalledRef.current) {
+      completeCalledRef.current = true;
+      console.log('[V3_PROBING_LOOP][EXIT_EXECUTING] Calling onComplete from useEffect (ONCE)', exitPayload);
       setIsComplete(true);
+
+      // Clear gate in parent first
+      if (onMultiInstancePrompt) {
+        onMultiInstancePrompt(null);
+      }
+
+      // Then call exit
       if (onComplete) {
         onComplete(exitPayload);
       }
+
       setExitRequested(false);
       setExitPayload(null);
     }
-  }, [exitRequested, exitPayload, onComplete]);
+  }, [exitRequested, exitPayload, onComplete, onMultiInstancePrompt]);
 
   return (
     <div className="w-full space-y-2">
