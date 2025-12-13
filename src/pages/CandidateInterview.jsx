@@ -4495,7 +4495,7 @@ export default function CandidateInterview() {
           {pendingSectionTransition && !currentItem && !v3ProbingActive ? (
             <div className="flex flex-col items-center">
               <Button
-                onClick={() => {
+                onClick={async () => {
                   console.log("[CandidateInterview] Beginning next section", pendingSectionTransition);
                   
                   // Log section started (audit only)
