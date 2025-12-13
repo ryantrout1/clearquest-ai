@@ -821,6 +821,14 @@ export default function CandidateInterview() {
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
   
+  // Derive Welcome acknowledgement from transcript (Transcript-First Gate)
+  const hasWelcomeAcknowledged = React.useMemo(() => {
+    return transcript.some(e => 
+      e.messageType === 'WELCOME_ACKNOWLEDGED' || 
+      e.eventType === 'WELCOME_ACKNOWLEDGED'
+    );
+  }, [transcript]);
+  
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
@@ -3992,14 +4000,6 @@ export default function CandidateInterview() {
       </div>
     );
   }
-
-  // Derive Welcome acknowledgement state from transcript (Transcript-First)
-  const hasWelcomeAcknowledged = React.useMemo(() => {
-    return transcript.some(e => 
-      e.messageType === 'WELCOME_ACKNOWLEDGED' || 
-      e.eventType === 'WELCOME_ACKNOWLEDGED'
-    );
-  }, [transcript]);
 
   const currentPrompt = getCurrentPrompt();
 
