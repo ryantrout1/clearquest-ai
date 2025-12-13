@@ -4333,8 +4333,8 @@ export default function CandidateInterview() {
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
               {entry.type === 'followup_question' && (entry.source === 'V2_PACK' || entry.source === 'AI_FOLLOWUP') && entry.answer && (
                 <ContentContainer>
-                <div className="space-y-2">
-                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <div className="w-full space-y-2">
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                       <span className="text-xs text-slate-500">•</span>
@@ -4357,8 +4357,8 @@ export default function CandidateInterview() {
               {/* Legacy/deterministic followup entries (combined question+answer) */}
               {entry.type === 'followup' && !entry.source && (
                 <ContentContainer>
-                <div className="space-y-2">
-                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                <div className="w-full space-y-2">
+                  <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
                     <p className="text-slate-300 text-sm">{entry.questionText || entry.text}</p>
                   </div>
                   {entry.answer && (
@@ -4375,8 +4375,8 @@ export default function CandidateInterview() {
               {/* AI Probe Questions (including V2 pack cluster opening) - only show if answered */}
               {entry.type === 'ai_probe_question' && entry.answer && (
                 <ContentContainer>
-                <div className="space-y-2">
-                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <div className="w-full space-y-2">
+                  <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-purple-400 font-medium">
                         {entry.source === 'V2_PACK_CLUSTER_OPENING' ? 'Follow-up' : 'AI Follow-up'}
