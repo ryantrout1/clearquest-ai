@@ -821,9 +821,6 @@ export default function CandidateInterview() {
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
   
-  // Local state for Welcome acknowledgement (persisted in localStorage)
-  const [welcomeAcknowledged, setWelcomeAcknowledged] = useState(false);
-  
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
@@ -976,18 +973,6 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
-  // Initialize welcomeAcknowledged from localStorage on mount
-  useEffect(() => {
-    if (sessionId) {
-      const storageKey = `cqai_welcome_ack_${sessionId}`;
-      const stored = localStorage.getItem(storageKey);
-      if (stored === "1") {
-        setWelcomeAcknowledged(true);
-        console.log("[WELCOME][INIT] Loaded from localStorage: acknowledged=true");
-      }
-    }
-  }, [sessionId]);
-
   useEffect(() => {
     if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
@@ -1127,9 +1112,10 @@ export default function CandidateInterview() {
           file_number: loadedSession.file_number
         });
       } else {
-        // Add resume marker for returning candidates
-        const transcriptWithMarker = await appendResumeMarker(sessionId, loadedSession.transcript_snapshot || [], loadedSession);
-        setTranscript(transcriptWithMarker);
+        // PART B: Resume marker for audit, but don't show large card
+        await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
+          last_question_id: loadedSession.current_question_id
+        });
       }
       
       setIsLoading(false);
@@ -1158,10 +1144,8 @@ export default function CandidateInterview() {
       return false;
     }
 
-    // Ensure Welcome message is present
-    const transcriptWithWelcome = await ensureWelcomeInTranscript(sessionId, restoredTranscript);
-    
-    setTranscript(transcriptWithWelcome);
+    // PART B: No Welcome injection on resume
+    setTranscript(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
 
@@ -3692,7 +3676,6 @@ export default function CandidateInterview() {
 
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
-    if (!welcomeAcknowledged) return; // GATE: No auto-focus until welcome acknowledged
     if (!currentItem) return;
     if (isCommitting || v3ProbingActive || pendingSectionTransition) return;
     
@@ -3738,12 +3721,6 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
   
   const getCurrentPrompt = () => {
-    // WELCOME GATE: Block all question rendering until Welcome is acknowledged
-    if (!welcomeAcknowledged) {
-      console.log('[WELCOME_GATE][ACTIVE] Blocking question rendering until acknowledgement');
-      return null;
-    }
-    
     // HARD GATE: Block all base question rendering/logging while V3 gate is active
     if (v3GateActive) {
       console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
@@ -3810,21 +3787,18 @@ export default function CandidateInterview() {
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
       
       // RENDER-POINT LOGGING: Log question when it's shown (once per question)
-      // WELCOME GATE: Only log if Welcome is acknowledged
-      if (welcomeAcknowledged) {
-        const itemSig = `question:${effectiveCurrentItem.id}::`;
-        const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
-        
-        if (lastLoggedSig !== itemSig) {
-          lastLoggedFollowupCardIdRef.current = itemSig;
-          logQuestionShown(sessionId, {
-            questionId: effectiveCurrentItem.id,
-            questionText: question.question_text,
-            questionNumber,
-            sectionId: question.section_id,
-            sectionName
-          }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
-        }
+      const itemSig = `question:${effectiveCurrentItem.id}::`;
+      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
+      
+      if (lastLoggedSig !== itemSig) {
+        lastLoggedFollowupCardIdRef.current = itemSig;
+        logQuestionShown(sessionId, {
+          questionId: effectiveCurrentItem.id,
+          questionText: question.question_text,
+          questionNumber,
+          sectionId: question.section_id,
+          sectionName
+        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       }
       
       return {
@@ -3883,26 +3857,23 @@ export default function CandidateInterview() {
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
       
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID)
-      // WELCOME GATE: Only log if Welcome is acknowledged
-      if (welcomeAcknowledged) {
-        const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
-        if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
-          lastLoggedFollowupCardIdRef.current = openerCardId;
-          
-          const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
-          
-          logFollowupCardShown(sessionId, {
-            packId,
-            variant: 'opener',
-            stableKey: `${instanceNumber}`,
-            promptText: openerText,
-            exampleText: exampleNarrative,
-            packLabel,
-            categoryLabel: categoryLabelForLog,
-            instanceNumber,
-            baseQuestionId: effectiveCurrentItem.baseQuestionId
-          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
-        }
+      const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
+      if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
+        lastLoggedFollowupCardIdRef.current = openerCardId;
+        
+        const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
+        
+        logFollowupCardShown(sessionId, {
+          packId,
+          variant: 'opener',
+          stableKey: `${instanceNumber}`,
+          promptText: openerText,
+          exampleText: exampleNarrative,
+          packLabel,
+          categoryLabel: categoryLabelForLog,
+          instanceNumber,
+          baseQuestionId: effectiveCurrentItem.baseQuestionId
+        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
       
       return {
@@ -3943,8 +3914,7 @@ export default function CandidateInterview() {
       const packLabel = packConfig?.instancesLabel || 'Follow-up';
       
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
-      // WELCOME GATE: Only log if Welcome is acknowledged
-      if (welcomeAcknowledged && !hasClarifierActive) {
+      if (!hasClarifierActive) {
         const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
         if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
           lastLoggedFollowupCardIdRef.current = fieldCardId;
@@ -4004,71 +3974,6 @@ export default function CandidateInterview() {
           <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
             Return to Home
           </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // PART A: Welcome Gate - Full-screen blocking overlay (early return)
-  if (screenMode === 'WELCOME' && !welcomeAcknowledged) {
-    const welcomeEntry = transcript.find(e => e.messageType === 'WELCOME');
-    const title = welcomeEntry?.title || "Welcome to your ClearQuest Interview";
-    const lines = welcomeEntry?.lines || [
-      "This interview is part of your application process.",
-      "One question at a time, at your own pace.",
-      "Clear, complete, and honest answers help investigators understand the full picture.",
-      "You can pause and come back — we'll pick up where you left off."
-    ];
-
-    return (
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className={`max-w-2xl w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
-          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                <Shield className="w-7 h-7 text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-white mb-4">{title}</h2>
-                <div className="space-y-3">
-                  {lines.map((line, idx) => (
-                    <p key={idx} className="text-slate-300 text-base leading-relaxed">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-center mt-8">
-              <Button
-                onClick={() => {
-                  console.log("[WELCOME][ACKNOWLEDGE] Starting transition to Q1");
-                  setIsDismissingWelcome(true);
-                  
-                  const storageKey = `cqai_welcome_ack_${sessionId}`;
-                  localStorage.setItem(storageKey, "1");
-                  
-                  logSystemEventHelper(sessionId, 'WELCOME_ACKNOWLEDGED', {
-                    timestamp: new Date().toISOString()
-                  }).catch(err => console.warn('[WELCOME][LOG] Failed:', err));
-                  
-                  setTimeout(() => {
-                    setWelcomeAcknowledged(true);
-                    setScreenMode("QUESTION");
-                    setIsDismissingWelcome(false);
-                  }, 300);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
-                size="lg"
-              >
-                Got it — Let's Begin
-              </Button>
-              <p className="text-sm text-blue-400 text-center mt-4">
-                Click to start your interview
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -4299,9 +4204,7 @@ export default function CandidateInterview() {
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               
-              {/* PART A: Welcome - Don't render in transcript (blocking overlay handles it) */}
-              
-              {/* Session resumed marker */}
+              {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
