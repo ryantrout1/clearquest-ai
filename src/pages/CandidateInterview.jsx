@@ -818,8 +818,8 @@ export default function CandidateInterview() {
   
   const [screenMode, setScreenMode] = useState("LOADING");
   const introLoggedRef = useRef(false);
-  const [welcomeAcknowledged, setWelcomeAcknowledged] = useState(true);
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
+  const welcomeLoggedRef = useRef(false);
   
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
@@ -1098,14 +1098,12 @@ export default function CandidateInterview() {
 
       console.log("[CandidateInterview] init", {
         isNewSession: sessionIsNew,
-        screenMode: "QUESTION",
-        welcomeAcknowledged: !sessionIsNew,
+        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
         layoutVersion: "section-first"
       });
 
       setIsNewSession(sessionIsNew);
-      setWelcomeAcknowledged(!sessionIsNew);
-      setScreenMode("QUESTION");
+      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
       
       // Log system events
       if (sessionIsNew) {
@@ -3724,6 +3722,12 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
   
   const getCurrentPrompt = () => {
+    // TRANSCRIPT-FIRST GATE: Block all question rendering until Welcome is acknowledged
+    if (!hasWelcomeAcknowledged) {
+      console.log('[WELCOME_GATE][ACTIVE] Blocking question rendering until acknowledgement');
+      return null;
+    }
+    
     // HARD GATE: Block all base question rendering/logging while V3 gate is active
     if (v3GateActive) {
       console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
@@ -3790,19 +3794,21 @@ export default function CandidateInterview() {
       const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
       
       // RENDER-POINT LOGGING: Log question when it's shown (once per question)
-      // Track with stable signature to prevent duplicate logging
-      const itemSig = `question:${effectiveCurrentItem.id}::`;
-      const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
-      
-      if (lastLoggedSig !== itemSig) {
-        lastLoggedFollowupCardIdRef.current = itemSig;
-        logQuestionShown(sessionId, {
-          questionId: effectiveCurrentItem.id,
-          questionText: question.question_text,
-          questionNumber,
-          sectionId: question.section_id,
-          sectionName
-        }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+      // TRANSCRIPT-FIRST GATE: Only log if Welcome is acknowledged
+      if (hasWelcomeAcknowledged) {
+        const itemSig = `question:${effectiveCurrentItem.id}::`;
+        const lastLoggedSig = lastLoggedFollowupCardIdRef.current;
+        
+        if (lastLoggedSig !== itemSig) {
+          lastLoggedFollowupCardIdRef.current = itemSig;
+          logQuestionShown(sessionId, {
+            questionId: effectiveCurrentItem.id,
+            questionText: question.question_text,
+            questionNumber,
+            sectionId: question.section_id,
+            sectionName
+          }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
+        }
       }
       
       return {
@@ -3861,25 +3867,26 @@ export default function CandidateInterview() {
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
       
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID)
-      // CANONICAL ID: Must match helper's exact ID generation logic
-      const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
-      if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
-        lastLoggedFollowupCardIdRef.current = openerCardId;
-        
-        // Get categoryLabel from currentItem context
-        const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
-        
-        logFollowupCardShown(sessionId, {
-          packId,
-          variant: 'opener',
-          stableKey: `${instanceNumber}`, // Keep for metadata only
-          promptText: openerText,
-          exampleText: exampleNarrative,
-          packLabel,
-          categoryLabel: categoryLabelForLog, // Pass categoryLabel for rendering
-          instanceNumber,
-          baseQuestionId: effectiveCurrentItem.baseQuestionId
-        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+      // TRANSCRIPT-FIRST GATE: Only log if Welcome is acknowledged
+      if (hasWelcomeAcknowledged) {
+        const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
+        if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
+          lastLoggedFollowupCardIdRef.current = openerCardId;
+          
+          const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
+          
+          logFollowupCardShown(sessionId, {
+            packId,
+            variant: 'opener',
+            stableKey: `${instanceNumber}`,
+            promptText: openerText,
+            exampleText: exampleNarrative,
+            packLabel,
+            categoryLabel: categoryLabelForLog,
+            instanceNumber,
+            baseQuestionId: effectiveCurrentItem.baseQuestionId
+          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }
       }
       
       return {
@@ -3920,15 +3927,15 @@ export default function CandidateInterview() {
       const packLabel = packConfig?.instancesLabel || 'Follow-up';
       
       // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
-      if (!hasClarifierActive) {
-        // CANONICAL ID: Must match helper's exact ID generation logic
+      // TRANSCRIPT-FIRST GATE: Only log if Welcome is acknowledged
+      if (hasWelcomeAcknowledged && !hasClarifierActive) {
         const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
         if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
           lastLoggedFollowupCardIdRef.current = fieldCardId;
           logFollowupCardShown(sessionId, {
             packId,
             variant: 'field',
-            stableKey: `${fieldKey}-${instanceNumber}`, // Keep for metadata only
+            stableKey: `${fieldKey}-${instanceNumber}`,
             promptText: displayText,
             exampleText: null,
             packLabel,
@@ -3985,6 +3992,14 @@ export default function CandidateInterview() {
       </div>
     );
   }
+
+  // Derive Welcome acknowledgement state from transcript (Transcript-First)
+  const hasWelcomeAcknowledged = React.useMemo(() => {
+    return transcript.some(e => 
+      e.messageType === 'WELCOME_ACKNOWLEDGED' || 
+      e.eventType === 'WELCOME_ACKNOWLEDGED'
+    );
+  }, [transcript]);
 
   const currentPrompt = getCurrentPrompt();
 
@@ -4177,7 +4192,7 @@ export default function CandidateInterview() {
               {/* SYSTEM Welcome message - gates interview until acknowledged */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <ContentContainer>
-                <div className={`w-full transition-all duration-300 ${!welcomeAcknowledged ? 'opacity-100 translate-y-0' : (isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0')}`}>
+                <div className={`w-full transition-all duration-300 ${!hasWelcomeAcknowledged ? 'opacity-100 translate-y-0' : (isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0')}`}>
                   <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
@@ -4454,7 +4469,7 @@ export default function CandidateInterview() {
           )}
           
           {/* V3 GATE: Multi-instance prompt as main card (takes full priority) */}
-          {welcomeAcknowledged && v3GateActive && !v3ProbingActive && (
+          {hasWelcomeAcknowledged && v3GateActive && !v3ProbingActive && (
            <ContentContainer>
            <div className="w-full">
              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
@@ -4469,8 +4484,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' AND welcomed acknowledged */}
-          {welcomeAcknowledged && !v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
+          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' AND welcome acknowledged */}
+          {hasWelcomeAcknowledged && !v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -4505,7 +4520,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {welcomeAcknowledged && currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
+          {hasWelcomeAcknowledged && currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
@@ -4563,15 +4578,25 @@ export default function CandidateInterview() {
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Welcome Acknowledgement Button */}
-          {!welcomeAcknowledged && (
+          {/* Welcome Acknowledgement Button (Transcript-First Gate) */}
+          {!hasWelcomeAcknowledged && screenMode === 'WELCOME' && (
             <div className="flex flex-col items-center">
               <Button
-                onClick={() => {
-                  console.log("[WELCOME][ACKNOWLEDGE] Starting transition to Q1");
+                onClick={async () => {
+                  console.log("[WELCOME][ACKNOWLEDGE] Logging acknowledgement to transcript");
                   setIsDismissingWelcome(true);
+                  
+                  // Log WELCOME_ACKNOWLEDGED to transcript (system event)
+                  await logSystemEventHelper(sessionId, 'WELCOME_ACKNOWLEDGED', {
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // Reload transcript to pick up acknowledgement
+                  const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+                  setTranscript(updatedSession.transcript_snapshot || []);
+                  
                   setTimeout(() => {
-                    setWelcomeAcknowledged(true);
+                    setScreenMode("QUESTION");
                     setIsDismissingWelcome(false);
                     setTimeout(() => autoScrollToBottom(), 100);
                   }, 300);
@@ -4618,7 +4643,7 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : welcomeAcknowledged && v3GateActive ? (
+          ) : hasWelcomeAcknowledged && v3GateActive ? (
            <div className="flex gap-3">
              <Button
                onClick={() => {
@@ -4647,11 +4672,11 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : welcomeAcknowledged && v3ProbingActive && !v3GateActive ? (
+          ) : hasWelcomeAcknowledged && v3ProbingActive && !v3GateActive ? (
                <p className="text-xs text-slate-400 text-center">
                  Please respond to the follow-up questions above.
                </p>
-             ) : welcomeAcknowledged && isYesNoQuestion && !isV2PackField && !v3GateActive ? (
+             ) : hasWelcomeAcknowledged && isYesNoQuestion && !isV2PackField && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -4672,7 +4697,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
+          ) : hasWelcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3GateActive ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt.options.map((option) => (
                 <Button
@@ -4685,7 +4710,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : welcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
+          ) : hasWelcomeAcknowledged && isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3GateActive ? (
             <div className="flex gap-3">
               <Button
                 onClick={() => handleAnswer("Yes")}
@@ -4704,7 +4729,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : welcomeAcknowledged && showTextInput && !pendingSectionTransition && !v3GateActive ? (
+          ) : hasWelcomeAcknowledged && showTextInput && !pendingSectionTransition && !v3GateActive ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
@@ -4769,7 +4794,7 @@ export default function CandidateInterview() {
           </div>
           ) : null}
           
-          {welcomeAcknowledged && !v3ProbingActive && (
+          {hasWelcomeAcknowledged && !v3ProbingActive && (
             <p className="text-xs text-slate-400 text-center mt-3">
               Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
             </p>
