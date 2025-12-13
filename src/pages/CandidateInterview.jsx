@@ -880,6 +880,9 @@ export default function CandidateInterview() {
   
   // Pending gate prompt (prevents setState during render)
   const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
+  
+  // Multi-instance gate state (first-class currentItemType)
+  const [multiInstanceGate, setMultiInstanceGate] = useState(null);
 
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
@@ -928,34 +931,37 @@ export default function CandidateInterview() {
     if (promptData) {
       console.log('[V3_GATE][RECEIVED]', { promptText: promptData?.substring(0, 50) });
 
-      const gateBlocker = {
-        id: `blocker-v3gate-${v3Context?.packId}-${Date.now()}`,
-        type: 'V3_GATE',
-        blocking: true,
-        resolved: false,
-        promptText: promptData,
+      // Set multi-instance gate as first-class state
+      setMultiInstanceGate({
+        active: true,
         packId: v3Context?.packId,
         categoryId: v3Context?.categoryId,
-        instanceNumber: v3Context?.instanceNumber || 1,
-        timestamp: new Date().toISOString()
-      };
-
-      setTranscript(prev => [...prev, gateBlocker]);
-
-      setV3Gate({
-        active: false,
-        packId: v3Context?.packId || null,
-        categoryId: v3Context?.categoryId || null,
+        categoryLabel: v3Context?.categoryLabel,
         promptText: promptData,
-        instanceNumber: v3Context?.instanceNumber || 1
+        instanceNumber: v3Context?.instanceNumber || 1,
+        baseQuestionId: v3BaseQuestionIdRef.current,
+        packData: v3Context?.packData
+      });
+
+      // Also set currentItem to multi_instance_gate type
+      setCurrentItem({
+        id: `multi-instance-gate-${v3Context?.packId}-${v3Context?.instanceNumber || 1}`,
+        type: 'multi_instance_gate',
+        packId: v3Context?.packId,
+        categoryId: v3Context?.categoryId,
+        categoryLabel: v3Context?.categoryLabel,
+        promptText: promptData,
+        instanceNumber: v3Context?.instanceNumber || 1,
+        baseQuestionId: v3BaseQuestionIdRef.current,
+        packData: v3Context?.packData
       });
     } else {
       console.log('[V3_GATE][CLEAR]');
-      setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+      setMultiInstanceGate(null);
     }
     
     setPendingGatePrompt(null);
-  }, [pendingGatePrompt, v3ProbingContext]);
+  }, [pendingGatePrompt]);
 
   const displayNumberMapRef = useRef({});
 
@@ -3739,9 +3745,17 @@ export default function CandidateInterview() {
       if (pendingTransition.type === 'EXIT_V3') {
         const result = pendingTransition.payload;
         const { incidentId, categoryId, completionReason, messages, reason } = result;
-        const baseQuestionId = v3BaseQuestionIdRef.current; // Use ref (retained across renders)
+        const baseQuestionId = v3BaseQuestionIdRef.current;
 
         console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, hasRef: !!v3BaseQuestionIdRef.current });
+
+        // GUARD: Check if multi-instance gate is active - DO NOT advance if so
+        if (multiInstanceGate && multiInstanceGate.active) {
+          console.log('[EXIT_V3][BLOCKED] Multi-instance gate active - deferring advance');
+          exitV3HandledRef.current = false; // Reset so we can advance after gate resolves
+          setPendingTransition(null);
+          return;
+        }
 
         // Clear gate FIRST
         setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
@@ -3773,7 +3787,7 @@ export default function CandidateInterview() {
     };
 
     executePendingTransition();
-  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext]);
+  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
@@ -4159,15 +4173,17 @@ export default function CandidateInterview() {
   const isV3PackOpener = currentItemType === "v3_pack_opener";
   const isFollowup = currentItemType === "followup";
   const isV3Gate = currentItemType === "v3_gate";
+  const isMultiInstanceGate = currentItemType === "multi_instance_gate";
   const answerable = isAnswerableItem(uiCurrentItem) || isV2PackField || isV3PackOpener;
 
   const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
                           (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no') ||
                           (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no') ||
-                          isV3Gate;
+                          isV3Gate ||
+                          isMultiInstanceGate;
 
   // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
-  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion && !isV3Gate;
+  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion && !isV3Gate && !isMultiInstanceGate;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -4681,8 +4697,22 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
+          {/* Multi-instance gate UI */}
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'multi_instance_gate' && (
+           <ContentContainer>
+           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+             <div className="flex items-center gap-2 mb-2">
+               <span className="text-base font-semibold text-purple-400">Next</span>
+             </div>
+             <p className="text-white text-base leading-relaxed">
+               {currentItem.promptText || `Do you have another ${currentItem.categoryLabel || 'incident'} to report?`}
+             </p>
+           </div>
+           </ContentContainer>
+          )}
+
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
@@ -4852,32 +4882,100 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
+          ) : isMultiInstanceGate ? (
+          <div className="flex gap-3">
+            <Button
+              onClick={async () => {
+                console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
+                const gate = multiInstanceGate;
+
+                // Clear gate
+                setMultiInstanceGate(null);
+
+                // Re-enter V3 pack with incremented instance number
+                const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+
+                console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
+                  packId: gate.packId,
+                  categoryId: gate.categoryId,
+                  instanceNumber: nextInstanceNumber
+                });
+
+                // Get deterministic opener for next instance
+                const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+                const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
+
+                // Set up opener for next instance
+                const openerItem = {
+                  id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+                  type: 'v3_pack_opener',
+                  packId: gate.packId,
+                  categoryId: gate.categoryId,
+                  categoryLabel: gate.categoryLabel,
+                  openerText: opener.text,
+                  exampleNarrative: opener.example,
+                  baseQuestionId: gate.baseQuestionId,
+                  questionCode: engine.QById[gate.baseQuestionId]?.question_id,
+                  sectionId: engine.QById[gate.baseQuestionId]?.section_id,
+                  instanceNumber: nextInstanceNumber,
+                  packData: gate.packData
+                };
+
+                setCurrentItem(openerItem);
+                await persistStateToDatabase(transcript, [], openerItem);
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              <Check className="w-5 h-5 mr-2" />
+              Yes
+            </Button>
+            <Button
+              onClick={async () => {
+                console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
+                const gate = multiInstanceGate;
+
+                // Clear gate
+                setMultiInstanceGate(null);
+
+                // Advance to next base question
+                if (gate.baseQuestionId) {
+                  await advanceToNextBaseQuestion(gate.baseQuestionId, transcript);
+                }
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+            >
+              <X className="w-5 h-5 mr-2" />
+              No
+            </Button>
+          </div>
           ) : isV3Gate ? (
-           <div className="flex gap-3">
-             <Button
-               onClick={() => {
-                 console.log('[V3_GATE][CLICKED] YES (fallback)');
-                 setV3GateDecision('Yes');
-               }}
-               disabled={isCommitting}
-               className="flex-1 bg-green-600 hover:bg-green-700"
-             >
-               <Check className="w-5 h-5 mr-2" />
-               Yes
-             </Button>
-             <Button
-               onClick={() => {
-                 console.log('[V3_GATE][CLICKED] NO (fallback)');
-                 setV3GateDecision('No');
-               }}
-               disabled={isCommitting}
-               className="flex-1 bg-red-600 hover:bg-red-700"
-             >
-               <X className="w-5 h-5 mr-2" />
-               No
-             </Button>
-           </div>
-          ) : v3ProbingActive && !isV3Gate ? (
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                console.log('[V3_GATE][CLICKED] YES (fallback)');
+                setV3GateDecision('Yes');
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              <Check className="w-5 h-5 mr-2" />
+              Yes
+            </Button>
+            <Button
+              onClick={() => {
+                console.log('[V3_GATE][CLICKED] NO (fallback)');
+                setV3GateDecision('No');
+              }}
+              disabled={isCommitting}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+            >
+              <X className="w-5 h-5 mr-2" />
+              No
+            </Button>
+          </div>
+          ) : v3ProbingActive && !isV3Gate && !isMultiInstanceGate ? (
                <p className="text-xs text-slate-400 text-center">
                  Please respond to the follow-up questions above.
                </p>
