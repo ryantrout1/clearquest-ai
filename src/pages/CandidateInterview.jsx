@@ -1084,6 +1084,10 @@ export default function CandidateInterview() {
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
+        // New session - add Welcome to transcript
+        const transcriptWithWelcome = await ensureWelcomeInTranscript(sessionId, []);
+        setTranscript(transcriptWithWelcome);
+        
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
         setCurrentItem({ id: firstQuestionId, type: 'question' });
@@ -4170,29 +4174,31 @@ export default function CandidateInterview() {
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               
-              {/* SYSTEM Welcome message */}
+              {/* SYSTEM Welcome message - gates interview until acknowledged */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <ContentContainer>
-                <div className="w-full bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                      <Shield className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      {entry.uiVariant === 'WELCOME_CARD' && entry.title && entry.lines ? (
-                        <>
-                          <h2 className="text-xl font-bold text-white mb-3">{entry.title}</h2>
-                          <div className="space-y-2">
-                            {entry.lines.map((line, idx) => (
-                              <p key={idx} className="text-slate-300 text-sm leading-relaxed">
-                                {line}
-                              </p>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
-                      )}
+                <div className={`w-full transition-all duration-300 ${!welcomeAcknowledged ? 'opacity-100 translate-y-0' : (isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0')}`}>
+                  <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                        <Shield className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        {entry.uiVariant === 'WELCOME_CARD' && entry.title && entry.lines ? (
+                          <>
+                            <h2 className="text-xl font-bold text-white mb-3">{entry.title}</h2>
+                            <div className="space-y-2">
+                              {entry.lines.map((line, idx) => (
+                                <p key={idx} className="text-slate-300 text-sm leading-relaxed">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4444,40 +4450,6 @@ export default function CandidateInterview() {
              }}
              onMultiInstanceAnswer={setV3MultiInstanceHandler}
            />
-           </ContentContainer>
-          )}
-          
-          {/* GATED WELCOME: Required acknowledgement before Q1 */}
-          {!welcomeAcknowledged && (
-           <ContentContainer>
-           <div className={`w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
-             <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
-               <div className="flex items-start gap-4">
-                 <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                   <Shield className="w-6 h-6 text-blue-400" />
-                 </div>
-                 <div className="flex-1">
-                   <h2 className="text-xl font-bold text-white mb-3">
-                     Welcome to your ClearQuest Interview
-                   </h2>
-                   <div className="space-y-2">
-                     <p className="text-slate-300 text-sm leading-relaxed">
-                       This interview is part of your application process.
-                     </p>
-                     <p className="text-slate-300 text-sm leading-relaxed">
-                       One question at a time, at your own pace.
-                     </p>
-                     <p className="text-slate-300 text-sm leading-relaxed">
-                       Clear, complete, and honest answers help investigators understand the full picture.
-                     </p>
-                     <p className="text-slate-300 text-sm leading-relaxed">
-                       You can pause and come back — we'll pick up where you left off.
-                     </p>
-                   </div>
-                 </div>
-               </div>
-             </div>
-           </div>
            </ContentContainer>
           )}
           
