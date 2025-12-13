@@ -2072,25 +2072,40 @@ export default function CandidateInterview() {
           questionText: openerText
         });
         
-        // Append to canonical transcript (legacy logging - may be deprecated)
-        try {
-          // Re-fetch latest transcript to avoid stale snapshot
-          const freshSessionForCanonical = await base44.entities.InterviewSession.get(sessionId);
-          const canonicalTranscript = freshSessionForCanonical.transcript_snapshot || [];
-          
-          const baseResponses = await base44.entities.Response.filter({
-            session_id: sessionId,
-            question_id: baseQuestionId,
-            response_type: 'base_question'
-          });
-          const baseResponseId = baseResponses[0]?.id || baseQuestionId;
-          
-          const questionKey = `v3_opener::${packId}::${instanceNumber}`;
-          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
-            await appendQuestionEntry({
+        // Legacy canonical transcript append - DISABLED for V3 (causes transcript overwrite)
+        // V3 uses chat-style transcript (appendAssistantMessage/appendUserMessage above)
+        // Keeping this block disabled prevents duplicate/conflicting transcript writes
+        if (false) {
+          try {
+            const freshSessionForCanonical = await base44.entities.InterviewSession.get(sessionId);
+            const canonicalTranscript = freshSessionForCanonical.transcript_snapshot || [];
+            
+            const baseResponses = await base44.entities.Response.filter({
+              session_id: sessionId,
+              question_id: baseQuestionId,
+              response_type: 'base_question'
+            });
+            const baseResponseId = baseResponses[0]?.id || baseQuestionId;
+            
+            const questionKey = `v3_opener::${packId}::${instanceNumber}`;
+            if (!hasQuestionBeenLogged(sessionId, questionKey)) {
+              await appendQuestionEntry({
+                sessionId,
+                existingTranscript: canonicalTranscript,
+                text: openerText,
+                questionId: baseQuestionId,
+                packId,
+                fieldKey: 'v3_opener_narrative',
+                instanceNumber,
+                responseId: null,
+                parentResponseId: baseResponseId
+              });
+            }
+            
+            await appendAnswerEntry({
               sessionId,
               existingTranscript: canonicalTranscript,
-              text: openerText,
+              text: value,
               questionId: baseQuestionId,
               packId,
               fieldKey: 'v3_opener_narrative',
@@ -2098,21 +2113,9 @@ export default function CandidateInterview() {
               responseId: null,
               parentResponseId: baseResponseId
             });
+          } catch (err) {
+            console.warn("[TRANSCRIPT][V3_OPENER] Failed to log:", err);
           }
-          
-          await appendAnswerEntry({
-            sessionId,
-            existingTranscript: canonicalTranscript,
-            text: value,
-            questionId: baseQuestionId,
-            packId,
-            fieldKey: 'v3_opener_narrative',
-            instanceNumber,
-            responseId: null,
-            parentResponseId: baseResponseId
-          });
-        } catch (err) {
-          console.warn("[TRANSCRIPT][V3_OPENER] Failed to log:", err);
         }
         
         console.log(`[V3_OPENER][ENTER_PROBING] Now entering V3ProbingLoop with opener context`);

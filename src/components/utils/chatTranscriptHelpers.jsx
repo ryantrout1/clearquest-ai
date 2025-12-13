@@ -44,9 +44,13 @@ function getNextIndex(existingTranscript = []) {
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
-  // CRITICAL: visibleToCandidate must be explicitly set - no defaults
-  if (metadata.visibleToCandidate === undefined) {
-    throw new Error('[TRANSCRIPT] visibleToCandidate must be explicitly set for all assistant messages');
+  // HARDENED CONTRACT: Default visibleToCandidate to false if not provided
+  if (metadata.visibleToCandidate === undefined || metadata.visibleToCandidate === null) {
+    console.warn("[TRANSCRIPT][DEFAULT_VISIBLE]", { 
+      messageType: metadata.messageType || 'unknown', 
+      visibleToCandidateDefaulted: true 
+    });
+    metadata.visibleToCandidate = false;
   }
   
   const entry = {
