@@ -4459,7 +4459,9 @@ export default function CandidateInterview() {
             const visibleTranscript = hasActiveBlocker
               ? transcript.filter(e => e.blocking !== true || e.resolved === true)
               : transcript;
-            return visibleTranscript.map((entry, index) => {
+            return visibleTranscript
+              .filter(e => e.messageType !== 'SYSTEM_EVENT') // NEVER render system events in main chat feed
+              .map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
 
