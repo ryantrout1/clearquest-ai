@@ -4827,20 +4827,6 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* Multi-instance gate UI */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'multi_instance_gate' && (
-           <ContentContainer>
-           <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-             <div className="flex items-center gap-2 mb-2">
-               <span className="text-base font-semibold text-purple-400">Next</span>
-             </div>
-             <p className="text-white text-base leading-relaxed">
-               {currentItem.promptText || `Do you have another ${currentItem.categoryLabel || 'incident'} to report?`}
-             </p>
-           </div>
-           </ContentContainer>
-          )}
-
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && (
            <ContentContainer>
