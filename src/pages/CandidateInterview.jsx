@@ -818,6 +818,7 @@ export default function CandidateInterview() {
   
   const [screenMode, setScreenMode] = useState("LOADING");
   const introLoggedRef = useRef(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
@@ -1092,12 +1093,14 @@ export default function CandidateInterview() {
 
       console.log("[CandidateInterview] init", {
         isNewSession: sessionIsNew,
-        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
+        screenMode: "QUESTION",
+        showWelcome: sessionIsNew,
         layoutVersion: "section-first"
       });
 
       setIsNewSession(sessionIsNew);
-      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
+      setShowWelcome(sessionIsNew);
+      setScreenMode("QUESTION");
       
       // Log system events
       if (sessionIsNew) {
@@ -4084,84 +4087,6 @@ export default function CandidateInterview() {
   // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
-  // FIX A: Remove WELCOME mode early return - render Welcome as transcript card instead
-  const showWelcomeButton = screenMode === "WELCOME" && isNewSession && !currentItem;
-  
-  if (showWelcomeButton) {
-    // Initial welcome state before any questions loaded
-    return (
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-        <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-semibold text-white">ClearQuest Interview</h1>
-                {department && (
-                  <>
-                    <span className="text-slate-600 hidden sm:inline">•</span>
-                    <span className="text-xs text-slate-200 hidden sm:inline">{department.department_name}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 flex flex-col justify-end items-center px-4 py-6">
-          <div className="w-full max-w-4xl mb-6">
-            <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                  <Shield className="w-6 h-6 text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold text-white mb-3">
-                    Welcome to your ClearQuest Interview
-                  </h2>
-                  <div className="space-y-2">
-                    <p className="text-slate-300 text-sm leading-relaxed">
-                      This interview is part of your application process.
-                    </p>
-                    <p className="text-slate-300 text-sm leading-relaxed">
-                      One question at a time, at your own pace.
-                    </p>
-                    <p className="text-slate-300 text-sm leading-relaxed">
-                      Clear, complete, and honest answers help investigators understand the full picture.
-                    </p>
-                    <p className="text-slate-300 text-sm leading-relaxed">
-                      You can pause and come back — we'll pick up where you left off.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
-          <div className="max-w-5xl mx-auto flex flex-col items-center">
-            <Button
-              onClick={async () => {
-                console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
-                const updatedTranscript = await ensureWelcomeInTranscript(sessionId, transcript);
-                setTranscript(updatedTranscript);
-                setScreenMode("QUESTION");
-                setTimeout(() => autoScrollToBottom(), 100);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 text-base font-semibold"
-              size="lg"
-            >
-              Next
-            </Button>
-            <p className="text-xs text-blue-400 text-center mt-3">
-              Click Next to begin your interview
-            </p>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
@@ -4518,6 +4443,50 @@ export default function CandidateInterview() {
              }}
              onMultiInstanceAnswer={setV3MultiInstanceHandler}
            />
+           </ContentContainer>
+          )}
+          
+          {/* Non-blocking Welcome Banner - shows above Q1 on new sessions */}
+          {showWelcome && (
+           <ContentContainer>
+           <div className="w-full mb-4">
+             <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+               <div className="flex items-start gap-4">
+                 <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                   <Shield className="w-6 h-6 text-blue-400" />
+                 </div>
+                 <div className="flex-1">
+                   <h2 className="text-xl font-bold text-white mb-3">
+                     Welcome to your ClearQuest Interview
+                   </h2>
+                   <div className="space-y-2 mb-4">
+                     <p className="text-slate-300 text-sm leading-relaxed">
+                       This interview is part of your application process.
+                     </p>
+                     <p className="text-slate-300 text-sm leading-relaxed">
+                       One question at a time, at your own pace.
+                     </p>
+                     <p className="text-slate-300 text-sm leading-relaxed">
+                       Clear, complete, and honest answers help investigators understand the full picture.
+                     </p>
+                     <p className="text-slate-300 text-sm leading-relaxed">
+                       You can pause and come back — we'll pick up where you left off.
+                     </p>
+                   </div>
+                   <Button
+                     onClick={() => {
+                       console.log("[WELCOME][DISMISS] User dismissed welcome banner");
+                       setShowWelcome(false);
+                       setTimeout(() => autoScrollToBottom(), 100);
+                     }}
+                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+                   >
+                     Got it — Let's Begin
+                   </Button>
+                 </div>
+               </div>
+             </div>
+           </div>
            </ContentContainer>
           )}
           
