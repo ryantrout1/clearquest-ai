@@ -344,32 +344,45 @@ export async function logSectionStarted(sessionId, { sectionId, sectionName }) {
 
 /**
  * Log follow-up card shown to candidate (at render time)
- * Stable ID: followup-card-{sessionId}-{packId}-{variant}-{stableKey}
+ * Stable ID: followup-card-{sessionId}-{packId}-opener-{instanceNumber} OR
+ *            followup-card-{sessionId}-{packId}-field-{fieldKey}-{instanceNumber}
  */
 export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null }) {
-  const id = `followup-card-${sessionId}-${packId}-${variant}-${stableKey}`;
-  
-  // Guard #1: Check in-flight protection FIRST (no DB call)
-  if (inFlightTranscriptIds.has(id)) {
-    console.log("[TRANSCRIPT][FOLLOWUP_CARD] In-flight, skipping");
+  // CANONICAL ID GENERATION: Ignore stableKey, build from canonical rules only
+  let id;
+  if (variant === 'opener') {
+    id = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
+  } else if (variant === 'field') {
+    id = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
+  } else {
+    console.error("[TRANSCRIPT][FOLLOWUP_CARD] Invalid variant:", variant);
     return null;
   }
   
+  console.log("[TRANSCRIPT][FOLLOWUP_CARD][ID]", id);
+  
+  // HARD GUARD #1: Check in-flight protection FIRST (no DB call)
+  if (inFlightTranscriptIds.has(id)) {
+    console.log("[TRANSCRIPT][FOLLOWUP_CARD] In-flight, skipping");
+    return null;  // ✓ EXIT: No DB call, no system event
+  }
+  
   try {
-    // Guard #2: Add to in-flight before any async work
+    // HARD GUARD #2: Add to in-flight before any async work
     inFlightTranscriptIds.add(id);
     
     const session = await base44.entities.InterviewSession.get(sessionId);
     const existingTranscript = session.transcript_snapshot || [];
     
-    // Guard #3: Check if already exists in DB
+    // HARD GUARD #3: Check if already exists in DB
     if (existingTranscript.some(e => e.id === id)) {
       console.log("[TRANSCRIPT][FOLLOWUP_CARD] Already logged, skipping");
-      return existingTranscript;
+      return existingTranscript;  // ✓ EXIT: No append, no system event
     }
     
     const title = packLabel || "Follow-up";
     
+    // ✓ ONLY REACHED IF ALL GUARDS PASSED
     const updated = await appendAssistantMessage(sessionId, existingTranscript, promptText, {
       id,
       messageType: 'FOLLOWUP_CARD_SHOWN',
@@ -380,10 +393,11 @@ export async function logFollowupCardShown(sessionId, { packId, variant, stableK
       visibleToCandidate: true
     });
     
+    // ✓ System event ONLY logged when append succeeds
     await logSystemEvent(sessionId, 'FOLLOWUP_CARD_SHOWN', { packId, variant, stableKey, instanceNumber, fieldKey });
     return updated;
   } finally {
-    // Guard #4: Always remove from in-flight set
+    // ✓ CLEANUP: Always remove from in-flight set (even on errors)
     inFlightTranscriptIds.delete(id);
   }
 }
