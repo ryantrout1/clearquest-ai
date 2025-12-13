@@ -257,22 +257,14 @@ export default function V3ProbingLoop({
           visibleToCandidate: true
         });
 
-        // Show multi-instance gate RELIABLY: set state synchronously
-        console.log('[V3_PROBING][MULTI_INSTANCE] Showing multi-instance prompt', {
+        // Show multi-instance gate: defer to prevent setState during render
+        console.log('[V3_PROBING][MULTI_INSTANCE] Queueing multi-instance gate', {
           categoryLabel: categoryLabel || 'incident',
           instanceNumber
         });
         
         setShowMultiInstancePrompt(true);
-        
-        // PART C: Defer parent notification to next tick (prevent setState during render)
-        setTimeout(() => {
-          if (onMultiInstancePrompt) {
-            const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
-            onMultiInstancePrompt(promptText);
-            console.log('[V3_PROBING][MULTI_INSTANCE] Sent prompt to parent:', promptText);
-          }
-        }, 0);
+        setIsComplete(true);
 
         // Persist completion to local transcript
         if (onTranscriptUpdate) {
@@ -364,7 +356,16 @@ export default function V3ProbingLoop({
     }
   }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt, incidentId, completionReason, messages]);
   
-  // Notify parent when multi-instance answer is ready to be handled
+  // Notify parent when multi-instance gate should show
+  useEffect(() => {
+    if (showMultiInstancePrompt && isComplete && onMultiInstancePrompt) {
+      const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
+      onMultiInstancePrompt(promptText);
+      console.log('[V3_PROBING][GATE_SHOWN] Notified parent of gate prompt');
+    }
+  }, [showMultiInstancePrompt, isComplete, categoryLabel, onMultiInstancePrompt]);
+  
+  // Notify parent when multi-instance answer handler is ready
   useEffect(() => {
     if (onMultiInstanceAnswer) {
       onMultiInstanceAnswer(handleMultiInstanceAnswer);

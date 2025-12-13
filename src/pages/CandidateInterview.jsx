@@ -875,9 +875,46 @@ export default function CandidateInterview() {
   // V3 Multi-instance handler (callback from V3ProbingLoop)
   const [v3MultiInstanceHandler, setV3MultiInstanceHandler] = useState(null);
   
+  // V3 gate decision intent (prevents setState during render)
+  const [v3GateDecision, setV3GateDecision] = useState(null);
+  
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
   const exitV3HandledRef = useRef(false);
+  
+  // V3 gate prompt handler (deferred to prevent render-phase setState)
+  useEffect(() => {
+    if (!v3Gate.active && v3Gate.promptText) {
+      console.log('[V3_GATE][ACTIVATE]', { 
+        promptText: v3Gate.promptText?.substring(0, 50), 
+        categoryId: v3Gate.categoryId,
+        instanceNumber: v3Gate.instanceNumber 
+      });
+      
+      setV3Gate(prev => ({ ...prev, active: true }));
+    }
+  }, [v3Gate]);
+  
+  // V3 gate decision handler (prevents setState during render)
+  useEffect(() => {
+    if (!v3GateDecision) return;
+    
+    console.log('[V3_GATE][DECISION_CONSUMED]', v3GateDecision);
+    
+    if (v3MultiInstanceHandler) {
+      v3MultiInstanceHandler(v3GateDecision);
+    }
+    
+    // Mark blocker resolved
+    setTranscript(prev => prev.map(e => 
+      e.type === 'V3_GATE' && e.blocking === true && e.resolved === false
+        ? { ...e, resolved: true, answer: v3GateDecision }
+        : e
+    ));
+    
+    // Clear decision
+    setV3GateDecision(null);
+  }, [v3GateDecision, v3MultiInstanceHandler]);
   
   const displayNumberMapRef = useRef({});
   
@@ -4227,8 +4264,8 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
-          {/* Blocking Message State - ONLY show blocker card when active */}
-          {activeBlocker ? (
+          {/* Always render transcript history (PART C: transcript visible during V3 gate) */}
+          {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
             <ContentContainer>
               {activeBlocker.type === 'SYSTEM_INTRO' && (
                 <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
@@ -4537,6 +4574,72 @@ export default function CandidateInterview() {
             );
           })}
           
+          {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
+          {activeBlocker && (
+            <ContentContainer>
+              {activeBlocker.type === 'SYSTEM_INTRO' && (
+                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                      <Shield className="w-7 h-7 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
+                      <div className="space-y-3">
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          This interview is part of your application process.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          One question at a time, at your own pace.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          Clear, complete, and honest answers help investigators understand the full picture.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          You can pause and come back — we'll pick up where you left off.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeBlocker.type === 'SECTION_MESSAGE' && (
+                <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-bold text-white mb-2">
+                        Section Complete: {activeBlocker.completedSectionName}
+                      </h2>
+                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
+                        Nice work — you've finished this section. Ready for the next one?
+                      </p>
+                      <div className="bg-emerald-950/40 rounded-lg p-3">
+                        <p className="text-emerald-300 text-sm font-medium">
+                          Next up: {activeBlocker.nextSectionName}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeBlocker.type === 'V3_GATE' && (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base font-semibold text-purple-400">Next</span>
+                  </div>
+                  <p className="text-white text-base leading-relaxed">
+                    {activeBlocker.promptText || 'Do you have another incident to add?'}
+                  </p>
+                </div>
+              )}
+            </ContentContainer>
+          )}
+          
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
            <ContentContainer>
@@ -4555,8 +4658,8 @@ export default function CandidateInterview() {
              onTranscriptUpdate={handleV3TranscriptUpdate}
              onMultiInstancePrompt={(promptData) => {
                if (promptData) {
-                 console.log('[V3_GATE][SET_ACTIVE]', promptData);
-                 
+                 console.log('[V3_GATE][RECEIVED]', { promptText: promptData?.substring(0, 50) });
+
                  // Add V3 gate blocker to transcript
                  const gateBlocker = {
                    id: `blocker-v3gate-${v3ProbingContext?.packId}-${Date.now()}`,
@@ -4569,11 +4672,12 @@ export default function CandidateInterview() {
                    instanceNumber: v3ProbingContext?.instanceNumber || 1,
                    timestamp: new Date().toISOString()
                  };
-                 
+
                  setTranscript(prev => [...prev, gateBlocker]);
-                 
+
+                 // Set gate state (active will be set by useEffect)
                  setV3Gate({
-                   active: true,
+                   active: false,
                    packId: v3ProbingContext?.packId || null,
                    categoryId: v3ProbingContext?.categoryId || null,
                    promptText: promptData,
@@ -4589,59 +4693,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
           
-          {/* PART B: V3 Gate Card - Highest priority when active */}
-          {isV3Gate && uiCurrentItem.type === 'v3_gate' && (
-           <ContentContainer>
-           <div className="w-full">
-             <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-               <div className="flex items-center gap-2 mb-2">
-                 <span className="text-base font-semibold text-purple-400">Next</span>
-               </div>
-               <p className="text-white text-base leading-relaxed">
-                 {uiCurrentItem.promptText || 'Do you have another incident to add?'}
-               </p>
-             </div>
-           </div>
-           </ContentContainer>
-          )}
 
-          {/* Base Question Card - BLOCKED by V3 gate */}
-          {!isV3Gate && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
-           <ContentContainer>
-           <div ref={questionCardRef} className="w-full">
-             {(() => {
-               const question = engine.QById[currentItem.id];
-               if (!question) return null;
-               
-               const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
-               const sectionName = sectionEntity?.section_name || question.category || '';
-               const questionNumber = getQuestionDisplayNumber(currentItem.id);
-               
-               return (
-                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-base font-semibold text-blue-400">
-                       Question {questionNumber}
-                     </span>
-                     <span className="text-sm text-slate-500">•</span>
-                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
-                   </div>
-                   <p className="text-white text-base leading-relaxed">{question.question_text}</p>
-                 </div>
-               );
-             })()}
-             
-             {validationHint && (
-               <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
-                 <p className="text-yellow-200 text-sm">{validationHint}</p>
-               </div>
-             )}
-           </div>
-           </ContentContainer>
-          )}
 
-          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {!isV3Gate && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
@@ -4693,11 +4746,9 @@ export default function CandidateInterview() {
               </div>
                </ContentContainer>
               )}
-              </>
-              )}
-              </div>
-        </div>
-      </main>
+
+              {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
+              {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
@@ -4759,40 +4810,30 @@ export default function CandidateInterview() {
               </p>
             </div>
           ) : activeBlocker?.type === 'V3_GATE' ? (
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  console.log('[BLOCKER][RESOLVE] V3_GATE - YES');
-                  if (v3MultiInstanceHandler) {
-                    v3MultiInstanceHandler('Yes');
-                  }
-                  setTranscript(prev => prev.map(e => 
-                    e.id === activeBlocker.id ? { ...e, resolved: true, answer: 'Yes' } : e
-                  ));
-                }}
-                disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                <Check className="w-5 h-5 mr-2" />
-                Yes
-              </Button>
-              <Button
-                onClick={() => {
-                  console.log('[BLOCKER][RESOLVE] V3_GATE - NO');
-                  if (v3MultiInstanceHandler) {
-                    v3MultiInstanceHandler('No');
-                  }
-                  setTranscript(prev => prev.map(e => 
-                    e.id === activeBlocker.id ? { ...e, resolved: true, answer: 'No' } : e
-                  ));
-                }}
-                disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700"
-              >
-                <X className="w-5 h-5 mr-2" />
-                No
-              </Button>
-            </div>
+           <div className="flex gap-3">
+             <Button
+               onClick={() => {
+                 console.log('[V3_GATE][CLICKED] YES');
+                 setV3GateDecision('Yes');
+               }}
+               disabled={isCommitting}
+               className="flex-1 bg-green-600 hover:bg-green-700"
+             >
+               <Check className="w-5 h-5 mr-2" />
+               Yes
+             </Button>
+             <Button
+               onClick={() => {
+                 console.log('[V3_GATE][CLICKED] NO');
+                 setV3GateDecision('No');
+               }}
+               disabled={isCommitting}
+               className="flex-1 bg-red-600 hover:bg-red-700"
+             >
+               <X className="w-5 h-5 mr-2" />
+               No
+             </Button>
+           </div>
           ) : pendingSectionTransition && uiCurrentItem?.type === 'section_transition' ? (
             <div className="flex flex-col items-center">
               <Button
@@ -4827,10 +4868,8 @@ export default function CandidateInterview() {
            <div className="flex gap-3">
              <Button
                onClick={() => {
-                 console.log('[V3_GATE][YES_CLICKED]');
-                 if (v3MultiInstanceHandler) {
-                   v3MultiInstanceHandler('Yes');
-                 }
+                 console.log('[V3_GATE][CLICKED] YES (fallback)');
+                 setV3GateDecision('Yes');
                }}
                disabled={isCommitting}
                className="flex-1 bg-green-600 hover:bg-green-700"
@@ -4840,10 +4879,8 @@ export default function CandidateInterview() {
              </Button>
              <Button
                onClick={() => {
-                 console.log('[V3_GATE][NO_CLICKED]');
-                 if (v3MultiInstanceHandler) {
-                   v3MultiInstanceHandler('No');
-                 }
+                 console.log('[V3_GATE][CLICKED] NO (fallback)');
+                 setV3GateDecision('No');
                }}
                disabled={isCommitting}
                className="flex-1 bg-red-600 hover:bg-red-700"
