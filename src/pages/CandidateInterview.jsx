@@ -1054,12 +1054,8 @@ export default function CandidateInterview() {
         });
       } else {
         // Add resume marker for returning candidates
-        const transcriptWithMarker = await appendResumeMarker(sessionId, loadedSession.transcript_snapshot || []);
+        const transcriptWithMarker = await appendResumeMarker(sessionId, loadedSession.transcript_snapshot || [], loadedSession);
         setTranscript(transcriptWithMarker);
-        
-        await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
-          questions_answered: loadedSession.total_questions_answered
-        });
       }
       
       setIsLoading(false);
@@ -4194,8 +4190,28 @@ export default function CandidateInterview() {
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {/* SYSTEM Welcome message */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
-                <div className="bg-[#1a2744]/60 border border-slate-700/40 rounded-xl p-4">
-                  <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
+                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                      <Shield className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      {entry.uiVariant === 'WELCOME_CARD' && entry.title && entry.lines ? (
+                        <>
+                          <h2 className="text-xl font-bold text-white mb-3">{entry.title}</h2>
+                          <div className="space-y-2">
+                            {entry.lines.map((line, idx) => (
+                              <p key={idx} className="text-slate-300 text-sm leading-relaxed">
+                                {line}
+                              </p>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-slate-300 text-sm leading-relaxed">{entry.text}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
               

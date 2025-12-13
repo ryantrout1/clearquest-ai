@@ -29,17 +29,33 @@ function getNextIndex(existingTranscript = []) {
  * 
  * @param {string} sessionId
  * @param {Array} existingTranscript
- * @param {string} text - Message text
- * @param {object} metadata - Additional metadata (messageType, questionId, packId, etc.)
+ * @param {string} text - Message text (fallback if uiVariant not used)
+ * @param {object} metadata - Additional metadata
+ *   - messageType: type of message
+ *   - uiVariant: UI card variant (WELCOME_CARD, QUESTION_CARD, FOLLOWUP_CARD, etc.)
+ *   - title: optional card title
+ *   - lines: optional array of bullet/line strings
+ *   - example: optional example text
+ *   - meta: optional { sectionId, sectionTitle, questionDbId, questionCode, packId, instanceNumber }
+ *   - visibleToCandidate: defaults based on uiVariant/messageType
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
+  // Determine visibleToCandidate based on uiVariant/messageType
+  let visibleToCandidate = true; // Default for UI cards
+  
+  if (metadata.messageType === 'SYSTEM_EVENT' || metadata.eventType) {
+    visibleToCandidate = false; // System events not visible
+  } else if (metadata.visibleToCandidate !== undefined) {
+    visibleToCandidate = metadata.visibleToCandidate; // Explicit override
+  }
+  
   const entry = {
     index: getNextIndex(existingTranscript),
     role: "assistant",
     text,
     timestamp: new Date().toISOString(),
-    visibleToCandidate: metadata.visibleToCandidate !== false, // Default true for assistant messages
+    visibleToCandidate,
     ...metadata
   };
 
@@ -111,15 +127,21 @@ export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
     return existingTranscript;
   }
 
-  const welcomeText = `Welcome to your ClearQuest Interview. This interview is part of your application process. You'll be asked questions one at a time. Clear, complete, and honest answers help investigators understand the full picture. You can pause and come back — we'll pick up where you left off.`;
-
   const entry = {
     id: `welcome-${sessionId}`, // Deterministic ID
     index: getNextIndex(existingTranscript),
     role: "assistant",
-    text: welcomeText,
+    text: "Welcome to your ClearQuest Interview", // Fallback text
     timestamp: new Date().toISOString(),
     messageType: 'WELCOME',
+    uiVariant: 'WELCOME_CARD',
+    title: "Welcome to your ClearQuest Interview",
+    lines: [
+      "This interview is part of your application process.",
+      "One question at a time, at your own pace.",
+      "Clear, complete, and honest answers help investigators understand the full picture.",
+      "You can pause and come back — we'll pick up where you left off."
+    ],
     visibleToCandidate: true,
     source: 'SYSTEM'
   };
@@ -141,7 +163,7 @@ export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
 /**
  * Append resume/return marker
  */
-export async function appendResumeMarker(sessionId, existingTranscript = []) {
+export async function appendResumeMarker(sessionId, existingTranscript = [], sessionData = {}) {
   const resumeCount = existingTranscript.filter(e => e.messageType === 'RESUME').length;
   const resumeId = `resume-${sessionId}-${resumeCount}`;
   
@@ -151,15 +173,14 @@ export async function appendResumeMarker(sessionId, existingTranscript = []) {
     return existingTranscript;
   }
 
-  const resumeText = "Welcome back. Resuming where you left off.";
-
   const entry = {
     id: resumeId,
     index: getNextIndex(existingTranscript),
     role: "assistant",
-    text: resumeText,
+    text: "Welcome back. Resuming where you left off.",
     timestamp: new Date().toISOString(),
     messageType: 'RESUME',
+    uiVariant: 'RESUME_BANNER',
     visibleToCandidate: true,
     source: 'SYSTEM'
   };
@@ -171,6 +192,14 @@ export async function appendResumeMarker(sessionId, existingTranscript = []) {
       transcript_snapshot: updatedTranscript
     });
     console.log("[TRANSCRIPT][RESUME][ADD] Added resume marker");
+    
+    // Log audit event with session position
+    await logSystemEvent(sessionId, 'SESSION_RESUMED', {
+      resumeCount: resumeCount + 1,
+      lastSectionId: sessionData.current_category || null,
+      lastQuestionId: sessionData.current_question_id || null,
+      questionsAnswered: sessionData.total_questions_answered || 0
+    });
   } catch (err) {
     console.error("[TRANSCRIPT][ERROR]", err);
   }
@@ -210,4 +239,52 @@ export async function logSystemEvent(sessionId, eventType, metadata = {}) {
     console.error('[TRANSCRIPT][SYSTEM_EVENT][ERROR]', err);
     return null;
   }
+}
+
+/**
+ * QA Self-Check: Verify transcript integrity (dev only)
+ */
+if (typeof window !== 'undefined') {
+  window.__cqAuditCheck = async (sessionId) => {
+    try {
+      const session = await base44.entities.InterviewSession.get(sessionId);
+      const transcript = session.transcript_snapshot || [];
+      
+      const checks = {
+        welcomeCount: transcript.filter(e => e.messageType === 'WELCOME').length,
+        resumeCount: transcript.filter(e => e.messageType === 'RESUME').length,
+        duplicateIds: [],
+        candidateVisible: transcript.filter(e => e.visibleToCandidate === true).length,
+        auditOnly: transcript.filter(e => e.visibleToCandidate === false).length
+      };
+      
+      // Check for duplicate IDs
+      const ids = transcript.filter(e => e.id).map(e => e.id);
+      const uniqueIds = new Set(ids);
+      if (ids.length !== uniqueIds.size) {
+        const seen = new Set();
+        ids.forEach(id => {
+          if (seen.has(id)) checks.duplicateIds.push(id);
+          seen.add(id);
+        });
+      }
+      
+      console.log('=== ClearQuest Transcript Audit ===');
+      console.log(`Session: ${sessionId}`);
+      console.log(`Total entries: ${transcript.length}`);
+      console.log(`Candidate-visible: ${checks.candidateVisible}`);
+      console.log(`Audit-only: ${checks.auditOnly}`);
+      console.log(`Welcome messages: ${checks.welcomeCount} ${checks.welcomeCount === 1 ? '✓' : '✗ FAIL'}`);
+      console.log(`Resume markers: ${checks.resumeCount}`);
+      console.log(`Duplicate IDs: ${checks.duplicateIds.length === 0 ? 'None ✓' : checks.duplicateIds.join(', ') + ' ✗ FAIL'}`);
+      
+      const passed = checks.welcomeCount === 1 && checks.duplicateIds.length === 0;
+      console.log(`\nOverall: ${passed ? '✓ PASS' : '✗ FAIL'}`);
+      
+      return { passed, checks, transcript };
+    } catch (err) {
+      console.error('[AUDIT] Failed:', err);
+      return { passed: false, error: err.message };
+    }
+  };
 }

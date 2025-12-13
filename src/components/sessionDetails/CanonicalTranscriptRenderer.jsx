@@ -161,6 +161,9 @@ function buildTranscriptBlocks(entries, questions = []) {
       blocks.push({
         id: `block-${i}`,
         type: 'system_welcome',
+        uiVariant: entry.uiVariant,
+        title: entry.title,
+        lines: entry.lines,
         text: entry.text || entry.content || 'Welcome to your ClearQuest Interview.',
         timestamp: entry.timestamp,
         visibleToCandidate: entry.visibleToCandidate !== false
@@ -174,6 +177,7 @@ function buildTranscriptBlocks(entries, questions = []) {
       blocks.push({
         id: `block-${i}`,
         type: 'resume_marker',
+        uiVariant: entry.uiVariant,
         text: entry.text || 'Welcome back. Resuming where you left off.',
         timestamp: entry.timestamp,
         visibleToCandidate: entry.visibleToCandidate !== false
@@ -404,8 +408,35 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // System welcome message
+  // System welcome message - match CandidateInterview UI exactly
   if (type === 'system_welcome') {
+    // Use structured data if available (new format), fallback to text
+    if (block.uiVariant === 'WELCOME_CARD' && block.title && block.lines) {
+      return (
+        <div className="space-y-2">
+          <RoleTimestamp role="System" time={timeLabel} />
+          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                <Shield className="w-6 h-6 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-3">{block.title}</h2>
+                <div className="space-y-2">
+                  {block.lines.map((line, idx) => (
+                    <p key={idx} className="text-slate-300 text-sm leading-relaxed">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Fallback for old format
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
@@ -415,12 +446,7 @@ function TranscriptBlock({ block, viewMode }) {
               <Shield className="w-6 h-6 text-blue-400" />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-white mb-2">
-                Welcome to your ClearQuest Interview
-              </h2>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                This interview is part of your application process. One question at a time, at your own pace.
-              </p>
+              <p className="text-slate-300 text-sm leading-relaxed">{block.text}</p>
             </div>
           </div>
         </div>
