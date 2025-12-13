@@ -4266,8 +4266,39 @@ export default function CandidateInterview() {
           <div className="space-y-2">
           {/* Always render transcript history (PART C: transcript visible during V3 gate) */}
           {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
-            <ContentContainer>
-              {activeBlocker.type === 'SYSTEM_INTRO' && (
+            // Skip blocking messages in transcript view (they're shown as bottom cards when active)
+            if (entry.blocking === true) return null;
+            
+            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
+            if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+            
+            // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
+            if (entry.role === 'assistant' && typeof entry.text === 'string') {
+              const textLower = entry.text.trim().toLowerCase();
+              if (textLower.startsWith('do you have another')) {
+                console.log('[V3 UX] Suppressed transcript gate prompt', { 
+                  messageType: entry.messageType,
+                  textPreview: entry.text?.slice(0, 80)
+                });
+                return null;
+              }
+            }
+            
+            return (
+            <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+              
+              {/* Session resumed marker (collapsed system note) */}
+              {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
                 <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
                   <div className="flex items-start gap-4">
                     <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
@@ -4317,112 +4348,7 @@ export default function CandidateInterview() {
                 </div>
               )}
               
-              {activeBlocker.type === 'V3_GATE' && (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-base font-semibold text-purple-400">Next</span>
-                  </div>
-                  <p className="text-white text-base leading-relaxed">
-                    {activeBlocker.promptText || 'Do you have another incident to add?'}
-                  </p>
-                </div>
-              )}
-            </ContentContainer>
-          ) : (
-            <>
-          {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
-            // Skip blocking messages in transcript view (they're shown as bottom cards when active)
-            if (entry.blocking === true) return null;
-            
-            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
-            if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
-              return (
-                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-                  <ContentContainer>
-                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                  </div>
-                  </ContentContainer>
-                </div>
-              );
-            }
-            
-            // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
-            if (entry.role === 'assistant' && typeof entry.text === 'string') {
-              const textLower = entry.text.trim().toLowerCase();
-              if (textLower.startsWith('do you have another')) {
-                console.log('[V3 UX] Suppressed transcript gate prompt', { 
-                  messageType: entry.messageType,
-                  textPreview: entry.text?.slice(0, 80)
-                });
-                return null;
-              }
-            }
-            
-            return (
-            <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              
-              {/* Session resumed marker (collapsed system note) */}
-              {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
-                <ContentContainer>
-                <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
-                  <p className="text-blue-300 text-sm">{entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
-              
-              {/* V3 opener question (FOLLOWUP_CARD_SHOWN or v3_opener_question) */}
-              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' || 
-                (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
-                <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-purple-400 font-medium">
-                      Follow-up • {entry.categoryLabel || entry.title || 'Details'}
-                    </span>
-                  </div>
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                  {entry.example && (
-                    <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                      <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                      <p className="text-slate-300 text-xs italic">{entry.example}</p>
-                    </div>
-                  )}
-                </div>
-                </ContentContainer>
-              )}
-              
-              {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.text}</p>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
-              
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
-                <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
-                  </div>
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
-              
-              {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
-                    <p className="text-white text-sm">{entry.text}</p>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
-              
+
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
                 <ContentContainer>
@@ -4570,13 +4496,13 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-            </div>
-            );
-          })}
-          
-          {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
-          {activeBlocker && (
-            <ContentContainer>
+              </div>
+              );
+              })}
+
+              {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
+              {activeBlocker && (
+              <ContentContainer>
               {activeBlocker.type === 'SYSTEM_INTRO' && (
                 <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
                   <div className="flex items-start gap-4">
