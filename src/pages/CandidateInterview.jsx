@@ -1022,10 +1022,10 @@ export default function CandidateInterview() {
 
           // Log section started if not new session
           if (loadedSession.total_questions_answered > 0 && orderedSections[initialSectionIndex]) {
-            await logSectionStarted(sessionId, {
+            logSectionStarted(sessionId, {
               sectionId: orderedSections[initialSectionIndex].id,
               sectionName: orderedSections[initialSectionIndex].displayName
-            });
+            }).catch(err => console.warn('[SECTION_STARTED] Log failed:', err));
           }
         }
       } catch (sectionErr) {
@@ -1978,7 +1978,7 @@ export default function CandidateInterview() {
         });
         
         // Log pack exited (audit only)
-        await logPackExited(sessionId, { packId, instanceNumber });
+        logPackExited(sessionId, { packId, instanceNumber }).catch(() => {});
         
         // Trigger summary generation for completed question (background)
         base44.functions.invoke('triggerSummaries', {
@@ -2178,11 +2178,11 @@ export default function CandidateInterview() {
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
         
         // Log answer submitted (audit only)
-        await logAnswerSubmitted(sessionId, {
+        logAnswerSubmitted(sessionId, {
           questionDbId: currentItem.id,
           responseId: savedResponse?.id,
           packId: null
-        });
+        }).catch(() => {});
 
         // UX: Clear draft on successful submit
         clearDraft();
@@ -2351,7 +2351,7 @@ export default function CandidateInterview() {
               });
               
               // Log pack entered (audit only)
-              await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
+              logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true }).catch(() => {});
               
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
@@ -2419,7 +2419,7 @@ export default function CandidateInterview() {
               console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
               
               // Log pack entered (audit only)
-              await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
+              logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false }).catch(() => {});
               
               // Special log for PACK_PRIOR_LE_APPS_STANDARD
               if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
@@ -3510,10 +3510,10 @@ export default function CandidateInterview() {
     
     // Log pack exited (audit only)
     if (v3ProbingContext?.packId) {
-      await logPackExited(sessionId, { 
+      logPackExited(sessionId, { 
         packId: v3ProbingContext.packId, 
         instanceNumber: v3ProbingContext.instanceNumber || 1 
-      });
+      }).catch(() => {});
     }
     
     // Advance to next base question
