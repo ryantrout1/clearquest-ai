@@ -199,7 +199,8 @@ export default function V3ProbingLoop({
           messageType: 'v3_probe_question',
           categoryId,
           incidentId: currentIncidentId,
-          probeCount: newProbeCount
+          probeCount: newProbeCount,
+          visibleToCandidate: true
         });
 
         // Persist AI message to local transcript
@@ -248,7 +249,8 @@ export default function V3ProbingLoop({
           messageType: 'v3_probe_complete',
           categoryId,
           incidentId: finalIncidentId,
-          nextAction: data.nextAction
+          nextAction: data.nextAction,
+          visibleToCandidate: true
         });
 
         // Show multi-instance gate before setting isComplete
@@ -275,17 +277,27 @@ export default function V3ProbingLoop({
         stack: err.stack
       });
       
-      // Show error and allow graceful exit
-      const errorMessage = {
-        id: `v3-error-${Date.now()}`,
-        role: "ai",
-        content: "I apologize, there was a technical issue. Let's continue with the interview.",
-        isError: true,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      setIsComplete(true);
-      setCompletionReason("ERROR");
+      // Only show "technical issue" card for truly fatal errors, NOT for transcript logging issues
+      const isTranscriptLoggingError = err.message?.includes('visibleToCandidate must be explicitly set');
+      
+      if (isTranscriptLoggingError) {
+        console.warn("[V3_PROBING][TRANSCRIPT_ERROR] Transcript logging failed but interview can continue:", err.message);
+        // Continue interview flow - don't show error card
+        setIsComplete(true);
+        setCompletionReason("STOP");
+      } else {
+        // Show error for truly fatal issues
+        const errorMessage = {
+          id: `v3-error-${Date.now()}`,
+          role: "ai",
+          content: "I apologize, there was a technical issue. Let's continue with the interview.",
+          isError: true,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setIsComplete(true);
+        setCompletionReason("ERROR");
+      }
     } finally {
       setIsLoading(false);
     }
