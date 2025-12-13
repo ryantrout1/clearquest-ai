@@ -4188,7 +4188,17 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
-          {transcript.map((entry, index) => (
+          {transcript.map((entry, index) => {
+            // UX: Suppress duplicate multi-instance prompts when the interactive gate is visible
+            const isDuplicateGatePrompt = v3MultiInstancePrompt && entry.role === 'assistant' && 
+              (entry.text?.includes('Do you have another') || entry.text === v3MultiInstancePrompt.replace(/^Next • /, ''));
+            
+            if (isDuplicateGatePrompt) {
+              console.log("[UX] Suppressed duplicate multi-instance transcript prompt", { text: entry.text });
+              return null;
+            }
+            
+            return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
               {/* SYSTEM Welcome message */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
@@ -4430,7 +4440,8 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
             </div>
-          ))}
+            );
+          })}
           
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
@@ -4547,11 +4558,10 @@ export default function CandidateInterview() {
           ) : v3ProbingActive && v3MultiInstancePrompt ? (
             <div className="space-y-2">
               <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-purple-400 font-medium">
-                    Next • {v3MultiInstancePrompt.replace(/^Next • /, '')}
-                  </span>
-                </div>
+                <p className="text-white text-sm leading-relaxed">
+                  <span className="text-purple-400 font-medium">Next • </span>
+                  {v3MultiInstancePrompt.replace(/^Next • /, '')}
+                </p>
               </div>
               <div className="flex gap-3">
                 <Button
