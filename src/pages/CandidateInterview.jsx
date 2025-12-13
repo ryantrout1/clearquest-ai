@@ -4835,17 +4835,35 @@ export default function CandidateInterview() {
           });
           })()}
 
-          {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
-          {activeBlocker && (
+          {/* Welcome Card - Always show when WELCOME mode */}
+          {screenMode === 'WELCOME' && (
               <ContentContainer>
-              {activeBlocker.type === 'SYSTEM_INTRO' && (
-                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-...
+                <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Shield className="w-5 h-5 text-blue-400" />
+                    <span className="text-base font-semibold text-blue-400">Welcome to your ClearQuest Interview</span>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-slate-200 text-sm leading-relaxed">
+                      This interview is part of your application process.
+                    </p>
+                    <p className="text-slate-200 text-sm leading-relaxed">
+                      One question at a time, at your own pace.
+                    </p>
+                    <p className="text-slate-200 text-sm leading-relaxed">
+                      Clear, complete, and honest answers help investigators understand the full picture.
+                    </p>
+                    <p className="text-slate-200 text-sm leading-relaxed">
+                      You can pause and come back — we'll pick up where you left off.
+                    </p>
+                  </div>
                 </div>
-              )}
+              </ContentContainer>
+          )}
 
-              {/* REMOVED: SECTION_MESSAGE blocker card - transcript already has SECTION_COMPLETE entry */}
-
+          {/* Other blockers (non-welcome) */}
+          {activeBlocker && activeBlocker.type !== 'SYSTEM_INTRO' && (
+              <ContentContainer>
               {activeBlocker.type === 'V3_GATE' && (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                   <div className="flex items-center gap-2 mb-2">
@@ -4978,24 +4996,67 @@ export default function CandidateInterview() {
               <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Blocking Message Actions */}
-          {activeBlocker?.type === 'SYSTEM_INTRO' ? (
+          {screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
-                  console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO - Starting interview");
+                  console.log("[WELCOME][BEGIN][BEFORE]", { 
+                    screenMode, 
+                    currentItemType: currentItem?.type,
+                    currentItemId: currentItem?.id,
+                    hasEngine: !!engine,
+                    hasSections: sections.length > 0
+                  });
                   
-                  // Mark blocker resolved
-                  setTranscriptSafe(prev => prev.map(e =>
-                    e.id === activeBlocker.id ? { ...e, resolved: true } : e
-                  ));
+                  // Get first question from section-first order
+                  const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
+                    ? sections[0].questionIds[0]
+                    : engine?.ActiveOrdered?.[0];
                   
-                  // Start interview: set currentItem to first question
-                  const firstQuestionId = engine.ActiveOrdered[0];
-                  if (firstQuestionId) {
-                    setCurrentItem({ id: firstQuestionId, type: 'question' });
-                    setScreenMode("QUESTION");
-                    await persistStateToDatabase(transcript, [], { id: firstQuestionId, type: 'question' });
+                  if (!firstQuestionId) {
+                    console.error("[WELCOME][BEGIN][ERROR] No first question found!", {
+                      sectionsCount: sections.length,
+                      firstSection: sections[0]?.id,
+                      firstSectionQuestions: sections[0]?.questionIds?.length,
+                      engineActiveCount: engine?.ActiveOrdered?.length
+                    });
+                    setError("Could not load the first question. Please refresh or contact support.");
+                    return;
                   }
+                  
+                  const firstQuestion = engine.QById[firstQuestionId];
+                  if (!firstQuestion) {
+                    console.error("[WELCOME][BEGIN][ERROR] First question not in engine:", firstQuestionId);
+                    setError("Could not load the first question. Please refresh or contact support.");
+                    return;
+                  }
+                  
+                  console.log("[WELCOME][BEGIN][STARTING]", {
+                    firstQuestionId,
+                    firstQuestionCode: firstQuestion.question_id,
+                    firstQuestionText: firstQuestion.question_text?.substring(0, 50)
+                  });
+                  
+                  // Mark blocker resolved (if exists)
+                  if (activeBlocker) {
+                    setTranscriptSafe(prev => prev.map(e =>
+                      e.id === activeBlocker.id ? { ...e, resolved: true } : e
+                    ));
+                  }
+                  
+                  // Set screen mode and current item to first question
+                  setScreenMode("QUESTION");
+                  setCurrentItem({ id: firstQuestionId, type: 'question' });
+                  setCurrentSectionIndex(0);
+                  
+                  await persistStateToDatabase(transcript, [], { id: firstQuestionId, type: 'question' });
+                  
+                  console.log("[WELCOME][BEGIN][AFTER]", {
+                    screenMode: "QUESTION",
+                    currentItemType: 'question',
+                    currentItemId: firstQuestionId,
+                    questionCode: firstQuestion.question_id
+                  });
                   
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
@@ -5005,7 +5066,7 @@ export default function CandidateInterview() {
                 Got it — Let's Begin
               </Button>
             </div>
-          ) : activeBlocker?.type === 'SECTION_MESSAGE' ? (
+          ) : activeBlocker?.type === 'SECTION_MESSAGE' && uiCurrentItem?.type !== 'section_transition' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
