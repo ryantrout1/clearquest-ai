@@ -822,6 +822,7 @@ export default function CandidateInterview() {
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
+  const [pendingTransition, setPendingTransition] = useState(null);
 
   const historyRef = useRef(null);
   const displayOrderRef = useRef(0);
@@ -3521,47 +3522,17 @@ export default function CandidateInterview() {
     return '';
   }, [engine]);
 
-  // V3 probing completion handler
-  const handleV3ProbingComplete = useCallback(async (result) => {
-    console.log("[V3_PROBING][COMPLETE] ========== V3 PROBING FINISHED ==========");
-    console.log("[V3_PROBING][COMPLETE]", result);
+  // V3 probing completion handler - deferred transition pattern
+  const handleV3ProbingComplete = useCallback((result) => {
+    console.log("[V3_PROBING][COMPLETE][DEFERRED] ========== V3 EXIT REQUESTED ==========");
+    console.log("[V3_PROBING][COMPLETE][DEFERRED]", result);
     
-    const { incidentId, categoryId, completionReason, messages } = result;
-    const baseQuestionId = v3ProbingContext?.baseQuestionId;
-    
-    // Add V3 completion to transcript
-    const v3CompleteEntry = {
-      id: `v3-complete-${Date.now()}`,
-      type: 'v3_probing_complete',
-      categoryId,
-      incidentId,
-      completionReason,
-      messageCount: messages?.length || 0,
-      timestamp: new Date().toISOString()
-    };
-    
-    const newTranscript = [...transcript, v3CompleteEntry];
-    setTranscript(newTranscript);
-    
-    // Exit V3 probing mode
-    setV3ProbingActive(false);
-    setV3ProbingContext(null);
-    
-    // Log pack exited (audit only)
-    if (v3ProbingContext?.packId) {
-      await logPackExited(sessionId, { 
-        packId: v3ProbingContext.packId, 
-        instanceNumber: v3ProbingContext.instanceNumber || 1 
-      });
-    }
-    
-    // Advance to next base question
-    if (baseQuestionId) {
-      await advanceToNextBaseQuestion(baseQuestionId, newTranscript);
-    }
-    
-    await persistStateToDatabase(newTranscript, [], null);
-  }, [v3ProbingContext, transcript, advanceToNextBaseQuestion, persistStateToDatabase]);
+    // DO NOT call state setters here - queue transition instead
+    setPendingTransition({
+      type: 'EXIT_V3',
+      payload: result
+    });
+  }, []);
   
   // V3 transcript update handler
   const handleV3TranscriptUpdate = useCallback((entry) => {
@@ -3570,6 +3541,59 @@ export default function CandidateInterview() {
       id: `v3-${entry.type}-${Date.now()}`
     }]);
   }, []);
+  
+  // Deferred transition handler (fixes React warning)
+  useEffect(() => {
+    if (!pendingTransition) return;
+    
+    const executePendingTransition = async () => {
+      console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type);
+      
+      if (pendingTransition.type === 'EXIT_V3') {
+        const result = pendingTransition.payload;
+        const { incidentId, categoryId, completionReason, messages } = result;
+        const baseQuestionId = v3ProbingContext?.baseQuestionId;
+        
+        // Add V3 completion to transcript
+        const v3CompleteEntry = {
+          id: `v3-complete-${Date.now()}`,
+          type: 'v3_probing_complete',
+          categoryId,
+          incidentId,
+          completionReason,
+          messageCount: messages?.length || 0,
+          timestamp: new Date().toISOString()
+        };
+        
+        const newTranscript = [...transcript, v3CompleteEntry];
+        setTranscript(newTranscript);
+        
+        // Exit V3 probing mode
+        setV3ProbingActive(false);
+        setV3ProbingContext(null);
+        
+        // Log pack exited (audit only)
+        if (v3ProbingContext?.packId) {
+          await logPackExited(sessionId, { 
+            packId: v3ProbingContext.packId, 
+            instanceNumber: v3ProbingContext.instanceNumber || 1 
+          });
+        }
+        
+        // Advance to next base question
+        if (baseQuestionId) {
+          await advanceToNextBaseQuestion(baseQuestionId, newTranscript);
+        }
+        
+        await persistStateToDatabase(newTranscript, [], null);
+      }
+      
+      // Clear transition
+      setPendingTransition(null);
+    };
+    
+    executePendingTransition();
+  }, [pendingTransition, v3ProbingContext, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
