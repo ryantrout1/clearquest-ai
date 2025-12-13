@@ -811,6 +811,10 @@ export default function CandidateInterview() {
   const triggeredPacksRef = useRef(new Set());
   const lastLoggedV2PackFieldRef = useRef(null);
   const lastLoggedFollowupCardIdRef = useRef(null);
+  
+  // Idempotency guards
+  const submittedKeysRef = useRef(new Set());
+  const completedSectionKeysRef = useRef(new Set());
 
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
@@ -1492,19 +1496,27 @@ export default function CandidateInterview() {
           answeredCount: answeredQuestionsInCompletedSection
         });
 
-        // Log section complete to transcript
-        await logSectionComplete(sessionId, {
-          completedSectionId: nextResult.completedSection.id,
-          completedSectionName: nextResult.completedSection.displayName,
-          nextSectionId: nextResult.nextSection.id,
-          nextSectionName: nextResult.nextSection.displayName,
-          progress: {
-            completedSections: nextResult.nextSectionIndex,
-            totalSections: totalSectionsCount,
-            answeredQuestions: answeredQuestionsInCompletedSection,
-            totalQuestions: totalQuestionsCount
-          }
-        });
+        // IDEMPOTENCY GUARD: Check if section already completed
+        const sectionCompleteKey = `${sessionId}::${nextResult.completedSection.id}`;
+        if (!completedSectionKeysRef.current.has(sectionCompleteKey)) {
+          completedSectionKeysRef.current.add(sectionCompleteKey);
+          
+          // Log section complete to transcript (only once)
+          await logSectionComplete(sessionId, {
+            completedSectionId: nextResult.completedSection.id,
+            completedSectionName: nextResult.completedSection.displayName,
+            nextSectionId: nextResult.nextSection.id,
+            nextSectionName: nextResult.nextSection.displayName,
+            progress: {
+              completedSections: nextResult.nextSectionIndex,
+              totalSections: totalSectionsCount,
+              answeredQuestions: answeredQuestionsInCompletedSection,
+              totalQuestions: totalQuestionsCount
+            }
+          });
+        } else {
+          console.log("[IDEMPOTENCY][SECTION_COMPLETE] Already logged for section:", nextResult.completedSection.id);
+        }
 
         // Reload transcript after logging
         const updatedSession = await base44.entities.InterviewSession.get(sessionId);
@@ -1640,6 +1652,31 @@ export default function CandidateInterview() {
   }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
 
   const handleAnswer = useCallback(async (value) => {
+    // IDEMPOTENCY GUARD: Build submit key and check if already submitted
+    const buildSubmitKey = (item) => {
+      if (!item) return null;
+      if (item.type === 'question') return `q:${item.id}`;
+      if (item.type === 'v2_pack_field') return `p:${item.packId}:${item.fieldKey}:${item.instanceNumber || 0}`;
+      if (item.type === 'v3_pack_opener') return `v3o:${item.packId}:${item.instanceNumber || 0}`;
+      if (item.type === 'followup') return `f:${item.packId}:${item.stepIndex}:${item.instanceNumber || 0}`;
+      if (item.type === 'multi_instance') return `mi:${item.questionId}:${item.packId}:${item.instanceNumber}`;
+      if (item.type === 'multi_instance_gate') return `g:${item.packId}:${item.instanceNumber}`;
+      return null;
+    };
+    
+    const submitKey = buildSubmitKey(currentItem);
+    
+    if (submitKey && submittedKeysRef.current.has(submitKey)) {
+      console.log(`[IDEMPOTENCY][BLOCKED] Already submitted for key: ${submitKey}`);
+      return;
+    }
+    
+    // Lock this submission immediately
+    if (submitKey) {
+      submittedKeysRef.current.add(submitKey);
+      console.log(`[IDEMPOTENCY][LOCKED] ${submitKey}`);
+    }
+    
     // EXPLICIT ENTRY LOG: Log which branch we're entering
     console.log(`[HANDLE_ANSWER][ENTRY] ========== ANSWER HANDLER INVOKED ==========`);
     console.log(`[HANDLE_ANSWER][ENTRY]`, {
@@ -1651,7 +1688,8 @@ export default function CandidateInterview() {
       v2PackMode,
       isCommitting,
       hasEngine: !!engine,
-      answerPreview: value?.substring?.(0, 50) || value
+      answerPreview: value?.substring?.(0, 50) || value,
+      submitKey
     });
 
     // EXPLICIT V2 PACK FIELD ENTRY LOG - confirm we're hitting this branch
@@ -2480,19 +2518,27 @@ export default function CandidateInterview() {
             answeredCount: answeredInGateSection
           });
 
-          // Log section complete to transcript
-          await logSectionComplete(sessionId, {
-            completedSectionId: currentSection?.id,
-            completedSectionName: currentSection?.displayName,
-            nextSectionId: nextSection?.id,
-            nextSectionName: nextSection?.displayName,
-            progress: {
-              completedSections: gateResult.nextSectionIndex,
-              totalSections: totalSectionsCount,
-              answeredQuestions: answeredInGateSection,
-              totalQuestions: totalQuestionsCount
-            }
-          });
+          // IDEMPOTENCY GUARD: Check if section already completed
+          const gateSectionCompleteKey = `${sessionId}::${currentSection?.id}`;
+          if (!completedSectionKeysRef.current.has(gateSectionCompleteKey)) {
+            completedSectionKeysRef.current.add(gateSectionCompleteKey);
+            
+            // Log section complete to transcript (only once)
+            await logSectionComplete(sessionId, {
+              completedSectionId: currentSection?.id,
+              completedSectionName: currentSection?.displayName,
+              nextSectionId: nextSection?.id,
+              nextSectionName: nextSection?.displayName,
+              progress: {
+                completedSections: gateResult.nextSectionIndex,
+                totalSections: totalSectionsCount,
+                answeredQuestions: answeredInGateSection,
+                totalQuestions: totalQuestionsCount
+              }
+            });
+          } else {
+            console.log("[IDEMPOTENCY][GATE_SECTION_COMPLETE] Already logged for section:", currentSection?.id);
+          }
 
           // Reload transcript after logging
           const updatedSession = await base44.entities.InterviewSession.get(sessionId);
@@ -5026,10 +5072,12 @@ export default function CandidateInterview() {
             </div>
           ) : isMultiInstanceGate ? (
           <div className="flex gap-3">
-           <Button
-             onClick={async () => {
-               console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
-               const gate = multiInstanceGate;
+          <Button
+            onClick={async () => {
+              if (isCommitting) return;
+              console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
+              const gate = multiInstanceGate;
+              setIsCommitting(true);
 
                // Append user's "Yes" answer to transcript
                const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
@@ -5087,17 +5135,20 @@ export default function CandidateInterview() {
 
                setCurrentItem(openerItem);
                await persistStateToDatabase(updatedSession.transcript_snapshot || [], [], openerItem);
+               setIsCommitting(false);
              }}
              disabled={isCommitting}
-             className="flex-1 bg-green-600 hover:bg-green-700"
+             className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
            >
              <Check className="w-5 h-5 mr-2" />
              Yes
            </Button>
            <Button
              onClick={async () => {
+               if (isCommitting) return;
                console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
                const gate = multiInstanceGate;
+               setIsCommitting(true);
 
                // Append user's "No" answer to transcript
                const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
@@ -5127,9 +5178,10 @@ export default function CandidateInterview() {
                if (gate.baseQuestionId) {
                  await advanceToNextBaseQuestion(gate.baseQuestionId, updatedSession.transcript_snapshot || []);
                }
+               setIsCommitting(false);
              }}
              disabled={isCommitting}
-             className="flex-1 bg-red-600 hover:bg-red-700"
+             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
            >
              <X className="w-5 h-5 mr-2" />
              No
@@ -5168,18 +5220,18 @@ export default function CandidateInterview() {
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
-                onClick={() => handleAnswer("Yes")}
+                onClick={() => !isCommitting && handleAnswer("Yes")}
                 disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-5 h-5 mr-2" />
                 Yes
               </Button>
               <Button
                 ref={noButtonRef}
-                onClick={() => handleAnswer("No")}
+                onClick={() => !isCommitting && handleAnswer("No")}
                 disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <X className="w-5 h-5 mr-2" />
                 No
@@ -5190,9 +5242,9 @@ export default function CandidateInterview() {
               {currentPrompt.options.map((option) => (
                 <Button
                   key={option}
-                  onClick={() => handleAnswer(option)}
+                  onClick={() => !isCommitting && handleAnswer(option)}
                   disabled={isCommitting}
-                  className="bg-purple-600 hover:bg-purple-700 text-sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {option}
                 </Button>
@@ -5201,17 +5253,17 @@ export default function CandidateInterview() {
           ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !isV3Gate ? (
             <div className="flex gap-3">
               <Button
-                onClick={() => handleAnswer("Yes")}
+                onClick={() => !isCommitting && handleAnswer("Yes")}
                 disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-5 h-5 mr-2" />
                 Yes
               </Button>
               <Button
-                onClick={() => handleAnswer("No")}
+                onClick={() => !isCommitting && handleAnswer("No")}
                 disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <X className="w-5 h-5 mr-2" />
                 No

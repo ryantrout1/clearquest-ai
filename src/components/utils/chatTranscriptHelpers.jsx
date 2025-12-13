@@ -272,21 +272,35 @@ export async function logQuestionShown(sessionId, { questionId, questionText, qu
   return updated;
 }
 
+// In-memory guard: prevent duplicate section completions (session-scoped)
+const completedSectionsRegistry = new Set();
+
 /**
  * Log section completion shown to candidate
- * Stable ID: section-complete-{sessionId}-{sectionId}-{sectionCompleteIndex}
+ * Stable ID: section-complete-{sessionId}-{sectionId}
  */
 export async function logSectionComplete(sessionId, { completedSectionId, completedSectionName, nextSectionId, nextSectionName, progress }) {
+  // IDEMPOTENCY GUARD #1: In-memory check (fastest)
+  const guardKey = `${sessionId}::${completedSectionId}`;
+  if (completedSectionsRegistry.has(guardKey)) {
+    console.log("[IDEMPOTENCY][SECTION_COMPLETE] Already logged in memory, skipping");
+    return null;
+  }
+  
   const session = await base44.entities.InterviewSession.get(sessionId);
   const existingTranscript = session.transcript_snapshot || [];
   
-  const sectionCompleteIndex = existingTranscript.filter(e => e.messageType === 'SECTION_COMPLETE' && e.meta?.completedSectionId === completedSectionId).length;
-  const id = `section-complete-${sessionId}-${completedSectionId}-${sectionCompleteIndex}`;
+  // IDEMPOTENCY GUARD #2: Check DB (canonical stable ID - no counter)
+  const id = `section-complete-${sessionId}-${completedSectionId}`;
   
   if (existingTranscript.some(e => e.id === id)) {
-    console.log("[TRANSCRIPT][SECTION_COMPLETE] Already logged, skipping");
+    console.log("[IDEMPOTENCY][SECTION_COMPLETE] Already logged in DB, skipping");
+    completedSectionsRegistry.add(guardKey); // Update memory cache
     return existingTranscript;
   }
+  
+  // Mark as logged in memory
+  completedSectionsRegistry.add(guardKey);
   
   const title = `Section Complete: ${completedSectionName}`;
   const lines = [
@@ -308,10 +322,21 @@ export async function logSectionComplete(sessionId, { completedSectionId, comple
   return updated;
 }
 
+// In-memory guard: prevent duplicate answer submitted events
+const answersSubmittedRegistry = new Set();
+
 /**
  * Log answer submitted (audit only)
  */
 export async function logAnswerSubmitted(sessionId, { questionDbId, responseId, packId = null }) {
+  // IDEMPOTENCY GUARD: Prevent duplicate ANSWER_SUBMITTED events
+  const guardKey = `${sessionId}::${questionDbId || 'null'}::${packId || 'null'}::${responseId || 'null'}`;
+  if (answersSubmittedRegistry.has(guardKey)) {
+    console.log("[IDEMPOTENCY][ANSWER_SUBMITTED] Already logged, skipping");
+    return;
+  }
+  
+  answersSubmittedRegistry.add(guardKey);
   await logSystemEvent(sessionId, 'ANSWER_SUBMITTED', { questionDbId, responseId, packId });
 }
 
