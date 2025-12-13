@@ -4032,6 +4032,7 @@ export default function CandidateInterview() {
   const currentPrompt = getCurrentPrompt();
 
   // PART B: Derive UI current item (prioritize gates over base question)
+  // Hooks must remain unconditional; gating done via enabled flags / safe fallbacks.
   const uiCurrentItem = React.useMemo(() => {
     // Priority 1: V3 gate
     if (v3GateActive) {
