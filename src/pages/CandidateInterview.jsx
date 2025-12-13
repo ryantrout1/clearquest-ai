@@ -47,7 +47,8 @@ import {
   logAnswerSubmitted,
   logPackEntered,
   logPackExited,
-  logSectionStarted
+  logSectionStarted,
+  logFollowupCardShown
 } from "../components/utils/chatTranscriptHelpers";
 
 // Global logging flag for CandidateInterview
