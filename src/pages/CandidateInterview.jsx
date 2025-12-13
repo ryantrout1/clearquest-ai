@@ -1084,9 +1084,8 @@ export default function CandidateInterview() {
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
-        // New session - add Welcome to transcript
-        const transcriptWithWelcome = await ensureWelcomeInTranscript(sessionId, []);
-        setTranscript(transcriptWithWelcome);
+        // New session - PART B: No Welcome transcript injection
+        setTranscript([]);
         
         const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
@@ -1098,12 +1097,12 @@ export default function CandidateInterview() {
 
       console.log("[CandidateInterview] init", {
         isNewSession: sessionIsNew,
-        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
+        screenMode: "QUESTION",
         layoutVersion: "section-first"
       });
 
       setIsNewSession(sessionIsNew);
-      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
+      setScreenMode("QUESTION"); // PART A: Always start in QUESTION mode
       
       // Log system events
       if (sessionIsNew) {
