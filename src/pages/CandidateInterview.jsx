@@ -4063,26 +4063,22 @@ export default function CandidateInterview() {
                   <Shield className="w-6 h-6 text-blue-400" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-white mb-2">
+                  <h2 className="text-xl font-bold text-white mb-3">
                     Welcome to your ClearQuest Interview
                   </h2>
-                  <p className="text-slate-300 text-sm leading-relaxed mb-4">
-                    This interview is part of your application process. Here's what to expect:
-                  </p>
-
                   <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-slate-300 text-sm">One question at a time, at your own pace</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-slate-300 text-sm">Clear, complete, and honest answers help investigators understand the full picture</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-slate-300 text-sm">You can pause and come back — we'll pick up where you left off</p>
-                    </div>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      This interview is part of your application process.
+                    </p>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      One question at a time, at your own pace.
+                    </p>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      Clear, complete, and honest answers help investigators understand the full picture.
+                    </p>
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                      You can pause and come back — we'll pick up where you left off.
+                    </p>
                   </div>
                 </div>
               </div>
