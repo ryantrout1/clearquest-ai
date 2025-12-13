@@ -13,6 +13,9 @@
 
 import { base44 } from "@/api/base44Client";
 
+// In-flight protection: Prevent concurrent writes for the same transcript ID
+const inFlightTranscriptIds = new Set();
+
 /**
  * Get next transcript index
  * Ensures monotonically increasing order
@@ -344,30 +347,45 @@ export async function logSectionStarted(sessionId, { sectionId, sectionName }) {
  * Stable ID: followup-card-{sessionId}-{packId}-{variant}-{stableKey}
  */
 export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null }) {
-  const session = await base44.entities.InterviewSession.get(sessionId);
-  const existingTranscript = session.transcript_snapshot || [];
-  
   const id = `followup-card-${sessionId}-${packId}-${variant}-${stableKey}`;
   
-  if (existingTranscript.some(e => e.id === id)) {
-    console.log("[TRANSCRIPT][FOLLOWUP_CARD] Already logged, skipping");
-    return existingTranscript;
+  // Guard #1: Check in-flight protection FIRST (no DB call)
+  if (inFlightTranscriptIds.has(id)) {
+    console.log("[TRANSCRIPT][FOLLOWUP_CARD] In-flight, skipping");
+    return null;
   }
   
-  const title = packLabel || "Follow-up";
-  
-  const updated = await appendAssistantMessage(sessionId, existingTranscript, promptText, {
-    id,
-    messageType: 'FOLLOWUP_CARD_SHOWN',
-    uiVariant: 'FOLLOWUP_CARD',
-    title,
-    example: exampleText,
-    meta: { packId, variant, instanceNumber, baseQuestionId, fieldKey },
-    visibleToCandidate: true
-  });
-  
-  await logSystemEvent(sessionId, 'FOLLOWUP_CARD_SHOWN', { packId, variant, stableKey, instanceNumber, fieldKey });
-  return updated;
+  try {
+    // Guard #2: Add to in-flight before any async work
+    inFlightTranscriptIds.add(id);
+    
+    const session = await base44.entities.InterviewSession.get(sessionId);
+    const existingTranscript = session.transcript_snapshot || [];
+    
+    // Guard #3: Check if already exists in DB
+    if (existingTranscript.some(e => e.id === id)) {
+      console.log("[TRANSCRIPT][FOLLOWUP_CARD] Already logged, skipping");
+      return existingTranscript;
+    }
+    
+    const title = packLabel || "Follow-up";
+    
+    const updated = await appendAssistantMessage(sessionId, existingTranscript, promptText, {
+      id,
+      messageType: 'FOLLOWUP_CARD_SHOWN',
+      uiVariant: 'FOLLOWUP_CARD',
+      title,
+      example: exampleText,
+      meta: { packId, variant, instanceNumber, baseQuestionId, fieldKey },
+      visibleToCandidate: true
+    });
+    
+    await logSystemEvent(sessionId, 'FOLLOWUP_CARD_SHOWN', { packId, variant, stableKey, instanceNumber, fieldKey });
+    return updated;
+  } finally {
+    // Guard #4: Always remove from in-flight set
+    inFlightTranscriptIds.delete(id);
+  }
 }
 
 /**

@@ -801,6 +801,7 @@ export default function CandidateInterview() {
   
   const triggeredPacksRef = useRef(new Set());
   const lastLoggedV2PackFieldRef = useRef(null);
+  const lastLoggedFollowupCardIdRef = useRef(null);
   
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
@@ -2027,13 +2028,14 @@ export default function CandidateInterview() {
         const { appendAssistantMessage, appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
         const currentTranscript = session.transcript_snapshot || [];
         
-        // Append assistant opener question
+        // Append assistant opener question (CRITICAL: visibleToCandidate must be explicit)
         const transcriptAfterQuestion = await appendAssistantMessage(sessionId, currentTranscript, openerText, {
           messageType: 'v3_opener_question',
           packId,
           categoryId,
           instanceNumber,
-          baseQuestionId
+          baseQuestionId,
+          visibleToCandidate: true
         });
         
         // Append user opener answer
@@ -3772,17 +3774,21 @@ export default function CandidateInterview() {
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
       
-      // RENDER-POINT LOGGING: Log follow-up card when shown
-      logFollowupCardShown(sessionId, {
-        packId,
-        variant: 'opener',
-        stableKey: `${instanceNumber}`,
-        promptText: openerText,
-        exampleText: exampleNarrative,
-        packLabel,
-        instanceNumber,
-        baseQuestionId: effectiveCurrentItem.baseQuestionId
-      }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard #2: log once per render)
+      const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
+      if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
+        lastLoggedFollowupCardIdRef.current = openerCardId;
+        logFollowupCardShown(sessionId, {
+          packId,
+          variant: 'opener',
+          stableKey: `${instanceNumber}`,
+          promptText: openerText,
+          exampleText: exampleNarrative,
+          packLabel,
+          instanceNumber,
+          baseQuestionId: effectiveCurrentItem.baseQuestionId
+        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+      }
       
       return {
         type: 'v3_pack_opener',
@@ -3821,19 +3827,23 @@ export default function CandidateInterview() {
       
       const packLabel = packConfig?.instancesLabel || 'Follow-up';
       
-      // RENDER-POINT LOGGING: Log follow-up card when shown (non-clarifier only)
+      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard #2: log once per render, non-clarifier only)
       if (!hasClarifierActive) {
-        logFollowupCardShown(sessionId, {
-          packId,
-          variant: 'field',
-          stableKey: `${fieldKey}-${instanceNumber}`,
-          promptText: displayText,
-          exampleText: null,
-          packLabel,
-          instanceNumber,
-          baseQuestionId: effectiveCurrentItem.baseQuestionId,
-          fieldKey
-        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
+        if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
+          lastLoggedFollowupCardIdRef.current = fieldCardId;
+          logFollowupCardShown(sessionId, {
+            packId,
+            variant: 'field',
+            stableKey: `${fieldKey}-${instanceNumber}`,
+            promptText: displayText,
+            exampleText: null,
+            packLabel,
+            instanceNumber,
+            baseQuestionId: effectiveCurrentItem.baseQuestionId,
+            fieldKey
+          }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }
       }
       
       return {
