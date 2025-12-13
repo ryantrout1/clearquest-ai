@@ -4084,10 +4084,13 @@ export default function CandidateInterview() {
   // IMPORTANT: Do NOT gate by currentItemType === 'question' - we want v2_pack_field to work too
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
-  if (screenMode === "WELCOME") {
+  // FIX A: Remove WELCOME mode early return - render Welcome as transcript card instead
+  const showWelcomeButton = screenMode === "WELCOME" && isNewSession && !currentItem;
+  
+  if (showWelcomeButton) {
+    // Initial welcome state before any questions loaded
     return (
       <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
-        {/* Header - same as question view */}
         <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-2">
@@ -4100,43 +4103,10 @@ export default function CandidateInterview() {
                   </>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPauseModal(true)}
-                className="bg-slate-700/50 border-slate-600 text-slate-200"
-              >
-                <Pause className="w-4 h-4 mr-1" />
-                Pause
-              </Button>
             </div>
-            
-            {sections.length > 0 && activeSection && (
-              <div>
-                <div className="text-sm font-medium text-blue-400 mb-1">
-                  {activeSection.displayName}
-                </div>
-                <div className="w-full h-2 bg-slate-700/30 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                    style={{ 
-                      width: `${questionCompletionPct}%`,
-                      boxShadow: questionCompletionPct > 0 ? '0 0 8px rgba(59, 130, 246, 0.5)' : 'none'
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-slate-400">
-                    Section {currentSectionIndex + 1} of {sections.length}
-                  </span>
-                  <span className="text-xs font-medium text-blue-400">{questionCompletionPct}% complete</span>
-                </div>
-              </div>
-            )}
           </div>
         </header>
 
-        {/* Main content - flex-1 with flex-end to dock card at bottom */}
         <main className="flex-1 flex flex-col justify-end items-center px-4 py-6">
           <div className="w-full max-w-4xl mb-6">
             <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
@@ -4168,13 +4138,11 @@ export default function CandidateInterview() {
           </div>
         </main>
 
-        {/* Footer - same pattern as question view */}
         <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
           <div className="max-w-5xl mx-auto flex flex-col items-center">
             <Button
               onClick={async () => {
                 console.log("[CandidateInterview] Starting interview - switching to QUESTION mode");
-                // Add Welcome to transcript when starting
                 const updatedTranscript = await ensureWelcomeInTranscript(sessionId, transcript);
                 setTranscript(updatedTranscript);
                 setScreenMode("QUESTION");
@@ -4553,7 +4521,7 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
           
-          {/* V3 GATE: Multi-instance prompt as main card */}
+          {/* V3 GATE: Multi-instance prompt as main card (takes full priority) */}
           {v3GateActive && !v3ProbingActive && (
            <ContentContainer>
            <div className="w-full">
@@ -4569,8 +4537,43 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* Current question inline in transcript */}
-          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && (
+          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' */}
+          {!v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
+           <ContentContainer>
+           <div ref={questionCardRef} className="w-full">
+             {(() => {
+               const question = engine.QById[currentItem.id];
+               if (!question) return null;
+               
+               const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+               const sectionName = sectionEntity?.section_name || question.category || '';
+               const questionNumber = getQuestionDisplayNumber(currentItem.id);
+               
+               return (
+                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                   <div className="flex items-center gap-2 mb-2">
+                     <span className="text-base font-semibold text-blue-400">
+                       Question {questionNumber}
+                     </span>
+                     <span className="text-sm text-slate-500">•</span>
+                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
+                   </div>
+                   <p className="text-white text-base leading-relaxed">{question.question_text}</p>
+                 </div>
+               );
+             })()}
+             
+             {validationHint && (
+               <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+                 <p className="text-yellow-200 text-sm">{validationHint}</p>
+               </div>
+             )}
+           </div>
+           </ContentContainer>
+          )}
+
+          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
