@@ -4437,7 +4437,7 @@ export default function CandidateInterview() {
                   <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base font-semibold text-purple-400">Next</span>
+                      <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                     </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
                   </div>
