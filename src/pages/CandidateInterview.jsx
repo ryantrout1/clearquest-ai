@@ -3587,16 +3587,10 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Auto-scroll to bottom when transcript updates (e.g., section completion messages)
+  // Auto-scroll to bottom when transcript or current item updates
   useEffect(() => {
-    if (historyRef.current && transcript.length > 0) {
-      setTimeout(() => {
-        if (historyRef.current) {
-          historyRef.current.scrollTop = historyRef.current.scrollHeight;
-        }
-      }, 50);
-    }
-  }, [transcript]);
+    autoScrollToBottom();
+  }, [transcript, currentItem, v3ProbingActive, autoScrollToBottom]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
@@ -4266,7 +4260,7 @@ export default function CandidateInterview() {
               
               {/* Base questions with answers - only show if answered */}
               {entry.type === 'question' && entry.answer && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-base font-semibold text-blue-400">
@@ -4278,8 +4272,8 @@ export default function CandidateInterview() {
                     <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
                   </div>
                   <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3">
-                      <p className="text-white">{entry.answer}</p>
+                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.answer}</p>
                     </div>
                   </div>
                 </div>
