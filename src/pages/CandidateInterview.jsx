@@ -4252,7 +4252,7 @@ export default function CandidateInterview() {
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">AI Follow-Up</span>
+                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
@@ -4544,35 +4544,40 @@ export default function CandidateInterview() {
               </p>
             </div>
           ) : v3ProbingActive && v3MultiInstancePrompt ? (
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  if (v3MultiInstanceHandler) {
-                    v3MultiInstanceHandler('Yes');
-                  }
-                }}
-                disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                <Check className="w-5 h-5 mr-2" />
-                Yes
-              </Button>
-              <Button
-                onClick={() => {
-                  if (v3MultiInstanceHandler) {
-                    v3MultiInstanceHandler('No');
-                  }
-                }}
-                disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700"
-              >
-                <X className="w-5 h-5 mr-2" />
-                No
-              </Button>
+            <div className="space-y-3">
+              <div className="text-center">
+                <p className="text-white text-sm font-medium">{v3MultiInstancePrompt}</p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    if (v3MultiInstanceHandler) {
+                      v3MultiInstanceHandler('Yes');
+                    }
+                  }}
+                  disabled={isCommitting}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <Check className="w-5 h-5 mr-2" />
+                  Yes
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (v3MultiInstanceHandler) {
+                      v3MultiInstanceHandler('No');
+                    }
+                  }}
+                  disabled={isCommitting}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  No
+                </Button>
+              </div>
             </div>
           ) : v3ProbingActive ? (
-                <p className="text-xs text-emerald-400 text-center">
-                  Please respond to the AI follow-up questions above.
+                <p className="text-xs text-slate-400 text-center">
+                  Please respond to the follow-up questions above.
                 </p>
               ) : isYesNoQuestion && !isV2PackField ? (
             <div className="flex gap-3">
