@@ -2025,8 +2025,12 @@ export default function CandidateInterview() {
         });
         
         // FIX #3: Append opener as assistant+user messages to transcript
+        // CRITICAL: Re-fetch latest transcript before each append to prevent overwrite
         const { appendAssistantMessage, appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-        const currentTranscript = session.transcript_snapshot || [];
+        const freshSession = await base44.entities.InterviewSession.get(sessionId);
+        const currentTranscript = freshSession.transcript_snapshot || [];
+        
+        console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
         
         // Append assistant opener question (CRITICAL: visibleToCandidate must be explicit)
         const transcriptAfterQuestion = await appendAssistantMessage(sessionId, currentTranscript, openerText, {
@@ -2038,6 +2042,8 @@ export default function CandidateInterview() {
           visibleToCandidate: true
         });
         
+        console.log("[V3_OPENER][TRANSCRIPT_AFTER_Q]", { length: transcriptAfterQuestion.length });
+        
         // Append user opener answer
         const transcriptAfterAnswer = await appendUserMessage(sessionId, transcriptAfterQuestion, value, {
           messageType: 'v3_opener_answer',
@@ -2046,6 +2052,8 @@ export default function CandidateInterview() {
           instanceNumber,
           baseQuestionId
         });
+        
+        console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
         
         // Update local UI transcript
         const newTranscript = transcriptAfterAnswer;
@@ -2064,9 +2072,12 @@ export default function CandidateInterview() {
           questionText: openerText
         });
         
-        // Append to canonical transcript
+        // Append to canonical transcript (legacy logging - may be deprecated)
         try {
-          const currentTranscript = session.transcript_snapshot || [];
+          // Re-fetch latest transcript to avoid stale snapshot
+          const freshSessionForCanonical = await base44.entities.InterviewSession.get(sessionId);
+          const canonicalTranscript = freshSessionForCanonical.transcript_snapshot || [];
+          
           const baseResponses = await base44.entities.Response.filter({
             session_id: sessionId,
             question_id: baseQuestionId,
@@ -2078,7 +2089,7 @@ export default function CandidateInterview() {
           if (!hasQuestionBeenLogged(sessionId, questionKey)) {
             await appendQuestionEntry({
               sessionId,
-              existingTranscript: currentTranscript,
+              existingTranscript: canonicalTranscript,
               text: openerText,
               questionId: baseQuestionId,
               packId,
@@ -2091,7 +2102,7 @@ export default function CandidateInterview() {
           
           await appendAnswerEntry({
             sessionId,
-            existingTranscript: currentTranscript,
+            existingTranscript: canonicalTranscript,
             text: value,
             questionId: baseQuestionId,
             packId,
