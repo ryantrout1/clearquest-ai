@@ -3547,12 +3547,14 @@ export default function CandidateInterview() {
     if (!pendingTransition) return;
     
     const executePendingTransition = async () => {
-      console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type);
+      console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
       
       if (pendingTransition.type === 'EXIT_V3') {
         const result = pendingTransition.payload;
-        const { incidentId, categoryId, completionReason, messages } = result;
+        const { incidentId, categoryId, completionReason, messages, reason } = result;
         const baseQuestionId = v3ProbingContext?.baseQuestionId;
+        
+        console.log('[PENDING_TRANSITION][EXIT_V3] Exiting V3 mode', { reason, baseQuestionId });
         
         // Add V3 completion to transcript
         const v3CompleteEntry = {
@@ -3571,6 +3573,7 @@ export default function CandidateInterview() {
         // Exit V3 probing mode
         setV3ProbingActive(false);
         setV3ProbingContext(null);
+        setV3MultiInstancePrompt(null); // Clear multi-instance prompt
         
         // Log pack exited (audit only)
         if (v3ProbingContext?.packId) {
@@ -3833,6 +3836,10 @@ export default function CandidateInterview() {
       const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
       if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
         lastLoggedFollowupCardIdRef.current = openerCardId;
+        
+        // Get categoryLabel from currentItem context
+        const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
+        
         logFollowupCardShown(sessionId, {
           packId,
           variant: 'opener',
@@ -3840,6 +3847,7 @@ export default function CandidateInterview() {
           promptText: openerText,
           exampleText: exampleNarrative,
           packLabel,
+          categoryLabel: categoryLabelForLog, // Pass categoryLabel for rendering
           instanceNumber,
           baseQuestionId: effectiveCurrentItem.baseQuestionId
         }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
@@ -4285,15 +4293,23 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
               
-              {entry.role === 'assistant' && entry.messageType === 'v3_opener_question' && (
+              {/* V3 opener question (FOLLOWUP_CARD_SHOWN or v3_opener_question) */}
+              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' || 
+                (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs text-purple-400 font-medium">
-                      Follow-up • {entry.categoryLabel || 'Details'}
+                      Follow-up • {entry.categoryLabel || entry.title || 'Details'}
                     </span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  {entry.example && (
+                    <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                      <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                      <p className="text-slate-300 text-xs italic">{entry.example}</p>
+                    </div>
+                  )}
                 </div>
                 </ContentContainer>
               )}

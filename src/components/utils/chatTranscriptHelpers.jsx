@@ -373,7 +373,7 @@ export async function logSectionStarted(sessionId, { sectionId, sectionName }) {
  * Stable ID: followup-card-{sessionId}-{packId}-opener-{instanceNumber} OR
  *            followup-card-{sessionId}-{packId}-field-{fieldKey}-{instanceNumber}
  */
-export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null }) {
+export async function logFollowupCardShown(sessionId, { packId, variant, stableKey, promptText, exampleText = null, packLabel = null, instanceNumber = 1, baseQuestionId = null, fieldKey = null, categoryLabel = null }) {
   // CANONICAL ID GENERATION: Ignore stableKey, build from canonical rules only
   let id;
   if (variant === 'opener') {
@@ -415,6 +415,7 @@ export async function logFollowupCardShown(sessionId, { packId, variant, stableK
       uiVariant: 'FOLLOWUP_CARD',
       title,
       example: exampleText,
+      categoryLabel, // Pass through for V3 opener rendering
       meta: { packId, variant, instanceNumber, baseQuestionId, fieldKey },
       visibleToCandidate: true
     });

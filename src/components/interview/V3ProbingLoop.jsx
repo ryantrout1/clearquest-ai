@@ -257,13 +257,19 @@ export default function V3ProbingLoop({
           visibleToCandidate: true
         });
 
-        // Show multi-instance gate before setting isComplete
-        setIsComplete(false); // Keep probing interface active
-        setShowMultiInstancePrompt(true); // New state for multi-instance gate
-
-        // Notify parent to show Yes/No in footer
+        // Show multi-instance gate RELIABLY: set state synchronously
+        console.log('[V3_PROBING][MULTI_INSTANCE] Showing multi-instance prompt', {
+          categoryLabel: categoryLabel || 'incident',
+          instanceNumber
+        });
+        
+        setShowMultiInstancePrompt(true);
+        
+        // Notify parent to show Yes/No in footer (with "Next • " prefix)
         if (onMultiInstancePrompt) {
-          onMultiInstancePrompt(`Do you have another ${categoryLabel || 'incident'} to add?`);
+          const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
+          onMultiInstancePrompt(promptText);
+          console.log('[V3_PROBING][MULTI_INSTANCE] Sent prompt to parent:', promptText);
         }
 
         // Persist completion to local transcript
