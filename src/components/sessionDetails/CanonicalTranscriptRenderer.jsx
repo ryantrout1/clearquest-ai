@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function CanonicalTranscriptRenderer({ session, questions = [], searchTerm = "", showOnlyFollowUps = false, viewMode = "candidate" }) {
+export default function CanonicalTranscriptRenderer({ session, questions = [], searchTerm = "", showOnlyFollowUps = false, viewMode = "candidate", responses = [] }) {
   const originalEntries = session?.transcript_snapshot || [];
   
   console.log("[TRANSCRIPT][SESSION_DETAILS] Loaded entries:", originalEntries.length);
@@ -109,7 +109,7 @@ export default function CanonicalTranscriptRenderer({ session, questions = [], s
   });
   
   // Group entries into renderable blocks that match the candidate UI
-  const blocks = buildTranscriptBlocks(sortedEntries, questions);
+  const blocks = buildTranscriptBlocks(sortedEntries, questions, responses);
   
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
@@ -138,7 +138,7 @@ export default function CanonicalTranscriptRenderer({ session, questions = [], s
  * Build renderable blocks from raw transcript entries
  * Each block represents a visual card/bubble in the candidate interview UI
  */
-function buildTranscriptBlocks(entries, questions = []) {
+function buildTranscriptBlocks(entries, questions = [], responses = []) {
   const blocks = [];
   let i = 0;
   
@@ -152,8 +152,26 @@ function buildTranscriptBlocks(entries, questions = []) {
   // Build sequential counter for questions without question_number
   let sequentialNumber = 0;
   
+  // Build pack response lookup: packId-fieldKey-instanceNumber -> response
+  const packResponseMap = {};
+  responses.forEach(r => {
+    if (r.pack_id && r.field_key) {
+      const key = `${r.pack_id}-${r.field_key}-${r.instance_number || 1}`;
+      packResponseMap[key] = r;
+    }
+  });
+  
+  console.log('[TRANSCRIPT][PACK_RESPONSES]', {
+    totalResponses: responses.length,
+    packResponses: Object.keys(packResponseMap).length,
+    sampleKeys: Object.keys(packResponseMap).slice(0, 5)
+  });
+  
   while (i < entries.length) {
     const entry = entries[i];
+    
+    // Store index for answer lookup
+    entry.index = i;
     const kind = entry.kind || entry.eventType || entry.type || "";
     
     // System welcome message
@@ -174,6 +192,23 @@ function buildTranscriptBlocks(entries, questions = []) {
 
     // Follow-up card shown (V2 field or V3 opener)
     if (entry.messageType === 'FOLLOWUP_CARD_SHOWN') {
+      // Look up candidate answer from Response entity
+      const packId = entry.meta?.packId;
+      const fieldKey = entry.meta?.fieldKey;
+      const instanceNumber = entry.meta?.instanceNumber || 1;
+      const lookupKey = `${packId}-${fieldKey}-${instanceNumber}`;
+      const packResponse = packResponseMap[lookupKey];
+      const candidateAnswer = packResponse?.answer;
+      
+      console.log('[TRANSCRIPT][FOLLOWUP_CARD]', {
+        packId,
+        fieldKey,
+        instanceNumber,
+        lookupKey,
+        foundResponse: !!packResponse,
+        answer: candidateAnswer
+      });
+      
       blocks.push({
         id: `block-${i}`,
         type: 'followup_card',
@@ -183,7 +218,9 @@ function buildTranscriptBlocks(entries, questions = []) {
         example: entry.example,
         meta: entry.meta,
         timestamp: entry.timestamp,
-        visibleToCandidate: entry.visibleToCandidate !== false
+        visibleToCandidate: entry.visibleToCandidate !== false,
+        candidateAnswer, // Include answer in block
+        index: i // Store for potential future lookups
       });
       i++;
       continue;
@@ -615,6 +652,9 @@ function TranscriptBlock({ block, viewMode }) {
   
   // Follow-up card - render from stored structured fields
   if (type === 'followup_card') {
+    // Use answer from block (already looked up from Response entity)
+    const candidateAnswer = block.candidateAnswer;
+    
     return (
       <div className="space-y-2 ml-4">
         <RoleTimestamp role="Investigator" time={timeLabel} />
@@ -643,6 +683,18 @@ function TranscriptBlock({ block, viewMode }) {
             </div>
           </div>
         </div>
+        
+        {/* Render candidate answer if it exists */}
+        {candidateAnswer && (
+          <>
+            <RoleTimestamp role="Candidate" time={timeLabel} />
+            <div className="flex justify-end">
+              <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-3xl">
+                <p className="text-white">{candidateAnswer}</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }

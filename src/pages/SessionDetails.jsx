@@ -1460,6 +1460,7 @@ export default function SessionDetails() {
               <CanonicalTranscriptRenderer 
                 session={session}
                 questions={questions}
+                responses={responses}
                 searchTerm={searchTerm}
                 showOnlyFollowUps={showOnlyFollowUps}
                 viewMode={transcriptViewMode}
