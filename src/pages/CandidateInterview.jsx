@@ -1576,16 +1576,6 @@ export default function CandidateInterview() {
         const newTranscript = [...transcript, v2CombinedEntry];
         setTranscript(newTranscript);
         
-        // Log user answer to transcript_snapshot
-        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-        const currentCanonicalTranscript = session.transcript_snapshot || [];
-        await appendUserMessage(sessionId, currentCanonicalTranscript, finalAnswer, {
-          packId,
-          fieldKey,
-          instanceNumber,
-          baseQuestionId
-        });
-        
         // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
         const v2ResponseRecord = await saveV2PackFieldResponse({
           sessionId,
@@ -2186,14 +2176,6 @@ export default function CandidateInterview() {
         
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
-        
-        // Log user answer to transcript_snapshot
-        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-        const currentTranscript = session.transcript_snapshot || [];
-        await appendUserMessage(sessionId, currentTranscript, value, {
-          questionId: currentItem.id,
-          responseId: savedResponse?.id
-        });
         
         // Log answer submitted (audit only)
         await logAnswerSubmitted(sessionId, {
@@ -3788,25 +3770,6 @@ export default function CandidateInterview() {
       const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       
-      // RENDER-POINT LOGGING: Log V3 opener when shown
-      const openerId = `followup-${sessionId}-${packId}-opener-${instanceNumber}`;
-      base44.entities.InterviewSession.get(sessionId).then(async (sess) => {
-        const existingTranscript = sess.transcript_snapshot || [];
-        if (!existingTranscript.some(e => e.id === openerId)) {
-          await appendAssistantMessage(sessionId, existingTranscript, openerText, {
-            id: openerId,
-            messageType: 'FOLLOWUP_SHOWN',
-            uiVariant: 'FOLLOWUP_CARD',
-            title: `Follow-up • ${packConfig?.instancesLabel || categoryId || 'Follow-up'}${instanceNumber > 1 ? ` — Instance ${instanceNumber}` : ''}`,
-            example: exampleNarrative,
-            packId,
-            categoryId,
-            instanceNumber,
-            visibleToCandidate: true
-          });
-        }
-      }).catch(err => console.warn('[LOG_V3_OPENER] Failed:', err));
-      
       return {
         type: 'v3_pack_opener',
         id: effectiveCurrentItem.id,
@@ -3839,28 +3802,30 @@ export default function CandidateInterview() {
         v2ClarifierState.fieldKey === fieldKey &&
         v2ClarifierState.instanceNumber === instanceNumber;
       
+      console.log("[V2_PACK] Rendering question", fieldKey, "for pack", packId, "hasClarifier:", hasClarifierActive);
+      
+      // STEP 3: Priority order for question text:
+      // 1. Active clarifier question (highest priority)
+      // 2. Backend question text for this field (if provided)
+      // 3. Static fieldConfig.label (fallback)
       const backendQuestionText = effectiveCurrentItem.backendQuestionText || null;
+      
       const displayText = hasClarifierActive 
         ? v2ClarifierState.clarifierQuestion 
         : (backendQuestionText || fieldConfig.label);
       
-      // RENDER-POINT LOGGING: Log follow-up card when shown
-      const followupId = `followup-${sessionId}-${packId}-${fieldKey}-${instanceNumber}`;
-      base44.entities.InterviewSession.get(sessionId).then(async (sess) => {
-        const existingTranscript = sess.transcript_snapshot || [];
-        if (!existingTranscript.some(e => e.id === followupId)) {
-          await appendAssistantMessage(sessionId, existingTranscript, displayText, {
-            id: followupId,
-            messageType: 'FOLLOWUP_SHOWN',
-            uiVariant: 'FOLLOWUP_CARD',
-            title: `Follow-up Pack • ${packConfig?.instancesLabel || packId}${instanceNumber > 1 ? ` — Instance ${instanceNumber}` : ''}`,
-            packId,
-            fieldKey,
-            instanceNumber,
-            visibleToCandidate: true
-          });
-        }
-      }).catch(err => console.warn('[LOG_FOLLOWUP] Failed:', err));
+      // STEP 4: Verification log
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && effectiveCurrentItem.fieldKey === "PACK_PRLE_Q01") {
+        console.log("[V2_PACK_AUDIT][UI_DISPLAY_TEXT_SELECTION]", {
+          packId,
+          fieldKey: effectiveCurrentItem.fieldKey,
+          instanceNumber: instanceNumber || 1,
+          hasClarifierActive,
+          backendQuestionText,
+          fieldConfigLabel: fieldConfig.label,
+          finalDisplayText: displayText
+        });
+      }
       
       const promptObject = {
         type: hasClarifierActive ? 'ai_probe' : 'v2_pack_field',
@@ -3877,6 +3842,26 @@ export default function CandidateInterview() {
         instanceNumber: instanceNumber,
         category: packConfig?.instancesLabel || 'Follow-up'
       };
+      
+      // AUDIT LOG: Final UI question object for PACK_PRIOR_LE_APPS_STANDARD
+      if (packId === "PACK_PRIOR_LE_APPS_STANDARD" && fieldKey === "PACK_PRLE_Q01") {
+        console.log("[V2_PACK_AUDIT][UI_QUESTION_FINAL]", {
+          packId,
+          fieldKey: fieldKey,
+          displayText,
+          textField: promptObject.text,
+          hasClarifierActive,
+          rawPromptObject: promptObject
+        });
+        
+        console.log("[V2_PACK_AUDIT][UI_QUESTION_TEXT]", {
+          packId,
+          fieldKey: fieldKey,
+          instanceNumber: instanceNumber || 1,
+          from: hasClarifierActive ? 'clarifier' : 'fieldConfig',
+          text: promptObject.text || null
+        });
+      }
       
       return promptObject;
     }
