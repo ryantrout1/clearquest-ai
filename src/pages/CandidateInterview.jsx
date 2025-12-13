@@ -4213,27 +4213,25 @@ export default function CandidateInterview() {
               );
             }
             
-            // UX: Suppress duplicate multi-instance prompts when the interactive gate is visible
-            if (v3MultiInstancePrompt) {
-              const gateTextNorm = normalizeText(
-                typeof v3MultiInstancePrompt === 'string' 
-                  ? v3MultiInstancePrompt 
-                  : (v3MultiInstancePrompt?.text || v3MultiInstancePrompt?.prompt || '')
-              );
+            // UX: Suppress duplicate multi-instance gate prompts (robust check)
+            const isV3GateVisible = v3ProbingActive && v3MultiInstancePrompt;
+            
+            if (isV3GateVisible && entry.role === 'assistant') {
+              // Check messageType for multi-instance indicators
+              const hasMultiInstanceType = entry.messageType && 
+                (entry.messageType.toLowerCase().includes('multi_instance') ||
+                 entry.messageType === 'v3_multi_instance_prompt' ||
+                 entry.messageType === 'V3_MULTI_INSTANCE_PROMPT');
               
-              if (gateTextNorm) {
-                const isExactMatch = entryTextNorm === gateTextNorm;
-                const isBothAnotherPrompt = 
-                  entryTextNorm.startsWith(normalizeText("Do you have another")) &&
-                  gateTextNorm.startsWith(normalizeText("Do you have another"));
-                
-                if (isExactMatch || isBothAnotherPrompt) {
-                  console.log("[UX_V3_RENDER] Suppressed duplicate gate prompt", { 
-                    gateTextNorm: gateTextNorm.substring(0, 50),
-                    entryTextNorm: entryTextNorm.substring(0, 50)
-                  });
-                  return null;
-                }
+              // Fallback: check if text starts with "Do you have another"
+              const textStartsWithAnother = entryTextNorm.startsWith(normalizeText("Do you have another"));
+              
+              if (hasMultiInstanceType || textStartsWithAnother) {
+                console.log('[V3 UX] Suppressed transcript gate prompt', { 
+                  messageType: entry.messageType,
+                  textPreview: entry.text?.slice(0, 80)
+                });
+                return null;
               }
             }
             
