@@ -2057,29 +2057,16 @@ export default function CandidateInterview() {
           answerLength: value?.length || 0
         });
         
-        // FIX #3: Append opener as assistant+user messages to transcript
-        // CRITICAL: Re-fetch latest transcript before each append to prevent overwrite
-        const { appendAssistantMessage, appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        // FIX A: Do NOT append duplicate v3_opener_question - FOLLOWUP_CARD_SHOWN already logged it
+        // Only append the user's answer
+        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
         const freshSession = await base44.entities.InterviewSession.get(sessionId);
         const currentTranscript = freshSession.transcript_snapshot || [];
         
         console.log("[V3_OPENER][TRANSCRIPT_BEFORE]", { length: currentTranscript.length });
         
-        // Append assistant opener question (CRITICAL: visibleToCandidate must be explicit)
-        const transcriptAfterQuestion = await appendAssistantMessage(sessionId, currentTranscript, openerText, {
-          messageType: 'v3_opener_question',
-          packId,
-          categoryId,
-          categoryLabel, // Add for rendering "Follow-up • {Pack Title}"
-          instanceNumber,
-          baseQuestionId,
-          visibleToCandidate: true
-        });
-        
-        console.log("[V3_OPENER][TRANSCRIPT_AFTER_Q]", { length: transcriptAfterQuestion.length });
-        
-        // Append user opener answer
-        const transcriptAfterAnswer = await appendUserMessage(sessionId, transcriptAfterQuestion, value, {
+        // Append user opener answer only (question already in transcript via FOLLOWUP_CARD_SHOWN)
+        const transcriptAfterAnswer = await appendUserMessage(sessionId, currentTranscript, value, {
           messageType: 'v3_opener_answer',
           packId,
           categoryId,
@@ -4565,6 +4552,22 @@ export default function CandidateInterview() {
            />
            </ContentContainer>
           )}
+          
+          {/* V3 GATE: Multi-instance prompt as main card */}
+          {v3GateActive && !v3ProbingActive && (
+           <ContentContainer>
+           <div className="w-full">
+             <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+               <div className="flex items-center gap-2 mb-2">
+                 <span className="text-base font-semibold text-purple-400">Next</span>
+               </div>
+               <p className="text-white text-base leading-relaxed">
+                 {v3Gate.promptText || 'Do you have another incident to add?'}
+               </p>
+             </div>
+           </div>
+           </ContentContainer>
+          )}
 
           {/* Current question inline in transcript */}
           {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && (
@@ -4657,41 +4660,33 @@ export default function CandidateInterview() {
               </p>
             </div>
           ) : v3GateActive ? (
-           <div className="space-y-2">
-             <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-               <p className="text-white text-sm leading-relaxed">
-                 <span className="text-purple-400 font-medium">Next • </span>
-                 {v3Gate.promptText?.replace(/^Next • /, '') || 'Do you have another incident to add?'}
-               </p>
-             </div>
-             <div className="flex gap-3">
-               <Button
-                 onClick={() => {
-                   console.log('[V3_GATE][YES_CLICKED]');
-                   if (v3MultiInstanceHandler) {
-                     v3MultiInstanceHandler('Yes');
-                   }
-                 }}
-                 disabled={isCommitting}
-                 className="flex-1 bg-green-600 hover:bg-green-700"
-               >
-                 <Check className="w-5 h-5 mr-2" />
-                 Yes
-               </Button>
-               <Button
-                 onClick={() => {
-                   console.log('[V3_GATE][NO_CLICKED]');
-                   if (v3MultiInstanceHandler) {
-                     v3MultiInstanceHandler('No');
-                   }
-                 }}
-                 disabled={isCommitting}
-                 className="flex-1 bg-red-600 hover:bg-red-700"
-               >
-                 <X className="w-5 h-5 mr-2" />
-                 No
-               </Button>
-             </div>
+           <div className="flex gap-3">
+             <Button
+               onClick={() => {
+                 console.log('[V3_GATE][YES_CLICKED]');
+                 if (v3MultiInstanceHandler) {
+                   v3MultiInstanceHandler('Yes');
+                 }
+               }}
+               disabled={isCommitting}
+               className="flex-1 bg-green-600 hover:bg-green-700"
+             >
+               <Check className="w-5 h-5 mr-2" />
+               Yes
+             </Button>
+             <Button
+               onClick={() => {
+                 console.log('[V3_GATE][NO_CLICKED]');
+                 if (v3MultiInstanceHandler) {
+                   v3MultiInstanceHandler('No');
+                 }
+               }}
+               disabled={isCommitting}
+               className="flex-1 bg-red-600 hover:bg-red-700"
+             >
+               <X className="w-5 h-5 mr-2" />
+               No
+             </Button>
            </div>
           ) : v3ProbingActive && !v3GateActive ? (
                 <p className="text-xs text-slate-400 text-center">
