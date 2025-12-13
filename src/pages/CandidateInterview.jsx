@@ -818,7 +818,8 @@ export default function CandidateInterview() {
   
   const [screenMode, setScreenMode] = useState("LOADING");
   const introLoggedRef = useRef(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeAcknowledged, setWelcomeAcknowledged] = useState(true);
+  const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
@@ -1094,12 +1095,12 @@ export default function CandidateInterview() {
       console.log("[CandidateInterview] init", {
         isNewSession: sessionIsNew,
         screenMode: "QUESTION",
-        showWelcome: sessionIsNew,
+        welcomeAcknowledged: !sessionIsNew,
         layoutVersion: "section-first"
       });
 
       setIsNewSession(sessionIsNew);
-      setShowWelcome(sessionIsNew);
+      setWelcomeAcknowledged(!sessionIsNew);
       setScreenMode("QUESTION");
       
       // Log system events
@@ -4446,10 +4447,10 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
           
-          {/* Non-blocking Welcome Banner - shows above Q1 on new sessions */}
-          {showWelcome && (
+          {/* GATED WELCOME: Required acknowledgement before Q1 */}
+          {!welcomeAcknowledged && (
            <ContentContainer>
-           <div className="w-full mb-4">
+           <div className={`w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
              <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-6 shadow-2xl">
                <div className="flex items-start gap-4">
                  <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
@@ -4459,7 +4460,7 @@ export default function CandidateInterview() {
                    <h2 className="text-xl font-bold text-white mb-3">
                      Welcome to your ClearQuest Interview
                    </h2>
-                   <div className="space-y-2 mb-4">
+                   <div className="space-y-2">
                      <p className="text-slate-300 text-sm leading-relaxed">
                        This interview is part of your application process.
                      </p>
@@ -4473,16 +4474,6 @@ export default function CandidateInterview() {
                        You can pause and come back — we'll pick up where you left off.
                      </p>
                    </div>
-                   <Button
-                     onClick={() => {
-                       console.log("[WELCOME][DISMISS] User dismissed welcome banner");
-                       setShowWelcome(false);
-                       setTimeout(() => autoScrollToBottom(), 100);
-                     }}
-                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
-                   >
-                     Got it — Let's Begin
-                   </Button>
                  </div>
                </div>
              </div>
@@ -4491,7 +4482,7 @@ export default function CandidateInterview() {
           )}
           
           {/* V3 GATE: Multi-instance prompt as main card (takes full priority) */}
-          {v3GateActive && !v3ProbingActive && (
+          {welcomeAcknowledged && v3GateActive && !v3ProbingActive && (
            <ContentContainer>
            <div className="w-full">
              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
@@ -4506,8 +4497,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' */}
-          {!v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
+          {/* FIX B: Base Question Card - render ALWAYS when currentItem.type === 'question' AND welcomed acknowledged */}
+          {welcomeAcknowledged && !v3GateActive && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -4542,7 +4533,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
+          {welcomeAcknowledged && currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
