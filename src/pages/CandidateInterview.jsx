@@ -4195,13 +4195,8 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {transcript.map((entry, index) => {
-            // UX: Completion message constant for rendering override
-            const COMPLETION_TEXT = "Thank you. We've covered the key points for this incident.";
-            const completionNorm = normalizeText(COMPLETION_TEXT);
-            const entryTextNorm = normalizeText(entry.text || entry.content || entry.message || '');
-            
-            // EARLY OVERRIDE: Force completion message to render as plain assistant (no label)
-            if (entry.role === 'assistant' && entryTextNorm === completionNorm) {
+            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO label)
+            if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
                 <div key={`${entry.role}-${entry.index || entry.id || index}`}>
                   <ContentContainer>
@@ -4213,20 +4208,10 @@ export default function CandidateInterview() {
               );
             }
             
-            // UX: Suppress duplicate multi-instance gate prompts (robust check)
-            const isV3GateVisible = v3ProbingActive && v3MultiInstancePrompt;
-            
-            if (isV3GateVisible && entry.role === 'assistant') {
-              // Check messageType for multi-instance indicators
-              const hasMultiInstanceType = entry.messageType && 
-                (entry.messageType.toLowerCase().includes('multi_instance') ||
-                 entry.messageType === 'v3_multi_instance_prompt' ||
-                 entry.messageType === 'V3_MULTI_INSTANCE_PROMPT');
-              
-              // Fallback: check if text starts with "Do you have another"
-              const textStartsWithAnother = entryTextNorm.startsWith(normalizeText("Do you have another"));
-              
-              if (hasMultiInstanceType || textStartsWithAnother) {
+            // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
+            if (entry.role === 'assistant' && typeof entry.text === 'string') {
+              const textLower = entry.text.trim().toLowerCase();
+              if (textLower.startsWith('do you have another')) {
                 console.log('[V3 UX] Suppressed transcript gate prompt', { 
                   messageType: entry.messageType,
                   textPreview: entry.text?.slice(0, 80)
