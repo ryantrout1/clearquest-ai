@@ -4067,42 +4067,6 @@ export default function CandidateInterview() {
 
   const currentPrompt = getCurrentPrompt();
 
-  // PART B: Derive UI current item (prioritize gates over base question)
-  // Hooks must remain unconditional; gating done via enabled flags / safe fallbacks.
-  const uiCurrentItem = React.useMemo(() => {
-    // Priority 1: V3 gate
-    if (v3GateActive) {
-      return {
-        type: 'v3_gate',
-        id: `v3-gate-${v3Gate.packId}-${v3Gate.instanceNumber}`,
-        packId: v3Gate.packId,
-        categoryId: v3Gate.categoryId,
-        promptText: v3Gate.promptText,
-        instanceNumber: v3Gate.instanceNumber
-      };
-    }
-    
-    // Priority 2: V3 probing active
-    if (v3ProbingActive) {
-      return {
-        type: 'v3_probing',
-        id: `v3-probing-${v3ProbingContext?.packId}`,
-        packId: v3ProbingContext?.packId
-      };
-    }
-    
-    // Priority 3: Section transition pending
-    if (pendingSectionTransition) {
-      return {
-        type: 'section_transition',
-        id: `section-transition-${pendingSectionTransition.nextSectionIndex}`
-      };
-    }
-    
-    // Priority 4: Base current item
-    return currentItem;
-  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext, pendingSectionTransition, currentItem]);
-
   // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
   const isAnswerableItem = (item) => {
   if (!item) return false;
