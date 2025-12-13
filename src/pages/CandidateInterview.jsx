@@ -4252,7 +4252,9 @@ export default function CandidateInterview() {
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
+                    <span className="text-xs text-purple-400 font-medium">
+                      Follow-up • {entry.meta?.packLabel || v3ProbingContext?.categoryLabel || 'Details'}
+                    </span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
@@ -4271,12 +4273,10 @@ export default function CandidateInterview() {
               
               {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
                 <ContentContainer>
-                <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs text-emerald-400 font-medium">Complete</span>
-                  </div>
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    Thank you. We've covered the key points for this incident.
+                  </p>
                 </div>
                 </ContentContainer>
               )}
@@ -4546,7 +4546,9 @@ export default function CandidateInterview() {
           ) : v3ProbingActive && v3MultiInstancePrompt ? (
             <div className="space-y-3">
               <div className="text-center">
-                <p className="text-white text-sm font-medium">{v3MultiInstancePrompt}</p>
+                <p className="text-white text-sm font-medium">
+                  Next • {v3MultiInstancePrompt.replace(/^Next • /, '')}
+                </p>
               </div>
               <div className="flex gap-3">
                 <Button

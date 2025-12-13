@@ -216,8 +216,8 @@ export default function V3ProbingLoop({
           });
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
-        // Probing complete - use explicit completion message
-        const completionMessage = "Thank you. We've covered the key points for this incident.";
+        // Probing complete - use centralized completion message
+        const completionMessage = data.nextPrompt || getCompletionMessage(data.nextAction, data.stopReason);
 
         const aiMessage = {
           id: `v3-ai-complete-${Date.now()}`,
@@ -259,9 +259,9 @@ export default function V3ProbingLoop({
         setIsComplete(false); // Keep probing interface active
         setShowMultiInstancePrompt(true); // New state for multi-instance gate
 
-        // Notify parent to show Yes/No in footer with "Next •" prefix
+        // Notify parent to show Yes/No in footer
         if (onMultiInstancePrompt) {
-          onMultiInstancePrompt(`Next • Do you have another ${categoryLabel || 'incident'} to add?`);
+          onMultiInstancePrompt(`Do you have another ${categoryLabel || 'incident'} to add?`);
         }
 
         // Persist completion to local transcript
@@ -364,7 +364,8 @@ export default function V3ProbingLoop({
             <div className="space-y-2">
               <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-purple-400 font-medium">Follow-up</span>
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs text-purple-400 font-medium">AI Follow-Up (V3)</span>
                   {msg.isCompletion && (
                     <CheckCircle2 className="w-3 h-3 text-emerald-400 ml-auto" />
                   )}
@@ -396,7 +397,16 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
-      {/* Multi-instance prompt shown in footer now - this div is intentionally empty */}
+      {/* Multi-instance prompt text (Yes/No buttons moved to footer) */}
+      {showMultiInstancePrompt && !isComplete && (
+        <div>
+          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+            <p className="text-white text-sm">
+              Do you have another {categoryLabel || 'incident'} to add?
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Continue button - shown after user answers "No" to multi-instance */}
       {isComplete && !showMultiInstancePrompt && (
