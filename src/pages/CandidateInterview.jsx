@@ -4065,6 +4065,7 @@ export default function CandidateInterview() {
     );
   }
 
+  // Calculate currentPrompt (after all hooks declared)
   const currentPrompt = getCurrentPrompt();
 
   // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
