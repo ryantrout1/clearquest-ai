@@ -4292,16 +4292,6 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
               
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
-                <ContentContainer>
-                <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-                  <p className="text-slate-300 text-sm leading-relaxed">
-                    Thank you. We've covered the key points for this incident.
-                  </p>
-                </div>
-                </ContentContainer>
-              )}
-              
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
                 <ContentContainer>
