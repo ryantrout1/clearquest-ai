@@ -4842,53 +4842,11 @@ export default function CandidateInterview() {
               <ContentContainer>
               {activeBlocker.type === 'SYSTEM_INTRO' && (
                 <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                      <Shield className="w-7 h-7 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
-                      <div className="space-y-3">
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          This interview is part of your application process.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          One question at a time, at your own pace.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          Clear, complete, and honest answers help investigators understand the full picture.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          You can pause and come back — we'll pick up where you left off.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+...
                 </div>
               )}
 
-              {activeBlocker.type === 'SECTION_MESSAGE' && (
-                <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-xl font-bold text-white mb-2">
-                        Section Complete: {activeBlocker.completedSectionName}
-                      </h2>
-                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                        Nice work — you've finished this section. Ready for the next one?
-                      </p>
-                      <div className="bg-emerald-950/40 rounded-lg p-3">
-                        <p className="text-emerald-300 text-sm font-medium">
-                          Next up: {activeBlocker.nextSectionName}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* REMOVED: SECTION_MESSAGE blocker card - transcript already has SECTION_COMPLETE entry */}
 
               {activeBlocker.type === 'V3_GATE' && (
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
