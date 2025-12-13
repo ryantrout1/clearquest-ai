@@ -877,6 +877,9 @@ export default function CandidateInterview() {
 
   // V3 gate decision intent (prevents setState during render)
   const [v3GateDecision, setV3GateDecision] = useState(null);
+  
+  // Pending gate prompt (prevents setState during render)
+  const [pendingGatePrompt, setPendingGatePrompt] = useState(null);
 
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
@@ -915,6 +918,44 @@ export default function CandidateInterview() {
     // Clear decision
     setV3GateDecision(null);
   }, [v3GateDecision, v3MultiInstanceHandler]);
+  
+  // Deferred gate prompt handler (prevents setState during render)
+  useEffect(() => {
+    if (!pendingGatePrompt) return;
+    
+    const { promptData, v3Context } = pendingGatePrompt;
+    
+    if (promptData) {
+      console.log('[V3_GATE][RECEIVED]', { promptText: promptData?.substring(0, 50) });
+
+      const gateBlocker = {
+        id: `blocker-v3gate-${v3Context?.packId}-${Date.now()}`,
+        type: 'V3_GATE',
+        blocking: true,
+        resolved: false,
+        promptText: promptData,
+        packId: v3Context?.packId,
+        categoryId: v3Context?.categoryId,
+        instanceNumber: v3Context?.instanceNumber || 1,
+        timestamp: new Date().toISOString()
+      };
+
+      setTranscript(prev => [...prev, gateBlocker]);
+
+      setV3Gate({
+        active: false,
+        packId: v3Context?.packId || null,
+        categoryId: v3Context?.categoryId || null,
+        promptText: promptData,
+        instanceNumber: v3Context?.instanceNumber || 1
+      });
+    } else {
+      console.log('[V3_GATE][CLEAR]');
+      setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+    }
+    
+    setPendingGatePrompt(null);
+  }, [pendingGatePrompt, v3ProbingContext]);
 
   const displayNumberMapRef = useRef({});
 
@@ -4265,7 +4306,12 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {/* Always render transcript history (PART C: transcript visible during V3 gate) */}
-          {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
+          {(() => {
+            const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
+            const visibleTranscript = hasActiveBlocker
+              ? transcript.filter(e => e.blocking !== true || e.resolved === true)
+              : transcript;
+            return visibleTranscript.map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
 
@@ -4507,7 +4553,8 @@ export default function CandidateInterview() {
               )}
             </div>
             );
-          })}
+          });
+          })()}
 
           {/* Blocking Message State - show blocker card when active (AFTER transcript) */}
           {activeBlocker && (
@@ -4592,36 +4639,7 @@ export default function CandidateInterview() {
              onComplete={handleV3ProbingComplete}
              onTranscriptUpdate={handleV3TranscriptUpdate}
              onMultiInstancePrompt={(promptData) => {
-               if (promptData) {
-                 console.log('[V3_GATE][RECEIVED]', { promptText: promptData?.substring(0, 50) });
-
-                 // Add V3 gate blocker to transcript
-                 const gateBlocker = {
-                   id: `blocker-v3gate-${v3ProbingContext?.packId}-${Date.now()}`,
-                   type: 'V3_GATE',
-                   blocking: true,
-                   resolved: false,
-                   promptText: promptData,
-                   packId: v3ProbingContext?.packId,
-                   categoryId: v3ProbingContext?.categoryId,
-                   instanceNumber: v3ProbingContext?.instanceNumber || 1,
-                   timestamp: new Date().toISOString()
-                 };
-
-                 setTranscript(prev => [...prev, gateBlocker]);
-
-                 // Set gate state (active will be set by useEffect)
-                 setV3Gate({
-                   active: false,
-                   packId: v3ProbingContext?.packId || null,
-                   categoryId: v3ProbingContext?.categoryId || null,
-                   promptText: promptData,
-                   instanceNumber: v3ProbingContext?.instanceNumber || 1
-                 });
-               } else {
-                 console.log('[V3_GATE][CLEAR]');
-                 setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
-               }
+               setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
              }}
              onMultiInstanceAnswer={setV3MultiInstanceHandler}
            />
