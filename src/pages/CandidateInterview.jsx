@@ -4310,24 +4310,25 @@ export default function CandidateInterview() {
               
               {/* Legacy combined question+answer entries (backward compatibility) */}
               {entry.type === 'question' && entry.answer && !entry.role && (
-                <ContentContainer>
-                <div className="space-y-2">
-                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base font-semibold text-blue-400">
-                        Question {getQuestionDisplayNumber(entry.questionId)}
-                      </span>
-                      <span className="text-sm text-slate-500">•</span>
-                      <span className="text-sm font-medium text-slate-300">{entry.category}</span>
-                    </div>
-                    <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
-                      <p className="text-white text-sm">{entry.answer}</p>
-                    </div>
-                  </div>
-                </div>
+               <ContentContainer>
+               <div className="w-full space-y-2">
+                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                   <div className="flex items-center gap-2 mb-2">
+                     <span className="text-base font-semibold text-blue-400">
+                       Question {getQuestionDisplayNumber(entry.questionId)}
+                     </span>
+                     <span className="text-sm text-slate-500">•</span>
+                     <span className="text-sm font-medium text-slate-300">{entry.category}</span>
+                   </div>
+                   <p className="text-white text-base leading-relaxed">{entry.questionText}</p>
+                 </div>
+                 <div className="flex justify-end">
+                   <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                     <p className="text-white text-sm">{entry.answer}</p>
+                   </div>
+                 </div>
+               </div>
+               </ContentContainer>
               )}
               
               {/* V2 Pack followups (combined question+answer, only show after answer submitted) */}
@@ -4432,37 +4433,32 @@ export default function CandidateInterview() {
           
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
-            <ContentContainer>
-            <V3ProbingLoop
-              sessionId={sessionId}
-              categoryId={v3ProbingContext.categoryId}
-              categoryLabel={v3ProbingContext.categoryLabel}
-              incidentId={v3ProbingContext.incidentId}
-              baseQuestionId={v3ProbingContext.baseQuestionId}
-              questionCode={v3ProbingContext.questionCode}
-              sectionId={v3ProbingContext.sectionId}
-              instanceNumber={v3ProbingContext.instanceNumber}
-              packData={v3ProbingContext.packData}
-              openerAnswer={v3ProbingContext.openerAnswer}
-              onComplete={handleV3ProbingComplete}
-              onTranscriptUpdate={handleV3TranscriptUpdate}
-              onMultiInstancePrompt={setV3MultiInstancePrompt}
-              onMultiInstanceAnswer={setV3MultiInstanceHandler}
-            />
+           <ContentContainer>
+           <V3ProbingLoop
+             sessionId={sessionId}
+             categoryId={v3ProbingContext.categoryId}
+             categoryLabel={v3ProbingContext.categoryLabel}
+             incidentId={v3ProbingContext.incidentId}
+             baseQuestionId={v3ProbingContext.baseQuestionId}
+             questionCode={v3ProbingContext.questionCode}
+             sectionId={v3ProbingContext.sectionId}
+             instanceNumber={v3ProbingContext.instanceNumber}
+             packData={v3ProbingContext.packData}
+             openerAnswer={v3ProbingContext.openerAnswer}
+             onComplete={handleV3ProbingComplete}
+             onTranscriptUpdate={handleV3TranscriptUpdate}
+             onMultiInstancePrompt={setV3MultiInstancePrompt}
+             onMultiInstanceAnswer={setV3MultiInstanceHandler}
+           />
+           </ContentContainer>
           )}
-          
 
-
-          {/* Current question card removed from here - now shown above input in footer */}
-          </div>
-        </div>
-      </main>
-
-      {/* Current question inline in transcript */}
-      {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
-        <div ref={questionCardRef}>
-          {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
-            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+          {/* Current question inline in transcript */}
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
+           <ContentContainer>
+           <div ref={questionCardRef} className="w-full">
+             {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
+               <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
@@ -4477,9 +4473,8 @@ export default function CandidateInterview() {
                   <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
                 </div>
               )}
-            </div>
-          ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
-            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4 ml-4">
+              ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
