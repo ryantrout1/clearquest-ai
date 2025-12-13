@@ -53,6 +53,9 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     metadata.visibleToCandidate = false;
   }
   
+  // Generate stable ID if not provided
+  const stableId = metadata.id || `assistant-${metadata.messageType || 'msg'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   // DEDUPE GUARD: Only apply to generic messages, NEVER to critical interview events
   // CRITICAL MESSAGE TYPES that must NEVER be deduped:
   const neverDedupeTypes = [
@@ -89,6 +92,7 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
   }
   
   const entry = {
+    id: stableId,
     index: getNextIndex(existingTranscript),
     role: "assistant",
     text,
@@ -126,7 +130,11 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendUserMessage(sessionId, existingTranscript = [], text, metadata = {}) {
+  // Generate stable ID if not provided
+  const stableId = metadata.id || `user-answer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   const entry = {
+    id: stableId,
     index: getNextIndex(existingTranscript),
     role: "user",
     text,

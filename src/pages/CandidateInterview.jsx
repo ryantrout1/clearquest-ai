@@ -4558,8 +4558,14 @@ export default function CandidateInterview() {
               }
             }
 
+            // Skip entries without stable IDs (safety guard)
+            if (!entry.id) {
+              console.warn('[TRANSCRIPT][RENDER] Entry missing stable ID, skipping:', entry);
+              return null;
+            }
+            
             return (
-            <div key={entry.id || `${entry.messageType || entry.type}-${entry.index || index}`}>
+            <div key={entry.id}>
 
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
@@ -4735,7 +4741,7 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* FIX B: Section Completion Messages - ONLY render assistant SECTION_COMPLETE, skip system events */}
+              {/* Section Completion Messages */}
               {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
@@ -4769,9 +4775,6 @@ export default function CandidateInterview() {
                 </div>
                 </ContentContainer>
               )}
-              
-              {/* SYSTEM EVENTS: Do NOT render SECTION_COMPLETED as UI card (audit only) */}
-              {entry.messageType === 'SYSTEM_EVENT' && entry.eventType === 'SECTION_COMPLETED' && null}
             </div>
             );
           });
