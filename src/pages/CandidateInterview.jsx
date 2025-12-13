@@ -821,9 +821,6 @@ export default function CandidateInterview() {
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
   
-  // PART A: Welcome overlay state (blocking for new sessions only)
-  const [welcomeAcknowledged, setWelcomeAcknowledged] = useState(true); // Default true, set false for new sessions
-  
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
@@ -1107,11 +1104,16 @@ export default function CandidateInterview() {
       setIsNewSession(sessionIsNew);
       setScreenMode("QUESTION");
       
-      // PART A: Set welcomeAcknowledged based on session status
+      // Add blocking intro message for new sessions
       if (sessionIsNew) {
-        setWelcomeAcknowledged(false); // Show Welcome overlay for new sessions
-      } else {
-        setWelcomeAcknowledged(true); // Skip Welcome for returning sessions
+        const introBlocker = {
+          id: `blocker-intro-${sessionId}`,
+          type: 'SYSTEM_INTRO',
+          blocking: true,
+          resolved: false,
+          timestamp: new Date().toISOString()
+        };
+        setTranscript([introBlocker]);
       }
       
       // Log system events
@@ -1374,6 +1376,22 @@ export default function CandidateInterview() {
           sectionId: nextResult.completedSection.id
         }).catch(() => {}); // Fire and forget
         
+        // Add section transition blocker
+        const sectionBlocker = {
+          id: `blocker-section-${nextResult.nextSectionIndex}-${Date.now()}`,
+          type: 'SECTION_MESSAGE',
+          blocking: true,
+          resolved: false,
+          completedSectionName: nextResult.completedSection.displayName,
+          nextSectionName: nextResult.nextSection.displayName,
+          nextSectionIndex: nextResult.nextSectionIndex,
+          nextQuestionId: nextResult.nextQuestionId,
+          timestamp: new Date().toISOString()
+        };
+        
+        const transcriptWithBlocker = [...newTranscript, sectionBlocker];
+        setTranscript(transcriptWithBlocker);
+        
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
           nextQuestionId: nextResult.nextQuestionId,
@@ -1382,7 +1400,7 @@ export default function CandidateInterview() {
         
         setQueue([]);
         setCurrentItem(null);
-        await persistStateToDatabase(newTranscript, [], null);
+        await persistStateToDatabase(transcriptWithBlocker, [], null);
         return;
       } else {
         const completionMessage = {
@@ -2318,19 +2336,35 @@ export default function CandidateInterview() {
           
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
-            sessionId,
-            triggerType: 'section_complete'
+           sessionId,
+           triggerType: 'section_complete'
           }).catch(() => {}); // Fire and forget
-          
+
+          // Add section transition blocker
+          const sectionBlocker = {
+           id: `blocker-section-${gateResult.nextSectionIndex}-${Date.now()}`,
+           type: 'SECTION_MESSAGE',
+           blocking: true,
+           resolved: false,
+           completedSectionName: currentSection?.displayName,
+           nextSectionName: nextSection.displayName,
+           nextSectionIndex: gateResult.nextSectionIndex,
+           nextQuestionId: gateResult.nextQuestionId,
+           timestamp: new Date().toISOString()
+          };
+
+          const transcriptWithBlocker = [...gateTranscript, sectionBlocker];
+          setTranscript(transcriptWithBlocker);
+
           setPendingSectionTransition({
-            nextSectionIndex: gateResult.nextSectionIndex,
-            nextQuestionId: gateResult.nextQuestionId,
-            nextSectionName: nextSection.displayName
+           nextSectionIndex: gateResult.nextSectionIndex,
+           nextQuestionId: gateResult.nextQuestionId,
+           nextSectionName: nextSection.displayName
           });
-          
+
           setQueue([]);
           setCurrentItem(null);
-          await persistStateToDatabase(gateTranscript, [], null);
+          await persistStateToDatabase(transcriptWithBlocker, [], null);
           setIsCommitting(false);
           setInput("");
           return;
@@ -3987,61 +4021,13 @@ export default function CandidateInterview() {
     );
   }
 
-  // PART A: Welcome Overlay - Blocking screen for new sessions (early return)
-  if (!welcomeAcknowledged) {
-    return (
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <div className={`max-w-2xl w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
-          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                <Shield className="w-7 h-7 text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
-                <div className="space-y-3">
-                  <p className="text-slate-300 text-base leading-relaxed">
-                    This interview is part of your application process.
-                  </p>
-                  <p className="text-slate-300 text-base leading-relaxed">
-                    One question at a time, at your own pace.
-                  </p>
-                  <p className="text-slate-300 text-base leading-relaxed">
-                    Clear, complete, and honest answers help investigators understand the full picture.
-                  </p>
-                  <p className="text-slate-300 text-base leading-relaxed">
-                    You can pause and come back — we'll pick up where you left off.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-center mt-8">
-              <Button
-                onClick={() => {
-                  console.log("[WELCOME][ACKNOWLEDGE] Transitioning to Q1");
-                  setIsDismissingWelcome(true);
-                  
-                  setTimeout(() => {
-                    setWelcomeAcknowledged(true);
-                    setIsDismissingWelcome(false);
-                    setTimeout(() => autoScrollToBottom(), 100);
-                  }, 300);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
-                size="lg"
-              >
-                Got it — Let's Begin
-              </Button>
-              <p className="text-sm text-blue-400 text-center mt-4">
-                Click to start your interview
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Derive activeBlocker from transcript (highest priority unresolved blocker)
+  const activeBlocker = React.useMemo(() => {
+    return transcript.find(entry => 
+      entry.blocking === true && 
+      entry.resolved === false
+    ) || null;
+  }, [transcript]);
 
   const currentPrompt = getCurrentPrompt();
 
@@ -4239,7 +4225,76 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
-          {transcript.map((entry, index) => {
+          {/* Blocking Message State - ONLY show blocker card when active */}
+          {activeBlocker ? (
+            <ContentContainer>
+              {activeBlocker.type === 'SYSTEM_INTRO' && (
+                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                      <Shield className="w-7 h-7 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
+                      <div className="space-y-3">
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          This interview is part of your application process.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          One question at a time, at your own pace.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          Clear, complete, and honest answers help investigators understand the full picture.
+                        </p>
+                        <p className="text-slate-300 text-base leading-relaxed">
+                          You can pause and come back — we'll pick up where you left off.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeBlocker.type === 'SECTION_MESSAGE' && (
+                <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-bold text-white mb-2">
+                        Section Complete: {activeBlocker.completedSectionName}
+                      </h2>
+                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
+                        Nice work — you've finished this section. Ready for the next one?
+                      </p>
+                      <div className="bg-emerald-950/40 rounded-lg p-3">
+                        <p className="text-emerald-300 text-sm font-medium">
+                          Next up: {activeBlocker.nextSectionName}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {activeBlocker.type === 'V3_GATE' && (
+                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base font-semibold text-purple-400">Next</span>
+                  </div>
+                  <p className="text-white text-base leading-relaxed">
+                    {activeBlocker.promptText || 'Do you have another incident to add?'}
+                  </p>
+                </div>
+              )}
+            </ContentContainer>
+          ) : (
+            <>
+          {transcript.filter(e => e.blocking !== true || e.resolved === true).map((entry, index) => {
+            // Skip blocking messages in transcript view (they're shown as bottom cards when active)
+            if (entry.blocking === true) return null;
+            
             // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
             if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
@@ -4499,6 +4554,22 @@ export default function CandidateInterview() {
              onMultiInstancePrompt={(promptData) => {
                if (promptData) {
                  console.log('[V3_GATE][SET_ACTIVE]', promptData);
+                 
+                 // Add V3 gate blocker to transcript
+                 const gateBlocker = {
+                   id: `blocker-v3gate-${v3ProbingContext?.packId}-${Date.now()}`,
+                   type: 'V3_GATE',
+                   blocking: true,
+                   resolved: false,
+                   promptText: promptData,
+                   packId: v3ProbingContext?.packId,
+                   categoryId: v3ProbingContext?.categoryId,
+                   instanceNumber: v3ProbingContext?.instanceNumber || 1,
+                   timestamp: new Date().toISOString()
+                 };
+                 
+                 setTranscript(prev => [...prev, gateBlocker]);
+                 
                  setV3Gate({
                    active: true,
                    packId: v3ProbingContext?.packId || null,
@@ -4617,17 +4688,110 @@ export default function CandidateInterview() {
                   <p className="text-yellow-200 text-sm">{validationHint}</p>
                 </div>
               )}
-            </div>
-            </ContentContainer>
-          )}
-          </div>
+              </div>
+               </ContentContainer>
+              )}
+              </>
+              )}
+              </div>
         </div>
       </main>
 
       <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Section transition: show "Begin Next Section" button */}
-          {pendingSectionTransition && uiCurrentItem?.type === 'section_transition' ? (
+          {/* Blocking Message Actions */}
+          {activeBlocker?.type === 'SYSTEM_INTRO' ? (
+            <div className="flex flex-col items-center">
+              <Button
+                onClick={() => {
+                  console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO");
+                  setTranscript(prev => prev.map(e => 
+                    e.id === activeBlocker.id ? { ...e, resolved: true } : e
+                  ));
+                  setTimeout(() => autoScrollToBottom(), 100);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
+                size="lg"
+              >
+                Got it — Let's Begin
+              </Button>
+              <p className="text-sm text-blue-400 text-center mt-4">
+                Click to start your interview
+              </p>
+            </div>
+          ) : activeBlocker?.type === 'SECTION_MESSAGE' ? (
+            <div className="flex flex-col items-center">
+              <Button
+                onClick={async () => {
+                  console.log("[BLOCKER][RESOLVE] SECTION_MESSAGE");
+                  
+                  // Log section started
+                  const nextSection = sections[activeBlocker.nextSectionIndex];
+                  if (nextSection) {
+                    await logSectionStarted(sessionId, {
+                      sectionId: nextSection.id,
+                      sectionName: nextSection.displayName
+                    });
+                  }
+                  
+                  // Mark blocker resolved
+                  setTranscript(prev => prev.map(e => 
+                    e.id === activeBlocker.id ? { ...e, resolved: true } : e
+                  ));
+                  
+                  // Update section index and current item
+                  setCurrentSectionIndex(activeBlocker.nextSectionIndex);
+                  setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
+                  setPendingSectionTransition(null);
+                  
+                  await persistStateToDatabase(transcript, [], { id: activeBlocker.nextQuestionId, type: 'question' });
+                  setTimeout(() => autoScrollToBottom(), 100);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
+                size="lg"
+              >
+                Continue →
+              </Button>
+              <p className="text-xs text-emerald-400 text-center mt-3">
+                Click to continue to {activeBlocker.nextSectionName}
+              </p>
+            </div>
+          ) : activeBlocker?.type === 'V3_GATE' ? (
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  console.log('[BLOCKER][RESOLVE] V3_GATE - YES');
+                  if (v3MultiInstanceHandler) {
+                    v3MultiInstanceHandler('Yes');
+                  }
+                  setTranscript(prev => prev.map(e => 
+                    e.id === activeBlocker.id ? { ...e, resolved: true, answer: 'Yes' } : e
+                  ));
+                }}
+                disabled={isCommitting}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                <Check className="w-5 h-5 mr-2" />
+                Yes
+              </Button>
+              <Button
+                onClick={() => {
+                  console.log('[BLOCKER][RESOLVE] V3_GATE - NO');
+                  if (v3MultiInstanceHandler) {
+                    v3MultiInstanceHandler('No');
+                  }
+                  setTranscript(prev => prev.map(e => 
+                    e.id === activeBlocker.id ? { ...e, resolved: true, answer: 'No' } : e
+                  ));
+                }}
+                disabled={isCommitting}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+              >
+                <X className="w-5 h-5 mr-2" />
+                No
+              </Button>
+            </div>
+          ) : pendingSectionTransition && uiCurrentItem?.type === 'section_transition' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
