@@ -50,6 +50,7 @@ export default function V3ProbingLoop({
   const [completionReason, setCompletionReason] = useState(null);
   const [showMultiInstancePrompt, setShowMultiInstancePrompt] = useState(false);
   const [exitRequested, setExitRequested] = useState(false);
+  const [exitPayload, setExitPayload] = useState(null);
   const messagesEndRef = useRef(null);
   const hasInitialized = useRef(false);
 
@@ -313,14 +314,15 @@ export default function V3ProbingLoop({
   };
 
   const handleContinue = () => {
-    if (onComplete) {
-      onComplete({
-        incidentId,
-        categoryId,
-        completionReason,
-        messages
-      });
-    }
+    console.log('[V3_PROBING_LOOP][EXIT_REQUESTED] handleContinue clicked');
+    setExitRequested(true);
+    setExitPayload({
+      incidentId,
+      categoryId,
+      completionReason,
+      messages,
+      reason: 'CONTINUE_BUTTON'
+    });
   };
   
   // Expose multi-instance handler to parent
@@ -340,14 +342,21 @@ export default function V3ProbingLoop({
         onMultiInstancePrompt(null); // Clear prompt
       }
     } else {
-      console.log('[V3_MULTI_INSTANCE] User selected: No - exiting V3 mode');
+      console.log('[V3_MULTI_INSTANCE][EXIT_REQUESTED] User selected: No - requesting exit');
       setShowMultiInstancePrompt(false);
-      setExitRequested(true); // Set flag instead of calling onComplete directly
+      setExitRequested(true);
+      setExitPayload({
+        incidentId,
+        categoryId,
+        completionReason,
+        messages,
+        reason: 'USER_SELECTED_NO'
+      });
       if (onMultiInstancePrompt) {
         onMultiInstancePrompt(null); // Clear prompt
       }
     }
-  }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt]);
+  }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt, incidentId, completionReason, messages]);
   
   // Notify parent when multi-instance answer is ready to be handled
   useEffect(() => {
@@ -356,13 +365,18 @@ export default function V3ProbingLoop({
     }
   }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
   
-  // Exit V3 mode after render (fixes React warning)
+  // Deferred exit: call parent callback ONLY from useEffect (fixes React warning)
   useEffect(() => {
-    if (exitRequested) {
+    if (exitRequested && exitPayload) {
+      console.log('[V3_PROBING_LOOP][EXIT_EXECUTING] Calling onComplete from useEffect', exitPayload);
       setIsComplete(true);
+      if (onComplete) {
+        onComplete(exitPayload);
+      }
       setExitRequested(false);
+      setExitPayload(null);
     }
-  }, [exitRequested]);
+  }, [exitRequested, exitPayload, onComplete]);
 
   return (
     <div className="w-full space-y-2">
