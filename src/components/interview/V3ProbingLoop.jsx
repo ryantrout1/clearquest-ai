@@ -285,19 +285,20 @@ export default function V3ProbingLoop({
         // Continue interview flow - don't show error card
         setIsComplete(true);
         setCompletionReason("STOP");
-      } else {
-        // Show error for truly fatal issues
-        const errorMessage = {
-          id: `v3-error-${Date.now()}`,
-          role: "ai",
-          content: "I apologize, there was a technical issue. Let's continue with the interview.",
-          isError: true,
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setIsComplete(true);
-        setCompletionReason("ERROR");
+        return; // ✓ EXPLICIT RETURN - guarantees no fallthrough to error card
       }
+      
+      // Show error for truly fatal issues
+      const errorMessage = {
+        id: `v3-error-${Date.now()}`,
+        role: "ai",
+        content: "I apologize, there was a technical issue. Let's continue with the interview.",
+        isError: true,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setIsComplete(true);
+      setCompletionReason("ERROR");
     } finally {
       setIsLoading(false);
     }
