@@ -4519,7 +4519,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current question inline in transcript */}
-          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && (
+          {currentPrompt && !v3ProbingActive && !pendingSectionTransition && !v3MultiInstancePrompt && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
@@ -4608,7 +4608,7 @@ export default function CandidateInterview() {
                 Click to continue to {pendingSectionTransition.nextSectionName}
               </p>
             </div>
-          ) : v3ProbingActive && v3MultiInstancePrompt ? (
+          ) : (v3ProbingActive || !v3ProbingActive) && v3MultiInstancePrompt ? (
             <div className="space-y-2">
               <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                 <p className="text-white text-sm leading-relaxed">
@@ -4643,11 +4643,11 @@ export default function CandidateInterview() {
                 </Button>
               </div>
             </div>
-          ) : v3ProbingActive ? (
+          ) : v3ProbingActive && !v3MultiInstancePrompt ? (
                 <p className="text-xs text-slate-400 text-center">
                   Please respond to the follow-up questions above.
                 </p>
-              ) : isYesNoQuestion && !isV2PackField ? (
+              ) : isYesNoQuestion && !isV2PackField && !v3MultiInstancePrompt ? (
             <div className="flex gap-3">
               <Button
                 ref={yesButtonRef}
@@ -4668,7 +4668,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !v3MultiInstancePrompt ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt.options.map((option) => (
                 <Button
@@ -4681,7 +4681,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' ? (
+          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !v3MultiInstancePrompt ? (
             <div className="flex gap-3">
               <Button
                 onClick={() => handleAnswer("Yes")}
@@ -4700,7 +4700,7 @@ export default function CandidateInterview() {
                 No
               </Button>
             </div>
-          ) : showTextInput && !pendingSectionTransition ? (
+          ) : showTextInput && !pendingSectionTransition && !v3MultiInstancePrompt ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
