@@ -878,6 +878,12 @@ export default function CandidateInterview() {
   const TYPING_TIMEOUT_MS = 240000;
   const TYPING_IDLE_MS = 4000; // 4 seconds after last keystroke = not typing
 
+  // UX: Text normalization for duplicate detection
+  const normalizeText = (s) => {
+    if (!s || typeof s !== 'string') return '';
+    return s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
+  };
+
   const autoScrollToBottom = useCallback(() => {
     if (!historyRef.current) return;
     requestAnimationFrame(() => {
@@ -4189,26 +4195,50 @@ export default function CandidateInterview() {
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {transcript.map((entry, index) => {
-            // UX: Suppress duplicate multi-instance prompts when the interactive gate is visible
-            const isMultiInstancePromptType = ['v3_multi_instance_prompt', 'v3_multi_instance_gate', 'v3_multi_instance_question'].includes(entry.messageType);
-            const isMultiInstancePromptText = entry.role === 'assistant' && typeof entry.text === 'string' && entry.text.includes('Do you have another');
-            const isDuplicateGatePrompt = v3MultiInstancePrompt && (isMultiInstancePromptType || isMultiInstancePromptText);
+            // UX: Completion message constant for rendering override
+            const COMPLETION_TEXT = "Thank you. We've covered the key points for this incident.";
+            const completionNorm = normalizeText(COMPLETION_TEXT);
+            const entryTextNorm = normalizeText(entry.text || entry.content || entry.message || '');
             
-            if (isDuplicateGatePrompt) {
-              console.log("[UX_V3_RENDER] Suppressed duplicate multi-instance transcript prompt", { messageType: entry.messageType, text: entry.text?.substring(0, 50) });
-              return null;
+            // EARLY OVERRIDE: Force completion message to render as plain assistant (no label)
+            if (entry.role === 'assistant' && entryTextNorm === completionNorm) {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+            
+            // UX: Suppress duplicate multi-instance prompts when the interactive gate is visible
+            if (v3MultiInstancePrompt) {
+              const gateTextNorm = normalizeText(
+                typeof v3MultiInstancePrompt === 'string' 
+                  ? v3MultiInstancePrompt 
+                  : (v3MultiInstancePrompt?.text || v3MultiInstancePrompt?.prompt || '')
+              );
+              
+              if (gateTextNorm) {
+                const isExactMatch = entryTextNorm === gateTextNorm;
+                const isBothAnotherPrompt = 
+                  entryTextNorm.startsWith(normalizeText("Do you have another")) &&
+                  gateTextNorm.startsWith(normalizeText("Do you have another"));
+                
+                if (isExactMatch || isBothAnotherPrompt) {
+                  console.log("[UX_V3_RENDER] Suppressed duplicate gate prompt", { 
+                    gateTextNorm: gateTextNorm.substring(0, 50),
+                    entryTextNorm: entryTextNorm.substring(0, 50)
+                  });
+                  return null;
+                }
+              }
             }
             
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
-              {/* V3 Completion Message - Plain assistant message (NO label) */}
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
-                <ContentContainer>
-                <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
               
               {/* SYSTEM Welcome message */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
