@@ -257,13 +257,16 @@ export default function V3ProbingLoop({
           visibleToCandidate: true
         });
 
-        // Show multi-instance gate: defer to prevent setState during render
-        console.log('[V3_PROBING][MULTI_INSTANCE] Queueing multi-instance gate', {
-          categoryLabel: categoryLabel || 'incident',
-          instanceNumber
+        // Check if pack supports multi-instance (from pack metadata)
+        const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
+                                            packData?.followup_multi_instance === true;
+
+        console.log('[V3_PROBING][MULTI_INSTANCE_CHECK]', {
+          packId: packData?.followup_pack_id,
+          behavior: packData?.behavior_type,
+          shouldOffer: shouldOfferAnotherInstance
         });
-        
-        setShowMultiInstancePrompt(true);
+
         setIsComplete(true);
 
         // Persist completion to local transcript
@@ -315,62 +318,31 @@ export default function V3ProbingLoop({
 
   const handleContinue = () => {
     console.log('[V3_PROBING_LOOP][EXIT_REQUESTED] handleContinue clicked');
+
+    const shouldOfferAnotherInstance = packData?.behavior_type === 'multi_incident' || 
+                                        packData?.followup_multi_instance === true;
+
     setExitRequested(true);
     setExitPayload({
       incidentId,
       categoryId,
       completionReason,
       messages,
-      reason: 'CONTINUE_BUTTON'
+      reason: 'CONTINUE_BUTTON',
+      shouldOfferAnotherInstance,
+      packId: packData?.followup_pack_id,
+      categoryLabel,
+      instanceNumber,
+      packData
     });
   };
   
-  // Expose multi-instance handler to parent
+  // Expose multi-instance handler to parent (DISABLED - parent now owns gate)
   const handleMultiInstanceAnswer = useCallback((answer) => {
-    if (answer === 'Yes') {
-      console.log('[V3_MULTI_INSTANCE] User selected: Yes - starting new instance');
-      setShowMultiInstancePrompt(false);
-      setMessages([]);
-      setProbeCount(0);
-      setCompletionReason(null);
-      const newInstanceId = `v3-incident-${sessionId}-${categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      setIncidentId(newInstanceId);
-      if (openerAnswer) {
-        handleSubmit(null, openerAnswer, true);
-      }
-      if (onMultiInstancePrompt) {
-        onMultiInstancePrompt(null); // Clear gate
-      }
-    } else {
-      console.log('[V3_MULTI_INSTANCE][EXIT_REQUESTED] User selected: No - requesting deferred exit');
-      setShowMultiInstancePrompt(false);
-      // DO NOT call state setters here - queue exit instead
-      setExitRequested(true);
-      setExitPayload({
-        incidentId,
-        categoryId,
-        completionReason,
-        messages,
-        reason: 'USER_SELECTED_NO'
-      });
-    }
-  }, [sessionId, categoryId, openerAnswer, onMultiInstancePrompt, incidentId, completionReason, messages]);
+    console.log('[V3_MULTI_INSTANCE][LEGACY_HANDLER] Called but should not be used - parent owns gate now');
+  }, []);
   
-  // Notify parent when multi-instance gate should show
-  useEffect(() => {
-    if (showMultiInstancePrompt && isComplete && onMultiInstancePrompt) {
-      const promptText = `Do you have another ${categoryLabel || 'incident'} to add?`;
-      onMultiInstancePrompt(promptText);
-      console.log('[V3_PROBING][GATE_SHOWN] Notified parent of gate prompt');
-    }
-  }, [showMultiInstancePrompt, isComplete, categoryLabel, onMultiInstancePrompt]);
-  
-  // Notify parent when multi-instance answer handler is ready
-  useEffect(() => {
-    if (onMultiInstanceAnswer) {
-      onMultiInstanceAnswer(handleMultiInstanceAnswer);
-    }
-  }, [handleMultiInstanceAnswer, onMultiInstanceAnswer]);
+  // Multi-instance gate hooks DISABLED - parent now owns gate fully
   
   // Deferred exit: call parent callback ONLY from useEffect (fixes React warning)
   const completeCalledRef = useRef(false);
@@ -437,19 +409,8 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
-      {/* Multi-instance prompt text (Yes/No buttons moved to footer) */}
-      {showMultiInstancePrompt && !isComplete && (
-        <div>
-          <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-            <p className="text-white text-sm">
-              Do you have another {categoryLabel || 'incident'} to add?
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Continue button - shown after user answers "No" to multi-instance */}
-      {isComplete && !showMultiInstancePrompt && (
+      {/* Continue button - shown after probing completes */}
+      {isComplete && (
         <div className="flex justify-center mt-4">
           <Button
             onClick={handleContinue}

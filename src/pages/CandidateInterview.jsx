@@ -3744,15 +3744,45 @@ export default function CandidateInterview() {
 
       if (pendingTransition.type === 'EXIT_V3') {
         const result = pendingTransition.payload;
-        const { incidentId, categoryId, completionReason, messages, reason } = result;
+        const { incidentId, categoryId, completionReason, messages, reason, shouldOfferAnotherInstance, packId, categoryLabel, instanceNumber, packData } = result;
         const baseQuestionId = v3BaseQuestionIdRef.current;
 
-        console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, hasRef: !!v3BaseQuestionIdRef.current });
+        console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, shouldOfferAnotherInstance });
 
-        // GUARD: Check if multi-instance gate is active - DO NOT advance if so
-        if (multiInstanceGate && multiInstanceGate.active) {
-          console.log('[EXIT_V3][BLOCKED] Multi-instance gate active - deferring advance');
-          exitV3HandledRef.current = false; // Reset so we can advance after gate resolves
+        // GUARD: If multi-instance is offered, show gate BEFORE advancing
+        if (shouldOfferAnotherInstance) {
+          console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
+          
+          // Clear V3 probing state but DO NOT advance yet
+          setV3ProbingActive(false);
+          setV3ProbingContext(null);
+          setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+          
+          // Set up multi-instance gate as first-class currentItem
+          setMultiInstanceGate({
+            active: true,
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: `Do you have another ${categoryLabel || 'incident'} to report?`,
+            instanceNumber,
+            baseQuestionId,
+            packData
+          });
+          
+          setCurrentItem({
+            id: `multi-instance-gate-${packId}-${instanceNumber}`,
+            type: 'multi_instance_gate',
+            packId,
+            categoryId,
+            categoryLabel,
+            promptText: `Do you have another ${categoryLabel || 'incident'} to report?`,
+            instanceNumber,
+            baseQuestionId,
+            packData
+          });
+          
+          exitV3HandledRef.current = false; // Reset so gate handlers can advance
           setPendingTransition(null);
           return;
         }
@@ -3787,7 +3817,7 @@ export default function CandidateInterview() {
     };
 
     executePendingTransition();
-  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate]);
+  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
@@ -4901,6 +4931,13 @@ export default function CandidateInterview() {
                   instanceNumber: nextInstanceNumber
                 });
 
+                // Log pack re-entered
+                await logPackEntered(sessionId, { 
+                  packId: gate.packId, 
+                  instanceNumber: nextInstanceNumber, 
+                  isV3: true 
+                });
+
                 // Get deterministic opener for next instance
                 const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
                 const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
@@ -4937,6 +4974,12 @@ export default function CandidateInterview() {
 
                 // Clear gate
                 setMultiInstanceGate(null);
+
+                // Log pack exited
+                await logPackExited(sessionId, {
+                  packId: gate.packId,
+                  instanceNumber: gate.instanceNumber
+                });
 
                 // Advance to next base question
                 if (gate.baseQuestionId) {
