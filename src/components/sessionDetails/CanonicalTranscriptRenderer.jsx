@@ -201,14 +201,18 @@ function buildTranscriptBlocks(entries, questions = []) {
     }
     
     // Section completion card
-    if (kind === 'section_completion' || kind === 'system_section_complete') {
+    if (kind === 'section_completion' || kind === 'system_section_complete' || entry.messageType === 'SECTION_COMPLETE') {
       blocks.push({
         id: `block-${i}`,
         type: 'section_complete',
+        uiVariant: entry.uiVariant,
+        title: entry.title,
+        lines: entry.lines,
         completedSectionName: entry.completedSectionName || entry.sectionName,
         nextSectionName: entry.nextSectionName,
         whatToExpect: entry.whatToExpect,
         progress: entry.progress,
+        meta: entry.meta,
         sectionTime: entry.sectionTime,
         timestamp: entry.timestamp
       });
@@ -241,7 +245,7 @@ function buildTranscriptBlocks(entries, questions = []) {
     }
     
     // Base question + answer (may be a single combined entry or two separate entries)
-    if (kind === 'base_question' || kind === 'question') {
+    if (kind === 'base_question' || kind === 'question' || entry.messageType === 'QUESTION_SHOWN') {
       // Check if this entry has both question and answer (combined)
       const hasAnswer = Boolean(entry.answer);
       
@@ -268,13 +272,16 @@ function buildTranscriptBlocks(entries, questions = []) {
       blocks.push({
         id: `block-${i}`,
         type: 'main_question',
+        uiVariant: entry.uiVariant,
+        title: entry.title,
         questionNumber: questionNumber,
         questionCode: entry.questionCode || entry.code,
         questionText: entry.questionText || entry.text || entry.content,
         answer: entry.answer || answerEntry?.answer || answerEntry?.text,
         sectionName: entry.sectionName || entry.category,
         timestamp: entry.timestamp,
-        questionId: questionId
+        questionId: questionId,
+        meta: entry.meta
       });
       
       // Skip the answer entry if we consumed it
@@ -454,11 +461,42 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // Section complete card (compact)
+  // Section complete card - match CandidateInterview UI exactly
   if (type === 'section_complete') {
-    // Calculate section time if available
-    const sectionTimeText = block.sectionTime ? `Completed in ${block.sectionTime}` : null;
+    // Use structured data if available (new format), fallback to text
+    if (block.uiVariant === 'SECTION_COMPLETE_CARD' && block.title && block.lines) {
+      return (
+        <div className="space-y-2">
+          <RoleTimestamp role="System" time={timeLabel} />
+          <div className="bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-2">{block.title}</h2>
+                <div className="space-y-2">
+                  {block.lines.map((line, idx) => (
+                    <p key={idx} className="text-emerald-200 text-sm leading-relaxed">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+                {block.meta?.progress && (
+                  <div className="flex items-center gap-4 text-xs text-emerald-300/80 mt-3">
+                    <span>{block.meta.progress.completedSections} of {block.meta.progress.totalSections} sections complete</span>
+                    <span>•</span>
+                    <span>{block.meta.progress.answeredQuestions} of {block.meta.progress.totalQuestions} questions answered</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     
+    // Fallback for old format
     return (
       <div className="space-y-2">
         <RoleTimestamp role="System" time={timeLabel} />
@@ -468,28 +506,7 @@ function TranscriptBlock({ block, viewMode }) {
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-white leading-tight">
-                Section Complete: {block.completedSectionName}
-              </h3>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {sectionTimeText && (
-                  <>
-                    <span className="text-emerald-300 text-sm">{sectionTimeText}</span>
-                    <span className="text-emerald-400/50">•</span>
-                  </>
-                )}
-                <span className="text-emerald-300 text-sm">
-                  {block.progress?.completedSections || 0} of {block.progress?.totalSections || 0} sections complete
-                </span>
-                {block.progress?.answeredQuestions && (
-                  <>
-                    <span className="text-emerald-400/50">•</span>
-                    <Badge className="bg-emerald-600/20 text-emerald-300 border-emerald-500/30 text-xs px-2 py-0">
-                      {block.progress.answeredQuestions} questions answered
-                    </Badge>
-                  </>
-                )}
-              </div>
+              <p className="text-white text-sm">{block.text}</p>
             </div>
           </div>
         </div>
@@ -517,10 +534,15 @@ function TranscriptBlock({ block, viewMode }) {
     );
   }
   
-  // Main question card (blue) with optional Yes/No chip
+  // Main question card (blue) - match CandidateInterview UI exactly
   if (type === 'main_question') {
     const isYesNo = block.answer === 'Yes' || block.answer === 'No';
     const hasTextAnswer = block.answer && !isYesNo;
+    
+    // Use structured data if available (new format), fallback to text
+    const displayTitle = block.uiVariant === 'QUESTION_CARD' && block.title 
+      ? block.title 
+      : `Question ${block.questionNumber || ''}${block.sectionName ? ` • ${block.sectionName}` : ''}`;
     
     return (
       <div className="space-y-3">
@@ -530,18 +552,29 @@ function TranscriptBlock({ block, viewMode }) {
         <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base font-semibold text-blue-400">
-                  Question {block.questionNumber || ''}
-                </span>
-                {block.sectionName && (
-                  <>
-                    <span className="text-sm text-slate-500">•</span>
-                    <span className="text-sm font-medium text-slate-300">{block.sectionName}</span>
-                  </>
-                )}
-              </div>
-              <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+              {block.uiVariant === 'QUESTION_CARD' && block.title ? (
+                <>
+                  <div className="mb-2">
+                    <span className="text-base font-semibold text-blue-400">{block.title}</span>
+                  </div>
+                  <p className="text-white text-base leading-relaxed">{block.questionText || block.text}</p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base font-semibold text-blue-400">
+                      Question {block.questionNumber || ''}
+                    </span>
+                    {block.sectionName && (
+                      <>
+                        <span className="text-sm text-slate-500">•</span>
+                        <span className="text-sm font-medium text-slate-300">{block.sectionName}</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-white text-base leading-relaxed">{block.questionText}</p>
+                </>
+              )}
             </div>
             
             {/* Yes/No chip on the right side of card */}

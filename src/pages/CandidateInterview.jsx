@@ -38,7 +38,17 @@ import V3ProbingLoop from "../components/interview/V3ProbingLoop";
 import V3DebugPanel from "../components/interview/V3DebugPanel";
 import { appendQuestionEntry, appendAnswerEntry } from "../components/utils/transcriptLogger";
 import { applySectionGateIfNeeded } from "../components/interview/sectionGateHandler";
-import { appendWelcomeMessage, appendResumeMarker, logSystemEvent as logSystemEventHelper } from "../components/utils/chatTranscriptHelpers";
+import { 
+  appendWelcomeMessage, 
+  appendResumeMarker, 
+  logSystemEvent as logSystemEventHelper,
+  logQuestionShown,
+  logSectionComplete,
+  logAnswerSubmitted,
+  logPackEntered,
+  logPackExited,
+  logSectionStarted
+} from "../components/utils/chatTranscriptHelpers";
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
@@ -1009,6 +1019,14 @@ export default function CandidateInterview() {
         if (orderedSections.length > 0) {
           const initialSectionIndex = determineInitialSectionIndex(orderedSections, loadedSession, engineData);
           setCurrentSectionIndex(initialSectionIndex);
+
+          // Log section started if not new session
+          if (loadedSession.total_questions_answered > 0 && orderedSections[initialSectionIndex]) {
+            await logSectionStarted(sessionId, {
+              sectionId: orderedSections[initialSectionIndex].id,
+              sectionName: orderedSections[initialSectionIndex].displayName
+            });
+          }
         }
       } catch (sectionErr) {
         console.error('[SECTIONS] Error initializing sections:', sectionErr);
@@ -1283,26 +1301,23 @@ export default function CandidateInterview() {
         const answeredQuestionsCount = transcript.filter(t => t.type === 'question').length + 1;
         const totalQuestionsCount = engine?.TotalQuestions || 0;
         
-        const completionMessage = {
-          id: `section-complete-${Date.now()}`,
-          type: 'system_section_complete',
-          timestamp: new Date().toISOString(),
-          kind: 'section_completion',
-          role: 'system',
+        // Log section complete to transcript
+        await logSectionComplete(sessionId, {
           completedSectionId: nextResult.completedSection.id,
           completedSectionName: nextResult.completedSection.displayName,
           nextSectionId: nextResult.nextSection.id,
           nextSectionName: nextResult.nextSection.displayName,
-          whatToExpect: whatToExpect,
           progress: {
             completedSections: nextResult.nextSectionIndex,
             totalSections: totalSectionsCount,
             answeredQuestions: answeredQuestionsCount,
             totalQuestions: totalQuestionsCount
           }
-        };
-        
-        const newTranscript = [...effectiveTranscript, completionMessage];
+        });
+
+        // Reload transcript after logging
+        const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+        const newTranscript = updatedSession.transcript_snapshot || [];
         setTranscript(newTranscript);
         
         // Trigger section summary generation (background)
@@ -1962,6 +1977,9 @@ export default function CandidateInterview() {
           returningToSectionFlow: true
         });
         
+        // Log pack exited (audit only)
+        await logPackExited(sessionId, { packId, instanceNumber });
+        
         // Trigger summary generation for completed question (background)
         base44.functions.invoke('triggerSummaries', {
           sessionId,
@@ -2159,47 +2177,12 @@ export default function CandidateInterview() {
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
         
-        // Append question and answer to canonical transcript (legal record) with Response linkage
-        try {
-          const currentTranscript = session.transcript_snapshot || [];
-          
-          // Log question entry (if not already logged)
-          const questionKey = currentItem.id;
-          if (!hasQuestionBeenLogged(sessionId, questionKey)) {
-            await appendQuestionEntry({
-              sessionId,
-              existingTranscript: currentTranscript,
-              text: question.question_text,
-              questionId: currentItem.id,
-              packId: null,
-              fieldKey: null,
-              instanceNumber: null,
-              responseId: savedResponse?.id || null,
-              parentResponseId: null
-            });
-          }
-          
-          // Determine exact answer text as seen by candidate
-          let answerTextForUI = value;
-          if (question.response_type === 'yes_no') {
-            answerTextForUI = value === 'Yes' ? 'Yes' : 'No';
-          }
-          
-          // Log answer entry
-          await appendAnswerEntry({
-            sessionId,
-            existingTranscript: currentTranscript,
-            text: answerTextForUI,
-            questionId: currentItem.id,
-            packId: null,
-            fieldKey: null,
-            instanceNumber: null,
-            responseId: savedResponse?.id || null,
-            parentResponseId: null
-          });
-        } catch (err) {
-          console.warn("[TRANSCRIPT][Q&A] Failed to log section question and answer:", err);
-        }
+        // Log answer submitted (audit only)
+        await logAnswerSubmitted(sessionId, {
+          questionDbId: currentItem.id,
+          responseId: savedResponse?.id,
+          packId: null
+        });
 
         // UX: Clear draft on successful submit
         clearDraft();
@@ -2256,26 +2239,23 @@ export default function CandidateInterview() {
           const answeredQuestionsCount = newTranscript.filter(t => t.type === 'question').length;
           const totalQuestionsCount = engine?.TotalQuestions || 0;
           
-          const completionMessage = {
-            id: `section-complete-${Date.now()}`,
-            type: 'system_section_complete',
-            timestamp: new Date().toISOString(),
-            kind: 'section_completion',
-            role: 'system',
+          // Log section complete to transcript
+          await logSectionComplete(sessionId, {
             completedSectionId: currentSection?.id,
             completedSectionName: currentSection?.displayName,
             nextSectionId: nextSection?.id,
             nextSectionName: nextSection?.displayName,
-            whatToExpect: whatToExpect,
             progress: {
               completedSections: gateResult.nextSectionIndex,
               totalSections: totalSectionsCount,
               answeredQuestions: answeredQuestionsCount,
               totalQuestions: totalQuestionsCount
             }
-          };
+          });
           
-          const gateTranscript = [...newTranscript, completionMessage];
+          // Reload transcript after logging
+          const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+          const gateTranscript = updatedSession.transcript_snapshot || [];
           setTranscript(gateTranscript);
           
           // Trigger section summary generation (background)
@@ -2370,6 +2350,9 @@ export default function CandidateInterview() {
                 isSynthesized: opener.isSynthesized
               });
               
+              // Log pack entered (audit only)
+              await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
+              
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
               
@@ -2434,6 +2417,9 @@ export default function CandidateInterview() {
               console.log(`[V2_PACK][ENTER] totalFields=${orderedFields.length}, fields=[${orderedFields.map(f => f.fieldKey).join(', ')}]`);
               console.log(`[V2_PACK][ENTER] triggeredByQuestion=${currentItem.id} (${question.question_id}), instanceNumber=1`);
               console.log(`[V2_PACK][ENTER] AI-driven mode - backend will control progression`);
+              
+              // Log pack entered (audit only)
+              await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
               
               // Special log for PACK_PRIOR_LE_APPS_STANDARD
               if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
@@ -3522,6 +3508,14 @@ export default function CandidateInterview() {
     setV3ProbingActive(false);
     setV3ProbingContext(null);
     
+    // Log pack exited (audit only)
+    if (v3ProbingContext?.packId) {
+      await logPackExited(sessionId, { 
+        packId: v3ProbingContext.packId, 
+        instanceNumber: v3ProbingContext.instanceNumber || 1 
+      });
+    }
+    
     // Advance to next base question
     if (baseQuestionId) {
       await advanceToNextBaseQuestion(baseQuestionId, newTranscript);
@@ -4503,6 +4497,16 @@ export default function CandidateInterview() {
               <Button
                 onClick={() => {
                   console.log("[CandidateInterview] Beginning next section", pendingSectionTransition);
+                  
+                  // Log section started (audit only)
+                  const nextSection = sections[pendingSectionTransition.nextSectionIndex];
+                  if (nextSection) {
+                    await logSectionStarted(sessionId, {
+                      sectionId: nextSection.id,
+                      sectionName: nextSection.displayName
+                    });
+                  }
+                  
                   setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
                   setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
