@@ -3657,24 +3657,6 @@ export default function CandidateInterview() {
       currentItemRef.current = currentItem;
     }
     
-    // AUDIT LOG: UI question object for PACK_PRIOR_LE_APPS_STANDARD before rendering
-    if (effectiveCurrentItem?.type === 'v2_pack_field' && 
-        effectiveCurrentItem?.packId === "PACK_PRIOR_LE_APPS_STANDARD" && 
-        effectiveCurrentItem?.fieldKey === "PACK_PRLE_Q01") {
-      const fieldConfig = effectiveCurrentItem?.fieldConfig;
-      console.log("[V2_PACK_AUDIT][UI_QUESTION_BEFORE_RENDER]", {
-        packId: effectiveCurrentItem.packId,
-        fieldKey: effectiveCurrentItem.fieldKey,
-        fieldConfigLabel: fieldConfig?.label || null,
-        fieldConfigFallbackQuestion: fieldConfig?.fallbackQuestion || null,
-        hasClarifierActive: !!(v2ClarifierState?.packId === effectiveCurrentItem.packId && 
-                               v2ClarifierState?.fieldKey === effectiveCurrentItem.fieldKey),
-        clarifierQuestion: v2ClarifierState?.clarifierQuestion || null,
-        rawFieldConfig: fieldConfig,
-        rawCurrentItem: effectiveCurrentItem
-      });
-    }
-    
     // V3 probing mode - no prompt, V3ProbingLoop handles it
     if (v3ProbingActive) {
       return null;
@@ -3723,6 +3705,16 @@ export default function CandidateInterview() {
       
       const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
       const sectionName = sectionEntity?.section_name || question.category || '';
+      const questionNumber = getQuestionDisplayNumber(effectiveCurrentItem.id);
+      
+      // RENDER-POINT LOGGING: Log question when it's shown
+      logQuestionShown(sessionId, {
+        questionId: effectiveCurrentItem.id,
+        questionText: question.question_text,
+        questionNumber,
+        sectionId: question.section_id,
+        sectionName
+      }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       
       return {
         type: 'question',
