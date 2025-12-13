@@ -2381,6 +2381,17 @@ export default function CandidateInterview() {
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
 
+        // Append visible user answer to main transcript (chatTranscriptHelpers)
+        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+        await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], value, {
+          messageType: 'ANSWER',
+          questionDbId: currentItem.id,
+          questionCode: question.question_id,
+          responseId: savedResponse?.id,
+          sectionId: question.section_id
+        });
+
         // Log answer submitted (audit only)
         await logAnswerSubmitted(sessionId, {
           questionDbId: currentItem.id,
@@ -3753,6 +3764,25 @@ export default function CandidateInterview() {
         if (shouldOfferAnotherInstance) {
           console.log('[EXIT_V3][MULTI_INSTANCE_GATE] Showing gate instead of advancing');
           
+          const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
+          
+          // Append gate prompt to main transcript as visible assistant message
+          const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+          const sessionForGate = await base44.entities.InterviewSession.get(sessionId);
+          await appendAssistantMessage(sessionId, sessionForGate.transcript_snapshot || [], gatePromptText, {
+            id: `mi-gate-${packId}-${instanceNumber}`,
+            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+            packId,
+            categoryId,
+            instanceNumber,
+            baseQuestionId,
+            visibleToCandidate: true
+          });
+          
+          // Reload transcript after appending
+          const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+          setTranscript(updatedSession.transcript_snapshot || []);
+          
           // Clear V3 probing state but DO NOT advance yet
           setV3ProbingActive(false);
           setV3ProbingContext(null);
@@ -3764,7 +3794,7 @@ export default function CandidateInterview() {
             packId,
             categoryId,
             categoryLabel,
-            promptText: `Do you have another ${categoryLabel || 'incident'} to report?`,
+            promptText: gatePromptText,
             instanceNumber,
             baseQuestionId,
             packData
@@ -3776,7 +3806,7 @@ export default function CandidateInterview() {
             packId,
             categoryId,
             categoryLabel,
-            promptText: `Do you have another ${categoryLabel || 'incident'} to report?`,
+            promptText: gatePromptText,
             instanceNumber,
             baseQuestionId,
             packData
@@ -4361,6 +4391,76 @@ export default function CandidateInterview() {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
 
+            // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
+            if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-blue-400">
+                        {entry.title || `Question ${entry.meta?.questionNumber || ''}`}
+                      </span>
+                      {entry.meta?.sectionName && (
+                        <>
+                          <span className="text-sm text-slate-500">•</span>
+                          <span className="text-sm font-medium text-slate-300">{entry.meta.sectionName}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+
+            // User answer (ANSWER from chatTranscriptHelpers)
+            if (entry.role === 'user' && entry.messageType === 'ANSWER') {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-blue-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+
+            // Multi-instance gate prompt shown
+            if (entry.role === 'assistant' && entry.messageType === 'MULTI_INSTANCE_GATE_SHOWN') {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-purple-400">Next</span>
+                    </div>
+                    <p className="text-white text-base leading-relaxed">{entry.text}</p>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+
+            // Multi-instance gate answer (user's Yes/No)
+            if (entry.role === 'user' && entry.messageType === 'MULTI_INSTANCE_GATE_ANSWER') {
+              return (
+                <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+                  <ContentContainer>
+                  <div className="flex justify-end">
+                    <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                      <p className="text-white text-sm">{entry.text}</p>
+                    </div>
+                  </div>
+                  </ContentContainer>
+                </div>
+              );
+            }
+
             // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
             if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
               return (
@@ -4914,84 +5014,114 @@ export default function CandidateInterview() {
             </div>
           ) : isMultiInstanceGate ? (
           <div className="flex gap-3">
-            <Button
-              onClick={async () => {
-                console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
-                const gate = multiInstanceGate;
+           <Button
+             onClick={async () => {
+               console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
+               const gate = multiInstanceGate;
 
-                // Clear gate
-                setMultiInstanceGate(null);
+               // Append user's "Yes" answer to transcript
+               const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+               await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'Yes', {
+                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-yes`,
+                 messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+                 packId: gate.packId,
+                 categoryId: gate.categoryId,
+                 instanceNumber: gate.instanceNumber
+               });
 
-                // Re-enter V3 pack with incremented instance number
-                const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
+               // Reload transcript
+               const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+               setTranscript(updatedSession.transcript_snapshot || []);
 
-                console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
-                  packId: gate.packId,
-                  categoryId: gate.categoryId,
-                  instanceNumber: nextInstanceNumber
-                });
+               // Clear gate
+               setMultiInstanceGate(null);
 
-                // Log pack re-entered
-                await logPackEntered(sessionId, { 
-                  packId: gate.packId, 
-                  instanceNumber: nextInstanceNumber, 
-                  isV3: true 
-                });
+               // Re-enter V3 pack with incremented instance number
+               const nextInstanceNumber = (gate.instanceNumber || 1) + 1;
 
-                // Get deterministic opener for next instance
-                const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
-                const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
+               console.log('[MULTI_INSTANCE_GATE][YES] Re-entering pack', {
+                 packId: gate.packId,
+                 categoryId: gate.categoryId,
+                 instanceNumber: nextInstanceNumber
+               });
 
-                // Set up opener for next instance
-                const openerItem = {
-                  id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
-                  type: 'v3_pack_opener',
-                  packId: gate.packId,
-                  categoryId: gate.categoryId,
-                  categoryLabel: gate.categoryLabel,
-                  openerText: opener.text,
-                  exampleNarrative: opener.example,
-                  baseQuestionId: gate.baseQuestionId,
-                  questionCode: engine.QById[gate.baseQuestionId]?.question_id,
-                  sectionId: engine.QById[gate.baseQuestionId]?.section_id,
-                  instanceNumber: nextInstanceNumber,
-                  packData: gate.packData
-                };
+               // Log pack re-entered
+               await logPackEntered(sessionId, { 
+                 packId: gate.packId, 
+                 instanceNumber: nextInstanceNumber, 
+                 isV3: true 
+               });
 
-                setCurrentItem(openerItem);
-                await persistStateToDatabase(transcript, [], openerItem);
-              }}
-              disabled={isCommitting}
-              className="flex-1 bg-green-600 hover:bg-green-700"
-            >
-              <Check className="w-5 h-5 mr-2" />
-              Yes
-            </Button>
-            <Button
-              onClick={async () => {
-                console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
-                const gate = multiInstanceGate;
+               // Get deterministic opener for next instance
+               const { getV3DeterministicOpener } = await import("../components/utils/v3ProbingPrompts");
+               const opener = getV3DeterministicOpener(gate.packData, gate.categoryId, gate.categoryLabel);
 
-                // Clear gate
-                setMultiInstanceGate(null);
+               // Set up opener for next instance
+               const openerItem = {
+                 id: `v3-opener-${gate.packId}-${nextInstanceNumber}`,
+                 type: 'v3_pack_opener',
+                 packId: gate.packId,
+                 categoryId: gate.categoryId,
+                 categoryLabel: gate.categoryLabel,
+                 openerText: opener.text,
+                 exampleNarrative: opener.example,
+                 baseQuestionId: gate.baseQuestionId,
+                 questionCode: engine.QById[gate.baseQuestionId]?.question_id,
+                 sectionId: engine.QById[gate.baseQuestionId]?.section_id,
+                 instanceNumber: nextInstanceNumber,
+                 packData: gate.packData
+               };
 
-                // Log pack exited
-                await logPackExited(sessionId, {
-                  packId: gate.packId,
-                  instanceNumber: gate.instanceNumber
-                });
+               setCurrentItem(openerItem);
+               await persistStateToDatabase(updatedSession.transcript_snapshot || [], [], openerItem);
+             }}
+             disabled={isCommitting}
+             className="flex-1 bg-green-600 hover:bg-green-700"
+           >
+             <Check className="w-5 h-5 mr-2" />
+             Yes
+           </Button>
+           <Button
+             onClick={async () => {
+               console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
+               const gate = multiInstanceGate;
 
-                // Advance to next base question
-                if (gate.baseQuestionId) {
-                  await advanceToNextBaseQuestion(gate.baseQuestionId, transcript);
-                }
-              }}
-              disabled={isCommitting}
-              className="flex-1 bg-red-600 hover:bg-red-700"
-            >
-              <X className="w-5 h-5 mr-2" />
-              No
-            </Button>
+               // Append user's "No" answer to transcript
+               const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+               await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'No', {
+                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-no`,
+                 messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+                 packId: gate.packId,
+                 categoryId: gate.categoryId,
+                 instanceNumber: gate.instanceNumber
+               });
+
+               // Reload transcript
+               const updatedSession = await base44.entities.InterviewSession.get(sessionId);
+               setTranscript(updatedSession.transcript_snapshot || []);
+
+               // Clear gate
+               setMultiInstanceGate(null);
+
+               // Log pack exited
+               await logPackExited(sessionId, {
+                 packId: gate.packId,
+                 instanceNumber: gate.instanceNumber
+               });
+
+               // Advance to next base question
+               if (gate.baseQuestionId) {
+                 await advanceToNextBaseQuestion(gate.baseQuestionId, updatedSession.transcript_snapshot || []);
+               }
+             }}
+             disabled={isCommitting}
+             className="flex-1 bg-red-600 hover:bg-red-700"
+           >
+             <X className="w-5 h-5 mr-2" />
+             No
+           </Button>
           </div>
           ) : isV3Gate ? (
           <div className="flex gap-3">
