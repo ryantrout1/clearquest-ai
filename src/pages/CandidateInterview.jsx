@@ -4190,16 +4190,26 @@ export default function CandidateInterview() {
           <div className="space-y-2">
           {transcript.map((entry, index) => {
             // UX: Suppress duplicate multi-instance prompts when the interactive gate is visible
-            const isDuplicateGatePrompt = v3MultiInstancePrompt && entry.role === 'assistant' && 
-              (entry.text?.includes('Do you have another') || entry.text === v3MultiInstancePrompt.replace(/^Next • /, ''));
+            const isMultiInstancePromptType = ['v3_multi_instance_prompt', 'v3_multi_instance_gate', 'v3_multi_instance_question'].includes(entry.messageType);
+            const isMultiInstancePromptText = entry.role === 'assistant' && typeof entry.text === 'string' && entry.text.includes('Do you have another');
+            const isDuplicateGatePrompt = v3MultiInstancePrompt && (isMultiInstancePromptType || isMultiInstancePromptText);
             
             if (isDuplicateGatePrompt) {
-              console.log("[UX] Suppressed duplicate multi-instance transcript prompt", { text: entry.text });
+              console.log("[UX_V3_RENDER] Suppressed duplicate multi-instance transcript prompt", { messageType: entry.messageType, text: entry.text?.substring(0, 50) });
               return null;
             }
             
             return (
             <div key={`${entry.role}-${entry.index || entry.id || index}`}>
+              {/* V3 Completion Message - Plain assistant message (NO label) */}
+              {entry.role === 'assistant' && entry.messageType === 'v3_probe_complete' && (
+                <ContentContainer>
+                <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                </div>
+                </ContentContainer>
+              )}
+              
               {/* SYSTEM Welcome message */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <ContentContainer>
