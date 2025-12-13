@@ -194,8 +194,16 @@ function buildTranscriptBlocks(entries, questions = [], responses = []) {
     if (entry.messageType === 'FOLLOWUP_CARD_SHOWN') {
       // Look up candidate answer from Response entity
       const packId = entry.meta?.packId;
-      const fieldKey = entry.meta?.fieldKey;
+      let fieldKey = entry.meta?.fieldKey;
       const instanceNumber = entry.meta?.instanceNumber || 1;
+      const variant = entry.meta?.variant;
+      
+      // BONUS: V3 opener mapping - if variant='opener' and fieldKey is null, map to v3_opener_narrative
+      if (variant === 'opener' && !fieldKey) {
+        fieldKey = 'v3_opener_narrative';
+        console.log('[TRANSCRIPT][V3_OPENER_FIX] Mapped opener to fieldKey=v3_opener_narrative');
+      }
+      
       const lookupKey = `${packId}-${fieldKey}-${instanceNumber}`;
       const packResponse = packResponseMap[lookupKey];
       const candidateAnswer = packResponse?.answer;
@@ -203,10 +211,11 @@ function buildTranscriptBlocks(entries, questions = [], responses = []) {
       console.log('[TRANSCRIPT][FOLLOWUP_CARD]', {
         packId,
         fieldKey,
+        variant,
         instanceNumber,
         lookupKey,
         foundResponse: !!packResponse,
-        answer: candidateAnswer
+        answer: candidateAnswer?.substring?.(0, 50)
       });
       
       blocks.push({

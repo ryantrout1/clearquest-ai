@@ -1476,8 +1476,21 @@ export default function CandidateInterview() {
         setCompletedSectionsCount(prev => Math.max(prev, nextResult.nextSectionIndex));
 
         const totalSectionsCount = sections.length;
-        const answeredQuestionsCount = transcript.filter(t => t.type === 'question').length + 1;
         const totalQuestionsCount = engine?.TotalQuestions || 0;
+        
+        // FIX A: Count from Response entities (authoritative source)
+        const completedSectionResponses = await base44.entities.Response.filter({
+          session_id: sessionId,
+          response_type: 'base_question'
+        });
+        const completedSectionQuestionIds = new Set(completedSectionResponses.map(r => r.question_id));
+        const answeredQuestionsInCompletedSection = nextResult.completedSection.questionIds.filter(qId => completedSectionQuestionIds.has(qId)).length;
+
+        console.log('[SECTION_COMPLETE][COUNT]', {
+          sectionId: nextResult.completedSection.id,
+          sectionQuestions: nextResult.completedSection.questionIds.length,
+          answeredCount: answeredQuestionsInCompletedSection
+        });
 
         // Log section complete to transcript
         await logSectionComplete(sessionId, {
@@ -1488,7 +1501,7 @@ export default function CandidateInterview() {
           progress: {
             completedSections: nextResult.nextSectionIndex,
             totalSections: totalSectionsCount,
-            answeredQuestions: answeredQuestionsCount,
+            answeredQuestions: answeredQuestionsInCompletedSection,
             totalQuestions: totalQuestionsCount
           }
         });
@@ -2451,8 +2464,21 @@ export default function CandidateInterview() {
           setCompletedSectionsCount(prev => Math.max(prev, gateResult.nextSectionIndex));
 
           const totalSectionsCount = sections.length;
-          const answeredQuestionsCount = newTranscript.filter(t => t.type === 'question').length;
           const totalQuestionsCount = engine?.TotalQuestions || 0;
+          
+          // FIX A: Count from Response entities (authoritative source)
+          const gateCompletedResponses = await base44.entities.Response.filter({
+            session_id: sessionId,
+            response_type: 'base_question'
+          });
+          const gateCompletedQuestionIds = new Set(gateCompletedResponses.map(r => r.question_id));
+          const answeredInGateSection = currentSection.questionIds.filter(qId => gateCompletedQuestionIds.has(qId)).length;
+
+          console.log('[GATE_SECTION_COMPLETE][COUNT]', {
+            sectionId: currentSection?.id,
+            sectionQuestions: currentSection?.questionIds.length,
+            answeredCount: answeredInGateSection
+          });
 
           // Log section complete to transcript
           await logSectionComplete(sessionId, {
@@ -2463,7 +2489,7 @@ export default function CandidateInterview() {
             progress: {
               completedSections: gateResult.nextSectionIndex,
               totalSections: totalSectionsCount,
-              answeredQuestions: answeredQuestionsCount,
+              answeredQuestions: answeredInGateSection,
               totalQuestions: totalQuestionsCount
             }
           });
@@ -4663,8 +4689,8 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* Section Completion Messages */}
-              {entry.type === 'system_section_complete' && (
+              {/* FIX B: Section Completion Messages (messageType = SECTION_COMPLETE from chatTranscriptHelpers) */}
+              {entry.role === 'assistant' && entry.messageType === 'SECTION_COMPLETE' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
                   <div className="flex items-start gap-4">
@@ -4673,23 +4699,23 @@ export default function CandidateInterview() {
                     </div>
                     <div className="flex-1">
                       <h2 className="text-xl font-bold text-white mb-2">
-                        Section Complete: {entry.completedSectionName}
+                        {entry.title || `Section Complete`}
                       </h2>
-                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                        Nice work — you've finished this section. Ready for the next one?
-                      </p>
+                      {entry.lines && entry.lines.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                          {entry.lines.map((line, idx) => (
+                            <p key={idx} className="text-emerald-200 text-sm leading-relaxed">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="bg-emerald-950/40 rounded-lg p-3 mb-4">
-                        <p className="text-emerald-300 text-sm font-medium">
-                          Next up: {entry.nextSectionName}
-                        </p>
-                      </div>
-
-                      {entry.progress && (
+                      {entry.meta?.progress && (
                         <div className="flex items-center gap-4 text-xs text-emerald-300/80">
-                          <span>{entry.progress.completedSections} of {entry.progress.totalSections} sections complete</span>
+                          <span>{entry.meta.progress.completedSections} of {entry.meta.progress.totalSections} sections complete</span>
                           <span>•</span>
-                          <span>{entry.progress.answeredQuestions} of {entry.progress.totalQuestions} questions answered</span>
+                          <span>{entry.meta.progress.answeredQuestions} of {entry.meta.progress.totalQuestions} questions answered</span>
                         </div>
                       )}
                     </div>

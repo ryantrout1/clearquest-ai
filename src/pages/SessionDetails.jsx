@@ -1809,25 +1809,47 @@ function TwoColumnStreamView({ responsesByCategory, followups, followUpQuestionE
       {sortedCategories.map(([category, categoryResponses]) => {
         const isSectionCollapsed = collapsedSections.has(category);
         
-        // STEP 3: Use section stats to build question list
+        // FIX C: Use section stats to build question list (ordered by display_order)
         const sectionStat = sectionStats[category];
         const sectionQuestionIds = sectionStat?.questionIds || [];
         
-        // Build list of responses for ONLY section questions
+        // Build map of question DB ID to question entity for display_order
+        const questionDbIdToEntity = {};
+        questions.forEach(q => {
+          questionDbIdToEntity[q.id] = q;
+        });
+        
+        // Build list of responses for ONLY section questions, maintaining display_order
         const sectionQuestionResponses = sectionQuestionIds
-          .map(qId => allResponsesFlat.find(r => r.question_id === qId && r.response_type === 'base_question'))
+          .map(qId => {
+            // FIX C: Match response by question DB ID (qId is question.id from Question entity)
+            const response = allResponsesFlat.find(r => r.question_id === qId && r.response_type === 'base_question');
+            return response;
+          })
           .filter(Boolean);
         
-        // Sort by display_number
+        // FIX C: Sort by Question.display_order from entity (not transcript order or question_number)
         const sortedResponses = sectionQuestionResponses.sort((a, b) => {
-          const aNum = typeof a.display_number === "number" ? a.display_number : Infinity;
-          const bNum = typeof b.display_number === "number" ? b.display_number : Infinity;
+          const qEntityA = questionDbIdToEntity[a.question_id];
+          const qEntityB = questionDbIdToEntity[b.question_id];
           
-          if (aNum !== bNum) {
-            return aNum - bNum;
+          const orderA = qEntityA?.display_order ?? Infinity;
+          const orderB = qEntityB?.display_order ?? Infinity;
+          
+          if (orderA !== orderB) {
+            return orderA - orderB;
           }
           
           return new Date(a.response_timestamp).getTime() - new Date(b.response_timestamp).getTime();
+        });
+        
+        console.log('[SECTION_GRID][FIX_C]', {
+          category,
+          sectionQuestionIds: sectionQuestionIds.length,
+          responsesFound: sectionQuestionResponses.length,
+          sortedResponses: sortedResponses.length,
+          firstQuestionId: sortedResponses[0]?.question_id,
+          firstDisplayOrder: questionDbIdToEntity[sortedResponses[0]?.question_id]?.display_order
         });
         
         const midpoint = Math.ceil(sortedResponses.length / 2);
