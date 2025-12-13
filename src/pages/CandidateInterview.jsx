@@ -1233,12 +1233,10 @@ export default function CandidateInterview() {
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
-        // New session - PART B: No Welcome transcript injection
+        // New session - Do NOT set currentItem yet (wait for welcome blocker to resolve)
         setTranscriptSafe([]);
-
-        const firstQuestionId = engineData.ActiveOrdered[0];
         setQueue([]);
-        setCurrentItem({ id: firstQuestionId, type: 'question' });
+        setCurrentItem(null); // Will be set after "Got it — Let's Begin"
       }
 
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
@@ -1246,12 +1244,12 @@ export default function CandidateInterview() {
 
       console.log("[CandidateInterview] init", {
         isNewSession: sessionIsNew,
-        screenMode: "QUESTION",
+        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
         layoutVersion: "section-first"
       });
 
       setIsNewSession(sessionIsNew);
-      setScreenMode("QUESTION");
+      setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
       // Add blocking intro message for new sessions
       if (sessionIsNew) {
@@ -4984,12 +4982,20 @@ export default function CandidateInterview() {
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
-                  console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO");
+                  console.log("[BLOCKER][RESOLVE] SYSTEM_INTRO - Starting interview");
                   
                   // Mark blocker resolved
                   setTranscriptSafe(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
+                  
+                  // Start interview: set currentItem to first question
+                  const firstQuestionId = engine.ActiveOrdered[0];
+                  if (firstQuestionId) {
+                    setCurrentItem({ id: firstQuestionId, type: 'question' });
+                    setScreenMode("QUESTION");
+                    await persistStateToDatabase(transcript, [], { id: firstQuestionId, type: 'question' });
+                  }
                   
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
