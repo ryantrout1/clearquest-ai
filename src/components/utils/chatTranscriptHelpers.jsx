@@ -53,8 +53,14 @@ export async function appendAssistantMessage(sessionId, existingTranscript = [],
     metadata.visibleToCandidate = false;
   }
   
-  // Generate stable ID if not provided
+  // Generate stable ID if not provided (prefer metadata.id for deterministic IDs)
   const stableId = metadata.id || `assistant-${metadata.messageType || 'msg'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // HARD DEDUPE: Check if stable ID already exists in transcript
+  if (existingTranscript.some(e => e.id === stableId)) {
+    console.log('[TRANSCRIPT][DEDUPE_BY_ID] Skipping - ID already exists:', stableId);
+    return existingTranscript;
+  }
   
   // DEDUPE GUARD: Only apply to generic messages, NEVER to critical interview events
   // CRITICAL MESSAGE TYPES that must NEVER be deduped:
@@ -316,8 +322,9 @@ export async function logSectionComplete(sessionId, { completedSectionId, comple
     `Next up: ${nextSectionName}`
   ];
   
+  // CRITICAL: Pass stable ID explicitly to prevent auto-generation
   const updated = await appendAssistantMessage(sessionId, existingTranscript, `${title}`, {
-    id,
+    id, // Stable ID: section-complete-{sessionId}-{completedSectionId}
     messageType: 'SECTION_COMPLETE',
     uiVariant: 'SECTION_COMPLETE_CARD',
     title,

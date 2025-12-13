@@ -4460,7 +4460,13 @@ export default function CandidateInterview() {
               ? transcript.filter(e => e.blocking !== true || e.resolved === true)
               : transcript;
             return visibleTranscript
-              .filter(e => e.messageType !== 'SYSTEM_EVENT') // NEVER render system events in main chat feed
+              .filter(e => {
+                // NEVER render system events in main chat feed (comprehensive check)
+                if (e.messageType === 'SYSTEM_EVENT') return false;
+                if (e.role === 'system' && e.visibleToCandidate === false) return false;
+                if (e.eventType && e.visibleToCandidate === false) return false;
+                return true;
+              })
               .map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
