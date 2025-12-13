@@ -898,6 +898,42 @@ export default function CandidateInterview() {
     ) || null;
   }, [transcript]);
   
+  // Hooks must remain unconditional; gating via enabled flags / safe fallbacks.
+  // Derive UI current item (prioritize gates over base question) - MUST be before early returns
+  const uiCurrentItem = React.useMemo(() => {
+    // Priority 1: V3 gate
+    if (v3GateActive) {
+      return {
+        type: 'v3_gate',
+        id: `v3-gate-${v3Gate.packId}-${v3Gate.instanceNumber}`,
+        packId: v3Gate.packId,
+        categoryId: v3Gate.categoryId,
+        promptText: v3Gate.promptText,
+        instanceNumber: v3Gate.instanceNumber
+      };
+    }
+    
+    // Priority 2: V3 probing active
+    if (v3ProbingActive) {
+      return {
+        type: 'v3_probing',
+        id: `v3-probing-${v3ProbingContext?.packId}`,
+        packId: v3ProbingContext?.packId
+      };
+    }
+    
+    // Priority 3: Section transition pending
+    if (pendingSectionTransition) {
+      return {
+        type: 'section_transition',
+        id: `section-transition-${pendingSectionTransition.nextSectionIndex}`
+      };
+    }
+    
+    // Priority 4: Base current item
+    return currentItem;
+  }, [v3GateActive, v3Gate, v3ProbingActive, v3ProbingContext, pendingSectionTransition, currentItem]);
+  
   const MAX_PROBE_TURNS = 6;
   const AI_RESPONSE_TIMEOUT_MS = 45000;
   const TYPING_TIMEOUT_MS = 240000;
