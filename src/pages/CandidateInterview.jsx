@@ -821,6 +821,9 @@ export default function CandidateInterview() {
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
   
+  // PART A: Welcome overlay state (blocking for new sessions only)
+  const [welcomeAcknowledged, setWelcomeAcknowledged] = useState(true); // Default true, set false for new sessions
+  
   const [sectionCompletionMessage, setSectionCompletionMessage] = useState(null);
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
@@ -1102,7 +1105,14 @@ export default function CandidateInterview() {
       });
 
       setIsNewSession(sessionIsNew);
-      setScreenMode("QUESTION"); // PART A: Always start in QUESTION mode
+      setScreenMode("QUESTION");
+      
+      // PART A: Set welcomeAcknowledged based on session status
+      if (sessionIsNew) {
+        setWelcomeAcknowledged(false); // Show Welcome overlay for new sessions
+      } else {
+        setWelcomeAcknowledged(true); // Skip Welcome for returning sessions
+      }
       
       // Log system events
       if (sessionIsNew) {
@@ -1111,7 +1121,6 @@ export default function CandidateInterview() {
           file_number: loadedSession.file_number
         });
       } else {
-        // PART B: Resume marker for audit, but don't show large card
         await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
           last_question_id: loadedSession.current_question_id
         });
@@ -3973,6 +3982,62 @@ export default function CandidateInterview() {
           <Button onClick={() => navigate(createPageUrl("Home"))} className="w-full">
             Return to Home
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // PART A: Welcome Overlay - Blocking screen for new sessions (early return)
+  if (!welcomeAcknowledged) {
+    return (
+      <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className={`max-w-2xl w-full transition-all duration-300 ${isDismissingWelcome ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
+          <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
+                <Shield className="w-7 h-7 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
+                <div className="space-y-3">
+                  <p className="text-slate-300 text-base leading-relaxed">
+                    This interview is part of your application process.
+                  </p>
+                  <p className="text-slate-300 text-base leading-relaxed">
+                    One question at a time, at your own pace.
+                  </p>
+                  <p className="text-slate-300 text-base leading-relaxed">
+                    Clear, complete, and honest answers help investigators understand the full picture.
+                  </p>
+                  <p className="text-slate-300 text-base leading-relaxed">
+                    You can pause and come back — we'll pick up where you left off.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center mt-8">
+              <Button
+                onClick={() => {
+                  console.log("[WELCOME][ACKNOWLEDGE] Transitioning to Q1");
+                  setIsDismissingWelcome(true);
+                  
+                  setTimeout(() => {
+                    setWelcomeAcknowledged(true);
+                    setIsDismissingWelcome(false);
+                    setTimeout(() => autoScrollToBottom(), 100);
+                  }, 300);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 text-lg font-semibold"
+                size="lg"
+              >
+                Got it — Let's Begin
+              </Button>
+              <p className="text-sm text-blue-400 text-center mt-4">
+                Click to start your interview
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );

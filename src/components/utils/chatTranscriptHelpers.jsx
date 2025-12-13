@@ -154,50 +154,13 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 }
 
 /**
- * Append welcome message (one-time, session start)
- * Stable ID: welcome-{sessionId}
+ * PART B: Welcome message DISABLED for candidate flow
+ * Welcome is now shown as blocking overlay only (not in transcript)
+ * This function is kept for backwards compatibility but does nothing
  */
 export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
-  const id = `welcome-${sessionId}`;
-  
-  if (existingTranscript.some(e => e.id === id)) {
-    console.log("[TRANSCRIPT][WELCOME] Already exists, skipping");
-    return existingTranscript;
-  }
-
-  const title = "Welcome to your ClearQuest Interview";
-  const lines = [
-    "This interview is part of your application process.",
-    "One question at a time, at your own pace.",
-    "Clear, complete, and honest answers help investigators understand the full picture.",
-    "You can pause and come back — we'll pick up where you left off."
-  ];
-
-  const entry = {
-    id,
-    index: getNextIndex(existingTranscript),
-    role: "assistant",
-    text: title,
-    timestamp: new Date().toISOString(),
-    messageType: 'WELCOME',
-    uiVariant: 'WELCOME_CARD',
-    title,
-    lines,
-    visibleToCandidate: true
-  };
-
-  const updatedTranscript = [...existingTranscript, entry];
-  
-  try {
-    await base44.entities.InterviewSession.update(sessionId, {
-      transcript_snapshot: updatedTranscript
-    });
-    console.log("[TRANSCRIPT][WELCOME][ADD] id=", id);
-  } catch (err) {
-    console.error("[TRANSCRIPT][ERROR]", err);
-  }
-
-  return updatedTranscript;
+  console.log("[TRANSCRIPT][WELCOME] Skipped - using overlay instead");
+  return existingTranscript;
 }
 
 /**
