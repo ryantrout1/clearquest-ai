@@ -4299,56 +4299,65 @@ export default function CandidateInterview() {
               
               {/* Session resumed marker (collapsed system note) */}
               {entry.messageType === 'RESUME' && entry.visibleToCandidate && (
-                <div className="bg-slate-800/95 backdrop-blur-sm border-2 border-blue-500/50 rounded-xl p-8 shadow-2xl">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0 border-2 border-blue-500/50">
-                      <Shield className="w-7 h-7 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-white mb-4">Welcome to your ClearQuest Interview</h2>
-                      <div className="space-y-3">
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          This interview is part of your application process.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          One question at a time, at your own pace.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          Clear, complete, and honest answers help investigators understand the full picture.
-                        </p>
-                        <p className="text-slate-300 text-base leading-relaxed">
-                          You can pause and come back — we'll pick up where you left off.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <ContentContainer>
+                <div className="w-full bg-blue-900/30 border border-blue-700/40 rounded-xl p-3">
+                  <p className="text-blue-300 text-sm">{entry.text}</p>
                 </div>
+                </ContentContainer>
               )}
               
-              {activeBlocker.type === 'SECTION_MESSAGE' && (
-                <div className="w-full bg-gradient-to-br from-emerald-900/80 to-emerald-800/60 backdrop-blur-sm border-2 border-emerald-500/50 rounded-xl p-6 shadow-2xl">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-600/30 flex items-center justify-center flex-shrink-0 border-2 border-emerald-500/50">
-                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h2 className="text-xl font-bold text-white mb-2">
-                        Section Complete: {activeBlocker.completedSectionName}
-                      </h2>
-                      <p className="text-emerald-200 text-sm leading-relaxed mb-4">
-                        Nice work — you've finished this section. Ready for the next one?
-                      </p>
-                      <div className="bg-emerald-950/40 rounded-lg p-3">
-                        <p className="text-emerald-300 text-sm font-medium">
-                          Next up: {activeBlocker.nextSectionName}
-                        </p>
-                      </div>
-                    </div>
+              {/* V3 opener question (FOLLOWUP_CARD_SHOWN or v3_opener_question) */}
+              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' || 
+                (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
+                <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-purple-400 font-medium">
+                      Follow-up • {entry.categoryLabel || entry.title || 'Details'}
+                    </span>
                   </div>
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                  {entry.example && (
+                    <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                      <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                      <p className="text-slate-300 text-xs italic">{entry.example}</p>
+                    </div>
+                  )}
                 </div>
+                </ContentContainer>
               )}
               
-
+              {entry.role === 'user' && entry.messageType === 'v3_opener_answer' && (
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
+                </div>
+                </ContentContainer>
+              )}
+              
+              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
+                <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
+                  </div>
+                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
+                </div>
+                </ContentContainer>
+              )}
+              
+              {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3 max-w-[85%]">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
+                </div>
+                </ContentContainer>
+              )}
+              
               {/* Base question (assistant) */}
               {entry.role === 'assistant' && entry.type === 'base_question' && (
                 <ContentContainer>
@@ -4495,7 +4504,6 @@ export default function CandidateInterview() {
                   </div>
                 </div>
                 </ContentContainer>
-              )}
               </div>
               );
               })}
@@ -4619,11 +4627,46 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
           
-
-
+          {/* Base Question Card - shown when no blocker and not in V3 probing */}
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
-             {isV3PackOpener || currentPrompt.type === 'v3_pack_opener' ? (
+             {(() => {
+               const question = engine.QById[currentItem.id];
+               if (!question) return null;
+               
+               const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
+               const sectionName = sectionEntity?.section_name || question.category || '';
+               const questionNumber = getQuestionDisplayNumber(currentItem.id);
+               
+               return (
+                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                   <div className="flex items-center gap-2 mb-2">
+                     <span className="text-base font-semibold text-blue-400">
+                       Question {questionNumber}
+                     </span>
+                     <span className="text-sm text-slate-500">•</span>
+                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
+                   </div>
+                   <p className="text-white text-base leading-relaxed">{question.question_text}</p>
+                 </div>
+               );
+             })()}
+             
+             {validationHint && (
+               <div className="mt-2 bg-yellow-900/40 border border-yellow-700/60 rounded-lg p-3">
+                 <p className="text-yellow-200 text-sm">{validationHint}</p>
+               </div>
+             )}
+           </div>
+           </ContentContainer>
+          )}
+
+          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
+           <ContentContainer>
+           <div ref={questionCardRef} className="w-full">
+             {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
@@ -4640,7 +4683,7 @@ export default function CandidateInterview() {
                </div>
               )}
               </div>
-              ) : isV2PackField || currentPrompt.type === 'ai_probe' ? (
+              ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
               <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
@@ -4672,11 +4715,11 @@ export default function CandidateInterview() {
               </div>
                </ContentContainer>
               )}
+              </div>
+              </div>
+              </main>
 
-              {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-              {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
-
-      <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+              <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Blocking Message Actions */}
           {activeBlocker?.type === 'SYSTEM_INTRO' ? (
