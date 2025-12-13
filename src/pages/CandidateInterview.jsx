@@ -3828,15 +3828,16 @@ export default function CandidateInterview() {
       
       const packLabel = packConfig?.instancesLabel || 'Follow-up';
       
-      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard #2: log once per render, non-clarifier only)
+      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID, non-clarifier only)
       if (!hasClarifierActive) {
+        // CANONICAL ID: Must match helper's exact ID generation logic
         const fieldCardId = `followup-card-${sessionId}-${packId}-field-${fieldKey}-${instanceNumber}`;
         if (lastLoggedFollowupCardIdRef.current !== fieldCardId) {
           lastLoggedFollowupCardIdRef.current = fieldCardId;
           logFollowupCardShown(sessionId, {
             packId,
             variant: 'field',
-            stableKey: `${fieldKey}-${instanceNumber}`,
+            stableKey: `${fieldKey}-${instanceNumber}`, // Keep for metadata only
             promptText: displayText,
             exampleText: null,
             packLabel,
