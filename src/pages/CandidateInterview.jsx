@@ -2487,64 +2487,10 @@ export default function CandidateInterview() {
         const sectionName = sectionEntity?.section_name || question.category || '';
         const questionNumber = getQuestionDisplayNumber(currentItem.id);
 
-        // Create separate question and answer entries for chat-style rendering
-        // IDEMPOTENCY GUARD: Build stable keys for question and answer
-        const questionKey = `assistant|base_question|${currentItem.id}|||`;
-        const answerKey = `user|base_answer|${currentItem.id}|||${Date.now()}`;
-        
-        // Build transcript entries, skipping duplicates
-        const entriesToAppend = [];
-        
-        if (!appendedTranscriptKeysRef.current.has(questionKey)) {
-          appendedTranscriptKeysRef.current.add(questionKey);
-          entriesToAppend.push({
-            id: `q-${currentItem.id}-${Date.now()}`,
-            stableKey: `base-question:${currentItem.id}`,
-            role: 'assistant',
-            type: 'base_question',
-            questionId: currentItem.id,
-            questionCode: question.question_id,
-            questionText: question.question_text,
-            text: question.question_text,
-            category: sectionName,
-            sectionId: question.section_id,
-            questionNumber,
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            visibleToCandidate: true
-          });
-        } else {
-          console.log('[TRANSCRIPT_IDEMPOTENCY][SKIP]', questionKey);
-        }
-        
-        if (!appendedTranscriptKeysRef.current.has(answerKey)) {
-          appendedTranscriptKeysRef.current.add(answerKey);
-          entriesToAppend.push({
-            id: `a-${currentItem.id}-${Date.now()}`,
-            stableKey: `base-answer:${currentItem.id}:${Date.now()}`,
-            role: 'user',
-            type: 'base_answer',
-            questionId: currentItem.id,
-            questionCode: question.question_id,
-            answer: value,
-            text: value,
-            category: sectionName,
-            sectionId: question.section_id,
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            visibleToCandidate: true
-          });
-        }
-
-        const newTranscript = entriesToAppend.length > 0 ? [...transcript, ...entriesToAppend] : transcript;
-        if (entriesToAppend.length > 0) {
-          setTranscriptSafe(newTranscript);
-        }
-
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
 
-        // Append visible user answer to main transcript (chatTranscriptHelpers)
+        // Append user answer to session transcript (single source of truth)
         const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
         await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], value, {
@@ -2561,6 +2507,11 @@ export default function CandidateInterview() {
           responseId: savedResponse?.id,
           packId: null
         });
+        
+        // Reload session transcript into local state (single source of truth)
+        const updatedSessionAfterAnswer = await base44.entities.InterviewSession.get(sessionId);
+        const newTranscript = updatedSessionAfterAnswer.transcript_snapshot || [];
+        setTranscriptSafe(newTranscript);
 
         // UX: Clear draft on successful submit
         clearDraft();
