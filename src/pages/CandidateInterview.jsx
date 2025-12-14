@@ -2674,15 +2674,21 @@ export default function CandidateInterview() {
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
 
+        // Normalize answer display text (Yes/No for boolean, raw text otherwise)
+        const answerDisplayText = question.response_type === 'yes_no'
+          ? (value.trim().toLowerCase() === 'yes' ? 'Yes' : value.trim().toLowerCase() === 'no' ? 'No' : value)
+          : value;
+
         // Append user answer to session transcript (single source of truth)
         const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
         const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-        await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], value, {
+        await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], answerDisplayText, {
           messageType: 'ANSWER',
           questionDbId: currentItem.id,
           questionCode: question.question_id,
           responseId: savedResponse?.id,
-          sectionId: question.section_id
+          sectionId: question.section_id,
+          answerDisplayText
         });
 
         // Log answer submitted (audit only)
