@@ -4361,6 +4361,15 @@ export default function CandidateInterview() {
                           isV3Gate ||
                           isMultiInstanceGate;
 
+  // Debug log for bottom bar variant selection
+  console.log('[BOTTOM_BAR_VARIANT]', { 
+    currentItemType, 
+    isMultiInstanceGate,
+    isYesNoQuestion, 
+    screenMode,
+    hasActiveBlocker: !!activeBlocker
+  });
+
   // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
   const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion && !isV3Gate && !isMultiInstanceGate;
 
@@ -5008,7 +5017,7 @@ export default function CandidateInterview() {
               <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Blocking Message Actions */}
-          {screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO' ? (
+          {(screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO') && !isMultiInstanceGate ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -5434,10 +5443,11 @@ export default function CandidateInterview() {
           </div>
           ) : null}
 
-          {!isV3Gate && !v3ProbingActive && (screenMode === 'WELCOME' || uiCurrentItem) && (
-            <p className="text-xs text-slate-400 text-center mt-3">
-              Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
-            </p>
+          {/* Footer disclaimer - always show except during V3 probing */}
+          {!isV3Gate && !v3ProbingActive && (
+           <p className="text-xs text-slate-400 text-center mt-3">
+             Once you submit an answer, it cannot be changed. Contact your investigator after the interview if corrections are needed.
+           </p>
           )}
         </div>
       </footer>
