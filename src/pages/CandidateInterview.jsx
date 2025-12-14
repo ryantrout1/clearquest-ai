@@ -4832,6 +4832,12 @@ export default function CandidateInterview() {
           <div className="space-y-2">
           {/* Always render transcript history from CANONICAL DB source */}
           {(() => {
+            // QUESTION MODE: Hide all transcript history - show only current question
+            if (currentItem?.type === 'question' && screenMode === 'QUESTION' && !v3ProbingActive && !activeBlocker) {
+              console.log('[QUESTION_MODE][HIDE_TRANSCRIPT] Hiding transcript - showing only current question');
+              return null; // Don't render transcript in QUESTION mode
+            }
+            
             // CANONICAL: Render from frozen state (prevents flashing)
             const visibleTranscript = renderTranscript;
             
