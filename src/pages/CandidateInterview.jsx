@@ -4726,21 +4726,12 @@ export default function CandidateInterview() {
               ? transcript.filter(e => e.blocking !== true || e.resolved === true)
               : transcript;
             
-            // FORENSIC: Fetch DB snapshot for comparison
-            let dbSnapshotLen = null;
-            try {
-              const dbSession = await base44.entities.InterviewSession.get(sessionId);
-              dbSnapshotLen = (dbSession?.transcript_snapshot || []).length;
-            } catch (err) {
-              dbSnapshotLen = null;
-            }
-            
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
             
-            // FORENSIC: Truth table for transcript pipeline
+            // FORENSIC: Truth table for transcript pipeline (dbSnapshotLen tracked in state)
             console.log("[FORENSIC][PIPELINE]", {
-              dbSnapshotLen,
+              dbSnapshotLen: session?.transcript_snapshot?.length || null,
               localStateLen: transcript.length,
               derivedLen: rawTranscript.length,
               visibleLen: visibleTranscript.length,
