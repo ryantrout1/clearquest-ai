@@ -4701,7 +4701,8 @@ export default function CandidateInterview() {
             // FORENSIC: Truth table for transcript pipeline
             console.log("[FORENSIC][PIPELINE]", {
               canonicalLen: dbTranscript.length,
-              derivedLen: rawTranscript.length,
+              renderableLen: nextRenderable.length,
+              frozenLen: renderTranscript.length,
               visibleLen: visibleTranscript.length,
               currentItemType,
               currentItemId: currentItem?.id,
