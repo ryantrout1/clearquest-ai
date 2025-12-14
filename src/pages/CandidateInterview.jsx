@@ -5229,7 +5229,7 @@ export default function CandidateInterview() {
                 Click to continue to {activeBlocker.nextSectionName}
               </p>
             </div>
-          ) : activeBlocker?.type === 'V3_GATE' ? (
+          ) : bottomBarMode === "YES_NO" && !isMultiInstanceGate && (activeBlocker?.type === 'V3_GATE' || isV3Gate) ? (
            <div className="flex gap-3">
              <Button
                onClick={() => {
@@ -5371,36 +5371,48 @@ export default function CandidateInterview() {
              No
            </Button>
           </div>
-          ) : isV3Gate ? (
-          <div className="flex gap-3">
-            <Button
-              onClick={() => {
-                console.log('[V3_GATE][CLICKED] YES (fallback)');
-                setV3GateDecision('Yes');
-              }}
-              disabled={isCommitting}
-              className="flex-1 bg-green-600 hover:bg-green-700"
-            >
-              <Check className="w-5 h-5 mr-2" />
-              Yes
-            </Button>
-            <Button
-              onClick={() => {
-                console.log('[V3_GATE][CLICKED] NO (fallback)');
-                setV3GateDecision('No');
-              }}
-              disabled={isCommitting}
-              className="flex-1 bg-red-600 hover:bg-red-700"
-            >
-              <X className="w-5 h-5 mr-2" />
-              No
-            </Button>
-          </div>
-          ) : v3ProbingActive && !isV3Gate && !isMultiInstanceGate ? (
-               <p className="text-xs text-slate-400 text-center">
-                 Please respond to the follow-up questions above.
-               </p>
-             ) : bottomBarMode === "SELECT" ? (
+          ) : bottomBarMode === "YES_NO" ? (
+           <div className="flex gap-3">
+             <Button
+               ref={yesButtonRef}
+               onClick={() => !isCommitting && handleAnswer("Yes")}
+               disabled={isCommitting}
+               className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <Check className="w-5 h-5 mr-2" />
+               Yes
+             </Button>
+             <Button
+               ref={noButtonRef}
+               onClick={() => !isCommitting && handleAnswer("No")}
+               disabled={isCommitting}
+               className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <X className="w-5 h-5 mr-2" />
+               No
+             </Button>
+           </div>
+          ) : bottomBarMode === "DISABLED" ? (
+           <div className="space-y-2">
+             <div className="flex gap-3">
+               <Textarea
+                 value=""
+                 placeholder="Please respond above..."
+                 className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
+                 disabled={true}
+                 rows={1}
+               />
+               <Button
+                 type="button"
+                 disabled={true}
+                 className="h-12 bg-indigo-600/50 px-5 opacity-50 cursor-not-allowed"
+               >
+                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                 Send
+               </Button>
+             </div>
+           </div>
+          ) : bottomBarMode === "SELECT" ? (
             <div className="flex flex-wrap gap-2">
               {currentPrompt?.options?.map((option) => (
                 <Button
