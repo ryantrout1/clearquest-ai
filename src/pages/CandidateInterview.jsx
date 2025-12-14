@@ -1147,8 +1147,26 @@ export default function CandidateInterview() {
   // Compute next renderable (dedupe + filter)
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
-    return dedupeByStableKey(base).filter(isRenderableTranscriptEntry);
-  }, [dbTranscript]);
+    const deduped = dedupeByStableKey(base);
+    const filtered = deduped.filter(isRenderableTranscriptEntry);
+    
+    // FALLBACK: If filter hides all messages but we have canonical data, use last 10
+    if (base.length > 0 && filtered.length === 0) {
+      console.warn('[TRANSCRIPT_FILTER_FALLBACK]', {
+        canonicalLen: base.length,
+        currentItemType: currentItem?.type,
+        screenMode,
+        messageTypeCounts: base.reduce((acc, e) => {
+          const mt = e.messageType || e.type || 'unknown';
+          acc[mt] = (acc[mt] || 0) + 1;
+          return acc;
+        }, {})
+      });
+      return base.slice(-10); // Show last 10 messages as fallback
+    }
+    
+    return filtered;
+  }, [dbTranscript, currentItem?.type, screenMode]);
 
   // Freeze render during refresh (prevents flash-to-empty)
   const [renderTranscript, setRenderTranscript] = React.useState([]);
@@ -1323,10 +1341,53 @@ export default function CandidateInterview() {
   
   useEffect(() => {
     console.log('[FORENSIC][MOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+    
+    // FORENSIC: Global crash logger
+    const handleError = (event) => {
+      console.error('[FORENSIC][CRASH]', {
+        type: 'error',
+        message: event.message || event.error?.message,
+        stack: event.error?.stack,
+        screenMode,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId || v3ProbingContext?.packId,
+        instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+        v3ProbingActive,
+        canonicalLen: dbTranscript?.length || 0,
+        displayLen: renderTranscript?.length || 0,
+        visibleLen: nextRenderable?.length || 0,
+        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
+      });
+    };
+    
+    const handleRejection = (event) => {
+      console.error('[FORENSIC][CRASH]', {
+        type: 'unhandledRejection',
+        message: event.reason?.message || String(event.reason),
+        stack: event.reason?.stack,
+        screenMode,
+        currentItemType: currentItem?.type,
+        currentItemId: currentItem?.id,
+        packId: currentItem?.packId || v3ProbingContext?.packId,
+        instanceNumber: currentItem?.instanceNumber || v3ProbingContext?.instanceNumber,
+        v3ProbingActive,
+        canonicalLen: dbTranscript?.length || 0,
+        displayLen: renderTranscript?.length || 0,
+        visibleLen: nextRenderable?.length || 0,
+        last5MessageTypes: dbTranscript?.slice(-5).map(e => ({ type: e.messageType || e.type, key: e.stableKey || e.id })) || []
+      });
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    
     return () => {
       console.log('[FORENSIC][UNMOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
     };
-  }, []);
+  }, [screenMode, currentItem, v3ProbingContext, v3ProbingActive, dbTranscript, renderTranscript, nextRenderable]);
 
   const initializeInterview = async () => {
     try {
@@ -4354,6 +4415,46 @@ export default function CandidateInterview() {
       };
     }
 
+    // Multi-instance gate (V3 post-probing)
+    if (effectiveCurrentItem.type === 'multi_instance_gate') {
+      const gatePackId = effectiveCurrentItem.packId;
+      const gateInstanceNumber = effectiveCurrentItem.instanceNumber;
+      
+      // GUARD: Validate gate context
+      if (!gatePackId || !gateInstanceNumber) {
+        console.error('[FORENSIC][GATE_CONTEXT_MISSING]', {
+          currentItemType: effectiveCurrentItem.type,
+          currentItemId: effectiveCurrentItem.id,
+          packId: gatePackId,
+          instanceNumber: gateInstanceNumber
+        });
+        
+        // Derive from currentItemId if possible
+        const idMatch = effectiveCurrentItem.id?.match(/multi-instance-gate-(.+?)-(\d+)/);
+        const derivedPackId = idMatch?.[1] || gatePackId || 'UNKNOWN_PACK';
+        const derivedInstanceNumber = idMatch?.[2] ? parseInt(idMatch[2]) : gateInstanceNumber || 1;
+        
+        return {
+          type: 'multi_instance_gate',
+          id: effectiveCurrentItem.id,
+          text: effectiveCurrentItem.promptText || `Do you have another incident to report?`,
+          responseType: 'yes_no',
+          packId: derivedPackId,
+          instanceNumber: derivedInstanceNumber
+        };
+      }
+      
+      return {
+        type: 'multi_instance_gate',
+        id: effectiveCurrentItem.id,
+        text: effectiveCurrentItem.promptText,
+        responseType: 'yes_no',
+        packId: gatePackId,
+        categoryId: effectiveCurrentItem.categoryId,
+        instanceNumber: gateInstanceNumber
+      };
+    }
+
     // V3 Pack opener question (ONLY if not in v3_probing mode)
     if (effectiveCurrentItem.type === 'v3_pack_opener' && !v3ProbingActive) {
       const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
@@ -4485,6 +4586,22 @@ export default function CandidateInterview() {
 
   // Calculate currentPrompt (after all hooks declared)
   const currentPrompt = getCurrentPrompt();
+
+  // RENDER GUARD: Prevent null prompt crashes
+  if (currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME') {
+    const snapshot = {
+      currentItemType: currentItem?.type,
+      currentItemId: currentItem?.id,
+      packId: currentItem?.packId,
+      instanceNumber: currentItem?.instanceNumber,
+      screenMode,
+      v3ProbingActive,
+      activeBlocker: activeBlocker?.type,
+      canonicalLen: dbTranscript?.length || 0,
+      renderLen: renderTranscript?.length || 0
+    };
+    console.error('[FORENSIC][PROMPT_NULL_GUARD]', snapshot);
+  }
 
   // Treat v2_pack_field and v3_pack_opener the same as a normal question for bottom-bar input
   const isAnswerableItem = (item) => {
@@ -5197,6 +5314,28 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
+          {/* Null prompt fallback - prevents blank screen crash */}
+          {(() => {
+            const needsFallback = currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME' && currentItem?.type !== 'question';
+            return needsFallback;
+          })() && (
+            <ContentContainer>
+              <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="w-5 h-5 text-red-400" />
+                  <span className="text-base font-semibold text-red-400">Unexpected State</span>
+                </div>
+                <p className="text-white text-sm mb-3">We hit an unexpected state. Please refresh the page.</p>
+                <div className="text-xs text-red-300/60 font-mono">
+                  <div>Type: {currentItem?.type}</div>
+                  <div>ID: {currentItem?.id}</div>
+                  <div>Pack: {currentItem?.packId || 'none'}</div>
+                  <div>Instance: {currentItem?.instanceNumber || 'none'}</div>
+                </div>
+              </div>
+            </ContentContainer>
+          )}
+
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {(() => {
             // GUARD: Never render prompt cards when v3_probing is active (V3ProbingLoop owns UI)
@@ -5418,6 +5557,17 @@ export default function CandidateInterview() {
               if (isCommitting) return;
               console.log('[MULTI_INSTANCE_GATE][YES] Starting next instance');
               const gate = multiInstanceGate;
+              
+              // GUARD: Validate gate context
+              if (!gate || !gate.packId || !gate.instanceNumber) {
+                console.error('[FORENSIC][GATE_HANDLER_MISSING_CONTEXT]', {
+                  hasGate: !!gate,
+                  packId: gate?.packId,
+                  instanceNumber: gate?.instanceNumber
+                });
+                return;
+              }
+              
               setIsCommitting(true);
 
                // Append user's "Yes" answer to transcript
@@ -5432,8 +5582,7 @@ export default function CandidateInterview() {
                });
 
                // Reload transcript
-               const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-               setTranscript(updatedSession.transcript_snapshot || []);
+               await refreshTranscriptFromDB('gate_yes_answered');
 
                // Clear gate
                setMultiInstanceGate(null);
@@ -5485,26 +5634,36 @@ export default function CandidateInterview() {
              Yes
            </Button>
            <Button
-             onClick={async () => {
-               if (isCommitting) return;
-               console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
-               const gate = multiInstanceGate;
-               setIsCommitting(true);
+            onClick={async () => {
+              if (isCommitting) return;
+              console.log('[MULTI_INSTANCE_GATE][NO] Advancing to next question');
+              const gate = multiInstanceGate;
 
-               // Append user's "No" answer to transcript
-               const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-               const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
-               await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'No', {
-                 id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-no`,
-                 messageType: 'MULTI_INSTANCE_GATE_ANSWER',
-                 packId: gate.packId,
-                 categoryId: gate.categoryId,
-                 instanceNumber: gate.instanceNumber
-               });
+              // GUARD: Validate gate context
+              if (!gate || !gate.packId || !gate.instanceNumber) {
+                console.error('[FORENSIC][GATE_HANDLER_MISSING_CONTEXT]', {
+                  hasGate: !!gate,
+                  packId: gate?.packId,
+                  instanceNumber: gate?.instanceNumber
+                });
+                return;
+              }
 
-               // Reload transcript
-               const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-               setTranscript(updatedSession.transcript_snapshot || []);
+              setIsCommitting(true);
+
+              // Append user's "No" answer to transcript
+              const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+              const sessionForAnswer = await base44.entities.InterviewSession.get(sessionId);
+              await appendUserMessage(sessionId, sessionForAnswer.transcript_snapshot || [], 'No', {
+                id: `mi-gate-answer-${gate.packId}-${gate.instanceNumber}-no`,
+                messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+                packId: gate.packId,
+                categoryId: gate.categoryId,
+                instanceNumber: gate.instanceNumber
+              });
+
+              // Reload transcript
+              await refreshTranscriptFromDB('gate_no_answered');
 
                // Clear gate
                setMultiInstanceGate(null);
