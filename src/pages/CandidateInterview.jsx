@@ -891,6 +891,7 @@ export default function CandidateInterview() {
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
+      setSession(freshSession); // Sync session state to prevent stale reads
       setDbTranscriptSafe(freshTranscript);
       console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length });
       return freshTranscript;
@@ -907,9 +908,7 @@ export default function CandidateInterview() {
       const freshLen = (fresh.transcript_snapshot || []).length;
       const localLen = (dbTranscript || []).length;
       
-      // Compute visibleLen from current render filter (no blocker filtering - dbTranscript is pure)
-      const visibleLen = dbTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i)).length;
-      
+      // Simplified: No visibleLen computation to avoid TDZ with shouldRenderTranscriptEntry
       const freshLastKey = fresh.transcript_snapshot?.at?.(-1)?.stableKey || fresh.transcript_snapshot?.at?.(-1)?.id || null;
       const localLastKey = dbTranscript?.at?.(-1)?.stableKey || dbTranscript?.at?.(-1)?.id || null;
       
@@ -917,11 +916,8 @@ export default function CandidateInterview() {
         label,
         freshLen,
         localLen,
-        visibleLen,
         freshLastKey,
-        localLastKey,
-        screenMode,
-        currentItemType: currentItem?.type || null
+        localLastKey
       });
       
       // Detect rewind
@@ -936,7 +932,7 @@ export default function CandidateInterview() {
     } catch (err) {
       console.error('[FORENSIC][CANONICAL_CHECK][ERROR]', { label, error: err.message });
     }
-  }, [sessionId, dbTranscript, screenMode, currentItem]);
+  }, [sessionId, dbTranscript]);
 
   // CANONICAL HELPER: Append to DB transcript + refresh local mirror
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
@@ -958,6 +954,7 @@ export default function CandidateInterview() {
     // Refresh local mirror from DB
     const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
     const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+    setSession(freshAfterAppend); // Sync session state to prevent stale reads
     setDbTranscriptSafe(freshTranscript);
     
     console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, freshLen: freshTranscript.length });
@@ -4201,7 +4198,13 @@ export default function CandidateInterview() {
   // This prevents logging questions with null responseId
 
   const getCurrentPrompt = () => {
-    // HARD GATE: Block all base question rendering/logging while V3 gate is active
+    // PRIORITY 1: V3 probing active - V3ProbingLoop handles UI
+    if (v3ProbingActive || currentItem?.type === 'v3_probing') {
+      console.log('[V3_PROBING][ACTIVE] Blocking base prompt derivation - V3ProbingLoop handles UI');
+      return null;
+    }
+
+    // PRIORITY 2: V3 gate active - block base question rendering
     if (v3GateActive) {
       console.log('[V3_GATE][ACTIVE] Blocking base question rendering + logging');
       return null;
@@ -4223,11 +4226,6 @@ export default function CandidateInterview() {
     } else {
       console.log('[FORENSIC][TYPING_LOCK]', { active: false, promptWillDeriveFrom: 'CURRENT_STATE' });
       currentItemRef.current = currentItem;
-    }
-
-    // V3 probing mode - no prompt, V3ProbingLoop handles it
-    if (v3ProbingActive) {
-      return null;
     }
 
     if (inIdeProbingLoop && currentIdeQuestion) {
@@ -4339,8 +4337,8 @@ export default function CandidateInterview() {
       };
     }
 
-    // V3 Pack opener question (deterministic, non-AI)
-    if (effectiveCurrentItem.type === 'v3_pack_opener') {
+    // V3 Pack opener question (ONLY if not in v3_probing mode)
+    if (effectiveCurrentItem.type === 'v3_pack_opener' && !v3ProbingActive) {
       const { packId, openerText, exampleNarrative, categoryId, instanceNumber } = effectiveCurrentItem;
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
@@ -4700,13 +4698,11 @@ export default function CandidateInterview() {
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
             
-            // FORENSIC: Truth table for transcript pipeline (dbSnapshotLen tracked in state)
+            // FORENSIC: Truth table for transcript pipeline
             console.log("[FORENSIC][PIPELINE]", {
-              dbSnapshotLen: session?.transcript_snapshot?.length || null,
-              localStateLen: dbTranscript.length,
+              canonicalLen: dbTranscript.length,
               derivedLen: rawTranscript.length,
               visibleLen: visibleTranscript.length,
-              screenMode,
               currentItemType,
               currentItemId: currentItem?.id,
               v3ProbingActive,
@@ -4720,23 +4716,15 @@ export default function CandidateInterview() {
             console.log("[TRANSCRIPT_SOURCE]", {
               canonicalLen: dbTranscript.length,
               displayLen: visibleTranscript.length,
-              isTypingLocked: isUserTyping,
               currentItemType: currentItemType
             });
             
-            // DIVERGENCE DETECTION
+            // DIVERGENCE DETECTION (warning only - does not block)
             if (dbTranscript.length > 0 && visibleTranscript.length === 0) {
-              console.error('[TRANSCRIPT_DIVERGENCE]', {
+              console.warn('[TRANSCRIPT_DIVERGENCE]', {
                 canonicalLen: dbTranscript.length,
                 displayLen: 0,
-                alert: 'CRITICAL: All messages hidden despite canonical data'
-              });
-            }
-            if (session && session.transcript_snapshot && session.transcript_snapshot.length !== dbTranscript.length) {
-              console.warn('[TRANSCRIPT_DIVERGENCE]', {
-                dbSnapshotLen: session.transcript_snapshot.length,
-                localMirrorLen: dbTranscript.length,
-                alert: 'Local mirror out of sync with DB'
+                alert: 'All messages hidden by filter'
               });
             }
             
@@ -5196,7 +5184,8 @@ export default function CandidateInterview() {
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {(() => {
-            const shouldRenderPrompt = !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate';
+            // GUARD: Never render prompt cards when v3_probing is active (V3ProbingLoop owns UI)
+            const shouldRenderPrompt = !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing';
             console.log('[FORENSIC][PROMPT_CARD_GUARD]', {
               shouldRenderPrompt,
               activeBlocker: !!activeBlocker,
