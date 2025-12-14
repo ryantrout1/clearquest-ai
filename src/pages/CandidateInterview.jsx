@@ -83,12 +83,10 @@ const TRANSCRIPT_DENYLIST = new Set([
   'SYSTEM_EVENT',             // All system events
   'SESSION_CREATED',          // Session lifecycle
   'SESSION_RESUMED',
-  'QUESTION_SHOWN',           // Question shown event (audit only)
   'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
   'PACK_ENTERED',             // Pack lifecycle
   'PACK_EXITED',
   'SECTION_STARTED',          // Section lifecycle
-  'FOLLOWUP_CARD_SHOWN',      // Followup card shown event (audit only)
   'AI_PROBING_CALLED',        // AI probing events
   'AI_PROBING_RESPONSE',
 ]);
@@ -904,12 +902,8 @@ export default function CandidateInterview() {
       const freshLen = (fresh.transcript_snapshot || []).length;
       const localLen = (dbTranscript || []).length;
       
-      // Compute visibleLen from current render filter
-      const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
-      const rawTranscript = hasActiveBlocker
-        ? dbTranscript.filter(e => e.blocking !== true || e.resolved === true)
-        : dbTranscript;
-      const visibleLen = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i)).length;
+      // Compute visibleLen from current render filter (no blocker filtering - dbTranscript is pure)
+      const visibleLen = dbTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i)).length;
       
       const freshLastKey = fresh.transcript_snapshot?.at?.(-1)?.stableKey || fresh.transcript_snapshot?.at?.(-1)?.id || null;
       const localLastKey = dbTranscript?.at?.(-1)?.stableKey || dbTranscript?.at?.(-1)?.id || null;
@@ -937,7 +931,7 @@ export default function CandidateInterview() {
     } catch (err) {
       console.error('[FORENSIC][CANONICAL_CHECK][ERROR]', { label, error: err.message });
     }
-  }, [sessionId, dbTranscript, activeBlocker, screenMode, currentItem]);
+  }, [sessionId, dbTranscript, screenMode, currentItem]);
 
   // CANONICAL HELPER: Append to DB transcript + refresh local mirror
   const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
@@ -1030,6 +1024,9 @@ export default function CandidateInterview() {
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
   const [pendingTransition, setPendingTransition] = useState(null);
 
+  // UI-ONLY BLOCKER STATE: Separate from canonical transcript
+  const [uiBlocker, setUiBlocker] = useState(null);
+
   const historyRef = useRef(null);
   const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
@@ -1115,12 +1112,10 @@ export default function CandidateInterview() {
       v3MultiInstanceHandler(v3GateDecision);
     }
 
-    // Mark blocker resolved
-    setDbTranscriptSafe(prev => prev.map(e =>
-      e.type === 'V3_GATE' && e.blocking === true && e.resolved === false
-        ? { ...e, resolved: true, answer: v3GateDecision }
-        : e
-    ));
+    // Mark blocker resolved (UI-only)
+    if (uiBlocker?.type === 'V3_GATE' && !uiBlocker.resolved) {
+      setUiBlocker(prev => ({ ...prev, resolved: true, answer: v3GateDecision }));
+    }
 
     // Clear decision
     setV3GateDecision(null);
@@ -1178,13 +1173,8 @@ export default function CandidateInterview() {
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
 
-  // Derive activeBlocker from transcript (must be declared before any early returns)
-  const activeBlocker = React.useMemo(() => {
-    return dbTranscript.find(entry =>
-      entry.blocking === true &&
-      entry.resolved === false
-    ) || null;
-  }, [dbTranscript]);
+  // MOVED: activeBlocker now uses uiBlocker state (UI-only, NOT from canonical transcript)
+  const activeBlocker = uiBlocker;
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -1462,18 +1452,14 @@ export default function CandidateInterview() {
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
-      // Add blocking intro message for new sessions (local UI only - not in canonical transcript)
+      // Add blocking intro message for new sessions (UI-ONLY - not in canonical transcript)
       if (sessionIsNew) {
-        const introBlocker = {
+        setUiBlocker({
           id: `blocker-intro-${sessionId}`,
-          stableKey: `blocker-intro:${sessionId}`,
           type: 'SYSTEM_INTRO',
-          blocking: true,
           resolved: false,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now()
-        };
-        setDbTranscriptSafe(prev => [...(prev || []), introBlocker]);
+          timestamp: new Date().toISOString()
+        });
         await forensicCheck('initial');
       }
 
@@ -1730,7 +1716,7 @@ export default function CandidateInterview() {
         setCurrentSectionIndex(nextResult.nextSectionIndex);
         setQueue([]);
         setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
-        await persistStateToDatabase(dbTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
+        await persistStateToDatabase(null, [], { id: nextResult.nextQuestionId, type: 'question' });
         return;
       } else if (nextResult.mode === 'SECTION_TRANSITION') {
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
@@ -1786,22 +1772,17 @@ export default function CandidateInterview() {
           sectionId: nextResult.completedSection.id
         }).catch(() => {}); // Fire and forget
 
-        // Add section transition blocker (local UI only - not in canonical transcript)
-        const sectionBlocker = {
-          id: `blocker-section-${nextResult.nextSectionIndex}-${Date.now()}`,
-          stableKey: `blocker-section:${nextResult.nextSectionIndex}`,
+        // Add section transition blocker (UI-ONLY)
+        setUiBlocker({
+          id: `blocker-section-${nextResult.nextSectionIndex}`,
           type: 'SECTION_MESSAGE',
-          blocking: true,
           resolved: false,
           completedSectionName: nextResult.completedSection.displayName,
           nextSectionName: nextResult.nextSection.displayName,
           nextSectionIndex: nextResult.nextSectionIndex,
           nextQuestionId: nextResult.nextQuestionId,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now()
-        };
-
-        setDbTranscriptSafe(prev => [...prev, sectionBlocker]);
+          timestamp: new Date().toISOString()
+        });
 
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
@@ -1814,19 +1795,7 @@ export default function CandidateInterview() {
         await persistStateToDatabase(null, [], null);
         return;
       } else {
-        // Completion message (local UI only)
-        const completionMessage = {
-          id: `interview-complete-${Date.now()}`,
-          stableKey: `interview-complete:${sessionId}`,
-          type: 'system_message',
-          content: 'Interview complete! Thank you for your thorough and honest responses.',
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          kind: 'interview_complete',
-          role: 'system'
-        };
-
-        setDbTranscriptSafe(prev => [...prev, completionMessage]);
+        // Completion handled by modal - no local message needed
 
         setCurrentItem(null);
         setQueue([]);
@@ -1840,7 +1809,7 @@ export default function CandidateInterview() {
     if (nextQuestionId && engine.QById[nextQuestionId]) {
       setQueue([]);
       setCurrentItem({ id: nextQuestionId, type: 'question' });
-      await persistStateToDatabase(dbTranscript, [], { id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(null, [], { id: nextQuestionId, type: 'question' });
     } else {
       setCurrentItem(null);
       setQueue([]);
@@ -1896,7 +1865,7 @@ export default function CandidateInterview() {
           prompt: multiInstancePrompt
         });
 
-        await persistStateToDatabase(freshGate, [], {
+        await persistStateToDatabase(null, [], {
           id: `multi-instance-${baseQuestionId}-${packId}`,
           type: 'multi_instance',
           questionId: baseQuestionId,
@@ -2299,7 +2268,7 @@ export default function CandidateInterview() {
             [fieldCountKey]: probeCount + 1
           }));
 
-          await persistStateToDatabase(dbTranscript, [], currentItem);
+          await persistStateToDatabase(null, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
@@ -2442,7 +2411,7 @@ export default function CandidateInterview() {
             setCurrentItem(nextItemForV2);
             setQueue([]);
 
-            await persistStateToDatabase(dbTranscript, [], nextItemForV2);
+            await persistStateToDatabase(null, [], nextItemForV2);
 
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
@@ -2488,7 +2457,7 @@ export default function CandidateInterview() {
           advanceToNextBaseQuestion(baseQuestionId);
         }
 
-        await persistStateToDatabase(dbTranscript, [], null);
+        await persistStateToDatabase(null, [], null);
         setIsCommitting(false);
         setInput("");
         return;
@@ -2621,7 +2590,7 @@ export default function CandidateInterview() {
 
         const freshBeforeProbing = await refreshTranscriptFromDB('v3_probing_enter');
         await forensicCheck('v3_probing_enter');
-        await persistStateToDatabase(freshBeforeProbing, [], {
+        await persistStateToDatabase(null, [], {
           id: `v3-probing-${packId}`,
           type: 'v3_probing',
           packId,
@@ -2696,19 +2665,7 @@ export default function CandidateInterview() {
 
           if (gateResult.interviewComplete) {
             // No more sections - complete interview
-            // Completion message (local UI only)
-            const completionMessage = {
-              id: `interview-complete-${Date.now()}`,
-              stableKey: `interview-complete:${sessionId}`,
-              type: 'system_message',
-              content: 'Interview complete! Thank you for your thorough and honest responses.',
-              timestamp: new Date().toISOString(),
-              createdAt: Date.now(),
-              kind: 'interview_complete',
-              role: 'system'
-            };
-
-            setDbTranscriptSafe(prev => [...prev, completionMessage]);
+            // Completion handled by modal - no local message needed
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(null, [], null);
@@ -2774,22 +2731,17 @@ export default function CandidateInterview() {
            triggerType: 'section_complete'
           }).catch(() => {}); // Fire and forget
 
-          // Add section transition blocker (local UI only)
-          const sectionBlocker = {
-           id: `blocker-section-${gateResult.nextSectionIndex}-${Date.now()}`,
-           stableKey: `blocker-section-gate:${gateResult.nextSectionIndex}`,
+          // Add section transition blocker (UI-ONLY)
+          setUiBlocker({
+           id: `blocker-section-gate-${gateResult.nextSectionIndex}`,
            type: 'SECTION_MESSAGE',
-           blocking: true,
            resolved: false,
            completedSectionName: currentSection?.displayName,
            nextSectionName: nextSection.displayName,
            nextSectionIndex: gateResult.nextSectionIndex,
            nextQuestionId: gateResult.nextQuestionId,
-           timestamp: new Date().toISOString(),
-           createdAt: Date.now()
-          };
-
-          setDbTranscriptSafe(prev => [...prev, sectionBlocker]);
+           timestamp: new Date().toISOString()
+          });
 
           setPendingSectionTransition({
            nextSectionIndex: gateResult.nextSectionIndex,
@@ -2913,7 +2865,7 @@ export default function CandidateInterview() {
 
               const freshAfterOpenerSetup = await refreshTranscriptFromDB('v3_opener_set');
               await forensicCheck('v3_opener_shown');
-              await persistStateToDatabase(freshAfterOpenerSetup, [], openerItem);
+              await persistStateToDatabase(null, [], openerItem);
 
               setIsCommitting(false);
               setInput("");
@@ -3067,7 +3019,7 @@ export default function CandidateInterview() {
                 setCurrentItem(firstPackItem);
                 setQueue([]);
 
-                await persistStateToDatabase(dbTranscript, [], firstPackItem);
+                await persistStateToDatabase(null, [], firstPackItem);
                 setIsCommitting(false);
                 setInput("");
                 return;
@@ -3138,7 +3090,7 @@ export default function CandidateInterview() {
                 });
                 setQueue([]);
 
-                await persistStateToDatabase(dbTranscript, [], {
+                await persistStateToDatabase(null, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
                   packId: packId,
@@ -3162,7 +3114,7 @@ export default function CandidateInterview() {
                 });
                 setQueue([]);
 
-                await persistStateToDatabase(newTranscript, [], {
+                await persistStateToDatabase(null, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
                   packId: packId,
@@ -3339,7 +3291,7 @@ export default function CandidateInterview() {
               setQueue(remainingQueue);
               setCurrentItem(firstItem);
 
-              await persistStateToDatabase(dbTranscript, remainingQueue, firstItem);
+              await persistStateToDatabase(null, remainingQueue, firstItem);
             } else {
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
@@ -3707,7 +3659,7 @@ export default function CandidateInterview() {
         } else {
           setCurrentItem(null);
           setQueue([]);
-          await persistStateToDatabase(dbTranscript, [], null);
+          await persistStateToDatabase(null, [], null);
           advanceToNextBaseQuestion(questionId);
         }
       }
@@ -4764,10 +4716,8 @@ export default function CandidateInterview() {
           <div className="space-y-2">
           {/* Always render transcript history from CANONICAL DB source */}
           {(() => {
-            const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
-            const rawTranscript = hasActiveBlocker
-              ? dbTranscript.filter(e => e.blocking !== true || e.resolved === true)
-              : dbTranscript;
+            // CANONICAL: No blocker filtering - dbTranscript is pure mirror of DB
+            const rawTranscript = dbTranscript;
             
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
@@ -4813,8 +4763,6 @@ export default function CandidateInterview() {
             }
             
             return visibleTranscript.map((entry, index) => {
-            // Skip blocking messages in transcript view (they're shown as bottom cards when active)
-            if (entry.blocking === true) return null;
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
@@ -5385,11 +5333,9 @@ export default function CandidateInterview() {
                     firstQuestionText: firstQuestion.question_text?.substring(0, 50)
                   });
                   
-                  // Mark blocker resolved (if exists)
-                  if (activeBlocker) {
-                    setDbTranscriptSafe(prev => prev.map(e =>
-                      e.id === activeBlocker.id ? { ...e, resolved: true } : e
-                    ));
+                  // Mark blocker resolved (UI-only)
+                  if (uiBlocker && !uiBlocker.resolved) {
+                    setUiBlocker(null);
                   }
                   
                   // Set screen mode and current item to first question
@@ -5404,7 +5350,7 @@ export default function CandidateInterview() {
                   setCurrentItem({ id: firstQuestionId, type: 'question' });
                   setCurrentSectionIndex(0);
                   
-                  await persistStateToDatabase(dbTranscript, [], { id: firstQuestionId, type: 'question' });
+                  await persistStateToDatabase(null, [], { id: firstQuestionId, type: 'question' });
                   
                   console.log("[WELCOME][BEGIN][AFTER]", {
                     screenMode: "QUESTION",
@@ -5436,17 +5382,17 @@ export default function CandidateInterview() {
                     });
                   }
 
-                  // Mark blocker resolved
-                  setDbTranscriptSafe(prev => prev.map(e =>
-                    e.id === activeBlocker.id ? { ...e, resolved: true } : e
-                  ));
+                  // Mark blocker resolved (UI-only)
+                  if (uiBlocker && !uiBlocker.resolved) {
+                    setUiBlocker(null);
+                  }
 
                   // Update section index and current item
                   setCurrentSectionIndex(activeBlocker.nextSectionIndex);
                   setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
 
-                  await persistStateToDatabase(dbTranscript, [], { id: activeBlocker.nextQuestionId, type: 'question' });
+                  await persistStateToDatabase(null, [], { id: activeBlocker.nextQuestionId, type: 'question' });
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
@@ -5547,7 +5493,7 @@ export default function CandidateInterview() {
                };
 
                setCurrentItem(openerItem);
-               await persistStateToDatabase(dbTranscript, [], openerItem);
+               await persistStateToDatabase(null, [], openerItem);
                setIsCommitting(false);
              }}
              disabled={isCommitting}
