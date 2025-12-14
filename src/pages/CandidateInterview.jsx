@@ -822,6 +822,11 @@ export default function CandidateInterview() {
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
 
+  // SESSION PERSISTENCE: Resilient to remounts
+  const persistKey = sessionId ? `cq_ci_state_${sessionId}` : null;
+  const seenKeysStorageKey = sessionId ? `cq_ci_seen_${sessionId}` : null;
+  const rehydratedRef = useRef(false);
+
   const [engine, setEngine] = useState(null);
   const [session, setSession] = useState(null);
   const [department, setDepartment] = useState(null);
@@ -989,6 +994,10 @@ export default function CandidateInterview() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  
+  // PERSISTENCE: Debounced state saver
+  const persistTimeoutRef = useRef(null);
+  const PERSIST_DEBOUNCE_MS = 250;
 
   // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
   const introLoggedRef = useRef(false);
@@ -1177,6 +1186,9 @@ export default function CandidateInterview() {
   // APPEND-ONLY: Rendered candidate messages (never remove once added)
   const [renderedCandidateMessages, setRenderedCandidateMessages] = React.useState([]);
   const seenStableKeysRef = useRef(new Set());
+  
+  // PERSISTENCE: Transcript deduplication across remounts
+  const seenMessageKeysRef = useRef(new Set());
 
   React.useEffect(() => {
     setRenderTranscript((prev) => {
@@ -1208,8 +1220,12 @@ export default function CandidateInterview() {
       const key = entry.stableKey || entry.id;
       if (!key || seenStableKeysRef.current.has(key)) continue;
       
+      // PERSISTENCE: Dedupe across remounts
+      if (seenMessageKeysRef.current.has(key)) continue;
+      
       // Mark as seen and add to new messages
       seenStableKeysRef.current.add(key);
+      seenMessageKeysRef.current.add(key);
       newMessages.push(entry);
     }
     
@@ -1354,12 +1370,61 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
+  // PERSISTENCE: Restore state on mount
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || !persistKey) {
       navigate(createPageUrl("StartInterview"));
       return;
     }
-    initializeInterview();
+
+    // Try to rehydrate from sessionStorage first
+    const restoreFromStorage = () => {
+      try {
+        const stored = window.sessionStorage.getItem(persistKey);
+        const storedSeen = window.sessionStorage.getItem(seenKeysStorageKey);
+        
+        if (stored) {
+          const state = JSON.parse(stored);
+          console.log('[PERSISTENCE][RESTORE]', { 
+            hasState: true,
+            transcriptLen: state.transcript?.length || 0,
+            currentItemType: state.currentItem?.type
+          });
+          
+          // Rehydrate state
+          if (state.transcript) setDbTranscriptSafe(state.transcript);
+          if (state.currentItem) setCurrentItem(state.currentItem);
+          if (state.queue) setQueue(state.queue);
+          if (state.currentSectionIndex !== undefined) setCurrentSectionIndex(state.currentSectionIndex);
+          if (state.v2PackMode) setV2PackMode(state.v2PackMode);
+          if (state.activeV2Pack) setActiveV2Pack(state.activeV2Pack);
+          if (state.v3ProbingActive) setV3ProbingActive(state.v3ProbingActive);
+          if (state.v3ProbingContext) setV3ProbingContext(state.v3ProbingContext);
+          if (state.multiInstanceGate) setMultiInstanceGate(state.multiInstanceGate);
+          if (state.screenMode) setScreenMode(state.screenMode);
+          
+          rehydratedRef.current = true;
+        }
+        
+        if (storedSeen) {
+          const seenKeys = JSON.parse(storedSeen);
+          seenMessageKeysRef.current = new Set(seenKeys);
+          console.log('[PERSISTENCE][RESTORE_SEEN]', { count: seenKeys.length });
+        }
+      } catch (err) {
+        console.warn('[PERSISTENCE][RESTORE_ERROR]', err);
+      }
+    };
+
+    restoreFromStorage();
+    
+    // Only initialize if we didn't rehydrate
+    if (!rehydratedRef.current) {
+      initializeInterview();
+    } else {
+      setIsLoading(false);
+      console.log('[PERSISTENCE][SKIP_INIT] Using rehydrated state');
+    }
 
     return () => {
       if (unsubscribeRef.current) {
@@ -1434,6 +1499,15 @@ export default function CandidateInterview() {
       });
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
+      
+      // PERSISTENCE: Save seen keys on unmount
+      if (seenKeysStorageKey) {
+        try {
+          window.sessionStorage.setItem(seenKeysStorageKey, JSON.stringify([...seenMessageKeysRef.current]));
+        } catch (e) {
+          console.warn('[PERSISTENCE][SAVE_SEEN_ERROR]', e);
+        }
+      }
     };
   }, [screenMode, currentItem, v3ProbingContext, v3ProbingActive, dbTranscript, renderTranscript, nextRenderable]);
 
@@ -4018,6 +4092,17 @@ export default function CandidateInterview() {
         triggerType: 'interview_complete'
       }).catch(() => {}); // Fire and forget
 
+      // PERSISTENCE: Clear storage on completion
+      if (persistKey && seenKeysStorageKey) {
+        try {
+          window.sessionStorage.removeItem(persistKey);
+          window.sessionStorage.removeItem(seenKeysStorageKey);
+          console.log('[PERSISTENCE][CLEARED] Interview completed');
+        } catch (e) {
+          console.warn('[PERSISTENCE][CLEAR_ERROR]', e);
+        }
+      }
+
       navigate(createPageUrl("Home"));
     } catch (err) {
       console.error('❌ Error completing interview:', err);
@@ -4282,6 +4367,49 @@ export default function CandidateInterview() {
       setTextareaRows(maxLines);
     }
   }, [input]);
+
+  // PERSISTENCE: Debounced state save
+  useEffect(() => {
+    if (!persistKey || !sessionId) return;
+    
+    if (persistTimeoutRef.current) {
+      clearTimeout(persistTimeoutRef.current);
+    }
+    
+    persistTimeoutRef.current = setTimeout(() => {
+      try {
+        const stateToSave = {
+          transcript: dbTranscript,
+          currentItem,
+          queue,
+          currentSectionIndex,
+          v2PackMode,
+          activeV2Pack,
+          v3ProbingActive,
+          v3ProbingContext,
+          multiInstanceGate,
+          screenMode,
+          timestamp: Date.now()
+        };
+        
+        window.sessionStorage.setItem(persistKey, JSON.stringify(stateToSave));
+        window.sessionStorage.setItem(seenKeysStorageKey, JSON.stringify([...seenMessageKeysRef.current]));
+        
+        console.log('[PERSISTENCE][SAVED]', { 
+          transcriptLen: dbTranscript?.length || 0,
+          currentItemType: currentItem?.type 
+        });
+      } catch (e) {
+        console.warn('[PERSISTENCE][SAVE_ERROR]', e);
+      }
+    }, PERSIST_DEBOUNCE_MS);
+    
+    return () => {
+      if (persistTimeoutRef.current) {
+        clearTimeout(persistTimeoutRef.current);
+      }
+    };
+  }, [dbTranscript, currentItem, queue, currentSectionIndex, v2PackMode, activeV2Pack, v3ProbingActive, v3ProbingContext, multiInstanceGate, screenMode, persistKey, seenKeysStorageKey, sessionId]);
 
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
