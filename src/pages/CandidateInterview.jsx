@@ -861,13 +861,14 @@ export default function CandidateInterview() {
   const [completedSectionsCount, setCompletedSectionsCount] = useState(0);
   const activeSection = sections[currentSectionIndex] || null;
 
-  const [transcript, setTranscript] = useState([]);
+  // CANONICAL TRANSCRIPT: Read-only mirror of session.transcript_snapshot (DB)
+  const [dbTranscript, setDbTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
   
-  // Dev guardrail: Ensure transcript never shrinks
-  const setTranscriptSafe = useCallback((updater) => {
-    setTranscript(prev => {
+  // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
+  const setDbTranscriptSafe = useCallback((updater) => {
+    setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (process.env.NODE_ENV !== 'production') {
         if (next.length < prev.length) {
@@ -881,6 +882,20 @@ export default function CandidateInterview() {
       return next;
     });
   }, []);
+  
+  // CANONICAL SOURCE: Refresh transcript from DB after any write
+  const refreshTranscriptFromDB = useCallback(async (reason) => {
+    try {
+      const freshSession = await base44.entities.InterviewSession.get(sessionId);
+      const freshTranscript = freshSession.transcript_snapshot || [];
+      setDbTranscriptSafe(freshTranscript);
+      console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length });
+      return freshTranscript;
+    } catch (err) {
+      console.error('[TRANSCRIPT_REFRESH][ERROR]', { reason, error: err.message });
+      return dbTranscript; // Fallback to current state on error
+    }
+  }, [sessionId, dbTranscript, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
@@ -1033,7 +1048,7 @@ export default function CandidateInterview() {
     }
 
     // Mark blocker resolved
-    setTranscriptSafe(prev => prev.map(e =>
+    setDbTranscriptSafe(prev => prev.map(e =>
       e.type === 'V3_GATE' && e.blocking === true && e.resolved === false
         ? { ...e, resolved: true, answer: v3GateDecision }
         : e
@@ -1088,8 +1103,8 @@ export default function CandidateInterview() {
 
   const totalQuestionsAllSections = engine?.TotalQuestions || 0;
   const answeredQuestionsAllSections = React.useMemo(
-    () => transcript.filter(t => t.type === 'question').length,
-    [transcript]
+    () => dbTranscript.filter(t => t.type === 'question').length,
+    [dbTranscript]
   );
   const questionCompletionPct = totalQuestionsAllSections > 0
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
@@ -1097,11 +1112,11 @@ export default function CandidateInterview() {
 
   // Derive activeBlocker from transcript (must be declared before any early returns)
   const activeBlocker = React.useMemo(() => {
-    return transcript.find(entry =>
+    return dbTranscript.find(entry =>
       entry.blocking === true &&
       entry.resolved === false
     ) || null;
-  }, [transcript]);
+  }, [dbTranscript]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -1390,7 +1405,7 @@ export default function CandidateInterview() {
           timestamp: new Date().toISOString(),
           createdAt: Date.now()
         };
-        setTranscriptSafe(prev => [...(prev || []), introBlocker]);
+        setDbTranscriptSafe(prev => [...(prev || []), introBlocker]);
       }
 
       // Log system events
@@ -1447,7 +1462,7 @@ export default function CandidateInterview() {
       queueLen: restoredQueue.length,
       currentItemType: restoredCurrentItem?.type
     });
-    setTranscriptSafe(restoredTranscript);
+    setDbTranscriptSafe(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
 
@@ -1501,7 +1516,7 @@ export default function CandidateInterview() {
         }
       }
 
-      setTranscriptSafe(restoredTranscript);
+      setDbTranscriptSafe(restoredTranscript);
       displayOrderRef.current = restoredTranscript.length;
 
       let nextQuestionId = null;
@@ -1571,7 +1586,7 @@ export default function CandidateInterview() {
         queue_snapshot: newQueue,
         current_item_snapshot: newCurrentItem,
         total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
-        completion_percentage: Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100),
+        completion_percentage: engine?.TotalQuestions ? Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100) : 0,
         data_version: 'v2.5-hybrid'
       });
     } catch (err) {
@@ -1614,7 +1629,7 @@ export default function CandidateInterview() {
     }
 
     // Use passed transcript or fall back to state
-    const effectiveTranscript = currentTranscript || transcript;
+    const effectiveTranscript = currentTranscript || dbTranscript;
 
     const answeredQuestionIds = new Set(
       effectiveTranscript.filter(t => t.type === 'question').map(t => t.questionId)
@@ -1629,12 +1644,10 @@ export default function CandidateInterview() {
       });
 
       if (nextResult.mode === 'QUESTION') {
-        const newTranscript = [...transcript];
-
         setCurrentSectionIndex(nextResult.nextSectionIndex);
         setQueue([]);
         setCurrentItem({ id: nextResult.nextQuestionId, type: 'question' });
-        await persistStateToDatabase(newTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
+        await persistStateToDatabase(dbTranscript, [], { id: nextResult.nextQuestionId, type: 'question' });
         return;
       } else if (nextResult.mode === 'SECTION_TRANSITION') {
         const whatToExpect = WHAT_TO_EXPECT[nextResult.nextSection.id] || 'important background information';
@@ -1681,9 +1694,7 @@ export default function CandidateInterview() {
         }
 
         // Reload transcript after logging
-        const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-        const newTranscript = updatedSession.transcript_snapshot || [];
-        setTranscriptSafe(newTranscript);
+        await refreshTranscriptFromDB('section_complete_logged');
 
         // Trigger section summary generation (background)
         base44.functions.invoke('generateSectionSummary', {
@@ -1706,8 +1717,9 @@ export default function CandidateInterview() {
           createdAt: Date.now()
         };
 
-        const transcriptWithBlocker = [...newTranscript, sectionBlocker];
-        setTranscriptSafe(transcriptWithBlocker);
+        const freshTranscript = await refreshTranscriptFromDB('section_complete_before_blocker');
+        const transcriptWithBlocker = [...freshTranscript, sectionBlocker];
+        setDbTranscriptSafe(transcriptWithBlocker);
 
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
@@ -1732,7 +1744,7 @@ export default function CandidateInterview() {
         };
 
         const newTranscript = [...effectiveTranscript, completionMessage];
-        setTranscriptSafe(newTranscript);
+        setDbTranscriptSafe(newTranscript);
 
         setCurrentItem(null);
         setQueue([]);
@@ -1746,14 +1758,14 @@ export default function CandidateInterview() {
     if (nextQuestionId && engine.QById[nextQuestionId]) {
       setQueue([]);
       setCurrentItem({ id: nextQuestionId, type: 'question' });
-      await persistStateToDatabase(transcript, [], { id: nextQuestionId, type: 'question' });
+      await persistStateToDatabase(dbTranscript, [], { id: nextQuestionId, type: 'question' });
     } else {
       setCurrentItem(null);
       setQueue([]);
-      await persistStateToDatabase(transcript, [], null);
+      await persistStateToDatabase(dbTranscript, [], null);
       setShowCompletionModal(true);
     }
-  }, [engine, transcript, sections, currentSectionIndex]);
+  }, [engine, dbTranscript, sections, currentSectionIndex, refreshTranscriptFromDB]);
 
   const onFollowupPackComplete = useCallback(async (baseQuestionId, packId) => {
     const question = engine.QById[baseQuestionId];
@@ -1790,27 +1802,24 @@ export default function CandidateInterview() {
           createdAt: Date.now()
         };
 
-        setTranscriptSafe(prev => {
-          const newTranscript = [...prev, multiInstanceQuestionEntry];
+        const newTranscript = [...dbTranscript, multiInstanceQuestionEntry];
+        setDbTranscriptSafe(newTranscript);
 
-          setCurrentItem({
-            id: `multi-instance-${baseQuestionId}-${packId}`,
-            type: 'multi_instance',
-            questionId: baseQuestionId,
-            packId: packId,
-            instanceNumber: currentInstanceCount + 1,
-            maxInstances: maxInstances,
-            prompt: multiInstancePrompt
-          });
+        setCurrentItem({
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId,
+          instanceNumber: currentInstanceCount + 1,
+          maxInstances: maxInstances,
+          prompt: multiInstancePrompt
+        });
 
-          persistStateToDatabase(newTranscript, [], {
-            id: `multi-instance-${baseQuestionId}-${packId}`,
-            type: 'multi_instance',
-            questionId: baseQuestionId,
-            packId: packId
-          });
-
-          return newTranscript;
+        await persistStateToDatabase(newTranscript, [], {
+          id: `multi-instance-${baseQuestionId}-${packId}`,
+          type: 'multi_instance',
+          questionId: baseQuestionId,
+          packId: packId
         });
         return;
       }
@@ -1968,29 +1977,8 @@ export default function CandidateInterview() {
         const displayQuestionText = isAiFollowupAnswer ? v2ClarifierState.clarifierQuestion : questionText;
         const entrySource = isAiFollowupAnswer ? 'AI_FOLLOWUP' : 'V2_PACK';
 
-        // Log Q&A to transcript
-        const v2CombinedEntry = {
-          ...createChatEvent('followup_question', {
-            questionId: `v2pack-${packId}-${fieldIndex}-${isAiFollowupAnswer ? 'ai' : 'field'}-${Date.now()}`,
-            questionText: displayQuestionText,
-            packId: packId,
-            kind: isAiFollowupAnswer ? 'v2_pack_ai_followup' : 'v2_pack_followup',
-            text: displayQuestionText,
-            content: displayQuestionText,
-            fieldKey: fieldKey,
-            followupPackId: packId,
-            instanceNumber: instanceNumber,
-            baseQuestionId: baseQuestionId,
-            source: entrySource,
-            stepNumber: fieldIndex + 1,
-            totalSteps: totalFieldsInPack,
-            answer: finalAnswer
-          }),
-          stableKey: `v2-pack-field:${packId}:${fieldKey}:${instanceNumber}`
-        };
-
-        const newTranscript = [...transcript, v2CombinedEntry];
-        setTranscriptSafe(newTranscript);
+        // V2 pack field Q&A now logged via chatTranscriptHelpers in canonical transcript
+        // No local append - canonical transcript handles it
 
         // CRITICAL: Save V2 pack field answer to Response table for transcript/BI visibility
         const v2ResponseRecord = await saveV2PackFieldResponse({
@@ -2373,7 +2361,8 @@ export default function CandidateInterview() {
             setCurrentItem(nextItemForV2);
             setQueue([]);
 
-            await persistStateToDatabase(newTranscript, [], nextItemForV2);
+            const freshAfterV2FieldAdvance = await refreshTranscriptFromDB('v2_field_advance');
+            await persistStateToDatabase(freshAfterV2FieldAdvance, [], nextItemForV2);
 
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
@@ -2411,6 +2400,9 @@ export default function CandidateInterview() {
 
         // UX: Clear draft on successful pack completion
         clearDraft();
+        
+        // Refresh transcript after V2 pack complete
+        const freshAfterV2Complete = await refreshTranscriptFromDB('v2_pack_complete');
 
         const baseQuestionForExit = engine.QById[baseQuestionId];
         if (baseQuestionForExit?.followup_multi_instance) {
@@ -2419,7 +2411,7 @@ export default function CandidateInterview() {
           advanceToNextBaseQuestion(baseQuestionId);
         }
 
-        await persistStateToDatabase(newTranscript, [], null);
+        await persistStateToDatabase(freshAfterV2Complete, [], null);
         setIsCommitting(false);
         setInput("");
         return;
@@ -2457,9 +2449,8 @@ export default function CandidateInterview() {
 
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
 
-        // Update local UI transcript
-        const newTranscript = transcriptAfterAnswer;
-        setTranscriptSafe(newTranscript);
+        // Refresh from DB after opener answer
+        const newTranscript = await refreshTranscriptFromDB('v3_opener_answered');
 
         // Save opener answer to database
         await saveV2PackFieldResponse({
@@ -2551,7 +2542,8 @@ export default function CandidateInterview() {
           openerAnswer: value // Pass opener answer to probing engine
         });
 
-        await persistStateToDatabase(newTranscript, [], {
+        const freshBeforeProbing = await refreshTranscriptFromDB('v3_probing_enter');
+        await persistStateToDatabase(freshBeforeProbing, [], {
           id: `v3-probing-${packId}`,
           type: 'v3_probing',
           packId,
@@ -2599,9 +2591,7 @@ export default function CandidateInterview() {
         });
         
         // Reload session transcript into local state (single source of truth)
-        const updatedSessionAfterAnswer = await base44.entities.InterviewSession.get(sessionId);
-        const newTranscript = updatedSessionAfterAnswer.transcript_snapshot || [];
-        setTranscriptSafe(newTranscript);
+        const newTranscript = await refreshTranscriptFromDB('base_question_answered');
 
         // UX: Clear draft on successful submit
         clearDraft();
@@ -2639,7 +2629,7 @@ export default function CandidateInterview() {
             };
 
             const finalTranscript = [...newTranscript, completionMessage];
-            setTranscriptSafe(finalTranscript);
+            setDbTranscriptSafe(finalTranscript);
             setCurrentItem(null);
             setQueue([]);
             await persistStateToDatabase(finalTranscript, [], null);
@@ -2696,9 +2686,7 @@ export default function CandidateInterview() {
           }
 
           // Reload transcript after logging
-          const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-          const gateTranscript = updatedSession.transcript_snapshot || [];
-          setTranscriptSafe(gateTranscript);
+          await refreshTranscriptFromDB('gate_section_complete_logged');
 
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
@@ -2721,8 +2709,9 @@ export default function CandidateInterview() {
            createdAt: Date.now()
           };
 
-          const transcriptWithBlocker = [...gateTranscript, sectionBlocker];
-          setTranscriptSafe(transcriptWithBlocker);
+          const freshGateTranscript = await refreshTranscriptFromDB('gate_blocker_before_add');
+          const transcriptWithBlocker = [...freshGateTranscript, sectionBlocker];
+          setDbTranscriptSafe(transcriptWithBlocker);
 
           setPendingSectionTransition({
            nextSectionIndex: gateResult.nextSectionIndex,
@@ -2813,6 +2802,9 @@ export default function CandidateInterview() {
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
 
+              // Refresh transcript after pack entered log
+              await refreshTranscriptFromDB('v3_pack_entered');
+
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
 
@@ -2844,7 +2836,8 @@ export default function CandidateInterview() {
               setCurrentItem(openerItem);
               setQueue([]);
 
-              await persistStateToDatabase(newTranscript, [], openerItem);
+              const freshAfterOpenerSetup = await refreshTranscriptFromDB('v3_opener_set');
+              await persistStateToDatabase(freshAfterOpenerSetup, [], openerItem);
 
               setIsCommitting(false);
               setInput("");
@@ -2889,6 +2882,9 @@ export default function CandidateInterview() {
 
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
+              
+              // Refresh transcript after pack entered
+              await refreshTranscriptFromDB('v2_pack_entered');
 
               // Special log for PACK_PRIOR_LE_APPS_STANDARD
               if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
@@ -2997,7 +2993,8 @@ export default function CandidateInterview() {
                 setCurrentItem(firstPackItem);
                 setQueue([]);
 
-                await persistStateToDatabase(newTranscript, [], firstPackItem);
+                const freshAfterV2Enter = await refreshTranscriptFromDB('v2_immediate_transition');
+                await persistStateToDatabase(freshAfterV2Enter, [], firstPackItem);
                 setIsCommitting(false);
                 setInput("");
                 return;
@@ -3036,7 +3033,7 @@ export default function CandidateInterview() {
                 };
 
                 const updatedTranscript = [...newTranscript, aiOpeningEntry];
-                setTranscriptSafe(updatedTranscript);
+                setDbTranscriptSafe(updatedTranscript);
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -3276,7 +3273,8 @@ export default function CandidateInterview() {
               setQueue(remainingQueue);
               setCurrentItem(firstItem);
 
-              await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+              const freshAfterFollowupEnter = await refreshTranscriptFromDB('followup_enter');
+              await persistStateToDatabase(freshAfterFollowupEnter, remainingQueue, firstItem);
             } else {
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
@@ -3291,10 +3289,12 @@ export default function CandidateInterview() {
               }
             }
           } else {
-            advanceToNextBaseQuestion(currentItem.id, newTranscript);
+            const freshAfterCheck = await refreshTranscriptFromDB('before_advance_check');
+            advanceToNextBaseQuestion(currentItem.id, freshAfterCheck);
           }
         } else {
-          advanceToNextBaseQuestion(currentItem.id, newTranscript);
+          const freshAfterNoFollowup = await refreshTranscriptFromDB('no_followup_advance');
+          advanceToNextBaseQuestion(currentItem.id, freshAfterNoFollowup);
         }
 
         // Note: saveAnswerToDatabase already called above before setting newTranscript
@@ -3341,8 +3341,8 @@ export default function CandidateInterview() {
             instanceNumber: currentItem.instanceNumber || 1
           };
 
-          const newTranscript = [...transcript, prefilledEntry];
-          setTranscriptSafe(newTranscript);
+          const newTranscript = [...dbTranscript, prefilledEntry];
+          setDbTranscriptSafe(newTranscript);
 
           const updatedFollowUpAnswers = {
             ...currentFollowUpAnswers,
@@ -3471,8 +3471,8 @@ export default function CandidateInterview() {
               text: normalizedAnswer
             };
 
-            const newTranscript = [...transcript, followupEntry];
-            setTranscriptSafe(newTranscript);
+            const newTranscript = [...dbTranscript, followupEntry];
+            setDbTranscriptSafe(newTranscript);
 
             setCurrentFollowUpAnswers(prev => ({
               ...prev,
@@ -3523,8 +3523,8 @@ export default function CandidateInterview() {
           text: normalizedAnswer
         };
 
-        const newTranscript = [...transcript, followupEntry];
-        setTranscriptSafe(newTranscript);
+        const newTranscript = [...dbTranscript, followupEntry];
+        setDbTranscriptSafe(newTranscript);
 
         const updatedFollowUpAnswers = {
           ...currentFollowUpAnswers,
@@ -3626,47 +3626,44 @@ export default function CandidateInterview() {
           createdAt: Date.now()
         };
 
-        setTranscriptSafe(prev => {
-          const newTranscript = [...prev, transcriptEntry];
+        const newTranscript = [...dbTranscript, transcriptEntry];
+        setDbTranscriptSafe(newTranscript);
 
-          if (answer === 'Yes') {
-            const substanceName = question?.substance_name || null;
-            const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
+        if (answer === 'Yes') {
+          const substanceName = question?.substance_name || null;
+          const packSteps = injectSubstanceIntoPackSteps(engine, packId, substanceName);
 
-            if (packSteps && packSteps.length > 0) {
-              setCurrentFollowUpAnswers({});
+          if (packSteps && packSteps.length > 0) {
+            setCurrentFollowUpAnswers({});
 
-              const followupQueue = [];
-              for (let i = 0; i < packSteps.length; i++) {
-                followupQueue.push({
-                  id: `${packId}:${i}:instance${instanceNumber + 1}`,
-                  type: 'followup',
-                  packId: packId,
-                  stepIndex: i,
-                  substanceName: substanceName,
-                  totalSteps: packSteps.length,
-                  instanceNumber: instanceNumber + 1,
-                  baseQuestionId: questionId
-                });
-              }
-
-              const firstItem = followupQueue[0];
-              const remainingQueue = followupQueue.slice(1);
-
-              setQueue(remainingQueue);
-              setCurrentItem(firstItem);
-
-              persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+            const followupQueue = [];
+            for (let i = 0; i < packSteps.length; i++) {
+              followupQueue.push({
+                id: `${packId}:${i}:instance${instanceNumber + 1}`,
+                type: 'followup',
+                packId: packId,
+                stepIndex: i,
+                substanceName: substanceName,
+                totalSteps: packSteps.length,
+                instanceNumber: instanceNumber + 1,
+                baseQuestionId: questionId
+              });
             }
-          } else {
-            setCurrentItem(null);
-            setQueue([]);
-            persistStateToDatabase(newTranscript, [], null);
-            advanceToNextBaseQuestion(questionId);
-          }
 
-          return newTranscript;
-        });
+            const firstItem = followupQueue[0];
+            const remainingQueue = followupQueue.slice(1);
+
+            setQueue(remainingQueue);
+            setCurrentItem(firstItem);
+
+            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+          }
+        } else {
+          setCurrentItem(null);
+          setQueue([]);
+          await persistStateToDatabase(newTranscript, [], null);
+          advanceToNextBaseQuestion(questionId);
+        }
       }
     } catch (err) {
       console.error('❌ Error processing answer:', err);
@@ -3681,7 +3678,7 @@ export default function CandidateInterview() {
         setIsCommitting(false);
       }, 100);
     }
-  }, [currentItem, engine, queue, transcript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession]);
+    }, [currentItem, engine, queue, dbTranscript, sessionId, isCommitting, currentFollowUpAnswers, onFollowupPackComplete, advanceToNextBaseQuestion, sectionCompletionMessage, activeV2Pack, v2PackMode, aiFollowupCounts, aiProbingEnabled, aiProbingDisabledForSession, refreshTranscriptFromDB]);
 
   const saveAnswerToDatabase = async (questionId, answer, question) => {
     try {
@@ -3985,15 +3982,11 @@ export default function CandidateInterview() {
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
-  // V3 transcript update handler
-  const handleV3TranscriptUpdate = useCallback((entry) => {
-    setTranscriptSafe(prev => [...prev, {
-      ...entry,
-      id: `v3-${entry.type}-${Date.now()}`,
-      stableKey: `v3:${entry.type}:${entry.incidentId || Date.now()}`,
-      createdAt: Date.now()
-    }]);
-  }, []);
+  // V3 transcript update handler - refresh from DB instead of local append
+  const handleV3TranscriptUpdate = useCallback(async (entry) => {
+    // V3 messages written to DB by V3ProbingLoop - just refresh to sync
+    await refreshTranscriptFromDB('v3_probe_message');
+  }, [refreshTranscriptFromDB]);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
@@ -4029,8 +4022,7 @@ export default function CandidateInterview() {
           });
           
           // Reload transcript after appending
-          const updatedSession = await base44.entities.InterviewSession.get(sessionId);
-          setTranscriptSafe(updatedSession.transcript_snapshot || []);
+          await refreshTranscriptFromDB('multi_instance_gate_shown');
           
           // Clear V3 probing state but DO NOT advance yet
           setV3ProbingActive(false);
@@ -4089,11 +4081,14 @@ export default function CandidateInterview() {
             instanceNumber: v3ProbingContext.instanceNumber || 1
           });
         }
+        
+        // Refresh transcript after pack exit
+        const freshAfterV3Exit = await refreshTranscriptFromDB('v3_pack_exited');
 
         // Advance to next base question AFTER clearing V3 state
         if (baseQuestionId) {
           console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
-          await advanceToNextBaseQuestion(baseQuestionId, transcript);
+          await advanceToNextBaseQuestion(baseQuestionId, freshAfterV3Exit);
         }
 
         // Reset idempotency guard for next V3 pack
@@ -4105,7 +4100,7 @@ export default function CandidateInterview() {
     };
 
     executePendingTransition();
-  }, [pendingTransition, transcript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine]);
+  }, [pendingTransition, dbTranscript, advanceToNextBaseQuestion, persistStateToDatabase, sessionId, v3ProbingContext, multiInstanceGate, engine, refreshTranscriptFromDB]);
 
   // UX: Restore draft when currentItem changes
   useEffect(() => {
@@ -4156,7 +4151,7 @@ export default function CandidateInterview() {
   // Auto-scroll to bottom when transcript or current item updates
   useEffect(() => {
     autoScrollToBottom();
-  }, [transcript, currentItem, v3ProbingActive, autoScrollToBottom]);
+  }, [dbTranscript, currentItem, v3ProbingActive, autoScrollToBottom]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
@@ -4719,12 +4714,12 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
-          {/* Always render transcript history (PART C: transcript visible during V3 gate) */}
+          {/* Always render transcript history from CANONICAL DB source */}
           {(() => {
             const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
             const rawTranscript = hasActiveBlocker
-              ? transcript.filter(e => e.blocking !== true || e.resolved === true)
-              : transcript;
+              ? dbTranscript.filter(e => e.blocking !== true || e.resolved === true)
+              : dbTranscript;
             
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
@@ -4745,13 +4740,29 @@ export default function CandidateInterview() {
               isTypingLocked: isUserTyping
             });
             
-            // Debug: Verify transcript source is canonical and not mode-dependent
+            // CANONICAL SOURCE VERIFICATION
             console.log("[TRANSCRIPT_SOURCE]", {
-              canonicalLen: transcript.length,
+              canonicalLen: dbTranscript.length,
               displayLen: visibleTranscript.length,
               isTypingLocked: isUserTyping,
               currentItemType: currentItemType
             });
+            
+            // DIVERGENCE DETECTION
+            if (dbTranscript.length > 0 && visibleTranscript.length === 0) {
+              console.error('[TRANSCRIPT_DIVERGENCE]', {
+                canonicalLen: dbTranscript.length,
+                displayLen: 0,
+                alert: 'CRITICAL: All messages hidden despite canonical data'
+              });
+            }
+            if (session && session.transcript_snapshot && session.transcript_snapshot.length !== dbTranscript.length) {
+              console.warn('[TRANSCRIPT_DIVERGENCE]', {
+                dbSnapshotLen: session.transcript_snapshot.length,
+                localMirrorLen: dbTranscript.length,
+                alert: 'Local mirror out of sync with DB'
+              });
+            }
             
             return visibleTranscript.map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
@@ -5378,7 +5389,7 @@ export default function CandidateInterview() {
                   }
 
                   // Mark blocker resolved
-                  setTranscriptSafe(prev => prev.map(e =>
+                  setDbTranscriptSafe(prev => prev.map(e =>
                     e.id === activeBlocker.id ? { ...e, resolved: true } : e
                   ));
 
@@ -5387,7 +5398,8 @@ export default function CandidateInterview() {
                   setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
 
-                  await persistStateToDatabase(transcript, [], { id: activeBlocker.nextQuestionId, type: 'question' });
+                  const freshAfterSectionAdvance = await refreshTranscriptFromDB('section_transition_advance');
+                  await persistStateToDatabase(freshAfterSectionAdvance, [], { id: activeBlocker.nextQuestionId, type: 'question' });
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
@@ -5488,7 +5500,8 @@ export default function CandidateInterview() {
                };
 
                setCurrentItem(openerItem);
-               await persistStateToDatabase(updatedSession.transcript_snapshot || [], [], openerItem);
+               const freshAfterGateYes = await refreshTranscriptFromDB('gate_yes_before_reenter');
+               await persistStateToDatabase(freshAfterGateYes, [], openerItem);
                setIsCommitting(false);
              }}
              disabled={isCommitting}
@@ -5530,7 +5543,8 @@ export default function CandidateInterview() {
 
                // Advance to next base question
                if (gate.baseQuestionId) {
-                 await advanceToNextBaseQuestion(gate.baseQuestionId, updatedSession.transcript_snapshot || []);
+                 const freshAfterGateNo = await refreshTranscriptFromDB('gate_no_before_advance');
+                 await advanceToNextBaseQuestion(gate.baseQuestionId, freshAfterGateNo);
                }
                setIsCommitting(false);
              }}
