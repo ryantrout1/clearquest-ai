@@ -1170,6 +1170,10 @@ export default function CandidateInterview() {
 
   // Freeze render during refresh (prevents flash-to-empty)
   const [renderTranscript, setRenderTranscript] = React.useState([]);
+  
+  // APPEND-ONLY: Rendered candidate messages (never remove once added)
+  const [renderedCandidateMessages, setRenderedCandidateMessages] = React.useState([]);
+  const seenStableKeysRef = useRef(new Set());
 
   React.useEffect(() => {
     setRenderTranscript((prev) => {
@@ -1187,6 +1191,34 @@ export default function CandidateInterview() {
       return nextRenderable;
     });
   }, [nextRenderable]);
+
+  // APPEND-ONLY: Populate rendered candidate messages (stable, no removals)
+  React.useEffect(() => {
+    if (!dbTranscript || dbTranscript.length === 0) return;
+    
+    const newMessages = [];
+    
+    for (const entry of dbTranscript) {
+      // Only add if visibleToCandidate and not already seen
+      if (entry.visibleToCandidate !== true) continue;
+      
+      const key = entry.stableKey || entry.id;
+      if (!key || seenStableKeysRef.current.has(key)) continue;
+      
+      // Mark as seen and add to new messages
+      seenStableKeysRef.current.add(key);
+      newMessages.push(entry);
+    }
+    
+    // Append new messages (never remove existing)
+    if (newMessages.length > 0) {
+      setRenderedCandidateMessages(prev => [...prev, ...newMessages]);
+      console.log('[APPEND_ONLY][ADDED]', { 
+        count: newMessages.length, 
+        totalRendered: renderedCandidateMessages.length + newMessages.length 
+      });
+    }
+  }, [dbTranscript]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -4830,7 +4862,7 @@ export default function CandidateInterview() {
       <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
-          {/* Always render transcript history from CANONICAL DB source */}
+          {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
           {(() => {
             // QUESTION MODE: Hide all transcript history - show only current question
             if (currentItem?.type === 'question' && screenMode === 'QUESTION' && !v3ProbingActive && !activeBlocker) {
@@ -4838,8 +4870,8 @@ export default function CandidateInterview() {
               return null; // Don't render transcript in QUESTION mode
             }
             
-            // CANONICAL: Render from frozen state (prevents flashing)
-            const visibleTranscript = renderTranscript;
+            // STABLE: Render from append-only list (prevents flashing/disappearing)
+            const visibleTranscript = renderedCandidateMessages;
             
             // FORENSIC: Truth table for transcript pipeline
             console.log("[FORENSIC][PIPELINE]", {
