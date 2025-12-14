@@ -4408,33 +4408,76 @@ export default function CandidateInterview() {
   return item.type === "question" || item.type === "v2_pack_field" || item.type === "v3_pack_opener" || item.type === "followup";
   };
 
-  // Normalize bottom-bar mode flags (use uiCurrentItem instead of currentItem)
+  // ============================================================================
+  // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
+  // ============================================================================
   const currentItemType = uiCurrentItem?.type || null;
-  const isQuestion = currentItemType === "question" || currentItemType === "v2_pack_field" || currentItemType === "v3_pack_opener";
-  const isV2PackField = currentItemType === "v2_pack_field";
-  const isV3PackOpener = currentItemType === "v3_pack_opener";
-  const isFollowup = currentItemType === "followup";
   const isV3Gate = currentItemType === "v3_gate";
   const isMultiInstanceGate = currentItemType === "multi_instance_gate";
-  const answerable = isAnswerableItem(uiCurrentItem) || isV2PackField || isV3PackOpener;
-
-  const isYesNoQuestion = (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) ||
-                          (currentPrompt?.type === 'v2_pack_field' && currentPrompt?.responseType === 'yes_no') ||
-                          (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no') ||
-                          isV3Gate ||
-                          isMultiInstanceGate;
-
-  // Debug log for bottom bar variant selection
-  console.log('[BOTTOM_BAR_VARIANT]', { 
-    currentItemType, 
-    isMultiInstanceGate,
-    isYesNoQuestion, 
-    screenMode,
-    hasActiveBlocker: !!activeBlocker
-  });
-
-  // Show text input for question, v2_pack_field, followup, or ai_probe types (unless yes/no)
-  const showTextInput = (answerable || currentPrompt?.type === 'ai_probe') && !isYesNoQuestion && !isV3Gate && !isMultiInstanceGate;
+  
+  // Compute bottom bar mode
+  let bottomBarMode = "HIDDEN"; // Default: no controls shown
+  let isQuestion = false; // Semantic flag: is this a question-like prompt?
+  
+  // Pre-interview intro (WELCOME screen only)
+  if (screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO') {
+    if (!isMultiInstanceGate && !isV3Gate) {
+      bottomBarMode = "CTA"; // "Got it — Let's Begin" button
+    }
+  }
+  // Section transition blockers
+  else if (activeBlocker?.type === 'SECTION_MESSAGE' && uiCurrentItem?.type !== 'section_transition') {
+    bottomBarMode = "CTA"; // "Continue →" button
+  }
+  else if (pendingSectionTransition && uiCurrentItem?.type === 'section_transition') {
+    bottomBarMode = "CTA"; // "Begin Next Section →" button
+  }
+  // Multi-instance gate (ALWAYS YES_NO)
+  else if (isMultiInstanceGate) {
+    bottomBarMode = "YES_NO";
+    isQuestion = true; // Treat as question for semantic styling
+  }
+  // V3 gate (fallback YES_NO)
+  else if (isV3Gate) {
+    bottomBarMode = "YES_NO";
+    isQuestion = true;
+  }
+  // V3 probing active (keep input visible but disabled)
+  else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
+    bottomBarMode = "DISABLED";
+  }
+  // Normal yes/no questions
+  else if (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) {
+    bottomBarMode = "YES_NO";
+    isQuestion = true;
+  }
+  else if (currentPrompt?.type === 'multi_instance' && currentPrompt?.responseType === 'yes_no') {
+    bottomBarMode = "YES_NO";
+    isQuestion = true;
+  }
+  // V2 pack field yes/no
+  else if (currentItemType === 'v2_pack_field' && currentPrompt?.inputType === 'yes_no') {
+    bottomBarMode = "YES_NO";
+    isQuestion = true;
+  }
+  // V2 pack field select single
+  else if (currentItemType === 'v2_pack_field' && currentPrompt?.inputType === 'select_single' && currentPrompt?.options) {
+    bottomBarMode = "SELECT";
+    isQuestion = true;
+  }
+  // Text input for questions, v2_pack_field, v3_pack_opener, followup
+  else if ((currentItemType === 'question' || currentItemType === 'v2_pack_field' || currentItemType === 'v3_pack_opener' || currentItemType === 'followup' || currentPrompt?.type === 'ai_probe') && !isV3Gate && !isMultiInstanceGate) {
+    bottomBarMode = "TEXT_INPUT";
+    isQuestion = true;
+  }
+  
+  // Log final mode selection
+  console.log('[BOTTOM_BAR_MODE]', { currentItemType, bottomBarMode, isQuestion, screenMode });
+  
+  // Legacy flags (kept for compatibility)
+  const isV2PackField = currentItemType === "v2_pack_field";
+  const isV3PackOpener = currentItemType === "v3_pack_opener";
+  const showTextInput = bottomBarMode === "TEXT_INPUT";
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -5078,8 +5121,8 @@ export default function CandidateInterview() {
 
               <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
         <div className="max-w-5xl mx-auto">
-          {/* Blocking Message Actions */}
-          {(screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO') && !isMultiInstanceGate ? (
+          {/* Unified Bottom Bar - Stable Container (never unmounts) */}
+          {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -5149,7 +5192,7 @@ export default function CandidateInterview() {
                 Got it — Let's Begin
               </Button>
             </div>
-          ) : activeBlocker?.type === 'SECTION_MESSAGE' && uiCurrentItem?.type !== 'section_transition' ? (
+          ) : bottomBarMode === "CTA" && activeBlocker?.type === 'SECTION_MESSAGE' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
@@ -5211,37 +5254,7 @@ export default function CandidateInterview() {
                No
              </Button>
            </div>
-          ) : pendingSectionTransition && uiCurrentItem?.type === 'section_transition' ? (
-            <div className="flex flex-col items-center">
-              <Button
-                onClick={async () => {
-                  console.log("[CandidateInterview] Beginning next section", pendingSectionTransition);
-
-                  // Log section started (audit only)
-                  const nextSection = sections[pendingSectionTransition.nextSectionIndex];
-                  if (nextSection) {
-                    await logSectionStarted(sessionId, {
-                      sectionId: nextSection.id,
-                      sectionName: nextSection.displayName
-                    });
-                  }
-
-                  setCurrentSectionIndex(pendingSectionTransition.nextSectionIndex);
-                  setCurrentItem({ id: pendingSectionTransition.nextQuestionId, type: 'question' });
-                  setPendingSectionTransition(null);
-                  persistStateToDatabase(transcript, [], { id: pendingSectionTransition.nextQuestionId, type: 'question' });
-                  setTimeout(() => autoScrollToBottom(), 100);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
-                size="lg"
-              >
-                Begin Next Section →
-              </Button>
-              <p className="text-xs text-emerald-400 text-center mt-3">
-                Click to continue to {pendingSectionTransition.nextSectionName}
-              </p>
-            </div>
-          ) : isMultiInstanceGate ? (
+          ) : bottomBarMode === "YES_NO" && isMultiInstanceGate ? (
           <div className="flex gap-3">
           <Button
             onClick={async () => {
@@ -5387,30 +5400,9 @@ export default function CandidateInterview() {
                <p className="text-xs text-slate-400 text-center">
                  Please respond to the follow-up questions above.
                </p>
-             ) : isYesNoQuestion && !isV2PackField && !isV3Gate ? (
-            <div className="flex gap-3">
-              <Button
-                ref={yesButtonRef}
-                onClick={() => !isCommitting && handleAnswer("Yes")}
-                disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Check className="w-5 h-5 mr-2" />
-                Yes
-              </Button>
-              <Button
-                ref={noButtonRef}
-                onClick={() => !isCommitting && handleAnswer("No")}
-                disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <X className="w-5 h-5 mr-2" />
-                No
-              </Button>
-            </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'select_single' && currentPrompt?.options && !isV3Gate ? (
+             ) : bottomBarMode === "SELECT" ? (
             <div className="flex flex-wrap gap-2">
-              {currentPrompt.options.map((option) => (
+              {currentPrompt?.options?.map((option) => (
                 <Button
                   key={option}
                   onClick={() => !isCommitting && handleAnswer(option)}
@@ -5421,26 +5413,7 @@ export default function CandidateInterview() {
                 </Button>
               ))}
             </div>
-          ) : isV2PackField && currentPrompt?.inputType === 'yes_no' && !isV3Gate ? (
-            <div className="flex gap-3">
-              <Button
-                onClick={() => !isCommitting && handleAnswer("Yes")}
-                disabled={isCommitting}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Check className="w-5 h-5 mr-2" />
-                Yes
-              </Button>
-              <Button
-                onClick={() => !isCommitting && handleAnswer("No")}
-                disabled={isCommitting}
-                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <X className="w-5 h-5 mr-2" />
-                No
-              </Button>
-            </div>
-          ) : showTextInput && !isV3Gate ? (
+          ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
             {/* LLM Suggestion - show if available for this field */}
             {(() => {
