@@ -1058,6 +1058,7 @@ export default function CandidateInterview() {
   // V3 EXIT: Idempotency guard + baseQuestionId retention
   const v3BaseQuestionIdRef = useRef(null);
   const exitV3HandledRef = useRef(false);
+  const exitV3InProgressRef = useRef(false);
 
   // V3 gate prompt handler (deferred to prevent render-phase setState)
   useEffect(() => {
@@ -3967,11 +3968,24 @@ export default function CandidateInterview() {
       console.log('[PENDING_TRANSITION][EXECUTING]', pendingTransition.type, pendingTransition.payload);
 
       if (pendingTransition.type === 'EXIT_V3') {
-        const result = pendingTransition.payload;
-        const { incidentId, categoryId, completionReason, messages, reason, shouldOfferAnotherInstance, packId, categoryLabel, instanceNumber, packData } = result;
-        const baseQuestionId = v3BaseQuestionIdRef.current;
+        // IDEMPOTENCY GUARD: Prevent duplicate execution
+        if (exitV3InProgressRef.current) {
+          console.log('[EXIT_V3][SKIP] Already in progress');
+          return;
+        }
 
-        console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, shouldOfferAnotherInstance });
+        exitV3InProgressRef.current = true;
+        
+        // CRITICAL: Clear pending transition IMMEDIATELY (before async work)
+        const transitionPayload = pendingTransition.payload;
+        setPendingTransition(null);
+
+        try {
+          const result = transitionPayload;
+          const { incidentId, categoryId, completionReason, messages, reason, shouldOfferAnotherInstance, packId, categoryLabel, instanceNumber, packData } = result;
+          const baseQuestionId = v3BaseQuestionIdRef.current;
+
+          console.log('[EXIT_V3][EXECUTING]', { reason, baseQuestionId, shouldOfferAnotherInstance });
 
         // GUARD: If multi-instance is offered, show gate BEFORE advancing
         if (shouldOfferAnotherInstance) {
@@ -3995,17 +4009,17 @@ export default function CandidateInterview() {
           
           await forensicCheck('gate_shown');
           
-          // Clear V3 probing state but DO NOT advance yet
+          // CRITICAL: Fully exit V3 mode (all state cleared in single block)
           setV3ProbingActive(false);
           setV3ProbingContext(null);
           setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
+          setUiBlocker(null); // Clear any V3 blockers
           
           console.log('[FORENSIC][MODE_TRANSITION]', {
             from: 'V3_PROBING',
             to: 'MULTI_INSTANCE_GATE',
             packId,
-            instanceNumber,
-            transcriptLenBefore: dbTranscript.length
+            instanceNumber
           });
 
           // Set up multi-instance gate as first-class currentItem
@@ -4032,9 +4046,14 @@ export default function CandidateInterview() {
             packData
           });
           
-          exitV3HandledRef.current = false; // Reset so gate handlers can advance
-          setPendingTransition(null);
-          return;
+          await persistStateToDatabase(null, [], {
+            id: `multi-instance-gate-${packId}-${instanceNumber}`,
+            type: 'multi_instance_gate',
+            packId
+          });
+          
+          exitV3HandledRef.current = false; // Reset for gate handlers
+          return; // Exit early - transition already cleared at top
         }
 
         // Clear gate FIRST
@@ -4063,12 +4082,13 @@ export default function CandidateInterview() {
           await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
         }
 
-        // Reset idempotency guard for next V3 pack
-        exitV3HandledRef.current = false;
+          // Reset idempotency guard for next V3 pack
+          exitV3HandledRef.current = false;
+        } finally {
+          // ALWAYS reset in-progress flag
+          exitV3InProgressRef.current = false;
+        }
       }
-
-      // Clear transition
-      setPendingTransition(null);
     };
 
     executePendingTransition();
