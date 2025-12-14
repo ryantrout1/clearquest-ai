@@ -1172,6 +1172,32 @@ export default function CandidateInterview() {
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
 
+  // Compute next renderable (dedupe + filter)
+  const nextRenderable = React.useMemo(() => {
+    const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    return dedupeByStableKey(base).filter(isRenderableTranscriptEntry);
+  }, [dbTranscript]);
+
+  // Freeze render during refresh (prevents flash-to-empty)
+  const [renderTranscript, setRenderTranscript] = React.useState([]);
+
+  React.useEffect(() => {
+    setRenderTranscript((prev) => {
+      const prevLen = prev?.length || 0;
+      const nextLen = nextRenderable?.length || 0;
+
+      // Keep prev if next is empty (prevents flashing)
+      if (nextLen === 0 && prevLen > 0) return prev;
+
+      // Keep prev if stable keys match (prevents micro-flicker)
+      const prevLast = prev?.[prevLen - 1]?.stableKey;
+      const nextLast = nextRenderable?.[nextLen - 1]?.stableKey;
+      if (prevLen === nextLen && prevLast && nextLast && prevLast === nextLast) return prev;
+
+      return nextRenderable;
+    });
+  }, [nextRenderable]);
+
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
   const uiCurrentItem = React.useMemo(() => {
@@ -4692,18 +4718,15 @@ export default function CandidateInterview() {
           <div className="space-y-2">
           {/* Always render transcript history from CANONICAL DB source */}
           {(() => {
-            // CANONICAL: No blocker filtering - dbTranscript is pure mirror of DB
-            const rawTranscript = dbTranscript;
-            
-            // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
-            const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
+            // CANONICAL: Render from frozen state (prevents flashing)
+            const visibleTranscript = renderTranscript;
             
             // FORENSIC: Truth table for transcript pipeline
             console.log("[FORENSIC][PIPELINE]", {
               canonicalLen: dbTranscript.length,
-              renderableLen: nextRenderable.length,
-              frozenLen: renderTranscript.length,
-              visibleLen: visibleTranscript.length,
+              renderableLen: nextRenderable?.length || 0,
+              frozenLen: renderTranscript?.length || 0,
+              visibleLen: visibleTranscript?.length || 0,
               currentItemType,
               currentItemId: currentItem?.id,
               v3ProbingActive,
