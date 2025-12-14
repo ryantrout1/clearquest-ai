@@ -897,6 +897,38 @@ export default function CandidateInterview() {
     }
   }, [sessionId, dbTranscript, setDbTranscriptSafe]);
 
+  // FORENSIC: Canonical transcript verification
+  const forensicCheck = useCallback(async (label) => {
+    try {
+      const fresh = await base44.entities.InterviewSession.get(sessionId);
+      const freshLen = (fresh.transcript_snapshot || []).length;
+      const localLen = (dbTranscript || []).length;
+      
+      // Compute visibleLen from current render filter
+      const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
+      const rawTranscript = hasActiveBlocker
+        ? dbTranscript.filter(e => e.blocking !== true || e.resolved === true)
+        : dbTranscript;
+      const visibleLen = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i)).length;
+      
+      const freshLastKey = fresh.transcript_snapshot?.at?.(-1)?.stableKey || fresh.transcript_snapshot?.at?.(-1)?.id || null;
+      const localLastKey = dbTranscript?.at?.(-1)?.stableKey || dbTranscript?.at?.(-1)?.id || null;
+      
+      console.log('[FORENSIC][CANONICAL_CHECK]', {
+        label,
+        freshLen,
+        localLen,
+        visibleLen,
+        freshLastKey,
+        localLastKey,
+        screenMode,
+        currentItemType: currentItem?.type || null
+      });
+    } catch (err) {
+      console.error('[FORENSIC][CANONICAL_CHECK][ERROR]', { label, error: err.message });
+    }
+  }, [sessionId, dbTranscript, activeBlocker, screenMode, currentItem]);
+
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
   const [aiSessionId, setAiSessionId] = useState(null);
@@ -1695,6 +1727,7 @@ export default function CandidateInterview() {
 
         // Reload transcript after logging
         await refreshTranscriptFromDB('section_complete_logged');
+        await forensicCheck('section_complete');
 
         // Trigger section summary generation (background)
         base44.functions.invoke('generateSectionSummary', {
@@ -1803,7 +1836,7 @@ export default function CandidateInterview() {
         });
 
         // Refresh from DB after append
-        await refreshTranscriptFromDB('multi_instance_gate_question');
+        const freshGate = await refreshTranscriptFromDB('multi_instance_gate_question');
 
         setCurrentItem({
           id: `multi-instance-${baseQuestionId}-${packId}`,
@@ -1815,8 +1848,7 @@ export default function CandidateInterview() {
           prompt: multiInstancePrompt
         });
 
-        const freshAfterGate = await refreshTranscriptFromDB('multi_instance_gate_set');
-        await persistStateToDatabase(freshAfterGate, [], {
+        await persistStateToDatabase(freshGate, [], {
           id: `multi-instance-${baseQuestionId}-${packId}`,
           type: 'multi_instance',
           questionId: baseQuestionId,
@@ -2219,8 +2251,7 @@ export default function CandidateInterview() {
             [fieldCountKey]: probeCount + 1
           }));
 
-          const freshAfterClarifier = await refreshTranscriptFromDB('v2_clarifier_shown');
-          await persistStateToDatabase(freshAfterClarifier, [], currentItem);
+          await persistStateToDatabase(dbTranscript, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
@@ -2363,8 +2394,7 @@ export default function CandidateInterview() {
             setCurrentItem(nextItemForV2);
             setQueue([]);
 
-            const freshAfterV2FieldAdvance = await refreshTranscriptFromDB('v2_field_advance');
-            await persistStateToDatabase(freshAfterV2FieldAdvance, [], nextItemForV2);
+            await persistStateToDatabase(dbTranscript, [], nextItemForV2);
 
             console.log(`[V2_PACK_FIELD][NEXT_FIELD][DONE] Now showing: ${nextFieldConfig.fieldKey}`);
             setIsCommitting(false);
@@ -2402,9 +2432,6 @@ export default function CandidateInterview() {
 
         // UX: Clear draft on successful pack completion
         clearDraft();
-        
-        // Refresh transcript after V2 pack complete
-        const freshAfterV2Complete = await refreshTranscriptFromDB('v2_pack_complete');
 
         const baseQuestionForExit = engine.QById[baseQuestionId];
         if (baseQuestionForExit?.followup_multi_instance) {
@@ -2413,7 +2440,7 @@ export default function CandidateInterview() {
           advanceToNextBaseQuestion(baseQuestionId);
         }
 
-        await persistStateToDatabase(freshAfterV2Complete, [], null);
+        await persistStateToDatabase(dbTranscript, [], null);
         setIsCommitting(false);
         setInput("");
         return;
@@ -2452,7 +2479,8 @@ export default function CandidateInterview() {
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
 
         // Refresh from DB after opener answer
-        const newTranscript = await refreshTranscriptFromDB('v3_opener_answered');
+        await refreshTranscriptFromDB('v3_opener_answered');
+        await forensicCheck('v3_opener_answered');
 
         // Save opener answer to database
         await saveV2PackFieldResponse({
@@ -2525,8 +2553,7 @@ export default function CandidateInterview() {
           currentItemBefore: currentItem.id,
           packId,
           categoryId,
-          transcriptLenBefore: dbTranscript.length,
-          transcriptLenAfter: newTranscript.length
+          transcriptLenBefore: dbTranscript.length
         });
 
         // STEP 2: Enter V3 AI probing with opener answer as context
@@ -2545,6 +2572,7 @@ export default function CandidateInterview() {
         });
 
         const freshBeforeProbing = await refreshTranscriptFromDB('v3_probing_enter');
+        await forensicCheck('v3_probing_enter');
         await persistStateToDatabase(freshBeforeProbing, [], {
           id: `v3-probing-${packId}`,
           type: 'v3_probing',
@@ -2594,6 +2622,7 @@ export default function CandidateInterview() {
         
         // Reload session transcript into local state (single source of truth)
         const newTranscript = await refreshTranscriptFromDB('base_question_answered');
+        await forensicCheck('base_question_answered');
 
         // UX: Clear draft on successful submit
         clearDraft();
@@ -2689,6 +2718,7 @@ export default function CandidateInterview() {
 
           // Reload transcript after logging
           await refreshTranscriptFromDB('gate_section_complete_logged');
+          await forensicCheck('gate_section_complete');
 
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
@@ -2804,9 +2834,6 @@ export default function CandidateInterview() {
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
 
-              // Refresh transcript after pack entered log
-              await refreshTranscriptFromDB('v3_pack_entered');
-
               // Save base question answer
               saveAnswerToDatabase(currentItem.id, value, question);
 
@@ -2839,6 +2866,7 @@ export default function CandidateInterview() {
               setQueue([]);
 
               const freshAfterOpenerSetup = await refreshTranscriptFromDB('v3_opener_set');
+              await forensicCheck('v3_opener_shown');
               await persistStateToDatabase(freshAfterOpenerSetup, [], openerItem);
 
               setIsCommitting(false);
@@ -2884,9 +2912,7 @@ export default function CandidateInterview() {
 
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: false });
-              
-              // Refresh transcript after pack entered
-              await refreshTranscriptFromDB('v2_pack_entered');
+              await refreshTranscriptFromDB('v2_pack_logged');
 
               // Special log for PACK_PRIOR_LE_APPS_STANDARD
               if (packId === 'PACK_PRIOR_LE_APPS_STANDARD') {
@@ -2995,8 +3021,7 @@ export default function CandidateInterview() {
                 setCurrentItem(firstPackItem);
                 setQueue([]);
 
-                const freshAfterV2Enter = await refreshTranscriptFromDB('v2_immediate_transition');
-                await persistStateToDatabase(freshAfterV2Enter, [], firstPackItem);
+                await persistStateToDatabase(dbTranscript, [], firstPackItem);
                 setIsCommitting(false);
                 setInput("");
                 return;
@@ -3029,6 +3054,7 @@ export default function CandidateInterview() {
                 });
 
                 await refreshTranscriptFromDB('v2_cluster_opening_shown');
+                await forensicCheck('v2_cluster_opening_shown');
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -3067,8 +3093,7 @@ export default function CandidateInterview() {
                 });
                 setQueue([]);
 
-                const freshAfterClusterOpening = await refreshTranscriptFromDB('v2_cluster_opening_set');
-                await persistStateToDatabase(freshAfterClusterOpening, [], {
+                await persistStateToDatabase(dbTranscript, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
                   packId: packId,
@@ -3269,8 +3294,7 @@ export default function CandidateInterview() {
               setQueue(remainingQueue);
               setCurrentItem(firstItem);
 
-              const freshAfterFollowupEnter = await refreshTranscriptFromDB('followup_enter');
-              await persistStateToDatabase(freshAfterFollowupEnter, remainingQueue, firstItem);
+              await persistStateToDatabase(dbTranscript, remainingQueue, firstItem);
             } else {
               const nextQuestionId = computeNextQuestionId(engine, currentItem.id, value);
               if (nextQuestionId && engine.QById[nextQuestionId]) {
@@ -3513,9 +3537,6 @@ export default function CandidateInterview() {
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
-        // Refresh from DB after save
-        await refreshTranscriptFromDB('followup_legacy_answered');
-
         let updatedQueue = [...queue];
         let nextItem = updatedQueue.shift() || null;
 
@@ -3637,14 +3658,12 @@ export default function CandidateInterview() {
             setQueue(remainingQueue);
             setCurrentItem(firstItem);
 
-            const freshAfterMultiYes = await refreshTranscriptFromDB('multi_instance_yes_reenter');
-            await persistStateToDatabase(freshAfterMultiYes, remainingQueue, firstItem);
+            await persistStateToDatabase(dbTranscript, remainingQueue, firstItem);
           }
         } else {
           setCurrentItem(null);
           setQueue([]);
-          const freshAfterMultiNo = await refreshTranscriptFromDB('multi_instance_no_advance');
-          await persistStateToDatabase(freshAfterMultiNo, [], null);
+          await persistStateToDatabase(dbTranscript, [], null);
           advanceToNextBaseQuestion(questionId);
         }
       }
@@ -3965,11 +3984,12 @@ export default function CandidateInterview() {
     exitV3Once('PROBING_COMPLETE', result);
   }, [exitV3Once]);
 
-  // V3 transcript update handler - refresh from DB instead of local append
+  // V3 transcript update handler - NO REFRESH (batched at completion)
   const handleV3TranscriptUpdate = useCallback(async (entry) => {
-    // V3 messages written to DB by V3ProbingLoop - just refresh to sync
-    await refreshTranscriptFromDB('v3_probe_message');
-  }, [refreshTranscriptFromDB]);
+    // V3 messages written to DB by V3ProbingLoop
+    // We refresh ONCE when V3 completes, not per message (prevents refresh storm)
+    console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
+  }, []);
 
   // Deferred transition handler (fixes React warning)
   useEffect(() => {
@@ -4006,6 +4026,7 @@ export default function CandidateInterview() {
           
           // Reload transcript after appending
           await refreshTranscriptFromDB('multi_instance_gate_shown');
+          await forensicCheck('gate_shown');
           
           // Clear V3 probing state but DO NOT advance yet
           setV3ProbingActive(false);
@@ -4017,8 +4038,7 @@ export default function CandidateInterview() {
             to: 'MULTI_INSTANCE_GATE',
             packId,
             instanceNumber,
-            transcriptLenBefore: dbTranscript.length,
-            transcriptLenAfterGateAppend: dbTranscript.length
+            transcriptLenBefore: dbTranscript.length
           });
 
           // Set up multi-instance gate as first-class currentItem
@@ -4065,13 +4085,15 @@ export default function CandidateInterview() {
           });
         }
         
-        // Refresh transcript after pack exit
-        const freshAfterV3Exit = await refreshTranscriptFromDB('v3_pack_exited');
+        // Refresh transcript after pack exit (V3 wrote many messages to DB)
+        await refreshTranscriptFromDB('v3_pack_exited');
+        await forensicCheck('v3_pack_exited');
 
         // Advance to next base question AFTER clearing V3 state
         if (baseQuestionId) {
           console.log('[EXIT_V3][ADVANCE]', { baseQuestionId });
-          await advanceToNextBaseQuestion(baseQuestionId, freshAfterV3Exit);
+          const freshForAdvance = await refreshTranscriptFromDB('before_advance_after_v3');
+          await advanceToNextBaseQuestion(baseQuestionId, freshForAdvance);
         }
 
         // Reset idempotency guard for next V3 pack
@@ -5339,8 +5361,7 @@ export default function CandidateInterview() {
                   setCurrentItem({ id: firstQuestionId, type: 'question' });
                   setCurrentSectionIndex(0);
                   
-                  const freshAfterWelcome = await refreshTranscriptFromDB('welcome_begin');
-          await persistStateToDatabase(freshAfterWelcome, [], { id: firstQuestionId, type: 'question' });
+                  await persistStateToDatabase(dbTranscript, [], { id: firstQuestionId, type: 'question' });
                   
                   console.log("[WELCOME][BEGIN][AFTER]", {
                     screenMode: "QUESTION",
@@ -5382,8 +5403,7 @@ export default function CandidateInterview() {
                   setCurrentItem({ id: activeBlocker.nextQuestionId, type: 'question' });
                   setPendingSectionTransition(null);
 
-                  const freshAfterSectionAdvance = await refreshTranscriptFromDB('section_transition_advance');
-                  await persistStateToDatabase(freshAfterSectionAdvance, [], { id: activeBlocker.nextQuestionId, type: 'question' });
+                  await persistStateToDatabase(dbTranscript, [], { id: activeBlocker.nextQuestionId, type: 'question' });
                   setTimeout(() => autoScrollToBottom(), 100);
                 }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-base font-semibold"
@@ -5484,8 +5504,7 @@ export default function CandidateInterview() {
                };
 
                setCurrentItem(openerItem);
-               const freshAfterGateYes = await refreshTranscriptFromDB('gate_yes_before_reenter');
-               await persistStateToDatabase(freshAfterGateYes, [], openerItem);
+               await persistStateToDatabase(dbTranscript, [], openerItem);
                setIsCommitting(false);
              }}
              disabled={isCommitting}
