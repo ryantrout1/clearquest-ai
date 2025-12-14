@@ -4478,6 +4478,7 @@ export default function CandidateInterview() {
   const isV2PackField = currentItemType === "v2_pack_field";
   const isV3PackOpener = currentItemType === "v3_pack_opener";
   const showTextInput = bottomBarMode === "TEXT_INPUT";
+  const answerable = isAnswerableItem(uiCurrentItem);
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
@@ -4488,7 +4489,6 @@ export default function CandidateInterview() {
     isQuestion,
     isV2PackField,
     answerable,
-    isYesNoQuestion,
     showTextInput,
     v2PackMode,
     screenMode,
