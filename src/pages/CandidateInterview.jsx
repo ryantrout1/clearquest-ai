@@ -895,6 +895,7 @@ export default function CandidateInterview() {
   // Idempotency guards
   const submittedKeysRef = useRef(new Set());
   const completedSectionKeysRef = useRef(new Set());
+  const appendedTranscriptKeysRef = useRef(new Set());
 
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
@@ -1296,8 +1297,7 @@ export default function CandidateInterview() {
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
-        // New session - Do NOT set currentItem yet (wait for welcome blocker to resolve)
-        setTranscriptSafe([]);
+        // New session - Initialize with intro blocker only (don't clear transcript)
         setQueue([]);
         setCurrentItem(null); // Will be set after "Got it — Let's Begin"
       }
@@ -1314,7 +1314,7 @@ export default function CandidateInterview() {
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
-      // Add blocking intro message for new sessions
+      // Add blocking intro message for new sessions (append to existing transcript)
       if (sessionIsNew) {
         const introBlocker = {
           id: `blocker-intro-${sessionId}`,
@@ -1325,7 +1325,7 @@ export default function CandidateInterview() {
           timestamp: new Date().toISOString(),
           createdAt: Date.now()
         };
-        setTranscriptSafe([introBlocker]);
+        setTranscriptSafe(prev => [...(prev || []), introBlocker]);
       }
 
       // Log system events
@@ -2488,41 +2488,58 @@ export default function CandidateInterview() {
         const questionNumber = getQuestionDisplayNumber(currentItem.id);
 
         // Create separate question and answer entries for chat-style rendering
-        const questionEntry = {
-          id: `q-${currentItem.id}-${Date.now()}`,
-          stableKey: `base-question:${currentItem.id}`,
-          role: 'assistant',
-          type: 'base_question',
-          questionId: currentItem.id,
-          questionCode: question.question_id,
-          questionText: question.question_text,
-          text: question.question_text,
-          category: sectionName,
-          sectionId: question.section_id,
-          questionNumber,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          visibleToCandidate: true
-        };
+        // IDEMPOTENCY GUARD: Build stable keys for question and answer
+        const questionKey = `assistant|base_question|${currentItem.id}|||`;
+        const answerKey = `user|base_answer|${currentItem.id}|||${Date.now()}`;
+        
+        // Build transcript entries, skipping duplicates
+        const entriesToAppend = [];
+        
+        if (!appendedTranscriptKeysRef.current.has(questionKey)) {
+          appendedTranscriptKeysRef.current.add(questionKey);
+          entriesToAppend.push({
+            id: `q-${currentItem.id}-${Date.now()}`,
+            stableKey: `base-question:${currentItem.id}`,
+            role: 'assistant',
+            type: 'base_question',
+            questionId: currentItem.id,
+            questionCode: question.question_id,
+            questionText: question.question_text,
+            text: question.question_text,
+            category: sectionName,
+            sectionId: question.section_id,
+            questionNumber,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            visibleToCandidate: true
+          });
+        } else {
+          console.log('[TRANSCRIPT_IDEMPOTENCY][SKIP]', questionKey);
+        }
+        
+        if (!appendedTranscriptKeysRef.current.has(answerKey)) {
+          appendedTranscriptKeysRef.current.add(answerKey);
+          entriesToAppend.push({
+            id: `a-${currentItem.id}-${Date.now()}`,
+            stableKey: `base-answer:${currentItem.id}:${Date.now()}`,
+            role: 'user',
+            type: 'base_answer',
+            questionId: currentItem.id,
+            questionCode: question.question_id,
+            answer: value,
+            text: value,
+            category: sectionName,
+            sectionId: question.section_id,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            visibleToCandidate: true
+          });
+        }
 
-        const answerEntry = {
-          id: `a-${currentItem.id}-${Date.now()}`,
-          stableKey: `base-answer:${currentItem.id}:${Date.now()}`,
-          role: 'user',
-          type: 'base_answer',
-          questionId: currentItem.id,
-          questionCode: question.question_id,
-          answer: value,
-          text: value,
-          category: sectionName,
-          sectionId: question.section_id,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now(),
-          visibleToCandidate: true
-        };
-
-        const newTranscript = [...transcript, questionEntry, answerEntry];
-        setTranscriptSafe(newTranscript);
+        const newTranscript = entriesToAppend.length > 0 ? [...transcript, ...entriesToAppend] : transcript;
+        if (entriesToAppend.length > 0) {
+          setTranscriptSafe(newTranscript);
+        }
 
         // Save answer first to get Response ID
         const savedResponse = await saveAnswerToDatabase(currentItem.id, value, question);
@@ -4478,7 +4495,15 @@ export default function CandidateInterview() {
   const isV2PackField = currentItemType === "v2_pack_field";
   const isV3PackOpener = currentItemType === "v3_pack_opener";
   const showTextInput = bottomBarMode === "TEXT_INPUT";
-  const answerable = isAnswerableItem(uiCurrentItem);
+  
+  // Derive answerable from existing values (safe default: allow answer if we have a current item and it's a question-like type)
+  const answerable = uiCurrentItem && (
+    uiCurrentItem.type === 'question' || 
+    uiCurrentItem.type === 'v2_pack_field' || 
+    uiCurrentItem.type === 'v3_pack_opener' || 
+    uiCurrentItem.type === 'followup' ||
+    uiCurrentItem.type === 'multi_instance_gate'
+  ) && !v3ProbingActive;
 
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
