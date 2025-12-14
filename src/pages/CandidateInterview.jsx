@@ -1789,21 +1789,21 @@ export default function CandidateInterview() {
         const multiInstancePrompt = question.multi_instance_prompt ||
           'Do you have another instance we should discuss for this question?';
 
-        const multiInstanceQuestionEntry = {
+        // Append multi-instance gate question via chatTranscriptHelpers
+        const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+        await appendAssistantMessage(sessionId, dbTranscript, multiInstancePrompt, {
           id: `mi-q-${Date.now()}`,
           stableKey: `multi-instance-gate:${packId}:${currentInstanceCount + 1}`,
-          type: 'multi_instance_question',
-          content: multiInstancePrompt,
+          messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+          packId,
           questionId: baseQuestionId,
-          packId: packId,
           instanceNumber: currentInstanceCount + 1,
-          maxInstances: maxInstances,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now()
-        };
+          maxInstances,
+          visibleToCandidate: true
+        });
 
-        const newTranscript = [...dbTranscript, multiInstanceQuestionEntry];
-        setDbTranscriptSafe(newTranscript);
+        // Refresh from DB after append
+        await refreshTranscriptFromDB('multi_instance_gate_question');
 
         setCurrentItem({
           id: `multi-instance-${baseQuestionId}-${packId}`,
@@ -1815,7 +1815,8 @@ export default function CandidateInterview() {
           prompt: multiInstancePrompt
         });
 
-        await persistStateToDatabase(newTranscript, [], {
+        const freshAfterGate = await refreshTranscriptFromDB('multi_instance_gate_set');
+        await persistStateToDatabase(freshAfterGate, [], {
           id: `multi-instance-${baseQuestionId}-${packId}`,
           type: 'multi_instance',
           questionId: baseQuestionId,
@@ -3016,25 +3017,18 @@ export default function CandidateInterview() {
                 });
 
                 // Add AI opening question to transcript
-                const aiOpeningEntry = {
-                  ...createChatEvent('ai_probe_question', {
-                    questionId: `v2pack-opening-${packId}`,
-                    questionText: initialCallResult.question,
-                    packId: packId,
-                    kind: 'v2_pack_opening',
-                    text: initialCallResult.question,
-                    content: initialCallResult.question,
-                    fieldKey: firstField.fieldKey,
-                    followupPackId: packId,
-                    instanceNumber: 1,
-                    baseQuestionId: currentItem.id,
-                    source: 'V2_PACK_CLUSTER_OPENING'
-                  }),
-                  stableKey: `v2-pack-opening:${packId}:1`
-                };
+                // V2 cluster opening: append via chatTranscriptHelpers, then refresh
+                const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+                await appendAssistantMessage(sessionId, dbTranscript, initialCallResult.question, {
+                  messageType: 'v2_pack_opening',
+                  packId,
+                  fieldKey: firstField.fieldKey,
+                  instanceNumber: 1,
+                  baseQuestionId: currentItem.id,
+                  visibleToCandidate: true
+                });
 
-                const updatedTranscript = [...newTranscript, aiOpeningEntry];
-                setDbTranscriptSafe(updatedTranscript);
+                await refreshTranscriptFromDB('v2_cluster_opening_shown');
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -3073,7 +3067,8 @@ export default function CandidateInterview() {
                 });
                 setQueue([]);
 
-                await persistStateToDatabase(updatedTranscript, [], {
+                const freshAfterClusterOpening = await refreshTranscriptFromDB('v2_cluster_opening_set');
+                await persistStateToDatabase(freshAfterClusterOpening, [], {
                   id: `v2pack-${packId}-0`,
                   type: 'v2_pack_field',
                   packId: packId,
@@ -3464,21 +3459,14 @@ export default function CandidateInterview() {
               baseQuestionId: baseQuestionId
             });
 
-            const followupEntry = {
-              ...followupQuestionEvent,
-              stableKey: `followup:${packId}:${step.Field_Key}:${instanceNumber}`,
-              type: 'followup',
-              answer: normalizedAnswer,
-              text: normalizedAnswer
-            };
-
-            const newTranscript = [...dbTranscript, followupEntry];
-            setDbTranscriptSafe(newTranscript);
-
+            // Save answer to DB, then refresh (no local append)
             setCurrentFollowUpAnswers(prev => ({
               ...prev,
               [fieldKey]: normalizedAnswer
             }));
+
+            // Persist state will write to DB
+            await refreshTranscriptFromDB('followup_v2_probe_before_clarifier');
 
             // Show AI probe question
             setIsWaitingForAgent(true);
@@ -3516,16 +3504,8 @@ export default function CandidateInterview() {
           baseQuestionId: currentItem.baseQuestionId
         });
 
-        const followupEntry = {
-          ...followupQuestionEvent,
-          stableKey: `followup-legacy:${packId}:${step.Field_Key}:${instanceNumber}`,
-          type: 'followup',
-          answer: normalizedAnswer,
-          text: normalizedAnswer
-        };
-
-        const newTranscript = [...dbTranscript, followupEntry];
-        setDbTranscriptSafe(newTranscript);
+        // Save answer to DB
+        await saveFollowUpAnswer(packId, step.Field_Key, normalizedAnswer, substanceName, instanceNumber);
 
         const updatedFollowUpAnswers = {
           ...currentFollowUpAnswers,
@@ -3533,7 +3513,8 @@ export default function CandidateInterview() {
         };
         setCurrentFollowUpAnswers(updatedFollowUpAnswers);
 
-        await saveFollowUpAnswer(packId, step.Field_Key, normalizedAnswer, substanceName, instanceNumber);
+        // Refresh from DB after save
+        await refreshTranscriptFromDB('followup_legacy_answered');
 
         let updatedQueue = [...queue];
         let nextItem = updatedQueue.shift() || null;
@@ -3615,20 +3596,19 @@ export default function CandidateInterview() {
           action: answer === 'Yes' ? `starting instance #${instanceNumber + 1}` : 'moving to next question'
         });
 
-        const transcriptEntry = {
+        // Append multi-instance answer via chatTranscriptHelpers
+        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
+        await appendUserMessage(sessionId, dbTranscript, answer, {
           id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
           stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
-          type: 'multi_instance_answer',
-          content: answer,
-          questionId: questionId,
-          packId: packId,
-          instanceNumber: instanceNumber,
-          timestamp: new Date().toISOString(),
-          createdAt: Date.now()
-        };
+          messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+          questionId,
+          packId,
+          instanceNumber
+        });
 
-        const newTranscript = [...dbTranscript, transcriptEntry];
-        setDbTranscriptSafe(newTranscript);
+        // Refresh from DB after append
+        await refreshTranscriptFromDB('multi_instance_answer');
 
         if (answer === 'Yes') {
           const substanceName = question?.substance_name || null;
@@ -3657,12 +3637,14 @@ export default function CandidateInterview() {
             setQueue(remainingQueue);
             setCurrentItem(firstItem);
 
-            await persistStateToDatabase(newTranscript, remainingQueue, firstItem);
+            const freshAfterMultiYes = await refreshTranscriptFromDB('multi_instance_yes_reenter');
+            await persistStateToDatabase(freshAfterMultiYes, remainingQueue, firstItem);
           }
         } else {
           setCurrentItem(null);
           setQueue([]);
-          await persistStateToDatabase(newTranscript, [], null);
+          const freshAfterMultiNo = await refreshTranscriptFromDB('multi_instance_no_advance');
+          await persistStateToDatabase(freshAfterMultiNo, [], null);
           advanceToNextBaseQuestion(questionId);
         }
       }
