@@ -863,6 +863,11 @@ export default function CandidateInterview() {
   const [dbTranscript, setDbTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
+
+  // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
+  const [screenMode, setScreenMode] = useState("LOADING");
+  const [uiBlocker, setUiBlocker] = useState(null);
+  const activeBlocker = uiBlocker; // UI-only blocker, not from canonical transcript
   
   // Dev guardrail: Ensure transcript never shrinks (applied to canonical DB mirror)
   const setDbTranscriptSafe = useCallback((updater) => {
@@ -1014,7 +1019,7 @@ export default function CandidateInterview() {
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
 
-  const [screenMode, setScreenMode] = useState("LOADING");
+  // MOVED UP: screenMode and uiBlocker now declared before forensicCheck (prevents TDZ)
   const introLoggedRef = useRef(false);
   const [isDismissingWelcome, setIsDismissingWelcome] = useState(false);
   const welcomeLoggedRef = useRef(false);
@@ -1023,9 +1028,6 @@ export default function CandidateInterview() {
   const [sectionTransitionInfo, setSectionTransitionInfo] = useState(null);
   const [pendingSectionTransition, setPendingSectionTransition] = useState(null);
   const [pendingTransition, setPendingTransition] = useState(null);
-
-  // UI-ONLY BLOCKER STATE: Separate from canonical transcript
-  const [uiBlocker, setUiBlocker] = useState(null);
 
   const historyRef = useRef(null);
   const displayOrderRef = useRef(0);
@@ -1172,9 +1174,6 @@ export default function CandidateInterview() {
   const questionCompletionPct = totalQuestionsAllSections > 0
     ? Math.round((answeredQuestionsAllSections / totalQuestionsAllSections) * 100)
     : 0;
-
-  // MOVED: activeBlocker now uses uiBlocker state (UI-only, NOT from canonical transcript)
-  const activeBlocker = uiBlocker;
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
