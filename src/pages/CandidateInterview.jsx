@@ -58,6 +58,9 @@ const DEBUG_MODE = false;
 // Key format: `${sessionId}::${questionKey}`
 const transcriptQuestionLogRegistry = new Set();
 
+// FORENSIC: Component mount counter (module-level - survives HMR)
+let candidateInterviewMountCount = 0;
+
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
 // ============================================================================
@@ -1372,7 +1375,14 @@ export default function CandidateInterview() {
   const componentInstanceId = useRef(`CandidateInterview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   
   useEffect(() => {
-    console.log('[FORENSIC][MOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+    candidateInterviewMountCount++;
+    console.log('[FORENSIC][MOUNT]', { 
+      component: 'CandidateInterview', 
+      instanceId: componentInstanceId.current,
+      mountCount: candidateInterviewMountCount,
+      sessionId,
+      WARNING: candidateInterviewMountCount > 1 ? '⚠️ REMOUNT DETECTED - This should only mount ONCE per session' : '✓ First mount'
+    });
     
     // FORENSIC: Global crash logger
     const handleError = (event) => {
@@ -1415,7 +1425,13 @@ export default function CandidateInterview() {
     window.addEventListener('unhandledrejection', handleRejection);
     
     return () => {
-      console.log('[FORENSIC][UNMOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+      console.log('[FORENSIC][UNMOUNT]', { 
+        component: 'CandidateInterview', 
+        instanceId: componentInstanceId.current,
+        mountCount: candidateInterviewMountCount,
+        sessionId,
+        WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
+      });
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
