@@ -3339,28 +3339,7 @@ export default function CandidateInterview() {
         });
 
         if (step.PrefilledAnswer && step.Field_Key === 'substance_name') {
-          const prefilledEntry = {
-            id: `fu-${Date.now()}`,
-            stableKey: `followup-prefilled:${packId}:${step.Field_Key}:${currentItem.instanceNumber || 1}`,
-            questionId: currentItem.id,
-            questionText: step.Prompt,
-            packId: packId,
-            substanceName: substanceName,
-            type: 'followup',
-            timestamp: new Date().toISOString(),
-            createdAt: Date.now(),
-            kind: 'deterministic_followup',
-            role: 'candidate',
-            answer: step.PrefilledAnswer,
-            text: step.PrefilledAnswer,
-            fieldKey: step.Field_Key,
-            followupPackId: packId,
-            instanceNumber: currentItem.instanceNumber || 1
-          };
-
-          const newTranscript = [...dbTranscript, prefilledEntry];
-          setDbTranscriptSafe(newTranscript);
-
+          // Prefilled answer - save directly, no transcript append (canonical owns it)
           const updatedFollowUpAnswers = {
             ...currentFollowUpAnswers,
             [step.Field_Key]: step.PrefilledAnswer
@@ -3384,7 +3363,7 @@ export default function CandidateInterview() {
           setQueue(updatedQueue);
           setCurrentItem(nextItem);
 
-          await persistStateToDatabase(newTranscript, updatedQueue, nextItem);
+          await persistStateToDatabase(null, updatedQueue, nextItem);
           await saveFollowUpAnswer(packId, step.Field_Key, step.PrefilledAnswer, substanceName, currentItem.instanceNumber || 1);
 
           setIsCommitting(false);
