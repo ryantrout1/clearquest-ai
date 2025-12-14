@@ -897,7 +897,7 @@ export default function CandidateInterview() {
     }
   }, [sessionId, dbTranscript, setDbTranscriptSafe]);
 
-  // FORENSIC: Canonical transcript verification
+  // FORENSIC: Canonical transcript verification (DB = source of truth)
   const forensicCheck = useCallback(async (label) => {
     try {
       const fresh = await base44.entities.InterviewSession.get(sessionId);
@@ -924,10 +924,46 @@ export default function CandidateInterview() {
         screenMode,
         currentItemType: currentItem?.type || null
       });
+      
+      // Detect rewind
+      if (label !== 'initial' && freshLen < localLen) {
+        console.error('[FORENSIC][FRESH_LEN_REWIND_DETECTED]', {
+          label,
+          freshLen,
+          localLen,
+          delta: localLen - freshLen
+        });
+      }
     } catch (err) {
       console.error('[FORENSIC][CANONICAL_CHECK][ERROR]', { label, error: err.message });
     }
   }, [sessionId, dbTranscript, activeBlocker, screenMode, currentItem]);
+
+  // CANONICAL HELPER: Append to DB transcript + refresh local mirror
+  const appendAndRefresh = useCallback(async (kind, payload, reasonLabel) => {
+    const { appendUserMessage, appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
+    
+    const freshSession = await base44.entities.InterviewSession.get(sessionId);
+    const currentTranscript = freshSession.transcript_snapshot || [];
+    
+    let updatedTranscript;
+    if (kind === 'user') {
+      updatedTranscript = await appendUserMessage(sessionId, currentTranscript, payload.text, payload.metadata || {});
+    } else if (kind === 'assistant') {
+      updatedTranscript = await appendAssistantMessage(sessionId, currentTranscript, payload.text, payload.metadata || {});
+    } else {
+      console.error('[APPEND_AND_REFRESH] Unknown kind:', kind);
+      return currentTranscript;
+    }
+    
+    // Refresh local mirror from DB
+    const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
+    const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+    setDbTranscriptSafe(freshTranscript);
+    
+    console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, freshLen: freshTranscript.length });
+    return freshTranscript;
+  }, [sessionId, setDbTranscriptSafe]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
@@ -1426,7 +1462,7 @@ export default function CandidateInterview() {
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
-      // Add blocking intro message for new sessions (append to existing transcript)
+      // Add blocking intro message for new sessions (local UI only - not in canonical transcript)
       if (sessionIsNew) {
         const introBlocker = {
           id: `blocker-intro-${sessionId}`,
@@ -1438,6 +1474,7 @@ export default function CandidateInterview() {
           createdAt: Date.now()
         };
         setDbTranscriptSafe(prev => [...(prev || []), introBlocker]);
+        await forensicCheck('initial');
       }
 
       // Log system events
@@ -1613,12 +1650,18 @@ export default function CandidateInterview() {
     lastPersistTimeRef.current = Date.now();
 
     try {
+      // TRANSCRIPT GUARD: Never write transcript_snapshot (chatTranscriptHelpers owns it)
+      if (newTranscript) {
+        console.log('[TRANSCRIPT_GUARD][BLOCKED_WRITE] persistStateToDatabase attempted transcript write - blocked', {
+          transcriptLen: newTranscript.length,
+          caller: 'flushPersist'
+        });
+      }
+
       await base44.entities.InterviewSession.update(sessionId, {
-        transcript_snapshot: newTranscript,
+        // transcript_snapshot: REMOVED - only chatTranscriptHelpers may write transcript
         queue_snapshot: newQueue,
         current_item_snapshot: newCurrentItem,
-        total_questions_answered: newTranscript.filter(t => t.type === 'question').length,
-        completion_percentage: engine?.TotalQuestions ? Math.round((newTranscript.filter(t => t.type === 'question').length / engine.TotalQuestions) * 100) : 0,
         data_version: 'v2.5-hybrid'
       });
     } catch (err) {
@@ -1626,8 +1669,16 @@ export default function CandidateInterview() {
     }
   }, [sessionId, engine]);
 
-  const persistStateToDatabase = useCallback(async (newTranscript, newQueue, newCurrentItem) => {
-    pendingPersistRef.current = { newTranscript, newQueue, newCurrentItem };
+  const persistStateToDatabase = useCallback(async (ignoredTranscript, newQueue, newCurrentItem) => {
+    // TRANSCRIPT GUARD: Warn if transcript argument is passed (should always be null)
+    if (ignoredTranscript !== null && ignoredTranscript !== undefined) {
+      console.warn('[TRANSCRIPT_GUARD][PERSIST_CALLED_WITH_TRANSCRIPT]', {
+        transcriptLen: Array.isArray(ignoredTranscript) ? ignoredTranscript.length : 'not array',
+        caller: new Error().stack?.split('\n')[2]?.trim()
+      });
+    }
+
+    pendingPersistRef.current = { newTranscript: null, newQueue, newCurrentItem };
     persistCountSinceLastWriteRef.current++;
 
     const now = Date.now();
@@ -1735,7 +1786,7 @@ export default function CandidateInterview() {
           sectionId: nextResult.completedSection.id
         }).catch(() => {}); // Fire and forget
 
-        // Add section transition blocker
+        // Add section transition blocker (local UI only - not in canonical transcript)
         const sectionBlocker = {
           id: `blocker-section-${nextResult.nextSectionIndex}-${Date.now()}`,
           stableKey: `blocker-section:${nextResult.nextSectionIndex}`,
@@ -1750,9 +1801,7 @@ export default function CandidateInterview() {
           createdAt: Date.now()
         };
 
-        const freshTranscript = await refreshTranscriptFromDB('section_complete_before_blocker');
-        const transcriptWithBlocker = [...freshTranscript, sectionBlocker];
-        setDbTranscriptSafe(transcriptWithBlocker);
+        setDbTranscriptSafe(prev => [...prev, sectionBlocker]);
 
         setPendingSectionTransition({
           nextSectionIndex: nextResult.nextSectionIndex,
@@ -1762,9 +1811,10 @@ export default function CandidateInterview() {
 
         setQueue([]);
         setCurrentItem(null);
-        await persistStateToDatabase(transcriptWithBlocker, [], null);
+        await persistStateToDatabase(null, [], null);
         return;
       } else {
+        // Completion message (local UI only)
         const completionMessage = {
           id: `interview-complete-${Date.now()}`,
           stableKey: `interview-complete:${sessionId}`,
@@ -1776,12 +1826,11 @@ export default function CandidateInterview() {
           role: 'system'
         };
 
-        const newTranscript = [...effectiveTranscript, completionMessage];
-        setDbTranscriptSafe(newTranscript);
+        setDbTranscriptSafe(prev => [...prev, completionMessage]);
 
         setCurrentItem(null);
         setQueue([]);
-        await persistStateToDatabase(newTranscript, [], null);
+        await persistStateToDatabase(null, [], null);
         setShowCompletionModal(true);
         return;
       }
@@ -1822,21 +1871,20 @@ export default function CandidateInterview() {
         const multiInstancePrompt = question.multi_instance_prompt ||
           'Do you have another instance we should discuss for this question?';
 
-        // Append multi-instance gate question via chatTranscriptHelpers
-        const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
-        await appendAssistantMessage(sessionId, dbTranscript, multiInstancePrompt, {
-          id: `mi-q-${Date.now()}`,
-          stableKey: `multi-instance-gate:${packId}:${currentInstanceCount + 1}`,
-          messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-          packId,
-          questionId: baseQuestionId,
-          instanceNumber: currentInstanceCount + 1,
-          maxInstances,
-          visibleToCandidate: true
-        });
-
-        // Refresh from DB after append
-        const freshGate = await refreshTranscriptFromDB('multi_instance_gate_question');
+        // Append multi-instance gate question via canonical helper
+        const freshGate = await appendAndRefresh('assistant', {
+          text: multiInstancePrompt,
+          metadata: {
+            id: `mi-q-${Date.now()}`,
+            stableKey: `multi-instance-gate:${packId}:${currentInstanceCount + 1}`,
+            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+            packId,
+            questionId: baseQuestionId,
+            instanceNumber: currentInstanceCount + 1,
+            maxInstances,
+            visibleToCandidate: true
+          }
+        }, 'multi_instance_gate_question');
 
         setCurrentItem({
           id: `multi-instance-${baseQuestionId}-${packId}`,
@@ -2648,6 +2696,7 @@ export default function CandidateInterview() {
 
           if (gateResult.interviewComplete) {
             // No more sections - complete interview
+            // Completion message (local UI only)
             const completionMessage = {
               id: `interview-complete-${Date.now()}`,
               stableKey: `interview-complete:${sessionId}`,
@@ -2659,11 +2708,10 @@ export default function CandidateInterview() {
               role: 'system'
             };
 
-            const finalTranscript = [...newTranscript, completionMessage];
-            setDbTranscriptSafe(finalTranscript);
+            setDbTranscriptSafe(prev => [...prev, completionMessage]);
             setCurrentItem(null);
             setQueue([]);
-            await persistStateToDatabase(finalTranscript, [], null);
+            await persistStateToDatabase(null, [], null);
             setShowCompletionModal(true);
             setIsCommitting(false);
             setInput("");
@@ -2726,7 +2774,7 @@ export default function CandidateInterview() {
            triggerType: 'section_complete'
           }).catch(() => {}); // Fire and forget
 
-          // Add section transition blocker
+          // Add section transition blocker (local UI only)
           const sectionBlocker = {
            id: `blocker-section-${gateResult.nextSectionIndex}-${Date.now()}`,
            stableKey: `blocker-section-gate:${gateResult.nextSectionIndex}`,
@@ -2741,9 +2789,7 @@ export default function CandidateInterview() {
            createdAt: Date.now()
           };
 
-          const freshGateTranscript = await refreshTranscriptFromDB('gate_blocker_before_add');
-          const transcriptWithBlocker = [...freshGateTranscript, sectionBlocker];
-          setDbTranscriptSafe(transcriptWithBlocker);
+          setDbTranscriptSafe(prev => [...prev, sectionBlocker]);
 
           setPendingSectionTransition({
            nextSectionIndex: gateResult.nextSectionIndex,
@@ -2753,7 +2799,7 @@ export default function CandidateInterview() {
 
           setQueue([]);
           setCurrentItem(null);
-          await persistStateToDatabase(transcriptWithBlocker, [], null);
+          await persistStateToDatabase(null, [], null);
           setIsCommitting(false);
           setInput("");
           return;
@@ -3042,19 +3088,18 @@ export default function CandidateInterview() {
                 });
 
                 // Add AI opening question to transcript
-                // V2 cluster opening: append via chatTranscriptHelpers, then refresh
-                const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
-                await appendAssistantMessage(sessionId, dbTranscript, initialCallResult.question, {
-                  messageType: 'v2_pack_opening',
-                  packId,
-                  fieldKey: firstField.fieldKey,
-                  instanceNumber: 1,
-                  baseQuestionId: currentItem.id,
-                  visibleToCandidate: true
-                });
-
-                await refreshTranscriptFromDB('v2_cluster_opening_shown');
-                await forensicCheck('v2_cluster_opening_shown');
+                // V2 cluster opening: append via canonical helper
+                await appendAndRefresh('assistant', {
+                  text: initialCallResult.question,
+                  metadata: {
+                    messageType: 'v2_pack_opening',
+                    packId,
+                    fieldKey: firstField.fieldKey,
+                    instanceNumber: 1,
+                    baseQuestionId: currentItem.id,
+                    visibleToCandidate: true
+                  }
+                }, 'v2_cluster_opening_shown');
 
                 // Set up AI probe state - this makes the UI show the AI question and wait for answer
                 setIsWaitingForAgent(true);
@@ -3617,19 +3662,18 @@ export default function CandidateInterview() {
           action: answer === 'Yes' ? `starting instance #${instanceNumber + 1}` : 'moving to next question'
         });
 
-        // Append multi-instance answer via chatTranscriptHelpers
-        const { appendUserMessage } = await import("../components/utils/chatTranscriptHelpers");
-        await appendUserMessage(sessionId, dbTranscript, answer, {
-          id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
-          stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
-          messageType: 'MULTI_INSTANCE_GATE_ANSWER',
-          questionId,
-          packId,
-          instanceNumber
-        });
-
-        // Refresh from DB after append
-        await refreshTranscriptFromDB('multi_instance_answer');
+        // Append multi-instance answer via canonical helper
+        await appendAndRefresh('user', {
+          text: answer,
+          metadata: {
+            id: `mi-a-${questionId}-${packId}-${instanceNumber}-${Date.now()}`,
+            stableKey: `multi-instance-answer:${questionId}:${packId}:${instanceNumber}`,
+            messageType: 'MULTI_INSTANCE_GATE_ANSWER',
+            questionId,
+            packId,
+            instanceNumber
+          }
+        }, 'multi_instance_answer');
 
         if (answer === 'Yes') {
           const substanceName = question?.substance_name || null;
@@ -4011,21 +4055,20 @@ export default function CandidateInterview() {
           
           const gatePromptText = `Do you have another ${categoryLabel || 'incident'} to report?`;
           
-          // Append gate prompt to main transcript as visible assistant message
-          const { appendAssistantMessage } = await import("../components/utils/chatTranscriptHelpers");
-          const sessionForGate = await base44.entities.InterviewSession.get(sessionId);
-          await appendAssistantMessage(sessionId, sessionForGate.transcript_snapshot || [], gatePromptText, {
-            id: `mi-gate-${packId}-${instanceNumber}`,
-            messageType: 'MULTI_INSTANCE_GATE_SHOWN',
-            packId,
-            categoryId,
-            instanceNumber,
-            baseQuestionId,
-            visibleToCandidate: true
-          });
+          // Append gate prompt via canonical helper
+          await appendAndRefresh('assistant', {
+            text: gatePromptText,
+            metadata: {
+              id: `mi-gate-${packId}-${instanceNumber}`,
+              messageType: 'MULTI_INSTANCE_GATE_SHOWN',
+              packId,
+              categoryId,
+              instanceNumber,
+              baseQuestionId,
+              visibleToCandidate: true
+            }
+          }, 'gate_shown');
           
-          // Reload transcript after appending
-          await refreshTranscriptFromDB('multi_instance_gate_shown');
           await forensicCheck('gate_shown');
           
           // Clear V3 probing state but DO NOT advance yet
