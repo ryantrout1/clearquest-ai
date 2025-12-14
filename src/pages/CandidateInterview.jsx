@@ -64,96 +64,67 @@ const transcriptQuestionLogRegistry = new Set();
 // Defines what entries are shown in ChatGPT-style transcript view
 // Only conversational turns are visible, system/mechanical events are filtered out
 
-const TRANSCRIPT_ALLOWLIST = new Set([
-  'QUESTION_SHOWN',           // Base questions
-  'ANSWER',                   // User answers to base questions
-  'FOLLOWUP_CARD_SHOWN',      // Follow-up pack prompts
-  'v3_opener_question',       // V3 opener prompts
-  'v3_opener_answer',         // V3 opener answers
-  'v3_probe_question',        // V3 AI probe questions
-  'v3_probe_answer',          // V3 AI probe answers
-  'v3_probe_complete',        // V3 completion message
-  'SECTION_COMPLETE',         // Section completion messages
-  'RESUME',                   // Resume markers
-  'MULTI_INSTANCE_GATE_SHOWN', // Gate question shown
-  'MULTI_INSTANCE_GATE_ANSWER' // Gate answer
-]);
+  // TRANSCRIPT FILTERING: Canonical render filter (visibleToCandidate only)
+  const TRANSCRIPT_DENYLIST = new Set([
+    'SYSTEM_EVENT',             // All system events
+    'SESSION_CREATED',          // Session lifecycle
+    'SESSION_RESUMED',
+    'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
+    'PACK_ENTERED',             // Pack lifecycle
+    'PACK_EXITED',
+    'SECTION_STARTED',          // Section lifecycle
+    'AI_PROBING_CALLED',        // AI probing events
+    'AI_PROBING_RESPONSE',
+  ]);
 
-const TRANSCRIPT_DENYLIST = new Set([
-  'SYSTEM_EVENT',             // All system events
-  'SESSION_CREATED',          // Session lifecycle
-  'SESSION_RESUMED',
-  'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
-  'PACK_ENTERED',             // Pack lifecycle
-  'PACK_EXITED',
-  'SECTION_STARTED',          // Section lifecycle
-  'AI_PROBING_CALLED',        // AI probing events
-  'AI_PROBING_RESPONSE',
-]);
+  // Helper: Filter renderable transcript entries (no flicker)
+  const isRenderableTranscriptEntry = (t) => {
+    if (!t) return false;
 
-/**
- * Determine if a transcript entry should be rendered in the clean transcript view
- * @param {Object} entry - Transcript entry from session.transcript_snapshot
- * @returns {boolean} - True if entry should be visible to candidate
- */
-function shouldRenderTranscriptEntry(entry, index) {
-  let decision = { included: false, reason: 'OTHER' };
-  
-  // System events are NEVER visible (hardest filter)
-  if (entry.messageType === 'SYSTEM_EVENT') {
-    decision = { included: false, reason: 'SYSTEM_EVENT' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'SYSTEM_EVENT' });
-    return false;
-  }
-  if (entry.role === 'system' && entry.visibleToCandidate === false) {
-    decision = { included: false, reason: 'NOT_VISIBLE' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'NOT_VISIBLE' });
-    return false;
-  }
-  if (entry.eventType && entry.visibleToCandidate === false) {
-    decision = { included: false, reason: 'NOT_VISIBLE' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'NOT_VISIBLE' });
-    return false;
-  }
-  
-  // CRITICAL: visibleToCandidate field is AUTHORITATIVE - check BEFORE denylist
-  if (entry.visibleToCandidate === true) {
-    decision = { included: true, reason: 'VISIBLE_TRUE' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'VISIBLE_TRUE' });
+    const mt = t.messageType || t.type;
+
+    // Never show SYSTEM_EVENT or internal markers
+    if (mt === 'SYSTEM_EVENT') return false;
+
+    // Never show typing/thinking/loading placeholders (prevents flicker)
+    if (
+      mt === 'ASSISTANT_TYPING' ||
+      mt === 'TYPING' ||
+      mt === 'THINKING' ||
+      mt === 'LOADING' ||
+      mt === 'PROBE_THINKING' ||
+      mt === 'V3_THINKING' ||
+      mt === 'PLACEHOLDER'
+    ) return false;
+
+    // Apply denylist
+    if (TRANSCRIPT_DENYLIST.has(mt)) return false;
+
+    // Only show candidate-visible messages
+    if (t.visibleToCandidate !== true) return false;
+
     return true;
+  };
+
+  // Helper: Dedupe by stableKey (prefer visibleToCandidate=true)
+  const dedupeByStableKey = (arr) => {
+    const map = new Map();
+    for (const t of (arr || [])) {
+      const key = t.stableKey || t.id || `${t.messageType || t.type}:${t.createdAt || ''}:${t.text || ''}`;
+      // Prefer visibleToCandidate=true version
+      if (!map.has(key) || (map.get(key)?.visibleToCandidate !== true && t.visibleToCandidate === true)) {
+        map.set(key, t);
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  /**
+   * Determine if a transcript entry should be rendered (legacy wrapper)
+   */
+  function shouldRenderTranscriptEntry(entry, index) {
+    return isRenderableTranscriptEntry(entry);
   }
-  if (entry.visibleToCandidate === false) {
-    decision = { included: false, reason: 'VISIBLE_FALSE' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'VISIBLE_FALSE' });
-    return false;
-  }
-  
-  // Explicit deny (only for entries without visibleToCandidate field)
-  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) {
-    decision = { included: false, reason: 'DENYLISTED' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'DENYLISTED' });
-    return false;
-  }
-  
-  // Fall back to allowlist for entries without explicit visibleToCandidate
-  if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) {
-    decision = { included: true, reason: 'ALLOWLISTED' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'ALLOWLISTED' });
-    return true;
-  }
-  
-  // Legacy entries (no messageType) - show if they have user/assistant roles
-  if (entry.role === 'user' || entry.role === 'assistant') {
-    decision = { included: true, reason: 'LEGACY_ROLE' };
-    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'LEGACY_ROLE' });
-    return true;
-  }
-  
-  // Default deny for safety
-  decision = { included: false, reason: 'DEFAULT_DENY' };
-  if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'DEFAULT_DENY' });
-  return false;
-}
 
 /**
  * Returns true if this question has already been logged for this session.
