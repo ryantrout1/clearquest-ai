@@ -35,6 +35,15 @@ export default function V3ProbingLoop({
   onMultiInstancePrompt, // NEW: Callback when multi-instance question is shown
   onMultiInstanceAnswer // NEW: Callback to handle Yes/No from footer
 }) {
+  // FORENSIC: Component instance tracking
+  const componentInstanceId = useRef(`V3ProbingLoop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  
+  useEffect(() => {
+    console.log('[FORENSIC][MOUNT]', { component: 'V3ProbingLoop', instanceId: componentInstanceId.current, categoryId, instanceNumber });
+    return () => {
+      console.log('[FORENSIC][UNMOUNT]', { component: 'V3ProbingLoop', instanceId: componentInstanceId.current, categoryId, instanceNumber });
+    };
+  }, []);
   // Create local incidentId if not provided to ensure summary generation always has a target
   const [incidentId, setIncidentId] = useState(() => {
     if (initialIncidentId) return initialIncidentId;

@@ -98,26 +98,62 @@ const TRANSCRIPT_DENYLIST = new Set([
  * @param {Object} entry - Transcript entry from session.transcript_snapshot
  * @returns {boolean} - True if entry should be visible to candidate
  */
-function shouldRenderTranscriptEntry(entry) {
+function shouldRenderTranscriptEntry(entry, index) {
+  let decision = { included: false, reason: 'OTHER' };
+  
   // System events are NEVER visible (hardest filter)
-  if (entry.messageType === 'SYSTEM_EVENT') return false;
-  if (entry.role === 'system' && entry.visibleToCandidate === false) return false;
-  if (entry.eventType && entry.visibleToCandidate === false) return false;
+  if (entry.messageType === 'SYSTEM_EVENT') {
+    decision = { included: false, reason: 'SYSTEM_EVENT' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'SYSTEM_EVENT' });
+    return false;
+  }
+  if (entry.role === 'system' && entry.visibleToCandidate === false) {
+    decision = { included: false, reason: 'NOT_VISIBLE' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'NOT_VISIBLE' });
+    return false;
+  }
+  if (entry.eventType && entry.visibleToCandidate === false) {
+    decision = { included: false, reason: 'NOT_VISIBLE' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'NOT_VISIBLE' });
+    return false;
+  }
   
   // CRITICAL: visibleToCandidate field is AUTHORITATIVE - check BEFORE denylist
-  if (entry.visibleToCandidate === true) return true;
-  if (entry.visibleToCandidate === false) return false;
+  if (entry.visibleToCandidate === true) {
+    decision = { included: true, reason: 'VISIBLE_TRUE' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'VISIBLE_TRUE' });
+    return true;
+  }
+  if (entry.visibleToCandidate === false) {
+    decision = { included: false, reason: 'VISIBLE_FALSE' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'VISIBLE_FALSE' });
+    return false;
+  }
   
   // Explicit deny (only for entries without visibleToCandidate field)
-  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) return false;
+  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) {
+    decision = { included: false, reason: 'DENYLISTED' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'DENYLISTED' });
+    return false;
+  }
   
   // Fall back to allowlist for entries without explicit visibleToCandidate
-  if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) return true;
+  if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) {
+    decision = { included: true, reason: 'ALLOWLISTED' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'ALLOWLISTED' });
+    return true;
+  }
   
   // Legacy entries (no messageType) - show if they have user/assistant roles
-  if (entry.role === 'user' || entry.role === 'assistant') return true;
+  if (entry.role === 'user' || entry.role === 'assistant') {
+    decision = { included: true, reason: 'LEGACY_ROLE' };
+    if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: true, reason: 'LEGACY_ROLE' });
+    return true;
+  }
   
   // Default deny for safety
+  decision = { included: false, reason: 'DEFAULT_DENY' };
+  if (index < 25) console.log(`[FORENSIC][FILTER][${index}]`, { messageType: entry.messageType, visibleToCandidate: entry.visibleToCandidate, stableKey: entry.stableKey || entry.id, included: false, reason: 'DEFAULT_DENY' });
   return false;
 }
 
@@ -1159,7 +1195,17 @@ export default function CandidateInterview() {
 
     try {
       window.sessionStorage.setItem(draftKey, value);
+      console.log("[FORENSIC][STORAGE][WRITE]", { operation: 'WRITE', key: draftKey, success: true, valueLength: value?.length || 0 });
     } catch (e) {
+      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
+      console.log("[FORENSIC][STORAGE][WRITE]", { 
+        operation: 'WRITE', 
+        key: draftKey, 
+        success: false, 
+        error: e.message,
+        isTrackingPrevention,
+        fallbackBehavior: 'Draft lost - continue without storage'
+      });
       console.warn("[UX][DRAFT] Failed to save draft", e);
     }
   }, [sessionId, currentItem, activeV2Pack, buildDraftKey]);
@@ -1204,6 +1250,16 @@ export default function CandidateInterview() {
       clearTimeout(typingLockTimeoutRef.current);
     };
   }, [sessionId, navigate]);
+
+  // FORENSIC: Component instance tracking
+  const componentInstanceId = useRef(`CandidateInterview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  
+  useEffect(() => {
+    console.log('[FORENSIC][MOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+    return () => {
+      console.log('[FORENSIC][UNMOUNT]', { component: 'CandidateInterview', instanceId: componentInstanceId.current });
+    };
+  }, []);
 
   const initializeInterview = async () => {
     try {
@@ -1312,6 +1368,13 @@ export default function CandidateInterview() {
         screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
         layoutVersion: "section-first"
       });
+      
+      console.log('[FORENSIC][INIT]', {
+        sessionId,
+        isNewSession: sessionIsNew,
+        transcriptLenFromDB: loadedSession.transcript_snapshot?.length || 0,
+        initialScreenMode: sessionIsNew ? "WELCOME" : "QUESTION"
+      });
 
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
@@ -1355,6 +1418,15 @@ export default function CandidateInterview() {
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
+    
+    console.log('[FORENSIC][RESTORE]', {
+      source: 'DB_SNAPSHOT',
+      transcriptLen: restoredTranscript.length,
+      queueLen: restoredQueue.length,
+      hasCurrentItem: !!restoredCurrentItem,
+      currentItemType: restoredCurrentItem?.type,
+      currentItemId: restoredCurrentItem?.id
+    });
 
     const hasTranscript = restoredTranscript.length > 0;
     const isCompleted = loadedSession.status === 'completed';
@@ -1369,6 +1441,12 @@ export default function CandidateInterview() {
     }
 
     // PART B: No Welcome injection on resume
+    console.log('[FORENSIC][RESTORE][SYNC]', { 
+      operation: 'SET_LOCAL_STATE', 
+      transcriptLen: restoredTranscript.length,
+      queueLen: restoredQueue.length,
+      currentItemType: restoredCurrentItem?.type
+    });
     setTranscriptSafe(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
@@ -2448,6 +2526,16 @@ export default function CandidateInterview() {
         v3BaseQuestionIdRef.current = baseQuestionId;
         console.log('[V3_ENTER] Stored baseQuestionId in ref:', baseQuestionId);
 
+        console.log('[FORENSIC][MODE_TRANSITION]', {
+          from: 'V3_PACK_OPENER',
+          to: 'V3_PROBING',
+          currentItemBefore: currentItem.id,
+          packId,
+          categoryId,
+          transcriptLenBefore: transcript.length,
+          transcriptLenAfter: newTranscript.length
+        });
+
         // STEP 2: Enter V3 AI probing with opener answer as context
         setV3ProbingActive(true);
         setV3ProbingContext({
@@ -2743,6 +2831,15 @@ export default function CandidateInterview() {
                 instanceNumber: 1,
                 packData: packMetadata
               };
+
+              console.log('[FORENSIC][MODE_TRANSITION]', {
+                from: 'QUESTION',
+                to: 'V3_PACK_OPENER',
+                currentItemBefore: currentItem.id,
+                currentItemAfter: openerItem.id,
+                transcriptLenBefore: transcript.length,
+                transcriptLenAfter: newTranscript.length
+              });
 
               setCurrentItem(openerItem);
               setQueue([]);
@@ -3940,6 +4037,15 @@ export default function CandidateInterview() {
           setV3ProbingContext(null);
           setV3Gate({ active: false, packId: null, categoryId: null, promptText: null, instanceNumber: null });
           
+          console.log('[FORENSIC][MODE_TRANSITION]', {
+            from: 'V3_PROBING',
+            to: 'MULTI_INSTANCE_GATE',
+            packId,
+            instanceNumber,
+            transcriptLenBefore: transcript.length,
+            transcriptLenAfterGateAppend: updatedSession.transcript_snapshot?.length || transcript.length
+          });
+
           // Set up multi-instance gate as first-class currentItem
           setMultiInstanceGate({
             active: true,
@@ -4014,11 +4120,22 @@ export default function CandidateInterview() {
       const savedDraft = window.sessionStorage.getItem(draftKey);
       if (savedDraft != null && savedDraft !== "") {
         console.log("[UX][DRAFT] Restoring draft for", draftKey);
+        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, valueLength: savedDraft?.length || 0 });
         setInput(savedDraft);
       } else {
+        console.log("[FORENSIC][STORAGE][READ]", { operation: 'READ', key: draftKey, success: true, found: false });
         setInput("");
       }
     } catch (e) {
+      const isTrackingPrevention = e.message?.includes('tracking') || e.name === 'SecurityError';
+      console.log("[FORENSIC][STORAGE][READ]", { 
+        operation: 'READ', 
+        key: draftKey, 
+        success: false, 
+        error: e.message,
+        isTrackingPrevention,
+        fallbackBehavior: 'Input cleared - continue without draft'
+      });
       console.warn("[UX][DRAFT] Failed to restore draft", e);
     }
   }, [currentItem, sessionId, buildDraftKey]);
@@ -4121,8 +4238,17 @@ export default function CandidateInterview() {
     let effectiveCurrentItem = currentItem;
 
     if (isUserTyping && currentItemRef.current) {
+      console.log('[FORENSIC][TYPING_LOCK]', { 
+        active: true, 
+        frozenItemType: currentItemRef.current?.type,
+        frozenItemId: currentItemRef.current?.id,
+        actualItemType: currentItem?.type,
+        actualItemId: currentItem?.id,
+        promptWillDeriveFrom: 'FROZEN_REF'
+      });
       effectiveCurrentItem = currentItemRef.current;
     } else {
+      console.log('[FORENSIC][TYPING_LOCK]', { active: false, promptWillDeriveFrom: 'CURRENT_STATE' });
       currentItemRef.current = currentItem;
     }
 
@@ -4600,8 +4726,33 @@ export default function CandidateInterview() {
               ? transcript.filter(e => e.blocking !== true || e.resolved === true)
               : transcript;
             
+            // FORENSIC: Fetch DB snapshot for comparison
+            let dbSnapshotLen = null;
+            try {
+              const dbSession = await base44.entities.InterviewSession.get(sessionId);
+              dbSnapshotLen = (dbSession?.transcript_snapshot || []).length;
+            } catch (err) {
+              dbSnapshotLen = null;
+            }
+            
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
-            const visibleTranscript = rawTranscript.filter(e => shouldRenderTranscriptEntry(e));
+            const visibleTranscript = rawTranscript.filter((e, i) => shouldRenderTranscriptEntry(e, i));
+            
+            // FORENSIC: Truth table for transcript pipeline
+            console.log("[FORENSIC][PIPELINE]", {
+              dbSnapshotLen,
+              localStateLen: transcript.length,
+              derivedLen: rawTranscript.length,
+              visibleLen: visibleTranscript.length,
+              screenMode,
+              currentItemType,
+              currentItemId: currentItem?.id,
+              v3ProbingActive,
+              v2PackMode,
+              packId: currentItem?.packId || activeV2Pack?.packId,
+              instanceNumber: currentItem?.instanceNumber || activeV2Pack?.instanceNumber,
+              isTypingLocked: isUserTyping
+            });
             
             // Debug: Verify transcript source is canonical and not mode-dependent
             console.log("[TRANSCRIPT_SOURCE]", {
@@ -4987,7 +5138,16 @@ export default function CandidateInterview() {
           )}
 
           {/* V3 Probing Loop */}
-          {v3ProbingActive && v3ProbingContext && (
+          {(() => {
+            console.log('[FORENSIC][V3_PROBING_GUARD]', {
+              shouldRenderV3: v3ProbingActive && !!v3ProbingContext,
+              v3ProbingActive,
+              hasContext: !!v3ProbingContext,
+              packId: v3ProbingContext?.packId,
+              instanceNumber: v3ProbingContext?.instanceNumber
+            });
+            return v3ProbingActive && v3ProbingContext;
+          })() && (
            <ContentContainer>
            <V3ProbingLoop
              sessionId={sessionId}
@@ -5011,7 +5171,20 @@ export default function CandidateInterview() {
           )}
 
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
+          {(() => {
+            const shouldRenderBase = !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine;
+            console.log('[FORENSIC][BASE_CARD_GUARD]', {
+              shouldRenderBase,
+              activeBlocker: !!activeBlocker,
+              v3ProbingActive,
+              pendingSectionTransition: !!pendingSectionTransition,
+              currentItemType: currentItem?.type,
+              currentItemId: currentItem?.id,
+              v2PackMode,
+              hasEngine: !!engine
+            });
+            return shouldRenderBase;
+          })() && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -5046,9 +5219,22 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && (() => {
+          {(() => {
+            const shouldRenderPrompt = !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate';
+            console.log('[FORENSIC][PROMPT_CARD_GUARD]', {
+              shouldRenderPrompt,
+              activeBlocker: !!activeBlocker,
+              hasCurrentPrompt: !!currentPrompt,
+              currentPromptType: currentPrompt?.type,
+              v3ProbingActive,
+              pendingSectionTransition: !!pendingSectionTransition,
+              currentItemType: currentItem?.type,
+              currentItemId: currentItem?.id,
+              packId: currentItem?.packId,
+              fieldKey: currentItem?.fieldKey
+            });
             console.log('[ACTIVE_PROMPT_CARD]', { type: currentItem?.type, packId: currentItem?.packId });
-            return true;
+            return shouldRenderPrompt;
           })() && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
@@ -5157,6 +5343,13 @@ export default function CandidateInterview() {
                   }
                   
                   // Set screen mode and current item to first question
+                  console.log('[FORENSIC][MODE_TRANSITION]', { 
+                    from: 'WELCOME', 
+                    to: 'QUESTION',
+                    currentItemBefore: currentItem?.id,
+                    currentItemAfter: firstQuestionId,
+                    transcriptLenBefore: transcript.length
+                  });
                   setScreenMode("QUESTION");
                   setCurrentItem({ id: firstQuestionId, type: 'question' });
                   setCurrentSectionIndex(0);
