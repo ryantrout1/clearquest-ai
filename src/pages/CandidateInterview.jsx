@@ -4650,8 +4650,14 @@ export default function CandidateInterview() {
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter(e => shouldRenderTranscriptEntry(e));
             
-            // Minimal verification logging
-            console.log('[TRANSCRIPT_RENDER]', { total: transcript.length, visible: visibleTranscript.length });
+            // Debug: Log transcript rendering stats
+            console.log('[TRANSCRIPT_RENDER]', { 
+              total: transcript.length, 
+              rawFiltered: rawTranscript.length,
+              visible: visibleTranscript.length,
+              currentItemType: currentItemType,
+              v3ProbingActive
+            });
             
             return visibleTranscript.map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
@@ -5052,8 +5058,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* Base Question Card - shown when no blocker and not in V3 probing */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && engine && (
+          {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -5088,7 +5094,10 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && (
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && (() => {
+            console.log('[ACTIVE_PROMPT_CARD]', { type: currentItem?.type, packId: currentItem?.packId });
+            return true;
+          })() && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
