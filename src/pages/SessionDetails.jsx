@@ -30,6 +30,35 @@ import { getSystemConfig } from "../components/utils/systemConfigHelpers";
 import { getFactModelForCategory } from "../components/utils/factModelHelpers";
 import { buildTranscriptEventsForSession, groupEventsByBaseQuestion } from "../components/utils/transcriptBuilder";
 import { StructuredEventRenderer, TranscriptEventRenderer } from "../components/sessionDetails/UnifiedTranscriptRenderer";
+
+// ============================================================================
+// TRANSCRIPT CONTRACT (v1) - Mirrored from CandidateInterview
+// ============================================================================
+const TRANSCRIPT_ALLOWLIST = new Set([
+  'QUESTION_SHOWN',
+  'ANSWER',
+  'FOLLOWUP_CARD_SHOWN',
+  'v3_opener_question',
+  'v3_opener_answer',
+  'v3_probe_question',
+  'v3_probe_answer',
+  'v3_probe_complete',
+  'SECTION_COMPLETE',
+  'RESUME',
+  'MULTI_INSTANCE_GATE_SHOWN',
+  'MULTI_INSTANCE_GATE_ANSWER'
+]);
+
+function shouldRenderTranscriptEntry(entry) {
+  if (entry.messageType === 'SYSTEM_EVENT') return false;
+  if (entry.role === 'system' && entry.visibleToCandidate === false) return false;
+  if (entry.eventType && entry.visibleToCandidate === false) return false;
+  if (entry.visibleToCandidate === true) return true;
+  if (entry.visibleToCandidate === false) return false;
+  if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) return true;
+  if (entry.role === 'user' || entry.role === 'assistant') return true;
+  return false;
+}
 import { getPackConfig, getFactsFields, getHeaderFields, buildInstanceHeaderSummary, FOLLOWUP_PACK_CONFIGS } from "../components/followups/followupPackConfig";
 import { getFollowupFieldLabel } from "../components/config/followupPackConfig";
 import { getInstanceFacts, hasUnresolvedFields } from "../components/followups/factsManager";
@@ -268,7 +297,11 @@ export default function SessionDetails() {
         // INVARIANT: Map transcript entries EXACTLY as they appear in chat history
         // This must match 1:1 with what CandidateInterview renders
         events = [];
-        transcriptSnapshot.forEach((entry, idx) => {
+        
+        // Apply Transcript Contract filtering FIRST
+        const filteredSnapshot = transcriptSnapshot.filter(e => shouldRenderTranscriptEntry(e));
+        
+        filteredSnapshot.forEach((entry, idx) => {
           const entryType = entry.type;
           const entryKind = entry.kind;
           

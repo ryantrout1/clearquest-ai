@@ -58,6 +58,69 @@ const DEBUG_MODE = false;
 // Key format: `${sessionId}::${questionKey}`
 const transcriptQuestionLogRegistry = new Set();
 
+// ============================================================================
+// TRANSCRIPT CONTRACT (v1) - Single Source of Truth
+// ============================================================================
+// Defines what entries are shown in ChatGPT-style transcript view
+// Only conversational turns are visible, system/mechanical events are filtered out
+
+const TRANSCRIPT_ALLOWLIST = new Set([
+  'QUESTION_SHOWN',           // Base questions
+  'ANSWER',                   // User answers to base questions
+  'FOLLOWUP_CARD_SHOWN',      // Follow-up pack prompts
+  'v3_opener_question',       // V3 opener prompts
+  'v3_opener_answer',         // V3 opener answers
+  'v3_probe_question',        // V3 AI probe questions
+  'v3_probe_answer',          // V3 AI probe answers
+  'v3_probe_complete',        // V3 completion message
+  'SECTION_COMPLETE',         // Section completion messages
+  'RESUME',                   // Resume markers
+  'MULTI_INSTANCE_GATE_SHOWN', // Gate question shown
+  'MULTI_INSTANCE_GATE_ANSWER' // Gate answer
+]);
+
+const TRANSCRIPT_DENYLIST = new Set([
+  'SYSTEM_EVENT',             // All system events
+  'SESSION_CREATED',          // Session lifecycle
+  'SESSION_RESUMED',
+  'QUESTION_SHOWN',           // Question shown event (audit only)
+  'ANSWER_SUBMITTED',         // Answer submitted event (audit only)
+  'PACK_ENTERED',             // Pack lifecycle
+  'PACK_EXITED',
+  'SECTION_STARTED',          // Section lifecycle
+  'FOLLOWUP_CARD_SHOWN',      // Followup card shown event (audit only)
+  'AI_PROBING_CALLED',        // AI probing events
+  'AI_PROBING_RESPONSE',
+]);
+
+/**
+ * Determine if a transcript entry should be rendered in the clean transcript view
+ * @param {Object} entry - Transcript entry from session.transcript_snapshot
+ * @returns {boolean} - True if entry should be visible to candidate
+ */
+function shouldRenderTranscriptEntry(entry) {
+  // System events are NEVER visible (hardest filter)
+  if (entry.messageType === 'SYSTEM_EVENT') return false;
+  if (entry.role === 'system' && entry.visibleToCandidate === false) return false;
+  if (entry.eventType && entry.visibleToCandidate === false) return false;
+  
+  // Explicit deny takes precedence
+  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) return false;
+  
+  // visibleToCandidate field is authoritative if present
+  if (entry.visibleToCandidate === true) return true;
+  if (entry.visibleToCandidate === false) return false;
+  
+  // Fall back to allowlist for entries without explicit visibleToCandidate
+  if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) return true;
+  
+  // Legacy entries (no messageType) - show if they have user/assistant roles
+  if (entry.role === 'user' || entry.role === 'assistant') return true;
+  
+  // Default deny for safety
+  return false;
+}
+
 /**
  * Returns true if this question has already been logged for this session.
  * If not, marks it as logged and returns false.
@@ -4512,18 +4575,17 @@ export default function CandidateInterview() {
           {/* Always render transcript history (PART C: transcript visible during V3 gate) */}
           {(() => {
             const hasActiveBlocker = activeBlocker && !activeBlocker.resolved;
-            const visibleTranscript = hasActiveBlocker
+            const rawTranscript = hasActiveBlocker
               ? transcript.filter(e => e.blocking !== true || e.resolved === true)
               : transcript;
-            return visibleTranscript
-              .filter(e => {
-                // NEVER render system events in main chat feed (comprehensive check)
-                if (e.messageType === 'SYSTEM_EVENT') return false;
-                if (e.role === 'system' && e.visibleToCandidate === false) return false;
-                if (e.eventType && e.visibleToCandidate === false) return false;
-                return true;
-              })
-              .map((entry, index) => {
+            
+            // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
+            const visibleTranscript = rawTranscript.filter(e => shouldRenderTranscriptEntry(e));
+            
+            // Minimal verification logging
+            console.log('[TRANSCRIPT_RENDER]', { total: transcript.length, visible: visibleTranscript.length });
+            
+            return visibleTranscript.map((entry, index) => {
             // Skip blocking messages in transcript view (they're shown as bottom cards when active)
             if (entry.blocking === true) return null;
 
