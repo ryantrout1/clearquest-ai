@@ -104,12 +104,12 @@ function shouldRenderTranscriptEntry(entry) {
   if (entry.role === 'system' && entry.visibleToCandidate === false) return false;
   if (entry.eventType && entry.visibleToCandidate === false) return false;
   
-  // Explicit deny takes precedence
-  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) return false;
-  
-  // visibleToCandidate field is authoritative if present
+  // CRITICAL: visibleToCandidate field is AUTHORITATIVE - check BEFORE denylist
   if (entry.visibleToCandidate === true) return true;
   if (entry.visibleToCandidate === false) return false;
+  
+  // Explicit deny (only for entries without visibleToCandidate field)
+  if (entry.messageType && TRANSCRIPT_DENYLIST.has(entry.messageType)) return false;
   
   // Fall back to allowlist for entries without explicit visibleToCandidate
   if (entry.messageType && TRANSCRIPT_ALLOWLIST.has(entry.messageType)) return true;
@@ -1116,17 +1116,19 @@ export default function CandidateInterview() {
 
   const autoScrollToBottom = useCallback(() => {
     if (!historyRef.current) return;
+    // Gate scroll only if user is typing (transcript still renders live)
+    if (isUserTyping) return;
     requestAnimationFrame(() => {
       if (historyRef.current) {
         historyRef.current.scrollTop = historyRef.current.scrollHeight;
       }
     });
-  }, []);
+  }, [isUserTyping]);
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
     if (!isUserTyping) {
-      console.log("[UX][TYPING] User started typing – locking preview updates");
+      console.log("[UX][TYPING_LOCK]", { locked: true, note: "scroll locked only, transcript still live" });
       setIsUserTyping(true);
     }
 
@@ -1135,7 +1137,7 @@ export default function CandidateInterview() {
     }
 
     typingLockTimeoutRef.current = setTimeout(() => {
-      console.log("[UX][TYPING] User idle – unlocking preview updates");
+      console.log("[UX][TYPING_LOCK]", { locked: false, note: "scroll unlocked" });
       setIsUserTyping(false);
       typingLockTimeoutRef.current = null;
     }, TYPING_IDLE_MS);
@@ -4601,13 +4603,12 @@ export default function CandidateInterview() {
             // Apply Transcript Contract: filter using shouldRenderTranscriptEntry
             const visibleTranscript = rawTranscript.filter(e => shouldRenderTranscriptEntry(e));
             
-            // Debug: Log transcript rendering stats
-            console.log('[TRANSCRIPT_RENDER]', { 
-              total: transcript.length, 
-              rawFiltered: rawTranscript.length,
-              visible: visibleTranscript.length,
-              currentItemType: currentItemType,
-              v3ProbingActive
+            // Debug: Verify transcript source is canonical and not mode-dependent
+            console.log("[TRANSCRIPT_SOURCE]", {
+              canonicalLen: transcript.length,
+              displayLen: visibleTranscript.length,
+              isTypingLocked: isUserTyping,
+              currentItemType: currentItemType
             });
             
             return visibleTranscript.map((entry, index) => {
