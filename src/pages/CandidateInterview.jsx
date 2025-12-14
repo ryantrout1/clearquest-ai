@@ -2830,7 +2830,7 @@ export default function CandidateInterview() {
                 to: 'V3_PACK_OPENER',
                 currentItemBefore: currentItem.id,
                 currentItemAfter: openerItem.id,
-                transcriptLenBefore: transcript.length,
+                transcriptLenBefore: dbTranscript.length,
                 transcriptLenAfter: newTranscript.length
               });
 
@@ -5351,7 +5351,7 @@ export default function CandidateInterview() {
                     to: 'QUESTION',
                     currentItemBefore: currentItem?.id,
                     currentItemAfter: firstQuestionId,
-                    transcriptLenBefore: transcript.length
+                    transcriptLenBefore: dbTranscript.length
                   });
                   setScreenMode("QUESTION");
                   setCurrentItem({ id: firstQuestionId, type: 'question' });
