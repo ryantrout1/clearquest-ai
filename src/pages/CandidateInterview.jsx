@@ -1826,7 +1826,7 @@ export default function CandidateInterview() {
     }
 
     advanceToNextBaseQuestion(baseQuestionId);
-  }, [engine, sessionId, transcript, advanceToNextBaseQuestion]);
+  }, [engine, sessionId, dbTranscript, advanceToNextBaseQuestion]);
 
   const handleAnswer = useCallback(async (value) => {
     // IDEMPOTENCY GUARD: Build submit key and check if already submitted
@@ -2218,7 +2218,8 @@ export default function CandidateInterview() {
             [fieldCountKey]: probeCount + 1
           }));
 
-          await persistStateToDatabase(newTranscript, [], currentItem);
+          const freshAfterClarifier = await refreshTranscriptFromDB('v2_clarifier_shown');
+          await persistStateToDatabase(freshAfterClarifier, [], currentItem);
           setIsCommitting(false);
           setInput("");
           return;
@@ -2523,7 +2524,7 @@ export default function CandidateInterview() {
           currentItemBefore: currentItem.id,
           packId,
           categoryId,
-          transcriptLenBefore: transcript.length,
+          transcriptLenBefore: dbTranscript.length,
           transcriptLenAfter: newTranscript.length
         });
 
@@ -4034,8 +4035,8 @@ export default function CandidateInterview() {
             to: 'MULTI_INSTANCE_GATE',
             packId,
             instanceNumber,
-            transcriptLenBefore: transcript.length,
-            transcriptLenAfterGateAppend: updatedSession.transcript_snapshot?.length || transcript.length
+            transcriptLenBefore: dbTranscript.length,
+            transcriptLenAfterGateAppend: dbTranscript.length
           });
 
           // Set up multi-instance gate as first-class currentItem
@@ -4727,7 +4728,7 @@ export default function CandidateInterview() {
             // FORENSIC: Truth table for transcript pipeline (dbSnapshotLen tracked in state)
             console.log("[FORENSIC][PIPELINE]", {
               dbSnapshotLen: session?.transcript_snapshot?.length || null,
-              localStateLen: transcript.length,
+              localStateLen: dbTranscript.length,
               derivedLen: rawTranscript.length,
               visibleLen: visibleTranscript.length,
               screenMode,
@@ -5339,7 +5340,7 @@ export default function CandidateInterview() {
                   
                   // Mark blocker resolved (if exists)
                   if (activeBlocker) {
-                    setTranscriptSafe(prev => prev.map(e =>
+                    setDbTranscriptSafe(prev => prev.map(e =>
                       e.id === activeBlocker.id ? { ...e, resolved: true } : e
                     ));
                   }
@@ -5356,7 +5357,8 @@ export default function CandidateInterview() {
                   setCurrentItem({ id: firstQuestionId, type: 'question' });
                   setCurrentSectionIndex(0);
                   
-                  await persistStateToDatabase(transcript, [], { id: firstQuestionId, type: 'question' });
+                  const freshAfterWelcome = await refreshTranscriptFromDB('welcome_begin');
+          await persistStateToDatabase(freshAfterWelcome, [], { id: firstQuestionId, type: 'question' });
                   
                   console.log("[WELCOME][BEGIN][AFTER]", {
                     screenMode: "QUESTION",
