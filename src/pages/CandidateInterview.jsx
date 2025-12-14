@@ -3165,7 +3165,7 @@ export default function CandidateInterview() {
                       packData: pack // Pass pack metadata for opener
                     });
 
-                    await persistStateToDatabase(newTranscript, [], {
+                    await persistStateToDatabase(null, [], {
                       id: `v3-probing-${packId}`,
                       type: 'v3_probing',
                       packId,
@@ -3654,7 +3654,7 @@ export default function CandidateInterview() {
             setQueue(remainingQueue);
             setCurrentItem(firstItem);
 
-            await persistStateToDatabase(dbTranscript, remainingQueue, firstItem);
+            await persistStateToDatabase(null, remainingQueue, firstItem);
           }
         } else {
           setCurrentItem(null);
