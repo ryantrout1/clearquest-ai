@@ -1907,7 +1907,6 @@ export default function CandidateInterview() {
 
         // Reload transcript after logging
         await refreshTranscriptFromDB('section_complete_logged');
-        await forensicCheck('section_complete');
 
         // Trigger section summary generation (background)
         base44.functions.invoke('generateSectionSummary', {
@@ -2640,7 +2639,6 @@ export default function CandidateInterview() {
 
         // Refresh from DB after opener answer
         await refreshTranscriptFromDB('v3_opener_answered');
-        await forensicCheck('v3_opener_answered');
 
         // Save opener answer to database
         await saveV2PackFieldResponse({
@@ -2701,20 +2699,8 @@ export default function CandidateInterview() {
           }
         }
 
-        console.log(`[V3_OPENER][ENTER_PROBING] Now entering V3ProbingLoop with opener context`);
-
         // Store baseQuestionId in ref for exit
         v3BaseQuestionIdRef.current = baseQuestionId;
-        console.log('[V3_ENTER] Stored baseQuestionId in ref:', baseQuestionId);
-
-        console.log('[FORENSIC][MODE_TRANSITION]', {
-          from: 'V3_PACK_OPENER',
-          to: 'V3_PROBING',
-          currentItemBefore: currentItem.id,
-          packId,
-          categoryId,
-          transcriptLenBefore: dbTranscript.length
-        });
 
         // STEP 2: Enter V3 AI probing with opener answer as context
         setV3ProbingActive(true);
@@ -2731,8 +2717,7 @@ export default function CandidateInterview() {
           openerAnswer: value // Pass opener answer to probing engine
         });
 
-        const freshBeforeProbing = await refreshTranscriptFromDB('v3_probing_enter');
-        await forensicCheck('v3_probing_enter');
+        await refreshTranscriptFromDB('v3_probing_enter');
         await persistStateToDatabase(null, [], {
           id: `v3-probing-${packId}`,
           type: 'v3_probing',
@@ -2788,7 +2773,6 @@ export default function CandidateInterview() {
         
         // Reload session transcript into local state (single source of truth)
         const newTranscript = await refreshTranscriptFromDB('base_question_answered');
-        await forensicCheck('base_question_answered');
 
         // UX: Clear draft on successful submit
         clearDraft();
@@ -2872,7 +2856,6 @@ export default function CandidateInterview() {
 
           // Reload transcript after logging
           await refreshTranscriptFromDB('gate_section_complete_logged');
-          await forensicCheck('gate_section_complete');
 
           // Trigger section summary generation (background)
           base44.functions.invoke('triggerSummaries', {
@@ -2972,12 +2955,6 @@ export default function CandidateInterview() {
                 console.warn(`[V3_PACK][MISSING_OPENER] Pack ${packId} missing configured opener - synthesized fallback used`);
               }
 
-              console.log(`[V3_PACK][OPENER] Showing deterministic opener before AI probing`, {
-                packId,
-                hasExample: !!opener.example,
-                isSynthesized: opener.isSynthesized
-              });
-
               // Log pack entered (audit only)
               await logPackEntered(sessionId, { packId, instanceNumber: 1, isV3: true });
 
@@ -3000,20 +2977,10 @@ export default function CandidateInterview() {
                 packData: packMetadata
               };
 
-              console.log('[FORENSIC][MODE_TRANSITION]', {
-                from: 'QUESTION',
-                to: 'V3_PACK_OPENER',
-                currentItemBefore: currentItem.id,
-                currentItemAfter: openerItem.id,
-                transcriptLenBefore: dbTranscript.length,
-                transcriptLenAfter: newTranscript.length
-              });
-
               setCurrentItem(openerItem);
               setQueue([]);
 
-              const freshAfterOpenerSetup = await refreshTranscriptFromDB('v3_opener_set');
-              await forensicCheck('v3_opener_shown');
+              await refreshTranscriptFromDB('v3_opener_set');
               await persistStateToDatabase(null, [], openerItem);
 
               setIsCommitting(false);
@@ -4228,7 +4195,6 @@ export default function CandidateInterview() {
         
         // Refresh transcript after pack exit (V3 wrote many messages to DB)
         await refreshTranscriptFromDB('v3_pack_exited');
-        await forensicCheck('v3_pack_exited');
 
         // Advance to next base question AFTER clearing V3 state
         if (baseQuestionId) {
