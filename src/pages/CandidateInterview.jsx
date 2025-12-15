@@ -61,6 +61,14 @@ const transcriptQuestionLogRegistry = new Set();
 // FORENSIC: Component mount counter (module-level - survives HMR)
 let candidateInterviewMountCount = 0;
 
+// HARD REMOUNT DETECTOR: Track mounts per sessionId (module-scope)
+const mountsBySession = {};
+const resetMountTracker = (sid) => {
+  if (mountsBySession[sid]) {
+    delete mountsBySession[sid];
+  }
+};
+
 // ============================================================================
 // TRANSCRIPT CONTRACT (v1) - Single Source of Truth
 // ============================================================================
@@ -877,9 +885,23 @@ export default function CandidateInterview() {
   
   // CANONICAL SOURCE: Refresh transcript from DB after any write
   const refreshTranscriptFromDB = useCallback(async (reason) => {
+    const oldLen = (dbTranscript || []).length;
+    
     try {
       const freshSession = await base44.entities.InterviewSession.get(sessionId);
       const freshTranscript = freshSession.transcript_snapshot || [];
+      
+      // SHRINK GUARD: Never allow transcript to shrink
+      if (transcriptInitializedRef.current && freshTranscript.length < oldLen) {
+        console.error('[TRANSCRIPT_GUARD] prevented shrink in refreshTranscriptFromDB', {
+          oldLen,
+          newLen: freshTranscript.length,
+          reason,
+          action: 'BLOCKED'
+        });
+        return dbTranscript; // Keep old transcript
+      }
+      
       setSession(freshSession); // Sync session state to prevent stale reads
       setDbTranscriptSafe(freshTranscript);
       console.log('[TRANSCRIPT_REFRESH]', { reason, freshLen: freshTranscript.length });
@@ -929,6 +951,7 @@ export default function CandidateInterview() {
     
     const freshSession = await base44.entities.InterviewSession.get(sessionId);
     const currentTranscript = freshSession.transcript_snapshot || [];
+    const oldLen = (dbTranscript || []).length;
     
     let updatedTranscript;
     if (kind === 'user') {
@@ -943,12 +966,24 @@ export default function CandidateInterview() {
     // Refresh local mirror from DB
     const freshAfterAppend = await base44.entities.InterviewSession.get(sessionId);
     const freshTranscript = freshAfterAppend.transcript_snapshot || [];
+    
+    // SHRINK GUARD: Never allow transcript to shrink
+    if (freshTranscript.length < oldLen) {
+      console.error('[TRANSCRIPT_GUARD] prevented shrink in appendAndRefresh', {
+        oldLen,
+        newLen: freshTranscript.length,
+        reason: reasonLabel,
+        action: 'BLOCKED'
+      });
+      return dbTranscript; // Keep old transcript
+    }
+    
     setSession(freshAfterAppend); // Sync session state to prevent stale reads
     setDbTranscriptSafe(freshTranscript);
     
     console.log('[APPEND_AND_REFRESH]', { kind, reasonLabel, freshLen: freshTranscript.length });
     return freshTranscript;
-  }, [sessionId, setDbTranscriptSafe]);
+  }, [sessionId, setDbTranscriptSafe, dbTranscript]);
 
   const [currentFollowUpAnswers, setCurrentFollowUpAnswers] = useState({});
 
@@ -1166,6 +1201,7 @@ export default function CandidateInterview() {
     : 0;
 
   // Compute next renderable (dedupe + filter)
+  // CRITICAL: This memo MUST NOT trigger component remount
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
@@ -1187,7 +1223,7 @@ export default function CandidateInterview() {
     }
     
     return filtered;
-  }, [dbTranscript, currentItem?.type, screenMode]);
+  }, [dbTranscript]);
 
   // Freeze render during refresh (prevents flash-to-empty)
   const [renderTranscript, setRenderTranscript] = React.useState([]);
@@ -1201,8 +1237,20 @@ export default function CandidateInterview() {
       const prevLen = prev?.length || 0;
       const nextLen = nextRenderable?.length || 0;
 
-      // Keep prev if next is empty (prevents flashing)
-      if (nextLen === 0 && prevLen > 0) return prev;
+      // SHRINK GUARD: Never shrink rendered transcript
+      if (nextLen === 0 && prevLen > 0) {
+        console.log('[RENDER_TRANSCRIPT_GUARD] Blocked empty nextRenderable', { prevLen });
+        return prev;
+      }
+      
+      if (nextLen < prevLen) {
+        console.error('[RENDER_TRANSCRIPT_GUARD] Blocked shrink', {
+          prevLen,
+          nextLen,
+          action: 'BLOCKED'
+        });
+        return prev;
+      }
 
       // Keep prev if stable keys match (prevents micro-flicker)
       const prevLast = prev?.[prevLen - 1]?.stableKey;
@@ -1215,6 +1263,8 @@ export default function CandidateInterview() {
 
   // APPEND-ONLY: Populate rendered candidate messages (stable, no removals)
   React.useEffect(() => {
+    // GUARD: Skip if transcript not initialized yet
+    if (!transcriptInitializedRef.current) return;
     if (!dbTranscript || dbTranscript.length === 0) return;
     
     const newMessages = [];
@@ -1233,10 +1283,14 @@ export default function CandidateInterview() {
     
     // Append new messages (never remove existing)
     if (newMessages.length > 0) {
-      setRenderedCandidateMessages(prev => [...prev, ...newMessages]);
-      console.log('[APPEND_ONLY][ADDED]', { 
-        count: newMessages.length, 
-        totalRendered: renderedCandidateMessages.length + newMessages.length 
+      setRenderedCandidateMessages(prev => {
+        const updated = [...prev, ...newMessages];
+        console.log('[APPEND_ONLY][ADDED]', { 
+          count: newMessages.length, 
+          totalRendered: updated.length,
+          prevRendered: prev.length
+        });
+        return updated;
       });
     }
   }, [dbTranscript]);
@@ -1405,6 +1459,29 @@ export default function CandidateInterview() {
   
   useEffect(() => {
     candidateInterviewMountCount++;
+    
+    // HARD REMOUNT DETECTOR: Track per sessionId
+    if (!mountsBySession[sessionId]) {
+      mountsBySession[sessionId] = 0;
+    }
+    mountsBySession[sessionId]++;
+    
+    const sessionMounts = mountsBySession[sessionId];
+    
+    console.log('[HARD_MOUNT_CHECK]', { 
+      sessionId,
+      mounts: sessionMounts,
+      globalMountCount: candidateInterviewMountCount
+    });
+    
+    if (sessionMounts > 1) {
+      console.error('[HARD_MOUNT_CHECK] ❌ REMOUNT DETECTED - must be 1 per session', {
+        sessionId,
+        mounts: sessionMounts,
+        ERROR: 'CandidateInterview should mount ONCE per session - investigate parent render/key props'
+      });
+    }
+    
     console.log('[FORENSIC][MOUNT]', { 
       component: 'CandidateInterview', 
       instanceId: componentInstanceId.current,
@@ -1459,12 +1536,17 @@ export default function CandidateInterview() {
         instanceId: componentInstanceId.current,
         mountCount: candidateInterviewMountCount,
         sessionId,
+        sessionMounts: mountsBySession[sessionId],
         WARNING: '⚠️ UNMOUNT during session - should only occur on route exit or browser close'
       });
+      
+      // Reset mount tracker on unmount (allows clean restart if user navigates back)
+      resetMountTracker(sessionId);
+      
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
-  }, [screenMode, currentItem, v3ProbingContext, v3ProbingActive, dbTranscript, renderTranscript, nextRenderable]);
+  }, []);
 
   const resumeFromDB = async () => {
     try {
@@ -1595,8 +1677,8 @@ export default function CandidateInterview() {
           await rebuildSessionFromResponses(engineData, loadedSession);
         }
       } else {
-        // New session - Initialize with intro blocker only (don't clear transcript)
-        // CRITICAL: Don't clear dbTranscript here - it's already initialized as []
+        // New session - Initialize with intro blocker only
+        // CRITICAL: dbTranscript already initialized as [] - NEVER reset it
         setQueue([]);
         setCurrentItem(null); // Will be set after "Got it — Let's Begin"
       }
@@ -1605,6 +1687,13 @@ export default function CandidateInterview() {
       const sessionIsNew = !hasAnyResponses;
 
       setIsNewSession(sessionIsNew);
+      
+      // STABLE: Set screen mode WITHOUT triggering transcript resets
+      console.log('[INIT][SCREEN_MODE]', {
+        sessionIsNew,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        settingMode: sessionIsNew ? 'WELCOME' : 'QUESTION'
+      });
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
       // Add blocking intro message for new sessions (UI-ONLY - not in canonical transcript)
@@ -5016,7 +5105,7 @@ export default function CandidateInterview() {
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs text-purple-400 font-medium">
-                      Follow-up • {entry.categoryLabel || entry.title || 'Details'}
+                      {entry.categoryLabel || entry.title || 'Follow-up'}
                     </span>
                   </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
@@ -5043,9 +5132,6 @@ export default function CandidateInterview() {
               {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-purple-400 font-medium">Follow-up</span>
-                  </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                 </div>
                 </ContentContainer>
@@ -5158,11 +5244,6 @@ export default function CandidateInterview() {
                 <ContentContainer>
                 <div className="w-full space-y-2">
                   <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-purple-400 font-medium">
-                        {entry.source === 'V2_PACK_CLUSTER_OPENING' ? 'Follow-up' : 'AI Follow-up'}
-                      </span>
-                    </div>
                     <p className="text-white text-sm leading-relaxed">{entry.questionText || entry.text || entry.content}</p>
                   </div>
                   <div className="flex justify-end">
@@ -5709,7 +5790,7 @@ export default function CandidateInterview() {
              <div className="flex gap-3">
                <Textarea
                  value=""
-                 placeholder="Please respond above..."
+                 placeholder="Please wait..."
                  className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-slate-600 text-white placeholder:text-slate-500 transition-all duration-200"
                  disabled={true}
                  rows={1}
