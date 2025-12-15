@@ -2,7 +2,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
-import candidateinterviewBackup from './pages/CandidateInterview.backup';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
@@ -26,6 +25,7 @@ import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
+import CandidateInterview from './pages/CandidateInterview';
 import __Layout from './Layout.jsx';
 
 
@@ -34,7 +34,6 @@ export const PAGES = {
     "AdminLogin": AdminLogin,
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
-    "CandidateInterview.backup": candidateinterviewBackup,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,
@@ -58,6 +57,7 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
+    "CandidateInterview": CandidateInterview,
 }
 
 export const pagesConfig = {
