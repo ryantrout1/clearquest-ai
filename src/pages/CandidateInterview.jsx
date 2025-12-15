@@ -405,8 +405,10 @@ const syncFactsToInterviewSession = async (sessionId, questionId, packId, follow
 };
 
 const createChatEvent = (type, data = {}) => {
+  // STABLE: Use sequential counter instead of Date.now() to prevent remount triggers
+  const counter = (createChatEvent._counter = (createChatEvent._counter || 0) + 1);
   const baseEvent = {
-    id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `${type}-${counter}`,
     type,
     timestamp: new Date().toISOString(),
     ...data
@@ -834,9 +836,13 @@ export default function CandidateInterview() {
   const activeSection = sections[currentSectionIndex] || null;
 
   // CANONICAL TRANSCRIPT: Read-only mirror of session.transcript_snapshot (DB)
+  // CRITICAL: Initialize with empty array ONCE - never reset during session
   const [dbTranscript, setDbTranscript] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentItem, setCurrentItem] = useState(null);
+  
+  // STABLE: Track if transcript has been initialized to prevent resets
+  const transcriptInitializedRef = useRef(false);
 
   // STATE HOISTED: Must be declared before forensicCheck (prevents TDZ crash)
   const [screenMode, setScreenMode] = useState("LOADING");
@@ -847,15 +853,24 @@ export default function CandidateInterview() {
   const setDbTranscriptSafe = useCallback((updater) => {
     setDbTranscript(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (process.env.NODE_ENV !== 'production') {
-        if (next.length < prev.length) {
-          console.error('[TRANSCRIPT_BUG] length decreased!', { 
-            prevLen: prev.length, 
-            nextLen: next.length,
-            diff: prev.length - next.length
-          });
-        }
+      
+      // CRITICAL: Only allow transcript growth after initialization
+      if (transcriptInitializedRef.current && next.length < prev.length) {
+        console.error('[TRANSCRIPT_BUG] BLOCKED shrink attempt!', { 
+          prevLen: prev.length, 
+          nextLen: next.length,
+          diff: prev.length - next.length,
+          action: 'BLOCKED'
+        });
+        return prev; // BLOCK the shrink
       }
+      
+      // Mark as initialized on first non-empty transcript
+      if (!transcriptInitializedRef.current && next.length > 0) {
+        transcriptInitializedRef.current = true;
+        console.log('[TRANSCRIPT_INIT] First transcript data loaded', { len: next.length });
+      }
+      
       return next;
     });
   }, []);
@@ -1357,12 +1372,22 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
+  // STABLE: Single mount per session - dependencies MUST be stable
+  const initOnceRef = useRef(false);
+  
   useEffect(() => {
     if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
       return;
     }
     
+    // CRITICAL: Only initialize once per sessionId to prevent remounts
+    if (initOnceRef.current) {
+      console.log('[MOUNT_GUARD] Already initialized for this session - skipping');
+      return;
+    }
+    
+    initOnceRef.current = true;
     initializeInterview();
 
     return () => {
@@ -1373,10 +1398,10 @@ export default function CandidateInterview() {
       clearTimeout(aiResponseTimeoutRef.current);
       clearTimeout(typingLockTimeoutRef.current);
     };
-  }, [sessionId, navigate]);
+  }, [sessionId]);
 
-  // FORENSIC: Component instance tracking
-  const componentInstanceId = useRef(`CandidateInterview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // STABLE: Component instance tracking - MUST NOT change during session
+  const componentInstanceId = useRef(`CandidateInterview-${sessionId}`);
   
   useEffect(() => {
     candidateInterviewMountCount++;
@@ -1571,6 +1596,7 @@ export default function CandidateInterview() {
         }
       } else {
         // New session - Initialize with intro blocker only (don't clear transcript)
+        // CRITICAL: Don't clear dbTranscript here - it's already initialized as []
         setQueue([]);
         setCurrentItem(null); // Will be set after "Got it — Let's Begin"
       }
