@@ -202,13 +202,37 @@ export async function appendUserMessage(sessionId, existingTranscript = [], text
 }
 
 /**
- * PART B: Welcome message DISABLED for candidate flow
- * Welcome is now shown as blocking overlay only (not in transcript)
- * This function is kept for backwards compatibility but does nothing
+ * Append welcome message to transcript (shown once per session)
+ * Stable ID: welcome-{sessionId}
  */
 export async function appendWelcomeMessage(sessionId, existingTranscript = []) {
-  console.log("[TRANSCRIPT][WELCOME] Skipped - using overlay instead");
-  return existingTranscript;
+  const id = `welcome-${sessionId}`;
+  
+  if (existingTranscript.some(e => e.id === id)) {
+    console.log("[TRANSCRIPT][WELCOME] Already exists, skipping");
+    return existingTranscript;
+  }
+  
+  const text = "Welcome to your ClearQuest Interview";
+  const lines = [
+    "This interview is part of your application process.",
+    "One question at a time, at your own pace.",
+    "Clear, complete, and honest answers help investigators understand the full picture.",
+    "You can pause and come back — we'll pick up where you left off."
+  ];
+  
+  const updated = await appendAssistantMessage(sessionId, existingTranscript, text, {
+    id,
+    stableKey: `welcome:${sessionId}`,
+    messageType: 'WELCOME',
+    uiVariant: 'WELCOME_CARD',
+    title: text,
+    lines,
+    visibleToCandidate: true
+  });
+  
+  await logSystemEvent(sessionId, 'SESSION_CREATED', { sessionId });
+  return updated;
 }
 
 /**

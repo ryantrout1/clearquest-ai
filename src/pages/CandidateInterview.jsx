@@ -1745,14 +1745,12 @@ export default function CandidateInterview() {
       });
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
-      // Add blocking intro message for new sessions (UI-ONLY - not in canonical transcript)
+      // Add Welcome to transcript for new sessions (makes it part of chat history)
       if (sessionIsNew) {
-        setUiBlocker({
-          id: `blocker-intro-${sessionId}`,
-          type: 'SYSTEM_INTRO',
-          resolved: false,
-          timestamp: new Date().toISOString()
-        });
+        const withWelcome = await ensureWelcomeInTranscript(sessionId, loadedSession.transcript_snapshot || []);
+        if (withWelcome.length > (loadedSession.transcript_snapshot || []).length) {
+          await refreshTranscriptFromDB('welcome_appended');
+        }
       }
 
       // Log system events
@@ -5070,16 +5068,8 @@ export default function CandidateInterview() {
                 <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base font-semibold text-blue-400">
-                        {entry.title || `Question ${entry.meta?.questionNumber || ''}`}
-                      </span>
-                      {entry.meta?.sectionName && (
-                        <>
-                          <span className="text-sm text-slate-500">•</span>
-                          <span className="text-sm font-medium text-slate-300">{entry.meta.sectionName}</span>
-                        </>
-                      )}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm font-medium text-slate-400">{entry.meta?.sectionName || ''}</span>
                     </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
                   </div>
@@ -5373,59 +5363,29 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* Welcome Card - Always show when WELCOME mode */}
-          {screenMode === 'WELCOME' && (
-              <ContentContainer>
+              {/* Welcome message (rendered from transcript if present) */}
+              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
+                <ContentContainer>
                 <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <Shield className="w-5 h-5 text-blue-400" />
-                    <span className="text-base font-semibold text-blue-400">Welcome to your ClearQuest Interview</span>
+                    <span className="text-base font-semibold text-blue-400">{entry.title || entry.text}</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-200 text-sm leading-relaxed">
-                        This interview is part of your application process.
-                      </p>
+                  {entry.lines && entry.lines.length > 0 && (
+                    <div className="space-y-2">
+                      {entry.lines.map((line, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-slate-200 text-sm leading-relaxed">{line}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-200 text-sm leading-relaxed">
-                        One question at a time, at your own pace.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-200 text-sm leading-relaxed">
-                        Clear, complete, and honest answers help investigators understand the full picture.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-200 text-sm leading-relaxed">
-                        You can pause and come back — we'll pick up where you left off.
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              </ContentContainer>
-          )}
-
-          {/* Other blockers (non-welcome) */}
-          {activeBlocker && activeBlocker.type !== 'SYSTEM_INTRO' && (
-              <ContentContainer>
-              {activeBlocker.type === 'V3_GATE' && (
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-base font-semibold text-purple-400">Next</span>
-                  </div>
-                  <p className="text-white text-base leading-relaxed">
-                    {activeBlocker.promptText || 'Do you have another incident to add?'}
-                  </p>
-                </div>
+                </ContentContainer>
               )}
-            </ContentContainer>
-          )}
+
+
 
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
@@ -5452,7 +5412,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && !multiInstanceGate && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
              {(() => {
@@ -5461,7 +5421,6 @@ export default function CandidateInterview() {
 
                const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
                const sectionName = sectionEntity?.section_name || question.category || '';
-               const questionNumber = getQuestionDisplayNumber(currentItem.id);
 
                return (
                  <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
@@ -5482,46 +5441,27 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* Null prompt fallback - prevents blank screen crash */}
-          {currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME' && currentItem?.type !== 'question' && (
-            <ContentContainer>
-              <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-5 h-5 text-red-400" />
-                  <span className="text-base font-semibold text-red-400">Unexpected State</span>
-                </div>
-                <p className="text-white text-sm mb-3">We hit an unexpected state. Please refresh the page.</p>
-                <div className="text-xs text-red-300/60 font-mono">
-                  <div>Type: {currentItem?.type}</div>
-                  <div>ID: {currentItem?.id}</div>
-                  <div>Pack: {currentItem?.packId || 'none'}</div>
-                  <div>Instance: {currentItem?.instanceNumber || 'none'}</div>
-                </div>
-              </div>
-            </ContentContainer>
-          )}
 
-          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
+
+          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup, multi_instance_gate) */}
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
                <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-semibold text-purple-400">Follow-up</span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-xs font-medium text-purple-400">
-                  {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
-                </span>
+             <div className="flex items-center gap-2 mb-3">
+               <span className="text-sm font-medium text-purple-400">
+                 {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
+               </span>
+             </div>
+             <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
+             {currentPrompt.exampleNarrative && (
+              <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
               </div>
-              <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
-              {currentPrompt.exampleNarrative && (
-               <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
-                 <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
-                 <p className="text-slate-300 text-xs italic">{currentPrompt.exampleNarrative}</p>
-               </div>
-              )}
-              </div>
+             )}
+             </div>
               ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
               <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
               <div className="flex items-center gap-2 mb-3">
@@ -5568,6 +5508,15 @@ export default function CandidateInterview() {
                     hasSections: sections.length > 0
                   });
                   
+                  // Append user click to transcript ("Got it — Let's Begin")
+                  await appendAndRefresh('user', {
+                    text: "Got it — Let's Begin",
+                    metadata: {
+                      messageType: 'WELCOME_ACKNOWLEDGED',
+                      visibleToCandidate: true
+                    }
+                  }, 'welcome_acknowledged');
+                  
                   // Get first question from section-first order
                   const firstQuestionId = sections.length > 0 && sections[0]?.questionIds?.length > 0
                     ? sections[0].questionIds[0]
@@ -5596,11 +5545,6 @@ export default function CandidateInterview() {
                     firstQuestionCode: firstQuestion.question_id,
                     firstQuestionText: firstQuestion.question_text?.substring(0, 50)
                   });
-                  
-                  // Mark blocker resolved (UI-only)
-                  if (uiBlocker && !uiBlocker.resolved) {
-                    setUiBlocker(null);
-                  }
                   
                   // Set screen mode and current item to first question
                   console.log('[FORENSIC][MODE_TRANSITION]', { 

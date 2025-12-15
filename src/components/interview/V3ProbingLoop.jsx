@@ -400,13 +400,8 @@ export default function V3ProbingLoop({
       {messages.map((msg) => (
         <div key={msg.id}>
           {msg.role === "ai" && !msg.isCompletion && (
-            <div className="space-y-2">
-              <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-purple-400 font-medium">Follow-up</span>
-                </div>
-                <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-              </div>
+            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+              <p className="text-white text-sm leading-relaxed">{msg.content}</p>
             </div>
           )}
           {msg.role === "user" && (
@@ -418,8 +413,6 @@ export default function V3ProbingLoop({
           )}
         </div>
       ))}
-
-      {/* Loading indicator suppressed - parent shows send button spinner */}
 
       <div ref={messagesEndRef} />
 
