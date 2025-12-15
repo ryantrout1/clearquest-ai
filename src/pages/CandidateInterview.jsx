@@ -1363,35 +1363,7 @@ export default function CandidateInterview() {
       return;
     }
     
-    // IDEMPOTENT BOOT: Prevent duplicate initialization on remount
-    if (__CQAI_BOOT.bootDone.has(sessionId)) {
-      console.log('[BOOT][SKIP] Session already booted - resuming from DB', { sessionId });
-      resumeFromDB();
-      return;
-    }
-    
-    // If boot in progress, await it
-    if (__CQAI_BOOT.bootPromises.has(sessionId)) {
-      console.log('[BOOT][AWAIT] Boot already in progress - waiting', { sessionId });
-      __CQAI_BOOT.bootPromises.get(sessionId).then(() => resumeFromDB());
-      return;
-    }
-    
-    // Start new boot
-    const bootPromise = initializeInterview()
-      .then(() => {
-        __CQAI_BOOT.bootDone.add(sessionId);
-        console.log('[BOOT][COMPLETE] Session boot complete', { sessionId });
-      })
-      .catch((err) => {
-        console.error('[BOOT][ERROR] Boot failed', { sessionId, error: err.message });
-        throw err;
-      })
-      .finally(() => {
-        __CQAI_BOOT.bootPromises.delete(sessionId);
-      });
-    
-    __CQAI_BOOT.bootPromises.set(sessionId, bootPromise);
+    initializeInterview();
 
     return () => {
       if (unsubscribeRef.current) {
@@ -1632,9 +1604,6 @@ export default function CandidateInterview() {
       }
 
       setIsLoading(false);
-      
-      // Mark boot complete
-      __CQAI_BOOT.bootDone.add(sessionId);
 
     } catch (err) {
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
