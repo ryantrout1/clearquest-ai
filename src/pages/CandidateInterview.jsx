@@ -1474,6 +1474,60 @@ export default function CandidateInterview() {
     };
   }, [screenMode, currentItem, v3ProbingContext, v3ProbingActive, dbTranscript, renderTranscript, nextRenderable]);
 
+  // RESUME: Load existing state without re-bootstrap
+  const resumeInterview = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      console.log('[CandidateInterview] RESUME', sessionId);
+
+      const session = await base44.entities.InterviewSession.get(sessionId);
+      if (!session) {
+        throw new Error("Session not found");
+      }
+
+      // Load transcript
+      setDbTranscriptSafe(session.transcript_snapshot || []);
+
+      // Bootstrap engine if not loaded
+      if (!engine) {
+        const eng = await bootstrapEngine(base44);
+        setEngine(eng);
+        
+        // Build sections
+        const orderedSections = buildSectionsFromEngine(eng);
+        setSections(orderedSections);
+        
+        // Restore section pointer
+        if (session.current_section_id && orderedSections.length > 0) {
+          const sectionIndex = orderedSections.findIndex(s => s.id === session.current_section_id);
+          if (sectionIndex >= 0) {
+            setCurrentSectionIndex(sectionIndex);
+          }
+        }
+      }
+
+      // Restore current item from DB pointer
+      const currentQuestionId = session.current_question_id;
+      if (currentQuestionId && engine?.QById) {
+        const question = engine.QById[currentQuestionId];
+        if (question) {
+          setCurrentItem({
+            type: 'question',
+            id: question.id
+          });
+        }
+      }
+
+      setScreenMode('QUESTION');
+      setIsLoading(false);
+    } catch (err) {
+      console.error('[CandidateInterview] RESUME_ERROR', err);
+      setError('Failed to resume interview');
+      setIsLoading(false);
+    }
+  };
+
   const initializeInterview = async () => {
     try {
       const { config } = await getSystemConfig();
@@ -3895,6 +3949,13 @@ export default function CandidateInterview() {
           base_question_id: baseQuestionId,
           base_question_code: baseQuestionCode
         });
+        
+        // Update current pointer
+        await base44.entities.InterviewSession.update(sessionId, {
+          current_question_id: baseQuestionId,
+          current_section_id: sectionId
+        });
+        
         console.log('[V2_PACK_FIELD][SAVE][OK] Created new Response for', { packId, fieldKey, instanceNumber });
         return created;
       }
