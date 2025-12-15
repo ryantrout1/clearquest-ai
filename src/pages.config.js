@@ -5,7 +5,6 @@ import BackfillSummaries from './pages/BackfillSummaries';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
 import CandidateInterview from './pages/CandidateInterview';
-import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
@@ -40,7 +39,6 @@ export const PAGES = {
     "CandidateInterview.backup": candidateinterviewBackup,
     "CandidateInterview.backup": candidateinterviewBackup,
     "CandidateInterview": CandidateInterview,
-    "CandidateInterview_CLEAN": candidateinterviewClean,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,
