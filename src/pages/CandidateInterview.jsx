@@ -4801,7 +4801,7 @@ export default function CandidateInterview() {
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   return (
-    <div className="min-h-screen w-full h-screen bg-slate-950 text-white flex flex-col relative overflow-hidden" style={{ backgroundColor: "#020617" }}>
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#0b1220] via-[#0b1a3a] to-[#020617] text-white flex flex-col relative overflow-hidden">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -4850,21 +4850,27 @@ export default function CandidateInterview() {
         </div>
       </header>
 
-      <main className="flex-1 relative overflow-hidden bg-slate-950" style={{ backgroundColor: "#020617" }}>
+      <main className="flex-1 relative overflow-hidden isolate">
         <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
-          <div className="space-y-2">
+          <div className="space-y-2 relative isolate">
           {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
           {(() => {
-            // QUESTION MODE: Hide all transcript history - show only current question
-            if (currentItem?.type === 'question' && screenMode === 'QUESTION' && !v3ProbingActive && !activeBlocker) {
-              return null; // Don't render transcript in QUESTION mode
-            }
+            // VISUAL HIDE: Determine if we have an active prompt that should hide transcript
+            const __cqaiHasActivePrompt = Boolean(currentItem?.type) && (
+              currentItem.type === 'question' || 
+              currentItem.type === 'v2_pack_field' || 
+              currentItem.type === 'v3_pack_opener' || 
+              currentItem.type === 'followup' ||
+              currentItem.type === 'multi_instance_gate'
+            ) && !v3ProbingActive && !activeBlocker;
             
             // STABLE: Render from append-only list (prevents flashing/disappearing)
             const visibleTranscript = renderedCandidateMessages;
             
-            return visibleTranscript.map((entry, index) => {
+            return (
+              <div className={__cqaiHasActivePrompt ? "opacity-0 pointer-events-none select-none h-0 overflow-hidden" : "opacity-100 relative z-10"}>
+                {visibleTranscript.map((entry, index) => {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
@@ -5180,7 +5186,9 @@ export default function CandidateInterview() {
               )}
             </div>
             );
-          });
+          })}
+              </div>
+            );
           })()}
 
           {/* Welcome Card - Always show when WELCOME mode */}
@@ -5264,7 +5272,7 @@ export default function CandidateInterview() {
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
           {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
-           <div ref={questionCardRef} className="w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
+           <div ref={questionCardRef} className="relative z-20 w-full bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-xl p-1">
              {(() => {
                const question = engine.QById[currentItem.id];
                if (!question) return null;
@@ -5318,7 +5326,7 @@ export default function CandidateInterview() {
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
-           <div ref={questionCardRef} className="w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
+           <div ref={questionCardRef} className="relative z-30 w-full bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -5373,7 +5381,7 @@ export default function CandidateInterview() {
               </div>
               </main>
 
-              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-slate-800 px-4 py-4" style={{ backgroundColor: "#020617" }}>
+              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
