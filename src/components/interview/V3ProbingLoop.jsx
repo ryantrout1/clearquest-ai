@@ -399,15 +399,11 @@ export default function V3ProbingLoop({
       {/* V3 Messages - using existing ClearQuest bubble style */}
       {messages.map((msg) => (
         <div key={msg.id}>
-          {msg.role === "ai" && (
+          {msg.role === "ai" && !msg.isCompletion && (
             <div className="space-y-2">
               <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Bot className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs text-purple-400 font-medium">AI Follow-Up (V3)</span>
-                  {msg.isCompletion && (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400 ml-auto" />
-                  )}
+                  <span className="text-xs text-purple-400 font-medium">Follow-up</span>
                 </div>
                 <p className="text-white text-sm leading-relaxed">{msg.content}</p>
               </div>
