@@ -5269,7 +5269,7 @@ export default function CandidateInterview() {
 
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
-           <ContentContainer>
+           <ContentContainer className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
            <V3ProbingLoop
              sessionId={sessionId}
              categoryId={v3ProbingContext.categoryId}
@@ -5294,7 +5294,7 @@ export default function CandidateInterview() {
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
           {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
-           <div ref={questionCardRef} className="w-full">
+           <div ref={questionCardRef} className="w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
              {(() => {
                const question = engine.QById[currentItem.id];
                if (!question) return null;
@@ -5348,7 +5348,7 @@ export default function CandidateInterview() {
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
-           <div ref={questionCardRef} className="w-full">
+           <div ref={questionCardRef} className="w-full bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
                <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
