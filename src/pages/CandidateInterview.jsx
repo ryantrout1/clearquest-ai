@@ -4832,7 +4832,7 @@ export default function CandidateInterview() {
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col">
+    <div className="min-h-screen w-full h-screen bg-slate-950 text-white flex flex-col relative overflow-hidden" style={{ backgroundColor: "#020617" }}>
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -4881,7 +4881,8 @@ export default function CandidateInterview() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto scrollbar-thin bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" ref={historyRef}>
+      <main className="flex-1 relative overflow-hidden bg-slate-950" style={{ backgroundColor: "#020617" }}>
+        <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
@@ -5400,9 +5401,10 @@ export default function CandidateInterview() {
               )}
               </div>
               </div>
+              </div>
               </main>
 
-              <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4 relative z-10">
+              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-slate-800 px-4 py-4" style={{ backgroundColor: "#020617" }}>
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
