@@ -4,7 +4,6 @@ import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
-import CandidateInterview from './pages/CandidateInterview';
 import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
@@ -29,7 +28,6 @@ import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
-import zzzCandidateinterviewBackup from './pages/zzz_CandidateInterview.backup';
 import __Layout from './Layout.jsx';
 
 
@@ -40,7 +38,6 @@ export const PAGES = {
     "BackfillSummaries": BackfillSummaries,
     "CandidateInterview.backup": candidateinterviewBackup,
     "CandidateInterview.backup": candidateinterviewBackup,
-    "CandidateInterview": CandidateInterview,
     "CandidateInterview_CLEAN": candidateinterviewClean,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
@@ -65,7 +62,6 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
-    "zzz_CandidateInterview.backup": zzzCandidateinterviewBackup,
 }
 
 export const pagesConfig = {
