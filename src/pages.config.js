@@ -1,7 +1,10 @@
+import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
+import candidateinterviewBackup from './pages/CandidateInterview.backup';
+import CandidateInterview from './pages/CandidateInterview';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
@@ -11,7 +14,6 @@ import FollowUpPackAuditV2 from './pages/FollowUpPackAuditV2';
 import FollowUpPackManagerV2 from './pages/FollowUpPackManagerV2';
 import FollowUpPackQuickAssign from './pages/FollowUpPackQuickAssign';
 import FollowupPackManager from './pages/FollowupPackManager';
-import Home from './pages/Home';
 import HomeHub from './pages/HomeHub';
 import Interview from './pages/Interview';
 import InterviewDashboard from './pages/InterviewDashboard';
@@ -25,15 +27,18 @@ import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
-import CandidateInterview from './pages/CandidateInterview';
+import candidateinterviewClean from './pages/CandidateInterview_CLEAN';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "Home": Home,
     "AdminDashboard": AdminDashboard,
     "AdminLogin": AdminLogin,
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
+    "CandidateInterview.backup": candidateinterviewBackup,
+    "CandidateInterview": CandidateInterview,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,
@@ -43,7 +48,6 @@ export const PAGES = {
     "FollowUpPackManagerV2": FollowUpPackManagerV2,
     "FollowUpPackQuickAssign": FollowUpPackQuickAssign,
     "FollowupPackManager": FollowupPackManager,
-    "Home": Home,
     "HomeHub": HomeHub,
     "Interview": Interview,
     "InterviewDashboard": InterviewDashboard,
@@ -57,7 +61,7 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
-    "CandidateInterview": CandidateInterview,
+    "CandidateInterview_CLEAN": candidateinterviewClean,
 }
 
 export const pagesConfig = {
