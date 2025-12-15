@@ -1035,6 +1035,9 @@ export default function CandidateInterview() {
   const [v3DebugEnabled, setV3DebugEnabled] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isNewSession, setIsNewSession] = useState(true);
+  
+  // Debug mode: Only enable if admin user AND ?debug=1 in URL
+  const debugEnabled = isAdminUser && (new URLSearchParams(window.location.search).get("debug") === "1");
 
   // V3 GATE: Authoritative multi-instance gate state
   const [v3Gate, setV3Gate] = useState({
@@ -1359,7 +1362,36 @@ export default function CandidateInterview() {
       navigate(createPageUrl("StartInterview"));
       return;
     }
-    initializeInterview();
+    
+    // IDEMPOTENT BOOT: Prevent duplicate initialization on remount
+    if (__CQAI_BOOT.bootDone.has(sessionId)) {
+      console.log('[BOOT][SKIP] Session already booted - resuming from DB', { sessionId });
+      resumeFromDB();
+      return;
+    }
+    
+    // If boot in progress, await it
+    if (__CQAI_BOOT.bootPromises.has(sessionId)) {
+      console.log('[BOOT][AWAIT] Boot already in progress - waiting', { sessionId });
+      __CQAI_BOOT.bootPromises.get(sessionId).then(() => resumeFromDB());
+      return;
+    }
+    
+    // Start new boot
+    const bootPromise = initializeInterview()
+      .then(() => {
+        __CQAI_BOOT.bootDone.add(sessionId);
+        console.log('[BOOT][COMPLETE] Session boot complete', { sessionId });
+      })
+      .catch((err) => {
+        console.error('[BOOT][ERROR] Boot failed', { sessionId, error: err.message });
+        throw err;
+      })
+      .finally(() => {
+        __CQAI_BOOT.bootPromises.delete(sessionId);
+      });
+    
+    __CQAI_BOOT.bootPromises.set(sessionId, bootPromise);
 
     return () => {
       if (unsubscribeRef.current) {
@@ -1437,6 +1469,41 @@ export default function CandidateInterview() {
     };
   }, [screenMode, currentItem, v3ProbingContext, v3ProbingActive, dbTranscript, renderTranscript, nextRenderable]);
 
+  const resumeFromDB = async () => {
+    try {
+      console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
+      
+      const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+      if (!loadedSession) {
+        setError('Session not found');
+        setIsLoading(false);
+        return;
+      }
+      
+      setSession(loadedSession);
+      setDbTranscriptSafe(loadedSession.transcript_snapshot || []);
+      setQueue(loadedSession.queue_snapshot || []);
+      setCurrentItem(loadedSession.current_item_snapshot || null);
+      
+      // Restore UI state
+      const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+      setIsNewSession(!hasAnyResponses);
+      setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+      
+      setIsLoading(false);
+      setTimeout(() => autoScrollToBottom(), 100);
+      
+      console.log('[BOOT][RESUME][OK]', { 
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        currentItemType: loadedSession.current_item_snapshot?.type
+      });
+    } catch (err) {
+      console.error('[BOOT][RESUME][ERROR]', err.message);
+      setError(`Resume failed: ${err.message}`);
+      setIsLoading(false);
+    }
+  };
+
   const initializeInterview = async () => {
     try {
       const { config } = await getSystemConfig();
@@ -1460,9 +1527,9 @@ export default function CandidateInterview() {
       setV3DebugEnabled(v3DebugMode);
 
       // Candidate mode: Do NOT call User/me - interviews run anonymously
-      console.log("[AUTH] Candidate mode: skipping /User/me");
       setIsAdminUser(false);
 
+      // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
       if (!loadedSession) {
@@ -1525,7 +1592,7 @@ export default function CandidateInterview() {
       if (needsRebuild) {
         await rebuildSessionFromResponses(engineData, loadedSession);
       } else if (hasValidSnapshots) {
-        const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
+            const restoreSuccessful = await restoreFromSnapshots(engineData, loadedSession);
 
         if (!restoreSuccessful) {
           await rebuildSessionFromResponses(engineData, loadedSession);
@@ -1539,19 +1606,6 @@ export default function CandidateInterview() {
       const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
       const sessionIsNew = !hasAnyResponses;
 
-      console.log("[CandidateInterview] init", {
-        isNewSession: sessionIsNew,
-        screenMode: sessionIsNew ? "WELCOME" : "QUESTION",
-        layoutVersion: "section-first"
-      });
-      
-      console.log('[FORENSIC][INIT]', {
-        sessionId,
-        isNewSession: sessionIsNew,
-        transcriptLenFromDB: loadedSession.transcript_snapshot?.length || 0,
-        initialScreenMode: sessionIsNew ? "WELCOME" : "QUESTION"
-      });
-
       setIsNewSession(sessionIsNew);
       setScreenMode(sessionIsNew ? "WELCOME" : "QUESTION");
 
@@ -1563,7 +1617,6 @@ export default function CandidateInterview() {
           resolved: false,
           timestamp: new Date().toISOString()
         });
-        await forensicCheck('initial');
       }
 
       // Log system events
@@ -1579,6 +1632,9 @@ export default function CandidateInterview() {
       }
 
       setIsLoading(false);
+      
+      // Mark boot complete
+      __CQAI_BOOT.bootDone.add(sessionId);
 
     } catch (err) {
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
@@ -1591,15 +1647,6 @@ export default function CandidateInterview() {
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
-    
-    console.log('[FORENSIC][RESTORE]', {
-      source: 'DB_SNAPSHOT',
-      transcriptLen: restoredTranscript.length,
-      queueLen: restoredQueue.length,
-      hasCurrentItem: !!restoredCurrentItem,
-      currentItemType: restoredCurrentItem?.type,
-      currentItemId: restoredCurrentItem?.id
-    });
 
     const hasTranscript = restoredTranscript.length > 0;
     const isCompleted = loadedSession.status === 'completed';
@@ -1613,13 +1660,6 @@ export default function CandidateInterview() {
       return false;
     }
 
-    // PART B: No Welcome injection on resume
-    console.log('[FORENSIC][RESTORE][SYNC]', { 
-      operation: 'SET_LOCAL_STATE', 
-      transcriptLen: restoredTranscript.length,
-      queueLen: restoredQueue.length,
-      currentItemType: restoredCurrentItem?.type
-    });
     setDbTranscriptSafe(restoredTranscript);
     setQueue(restoredQueue);
     setCurrentItem(restoredCurrentItem);
@@ -4875,50 +4915,18 @@ export default function CandidateInterview() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto scrollbar-thin" ref={historyRef}>
+      <main className="flex-1 overflow-y-auto scrollbar-thin bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" ref={historyRef}>
         <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
           <div className="space-y-2">
           {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
           {(() => {
             // QUESTION MODE: Hide all transcript history - show only current question
             if (currentItem?.type === 'question' && screenMode === 'QUESTION' && !v3ProbingActive && !activeBlocker) {
-              console.log('[QUESTION_MODE][HIDE_TRANSCRIPT] Hiding transcript - showing only current question');
               return null; // Don't render transcript in QUESTION mode
             }
             
             // STABLE: Render from append-only list (prevents flashing/disappearing)
             const visibleTranscript = renderedCandidateMessages;
-            
-            // FORENSIC: Truth table for transcript pipeline
-            console.log("[FORENSIC][PIPELINE]", {
-              canonicalLen: dbTranscript.length,
-              renderableLen: nextRenderable?.length || 0,
-              frozenLen: renderTranscript?.length || 0,
-              visibleLen: visibleTranscript?.length || 0,
-              currentItemType,
-              currentItemId: currentItem?.id,
-              v3ProbingActive,
-              v2PackMode,
-              packId: currentItem?.packId || activeV2Pack?.packId,
-              instanceNumber: currentItem?.instanceNumber || activeV2Pack?.instanceNumber,
-              isTypingLocked: isUserTyping
-            });
-            
-            // CANONICAL SOURCE VERIFICATION
-            console.log("[TRANSCRIPT_SOURCE]", {
-              canonicalLen: dbTranscript.length,
-              displayLen: visibleTranscript.length,
-              currentItemType: currentItemType
-            });
-            
-            // DIVERGENCE DETECTION (warning only - does not block)
-            if (dbTranscript.length > 0 && visibleTranscript.length === 0) {
-              console.warn('[TRANSCRIPT_DIVERGENCE]', {
-                canonicalLen: dbTranscript.length,
-                displayLen: 0,
-                alert: 'All messages hidden by filter'
-              });
-            }
             
             return visibleTranscript.map((entry, index) => {
 
@@ -5294,16 +5302,7 @@ export default function CandidateInterview() {
           )}
 
           {/* V3 Probing Loop */}
-          {(() => {
-            console.log('[FORENSIC][V3_PROBING_GUARD]', {
-              shouldRenderV3: v3ProbingActive && !!v3ProbingContext,
-              v3ProbingActive,
-              hasContext: !!v3ProbingContext,
-              packId: v3ProbingContext?.packId,
-              instanceNumber: v3ProbingContext?.instanceNumber
-            });
-            return v3ProbingActive && v3ProbingContext;
-          })() && (
+          {v3ProbingActive && v3ProbingContext && (
            <ContentContainer>
            <V3ProbingLoop
              sessionId={sessionId}
@@ -5327,20 +5326,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
-          {(() => {
-            const shouldRenderBase = !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine;
-            console.log('[FORENSIC][BASE_CARD_GUARD]', {
-              shouldRenderBase,
-              activeBlocker: !!activeBlocker,
-              v3ProbingActive,
-              pendingSectionTransition: !!pendingSectionTransition,
-              currentItemType: currentItem?.type,
-              currentItemId: currentItem?.id,
-              v2PackMode,
-              hasEngine: !!engine
-            });
-            return shouldRenderBase;
-          })() && (
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {(() => {
@@ -5375,10 +5361,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Null prompt fallback - prevents blank screen crash */}
-          {(() => {
-            const needsFallback = currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME' && currentItem?.type !== 'question';
-            return needsFallback;
-          })() && (
+          {currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME' && currentItem?.type !== 'question' && (
             <ContentContainer>
               <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -5397,24 +5380,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
-          {(() => {
-            // GUARD: Never render prompt cards when v3_probing is active (V3ProbingLoop owns UI)
-            const shouldRenderPrompt = !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing';
-            console.log('[FORENSIC][PROMPT_CARD_GUARD]', {
-              shouldRenderPrompt,
-              activeBlocker: !!activeBlocker,
-              hasCurrentPrompt: !!currentPrompt,
-              currentPromptType: currentPrompt?.type,
-              v3ProbingActive,
-              pendingSectionTransition: !!pendingSectionTransition,
-              currentItemType: currentItem?.type,
-              currentItemId: currentItem?.id,
-              packId: currentItem?.packId,
-              fieldKey: currentItem?.fieldKey
-            });
-            console.log('[ACTIVE_PROMPT_CARD]', { type: currentItem?.type, packId: currentItem?.packId });
-            return shouldRenderPrompt;
-          })() && (
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
            <div ref={questionCardRef} className="w-full">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
@@ -5470,7 +5436,7 @@ export default function CandidateInterview() {
               </div>
               </main>
 
-              <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4">
+              <footer className="flex-shrink-0 bg-[#121c33] border-t border-slate-700 px-4 py-4 relative z-10">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
@@ -5905,8 +5871,8 @@ export default function CandidateInterview() {
         </DialogContent>
       </Dialog>
 
-      {/* V3 Debug Panel - Admin only */}
-      {v3DebugEnabled && isAdminUser && session?.ide_version === "V3" && (
+      {/* V3 Debug Panel - Admin only AND ?debug=1 */}
+      {debugEnabled && v3DebugEnabled && session?.ide_version === "V3" && (
         <V3DebugPanel
           sessionId={sessionId}
           incidentId={v3ProbingContext?.incidentId}
