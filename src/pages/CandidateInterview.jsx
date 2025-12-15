@@ -4801,7 +4801,7 @@ export default function CandidateInterview() {
   const isBottomBarSubmitDisabled = !currentItem || isCommitting || !(input ?? "").trim();
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-[#0b1220] via-[#0b1a3a] to-[#020617] text-white flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex flex-col relative overflow-hidden">
       <header className="flex-shrink-0 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -4863,13 +4863,13 @@ export default function CandidateInterview() {
               currentItem.type === 'v3_pack_opener' || 
               currentItem.type === 'followup' ||
               currentItem.type === 'multi_instance_gate'
-            ) && !v3ProbingActive && !activeBlocker;
+            ) && !v3ProbingActive && !activeBlocker && screenMode !== 'WELCOME';
             
             // STABLE: Render from append-only list (prevents flashing/disappearing)
             const visibleTranscript = renderedCandidateMessages;
             
             return (
-              <div className={__cqaiHasActivePrompt ? "opacity-0 pointer-events-none select-none h-0 overflow-hidden" : "opacity-100 relative z-10"}>
+              <div className={__cqaiHasActivePrompt ? "opacity-0 pointer-events-none select-none h-0 overflow-hidden" : "opacity-100 transition-opacity duration-200"}>
                 {visibleTranscript.map((entry, index) => {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
@@ -4942,17 +4942,15 @@ export default function CandidateInterview() {
               );
             }
 
-            // TOP-PRIORITY: v3_probe_complete renders as plain assistant message (NO "AI Follow-Up (V3)" label)
-            if (entry.role === 'assistant' && entry.messageType === 'v3_probe_complete') {
-              return (
-                <div key={entry.id}>
-                  <ContentContainer>
-                  <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-                    <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                  </div>
-                  </ContentContainer>
-                </div>
-              );
+            // SUPPRESS: v3_probe_complete and all AI thinking/system messages
+            if (entry.role === 'assistant' && (
+              entry.messageType === 'v3_probe_complete' ||
+              entry.messageType === 'AI_THINKING' ||
+              entry.messageType === 'SYSTEM_MESSAGE' ||
+              entry.messageType?.includes('THINKING') ||
+              entry.messageType?.includes('PROBE_THINKING')
+            )) {
+              return null;
             }
 
             // SUPPRESS: "Do you have another..." prompts in transcript (footer gate shows it)
@@ -5272,7 +5270,7 @@ export default function CandidateInterview() {
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
           {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
-           <div ref={questionCardRef} className="relative z-20 w-full bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-xl p-1">
+           <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
              {(() => {
                const question = engine.QById[currentItem.id];
                if (!question) return null;
@@ -5282,7 +5280,7 @@ export default function CandidateInterview() {
                const questionNumber = getQuestionDisplayNumber(currentItem.id);
 
                return (
-                 <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+                 <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
                    <div className="flex items-center gap-2 mb-2">
                      <span className="text-base font-semibold text-blue-400">
                        Question {questionNumber}
@@ -5326,9 +5324,9 @@ export default function CandidateInterview() {
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup) */}
           {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
-           <div ref={questionCardRef} className="relative z-30 w-full bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-xl p-1">
+           <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
-               <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+               <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
@@ -5345,7 +5343,7 @@ export default function CandidateInterview() {
               )}
               </div>
               ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
-              <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+              <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-semibold text-purple-400">Follow-up</span>
                 <span className="text-xs text-slate-500">•</span>
@@ -5356,7 +5354,7 @@ export default function CandidateInterview() {
               <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
             </div>
           ) : (
-            <div className="bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
+            <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-base font-semibold text-blue-400">
                   Question {currentItem ? getQuestionDisplayNumber(currentItem.id) : ''}
@@ -5381,7 +5379,7 @@ export default function CandidateInterview() {
               </div>
               </main>
 
-              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] backdrop-blur-sm border-t border-slate-800 px-4 py-4">
+              <footer className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
           {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
