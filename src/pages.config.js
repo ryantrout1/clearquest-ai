@@ -28,7 +28,7 @@ import StartInterview from './pages/StartInterview';
 import SystemAdminDashboard from './pages/SystemAdminDashboard';
 import SystemConfiguration from './pages/SystemConfiguration';
 import TrialSignup from './pages/TrialSignup';
-import zzzCandidateinterview from './pages/zzz_CandidateInterview';
+import zzzCandidateinterviewBackup from './pages/zzz_CandidateInterview.backup';
 import __Layout from './Layout.jsx';
 
 
@@ -63,7 +63,7 @@ export const PAGES = {
     "SystemAdminDashboard": SystemAdminDashboard,
     "SystemConfiguration": SystemConfiguration,
     "TrialSignup": TrialSignup,
-    "zzz_CandidateInterview": zzzCandidateinterview,
+    "zzz_CandidateInterview.backup": zzzCandidateinterviewBackup,
 }
 
 export const pagesConfig = {
