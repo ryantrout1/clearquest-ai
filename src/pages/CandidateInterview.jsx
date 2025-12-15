@@ -5068,8 +5068,16 @@ export default function CandidateInterview() {
                 <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-[#1a2744] border border-slate-700/60 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm font-medium text-slate-400">{entry.meta?.sectionName || ''}</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base font-semibold text-blue-400">
+                        Question {entry.meta?.questionNumber || ''}
+                      </span>
+                      {entry.meta?.sectionName && (
+                        <>
+                          <span className="text-sm text-slate-500">•</span>
+                          <span className="text-sm font-medium text-slate-300">{entry.meta.sectionName}</span>
+                        </>
+                      )}
                     </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
                   </div>
@@ -5170,11 +5178,6 @@ export default function CandidateInterview() {
                 (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-purple-400 font-medium">
-                      {entry.categoryLabel || entry.title || 'Follow-up'}
-                    </span>
-                  </div>
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                   {entry.example && (
                     <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
@@ -5363,7 +5366,7 @@ export default function CandidateInterview() {
             );
           })()}
 
-              {/* Welcome message (rendered from transcript if present) */}
+              {/* Welcome message (from transcript) */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
@@ -5381,6 +5384,17 @@ export default function CandidateInterview() {
                       ))}
                     </div>
                   )}
+                </div>
+                </ContentContainer>
+              )}
+
+              {/* Welcome acknowledged (user click) */}
+              {entry.messageType === 'WELCOME_ACKNOWLEDGED' && entry.role === 'user' && (
+                <ContentContainer>
+                <div className="flex justify-end">
+                  <div className="bg-blue-600 rounded-xl px-5 py-3">
+                    <p className="text-white text-sm">{entry.text}</p>
+                  </div>
                 </div>
                 </ContentContainer>
               )}
@@ -5412,7 +5426,7 @@ export default function CandidateInterview() {
           )}
 
           {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && !v3GateActive && !multiInstanceGate && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
+          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
              {(() => {
@@ -5421,11 +5435,16 @@ export default function CandidateInterview() {
 
                const sectionEntity = engine.Sections.find(s => s.id === question.section_id);
                const sectionName = sectionEntity?.section_name || question.category || '';
+               const questionNumber = getQuestionDisplayNumber(currentItem.id);
 
                return (
                  <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-                   <div className="flex items-center gap-2 mb-3">
-                     <span className="text-sm font-medium text-slate-400">{sectionName}</span>
+                   <div className="flex items-center gap-2 mb-2">
+                     <span className="text-base font-semibold text-blue-400">
+                       Question {questionNumber}
+                     </span>
+                     <span className="text-sm text-slate-500">•</span>
+                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
                    </div>
                    <p className="text-white text-base leading-relaxed">{question.question_text}</p>
                  </div>
@@ -5444,12 +5463,12 @@ export default function CandidateInterview() {
 
 
           {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup, multi_instance_gate) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && (
+          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
                <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-             <div className="flex items-center gap-2 mb-3">
+             <div className="flex items-center gap-2 mb-2">
                <span className="text-sm font-medium text-purple-400">
                  {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
                </span>
@@ -5464,17 +5483,23 @@ export default function CandidateInterview() {
              </div>
               ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
               <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-medium text-purple-400">
                   {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
                 </span>
               </div>
               <p className="text-white text-sm leading-relaxed">{currentPrompt.text}</p>
             </div>
+          ) : currentPrompt?.type === 'multi_instance_gate' ? (
+            <div className="bg-purple-900/30 border border-purple-700/50 rounded-xl p-5 shadow-2xl">
+              <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
+            </div>
           ) : (
             <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-medium text-slate-400">{currentPrompt.category}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base font-semibold text-blue-400">
+                  {currentPrompt.type === 'question' ? `Question ${getQuestionDisplayNumber(currentItem?.id)}` : currentPrompt.category}
+                </span>
               </div>
               <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
             </div>
@@ -5575,7 +5600,7 @@ export default function CandidateInterview() {
                 Got it — Let's Begin
               </Button>
             </div>
-          ) : bottomBarMode === "CTA" && activeBlocker?.type === 'SECTION_MESSAGE' ? (
+          ) : bottomBarMode === "CTA" && (activeBlocker?.type === 'SECTION_MESSAGE' || pendingSectionTransition) ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
