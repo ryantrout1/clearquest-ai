@@ -419,16 +419,7 @@ export default function V3ProbingLoop({
         </div>
       ))}
 
-      {isLoading && (
-        <div>
-          <div className="w-full bg-slate-800/30 border border-slate-700/40 rounded-xl p-4">
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-              <span className="text-sm text-slate-300">Thinking...</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Loading indicator suppressed - parent shows send button spinner */}
 
       <div ref={messagesEndRef} />
 

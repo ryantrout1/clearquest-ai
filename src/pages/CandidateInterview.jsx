@@ -412,11 +412,13 @@ const syncFactsToInterviewSession = async (sessionId, questionId, packId, follow
   }
 };
 
+// STABLE EVENT ID: Module-scope counter (never triggers remounts)
+let eventIdCounter = 0;
+
 const createChatEvent = (type, data = {}) => {
-  // STABLE: Use sequential counter instead of Date.now() to prevent remount triggers
-  const counter = (createChatEvent._counter = (createChatEvent._counter || 0) + 1);
+  eventIdCounter++;
   const baseEvent = {
-    id: `${type}-${counter}`,
+    id: `${type}-${eventIdCounter}`,
     type,
     timestamp: new Date().toISOString(),
     ...data
@@ -1426,8 +1428,8 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
-  // STABLE: Single mount per session - dependencies MUST be stable
-  const initOnceRef = useRef(false);
+  // STABLE: Single mount per session - track by sessionId (survives remounts)
+  const initMapRef = useRef({});
   
   useEffect(() => {
     if (!sessionId) {
@@ -1435,13 +1437,40 @@ export default function CandidateInterview() {
       return;
     }
     
-    // CRITICAL: Only initialize once per sessionId to prevent remounts
-    if (initOnceRef.current) {
-      console.log('[MOUNT_GUARD] Already initialized for this session - skipping');
+    // CRITICAL: Only initialize once per sessionId (even if component remounts)
+    if (initMapRef.current[sessionId]) {
+      console.log('[MOUNT_GUARD] Already initialized for sessionId - skipping init', { sessionId });
+      
+      // Remount recovery: restore state from DB without full init
+      const quickRestore = async () => {
+        try {
+          const loadedSession = await base44.entities.InterviewSession.get(sessionId);
+          if (loadedSession) {
+            setSession(loadedSession);
+            setDbTranscriptSafe(loadedSession.transcript_snapshot || []);
+            setQueue(loadedSession.queue_snapshot || []);
+            setCurrentItem(loadedSession.current_item_snapshot || null);
+            setIsLoading(false);
+            
+            const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+            setIsNewSession(!hasAnyResponses);
+            setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
+            
+            console.log('[MOUNT_GUARD][QUICK_RESTORE]', { transcriptLen: loadedSession.transcript_snapshot?.length || 0 });
+          }
+        } catch (err) {
+          console.error('[MOUNT_GUARD][QUICK_RESTORE][ERROR]', err);
+        }
+      };
+      
+      quickRestore();
       return;
     }
     
-    initOnceRef.current = true;
+    // Mark this sessionId as initialized
+    initMapRef.current[sessionId] = true;
+    console.log('[MOUNT_GUARD] First init for sessionId', { sessionId });
+    
     initializeInterview();
 
     return () => {
@@ -1451,6 +1480,8 @@ export default function CandidateInterview() {
       clearTimeout(typingTimeoutRef.current);
       clearTimeout(aiResponseTimeoutRef.current);
       clearTimeout(typingLockTimeoutRef.current);
+      
+      // DO NOT clear initMapRef on unmount - allows detection across remounts
     };
   }, [sessionId]);
 
@@ -1549,8 +1580,10 @@ export default function CandidateInterview() {
   }, []);
 
   const resumeFromDB = async () => {
+    const oldTranscriptLen = (dbTranscript || []).length;
+    
     try {
-      console.log('[BOOT][RESUME] Light resume from DB', { sessionId });
+      console.log('[BOOT][RESUME] Light resume from DB', { sessionId, oldTranscriptLen });
       
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
       if (!loadedSession) {
@@ -1559,13 +1592,29 @@ export default function CandidateInterview() {
         return;
       }
       
-      setSession(loadedSession);
-      setDbTranscriptSafe(loadedSession.transcript_snapshot || []);
-      setQueue(loadedSession.queue_snapshot || []);
-      setCurrentItem(loadedSession.current_item_snapshot || null);
+      const freshTranscript = loadedSession.transcript_snapshot || [];
       
-      // Restore UI state
-      const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
+      // SHRINK GUARD: Never replace transcript with shorter version
+      if (transcriptInitializedRef.current && freshTranscript.length < oldTranscriptLen) {
+        console.error('[TRANSCRIPT_GUARD] prevented shrink in resumeFromDB', {
+          oldLen: oldTranscriptLen,
+          newLen: freshTranscript.length,
+          reason: 'resume',
+          action: 'USING_OLD'
+        });
+        // Keep existing transcript, but still update other session data
+        setSession(loadedSession);
+        setQueue(loadedSession.queue_snapshot || []);
+        setCurrentItem(loadedSession.current_item_snapshot || null);
+      } else {
+        setSession(loadedSession);
+        setDbTranscriptSafe(freshTranscript);
+        setQueue(loadedSession.queue_snapshot || []);
+        setCurrentItem(loadedSession.current_item_snapshot || null);
+      }
+      
+      // Restore UI state WITHOUT resetting transcript
+      const hasAnyResponses = freshTranscript.length > 0;
       setIsNewSession(!hasAnyResponses);
       setScreenMode(hasAnyResponses ? "QUESTION" : "WELCOME");
       
@@ -1573,7 +1622,7 @@ export default function CandidateInterview() {
       setTimeout(() => autoScrollToBottom(), 100);
       
       console.log('[BOOT][RESUME][OK]', { 
-        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        transcriptLen: freshTranscript.length,
         currentItemType: loadedSession.current_item_snapshot?.type
       });
     } catch (err) {
@@ -1728,6 +1777,7 @@ export default function CandidateInterview() {
   };
 
   const restoreFromSnapshots = async (engineData, loadedSession) => {
+    const oldTranscriptLen = (dbTranscript || []).length;
     const restoredTranscript = loadedSession.transcript_snapshot || [];
     const restoredQueue = loadedSession.queue_snapshot || [];
     const restoredCurrentItem = loadedSession.current_item_snapshot || null;
@@ -1744,9 +1794,22 @@ export default function CandidateInterview() {
       return false;
     }
 
-    setDbTranscriptSafe(restoredTranscript);
-    setQueue(restoredQueue);
-    setCurrentItem(restoredCurrentItem);
+    // SHRINK GUARD: Never restore shorter transcript
+    if (transcriptInitializedRef.current && restoredTranscript.length < oldTranscriptLen) {
+      console.error('[TRANSCRIPT_GUARD] prevented shrink in restoreFromSnapshots', {
+        oldLen: oldTranscriptLen,
+        newLen: restoredTranscript.length,
+        reason: 'restore',
+        action: 'KEEPING_OLD'
+      });
+      // Keep old transcript, restore other state
+      setQueue(restoredQueue);
+      setCurrentItem(restoredCurrentItem);
+    } else {
+      setDbTranscriptSafe(restoredTranscript);
+      setQueue(restoredQueue);
+      setCurrentItem(restoredCurrentItem);
+    }
 
     if (!restoredCurrentItem && restoredQueue.length > 0) {
       const nextItem = restoredQueue[0];
@@ -1767,6 +1830,8 @@ export default function CandidateInterview() {
   };
 
   const rebuildSessionFromResponses = async (engineData, loadedSession) => {
+    const oldTranscriptLen = (dbTranscript || []).length;
+    
     try {
       const responses = await base44.entities.Response.filter({
         session_id: sessionId
@@ -1798,8 +1863,20 @@ export default function CandidateInterview() {
         }
       }
 
-      setDbTranscriptSafe(restoredTranscript);
-      displayOrderRef.current = restoredTranscript.length;
+      // SHRINK GUARD: Only update if rebuilt is longer or same length
+      if (transcriptInitializedRef.current && restoredTranscript.length < oldTranscriptLen) {
+        console.error('[TRANSCRIPT_GUARD] prevented shrink in rebuildFromResponses', {
+          oldLen: oldTranscriptLen,
+          newLen: restoredTranscript.length,
+          reason: 'rebuild',
+          action: 'KEEPING_OLD'
+        });
+        // Keep old transcript - critical for maintaining chat history
+      } else {
+        setDbTranscriptSafe(restoredTranscript);
+      }
+      
+      displayOrderRef.current = Math.max(restoredTranscript.length, oldTranscriptLen);
 
       let nextQuestionId = null;
 
@@ -5388,12 +5465,8 @@ export default function CandidateInterview() {
 
                return (
                  <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-base font-semibold text-blue-400">
-                       Question {questionNumber}
-                     </span>
-                     <span className="text-sm text-slate-500">•</span>
-                     <span className="text-sm font-medium text-slate-300">{sectionName}</span>
+                   <div className="flex items-center gap-2 mb-3">
+                     <span className="text-sm font-medium text-slate-400">{sectionName}</span>
                    </div>
                    <p className="text-white text-base leading-relaxed">{question.question_text}</p>
                  </div>
@@ -5451,10 +5524,8 @@ export default function CandidateInterview() {
               </div>
               ) : isV2PackField || currentPrompt?.type === 'ai_probe' ? (
               <div className="bg-slate-900/95 backdrop-blur-md border border-purple-700/80 rounded-xl p-4 shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-semibold text-purple-400">Follow-up</span>
-                <span className="text-xs text-slate-500">•</span>
-                <span className="text-xs font-medium text-purple-400">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-medium text-purple-400">
                   {currentPrompt.category}{currentPrompt.instanceNumber > 1 ? ` — Instance ${currentPrompt.instanceNumber}` : ''}
                 </span>
               </div>
@@ -5462,12 +5533,8 @@ export default function CandidateInterview() {
             </div>
           ) : (
             <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-5 shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base font-semibold text-blue-400">
-                  Question {currentItem ? getQuestionDisplayNumber(currentItem.id) : ''}
-                </span>
-                <span className="text-sm text-slate-500">•</span>
-                <span className="text-sm font-medium text-slate-300">{currentPrompt.category}</span>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-medium text-slate-400">{currentPrompt.category}</span>
               </div>
               <p className="text-white text-base leading-relaxed">{currentPrompt.text}</p>
             </div>
