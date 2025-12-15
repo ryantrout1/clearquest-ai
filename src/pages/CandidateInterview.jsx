@@ -1380,12 +1380,12 @@ export default function CandidateInterview() {
     console.log('[CandidateInterview] MOUNT', sessionId);
 
     // Check if already booted
-    if (__bootedSessions.has(sessionId)) {
+    if (__CQAI_BOOTED_SESSIONS.has(sessionId)) {
       console.log('[CandidateInterview] SKIP_BOOTSTRAP_ALREADY_BOOTED', sessionId);
       resumeInterview();
     } else {
       console.log('[CandidateInterview] BOOTSTRAP', sessionId);
-      __bootedSessions.add(sessionId);
+      __CQAI_BOOTED_SESSIONS.add(sessionId);
       initializeInterview();
     }
 
