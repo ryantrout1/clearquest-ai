@@ -1370,60 +1370,23 @@ export default function CandidateInterview() {
     // Just track the current field - actual logging happens in handleAnswer
   }, [v2PackMode, activeV2Pack, currentItem]);
 
-  // PERSISTENCE: Restore state on mount
+  // BOOTSTRAP GUARD: Prevent re-bootstrap on remount
   useEffect(() => {
-    if (!sessionId || !persistKey) {
+    if (!sessionId) {
       navigate(createPageUrl("StartInterview"));
       return;
     }
 
-    // Try to rehydrate from sessionStorage first
-    const restoreFromStorage = () => {
-      try {
-        const stored = window.sessionStorage.getItem(persistKey);
-        const storedSeen = window.sessionStorage.getItem(seenKeysStorageKey);
-        
-        if (stored) {
-          const state = JSON.parse(stored);
-          console.log('[PERSISTENCE][RESTORE]', { 
-            hasState: true,
-            transcriptLen: state.transcript?.length || 0,
-            currentItemType: state.currentItem?.type
-          });
-          
-          // Rehydrate state
-          if (state.transcript) setDbTranscriptSafe(state.transcript);
-          if (state.currentItem) setCurrentItem(state.currentItem);
-          if (state.queue) setQueue(state.queue);
-          if (state.currentSectionIndex !== undefined) setCurrentSectionIndex(state.currentSectionIndex);
-          if (state.v2PackMode) setV2PackMode(state.v2PackMode);
-          if (state.activeV2Pack) setActiveV2Pack(state.activeV2Pack);
-          if (state.v3ProbingActive) setV3ProbingActive(state.v3ProbingActive);
-          if (state.v3ProbingContext) setV3ProbingContext(state.v3ProbingContext);
-          if (state.multiInstanceGate) setMultiInstanceGate(state.multiInstanceGate);
-          if (state.screenMode) setScreenMode(state.screenMode);
-          
-          rehydratedRef.current = true;
-        }
-        
-        if (storedSeen) {
-          const seenKeys = JSON.parse(storedSeen);
-          seenMessageKeysRef.current = new Set(seenKeys);
-          console.log('[PERSISTENCE][RESTORE_SEEN]', { count: seenKeys.length });
-        }
-      } catch (err) {
-        console.warn('[PERSISTENCE][RESTORE_ERROR]', err);
-      }
-    };
+    console.log('[CandidateInterview] MOUNT', sessionId);
 
-    restoreFromStorage();
-    
-    // Only initialize if we didn't rehydrate
-    if (!rehydratedRef.current) {
-      initializeInterview();
+    // Check if already booted
+    if (__bootedSessions.has(sessionId)) {
+      console.log('[CandidateInterview] SKIP_BOOTSTRAP_ALREADY_BOOTED', sessionId);
+      resumeInterview();
     } else {
-      setIsLoading(false);
-      console.log('[PERSISTENCE][SKIP_INIT] Using rehydrated state');
+      console.log('[CandidateInterview] BOOTSTRAP', sessionId);
+      __bootedSessions.add(sessionId);
+      initializeInterview();
     }
 
     return () => {
