@@ -3,6 +3,7 @@ import AdminLogin from './pages/AdminLogin';
 import AiSettings from './pages/AiSettings';
 import BackfillSummaries from './pages/BackfillSummaries';
 import candidateinterviewBackup from './pages/CandidateInterview.backup';
+import CandidateInterview from './pages/CandidateInterview';
 import CreateDepartment from './pages/CreateDepartment';
 import DepartmentDashboard from './pages/DepartmentDashboard';
 import Departments from './pages/Departments';
@@ -35,6 +36,7 @@ export const PAGES = {
     "AiSettings": AiSettings,
     "BackfillSummaries": BackfillSummaries,
     "CandidateInterview.backup": candidateinterviewBackup,
+    "CandidateInterview": CandidateInterview,
     "CreateDepartment": CreateDepartment,
     "DepartmentDashboard": DepartmentDashboard,
     "Departments": Departments,
