@@ -5107,9 +5107,6 @@ export default function CandidateInterview() {
                 <div key={entry.id}>
                   <ContentContainer>
                   <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-semibold text-purple-400">Follow-up</span>
-                    </div>
                     <p className="text-white text-base leading-relaxed">{entry.text}</p>
                   </div>
                   </ContentContainer>
@@ -5398,41 +5395,6 @@ export default function CandidateInterview() {
               </div>
             );
           })()}
-
-              {/* Welcome message (from transcript) */}
-              {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
-                <ContentContainer>
-                <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Shield className="w-5 h-5 text-blue-400" />
-                    <span className="text-base font-semibold text-blue-400">{entry.title || entry.text}</span>
-                  </div>
-                  {entry.lines && entry.lines.length > 0 && (
-                    <div className="space-y-2">
-                      {entry.lines.map((line, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-slate-200 text-sm leading-relaxed">{line}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                </ContentContainer>
-              )}
-
-              {/* Welcome acknowledged (user click) */}
-              {entry.messageType === 'WELCOME_ACKNOWLEDGED' && entry.role === 'user' && (
-                <ContentContainer>
-                <div className="flex justify-end">
-                  <div className="bg-blue-600 rounded-xl px-5 py-3">
-                    <p className="text-white text-sm">{entry.text}</p>
-                  </div>
-                </div>
-                </ContentContainer>
-              )}
-
-
 
           {/* V3 Probing Loop */}
           {v3ProbingActive && v3ProbingContext && (
