@@ -1075,6 +1075,8 @@ export default function CandidateInterview() {
   const [pendingTransition, setPendingTransition] = useState(null);
 
   const historyRef = useRef(null);
+  const bottomAnchorRef = useRef(null);
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const displayOrderRef = useRef(0);
   const inputRef = useRef(null);
   const yesButtonRef = useRef(null);
@@ -1085,6 +1087,8 @@ export default function CandidateInterview() {
   const unsubscribeRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const aiResponseTimeoutRef = useRef(null);
+  
+  const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 140;
 
   const [interviewMode, setInterviewMode] = useState("DETERMINISTIC");
   const [ideEnabled, setIdeEnabled] = useState(false);
@@ -1384,16 +1388,28 @@ export default function CandidateInterview() {
     return s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
   };
 
+  const handleTranscriptScroll = useCallback(() => {
+    const el = historyRef.current;
+    if (!el) return;
+    
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const wasEnabled = autoScrollEnabled;
+    const nowEnabled = distanceFromBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+    
+    if (wasEnabled !== nowEnabled) {
+      console.log('[SCROLL]', { autoScrollEnabled: nowEnabled, distanceFromBottom: Math.round(distanceFromBottom) });
+      setAutoScrollEnabled(nowEnabled);
+    }
+  }, [autoScrollEnabled, AUTO_SCROLL_BOTTOM_THRESHOLD_PX]);
+
   const autoScrollToBottom = useCallback(() => {
-    if (!historyRef.current) return;
+    if (!autoScrollEnabled || !bottomAnchorRef.current) return;
     // Gate scroll only if user is typing (transcript still renders live)
     if (isUserTyping) return;
     requestAnimationFrame(() => {
-      if (historyRef.current) {
-        historyRef.current.scrollTop = historyRef.current.scrollHeight;
-      }
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
     });
-  }, [isUserTyping]);
+  }, [isUserTyping, autoScrollEnabled]);
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
@@ -4509,10 +4525,22 @@ export default function CandidateInterview() {
     }
   }, [currentItem, validationHint]);
 
-  // Auto-scroll to bottom when transcript or current item updates
-  useEffect(() => {
-    autoScrollToBottom();
-  }, [dbTranscript, currentItem, v3ProbingActive, autoScrollToBottom]);
+  // Auto-scroll to bottom when messages change (only if enabled)
+  React.useLayoutEffect(() => {
+    if (!autoScrollEnabled) return;
+    if (!bottomAnchorRef.current) return;
+    
+    // Initial hard snap on first render (no smooth animation)
+    if (renderedCandidateMessages.length <= 2 && transcriptInitializedRef.current) {
+      bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+      return;
+    }
+    
+    // Smooth scroll for subsequent messages
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    });
+  }, [renderedCandidateMessages.length, screenMode, currentItem?.type, autoScrollEnabled]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
@@ -5189,8 +5217,12 @@ export default function CandidateInterview() {
       </header>
 
       <main className="flex-1 relative overflow-hidden isolate">
-        <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
-        <div className="px-4 pb-6 flex flex-col min-h-full justify-start pt-6">
+        <div 
+          className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" 
+          ref={historyRef}
+          onScroll={handleTranscriptScroll}
+        >
+        <div className="px-4 pb-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
           {/* UNIFIED STREAM: Render all transcript messages (no hiding) */}
           {(() => {
@@ -5558,6 +5590,9 @@ export default function CandidateInterview() {
            />
            </ContentContainer>
           )}
+
+          {/* Bottom anchor for auto-scroll */}
+          <div ref={bottomAnchorRef} />
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
           {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
