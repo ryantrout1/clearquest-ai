@@ -5111,7 +5111,7 @@ export default function CandidateInterview() {
         <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
         <div className={cn(
           "px-4 pb-6 flex flex-col min-h-full",
-          isWelcomeScreen ? "justify-end pt-6" : "justify-start pt-6"
+          isWelcomeScreen ? "justify-center pt-6" : "justify-start pt-6"
         )}>
           <div className="space-y-2 relative isolate">
           {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
