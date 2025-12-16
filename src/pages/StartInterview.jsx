@@ -145,6 +145,16 @@ export default function StartInterview() {
     setError(null);
     setIsSubmitting(true);
 
+    // Fail-safe timeout for session creation (10 seconds)
+    const sessionTimeout = setTimeout(() => {
+      console.error("[START_INTERVIEW][TIMEOUT]", { 
+        departmentCode: formData.departmentCode,
+        fileNumber: formData.fileNumber
+      });
+      setError("We couldn't load the interview. Please refresh or contact support.");
+      setIsSubmitting(false);
+    }, 10000);
+
     try {
       const deptCode = formData.departmentCode.trim().toUpperCase();
       const fileNum = formData.fileNumber.trim();
@@ -193,6 +203,11 @@ export default function StartInterview() {
         
         if (activeSession) {
           console.log("📍 Found active session - navigating to interview");
+          console.log("[START_INTERVIEW][NAVIGATE]", { 
+            sessionId: activeSession.id, 
+            status: activeSession.status,
+            tokenPresent: Boolean(token) 
+          });
           navigate(createPageUrl(`CandidateInterview?session=${activeSession.id}`));
           return;
         }
@@ -240,14 +255,22 @@ export default function StartInterview() {
       });
 
       console.log("✅ Session created:", newSession.id);
+      console.log("[START_INTERVIEW][NAVIGATE]", { 
+        sessionId: newSession.id, 
+        departmentCode: deptCode,
+        fileNumber: fileNum,
+        tokenPresent: Boolean(token) 
+      });
 
       navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`));
 
     } catch (err) {
+      clearTimeout(sessionTimeout);
       console.error("❌ Error creating session:", err);
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to create interview session: ${errorMessage}`);
     } finally {
+      clearTimeout(sessionTimeout);
       setIsSubmitting(false);
     }
   };

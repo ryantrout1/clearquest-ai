@@ -1541,6 +1541,7 @@ export default function CandidateInterview() {
     
     const sessionMounts = mountsBySession[sessionId];
     
+    console.log('[CANDIDATE_INTERVIEW][MOUNT]', { sessionId });
     console.log('[HARD_MOUNT_CHECK]', { 
       sessionId,
       mounts: sessionMounts,
@@ -1675,13 +1676,18 @@ export default function CandidateInterview() {
   };
 
   const initializeInterview = async () => {
-    // BOOT TIMEOUT: Ensure loading state never persists beyond 8 seconds
+    // BOOT TIMEOUT: Ensure loading state never persists beyond 10 seconds
     const bootTimeout = setTimeout(() => {
-      console.error('[CANDIDATE_BOOT][TIMEOUT] Boot exceeded 8s - forcing error display');
-      setError("We couldn't load your interview. Please refresh or contact your investigator.");
+      console.error('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT]', {
+        sessionId,
+        hasEngine: Boolean(engine),
+        screenMode,
+        currentItemType: currentItem?.type
+      });
+      setError("We couldn't load the interview. Please refresh or contact support.");
       setIsLoading(false);
       setShowLoadingRetry(false);
-    }, 8000);
+    }, 10000);
     
     // LOADING UX: Show retry option after 10 seconds
     let retryTimeout;
@@ -1719,15 +1725,24 @@ export default function CandidateInterview() {
       setIsAdminUser(false);
 
       // SERVER-TRUTH GUARD: Always fetch session from DB (never create duplicate)
+      console.log('[CANDIDATE_BOOT][FETCH_SESSION]', { sessionId });
       const loadedSession = await base44.entities.InterviewSession.get(sessionId);
 
       if (!loadedSession) {
+        console.error('[CANDIDATE_INTERVIEW][NO_CURRENT_ITEM]', { sessionId, screenMode: 'LOADING' });
         throw new Error(`Session not found: ${sessionId}. It may have been deleted or never created.`);
       }
 
       if (!loadedSession.id) {
+        console.error('[CANDIDATE_INTERVIEW][NO_CURRENT_ITEM]', { sessionId, screenMode: 'LOADING', reason: 'invalid session object' });
         throw new Error('Invalid session object returned from database');
       }
+      
+      console.log('[CANDIDATE_BOOT][SESSION_LOADED]', { 
+        sessionId: loadedSession.id,
+        status: loadedSession.status,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0
+      });
 
       if (loadedSession.status === 'paused') {
         await base44.entities.InterviewSession.update(sessionId, {
@@ -1831,6 +1846,12 @@ export default function CandidateInterview() {
       if (retryTimeout) clearTimeout(retryTimeout);
       setIsLoading(false);
       setShowLoadingRetry(false);
+      
+      console.log("[CANDIDATE_INTERVIEW][READY]", { 
+        screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
+        currentItemType: loadedSession.current_item_snapshot?.type || null,
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0
+      });
 
     } catch (err) {
       clearTimeout(bootTimeout);
@@ -4878,6 +4899,7 @@ export default function CandidateInterview() {
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Loading interview...</p>
+          <p className="text-slate-500 text-xs">Session: {sessionId?.substring(0, 8)}...</p>
           {showLoadingRetry && (
             <div className="mt-6 space-y-3">
               <p className="text-slate-400 text-sm">Taking longer than expected...</p>
