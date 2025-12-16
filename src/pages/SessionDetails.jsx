@@ -228,6 +228,15 @@ export default function SessionDetails() {
       navigate(createPageUrl("InterviewDashboard"));
       return;
     }
+    
+    // Admin gate: Check sessionStorage auth (NO User/me call)
+    const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+    if (!adminAuth) {
+      console.log('[SESSION_DETAILS][ADMIN_GATE] No admin auth - redirecting to AdminLogin');
+      navigate(createPageUrl("AdminLogin"));
+      return;
+    }
+    
     loadSessionData();
     loadIdeData();
   }, [sessionId]);
