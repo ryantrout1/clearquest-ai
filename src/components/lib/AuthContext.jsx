@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
   });
 
   useEffect(() => {
-    console.log('[AUTH_CONTEXT] ANONYMOUS_MODE — User/me disabled system-wide');
+    console.log('[AUTH_CONTEXT] ANONYMOUS_MODE_ACTIVE — /User/me disabled');
   }, []);
 
   const contextValue = {
