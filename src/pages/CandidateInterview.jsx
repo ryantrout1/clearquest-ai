@@ -4448,6 +4448,34 @@ export default function CandidateInterview() {
     }
   }, [input]);
 
+  // DEFENSIVE GUARD: Force exit WELCOME mode when interview has progressed
+  useEffect(() => {
+    if (screenMode !== "WELCOME") return; // Only act if we're in WELCOME
+    
+    // Check if we should exit WELCOME based on state
+    const hasCurrentItem = currentItem && currentItem.type;
+    const hasV3Probing = v3ProbingActive;
+    const hasProgressMarkers = dbTranscript?.some(t => 
+      t.messageType === 'QUESTION_SHOWN' || 
+      t.messageType === 'ANSWER' ||
+      t.messageType === 'v3_probe_question' ||
+      t.messageType === 'v3_opener_answer' ||
+      t.type === 'PACK_ENTERED'
+    );
+    
+    if (hasCurrentItem || hasV3Probing || hasProgressMarkers) {
+      console.log('[WELCOME][GUARD_EXIT]', {
+        reason: hasCurrentItem ? 'currentItem exists' : hasV3Probing ? 'V3 probing active' : 'progress markers in transcript',
+        screenModeBefore: screenMode,
+        currentItemType: currentItem?.type,
+        transcriptLen: dbTranscript?.length || 0,
+        action: 'forcing QUESTION mode'
+      });
+      
+      setScreenMode("QUESTION");
+    }
+  }, [screenMode, currentItem, v3ProbingActive, dbTranscript]);
+
   // UX: Auto-focus answer input whenever a new question appears
   useEffect(() => {
     if (!currentItem) return;
@@ -4839,8 +4867,8 @@ export default function CandidateInterview() {
   let bottomBarMode = "HIDDEN"; // Default: no controls shown
   let isQuestion = false; // Semantic flag: is this a question-like prompt?
   
-  // Pre-interview intro (WELCOME screen only)
-  if (screenMode === 'WELCOME' || activeBlocker?.type === 'SYSTEM_INTRO') {
+  // Pre-interview intro (WELCOME screen only - strict gate)
+  if (screenMode === 'WELCOME' && !v3ProbingActive && !currentItem) {
     if (!isMultiInstanceGate && !isV3Gate) {
       bottomBarMode = "CTA"; // "Got it — Let's Begin" button
     }
@@ -4862,9 +4890,9 @@ export default function CandidateInterview() {
     bottomBarMode = "YES_NO";
     isQuestion = true;
   }
-  // V3 probing active (keep input visible but disabled)
+  // V3 probing active (hide parent bottom bar - V3ProbingLoop has its own input)
   else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
-    bottomBarMode = "DISABLED";
+    bottomBarMode = "HIDDEN";
   }
   // Normal yes/no questions
   else if (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) {
