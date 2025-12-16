@@ -376,13 +376,32 @@ async function decisionEngineV3Probe(base44, {
     session = await base44.asServiceRole.entities.InterviewSession.get(sessionId);
   } catch (err) {
     console.error("[IDE-V3] Session not found:", sessionId);
+    
+    // DIAGNOSTIC: STOP reason dump
+    console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: STOP ==========");
+    console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+      categoryId,
+      packId: null,
+      isInitialCall: !incidentId,
+      foundCategoryConfig: false,
+      foundPromptTemplate: false,
+      questionBankCount: 0,
+      eligibleQuestionsCount: 0,
+      stopReasonCode: "SESSION_NOT_FOUND",
+      stopReasonDetail: `Session '${sessionId}' not found in database`,
+      incidentId_in: incidentId || null,
+      incidentId_out: incidentId || null
+    });
+    
     return {
       updatedSession: null,
-      incidentId: null,
+      incidentId: incidentId || null,
       nextAction: "STOP",
       nextPrompt: null,
       newFacts: null,
-      decisionTraceEntry: { error: "SESSION_NOT_FOUND" }
+      decisionTraceEntry: { error: "SESSION_NOT_FOUND" },
+      stopReasonCode: "SESSION_NOT_FOUND",
+      stopReasonDetail: `Session '${sessionId}' not found in database`
     };
   }
   
@@ -405,12 +424,12 @@ async function decisionEngineV3Probe(base44, {
       stopReasonCode: "MISSING_FACT_MODEL",
       stopReasonDetail: `No FactModel entity found for category_id='${categoryId}'`,
       incidentId_in: incidentId || null,
-      incidentId_out: null
+      incidentId_out: incidentId || null
     });
     
     return {
       updatedSession: session,
-      incidentId: null,
+      incidentId: incidentId || null,
       nextAction: "STOP",
       nextPrompt: null,
       newFacts: null,
@@ -434,12 +453,12 @@ async function decisionEngineV3Probe(base44, {
       stopReasonCode: "FACT_MODEL_DISABLED",
       stopReasonDetail: `FactModel exists but status='${factModel.status}' (must be ACTIVE)`,
       incidentId_in: incidentId || null,
-      incidentId_out: null
+      incidentId_out: incidentId || null
     });
     
     return {
       updatedSession: session,
-      incidentId: null,
+      incidentId: incidentId || null,
       nextAction: "STOP",
       nextPrompt: null,
       newFacts: null,

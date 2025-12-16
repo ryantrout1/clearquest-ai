@@ -160,6 +160,13 @@ export default function V3ProbingLoop({
         incidentId: data.incidentId
       });
 
+      // DIAGNOSTIC: Explicit STOP reason logging (console-truncation-proof)
+      if (data.nextAction === 'STOP' || data.nextAction === 'RECAP') {
+        console.log('[V3_PROBING][STOP_REASON_CODE]', data.stopReasonCode || 'NONE');
+        console.log('[V3_PROBING][STOP_REASON_DETAIL]', data.stopReasonDetail || 'No detail provided');
+        console.log('[V3_PROBING][MISSING_FIELDS_COUNT]', data.missingFields?.length || 0);
+      }
+
       // DIAGNOSTIC: Dump STOP reasons on initial call
       if (isInitialCall && (data.nextAction === 'STOP' || data.nextAction === 'RECAP')) {
         console.log('[V3_PROBING][INITIAL_STOP_DUMP] ========== ENGINE STOPPED ON FIRST CALL ==========');
