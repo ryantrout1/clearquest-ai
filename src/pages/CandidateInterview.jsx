@@ -1,26 +1,3 @@
-// ============================================================================
-// FETCH INTERCEPTOR - Block /entities/User/me calls
-// ============================================================================
-const __cqaiPath = typeof window !== "undefined" ? window.location.pathname : "";
-const __cqaiIsCandidate = __cqaiPath.includes("CandidateInterview");
-
-if (__cqaiIsCandidate && typeof window !== "undefined" && !window.__CQAI_BLOCK_USER_ME_CANDIDATE__) {
-  const __origFetch = window.fetch.bind(window);
-  window.fetch = function(input, init) {
-    const url = typeof input === "string" ? input : (input?.url || "");
-    if (url.includes("/entities/User/me") || url.includes("/User/me")) {
-      console.log("[CQAI][CandidateInterview] Blocking /entities/User/me");
-      return Promise.resolve(new Response(JSON.stringify({ blocked: true, route: "CandidateInterview" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" }
-      }));
-    }
-    return __origFetch(input, init);
-  };
-  window.__CQAI_BLOCK_USER_ME_CANDIDATE__ = true;
-  console.log("[CQAI][CandidateInterview] Blocking /entities/User/me");
-}
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -73,6 +50,27 @@ import {
   logSectionStarted,
   logFollowupCardShown
 } from "../components/utils/chatTranscriptHelpers";
+
+// ============================================================================
+// FETCH INTERCEPTOR - Block /entities/User/me on public routes
+// ============================================================================
+if (typeof window !== "undefined" && !window.__CQAI_FETCH_WRAPPED__) {
+  window.__CQAI_ORIG_FETCH__ = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    const isPublicRoute = path.includes("CandidateInterview") || path.includes("SessionDetails");
+    
+    const url = typeof input === "string" ? input : (input?.url || "");
+    
+    if (isPublicRoute && (url.includes("/entities/User/me") || url.includes("/User/me"))) {
+      console.log("[CQAI][NOAUTH] Blocked User/me on route=", path);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    
+    return window.__CQAI_ORIG_FETCH__(input, init);
+  };
+  window.__CQAI_FETCH_WRAPPED__ = true;
+}
 
 // Global logging flag for CandidateInterview
 const DEBUG_MODE = false;
