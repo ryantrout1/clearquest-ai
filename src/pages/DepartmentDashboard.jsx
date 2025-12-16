@@ -43,6 +43,7 @@ export default function DepartmentDashboard() {
             id: "mock-admin-id"
           };
           setUser(mockUser);
+          console.log('[DEPARTMENT_DASHBOARD] adminAuthPresent=true (NO user lookup performed)');
 
           // Load department by ID from URL
           if (!deptId) {
@@ -55,30 +56,12 @@ export default function DepartmentDashboard() {
           return;
         } catch (err) {
           console.error("Error with mock admin auth:", err);
-          // If mock auth fails, proceed with regular auth flow
         }
       }
 
-      // Otherwise check Base44 authentication
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-
-      // Load department
-      const deptIdToLoad = deptId || currentUser.department_id;
-      if (!deptIdToLoad) {
-        navigate(createPageUrl("SystemAdminDashboard"));
-        return;
-      }
-
-      const dept = await base44.entities.Department.get(deptIdToLoad);
-
-      // Check access - users can only see their own department unless super admin
-      if (currentUser.role !== 'SUPER_ADMIN' && dept.id !== currentUser.department_id) {
-        navigate(createPageUrl("SystemAdminDashboard"));
-        return;
-      }
-
-      setDepartment(dept);
+      // No admin auth - redirect to login
+      console.log('[DEPARTMENT_DASHBOARD] adminAuthPresent=false (NO user lookup performed)');
+      navigate(createPageUrl("AdminLogin"));
     } catch (err) {
       console.error("Error loading data:", err);
       navigate(createPageUrl("AdminLogin"));

@@ -48,18 +48,16 @@ export default function SystemAdminDashboard() {
             id: "mock-admin-id"
           };
           setUser(mockUser);
+          console.log('[SYSTEM_ADMIN_DASHBOARD] adminAuthPresent=true (NO user lookup performed)');
           return;
         } catch (err) {
           console.error("Error parsing admin auth:", err);
         }
       }
 
-      const currentUser = await base44.auth.me();
-      if (currentUser.role !== 'SUPER_ADMIN') {
-        navigate(createPageUrl("HomeHub"));
-        return;
-      }
-      setUser(currentUser);
+      // No admin auth - redirect to login
+      console.log('[SYSTEM_ADMIN_DASHBOARD] adminAuthPresent=false (NO user lookup performed)');
+      navigate(createPageUrl("AdminLogin"));
     } catch (err) {
       navigate(createPageUrl("AdminLogin"));
     }

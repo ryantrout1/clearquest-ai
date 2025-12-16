@@ -41,15 +41,13 @@ export default function InterviewDashboard() {
           email: `${auth.username.toLowerCase()}@clearquest.ai`,
           role: "SUPER_ADMIN"
         });
+        console.log('[INTERVIEW_DASHBOARD] adminAuthPresent=true (NO user lookup performed)');
         return;
       }
 
-      const user = await base44.auth.me();
-      setCurrentUser({
-        username: user.first_name,
-        email: user.email,
-        role: user.role
-      });
+      // No admin auth - redirect to login
+      console.log('[INTERVIEW_DASHBOARD] adminAuthPresent=false (NO user lookup performed)');
+      navigate(createPageUrl("AdminLogin"));
     } catch (err) {
       navigate(createPageUrl("AdminLogin"));
     }

@@ -95,17 +95,14 @@ export default function AiSettings() {
       if (adminAuth) {
         const auth = JSON.parse(adminAuth);
         setUser({ ...auth, role: 'SUPER_ADMIN' });
+        console.log('[AI_SETTINGS] adminAuthPresent=true (NO user lookup performed)');
         loadSettings();
         return;
       }
 
-      const currentUser = await base44.auth.me();
-      if (currentUser.role !== 'SUPER_ADMIN') {
-        navigate(createPageUrl("HomeHub"));
-        return;
-      }
-      setUser(currentUser);
-      loadSettings();
+      // No admin auth - redirect to login
+      console.log('[AI_SETTINGS] adminAuthPresent=false (NO user lookup performed)');
+      navigate(createPageUrl("AdminLogin"));
     } catch (err) {
       navigate(createPageUrl("AdminLogin"));
     }

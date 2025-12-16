@@ -31,15 +31,16 @@ export default function HomeHub() {
           };
           setUser(mockUser);
           setIsLoading(false);
+          console.log('[HOMEHUB] adminAuthPresent=true (NO user lookup performed)');
           return;
         } catch (err) {
           console.error("Error parsing admin auth from sessionStorage:", err);
         }
       }
 
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-      setIsLoading(false);
+      // No admin auth - redirect to login
+      console.log('[HOMEHUB] adminAuthPresent=false (NO user lookup performed)');
+      navigate(createPageUrl("AdminLogin"));
     } catch (err) {
       console.error("Error loading user:", err);
       navigate(createPageUrl("AdminLogin"));
