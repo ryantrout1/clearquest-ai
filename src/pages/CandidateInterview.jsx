@@ -1641,7 +1641,10 @@ export default function CandidateInterview() {
     }, 8000);
 
     try {
-      console.log('[CANDIDATE_BOOT] Auth-independent boot path active (no User/me)');
+      // CRITICAL: Candidate interviews are 100% anonymous - NO auth calls
+      console.log('[CANDIDATE_BOOT] ========== ANONYMOUS BOOT PATH ==========');
+      console.log('[CANDIDATE_BOOT] Auth-independent boot (no User/me, no auth.me(), anonymous session)');
+      console.log('[CANDIDATE_BOOT] Route: CandidateInterview (public/anonymous)');
       
       const { config } = await getSystemConfig();
       let effectiveMode = await getEffectiveInterviewMode({
