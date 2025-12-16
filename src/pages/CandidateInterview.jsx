@@ -1391,6 +1391,8 @@ export default function CandidateInterview() {
   };
 
   const handleTranscriptScroll = useCallback(() => {
+    if (isUserTyping) return;
+    
     const el = historyRef.current;
     if (!el) return;
     
@@ -1403,7 +1405,7 @@ export default function CandidateInterview() {
       autoScrollEnabledRef.current = nowEnabled;
       setAutoScrollEnabled(nowEnabled);
     }
-  }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX]);
+  }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isUserTyping]);
 
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
@@ -4523,20 +4525,23 @@ export default function CandidateInterview() {
   React.useLayoutEffect(() => {
     if (!bottomAnchorRef.current) return;
     
-    // Initial hard snap on first transcript render
+    // Never yank the view while the user is typing
+    if (isUserTyping) return;
+    
+    // Initial hard snap exactly once
     if (!didInitialSnapRef.current && renderedCandidateMessages.length > 0) {
       bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
       didInitialSnapRef.current = true;
       return;
     }
     
-    // Subsequent updates: smooth scroll only if enabled
+    // Smooth follow only when user is near bottom
     if (autoScrollEnabledRef.current) {
       requestAnimationFrame(() => {
         bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
       });
     }
-  }, [renderedCandidateMessages.length, screenMode, currentItem?.type]);
+  }, [renderedCandidateMessages.length, screenMode, currentItem?.type, isUserTyping]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
