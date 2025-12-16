@@ -1255,6 +1255,9 @@ export default function CandidateInterview() {
   // APPEND-ONLY: Rendered candidate messages (never remove once added)
   const [renderedCandidateMessages, setRenderedCandidateMessages] = React.useState([]);
   const seenStableKeysRef = useRef(new Set());
+  
+  // Loading watchdog state
+  const [showLoadingRetry, setShowLoadingRetry] = React.useState(false);
 
   React.useEffect(() => {
     setRenderTranscript((prev) => {
@@ -1318,6 +1321,70 @@ export default function CandidateInterview() {
       });
     }
   }, [dbTranscript]);
+  
+  // DUPLICATION FIX: Filter out current active prompt from transcript history
+  const transcriptWithoutCurrentPrompt = React.useMemo(() => {
+    if (!renderedCandidateMessages || renderedCandidateMessages.length === 0) return [];
+    
+    // Don't filter during WELCOME or when no current item
+    if (screenMode === 'WELCOME' || !currentItem) return renderedCandidateMessages;
+    
+    // Find the last assistant message that matches current active prompt
+    let lastAssistantIndex = -1;
+    
+    for (let i = renderedCandidateMessages.length - 1; i >= 0; i--) {
+      const msg = renderedCandidateMessages[i];
+      
+      // Skip non-assistant messages
+      if (msg.role !== 'assistant') continue;
+      
+      // Match by question ID for base questions
+      if (currentItem.type === 'question' && msg.messageType === 'QUESTION_SHOWN' && msg.meta?.questionDbId === currentItem.id) {
+        lastAssistantIndex = i;
+        break;
+      }
+      
+      // Match by pack ID + field for V2 pack fields
+      if (currentItem.type === 'v2_pack_field' && msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
+          msg.meta?.packId === currentItem.packId && msg.meta?.fieldKey === currentItem.fieldKey && 
+          msg.meta?.instanceNumber === currentItem.instanceNumber) {
+        lastAssistantIndex = i;
+        break;
+      }
+      
+      // Match by pack ID for V3 opener
+      if (currentItem.type === 'v3_pack_opener' && msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
+          msg.meta?.variant === 'opener' && msg.meta?.packId === currentItem.packId && 
+          msg.meta?.instanceNumber === currentItem.instanceNumber) {
+        lastAssistantIndex = i;
+        break;
+      }
+      
+      // Match multi-instance gate
+      if (currentItem.type === 'multi_instance_gate' && msg.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
+          msg.meta?.packId === currentItem.packId && msg.meta?.instanceNumber === currentItem.instanceNumber) {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+    
+    // If found, exclude it from transcript history
+    if (lastAssistantIndex !== -1) {
+      const filtered = [
+        ...renderedCandidateMessages.slice(0, lastAssistantIndex),
+        ...renderedCandidateMessages.slice(lastAssistantIndex + 1)
+      ];
+      console.log('[TRANSCRIPT_FILTER]', { 
+        removed: renderedCandidateMessages[lastAssistantIndex]?.messageType,
+        currentItemType: currentItem.type,
+        before: renderedCandidateMessages.length,
+        after: filtered.length
+      });
+      return filtered;
+    }
+    
+    return renderedCandidateMessages;
+  }, [renderedCandidateMessages, currentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -1661,6 +1728,11 @@ export default function CandidateInterview() {
       setError("We couldn't load your interview. Please refresh or contact your investigator.");
       setIsLoading(false);
     }, 8000);
+    
+    // LOADING UX: Show retry option after 10 seconds
+    const retryTimeout = setTimeout(() => {
+      setShowLoadingRetry(true);
+    }, 10000);
 
     try {
       // CRITICAL: Candidate interviews are 100% anonymous - NO auth calls
@@ -1801,10 +1873,12 @@ export default function CandidateInterview() {
 
       // Clear boot timeout on successful initialization
       clearTimeout(bootTimeout);
+      clearTimeout(retryTimeout);
       setIsLoading(false);
 
     } catch (err) {
       clearTimeout(bootTimeout);
+      clearTimeout(retryTimeout);
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
@@ -4847,6 +4921,18 @@ export default function CandidateInterview() {
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
           <p className="text-slate-300">Loading interview...</p>
+          {showLoadingRetry && (
+            <div className="mt-6 space-y-3">
+              <p className="text-slate-400 text-sm">Taking longer than expected...</p>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline"
+                className="bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -5127,7 +5213,8 @@ export default function CandidateInterview() {
             ) && !v3ProbingActive && !activeBlocker && screenMode !== 'WELCOME';
             
             // STABLE: Render from append-only list (prevents flashing/disappearing)
-            const visibleTranscript = renderedCandidateMessages;
+            // DUPLICATION FIX: Use filtered list to hide current active prompt
+            const visibleTranscript = transcriptWithoutCurrentPrompt;
             
             return (
               <div className={__cqaiHasActivePrompt ? "opacity-0 pointer-events-none select-none h-0 overflow-hidden" : "opacity-100 transition-opacity duration-200"}>
