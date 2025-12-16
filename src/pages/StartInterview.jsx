@@ -373,5 +373,6 @@ export default function StartInterview() {
         </p>
       </div>
     </div>
+    </PublicAppShell>
   );
 }
