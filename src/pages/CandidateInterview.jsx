@@ -1257,7 +1257,7 @@ export default function CandidateInterview() {
   const seenStableKeysRef = useRef(new Set());
   
   // Loading watchdog state
-  const [showLoadingRetry, setShowLoadingRetry] = React.useState(false);
+  const [showLoadingRetry, setShowLoadingRetry] = useState(false);
 
   React.useEffect(() => {
     setRenderTranscript((prev) => {
@@ -1323,8 +1323,10 @@ export default function CandidateInterview() {
   }, [dbTranscript]);
   
   // DUPLICATION FIX: Filter out current active prompt from transcript history
-  const transcriptWithoutCurrentPrompt = React.useMemo(() => {
-    if (!renderedCandidateMessages || renderedCandidateMessages.length === 0) return [];
+  const transcriptWithoutCurrentPrompt = useMemo(() => {
+    // Return empty only if truly empty
+    if (!renderedCandidateMessages) return [];
+    if (renderedCandidateMessages.length === 0) return [];
     
     // Don't filter during WELCOME or when no current item
     if (screenMode === 'WELCOME' || !currentItem) return renderedCandidateMessages;
@@ -1336,33 +1338,44 @@ export default function CandidateInterview() {
       const msg = renderedCandidateMessages[i];
       
       // Skip non-assistant messages
-      if (msg.role !== 'assistant') continue;
+      if (!msg || msg.role !== 'assistant') continue;
+      
+      // DEFENSIVE: Check msg.meta exists for all comparisons
+      const meta = msg.meta || {};
       
       // Match by question ID for base questions
-      if (currentItem.type === 'question' && msg.messageType === 'QUESTION_SHOWN' && msg.meta?.questionDbId === currentItem.id) {
+      if (currentItem.type === 'question' && 
+          msg.messageType === 'QUESTION_SHOWN' && 
+          meta.questionDbId === currentItem.id) {
         lastAssistantIndex = i;
         break;
       }
       
       // Match by pack ID + field for V2 pack fields
-      if (currentItem.type === 'v2_pack_field' && msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
-          msg.meta?.packId === currentItem.packId && msg.meta?.fieldKey === currentItem.fieldKey && 
-          msg.meta?.instanceNumber === currentItem.instanceNumber) {
+      if (currentItem.type === 'v2_pack_field' && 
+          msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
+          meta.packId === currentItem.packId && 
+          meta.fieldKey === currentItem.fieldKey && 
+          meta.instanceNumber === currentItem.instanceNumber) {
         lastAssistantIndex = i;
         break;
       }
       
       // Match by pack ID for V3 opener
-      if (currentItem.type === 'v3_pack_opener' && msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
-          msg.meta?.variant === 'opener' && msg.meta?.packId === currentItem.packId && 
-          msg.meta?.instanceNumber === currentItem.instanceNumber) {
+      if (currentItem.type === 'v3_pack_opener' && 
+          msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
+          meta.variant === 'opener' && 
+          meta.packId === currentItem.packId && 
+          meta.instanceNumber === currentItem.instanceNumber) {
         lastAssistantIndex = i;
         break;
       }
       
       // Match multi-instance gate
-      if (currentItem.type === 'multi_instance_gate' && msg.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
-          msg.meta?.packId === currentItem.packId && msg.meta?.instanceNumber === currentItem.instanceNumber) {
+      if (currentItem.type === 'multi_instance_gate' && 
+          msg.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
+          meta.packId === currentItem.packId && 
+          meta.instanceNumber === currentItem.instanceNumber) {
         lastAssistantIndex = i;
         break;
       }
@@ -1376,7 +1389,7 @@ export default function CandidateInterview() {
       ];
       console.log('[TRANSCRIPT_FILTER]', { 
         removed: renderedCandidateMessages[lastAssistantIndex]?.messageType,
-        currentItemType: currentItem.type,
+        currentItemType: currentItem?.type,
         before: renderedCandidateMessages.length,
         after: filtered.length
       });
@@ -1727,10 +1740,12 @@ export default function CandidateInterview() {
       console.error('[CANDIDATE_BOOT][TIMEOUT] Boot exceeded 8s - forcing error display');
       setError("We couldn't load your interview. Please refresh or contact your investigator.");
       setIsLoading(false);
+      setShowLoadingRetry(false);
     }, 8000);
     
     // LOADING UX: Show retry option after 10 seconds
-    const retryTimeout = setTimeout(() => {
+    let retryTimeout;
+    retryTimeout = setTimeout(() => {
       setShowLoadingRetry(true);
     }, 10000);
 
@@ -1873,15 +1888,17 @@ export default function CandidateInterview() {
 
       // Clear boot timeout on successful initialization
       clearTimeout(bootTimeout);
-      clearTimeout(retryTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       setIsLoading(false);
+      setShowLoadingRetry(false);
 
     } catch (err) {
       clearTimeout(bootTimeout);
-      clearTimeout(retryTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
+      setShowLoadingRetry(false);
     }
   };
 
