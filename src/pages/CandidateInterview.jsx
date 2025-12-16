@@ -4869,6 +4869,9 @@ export default function CandidateInterview() {
 
   // Calculate currentPrompt (after all hooks declared)
   const currentPrompt = getCurrentPrompt();
+  
+  // Layout control: center WELCOME, top-align QUESTION/V3 modes
+  const isWelcomeScreen = screenMode === "WELCOME";
 
   // RENDER GUARD: Prevent null prompt crashes
   if (currentItem && !currentPrompt && !v3ProbingActive && !activeBlocker && !pendingSectionTransition && screenMode !== 'WELCOME') {
@@ -5106,7 +5109,10 @@ export default function CandidateInterview() {
 
       <main className="flex-1 relative overflow-hidden isolate">
         <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
-        <div className="px-4 pt-6 pb-6 flex flex-col justify-end min-h-full">
+        <div className={cn(
+          "px-4 pb-6 flex flex-col min-h-full",
+          isWelcomeScreen ? "justify-end pt-6" : "justify-start pt-6"
+        )}>
           <div className="space-y-2 relative isolate">
           {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
           {(() => {
