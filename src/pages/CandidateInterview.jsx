@@ -1322,50 +1322,19 @@ export default function CandidateInterview() {
     }
   }, [dbTranscript]);
   
-  // DUPLICATION FIX: Filter out prompt cards from transcript history
+  // UNIFIED STREAM: No filtering - all messages render in single transcript
   const transcriptWithoutCurrentPrompt = useMemo(() => {
-    // Return empty only if truly empty
     if (!renderedCandidateMessages) return [];
     if (renderedCandidateMessages.length === 0) return [];
     
-    // Don't filter during WELCOME or when no current item
-    if (screenMode !== 'QUESTION' || !currentItem) return renderedCandidateMessages;
-    
-    // Check if current item is a prompt-like type
-    const isPromptType = currentItem.type === 'question' || 
-                         currentItem.type === 'v2_pack_field' || 
-                         currentItem.type === 'v3_pack_opener' || 
-                         currentItem.type === 'v3_probing';
-    
-    if (!isPromptType) return renderedCandidateMessages;
-    
-    // Filter out all QUESTION_SHOWN and FOLLOWUP_CARD_SHOWN messages
-    const removedTypes = [];
-    const filtered = renderedCandidateMessages.filter(msg => {
-      if (!msg) return true;
-      
-      const messageType = msg.messageType || msg.type;
-      
-      // Hide prompt-type messages (these are shown in the active card)
-      if (messageType === 'QUESTION_SHOWN' || messageType === 'FOLLOWUP_CARD_SHOWN') {
-        removedTypes.push(messageType);
-        return false;
-      }
-      
-      // Keep everything else (answers, system messages, etc.)
-      return true;
-    });
-    
-    console.log('[TRANSCRIPT_FILTER]', {
+    // Unified stream: render all visible messages (no prompt hiding)
+    console.log('[TRANSCRIPT_UNIFIED_STREAM]', {
+      totalMessages: renderedCandidateMessages.length,
       screenMode,
-      currentItemType: currentItem?.type,
-      before: renderedCandidateMessages.length,
-      after: filtered.length,
-      removedCount: renderedCandidateMessages.length - filtered.length,
-      removedTypes: [...new Set(removedTypes)]
+      currentItemType: currentItem?.type
     });
     
-    return filtered;
+    return renderedCandidateMessages;
   }, [renderedCandidateMessages, currentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
@@ -5184,28 +5153,15 @@ export default function CandidateInterview() {
 
       <main className="flex-1 relative overflow-hidden isolate">
         <div className="absolute inset-0 overflow-y-auto scrollbar-thin pb-28" ref={historyRef}>
-        <div className={cn(
-          "px-4 pb-6 flex flex-col min-h-full",
-          isWelcomeScreen ? "justify-center pt-6" : "justify-start pt-6"
-        )}>
+        <div className="px-4 pb-6 flex flex-col min-h-full justify-start pt-6">
           <div className="space-y-2 relative isolate">
-          {/* APPEND-ONLY: Render from stable candidate messages (never remove) */}
+          {/* UNIFIED STREAM: Render all transcript messages (no hiding) */}
           {(() => {
-            // VISUAL HIDE: Determine if we have an active prompt that should hide transcript
-            const __cqaiHasActivePrompt = Boolean(currentItem?.type) && (
-              currentItem.type === 'question' || 
-              currentItem.type === 'v2_pack_field' || 
-              currentItem.type === 'v3_pack_opener' || 
-              currentItem.type === 'followup' ||
-              currentItem.type === 'multi_instance_gate'
-            ) && !v3ProbingActive && !activeBlocker && screenMode !== 'WELCOME';
-            
             // STABLE: Render from append-only list (prevents flashing/disappearing)
-            // DUPLICATION FIX: Use filtered list to hide current active prompt
             const visibleTranscript = transcriptWithoutCurrentPrompt;
             
             return (
-              <div className={__cqaiHasActivePrompt ? "opacity-0 pointer-events-none select-none h-0 overflow-hidden" : "opacity-100 transition-opacity duration-200"}>
+              <div className="opacity-100">
                 {visibleTranscript.map((entry, index) => {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
@@ -5566,8 +5522,8 @@ export default function CandidateInterview() {
            </ContentContainer>
           )}
 
-          {/* Base Question Card - shown when no blocker and not in V3 probing and not in pack mode */}
-          {!activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
+          {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
+          {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-20 w-full rounded-xl p-1">
              {(() => {
@@ -5603,8 +5559,8 @@ export default function CandidateInterview() {
 
 
 
-          {/* Current prompt for other item types (v2_pack_field, v3_pack_opener, followup, multi_instance_gate) */}
-          {!activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
+          {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
+          {false && !activeBlocker && currentPrompt && !v3ProbingActive && !pendingSectionTransition && currentItem?.type !== 'question' && currentItem?.type !== 'multi_instance_gate' && currentItem?.type !== 'v3_probing' && (
            <ContentContainer>
            <div ref={questionCardRef} className="relative z-30 w-full rounded-xl p-1">
              {isV3PackOpener || currentPrompt?.type === 'v3_pack_opener' ? (
