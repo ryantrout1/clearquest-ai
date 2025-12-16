@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import PublicAppShell from "../components/PublicAppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -252,7 +253,8 @@ export default function StartInterview() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8 pt-12 md:pt-16">
+    <PublicAppShell>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 md:p-8 pt-12 md:pt-16">
       <div className="max-w-2xl mx-auto">
         <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700">
           <CardContent className="p-6 md:p-8">
@@ -372,7 +374,6 @@ export default function StartInterview() {
           © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
         </p>
       </div>
-    </div>
     </PublicAppShell>
   );
 }
