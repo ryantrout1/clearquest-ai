@@ -229,13 +229,10 @@ export default function SessionDetails() {
       return;
     }
     
-    // Admin gate: Check sessionStorage auth (NO User/me call)
+    // Admin feature gating: Check sessionStorage for UI visibility (NO User/me call)
     const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
-    if (!adminAuth) {
-      console.log('[SESSION_DETAILS][ADMIN_GATE] No admin auth - redirecting to AdminLogin');
-      navigate(createPageUrl("AdminLogin"));
-      return;
-    }
+    setIsAdminUser(!!adminAuth);
+    console.log("[SESSION_DETAILS] adminAuthPresent=", !!adminAuth);
     
     loadSessionData();
     loadIdeData();
