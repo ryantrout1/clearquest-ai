@@ -1633,7 +1633,16 @@ export default function CandidateInterview() {
   };
 
   const initializeInterview = async () => {
+    // BOOT TIMEOUT: Ensure loading state never persists beyond 8 seconds
+    const bootTimeout = setTimeout(() => {
+      console.error('[CANDIDATE_BOOT][TIMEOUT] Boot exceeded 8s - forcing error display');
+      setError("We couldn't load your interview. Please refresh or contact your investigator.");
+      setIsLoading(false);
+    }, 8000);
+
     try {
+      console.log('[CANDIDATE_BOOT] Auth-independent boot path active (no User/me)');
+      
       const { config } = await getSystemConfig();
       let effectiveMode = await getEffectiveInterviewMode({
         isSandbox: false,
@@ -1765,9 +1774,12 @@ export default function CandidateInterview() {
         });
       }
 
+      // Clear boot timeout on successful initialization
+      clearTimeout(bootTimeout);
       setIsLoading(false);
 
     } catch (err) {
+      clearTimeout(bootTimeout);
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
