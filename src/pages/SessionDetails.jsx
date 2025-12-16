@@ -1,3 +1,26 @@
+// ============================================================================
+// FETCH INTERCEPTOR - Block /entities/User/me calls
+// ============================================================================
+const __cqaiPath = typeof window !== "undefined" ? window.location.pathname : "";
+const __cqaiIsSessionDetails = __cqaiPath.includes("SessionDetails");
+
+if (__cqaiIsSessionDetails && typeof window !== "undefined" && !window.__CQAI_BLOCK_USER_ME_SESSIONDETAILS__) {
+  const __origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const url = typeof input === "string" ? input : (input?.url || "");
+    if (url.includes("/entities/User/me") || url.includes("/User/me")) {
+      console.log("[CQAI][SessionDetails] Blocking /entities/User/me");
+      return Promise.resolve(new Response(JSON.stringify({ blocked: true, route: "SessionDetails" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" }
+      }));
+    }
+    return __origFetch(input, init);
+  };
+  window.__CQAI_BLOCK_USER_ME_SESSIONDETAILS__ = true;
+  console.log("[CQAI][SessionDetails] Blocking /entities/User/me");
+}
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
