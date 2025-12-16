@@ -1340,6 +1340,7 @@ export default function CandidateInterview() {
     if (!isPromptType) return renderedCandidateMessages;
     
     // Filter out all QUESTION_SHOWN and FOLLOWUP_CARD_SHOWN messages
+    const removedTypes = [];
     const filtered = renderedCandidateMessages.filter(msg => {
       if (!msg) return true;
       
@@ -1347,6 +1348,7 @@ export default function CandidateInterview() {
       
       // Hide prompt-type messages (these are shown in the active card)
       if (messageType === 'QUESTION_SHOWN' || messageType === 'FOLLOWUP_CARD_SHOWN') {
+        removedTypes.push(messageType);
         return false;
       }
       
@@ -1359,7 +1361,8 @@ export default function CandidateInterview() {
       currentItemType: currentItem?.type,
       before: renderedCandidateMessages.length,
       after: filtered.length,
-      removedCount: renderedCandidateMessages.length - filtered.length
+      removedCount: renderedCandidateMessages.length - filtered.length,
+      removedTypes: [...new Set(removedTypes)]
     });
     
     return filtered;
