@@ -374,6 +374,7 @@ export default function StartInterview() {
           © 2025 ClearQuest™ • CJIS Compliant • All Rights Reserved
         </p>
       </div>
+      </div>
     </PublicAppShell>
   );
 }
