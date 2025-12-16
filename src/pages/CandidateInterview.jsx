@@ -1407,6 +1407,16 @@ export default function CandidateInterview() {
     }
   }, [AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isUserTyping]);
 
+  const autoScrollToBottom = useCallback(() => {
+    if (isUserTyping) return;
+    if (!autoScrollEnabledRef.current) return;
+    if (!bottomAnchorRef.current) return;
+    
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    });
+  }, [isUserTyping]);
+
   // UX: Mark user as typing and set timeout to unlock after idle period
   const markUserTyping = useCallback(() => {
     if (!isUserTyping) {
