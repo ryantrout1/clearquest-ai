@@ -221,13 +221,11 @@ export default function SessionDetails() {
       const v3DebugMode = cfg.config?.v3?.debug_mode_enabled || false;
       setV3DebugEnabled(v3DebugMode);
       
-      // Check if current user is admin
-      try {
-        const user = await base44.auth.me();
-        setIsAdminUser(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
-      } catch (e) {
-        setIsAdminUser(false);
-      }
+      // Check if admin auth flag is present (no user lookup)
+      const adminAuth = sessionStorage.getItem("clearquest_admin_auth");
+      const isAdmin = !!adminAuth;
+      setIsAdminUser(isAdmin);
+      console.log('[SESSION_DETAILS] adminAuthPresent=' + isAdmin + ' (NO user lookup performed)');
       
       // Load decision traces for this session
       const traces = await base44.entities.DecisionTrace.filter({ session_id: sessionId });
