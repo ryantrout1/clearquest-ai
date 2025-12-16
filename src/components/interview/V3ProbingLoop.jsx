@@ -440,6 +440,38 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
+      {/* Input form - shown while probing active and not complete */}
+      {!isComplete && !isLoading && (
+        <form onSubmit={handleSubmit} className="mt-4">
+          <div className="flex gap-3">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your answer..."
+              className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
+              disabled={isLoading}
+              autoFocus
+            />
+            <Button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="bg-indigo-600 hover:bg-indigo-700 px-5"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Send
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* Loading state while waiting for engine */}
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2 py-3 text-purple-300">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Processing...</span>
+        </div>
+      )}
+
       {/* Continue button - shown after probing completes */}
       {isComplete && (
         <div className="flex justify-center mt-4">
