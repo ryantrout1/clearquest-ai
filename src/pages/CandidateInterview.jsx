@@ -4699,6 +4699,11 @@ export default function CandidateInterview() {
           questionNumber,
           sectionId: question.section_id,
           sectionName
+        }).then(() => {
+          // CRITICAL: Refresh transcript after appending prompt message
+          return refreshTranscriptFromDB('question_shown');
+        }).then((freshTranscript) => {
+          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
         }).catch(err => console.warn('[LOG_QUESTION] Failed:', err));
       }
 
@@ -4814,6 +4819,11 @@ export default function CandidateInterview() {
           categoryLabel: categoryLabelForLog,
           instanceNumber,
           baseQuestionId: effectiveCurrentItem.baseQuestionId
+        }).then(() => {
+          // CRITICAL: Refresh transcript after appending prompt message
+          return refreshTranscriptFromDB('v3_opener_shown');
+        }).then((freshTranscript) => {
+          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
         }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
       }
 
@@ -4869,6 +4879,11 @@ export default function CandidateInterview() {
             instanceNumber,
             baseQuestionId: effectiveCurrentItem.baseQuestionId,
             fieldKey
+          }).then(() => {
+            // CRITICAL: Refresh transcript after appending prompt message
+            return refreshTranscriptFromDB('v2_field_shown');
+          }).then((freshTranscript) => {
+            console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
           }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
         }
       }
