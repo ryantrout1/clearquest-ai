@@ -1322,81 +1322,47 @@ export default function CandidateInterview() {
     }
   }, [dbTranscript]);
   
-  // DUPLICATION FIX: Filter out current active prompt from transcript history
+  // DUPLICATION FIX: Filter out prompt cards from transcript history
   const transcriptWithoutCurrentPrompt = useMemo(() => {
     // Return empty only if truly empty
     if (!renderedCandidateMessages) return [];
     if (renderedCandidateMessages.length === 0) return [];
     
     // Don't filter during WELCOME or when no current item
-    if (screenMode === 'WELCOME' || !currentItem) return renderedCandidateMessages;
+    if (screenMode !== 'QUESTION' || !currentItem) return renderedCandidateMessages;
     
-    // Find the last assistant message that matches current active prompt
-    let lastAssistantIndex = -1;
+    // Check if current item is a prompt-like type
+    const isPromptType = currentItem.type === 'question' || 
+                         currentItem.type === 'v2_pack_field' || 
+                         currentItem.type === 'v3_pack_opener' || 
+                         currentItem.type === 'v3_probing';
     
-    for (let i = renderedCandidateMessages.length - 1; i >= 0; i--) {
-      const msg = renderedCandidateMessages[i];
+    if (!isPromptType) return renderedCandidateMessages;
+    
+    // Filter out all QUESTION_SHOWN and FOLLOWUP_CARD_SHOWN messages
+    const filtered = renderedCandidateMessages.filter(msg => {
+      if (!msg) return true;
       
-      // Skip non-assistant messages
-      if (!msg || msg.role !== 'assistant') continue;
+      const messageType = msg.messageType || msg.type;
       
-      // DEFENSIVE: Check msg.meta exists for all comparisons
-      const meta = msg.meta || {};
-      
-      // Match by question ID for base questions
-      if (currentItem.type === 'question' && 
-          msg.messageType === 'QUESTION_SHOWN' && 
-          meta.questionDbId === currentItem.id) {
-        lastAssistantIndex = i;
-        break;
+      // Hide prompt-type messages (these are shown in the active card)
+      if (messageType === 'QUESTION_SHOWN' || messageType === 'FOLLOWUP_CARD_SHOWN') {
+        return false;
       }
       
-      // Match by pack ID + field for V2 pack fields
-      if (currentItem.type === 'v2_pack_field' && 
-          msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
-          meta.packId === currentItem.packId && 
-          meta.fieldKey === currentItem.fieldKey && 
-          meta.instanceNumber === currentItem.instanceNumber) {
-        lastAssistantIndex = i;
-        break;
-      }
-      
-      // Match by pack ID for V3 opener
-      if (currentItem.type === 'v3_pack_opener' && 
-          msg.messageType === 'FOLLOWUP_CARD_SHOWN' && 
-          meta.variant === 'opener' && 
-          meta.packId === currentItem.packId && 
-          meta.instanceNumber === currentItem.instanceNumber) {
-        lastAssistantIndex = i;
-        break;
-      }
-      
-      // Match multi-instance gate
-      if (currentItem.type === 'multi_instance_gate' && 
-          msg.messageType === 'MULTI_INSTANCE_GATE_SHOWN' &&
-          meta.packId === currentItem.packId && 
-          meta.instanceNumber === currentItem.instanceNumber) {
-        lastAssistantIndex = i;
-        break;
-      }
-    }
+      // Keep everything else (answers, system messages, etc.)
+      return true;
+    });
     
-    // If found, exclude it from transcript history
-    if (lastAssistantIndex !== -1) {
-      const filtered = [
-        ...renderedCandidateMessages.slice(0, lastAssistantIndex),
-        ...renderedCandidateMessages.slice(lastAssistantIndex + 1)
-      ];
-      console.log('[TRANSCRIPT_FILTER]', { 
-        removed: renderedCandidateMessages[lastAssistantIndex]?.messageType,
-        currentItemType: currentItem?.type,
-        before: renderedCandidateMessages.length,
-        after: filtered.length
-      });
-      return filtered;
-    }
+    console.log('[TRANSCRIPT_FILTER]', {
+      screenMode,
+      currentItemType: currentItem?.type,
+      before: renderedCandidateMessages.length,
+      after: filtered.length,
+      removedCount: renderedCandidateMessages.length - filtered.length
+    });
     
-    return renderedCandidateMessages;
+    return filtered;
   }, [renderedCandidateMessages, currentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
