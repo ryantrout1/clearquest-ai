@@ -391,24 +391,61 @@ async function decisionEngineV3Probe(base44, {
   
   if (!factModel) {
     console.log("[IDE-V3] FactModel not found for category:", categoryId);
+    
+    // DIAGNOSTIC: STOP reason dump for initial call
+    console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: STOP ==========");
+    console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+      categoryId,
+      packId: null,
+      isInitialCall: !incidentId,
+      foundCategoryConfig: false,
+      foundPromptTemplate: false,
+      questionBankCount: 0,
+      eligibleQuestionsCount: 0,
+      stopReasonCode: "MISSING_FACT_MODEL",
+      stopReasonDetail: `No FactModel entity found for category_id='${categoryId}'`,
+      incidentId_in: incidentId || null,
+      incidentId_out: null
+    });
+    
     return {
       updatedSession: session,
       incidentId: null,
       nextAction: "STOP",
       nextPrompt: null,
       newFacts: null,
-      decisionTraceEntry: { error: "FACT_MODEL_NOT_FOUND", categoryId }
+      decisionTraceEntry: { error: "FACT_MODEL_NOT_FOUND", categoryId },
+      stopReasonCode: "MISSING_FACT_MODEL",
+      stopReasonDetail: `No FactModel entity found for category_id='${categoryId}'`
     };
   }
   
   if (factModel.status === 'DISABLED') {
+    // DIAGNOSTIC: STOP reason dump for initial call
+    console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: STOP ==========");
+    console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+      categoryId,
+      packId: null,
+      isInitialCall: !incidentId,
+      foundCategoryConfig: true,
+      foundPromptTemplate: true,
+      questionBankCount: (factModel.required_fields?.length || 0) + (factModel.optional_fields?.length || 0),
+      eligibleQuestionsCount: 0,
+      stopReasonCode: "FACT_MODEL_DISABLED",
+      stopReasonDetail: `FactModel exists but status='${factModel.status}' (must be ACTIVE)`,
+      incidentId_in: incidentId || null,
+      incidentId_out: null
+    });
+    
     return {
       updatedSession: session,
       incidentId: null,
       nextAction: "STOP",
       nextPrompt: null,
       newFacts: null,
-      decisionTraceEntry: { error: "FACT_MODEL_DISABLED", categoryId }
+      decisionTraceEntry: { error: "FACT_MODEL_DISABLED", categoryId },
+      stopReasonCode: "FACT_MODEL_DISABLED",
+      stopReasonDetail: `FactModel exists but status='${factModel.status}' (must be ACTIVE)`
     };
   }
   
@@ -524,16 +561,70 @@ async function decisionEngineV3Probe(base44, {
     stopReason = "REQUIRED_FIELDS_COMPLETE";
     legacyFactState.completion_status = "complete";
     nextPrompt = getCompletionMessage("RECAP", null);
+    
+    // DIAGNOSTIC: Log STOP only on initial call
+    if (!incidentId || isNewIncident) {
+      console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: RECAP ==========");
+      console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+        categoryId,
+        packId: null,
+        isInitialCall: !incidentId || isNewIncident,
+        foundCategoryConfig: true,
+        foundPromptTemplate: true,
+        questionBankCount: (factModel.required_fields?.length || 0) + (factModel.optional_fields?.length || 0),
+        eligibleQuestionsCount: missingFieldsAfter.length,
+        stopReasonCode: "REQUIRED_FIELDS_COMPLETE",
+        stopReasonDetail: "All required fields collected (zero required fields defined)",
+        incidentId_in: incidentId || null,
+        incidentId_out: incident.incident_id
+      });
+    }
   } else if (legacyFactState.probe_count >= mergedConfig.maxProbesPerIncident) {
     nextAction = "STOP";
     stopReason = "MAX_PROBES_REACHED";
     legacyFactState.completion_status = "incomplete";
     nextPrompt = getCompletionMessage("STOP", stopReason);
+    
+    // DIAGNOSTIC: Log STOP only on initial call
+    if (!incidentId || isNewIncident) {
+      console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: STOP ==========");
+      console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+        categoryId,
+        packId: null,
+        isInitialCall: !incidentId || isNewIncident,
+        foundCategoryConfig: true,
+        foundPromptTemplate: true,
+        questionBankCount: (factModel.required_fields?.length || 0) + (factModel.optional_fields?.length || 0),
+        eligibleQuestionsCount: missingFieldsAfter.length,
+        stopReasonCode: "MAX_PROBES_REACHED",
+        stopReasonDetail: `Probe count ${legacyFactState.probe_count} >= max ${mergedConfig.maxProbesPerIncident}`,
+        incidentId_in: incidentId || null,
+        incidentId_out: incident.incident_id
+      });
+    }
   } else if (legacyFactState.non_substantive_count >= mergedConfig.maxNonSubstantiveResponses) {
     nextAction = "STOP";
     stopReason = "NON_SUBSTANTIVE_LIMIT";
     legacyFactState.completion_status = "blocked";
     nextPrompt = getCompletionMessage("STOP", stopReason);
+    
+    // DIAGNOSTIC: Log STOP only on initial call
+    if (!incidentId || isNewIncident) {
+      console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: STOP ==========");
+      console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+        categoryId,
+        packId: null,
+        isInitialCall: !incidentId || isNewIncident,
+        foundCategoryConfig: true,
+        foundPromptTemplate: true,
+        questionBankCount: (factModel.required_fields?.length || 0) + (factModel.optional_fields?.length || 0),
+        eligibleQuestionsCount: missingFieldsAfter.length,
+        stopReasonCode: "NON_SUBSTANTIVE_LIMIT",
+        stopReasonDetail: `Non-substantive count ${legacyFactState.non_substantive_count} >= max ${mergedConfig.maxNonSubstantiveResponses}`,
+        incidentId_in: incidentId || null,
+        incidentId_out: incident.incident_id
+      });
+    }
   } else if (missingFieldsAfter.length > 0) {
     // Ask about the first missing field using BI-style template
     const nextField = missingFieldsAfter[0];
@@ -544,6 +635,24 @@ async function decisionEngineV3Probe(base44, {
     nextAction = "RECAP";
     stopReason = "REQUIRED_FIELDS_COMPLETE";
     nextPrompt = getCompletionMessage("RECAP", null);
+    
+    // DIAGNOSTIC: Log STOP only on initial call
+    if (!incidentId || isNewIncident) {
+      console.log("[IDE-V3][STOP_DIAGNOSTIC] ========== GUARDRAIL TRIGGERED: RECAP ==========");
+      console.log("[IDE-V3][STOP_DIAGNOSTIC]", {
+        categoryId,
+        packId: null,
+        isInitialCall: !incidentId || isNewIncident,
+        foundCategoryConfig: true,
+        foundPromptTemplate: true,
+        questionBankCount: (factModel.required_fields?.length || 0) + (factModel.optional_fields?.length || 0),
+        eligibleQuestionsCount: 0,
+        stopReasonCode: "REQUIRED_FIELDS_COMPLETE",
+        stopReasonDetail: "All required fields collected (zero missing after extraction)",
+        incidentId_in: incidentId || null,
+        incidentId_out: incident.incident_id
+      });
+    }
   }
   
   // Generate narrative summary on STOP/RECAP
@@ -659,7 +768,9 @@ async function decisionEngineV3Probe(base44, {
     missingFields: missingFieldsAfter,
     completionPercent: factModel.required_fields?.length > 0
       ? Math.round(((factModel.required_fields.length - missingFieldsAfter.length) / factModel.required_fields.length) * 100)
-      : 100
+      : 100,
+    stopReasonCode: stopReason || null,
+    stopReasonDetail: stopReason ? `Stop triggered: ${stopReason}` : null
   };
 }
 
@@ -769,7 +880,9 @@ Deno.serve(async (req) => {
     // ========== RETURN SUCCESS ==========
     return Response.json({
       ok: true,
-      ...result
+      ...result,
+      stopReasonCode: result.stopReasonCode || null,
+      stopReasonDetail: result.stopReasonDetail || null
     });
     
   } catch (error) {

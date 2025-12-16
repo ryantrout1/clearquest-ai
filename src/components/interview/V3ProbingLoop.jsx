@@ -151,7 +151,7 @@ export default function V3ProbingLoop({
       });
 
       const data = result.data || result;
-      
+
       console.log('[V3_PROBING][ENGINE_RESPONSE]', {
         ok: data.ok,
         nextAction: data.nextAction,
@@ -159,6 +159,23 @@ export default function V3ProbingLoop({
         errorCode: data.errorCode,
         incidentId: data.incidentId
       });
+
+      // DIAGNOSTIC: Dump STOP reasons on initial call
+      if (isInitialCall && (data.nextAction === 'STOP' || data.nextAction === 'RECAP')) {
+        console.log('[V3_PROBING][INITIAL_STOP_DUMP] ========== ENGINE STOPPED ON FIRST CALL ==========');
+        console.log('[V3_PROBING][INITIAL_STOP_DUMP]', {
+          categoryId,
+          packId: packData?.followup_pack_id || null,
+          incidentId_local: incidentId,
+          incidentId_engine: data.incidentId,
+          nextAction: data.nextAction,
+          hasPrompt: !!data.nextPrompt,
+          errorCode: data.errorCode || null,
+          stopReasonCode: data.stopReasonCode || null,
+          stopReasonDetail: data.stopReasonDetail || null,
+          missingFieldsCount: data.missingFields?.length || 0
+        });
+      }
       
       // Handle controlled errors from engine
       if (data.ok === false) {
