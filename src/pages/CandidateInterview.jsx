@@ -1553,6 +1553,7 @@ export default function CandidateInterview() {
             setQueue(loadedSession.queue_snapshot || []);
             setCurrentItem(loadedSession.current_item_snapshot || null);
             setIsLoading(false);
+            setShowLoadingRetry(false);
             
             const hasAnyResponses = loadedSession.transcript_snapshot && loadedSession.transcript_snapshot.length > 0;
             setIsNewSession(!hasAnyResponses);
@@ -1582,6 +1583,7 @@ export default function CandidateInterview() {
       clearTimeout(typingTimeoutRef.current);
       clearTimeout(aiResponseTimeoutRef.current);
       clearTimeout(typingLockTimeoutRef.current);
+      setShowLoadingRetry(false);
       
       // DO NOT clear initMapRef on unmount - allows detection across remounts
     };
