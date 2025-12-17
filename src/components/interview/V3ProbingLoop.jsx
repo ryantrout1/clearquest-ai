@@ -130,6 +130,22 @@ export default function V3ProbingLoop({
   // IN-FLIGHT GUARD: Prevent concurrent engine calls
   const engineInFlightRef = useRef(false);
 
+  // RENDER TRUTH: Diagnostic logging for prompt card visibility
+  const shouldShowPromptCard = !!activePromptText && !isComplete;
+  
+  useEffect(() => {
+    console.log('[V3_RENDER_TRUTH]', {
+      loopKey,
+      isBlocked,
+      isDeciding,
+      isComplete,
+      activePromptLen: activePromptText?.length || 0,
+      shouldShowPromptCard,
+      engineInFlight: engineInFlightRef?.current,
+      initRan: initRanRef?.current
+    });
+  }, [loopKey, isBlocked, isDeciding, isComplete, activePromptText, shouldShowPromptCard]);
+  
   // Render logging
   useEffect(() => {
     console.log('[V3_UI_RENDER][LOOP_INSTANCE]', {
@@ -389,7 +405,14 @@ export default function V3ProbingLoop({
         
         // Update hash reference only for genuinely new prompts
         lastPromptHashRef.current = promptHash;
-        
+
+        // Log prompt set for render-truth tracking
+        console.log('[V3_SET_PROMPT]', {
+          loopKey,
+          activePromptLen: data.nextPrompt?.length || 0,
+          preview: data.nextPrompt?.substring(0, 60) || null
+        });
+
         // UI CONTRACT: SINGLE SOURCE OF TRUTH - only set activePromptText
         // Do NOT add to messages array (prevents duplicate rendering)
         setActivePromptText(data.nextPrompt);
@@ -705,28 +728,18 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
-      {/* UI CONTRACT: Always show EITHER deciding state OR active prompt OR fallback */}
+      {/* FAIL-OPEN UI CONTRACT: Always show prompt if activePromptText exists */}
       {!isComplete && (
         <>
-          {/* PRIORITY 1: Processing indicator while engine decides */}
-          {isDeciding && (
-            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
-              </div>
-            </div>
-          )}
-          
-          {/* PRIORITY 2: Active prompt card (SINGLE SOURCE OF TRUTH) */}
-          {!isDeciding && activePromptText && (() => {
+          {/* PRIORITY 1: Active prompt card (ALWAYS SHOWN if activePromptText exists) */}
+          {activePromptText && (() => {
             // DEFENSIVE CHECK: Verify this prompt isn't also in messages
             const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const activeCanon = canon(activePromptText);
             const duplicateInMessages = messages.some(m => 
               m.role === 'ai' && !m.isCompletion && !m.isError && canon(m.content) === activeCanon
             );
-            
+
             if (duplicateInMessages) {
               console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
                 promptPreview: activePromptText.substring(0, 60),
@@ -734,21 +747,44 @@ export default function V3ProbingLoop({
                 reason: 'Same prompt exists in messages AND activePromptText'
               });
             }
-            
+
             return (
               <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                {isDeciding && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                    <span className="text-xs text-purple-300">Processing...</span>
+                  </div>
+                )}
                 <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
               </div>
             );
           })()}
-          
+
+          {/* PRIORITY 2: Processing indicator (only if no prompt yet) */}
+          {!activePromptText && isDeciding && (
+            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+              </div>
+            </div>
+          )}
+
           {/* PRIORITY 3: Safe fallback (prevents blank screen) */}
-          {!isDeciding && !activePromptText && !isLoading && (
+          {!activePromptText && !isDeciding && !isLoading && (
             <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
               <p className="text-slate-400 text-sm italic">Preparing the next question...</p>
             </div>
           )}
         </>
+      )}
+
+      {/* Debug banner - Dev/Preview only */}
+      {!isComplete && (typeof window !== 'undefined' && (window.location.hostname?.includes('base44') || window.location.hostname?.includes('localhost'))) && (
+        <div className="mt-2 px-2 py-1 bg-slate-800/50 border border-slate-700/30 rounded text-xs text-slate-500 font-mono">
+          DEBUG: promptLen={activePromptText?.length || 0} deciding={isDeciding.toString()} complete={isComplete.toString()} inFlight={engineInFlightRef?.current?.toString() || 'false'}
+        </div>
       )}
 
       {/* Input form - shown while probing active and not complete */}
