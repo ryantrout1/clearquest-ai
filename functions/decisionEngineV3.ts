@@ -80,11 +80,27 @@ function getOpeningPrompt(categoryId, categoryLabel, packData = null) {
 
 /**
  * Generate a BI-style probe question for a missing V3 field.
+ * Can generate confirmation questions if field value is present but needs verification.
  */
 function generateV3ProbeQuestion(field, collectedFacts = {}) {
   const fieldId = field.field_id?.toLowerCase();
   const label = field.label;
   const type = field.type;
+  
+  // Check if we already extracted this field (confirmation scenario)
+  const extractedValue = collectedFacts?.[field.field_id];
+  if (extractedValue && typeof extractedValue === 'string' && extractedValue.length > 0) {
+    // Generate confirmation question
+    if (fieldId === 'agency_name') {
+      return `I saw you mentioned ${extractedValue}. Is that the agency you applied to?`;
+    } else if (fieldId === 'position_applied_for') {
+      return `Just to confirm, you applied for the position of ${extractedValue}, correct?`;
+    } else if (fieldId === 'approx_month_year') {
+      return `You mentioned ${extractedValue}. Is that approximately when this occurred?`;
+    } else {
+      return `I noted you mentioned "${extractedValue}" — is that correct?`;
+    }
+  }
   
   // Check for specific field template
   if (FIELD_QUESTION_TEMPLATES[fieldId]) {
