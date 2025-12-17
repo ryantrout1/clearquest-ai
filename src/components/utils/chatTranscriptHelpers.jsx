@@ -56,6 +56,18 @@ function getNextIndex(existingTranscript = []) {
  * @returns {Promise<object>} Updated transcript
  */
 export async function appendAssistantMessage(sessionId, existingTranscript = [], text, metadata = {}) {
+  // V3 UI CONTRACT GUARD: Block V3 probe prompt types from transcript
+  const V3_PROBE_TYPES = ['v3_probe_question', 'V3_PROBE_ASKED', 'V3_PROBE', 'v3_probe'];
+  if (V3_PROBE_TYPES.includes(metadata.messageType)) {
+    console.error('[V3_UI_CONTRACT]', {
+      action: 'TRANSCRIPT_APPEND_BLOCKED',
+      messageType: metadata.messageType,
+      reason: 'V3 probes must NOT be appended to transcript - use logSystemEvent instead',
+      caller: new Error().stack?.split('\n')[2]?.trim()
+    });
+    return existingTranscript; // Block append, return unchanged
+  }
+  
   // HARDENED CONTRACT: Default visibleToCandidate to false if not provided
   if (metadata.visibleToCandidate === undefined || metadata.visibleToCandidate === null) {
     console.warn("[TRANSCRIPT][DEFAULT_VISIBLE]", { 

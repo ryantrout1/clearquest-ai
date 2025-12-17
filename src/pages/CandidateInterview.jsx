@@ -118,6 +118,16 @@ const resetMountTracker = (sid) => {
 
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
+    
+    // V3 UI CONTRACT: Block V3 probe prompts from transcript (should never exist, but defensive guard)
+    if (mt === 'v3_probe_question' || mt === 'V3_PROBE_ASKED' || mt === 'V3_PROBE') {
+      console.log('[V3_UI_CONTRACT]', {
+        action: 'FILTER_BLOCKED_V3_PROBE',
+        messageType: mt,
+        reason: 'V3 probes must NOT appear in candidate transcript'
+      });
+      return false;
+    }
 
     // Never show typing/thinking/loading placeholders (prevents flicker)
     if (
@@ -5411,13 +5421,15 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (
-                <ContentContainer>
-                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                  <p className="text-white text-sm leading-relaxed">{entry.text}</p>
-                </div>
-                </ContentContainer>
-              )}
+              {/* V3 probe questions: BLOCKED from transcript (UI contract enforcement) */}
+              {entry.role === 'assistant' && entry.messageType === 'v3_probe_question' && (() => {
+                console.log('[V3_UI_CONTRACT]', { 
+                  action: 'TRANSCRIPT_RENDER_BLOCKED', 
+                  messageType: entry.messageType,
+                  reason: 'V3 probes must only appear in V3ProbingLoop UI, not main transcript'
+                });
+                return null;
+              })()}
 
               {entry.role === 'user' && entry.messageType === 'v3_probe_answer' && (
                 <ContentContainer>
