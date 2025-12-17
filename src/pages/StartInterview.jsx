@@ -145,8 +145,16 @@ export default function StartInterview() {
     setError(null);
     setIsSubmitting(true);
 
-    // Fail-safe timeout for session creation (10 seconds)
+    // CANCELABLE TIMEOUT: Track request completion to prevent false timeout
+    const requestCompletedRef = { value: false };
+    
     const sessionTimeout = setTimeout(() => {
+      // Non-destructive: only fire if request still pending
+      if (requestCompletedRef.value) {
+        console.log("[START_INTERVIEW][TIMEOUT_SKIP] Request already completed");
+        return;
+      }
+      
       console.error("[START_INTERVIEW][TIMEOUT]", { 
         departmentCode: formData.departmentCode,
         fileNumber: formData.fileNumber
@@ -262,14 +270,20 @@ export default function StartInterview() {
         tokenPresent: Boolean(token) 
       });
 
+      // Mark request complete BEFORE navigate (prevents timeout race)
+      requestCompletedRef.value = true;
+      clearTimeout(sessionTimeout);
+
       navigate(createPageUrl(`CandidateInterview?session=${newSession.id}`));
 
     } catch (err) {
+      requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
       console.error("❌ Error creating session:", err);
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to create interview session: ${errorMessage}`);
     } finally {
+      requestCompletedRef.value = true;
       clearTimeout(sessionTimeout);
       setIsSubmitting(false);
     }

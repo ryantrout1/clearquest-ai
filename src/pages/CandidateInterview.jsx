@@ -1708,9 +1708,9 @@ export default function CandidateInterview() {
   };
 
   const initializeInterview = async () => {
-    // BOOT TIMEOUT: Ensure loading state never persists beyond 10 seconds
-    const engineReadyRef = { value: false }; // Stable ref to track engine readiness
-    const componentUnmountedRef = { value: false }; // Track if component unmounted
+    // CANCELABLE TIMEOUT: Track boot completion to prevent false timeout
+    const bootCompletedRef = { value: false };
+    const componentUnmountedRef = { value: false };
     
     const bootTimeout = setTimeout(() => {
       if (componentUnmountedRef.value) {
@@ -1718,14 +1718,14 @@ export default function CandidateInterview() {
         return;
       }
       
-      if (engineReadyRef.value) {
-        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Engine already ready');
+      if (bootCompletedRef.value) {
+        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Boot already completed');
         return;
       }
       
       console.error('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT]', {
         sessionId,
-        hasEngine: engineReadyRef.value,
+        hasEngine: bootCompletedRef.value,
         screenMode,
         currentItemType: currentItem?.type,
         elapsed: '10000ms'
@@ -1733,7 +1733,7 @@ export default function CandidateInterview() {
       setShowLoadingRetry(true);
     }, 10000);
     
-    // Mark for cleanup on unmount
+    // Cleanup: mark unmounted and clear timeout
     const timeoutCleanup = () => {
       componentUnmountedRef.value = true;
       clearTimeout(bootTimeout);
@@ -1813,7 +1813,7 @@ export default function CandidateInterview() {
       const bootMs = Date.now() - bootStart;
       
       setEngine(engineData);
-      engineReadyRef.value = true;
+      bootCompletedRef.value = true; // Mark boot complete BEFORE any further async work
       
       console.log('[CANDIDATE_INTERVIEW][ENGINE_READY]', {
         sessionId,
@@ -1906,8 +1906,15 @@ export default function CandidateInterview() {
         });
       }
 
-      // Clear boot timeout on successful initialization
-      timeoutCleanup();
+      // Mark boot complete and clear timeout (prevents false timeout after success)
+      bootCompletedRef.value = true;
+      clearTimeout(bootTimeout);
+      console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT_CLEARED]', {
+        sessionId,
+        reason: 'engine_ready',
+        bootMs
+      });
+      
       setIsLoading(false);
       setShowLoadingRetry(false);
       
@@ -1915,11 +1922,13 @@ export default function CandidateInterview() {
         screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
         currentItemType: loadedSession.current_item_snapshot?.type || null,
         transcriptLen: loadedSession.transcript_snapshot?.length || 0,
-        engineReady: engineReadyRef.value
+        engineReady: bootCompletedRef.value
       });
 
     } catch (err) {
-      timeoutCleanup();
+      bootCompletedRef.value = true; // Mark complete even on error
+      clearTimeout(bootTimeout);
+      
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
