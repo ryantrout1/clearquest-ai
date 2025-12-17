@@ -182,11 +182,34 @@ function isNonSubstantiveAnswer(answerText) {
   return patterns.some(p => normalized.includes(p));
 }
 
+// ========== FIELD ID RESOLVER ==========
+
+/**
+ * Resolve exact field_id from FactModel by semantic name (case-insensitive)
+ */
+function resolveFieldId(factModel, wantedLowerId) {
+  if (!factModel) return null;
+  
+  const allFields = [
+    ...(factModel.required_fields || []),
+    ...(factModel.optional_fields || [])
+  ];
+  
+  for (const field of allFields) {
+    if (field.field_id && field.field_id.toLowerCase() === wantedLowerId.toLowerCase()) {
+      return field.field_id;
+    }
+  }
+  
+  return null;
+}
+
 // ========== OPENER NARRATIVE EXTRACTION ==========
 
 /**
  * Extract facts from opener narrative using deterministic heuristics.
  * Prioritizes high-confidence extraction for obvious patterns.
+ * Uses exact field_id keys from FactModel to ensure alignment.
  */
 function extractOpenerFacts(openerText, categoryId, factModel) {
   if (!openerText || openerText.length < 20) return {};
@@ -197,6 +220,8 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   
   // PRIOR_LE_APPS specific extraction
   if (categoryId === 'PRIOR_LE_APPS') {
+    const tempExtracted = {};
+    
     // Extract agency_name - improved patterns
     const agencyPatterns = [
       /applied\s+to\s+([A-Z][A-Za-z\s&.'-]+?)\s+(?:for|as|in|during|position|role|\.|\,)/i,
@@ -213,7 +238,7 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
         // Clean up common suffixes that got caught
         agency = agency.replace(/\s+(for|as|in|during|position|role)$/i, '').trim();
         if (agency.length >= 3) {
-          extracted.agency_name = agency;
+          tempExtracted.agency_name = agency;
           break;
         }
       }
@@ -232,7 +257,7 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
       if (match && match[1]) {
         let position = match[1].trim();
         if (position.length >= 3) {
-          extracted.position_applied_for = position;
+          tempExtracted.position_applied_for = position;
           break;
         }
       }
@@ -257,7 +282,7 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
           month = match[2];
         }
         if (month && year) {
-          extracted.approx_month_year = `${month} ${year}`;
+          tempExtracted.approx_month_year = `${month} ${year}`;
           break;
         }
       }
@@ -265,11 +290,11 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     
     // Extract outcome - keyword matching
     if (lower.includes('rejected') || lower.includes('denied') || lower.includes('disqualified') || lower.includes('not selected')) {
-      extracted.outcome = 'Not selected/rejected';
+      tempExtracted.outcome = 'Not selected/rejected';
     } else if (lower.includes('withdrew') || lower.includes('pulled out') || lower.includes('withdrew my application')) {
-      extracted.outcome = 'Withdrew application';
+      tempExtracted.outcome = 'Withdrew application';
     } else if (lower.includes('offered') || lower.includes('hired') || lower.includes('accepted')) {
-      extracted.outcome = 'Hired/Offered position';
+      tempExtracted.outcome = 'Hired/Offered position';
     }
     
     // Extract how_far_got - keyword matching with priority
@@ -286,8 +311,19 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     
     for (const stage of stageKeywords) {
       if (stage.keywords.some(kw => lower.includes(kw))) {
-        extracted.how_far_got = stage.value;
+        tempExtracted.how_far_got = stage.value;
         break;
+      }
+    }
+    
+    // Map to exact field_id keys from FactModel
+    for (const [semanticKey, value] of Object.entries(tempExtracted)) {
+      const fieldId = resolveFieldId(factModel, semanticKey);
+      if (fieldId) {
+        extracted[fieldId] = value;
+      } else {
+        // Fallback: use semantic key if no field_id match found
+        extracted[semanticKey] = value;
       }
     }
   }
@@ -686,6 +722,13 @@ async function decisionEngineV3Probe(base44, {
   
   // Get updated missing fields AFTER extraction merge
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
+  
+  // Diagnostic log with key alignment check
+  const allModelFields = [
+    ...(factModel?.required_fields || []),
+    ...(factModel?.optional_fields || [])
+  ];
+  console.log(`[V3_EXTRACT_KEYS] extractedKeys=${Object.keys(extractedFacts).join(",")} modelKeys=${allModelFields.slice(0,10).map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
   
   // Log extraction for debugging
   if (Object.keys(extractedFacts).length > 0) {
