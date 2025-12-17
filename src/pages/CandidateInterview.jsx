@@ -119,6 +119,14 @@ const resetMountTracker = (sid) => {
   const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
     
+    // ALLOW: V3 opener prompts (FOLLOWUP_CARD_SHOWN with variant='opener')
+    if (t === "FOLLOWUP_CARD_SHOWN") {
+      const variant = msg?.meta?.variant || msg?.variant || msg?.followupVariant;
+      if (variant === "opener") {
+        return false; // DO NOT block opener prompts
+      }
+    }
+    
     // Block V3 PROBE prompts only (NOT opener prompts)
     if (t === "V3_PROBE_ASKED") return true;
     if (t === "V3_PROBE_PROMPT") return true;
@@ -137,6 +145,14 @@ const resetMountTracker = (sid) => {
     if (!t) return false;
 
     const mt = t.messageType || t.type;
+    
+    // FAIL-OPEN: Always render user messages (regardless of visibleToCandidate flag)
+    if (t.role === 'user' || t.kind === 'user') {
+      // Still block system event types
+      if (mt === 'SYSTEM_EVENT') return false;
+      if (TRANSCRIPT_DENYLIST.has(mt)) return false;
+      return true;
+    }
 
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
@@ -6341,8 +6357,8 @@ export default function CandidateInterview() {
                  setInput(value);
                }}
                onKeyDown={handleInputKeyDown}
-               placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
-               aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
+               placeholder={v3ProbingActive ? (v3ActivePromptText || "Loading next question...") : "Type your answer..."}
+               aria-label={v3ProbingActive ? (v3ActivePromptText || "Loading next question...") : "Type your answer"}
                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
                disabled={isCommitting}
                autoFocus
@@ -6359,15 +6375,30 @@ export default function CandidateInterview() {
                  });
                  handleBottomBarSubmit();
                }}
-               disabled={isBottomBarSubmitDisabled}
+               disabled={isBottomBarSubmitDisabled || (v3ProbingActive && !v3ActivePromptText)}
                className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
              >
-               <Send className="w-4 h-4 mr-2" />
+               {v3ProbingActive && !v3ActivePromptText ? (
+                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+               ) : (
+                 <Send className="w-4 h-4 mr-2" />
+               )}
                Send
              </Button>
            </div>
           </div>
           ) : null}
+
+          {/* V3 UI Contract Safety Log */}
+          {v3ProbingActive && (() => {
+           console.log('[V3_UI_CONTRACT] PROMPT_VISIBILITY', {
+             v3ProbingActive,
+             hasPrompt: !!v3ActivePromptText,
+             renderedBanner: false,
+             promptInPlaceholder: true
+           });
+           return null;
+          })()}
 
           {/* Footer disclaimer - always show except during V3 probing */}
           {!isV3Gate && !v3ProbingActive && (
