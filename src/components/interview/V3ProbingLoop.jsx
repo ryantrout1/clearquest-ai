@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -683,125 +684,72 @@ export default function V3ProbingLoop({
     );
   }
   
-  return (
-    <div className="flex flex-col min-h-screen w-full">
-      {/* SCROLLABLE CONTENT: History (user answers, completion, errors) */}
-      <div className="flex-1 overflow-y-auto pb-28 space-y-2">
-        {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
-        {messages.map((msg) => {
-          // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
-          if (msg.role === "ai" && !msg.isCompletion && !msg.isError) {
-            console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
-              promptPreview: msg.content?.substring(0, 60),
-              msgId: msg.id,
-              locations: ['messages_loop', 'activePromptText'],
-              reason: 'Active prompt leaked into messages array - blocking render'
-            });
-            return null; // Block rendering
-          }
+  // PORTAL COMPOSER: Render to document.body for true viewport pinning
+  const composerNode = (
+    <div className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-slate-700/30 bg-slate-950/70 backdrop-blur">
+      <div className="max-w-4xl mx-auto px-4 py-3">
+        {!isComplete && (
+          <div className="space-y-2">
+            {/* Active prompt - label above input (NO bubble) */}
+            {activePromptText && (
+              <div className="text-sm text-slate-200">
+                {activePromptText}
+              </div>
+            )}
 
-          // FAIL-CLOSED: Block any content starting with "DEBUG:" from rendering
-          if (msg.content && typeof msg.content === 'string' && msg.content.trim().startsWith('DEBUG:')) {
-            console.warn('[V3_UI_CONTRACT][BLOCKED_DEBUG_CONTENT]', {
-              msgId: msg.id,
-              contentPreview: msg.content.substring(0, 60),
-              reason: 'Debug content blocked from candidate view'
-            });
-            return null;
-          }
+            {/* Processing indicator - inline minimal */}
+            {isDeciding && (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                <span className="text-xs text-slate-400">Processing...</span>
+              </div>
+            )}
 
-          return (
-            <div key={msg.id}>
-              {msg.role === "user" && (
-                <div className="flex justify-end">
-                  <div className="bg-purple-600 rounded-xl px-5 py-3">
-                    <p className="text-white text-sm">{msg.answer || msg.content}</p>
-                  </div>
-                </div>
-              )}
-              {/* AI completion messages only */}
-              {msg.role === "ai" && msg.isCompletion && (
-                <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-                  </div>
-                </div>
-              )}
-              {/* Error messages */}
-              {msg.role === "ai" && msg.isError && (
-                <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-4">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                    <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            {/* Input form - disabled while deciding */}
+            {!isDeciding && (
+              <form onSubmit={handleSubmit} className="flex gap-3">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your answer..."
+                  className="flex-1 bg-slate-900/60 border border-slate-600/50 rounded-lg text-slate-100 placeholder:text-slate-400"
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <Button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="bg-indigo-600 hover:bg-indigo-700 px-4"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </form>
+            )}
+          </div>
+        )}
 
-        <div ref={messagesEndRef} />
-
-
-      </div>
-
-      {/* STICKY BOTTOM COMPOSER: Input only (pinned to bottom via sticky) */}
-      <div className="sticky bottom-0 z-50 bg-slate-950/80 backdrop-blur border-t border-slate-700/40">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          {!isComplete && (
-            <div className="space-y-2">
-              {/* Active prompt - label above input (NO bubble) */}
-              {activePromptText && (
-                <div className="text-sm text-slate-200">
-                  {activePromptText}
-                </div>
-              )}
-
-              {/* Processing indicator - inline minimal */}
-              {isDeciding && (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                  <span className="text-xs text-slate-400">Processing...</span>
-                </div>
-              )}
-
-              {/* Input form - disabled while deciding */}
-              {!isDeciding && (
-                <form onSubmit={handleSubmit} className="flex gap-3">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Type your answer..."
-                    className="flex-1 bg-slate-900/60 border border-slate-600/50 rounded-lg text-slate-100 placeholder:text-slate-400"
-                    disabled={isLoading}
-                    autoFocus
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!input.trim() || isLoading}
-                    className="bg-indigo-600 hover:bg-indigo-700 px-4"
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* Continue button - shown after probing completes */}
-          {isComplete && (
-            <div className="flex justify-center">
-              <Button
-                onClick={handleContinue}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
-              >
-                Continue to Next Question
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* Continue button - shown after probing completes */}
+        {isComplete && (
+          <div className="flex justify-center">
+            <Button
+              onClick={handleContinue}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
+            >
+              Continue to Next Question
+            </Button>
+          </div>
+        )}
       </div>
     </div>
+  );
+  
+  return (
+    <>
+      {/* Spacer to prevent content from hiding behind pinned composer */}
+      <div aria-hidden className="h-28" />
+      
+      {/* Portal composer to document.body */}
+      {typeof document !== "undefined" ? createPortal(composerNode, document.body) : null}
+    </>
   );
 }
