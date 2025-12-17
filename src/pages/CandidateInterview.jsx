@@ -5706,6 +5706,18 @@ export default function CandidateInterview() {
 
           {/* V3 Pack Opener Card - DETERMINISTIC RENDER (not transcript-dependent) */}
           {(() => {
+            // HARD GATE: Block opener UI when V3 probing is active
+            if (v3ProbingActive) {
+              console.log('[V3_UI_CONTRACT] opener_render_blocked_due_to_probing', {
+                currentItemType: currentItem?.type,
+                v3ProbingActive,
+                packId: currentItem?.packId,
+                instanceNumber: currentItem?.instanceNumber,
+                reason: 'V3ProbingLoop owns UI during probing - opener shell must unmount'
+              });
+              return null;
+            }
+            
             const isV3OpenerMode = currentItem?.type === 'v3_pack_opener' && !v3ProbingActive;
             
             if (!isV3OpenerMode) return null;
