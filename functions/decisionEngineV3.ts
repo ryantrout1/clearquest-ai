@@ -524,6 +524,7 @@ async function decisionEngineV3Probe(base44, {
   questionCode,
   sectionId,
   instanceNumber,
+  isInitialCall = false,
   config = {}
 }) {
   console.log("[IDE-V3] decisionEngineV3Probe called", { 
@@ -706,12 +707,11 @@ async function decisionEngineV3Probe(base44, {
     factState = { ...factState, ...initializeV3FactState(incidentId, factModel) };
   }
   
-  // Get current missing fields
+  // Get current missing fields BEFORE extraction
   const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
   
-  // Detect opener narrative: use isInitialCall flag (passed from caller) OR fall back to facts count
-  // On initial call, incident doesn't exist yet or has no facts, so use the flag for reliable detection
-  const isOpenerNarrative = Boolean(isNewIncident) && latestAnswerText && latestAnswerText.length >= 20;
+  // Detect opener narrative: use isInitialCall flag from caller (reliable on first call)
+  const isOpenerNarrative = Boolean(isInitialCall) && latestAnswerText && latestAnswerText.length >= 20;
   
   // Extract facts from answer (BEFORE selecting next missing field)
   const extractedFacts = extractFactsFromAnswer(
@@ -735,8 +735,8 @@ async function decisionEngineV3Probe(base44, {
   const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
   
   // Diagnostic log on initial call ONLY (definitive)
-  if (isNewIncident) {
-    console.log(`[V3_INITIAL_EXTRACT][${categoryId}] isInitialCall=${isNewIncident} extractedKeys=${Object.keys(extractedFacts).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
+  if (isInitialCall) {
+    console.log(`[V3_INITIAL_EXTRACT][${categoryId}] incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
   }
   
   // Diagnostic log with key alignment check
@@ -1044,7 +1044,7 @@ Deno.serve(async (req) => {
     }
     
     // ========== VALIDATE REQUIRED FIELDS ==========
-    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, config } = body;
+    const { sessionId, categoryId, incidentId, latestAnswerText, baseQuestionId, questionCode, sectionId, instanceNumber, isInitialCall, config } = body;
     
     if (!sessionId || !categoryId) {
       console.error('[DECISION_V3][BAD_PAYLOAD] Missing required fields', {
@@ -1076,6 +1076,7 @@ Deno.serve(async (req) => {
       questionCode: questionCode || null,
       sectionId: sectionId || null,
       instanceNumber: instanceNumber || 1,
+      isInitialCall: isInitialCall || false,
       config: config || {}
     });
     
