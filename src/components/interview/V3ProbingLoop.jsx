@@ -684,34 +684,31 @@ export default function V3ProbingLoop({
     );
   }
   
-  // PORTAL COMPOSER: Render to document.body for true viewport pinning
+  // UI CONTRACT: Prompt ONLY in placeholder (never as label/bubble)
+  const placeholderText = !isComplete && activePromptText ? activePromptText : "Type your answer...";
+  
+  // PORTAL COMPOSER: Minimal flat bar, prompt in placeholder only
   const composerNode = (
-    <div className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-slate-700/30 bg-slate-950/70 backdrop-blur">
-      <div className="max-w-4xl mx-auto px-4 py-3">
+    <div className="fixed bottom-0 left-0 right-0 z-[9999] px-4 pb-4">
+      <div className="max-w-4xl mx-auto">
         {!isComplete && (
-          <div className="space-y-2">
-            {/* Active prompt - label above input (NO bubble) */}
-            {activePromptText && (
-              <div className="text-sm text-slate-200">
-                {activePromptText}
-              </div>
-            )}
-
+          <div className="rounded-xl bg-slate-950/40 backdrop-blur px-3 py-3">
             {/* Processing indicator - inline minimal */}
             {isDeciding && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-2">
                 <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
                 <span className="text-xs text-slate-400">Processing...</span>
               </div>
             )}
 
-            {/* Input form - disabled while deciding */}
+            {/* Input form - prompt in placeholder only */}
             {!isDeciding && (
-              <form onSubmit={handleSubmit} className="flex gap-3">
+              <form onSubmit={handleSubmit} className="flex gap-2 items-center">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer..."
+                  placeholder={placeholderText}
+                  aria-label={activePromptText || "Type your answer"}
                   className="flex-1 bg-slate-900/60 border border-slate-600/50 rounded-lg text-slate-100 placeholder:text-slate-400"
                   disabled={isLoading}
                   autoFocus
@@ -730,7 +727,7 @@ export default function V3ProbingLoop({
 
         {/* Continue button - shown after probing completes */}
         {isComplete && (
-          <div className="flex justify-center">
+          <div className="rounded-xl bg-slate-950/40 backdrop-blur px-3 py-3 flex justify-center">
             <Button
               onClick={handleContinue}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
@@ -743,13 +740,6 @@ export default function V3ProbingLoop({
     </div>
   );
   
-  return (
-    <>
-      {/* Spacer to prevent content from hiding behind pinned composer */}
-      <div aria-hidden className="h-28" />
-      
-      {/* Portal composer to document.body */}
-      {typeof document !== "undefined" ? createPortal(composerNode, document.body) : null}
-    </>
-  );
+  // RETURN: Portal only (no spacer, no inline layout)
+  return typeof document !== "undefined" ? createPortal(composerNode, document.body) : null;
 }
