@@ -595,6 +595,8 @@ export default function V3ProbingLoop({
     } finally {
       setIsLoading(false);
       setIsDeciding(false);
+      // ALWAYS reset in-flight guard (even on early returns/errors)
+      engineInFlightRef.current = false;
     }
   };
 
