@@ -5062,6 +5062,11 @@ export default function CandidateInterview() {
   // V3 probing active (hide parent bottom bar - V3ProbingLoop has its own input)
   else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
     bottomBarMode = "HIDDEN";
+    console.log('[V3_UI_CONTRACT]', {
+      action: 'BOTTOM_BAR_HIDDEN',
+      reason: 'V3ProbingLoop owns UI input during probing',
+      v3ProbingActive
+    });
   }
   // Normal yes/no questions
   else if (currentPrompt?.type === 'question' && currentPrompt?.responseType === 'yes_no' && !isWaitingForAgent && !inIdeProbingLoop) {

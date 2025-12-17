@@ -198,6 +198,7 @@ function canon(s) {
 /**
  * Resolve exact field_id from FactModel by semantic name.
  * Uses canonical matching: agency_name → agencyName, approx_month_year → approxMonthYear
+ * Fallback: match by label if field_id match fails
  */
 function resolveFieldId(factModel, semanticKey) {
   if (!factModel || !semanticKey) return null;
@@ -209,9 +210,26 @@ function resolveFieldId(factModel, semanticKey) {
     ...(factModel.optional_fields || [])
   ];
   
+  // PRIORITY 1: Exact field_id match (canonical)
   for (const field of allFields) {
     if (field?.field_id && canon(field.field_id) === wanted) {
       return field.field_id;
+    }
+  }
+  
+  // PRIORITY 2: Label-based fallback (for legacy packs with inconsistent naming)
+  const semanticLower = String(semanticKey || '').toLowerCase();
+  if (semanticLower.includes('agency')) {
+    for (const field of allFields) {
+      const labelLower = String(field?.label || '').toLowerCase();
+      if (labelLower.includes('agency') && labelLower.includes('name')) {
+        console.log('[V3_FIELD_RESOLVE][LABEL_FALLBACK]', {
+          semanticKey,
+          resolvedTo: field.field_id,
+          via: 'label match (agency + name)'
+        });
+        return field.field_id;
+      }
     }
   }
   
@@ -236,13 +254,18 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   if (categoryId === 'PRIOR_LE_APPS') {
     const tempExtracted = {};
     
-    // Extract agency_name - improved patterns
+    // Extract agency_name - robust patterns with abbreviation support
     const agencyPatterns = [
-      /applied\s+to\s+([A-Z][A-Za-z\s&.'-]+?)\s+(?:for|as|in|during|position|role|\.|\,)/i,
-      /applied\s+with\s+([A-Z][A-Za-z\s&.'-]+?)\s+(?:for|as|in|during|position|role|\.|\,)/i,
-      /to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i,
-      /with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i,
-      /(?:at|from)\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i
+      // "applied to Mesa Police Department for..." or "applied to Mesa PD for..."
+      /applied\s+to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
+      /applied\s+with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
+      /applied\s+at\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
+      // "to Mesa Police Department for..." (without "applied")
+      /to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
+      /with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
+      /(?:at|from)\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
+      // "Mesa PD" standalone pattern (fallback)
+      /\b([A-Z][A-Za-z]+\s+(?:PD|Police|Sheriff|SO))\b/i
     ];
     
     for (const pattern of agencyPatterns) {
@@ -737,7 +760,8 @@ async function decisionEngineV3Probe(base44, {
   // Diagnostic log on initial call ONLY (definitive)
   if (isInitialCall) {
     const hadAgency = Object.keys(extractedFacts).some(k => canon(k) === canon("agency_name"));
-    console.log(`[V3_OPENER_EXTRACT][INITIAL] extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} openerPreview="${latestAnswerText?.substring(0, 60) || ''}" missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
+    const agencyResolvedTo = hadAgency ? Object.keys(extractedFacts).find(k => canon(k) === canon("agency_name")) : null;
+    console.log(`[V3_OPENER_EXTRACT][INITIAL] isInitialCall=${isInitialCall} incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} agencyResolvedTo=${agencyResolvedTo} missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")} openerPreview="${latestAnswerText?.substring(0, 60) || ''}"`);
   }
   
   // Diagnostic log with key alignment check
