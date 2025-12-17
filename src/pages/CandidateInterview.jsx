@@ -1709,23 +1709,35 @@ export default function CandidateInterview() {
 
   const initializeInterview = async () => {
     // BOOT TIMEOUT: Ensure loading state never persists beyond 10 seconds
+    const engineReadyRef = { value: false }; // Stable ref to track engine readiness
+    const componentUnmountedRef = { value: false }; // Track if component unmounted
+    
     const bootTimeout = setTimeout(() => {
+      if (componentUnmountedRef.value) {
+        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Component unmounted');
+        return;
+      }
+      
+      if (engineReadyRef.value) {
+        console.log('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT][SKIP] Engine already ready');
+        return;
+      }
+      
       console.error('[CANDIDATE_INTERVIEW][LOAD_TIMEOUT]', {
         sessionId,
-        hasEngine: Boolean(engine),
+        hasEngine: engineReadyRef.value,
         screenMode,
-        currentItemType: currentItem?.type
+        currentItemType: currentItem?.type,
+        elapsed: '10000ms'
       });
-      setError("We couldn't load the interview. Please refresh or contact support.");
-      setIsLoading(false);
-      setShowLoadingRetry(false);
-    }, 10000);
-    
-    // LOADING UX: Show retry option after 10 seconds
-    let retryTimeout;
-    retryTimeout = setTimeout(() => {
       setShowLoadingRetry(true);
     }, 10000);
+    
+    // Mark for cleanup on unmount
+    const timeoutCleanup = () => {
+      componentUnmountedRef.value = true;
+      clearTimeout(bootTimeout);
+    };
 
     try {
       // CRITICAL: Candidate interviews are 100% anonymous - NO auth calls
@@ -1796,8 +1808,19 @@ export default function CandidateInterview() {
         // Silent continue
       }
 
+      const bootStart = Date.now();
       const engineData = await bootstrapEngine(base44);
+      const bootMs = Date.now() - bootStart;
+      
       setEngine(engineData);
+      engineReadyRef.value = true;
+      
+      console.log('[CANDIDATE_INTERVIEW][ENGINE_READY]', {
+        sessionId,
+        bootMs,
+        screenMode: loadedSession.transcript_snapshot?.length > 0 ? 'QUESTION (pending)' : 'WELCOME (pending)',
+        currentItemType: loadedSession.current_item_snapshot?.type || null
+      });
 
       try {
         const orderedSections = buildSectionsFromEngine(engineData);
@@ -1861,12 +1884,22 @@ export default function CandidateInterview() {
         }
       }
 
-      // Log system events
+      // Log system events (with idempotency)
       if (sessionIsNew) {
-        await logSystemEventHelper(sessionId, 'SESSION_CREATED', {
-          department_code: loadedSession.department_code,
-          file_number: loadedSession.file_number
-        });
+        // IDEMPOTENCY: Check if SESSION_CREATED already exists (prevents duplicates)
+        const hasSessionCreated = (loadedSession.transcript_snapshot || []).some(e => 
+          e.messageType === 'SYSTEM_EVENT' && e.eventType === 'SESSION_CREATED'
+        );
+        
+        if (!hasSessionCreated) {
+          await logSystemEventHelper(sessionId, 'SESSION_CREATED', {
+            department_code: loadedSession.department_code,
+            file_number: loadedSession.file_number
+          });
+          console.log('[SESSION_CREATED][LOGGED]', { sessionId });
+        } else {
+          console.log('[SESSION_CREATED][SKIP] Already logged for session');
+        }
       } else {
         await logSystemEventHelper(sessionId, 'SESSION_RESUMED', {
           last_question_id: loadedSession.current_question_id
@@ -1874,20 +1907,19 @@ export default function CandidateInterview() {
       }
 
       // Clear boot timeout on successful initialization
-      clearTimeout(bootTimeout);
-      if (retryTimeout) clearTimeout(retryTimeout);
+      timeoutCleanup();
       setIsLoading(false);
       setShowLoadingRetry(false);
       
       console.log("[CANDIDATE_INTERVIEW][READY]", { 
         screenMode: sessionIsNew ? 'WELCOME' : 'QUESTION',
         currentItemType: loadedSession.current_item_snapshot?.type || null,
-        transcriptLen: loadedSession.transcript_snapshot?.length || 0
+        transcriptLen: loadedSession.transcript_snapshot?.length || 0,
+        engineReady: engineReadyRef.value
       });
 
     } catch (err) {
-      clearTimeout(bootTimeout);
-      if (retryTimeout) clearTimeout(retryTimeout);
+      timeoutCleanup();
       const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
       setError(`Failed to load interview: ${errorMessage}`);
       setIsLoading(false);
