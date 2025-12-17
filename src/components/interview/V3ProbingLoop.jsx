@@ -684,9 +684,9 @@ export default function V3ProbingLoop({
   }
   
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="flex flex-col min-h-screen w-full">
       {/* SCROLLABLE CONTENT: History (user answers, completion, errors) */}
-      <div className="flex-1 overflow-y-auto pb-24 space-y-2">
+      <div className="flex-1 overflow-y-auto pb-28 space-y-2">
         {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
         {messages.map((msg) => {
           // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
@@ -743,35 +743,36 @@ export default function V3ProbingLoop({
 
         <div ref={messagesEndRef} />
 
-        {/* Debug banner - DISABLED by default */}
-        {SHOW_V3_DEBUG_UI && !isComplete && (
-          <div className="mt-2 px-2 py-1 bg-slate-800/50 border border-slate-700/30 rounded text-xs text-slate-500 font-mono">
-            DEBUG: promptLen={activePromptText?.length || 0} deciding={isDeciding.toString()} complete={isComplete.toString()} inFlight={engineInFlightRef?.current?.toString() || 'false'}
-          </div>
-        )}
+
       </div>
 
-      {/* FIXED BOTTOM COMPOSER: Input only (pinned to viewport bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur border-t border-slate-700/40">
+      {/* STICKY BOTTOM COMPOSER: Input only (pinned to bottom via sticky) */}
+      <div className="sticky bottom-0 z-50 bg-slate-950/80 backdrop-blur border-t border-slate-700/40">
         <div className="max-w-4xl mx-auto px-4 py-3">
           {!isComplete && (
-            <div>
+            <div className="space-y-2">
+              {/* Active prompt - label above input (NO bubble) */}
+              {activePromptText && (
+                <div className="text-sm text-slate-200">
+                  {activePromptText}
+                </div>
+              )}
+
               {/* Processing indicator - inline minimal */}
               {isDeciding && (
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
                   <span className="text-xs text-slate-400">Processing...</span>
                 </div>
               )}
 
-              {/* Input form - prompt in placeholder only */}
+              {/* Input form - disabled while deciding */}
               {!isDeciding && (
                 <form onSubmit={handleSubmit} className="flex gap-3">
                   <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={activePromptText || "Type your answer..."}
-                    aria-label={activePromptText || "Type your answer"}
+                    placeholder="Type your answer..."
                     className="flex-1 bg-slate-900/60 border border-slate-600/50 rounded-lg text-slate-100 placeholder:text-slate-400"
                     disabled={isLoading}
                     autoFocus
