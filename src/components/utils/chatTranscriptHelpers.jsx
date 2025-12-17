@@ -325,6 +325,18 @@ export async function logSystemEvent(sessionId, eventType, metadata = {}) {
     const session = await base44.entities.InterviewSession.get(sessionId);
     const existingTranscript = session.transcript_snapshot || [];
     
+    // DEDUPE: Prevent duplicate SESSION_CREATED events
+    if (eventType === 'SESSION_CREATED') {
+      const alreadyExists = existingTranscript.some(e => 
+        e.messageType === 'SYSTEM_EVENT' && e.eventType === 'SESSION_CREATED'
+      );
+      
+      if (alreadyExists) {
+        console.log('[TRANSCRIPT][SYSTEM_EVENT][DEDUPED] SESSION_CREATED already exists — skipping append');
+        return existingTranscript;
+      }
+    }
+    
     const entry = {
       id: makeTranscriptId(),
       stableKey: null, // System events don't need idempotency (audit only)
