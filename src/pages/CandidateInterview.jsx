@@ -5126,8 +5126,13 @@ export default function CandidateInterview() {
   // CENTRALIZED BOTTOM BAR MODE SELECTION (Single Decision Point)
   // ============================================================================
   const currentItemType = uiCurrentItem?.type || null;
-  const isV3Gate = currentItemType === "v3_gate";
-  const isMultiInstanceGate = currentItemType === "multi_instance_gate";
+  
+  // UI TRUTH: When V3 probing is active, force effective type to v3_probing
+  // This ensures opener UI never renders during probing (strict contract enforcement)
+  const effectiveItemType = v3ProbingActive ? 'v3_probing' : currentItemType;
+  
+  const isV3Gate = effectiveItemType === "v3_gate";
+  const isMultiInstanceGate = effectiveItemType === "multi_instance_gate";
   
   // Compute bottom bar mode
   let bottomBarMode = "HIDDEN"; // Default: no controls shown
@@ -5162,7 +5167,8 @@ export default function CandidateInterview() {
     console.log('[V3_UI_CONTRACT]', {
       action: 'BOTTOM_BAR_HIDDEN',
       reason: 'V3ProbingLoop owns UI input during probing',
-      v3ProbingActive
+      v3ProbingActive,
+      effectiveItemType
     });
   }
   // Normal yes/no questions
@@ -5175,27 +5181,27 @@ export default function CandidateInterview() {
     isQuestion = true;
   }
   // V2 pack field yes/no
-  else if (currentItemType === 'v2_pack_field' && currentPrompt?.inputType === 'yes_no') {
+  else if (effectiveItemType === 'v2_pack_field' && currentPrompt?.inputType === 'yes_no') {
     bottomBarMode = "YES_NO";
     isQuestion = true;
   }
   // V2 pack field select single
-  else if (currentItemType === 'v2_pack_field' && currentPrompt?.inputType === 'select_single' && currentPrompt?.options) {
+  else if (effectiveItemType === 'v2_pack_field' && currentPrompt?.inputType === 'select_single' && currentPrompt?.options) {
     bottomBarMode = "SELECT";
     isQuestion = true;
   }
   // Text input for questions, v2_pack_field, v3_pack_opener, followup
-  else if ((currentItemType === 'question' || currentItemType === 'v2_pack_field' || currentItemType === 'v3_pack_opener' || currentItemType === 'followup' || currentPrompt?.type === 'ai_probe') && !isV3Gate && !isMultiInstanceGate) {
+  else if ((effectiveItemType === 'question' || effectiveItemType === 'v2_pack_field' || effectiveItemType === 'v3_pack_opener' || effectiveItemType === 'followup' || currentPrompt?.type === 'ai_probe') && !isV3Gate && !isMultiInstanceGate) {
     bottomBarMode = "TEXT_INPUT";
     isQuestion = true;
   }
   
   // Log final mode selection
-  console.log('[BOTTOM_BAR_MODE]', { currentItemType, bottomBarMode, isQuestion, screenMode });
+  console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
   
   // Legacy flags (kept for compatibility)
-  const isV2PackField = currentItemType === "v2_pack_field";
-  const isV3PackOpener = currentItemType === "v3_pack_opener";
+  const isV2PackField = effectiveItemType === "v2_pack_field";
+  const isV3PackOpener = effectiveItemType === "v3_pack_opener";
   const showTextInput = bottomBarMode === "TEXT_INPUT";
   
   // Derive answerable from existing values (safe default: allow answer if we have a current item and it's a question-like type)
@@ -5210,6 +5216,7 @@ export default function CandidateInterview() {
   // Debug log: confirm which bottom bar path is rendering
   console.log("[BOTTOM_BAR_RENDER]", {
     currentItemType,
+    effectiveItemType,
     currentItemId: currentItem?.id,
     packId: currentItem?.packId,
     fieldKey: currentItem?.fieldKey,
@@ -5706,21 +5713,23 @@ export default function CandidateInterview() {
 
           {/* V3 Pack Opener Card - DETERMINISTIC RENDER (not transcript-dependent) */}
           {(() => {
-            // HARD GATE: Block opener UI when V3 probing is active
-            if (v3ProbingActive) {
-              console.log('[V3_UI_CONTRACT] opener_render_blocked_due_to_probing', {
-                currentItemType: currentItem?.type,
-                v3ProbingActive,
-                packId: currentItem?.packId,
-                instanceNumber: currentItem?.instanceNumber,
-                reason: 'V3ProbingLoop owns UI during probing - opener shell must unmount'
-              });
+            // UI CONTRACT: Use effectiveItemType (never render opener during probing)
+            const isV3OpenerMode = effectiveItemType === 'v3_pack_opener';
+            
+            if (!isV3OpenerMode) {
+              // Diagnostic log when blocked
+              if (currentItem?.type === 'v3_pack_opener' && v3ProbingActive) {
+                console.log('[V3_UI_CONTRACT] opener_render_blocked_due_to_probing', {
+                  currentItemType: currentItem?.type,
+                  effectiveItemType,
+                  v3ProbingActive,
+                  packId: currentItem?.packId,
+                  instanceNumber: currentItem?.instanceNumber,
+                  reason: 'effectiveItemType forces v3_probing - opener shell never mounts'
+                });
+              }
               return null;
             }
-            
-            const isV3OpenerMode = currentItem?.type === 'v3_pack_opener' && !v3ProbingActive;
-            
-            if (!isV3OpenerMode) return null;
             
             const openerText = currentItem.openerText;
             const exampleNarrative = currentItem.exampleNarrative;
@@ -5789,6 +5798,7 @@ export default function CandidateInterview() {
             console.log('[V3_UI_RENDER][PARENT_RENDER]', {
               sessionId,
               currentItemType: currentItem?.type,
+              effectiveItemType: 'v3_probing',
               v3ProbingActive,
               rendered: true,
               loopKey: `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
