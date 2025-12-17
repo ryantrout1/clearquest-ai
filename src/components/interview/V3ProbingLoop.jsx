@@ -123,6 +123,12 @@ export default function V3ProbingLoop({
   
   // DUPLICATE PROMPT GUARD: Track last prompt hash to prevent duplicates
   const lastPromptHashRef = useRef(null);
+  
+  // INIT-ONCE GUARD: Ensure initialization only runs once per mount
+  const initRanRef = useRef(false);
+  
+  // IN-FLIGHT GUARD: Prevent concurrent engine calls
+  const engineInFlightRef = useRef(false);
 
   // Render logging
   useEffect(() => {
