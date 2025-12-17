@@ -622,27 +622,49 @@ export default function V3ProbingLoop({
   
   return (
     <div className="w-full space-y-2">
-      {/* V3 Messages - user answers only (prompts rendered separately) */}
-      {messages.map((msg) => (
-        <div key={msg.id}>
-          {msg.role === "user" && (
-            <div className="flex justify-end">
-              <div className="bg-purple-600 rounded-xl px-5 py-3">
-                <p className="text-white text-sm">{msg.answer || msg.content}</p>
+      {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
+      {messages.map((msg) => {
+        // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
+        if (msg.role === "ai" && !msg.isCompletion && !msg.isError) {
+          console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
+            promptPreview: msg.content?.substring(0, 60),
+            msgId: msg.id,
+            locations: ['messages_loop', 'activePromptText'],
+            reason: 'Active prompt leaked into messages array - blocking render'
+          });
+          return null; // Block rendering
+        }
+        
+        return (
+          <div key={msg.id}>
+            {msg.role === "user" && (
+              <div className="flex justify-end">
+                <div className="bg-purple-600 rounded-xl px-5 py-3">
+                  <p className="text-white text-sm">{msg.answer || msg.content}</p>
+                </div>
               </div>
-            </div>
-          )}
-          {/* AI completion messages only (not active prompts) */}
-          {msg.role === "ai" && msg.isCompletion && (
-            <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+            )}
+            {/* AI completion messages only */}
+            {msg.role === "ai" && msg.isCompletion && (
+              <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+            {/* Error messages */}
+            {msg.role === "ai" && msg.isError && (
+              <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       <div ref={messagesEndRef} />
 
@@ -660,11 +682,28 @@ export default function V3ProbingLoop({
           )}
           
           {/* PRIORITY 2: Active prompt card (SINGLE SOURCE OF TRUTH) */}
-          {!isDeciding && activePromptText && (
-            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-              <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
-            </div>
-          )}
+          {!isDeciding && activePromptText && (() => {
+            // DEFENSIVE CHECK: Verify this prompt isn't also in messages
+            const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const activeCanon = canon(activePromptText);
+            const duplicateInMessages = messages.some(m => 
+              m.role === 'ai' && !m.isCompletion && !m.isError && canon(m.content) === activeCanon
+            );
+            
+            if (duplicateInMessages) {
+              console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
+                promptPreview: activePromptText.substring(0, 60),
+                locations: ['messages_loop', 'activePromptText'],
+                reason: 'Same prompt exists in messages AND activePromptText'
+              });
+            }
+            
+            return (
+              <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+              </div>
+            );
+          })()}
           
           {/* PRIORITY 3: Safe fallback (prevents blank screen) */}
           {!isDeciding && !activePromptText && !isLoading && (
