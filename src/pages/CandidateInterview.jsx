@@ -108,6 +108,7 @@ const resetMountTracker = (sid) => {
     'SECTION_STARTED',          // Section lifecycle
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
+    'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
   ]);
 
   // Helper: Filter renderable transcript entries (no flicker)

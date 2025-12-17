@@ -211,6 +211,47 @@ function isMonthYearLike(text) {
 }
 
 /**
+ * GENERIC ENUM INFERENCE: Map narrative text to FactModel enum values.
+ * Works across all categories by matching keywords to enum_options.
+ */
+function inferEnumValue(field, narrativeText) {
+  if (!field || !narrativeText) return null;
+  if (!field.enum_options || !Array.isArray(field.enum_options) || field.enum_options.length === 0) return null;
+  
+  const lower = narrativeText.toLowerCase();
+  
+  // Generic outcome/status/result field patterns
+  const outcomeKeywords = {
+    hired: ['hired', 'offered', 'accepted the position', 'got the job', 'selected'],
+    disqualified: ['disqualified', 'rejected', 'denied', 'not selected', 'did not pass', 'failed', 'eliminated'],
+    withdrew: ['withdrew', 'pulled out', 'withdrew my application', 'decided not to continue'],
+    still_in_process: ['still in process', 'pending', 'waiting to hear', 'under review', 'in progress']
+  };
+  
+  // Try to match narrative keywords to enum values
+  for (const enumValue of field.enum_options) {
+    const enumLower = enumValue.toLowerCase();
+    const enumCanon = canon(enumValue);
+    
+    // Exact match (case-insensitive)
+    if (lower.includes(enumLower)) {
+      return enumValue;
+    }
+    
+    // Keyword-based inference
+    for (const [canonicalOutcome, keywords] of Object.entries(outcomeKeywords)) {
+      if (canon(enumValue).includes(canonicalOutcome)) {
+        if (keywords.some(kw => lower.includes(kw))) {
+          return enumValue;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Resolve exact field_id from FactModel by semantic name.
  * Uses canonical matching: agency_name → agencyName, approx_month_year → approxMonthYear
  * Fallback: match by label if field_id match fails
@@ -400,12 +441,25 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     }
   }
   
-  // UNIVERSAL OUTCOME EXTRACTION
+  // UNIVERSAL OUTCOME/ENUM EXTRACTION
   const outcomeFields = allFields.filter(f => 
     ['outcome', 'result', 'status', 'decision'].some(kw => canon(f.field_id || '').includes(kw))
   );
   
-  if (outcomeFields.length > 0) {
+  for (const outcomeField of outcomeFields) {
+    // Try enum inference first if field has enum_options
+    const inferredValue = inferEnumValue(outcomeField, normalized);
+    if (inferredValue) {
+      extracted[outcomeField.field_id] = inferredValue;
+      console.log('[V3_FACTMODEL_INGEST][ENUM]', {
+        fieldId: outcomeField.field_id,
+        inferredValue,
+        source: 'enum_inference'
+      });
+      continue;
+    }
+    
+    // Fallback: keyword matching for non-enum outcome fields
     let outcome = null;
     if (lower.includes('rejected') || lower.includes('denied') || lower.includes('disqualified') || lower.includes('not selected')) {
       outcome = 'Not selected/rejected';
@@ -418,12 +472,11 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
     }
     
     if (outcome) {
-      for (const outcomeField of outcomeFields) {
-        extracted[outcomeField.field_id] = outcome;
-      }
+      extracted[outcomeField.field_id] = outcome;
       console.log('[V3_FACTMODEL_INGEST][OUTCOME]', {
+        fieldId: outcomeField.field_id,
         extractedValue: outcome,
-        mappedToFields: outcomeFields.map(f => f.field_id).join(',')
+        source: 'keyword_match'
       });
     }
   }

@@ -77,6 +77,9 @@ export default function V3ProbingLoop({
   const [isDeciding, setIsDeciding] = useState(false);
   const [activePromptText, setActivePromptText] = useState(null);
   const [activePromptId, setActivePromptId] = useState(null);
+  
+  // DUPLICATE PROMPT GUARD: Track last prompt hash to prevent duplicates
+  const lastPromptHashRef = useRef(null);
 
   // Initialize V3 probing with opener answer
   useEffect(() => {
@@ -274,6 +277,23 @@ export default function V3ProbingLoop({
 
       // Handle next action
       if (data.nextAction === "ASK" && data.nextPrompt) {
+        // DUPLICATE PROMPT GUARD: Hash prompt to detect duplicates
+        const promptHash = `${data.nextPrompt}-${currentIncidentId}-${newProbeCount}`;
+        
+        if (lastPromptHashRef.current === promptHash) {
+          console.log('[V3_UI_CONTRACT][DUPLICATE_PROMPT_BLOCKED]', {
+            promptPreview: data.nextPrompt.substring(0, 60),
+            incidentId: currentIncidentId,
+            probeCount: newProbeCount,
+            reason: 'Same prompt hash as previous - skipping duplicate render'
+          });
+          setIsDeciding(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        lastPromptHashRef.current = promptHash;
+        
         const aiMessage = {
           id: `v3-ai-${Date.now()}`,
           role: "ai",
