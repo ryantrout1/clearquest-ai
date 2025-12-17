@@ -80,27 +80,12 @@ function getOpeningPrompt(categoryId, categoryLabel, packData = null) {
 
 /**
  * Generate a BI-style probe question for a missing V3 field.
- * Can generate confirmation questions if field value is present but needs verification.
+ * HIGH CONFIDENCE extracted facts are NOT asked again (no confirmation).
  */
 function generateV3ProbeQuestion(field, collectedFacts = {}) {
   const fieldId = field.field_id?.toLowerCase();
   const label = field.label;
   const type = field.type;
-  
-  // Check if we already extracted this field (confirmation scenario)
-  const extractedValue = collectedFacts?.[field.field_id];
-  if (extractedValue && typeof extractedValue === 'string' && extractedValue.length > 0) {
-    // Generate confirmation question
-    if (fieldId === 'agency_name') {
-      return `I saw you mentioned ${extractedValue}. Is that the agency you applied to?`;
-    } else if (fieldId === 'position_applied_for') {
-      return `Just to confirm, you applied for the position of ${extractedValue}, correct?`;
-    } else if (fieldId === 'approx_month_year') {
-      return `You mentioned ${extractedValue}. Is that approximately when this occurred?`;
-    } else {
-      return `I noted you mentioned "${extractedValue}" — is that correct?`;
-    }
-  }
   
   // Check for specific field template
   if (FIELD_QUESTION_TEMPLATES[fieldId]) {
@@ -212,49 +197,65 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   
   // PRIOR_LE_APPS specific extraction
   if (categoryId === 'PRIOR_LE_APPS') {
-    // Extract agency_name - patterns like "applied to [AGENCY]" or "[AGENCY] for a"
+    // Extract agency_name - improved patterns
     const agencyPatterns = [
-      /applied\s+to\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))/i,
-      /to\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))\s+for/i,
-      /([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))\s+application/i,
-      /with\s+([A-Z][A-Za-z\s]+(?:Police|Sheriff|Department|Agency|Office))/i
+      /applied\s+to\s+([A-Z][A-Za-z\s&.'-]+?)\s+(?:for|as|in|during|position|role|\.|\,)/i,
+      /applied\s+with\s+([A-Z][A-Za-z\s&.'-]+?)\s+(?:for|as|in|during|position|role|\.|\,)/i,
+      /to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i,
+      /with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i,
+      /(?:at|from)\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency|Office))/i
     ];
     
     for (const pattern of agencyPatterns) {
       const match = normalized.match(pattern);
       if (match && match[1]) {
-        extracted.agency_name = match[1].trim();
-        break;
+        let agency = match[1].trim();
+        // Clean up common suffixes that got caught
+        agency = agency.replace(/\s+(for|as|in|during|position|role)$/i, '').trim();
+        if (agency.length >= 3) {
+          extracted.agency_name = agency;
+          break;
+        }
       }
     }
     
-    // Extract position_applied_for - patterns like "for a [POSITION]" or "as a [POSITION]"
+    // Extract position_applied_for - improved patterns
     const positionPatterns = [
-      /for\s+a?\s?([A-Za-z\s]+(?:Officer|Recruit|Deputy|Agent|Position))/i,
-      /as\s+a?\s?([A-Za-z\s]+(?:Officer|Recruit|Deputy|Agent|Position))/i,
-      /position\s+of\s+([A-Za-z\s]+)/i
+      /for\s+(?:a|an|the)?\s*([A-Za-z\s]+?)\s+(?:position|role|job)/i,
+      /as\s+(?:a|an|the)?\s*([A-Za-z\s]+?)\s+(?:position|role|\.|,)/i,
+      /position\s+of\s+([A-Za-z\s]+?)(?:\.|,|\s+in|\s+at|\s+for|\s+with)/i,
+      /for\s+(?:a|an|the)?\s*(Police Officer Recruit|Police Officer|Deputy Sheriff|Sheriff Deputy|Correctional Officer|Officer|Recruit|Deputy|Agent)(?:\s|\.|\,|$)/i
     ];
     
     for (const pattern of positionPatterns) {
       const match = normalized.match(pattern);
       if (match && match[1]) {
-        extracted.position_applied_for = match[1].trim();
-        break;
+        let position = match[1].trim();
+        if (position.length >= 3) {
+          extracted.position_applied_for = position;
+          break;
+        }
       }
     }
     
-    // Extract approx_month_year - patterns like "In March 2022" or "March of 2022"
+    // Extract approx_month_year - improved patterns
     const monthYearPatterns = [
-      /in\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i,
-      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+of?\s+(\d{4})/i,
-      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i
+      /(?:In|During|in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i
     ];
     
     for (const pattern of monthYearPatterns) {
       const match = normalized.match(pattern);
       if (match) {
-        const month = match[1];
-        const year = match[2] || match[3];
+        let month, year;
+        if (match[2] && /^\d{4}$/.test(match[2])) {
+          month = match[1];
+          year = match[2];
+        } else if (match[1] && /^\d{4}$/.test(match[1])) {
+          year = match[1];
+          month = match[2];
+        }
         if (month && year) {
           extracted.approx_month_year = `${month} ${year}`;
           break;
@@ -262,24 +263,32 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
       }
     }
     
-    // Extract outcome hints - look for outcome-related keywords
-    if (lower.includes('rejected') || lower.includes('denied') || lower.includes('not selected')) {
+    // Extract outcome - keyword matching
+    if (lower.includes('rejected') || lower.includes('denied') || lower.includes('disqualified') || lower.includes('not selected')) {
       extracted.outcome = 'Not selected/rejected';
-    } else if (lower.includes('withdrew') || lower.includes('pulled out')) {
+    } else if (lower.includes('withdrew') || lower.includes('pulled out') || lower.includes('withdrew my application')) {
       extracted.outcome = 'Withdrew application';
-    } else if (lower.includes('hired') || lower.includes('accepted') || lower.includes('offered')) {
-      extracted.outcome = 'Hired/accepted';
+    } else if (lower.includes('offered') || lower.includes('hired') || lower.includes('accepted')) {
+      extracted.outcome = 'Hired/Offered position';
     }
     
-    // Extract how_far_got hints
-    if (lower.includes('background') && lower.includes('failed')) {
-      extracted.how_far_got = 'Background investigation';
-    } else if (lower.includes('polygraph')) {
-      extracted.how_far_got = 'Polygraph stage';
-    } else if (lower.includes('interview')) {
-      extracted.how_far_got = 'Interview stage';
-    } else if (lower.includes('written test') || lower.includes('written exam')) {
-      extracted.how_far_got = 'Written test';
+    // Extract how_far_got - keyword matching with priority
+    const stageKeywords = [
+      { keywords: ['written test', 'written exam', 'written portion'], value: 'Written test' },
+      { keywords: ['physical test', 'physical fitness', 'pt test', 'fitness test'], value: 'Physical fitness test' },
+      { keywords: ['oral board', 'oral interview', 'panel interview'], value: 'Oral board' },
+      { keywords: ['polygraph', 'lie detector'], value: 'Polygraph' },
+      { keywords: ['background investigation', 'background check', 'background'], value: 'Background investigation' },
+      { keywords: ['psychological', 'psych eval', 'psych'], value: 'Psychological evaluation' },
+      { keywords: ['medical exam', 'medical'], value: 'Medical examination' },
+      { keywords: ['interview'], value: 'Interview stage' }
+    ];
+    
+    for (const stage of stageKeywords) {
+      if (stage.keywords.some(kw => lower.includes(kw))) {
+        extracted.how_far_got = stage.value;
+        break;
+      }
     }
   }
   
@@ -650,9 +659,14 @@ async function decisionEngineV3Probe(base44, {
   // Get current missing fields
   const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
   
+  // Detect opener narrative: no facts collected yet + substantive answer
+  const collectedFactsCount = Object.keys(incident?.facts || {}).filter(k => {
+    const v = incident.facts[k];
+    return v !== null && v !== undefined && v !== '';
+  }).length;
+  const isOpenerNarrative = collectedFactsCount === 0 && latestAnswerText && latestAnswerText.length >= 20;
+  
   // Extract facts from answer
-  // On first call (new incident), treat latestAnswerText as opener narrative
-  const isOpenerNarrative = isNewIncident && latestAnswerText && latestAnswerText.length >= 20;
   const extractedFacts = extractFactsFromAnswer(
     latestAnswerText, 
     missingFieldsBefore, 
@@ -660,11 +674,6 @@ async function decisionEngineV3Probe(base44, {
     isOpenerNarrative,
     categoryId
   );
-  
-  // Log extraction for debugging
-  if (Object.keys(extractedFacts).length > 0) {
-    console.log(`[V3_EXTRACT][${categoryId}] extracted=${JSON.stringify(extractedFacts)} missing=${missingFieldsBefore.map(f => f.field_id).join(',')}`);
-  }
   
   // Update incident.facts
   incident.facts = {
@@ -675,6 +684,14 @@ async function decisionEngineV3Probe(base44, {
   // Update fact_state
   factState = updateV3FactState(factState, incidentId, factModel, incident.facts);
   
+  // Get updated missing fields AFTER extraction merge
+  const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
+  
+  // Log extraction for debugging
+  if (Object.keys(extractedFacts).length > 0) {
+    console.log(`[V3_EXTRACT][${categoryId}] extracted=${JSON.stringify(extractedFacts)} missingAfter=${missingFieldsAfter.map(f => f.field_id).join(',')}`);
+  }
+  
   // Track probe and non-substantive counts
   const legacyFactState = incident.fact_state || { probe_count: 0, non_substantive_count: 0 };
   legacyFactState.probe_count = (legacyFactState.probe_count || 0) + 1;
@@ -682,9 +699,6 @@ async function decisionEngineV3Probe(base44, {
   if (isNonSubstantiveAnswer(latestAnswerText)) {
     legacyFactState.non_substantive_count = (legacyFactState.non_substantive_count || 0) + 1;
   }
-  
-  // Get updated missing fields
-  const missingFieldsAfter = getMissingRequiredFields(factState, incidentId, factModel);
   
   // Determine next action
   let nextAction = "ASK";
