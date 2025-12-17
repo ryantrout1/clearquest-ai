@@ -229,18 +229,23 @@ export default function V3ProbingLoop({
         };
         setMessages(prev => [...prev, aiMessage]);
         
-        // FIX #4: Append AI probe to main transcript (not InterviewTranscript debug log)
-        const { appendAssistantMessage } = await import("../utils/chatTranscriptHelpers");
-        const session = await base44.entities.InterviewSession.get(sessionId);
-        await appendAssistantMessage(sessionId, session.transcript_snapshot || [], data.nextPrompt, {
-          messageType: 'v3_probe_question',
+        // Log V3 probe as system event only (NOT visible transcript message)
+        const { logSystemEvent } = await import("../utils/chatTranscriptHelpers");
+        await logSystemEvent(sessionId, 'V3_PROBE_ASKED', {
           categoryId,
           incidentId: currentIncidentId,
           probeCount: newProbeCount,
-          visibleToCandidate: true
+          promptPreview: data.nextPrompt.substring(0, 60)
+        });
+        
+        // [V3_UI_CONTRACT] Probe rendered as active prompt, not transcript message
+        console.log('[V3_UI_CONTRACT]', {
+          action: 'SET_ACTIVE_PROMPT',
+          promptPreview: data.nextPrompt.substring(0, 60),
+          appendedToTranscript: false
         });
 
-        // Persist AI message to local transcript
+        // Persist AI message to local transcript (V3ProbingLoop internal state only)
         if (onTranscriptUpdate) {
           onTranscriptUpdate({
             type: 'v3_probe_question',
