@@ -751,29 +751,27 @@ export default function V3ProbingLoop({
         </div>
       )}
 
-      {/* V3 INPUT AREA: Prompt + Input (SINGLE SOURCE OF TRUTH) */}
+      {/* V3 INPUT AREA: Prompt + Input (NO BUBBLE - label only) */}
       {!isComplete && (
-        <div className="mt-4 space-y-3">
-          {/* Active prompt label - always visible when exists */}
+        <div className="mt-4">
+          {/* Active prompt - simple label text, NO card/bubble */}
           {activePromptText && (
-            <div className="bg-purple-900/20 border-l-4 border-purple-500 rounded-r px-4 py-3">
+            <div className="mb-2">
               {isDeciding && (
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                  <span className="text-xs text-purple-300">Processing your answer...</span>
+                  <span className="text-xs text-slate-400">Processing...</span>
                 </div>
               )}
-              <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+              <p className="text-sm text-slate-200">{activePromptText}</p>
             </div>
           )}
 
           {/* Processing indicator - only if no prompt yet */}
           {!activePromptText && isDeciding && (
-            <div className="bg-slate-800/50 border border-slate-600/50 rounded px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+              <p className="text-slate-300 text-sm">Reviewing your answer...</p>
             </div>
           )}
 
