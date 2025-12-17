@@ -115,24 +115,22 @@ const resetMountTracker = (sid) => {
   ]);
 
   // V3 UI CONTRACT: Hard filter for V3 prompt items (module-scope safe)
-  const isV3PromptTranscriptItem = (msg, isProbingActive = false) => {
+  // NARROW FILTER: Only blocks specific V3 probe prompt types
+  const isV3PromptTranscriptItem = (msg) => {
     const t = msg?.messageType || msg?.type || msg?.kind;
     
-    // Block known V3 prompt/system events
+    // Block known V3 prompt/system events ONLY
     if (t === "V3_PROBE_ASKED") return true;
     if (t === "V3_PROBE_PROMPT") return true;
     if (t === "v3_probe_question") return true;
     if (t === "V3_PROMPT") return true;
     if (t === "V3_PROBE") return true;
     
-    // FAIL-CLOSED: Block any assistant message that looks like V3 probe while probing
-    if (isProbingActive && msg?.role === "assistant" && msg?.isV3 === true) return true;
-    
     return false;
   };
 
   // Helper: Filter renderable transcript entries (no flicker)
-  const isRenderableTranscriptEntry = (t, isProbingActive = false) => {
+  const isRenderableTranscriptEntry = (t) => {
     if (!t) return false;
 
     const mt = t.messageType || t.type;
@@ -140,13 +138,8 @@ const resetMountTracker = (sid) => {
     // Never show SYSTEM_EVENT or internal markers
     if (mt === 'SYSTEM_EVENT') return false;
     
-    // V3 UI CONTRACT: Block V3 probe prompts from transcript (hard filter)
-    if (isV3PromptTranscriptItem(t, isProbingActive)) {
-      console.log('[V3_UI_CONTRACT]', {
-        action: 'FILTER_BLOCKED_V3_PROBE',
-        messageType: mt,
-        reason: 'V3 probes must NOT appear in candidate transcript'
-      });
+    // V3 UI CONTRACT: Block V3 probe prompts from transcript (narrow type-based filter)
+    if (isV3PromptTranscriptItem(t)) {
       return false;
     }
 
@@ -189,8 +182,8 @@ const resetMountTracker = (sid) => {
   /**
    * Determine if a transcript entry should be rendered (legacy wrapper)
    */
-  function shouldRenderTranscriptEntry(entry, index, isProbingActive = false) {
-    return isRenderableTranscriptEntry(entry, isProbingActive);
+  function shouldRenderTranscriptEntry(entry, index) {
+    return isRenderableTranscriptEntry(entry);
   }
 
 /**
@@ -1272,8 +1265,7 @@ export default function CandidateInterview() {
   const nextRenderable = React.useMemo(() => {
     const base = Array.isArray(dbTranscript) ? dbTranscript : [];
     const deduped = dedupeByStableKey(base);
-    const v3Active = !!v3ProbingActive;
-    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry, v3Active));
+    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
     // FALLBACK: If filter hides all messages but we have canonical data, use last 10
     if (base.length > 0 && filtered.length === 0) {
@@ -1291,7 +1283,7 @@ export default function CandidateInterview() {
     }
     
     return filtered;
-  }, [dbTranscript, v3ProbingActive]);
+  }, [dbTranscript]);
 
   // Freeze render during refresh (prevents flash-to-empty)
   const [renderTranscript, setRenderTranscript] = React.useState([]);
@@ -1339,16 +1331,10 @@ export default function CandidateInterview() {
     if (!dbTranscript || dbTranscript.length === 0) return;
     
     const newMessages = [];
-    const v3Active = !!v3ProbingActive;
     
     for (const entry of dbTranscript) {
-      // V3 UI CONTRACT: Block V3 probe prompt types only
-      if (isV3PromptTranscriptItem(entry, v3Active)) {
-        console.log('[V3_UI_CONTRACT]', {
-          action: 'BLOCKED_V3_PROBE_FROM_APPEND_ONLY',
-          messageType: entry.messageType || entry.type,
-          reason: 'V3 probe prompts filtered from rendered messages'
-        });
+      // V3 UI CONTRACT: Block V3 probe prompt types only (narrow type-based filter)
+      if (isV3PromptTranscriptItem(entry)) {
         continue; // Skip this entry
       }
       
@@ -1375,20 +1361,7 @@ export default function CandidateInterview() {
         return updated;
       });
     }
-    
-    // REGRESSION GUARD: Check if V3 prompts leaked into transcript during probing
-    if (v3Active) {
-      const badEntries = dbTranscript.filter(e => isV3PromptTranscriptItem(e, v3Active));
-      if (badEntries.length > 0) {
-        console.error('[V3_UI_CONTRACT][ERROR] V3_PROMPT_FOUND_IN_TRANSCRIPT', {
-          count: badEntries.length,
-          sample: badEntries[0]?.text?.slice?.(0, 80) || badEntries[0],
-          v3ProbingActive: v3Active,
-          sessionId
-        });
-      }
-    }
-  }, [dbTranscript, v3ProbingActive, sessionId]);
+  }, [dbTranscript, sessionId]);
   
   // UNIFIED STREAM: No filtering - all messages render in single transcript
   const transcriptWithoutCurrentPrompt = useMemo(() => {
