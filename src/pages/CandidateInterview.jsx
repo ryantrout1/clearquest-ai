@@ -1143,6 +1143,9 @@ export default function CandidateInterview() {
   // V3 Probing state
   const [v3ProbingActive, setV3ProbingActive] = useState(false);
   const [v3ProbingContext, setV3ProbingContext] = useState(null);
+  const [v3ActivePromptText, setV3ActivePromptText] = useState(null); // NEW: Active probe question for input placeholder
+  const v3AnswerHandlerRef = useRef(null); // NEW: Ref to V3ProbingLoop's answer handler
+  const [v3PendingAnswer, setV3PendingAnswer] = useState(null); // NEW: Answer to route to V3ProbingLoop
   // Track V3-enabled packs: Map<packId, { isV3: boolean, factModelReady: boolean }>
   const [v3EnabledPacks, setV3EnabledPacks] = useState({});
   // V3 Debug mode
@@ -4503,7 +4506,7 @@ export default function CandidateInterview() {
         action: 'BLOCKED_V3_PROMPT_TRANSCRIPT_APPEND',
         type: entry.type,
         messageType: entry.messageType,
-        reason: 'V3 probes must NOT be appended to transcript - prompt lives only in V3ProbingLoop placeholder'
+        reason: 'V3 probes must NOT be appended to transcript - prompt lives only in input placeholder'
       });
       return; // DO NOT append to transcript
     }
@@ -4511,6 +4514,29 @@ export default function CandidateInterview() {
     // V3 messages written to DB by V3ProbingLoop
     // We refresh ONCE when V3 completes, not per message (prevents refresh storm)
     console.log('[V3_TRANSCRIPT_UPDATE]', { type: entry?.type, deferred: true });
+  }, []);
+
+  // V3 prompt change handler - updates placeholder text
+  const handleV3PromptChange = useCallback((promptText) => {
+    console.log('[V3_PROMPT_CHANGE]', { promptPreview: promptText?.substring(0, 60) || null });
+    setV3ActivePromptText(promptText);
+  }, []);
+
+  // V3 answer submit handler - routes answer to V3ProbingLoop
+  const handleV3AnswerSubmit = useCallback((answerText) => {
+    console.log('[V3_ANSWER_SUBMIT]', { answerPreview: answerText?.substring(0, 50) });
+    setV3PendingAnswer(answerText);
+  }, []);
+
+  // V3 answer needed handler - stores answer submit capability
+  const handleV3AnswerNeeded = useCallback((answerContext) => {
+    console.log('[V3_ANSWER_NEEDED]', { 
+      hasPrompt: !!answerContext?.promptText,
+      incidentId: answerContext?.incidentId 
+    });
+    
+    // Store context for answer routing
+    v3AnswerHandlerRef.current = answerContext;
   }, []);
 
   // Deferred transition handler (fixes React warning)
@@ -5214,14 +5240,16 @@ export default function CandidateInterview() {
     bottomBarMode = "YES_NO";
     isQuestion = true;
   }
-  // V3 probing active (hide parent bottom bar - V3ProbingLoop has its own input)
+  // V3 probing active (show TEXT_INPUT - parent owns UI, not V3ProbingLoop)
   else if (v3ProbingActive && !isV3Gate && !isMultiInstanceGate) {
-    bottomBarMode = "HIDDEN";
+    bottomBarMode = "TEXT_INPUT";
+    isQuestion = true;
     console.log('[V3_UI_CONTRACT]', {
-      action: 'BOTTOM_BAR_HIDDEN',
-      reason: 'V3ProbingLoop owns UI input during probing',
+      action: 'TEXT_INPUT_DURING_PROBING',
+      reason: 'Parent owns UI - V3ProbingLoop is headless',
       v3ProbingActive,
-      effectiveItemType
+      effectiveItemType,
+      hasActivePrompt: !!v3ActivePromptText
     });
   }
   // Normal yes/no questions
@@ -5282,7 +5310,7 @@ export default function CandidateInterview() {
     inputSnapshot: input
   });
 
-  // Unified bottom bar submit handler for question, v2_pack_field, and followup
+  // Unified bottom bar submit handler for question, v2_pack_field, followup, and V3 probing
   const handleBottomBarSubmit = async () => {
     console.log("[BOTTOM_BAR_SUBMIT][CLICK]", {
       hasCurrentItem: !!currentItem,
@@ -5291,8 +5319,28 @@ export default function CandidateInterview() {
       packId: currentItem?.packId,
       fieldKey: currentItem?.fieldKey,
       instanceNumber: currentItem?.instanceNumber,
+      v3ProbingActive,
       inputSnapshot: input?.substring?.(0, 50) || input,
     });
+
+    // ROUTE: V3 probing answer (headless mode)
+    if (v3ProbingActive) {
+      const trimmed = (input ?? "").trim();
+      if (!trimmed) {
+        console.log("[BOTTOM_BAR_SUBMIT][V3] blocked: empty input");
+        return;
+      }
+      
+      console.log("[BOTTOM_BAR_SUBMIT][V3] Routing to V3ProbingLoop via pendingAnswer");
+      
+      // Route answer to V3ProbingLoop via state
+      handleV3AnswerSubmit(trimmed);
+      setInput(""); // Clear input immediately
+      
+      // Clear pending after brief delay (allows V3ProbingLoop to consume)
+      setTimeout(() => setV3PendingAnswer(null), 100);
+      return;
+    }
 
     if (!currentItem) {
       console.warn("[BOTTOM_BAR_SUBMIT] No currentItem – aborting submit");
@@ -5878,6 +5926,9 @@ export default function CandidateInterview() {
                     setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
                   }}
                   onMultiInstanceAnswer={setV3MultiInstanceHandler}
+                  onPromptChange={handleV3PromptChange}
+                  onAnswerNeeded={handleV3AnswerNeeded}
+                  pendingAnswer={v3PendingAnswer}
                 />
               </ContentContainer>
             );
@@ -6317,66 +6368,72 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-            {/* LLM Suggestion - show if available for this field */}
-            {(() => {
-              const suggestionKey = currentItem?.packId && currentItem?.fieldKey
-                ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
-                : null;
-              const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
+           {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
+           {!v3ProbingActive && (() => {
+             const suggestionKey = currentItem?.packId && currentItem?.fieldKey
+               ? `${currentItem.packId}_${currentItem.instanceNumber || 1}_${currentItem.fieldKey}`
+               : null;
+             const suggestion = suggestionKey ? fieldSuggestions[suggestionKey] : null;
 
-              return suggestion ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
-                  <span className="text-xs text-purple-300">Suggested:</span>
-                  <span className="text-sm text-white flex-1">{suggestion}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setInput(suggestion);
-                      setFieldSuggestions(prev => {
-                        const updated = { ...prev };
-                        delete updated[suggestionKey];
-                        return updated;
-                      });
-                    }}
-                    className="h-7 text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-800/50"
-                  >
-                    Use This
-                  </Button>
-                </div>
-              ) : null;
-            })()}
+             return suggestion ? (
+               <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 border border-purple-700/50 rounded-lg">
+                 <span className="text-xs text-purple-300">Suggested:</span>
+                 <span className="text-sm text-white flex-1">{suggestion}</span>
+                 <Button
+                   size="sm"
+                   variant="ghost"
+                   onClick={() => {
+                     setInput(suggestion);
+                     setFieldSuggestions(prev => {
+                       const updated = { ...prev };
+                       delete updated[suggestionKey];
+                       return updated;
+                     });
+                   }}
+                   className="h-7 text-xs text-purple-300 hover:text-purple-100 hover:bg-purple-800/50"
+                 >
+                   Use This
+                 </Button>
+               </div>
+             ) : null;
+           })()}
 
-            <div className="flex gap-3">
-              <Textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  markUserTyping();
-                  saveDraft(value);
-                  setInput(value);
-                }}
-                onKeyDown={handleInputKeyDown}
-                placeholder="Type your answer..."
-                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
-                disabled={isCommitting}
-                autoFocus
-                rows={1}
-              />
-              <Button
-                type="button"
-                onClick={() => {
-                  console.log("[BOTTOM_BAR_BUTTON][CLICK]", { currentItemType: currentItem?.type, packId: currentItem?.packId, fieldKey: currentItem?.fieldKey });
-                  handleBottomBarSubmit();
-                }}
-                disabled={isBottomBarSubmitDisabled}
-                className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Send
-              </Button>
-            </div>
+           <div className="flex gap-3">
+             <Textarea
+               ref={inputRef}
+               value={input}
+               onChange={(e) => {
+                 const value = e.target.value;
+                 markUserTyping();
+                 saveDraft(value);
+                 setInput(value);
+               }}
+               onKeyDown={handleInputKeyDown}
+               placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
+               aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
+               className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
+               disabled={isCommitting}
+               autoFocus
+               rows={1}
+             />
+             <Button
+               type="button"
+               onClick={() => {
+                 console.log("[BOTTOM_BAR_BUTTON][CLICK]", { 
+                   currentItemType: currentItem?.type, 
+                   packId: currentItem?.packId, 
+                   fieldKey: currentItem?.fieldKey,
+                   v3ProbingActive 
+                 });
+                 handleBottomBarSubmit();
+               }}
+               disabled={isBottomBarSubmitDisabled}
+               className="h-12 bg-indigo-600 hover:bg-indigo-700 px-5"
+             >
+               <Send className="w-4 h-4 mr-2" />
+               Send
+             </Button>
+           </div>
           </div>
           ) : null}
 

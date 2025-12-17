@@ -43,7 +43,10 @@ export default function V3ProbingLoop({
   openerAnswer, // NEW: Opener narrative from candidate
   onMultiInstancePrompt, // NEW: Callback when multi-instance question is shown
   onMultiInstanceAnswer, // NEW: Callback to handle Yes/No from footer
-  traceId: parentTraceId // NEW: Correlation trace from parent
+  traceId: parentTraceId, // NEW: Correlation trace from parent
+  onPromptChange, // NEW: Callback to expose active prompt to parent
+  onAnswerNeeded, // NEW: Callback when ready for user input
+  pendingAnswer // NEW: Answer from parent to consume
 }) {
   const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
   console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
@@ -198,6 +201,19 @@ export default function V3ProbingLoop({
       handleSubmit(null, openerAnswer, true);
     }
   }, []);
+
+  // HEADLESS MODE: Consume pending answer from parent
+  useEffect(() => {
+    if (!pendingAnswer || isComplete) return;
+    
+    console.log('[V3_PROBING_LOOP][CONSUME_ANSWER]', { 
+      answerPreview: pendingAnswer?.substring(0, 50),
+      isComplete 
+    });
+    
+    // Process the answer through decision engine
+    handleSubmit(null, pendingAnswer, false);
+  }, [pendingAnswer, isComplete]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -393,7 +409,7 @@ export default function V3ProbingLoop({
         // PROMPT-SET DEDUPE: Compute stable hash and check for duplicates
         const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const promptHash = `${loopKey}:${newProbeCount}:${canon(data.nextPrompt)}`;
-        
+
         if (lastPromptHashRef.current === promptHash) {
           console.log('[V3_PROBING_LOOP][DUPLICATE_ENGINE_RESPONSE_IGNORED]', {
             promptHash,
@@ -406,7 +422,7 @@ export default function V3ProbingLoop({
           setIsLoading(false);
           return;
         }
-        
+
         // Update hash reference only for genuinely new prompts
         lastPromptHashRef.current = promptHash;
 
@@ -422,6 +438,20 @@ export default function V3ProbingLoop({
         setActivePromptText(data.nextPrompt);
         setActivePromptId(`v3-prompt-${currentIncidentId}-${newProbeCount}`);
         setIsDeciding(false);
+
+        // HEADLESS MODE: Notify parent of new prompt (parent renders UI)
+        if (onPromptChange) {
+          onPromptChange(data.nextPrompt);
+        }
+
+        // HEADLESS MODE: Signal parent that answer is needed
+        if (onAnswerNeeded) {
+          onAnswerNeeded({
+            promptText: data.nextPrompt,
+            incidentId: currentIncidentId,
+            probeCount: newProbeCount
+          });
+        }
         
         // UI SELF-CHECK: Verify no duplicate prompts in messages
         const activePromptsInMessages = messages.filter(m => 
@@ -740,6 +770,7 @@ export default function V3ProbingLoop({
     </div>
   );
   
-  // RETURN: Portal only (no spacer, no inline layout)
-  return typeof document !== "undefined" ? createPortal(composerNode, document.body) : null;
-}
+  // HEADLESS MODE: V3ProbingLoop renders NO UI (parent owns all rendering)
+  // Return null - component is logic-only, no DOM
+  return null;
+  }
