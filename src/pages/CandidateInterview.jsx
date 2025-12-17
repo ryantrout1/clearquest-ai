@@ -1294,98 +1294,25 @@ export default function CandidateInterview() {
     return filtered;
   }, [dbTranscript]);
 
-  // Freeze render during refresh (prevents flash-to-empty)
-  const [renderTranscript, setRenderTranscript] = React.useState([]);
-  
-  // APPEND-ONLY: Rendered candidate messages (never remove once added)
-  const [renderedCandidateMessages, setRenderedCandidateMessages] = React.useState([]);
-  const seenStableKeysRef = useRef(new Set());
-  
   // Loading watchdog state
   const [showLoadingRetry, setShowLoadingRetry] = useState(false);
-
-  React.useEffect(() => {
-    setRenderTranscript((prev) => {
-      const prevLen = prev?.length || 0;
-      const nextLen = nextRenderable?.length || 0;
-
-      // SHRINK GUARD: Never shrink rendered transcript
-      if (nextLen === 0 && prevLen > 0) {
-        console.log('[RENDER_TRANSCRIPT_GUARD] Blocked empty nextRenderable', { prevLen });
-        return prev;
-      }
-      
-      if (nextLen < prevLen) {
-        console.error('[RENDER_TRANSCRIPT_GUARD] Blocked shrink', {
-          prevLen,
-          nextLen,
-          action: 'BLOCKED'
-        });
-        return prev;
-      }
-
-      // Keep prev if stable keys match (prevents micro-flicker)
-      const prevLast = prev?.[prevLen - 1]?.stableKey;
-      const nextLast = nextRenderable?.[nextLen - 1]?.stableKey;
-      if (prevLen === nextLen && prevLast && nextLast && prevLast === nextLast) return prev;
-
-      return nextRenderable;
-    });
-  }, [nextRenderable]);
-
-  // APPEND-ONLY: Populate rendered candidate messages (stable, no removals)
-  React.useEffect(() => {
-    // GUARD: Skip if transcript not initialized yet
-    if (!transcriptInitializedRef.current) return;
-    if (!dbTranscript || dbTranscript.length === 0) return;
-    
-    const newMessages = [];
-    
-    for (const entry of dbTranscript) {
-      // V3 UI CONTRACT: Block V3 probe prompt types only (narrow type-based filter)
-      if (isV3PromptTranscriptItem(entry)) {
-        continue; // Skip this entry
-      }
-      
-      // Only add if visibleToCandidate and not already seen
-      if (entry.visibleToCandidate !== true) continue;
-      
-      const key = entry.stableKey || entry.id;
-      if (!key || seenStableKeysRef.current.has(key)) continue;
-      
-      // Mark as seen and add to new messages
-      seenStableKeysRef.current.add(key);
-      newMessages.push(entry);
-    }
-    
-    // Append new messages (never remove existing)
-    if (newMessages.length > 0) {
-      setRenderedCandidateMessages(prev => {
-        const updated = [...prev, ...newMessages];
-        console.log('[APPEND_ONLY][ADDED]', { 
-          count: newMessages.length, 
-          totalRendered: updated.length,
-          prevRendered: prev.length
-        });
-        return updated;
-      });
-    }
-  }, [dbTranscript, sessionId]);
   
-  // UNIFIED STREAM: No filtering - all messages render in single transcript
-  const transcriptWithoutCurrentPrompt = useMemo(() => {
-    if (!renderedCandidateMessages) return [];
-    if (renderedCandidateMessages.length === 0) return [];
+  // DIRECT TRANSCRIPT RENDER: Use canonical source (no append-only cache)
+  const renderedTranscript = useMemo(() => {
+    const base = Array.isArray(dbTranscript) ? dbTranscript : [];
+    const deduped = dedupeByStableKey(base);
+    const filtered = deduped.filter(entry => isRenderableTranscriptEntry(entry));
     
-    // Unified stream: render all visible messages (no prompt hiding)
-    console.log('[TRANSCRIPT_UNIFIED_STREAM]', {
-      totalMessages: renderedCandidateMessages.length,
+    console.log('[TRANSCRIPT_RENDER]', {
+      canonicalLen: base.length,
+      dedupedLen: deduped.length,
+      filteredLen: filtered.length,
       screenMode,
       currentItemType: currentItem?.type
     });
     
-    return renderedCandidateMessages;
-  }, [renderedCandidateMessages, currentItem, screenMode]);
+    return filtered;
+  }, [dbTranscript, currentItem, screenMode]);
 
   // Hooks must remain unconditional; keep memoized values above early returns.
   // Derive UI current item (prioritize gates over base question) - MUST be before early returns
@@ -5024,6 +4951,7 @@ export default function CandidateInterview() {
         });
 
         // Append opener to transcript as visible message
+        const safeCategoryLabel = effectiveCurrentItem.categoryLabel || packLabel || categoryId || "Follow-up";
         logFollowupCardShown(sessionId, {
           packId,
           variant: 'opener',
@@ -5033,7 +4961,7 @@ export default function CandidateInterview() {
           packLabel,
           instanceNumber,
           baseQuestionId: effectiveCurrentItem.baseQuestionId,
-          categoryLabel // CRITICAL: Pass categoryLabel for V3 opener rendering
+          categoryLabel: safeCategoryLabel
         }).then(() => {
           return refreshTranscriptFromDB('v3_opener_shown');
         }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
@@ -5455,14 +5383,11 @@ export default function CandidateInterview() {
         >
         <div className="px-4 pb-6 pt-6 flex flex-col min-h-full justify-end">
           <div className="space-y-2 relative isolate">
-          {/* UNIFIED STREAM: Render all transcript messages (no hiding) */}
+          {/* UNIFIED STREAM: Render all transcript messages from canonical source */}
           {(() => {
-            // STABLE: Render from append-only list (prevents flashing/disappearing)
-            const visibleTranscript = transcriptWithoutCurrentPrompt;
-            
             return (
               <div className="opacity-100">
-                {visibleTranscript.map((entry, index) => {
+                {renderedTranscript.map((entry, index) => {
 
             // Base question shown (QUESTION_SHOWN from chatTranscriptHelpers)
             if (entry.role === 'assistant' && entry.messageType === 'QUESTION_SHOWN') {
@@ -6375,13 +6300,6 @@ export default function CandidateInterview() {
             </div>
           ) : bottomBarMode === "TEXT_INPUT" ? (
           <div className="space-y-2">
-           {/* V3 Probe Prompt - shown ABOVE input during probing */}
-           {v3ProbingActive && v3ActivePromptText && (
-             <div className="bg-purple-900/30 border border-purple-700/50 rounded-lg px-4 py-3">
-               <p className="text-purple-200 text-sm leading-relaxed">{v3ActivePromptText}</p>
-             </div>
-           )}
-           
            {/* LLM Suggestion - show if available for this field (hide during V3 probing) */}
            {!v3ProbingActive && (() => {
              const suggestionKey = currentItem?.packId && currentItem?.fieldKey
@@ -6423,7 +6341,7 @@ export default function CandidateInterview() {
                  setInput(value);
                }}
                onKeyDown={handleInputKeyDown}
-               placeholder="Type your answer..."
+               placeholder={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer..."}
                aria-label={v3ProbingActive && v3ActivePromptText ? v3ActivePromptText : "Type your answer"}
                className="flex-1 min-h-[48px] resize-none bg-[#0d1829] border-2 border-green-500 focus:border-green-400 focus:ring-1 focus:ring-green-400/50 text-white placeholder:text-slate-400 transition-all duration-200 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-slate-800/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-slate-500"
                disabled={isCommitting}
