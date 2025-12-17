@@ -548,11 +548,15 @@ async function decisionEngineV3Probe(base44, {
   sectionId,
   instanceNumber,
   isInitialCall = false,
-  config = {}
+  config = {},
+  traceId = null
 }) {
+  const effectiveTraceId = traceId || `${sessionId}-${Date.now()}`;
   console.log("[IDE-V3] decisionEngineV3Probe called", { 
+    traceId: effectiveTraceId,
     sessionId, categoryId, incidentId, baseQuestionId, questionCode, sectionId, instanceNumber,
-    answerLength: latestAnswerText?.length 
+    answerLength: latestAnswerText?.length,
+    isInitialCall
   });
   
   const mergedConfig = { ...DEFAULT_V3_CONFIG, ...config };
@@ -761,7 +765,14 @@ async function decisionEngineV3Probe(base44, {
   if (isInitialCall) {
     const hadAgency = Object.keys(extractedFacts).some(k => canon(k) === canon("agency_name"));
     const agencyResolvedTo = hadAgency ? Object.keys(extractedFacts).find(k => canon(k) === canon("agency_name")) : null;
-    console.log(`[V3_OPENER_EXTRACT][INITIAL] isInitialCall=${isInitialCall} incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} agencyResolvedTo=${agencyResolvedTo} missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")} openerPreview="${latestAnswerText?.substring(0, 60) || ''}"`);
+    const agencyValueExtracted = hadAgency ? extractedFacts[agencyResolvedTo] : null;
+    
+    console.log(`[V3_OPENER_EXTRACT][INITIAL] traceId=${effectiveTraceId} isInitialCall=${isInitialCall} incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} agencyResolvedTo=${agencyResolvedTo} agencyValue="${agencyValueExtracted || ''}" missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")} openerPreview="${latestAnswerText?.substring(0, 60) || ''}"`);
+    
+    // AGENCY SKIP GUARD: Log if agency was extracted (won't be asked)
+    if (hadAgency && agencyValueExtracted) {
+      console.log(`[OPENER][AGENCY_SKIP] traceId=${effectiveTraceId} reason="Extracted from opener" value="${agencyValueExtracted}" fieldId=${agencyResolvedTo}`);
+    }
   }
   
   // Diagnostic log with key alignment check
@@ -864,6 +875,19 @@ async function decisionEngineV3Probe(base44, {
     const nextField = missingFieldsAfter[0];
     nextPrompt = generateV3ProbeQuestion(nextField, incident.facts);
     nextAction = "ASK";
+    
+    // AGENCY RE-ASK GUARD: Log if asking for agency (shouldn't happen if extracted)
+    if (canon(nextField.field_id || '').includes('agency')) {
+      const agencyInFacts = Object.keys(incident.facts).find(k => canon(k).includes('agency'));
+      console.log(`[V3_PROBE][AGENCY_QUESTION]`, {
+        traceId: effectiveTraceId,
+        fieldId: nextField.field_id,
+        label: nextField.label,
+        alreadyCollected: !!agencyInFacts,
+        collectedValue: agencyInFacts ? incident.facts[agencyInFacts] : null,
+        WARNING: agencyInFacts ? '⚠️ ASKING FOR AGENCY DESPITE HAVING IT IN FACTS' : null
+      });
+    }
   } else {
     // No more missing fields
     nextAction = "RECAP";
@@ -977,10 +1001,12 @@ async function decisionEngineV3Probe(base44, {
   });
   
   console.log("[IDE-V3] Decision result", {
+    traceId: effectiveTraceId,
     nextAction,
     stopReason,
     missingFieldsCount: missingFieldsAfter.length,
-    probeCount: legacyFactState.probe_count
+    probeCount: legacyFactState.probe_count,
+    nextPromptPreview: nextPrompt?.substring(0, 60) || null
   });
   
   // Generate opening prompt for new incidents
@@ -997,6 +1023,7 @@ async function decisionEngineV3Probe(base44, {
     openingPrompt,
     newFacts: extractedFacts,
     decisionTraceEntry,
+    traceId: effectiveTraceId,
     // Additional context for caller
     categoryLabel: factModel.category_label,
     missingFields: missingFieldsAfter,

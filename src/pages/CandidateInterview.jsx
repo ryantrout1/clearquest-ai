@@ -2923,8 +2923,21 @@ export default function CandidateInterview() {
       if (currentItem.type === 'v3_pack_opener') {
         const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
 
+        // CORRELATION TRACE: Generate traceId for V3 probing session
+        const traceId = `${sessionId}-${Date.now()}`;
+        console.log('[PROCESSING][START]', {
+          traceId,
+          sessionId,
+          currentItemId: currentItem.id,
+          currentItemType: 'v3_pack_opener',
+          screenMode: 'QUESTION',
+          packId,
+          categoryId
+        });
+
         console.log(`[V3_OPENER][ANSWERED] ========== OPENER ANSWERED ==========`);
         console.log(`[V3_OPENER][ANSWERED]`, {
+          traceId,
           packId,
           categoryId,
           answerLength: value?.length || 0
@@ -3015,6 +3028,13 @@ export default function CandidateInterview() {
         v3BaseQuestionIdRef.current = baseQuestionId;
 
         // STEP 2: Enter V3 AI probing with opener answer as context
+        console.log('[PROCESSING][V3_PROBING_ENTER]', {
+          traceId,
+          packId,
+          categoryId,
+          openerAnswerLength: value?.length || 0
+        });
+        
         setV3ProbingActive(true);
         setV3ProbingContext({
           packId,
@@ -3026,7 +3046,8 @@ export default function CandidateInterview() {
           instanceNumber,
           incidentId: null, // Will be created by decisionEngineV3
           packData,
-          openerAnswer: value // Pass opener answer to probing engine
+          openerAnswer: value, // Pass opener answer to probing engine
+          traceId // Pass traceId to V3ProbingLoop
         });
 
         await refreshTranscriptFromDB('v3_probing_enter');
@@ -5641,6 +5662,7 @@ export default function CandidateInterview() {
              instanceNumber={v3ProbingContext.instanceNumber}
              packData={v3ProbingContext.packData}
              openerAnswer={v3ProbingContext.openerAnswer}
+             traceId={v3ProbingContext.traceId}
              onComplete={handleV3ProbingComplete}
              onTranscriptUpdate={handleV3TranscriptUpdate}
              onMultiInstancePrompt={(promptData) => {

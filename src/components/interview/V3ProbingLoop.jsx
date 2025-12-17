@@ -33,8 +33,11 @@ export default function V3ProbingLoop({
   packData, // Pack metadata with author-controlled opener
   openerAnswer, // NEW: Opener narrative from candidate
   onMultiInstancePrompt, // NEW: Callback when multi-instance question is shown
-  onMultiInstanceAnswer // NEW: Callback to handle Yes/No from footer
+  onMultiInstanceAnswer, // NEW: Callback to handle Yes/No from footer
+  traceId: parentTraceId // NEW: Correlation trace from parent
 }) {
+  const effectiveTraceId = parentTraceId || `${sessionId}-${Date.now()}`;
+  console.log('[V3_PROBING_LOOP][INIT]', { traceId: effectiveTraceId, categoryId, instanceNumber });
   // FORENSIC: Component instance tracking
   const componentInstanceId = useRef(`V3ProbingLoop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   
@@ -91,6 +94,19 @@ export default function V3ProbingLoop({
     const answer = isInitialCall ? initialAnswer : input.trim();
     if (!answer || isLoading || isComplete) return;
 
+    // CORRELATION TRACE: Generate traceId for this probing turn
+    const traceId = `${sessionId}-${Date.now()}`;
+    console.log('[PROCESSING][START]', {
+      traceId,
+      sessionId,
+      categoryId,
+      incidentId: incidentId || '(will create)',
+      currentItemType: 'v3_probing',
+      screenMode: 'QUESTION',
+      isInitialCall,
+      probeIteration: probeCount + 1
+    });
+
     setIsLoading(true);
     if (!isInitialCall) {
       setInput("");
@@ -130,16 +146,19 @@ export default function V3ProbingLoop({
     }
 
     try {
-      console.log('[V3_PROBING][CALLING_ENGINE]', {
-        sessionId,
-        categoryId,
-        incidentId: incidentId || '(will create)',
-        answerLength: answer?.length || 0,
-        isInitialCall
+      console.log('[ENGINE][DECIDE_START]', { traceId, categoryId, incidentId: incidentId || '(will create)' });
+      console.log('[V3_PROBE][LOOP_START]', {
+        traceId,
+        isInitialCall,
+        probeIteration: probeCount + 1,
+        answerLength: answer?.length || 0
       });
       
-      // Call V3 decision engine
-      const result = await base44.functions.invoke('decisionEngineV3', {
+      // FAIL-CLOSED WATCHDOG: 12s timeout for backend call
+      const engineCallStart = Date.now();
+      const BACKEND_TIMEOUT_MS = 12000;
+      
+      const enginePromise = base44.functions.invoke('decisionEngineV3', {
         sessionId,
         categoryId,
         incidentId,
@@ -148,11 +167,27 @@ export default function V3ProbingLoop({
         questionCode: questionCode || null,
         sectionId: sectionId || null,
         instanceNumber: instanceNumber || 1,
-        isInitialCall: isInitialCall || false
+        isInitialCall: isInitialCall || false,
+        traceId
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('BACKEND_TIMEOUT')), BACKEND_TIMEOUT_MS)
+      );
+      
+      // Race: backend call vs timeout
+      const result = await Promise.race([enginePromise, timeoutPromise]);
 
+      const engineCallMs = Date.now() - engineCallStart;
       const data = result.data || result;
 
+      console.log('[ENGINE][DECIDE_END]', {
+        traceId,
+        nextAction: data.nextAction,
+        nextItemType: data.nextAction === 'ASK' ? 'v3_probe_question' : 'v3_probe_complete',
+        ms: engineCallMs
+      });
+      console.log('[PROCESSING][END]', { traceId, msTotal: engineCallMs });
       console.log('[V3_PROBING][ENGINE_RESPONSE]', {
         ok: data.ok,
         nextAction: data.nextAction,
@@ -342,11 +377,38 @@ export default function V3ProbingLoop({
         }
       }
     } catch (err) {
+      const engineCallMs = Date.now() - engineCallStart;
+      
+      // FAIL-CLOSED: Backend timeout detected
+      if (err.message === 'BACKEND_TIMEOUT') {
+        console.error("[V3_PROBE][TIMEOUT_FALLBACK]", {
+          traceId,
+          elapsedMs: engineCallMs,
+          reason: 'Backend call exceeded 12s timeout - failing closed to continue interview'
+        });
+        
+        // Show graceful completion message
+        const fallbackMessage = {
+          id: `v3-timeout-${Date.now()}`,
+          role: "ai",
+          content: "Thank you for providing those details. Let's continue with the interview.",
+          isCompletion: true,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, fallbackMessage]);
+        setIsComplete(true);
+        setCompletionReason("STOP");
+        setIsLoading(false);
+        return;
+      }
+      
       console.error("[V3_PROBING][EXCEPTION] Error calling decision engine:", err);
       console.error("[V3_PROBING][EXCEPTION_DETAILS]", {
+        traceId,
         message: err.message,
         name: err.name,
-        stack: err.stack
+        stack: err.stack,
+        elapsedMs: engineCallMs
       });
       
       // Only show "technical issue" card for truly fatal errors, NOT for transcript logging issues
