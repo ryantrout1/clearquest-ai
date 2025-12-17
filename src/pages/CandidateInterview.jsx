@@ -5253,6 +5253,19 @@ export default function CandidateInterview() {
   // Log final mode selection
   console.log('[BOTTOM_BAR_MODE]', { currentItemType, effectiveItemType, bottomBarMode, isQuestion, screenMode });
   
+  // UI CONTRACT: CTA mode is ONLY valid during WELCOME screen
+  // Force override to prevent CTA leaking during interview progression
+  if (bottomBarMode === "CTA" && screenMode !== "WELCOME") {
+    console.warn("[UI_CONTRACT] CTA_OUTSIDE_WELCOME_BLOCKED", { 
+      screenMode, 
+      currentItemType, 
+      effectiveItemType, 
+      v3ProbingActive,
+      action: 'forcing HIDDEN'
+    });
+    bottomBarMode = "HIDDEN";
+  }
+  
   // Legacy flags (kept for compatibility)
   const isV2PackField = effectiveItemType === "v2_pack_field";
   const isV3PackOpener = effectiveItemType === "v3_pack_opener";
@@ -5433,9 +5446,6 @@ export default function CandidateInterview() {
             // STABLE: Render from append-only list (prevents flashing/disappearing)
             const visibleTranscript = transcriptWithoutCurrentPrompt;
             
-            // WELCOME CTA GUARD: Only show interactive CTA during active welcome screen
-            const showWelcomeCTA = screenMode === "WELCOME" && !currentItem && !v3ProbingActive;
-            
             return (
               <div className="opacity-100">
                 {visibleTranscript.map((entry, index) => {
@@ -5551,7 +5561,7 @@ export default function CandidateInterview() {
             return (
             <div key={entry.id}>
 
-              {/* Welcome message (from transcript) - READ-ONLY when not in WELCOME mode */}
+              {/* Welcome message (from transcript) - READ-ONLY history only */}
               {entry.messageType === 'WELCOME' && entry.visibleToCandidate && (
                 <ContentContainer>
                 <div className="w-full bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
@@ -5567,20 +5577,6 @@ export default function CandidateInterview() {
                           <p className="text-slate-200 text-sm leading-relaxed">{line}</p>
                         </div>
                       ))}
-                    </div>
-                  )}
-                  {/* GUARD: Never show CTA in transcript history - only in active welcome screen */}
-                  {showWelcomeCTA && false && (
-                    <div className="mt-4 flex justify-center">
-                      <Button
-                        onClick={() => {
-                          console.log('[WELCOME][CTA_IN_TRANSCRIPT] This should never fire - use footer CTA');
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                        disabled
-                      >
-                        Got it — Let's Begin
-                      </Button>
                     </div>
                   )}
                 </div>
@@ -6023,8 +6019,8 @@ export default function CandidateInterview() {
               <footer className="fixed bottom-0 left-0 right-0 z-50 bg-slate-800/95 backdrop-blur-sm border-t border-slate-800 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           {/* Unified Bottom Bar - Stable Container (never unmounts) */}
-          {/* GUARD: Welcome CTA only shows during active welcome screen (not transcript history) */}
-          {bottomBarMode === "CTA" && screenMode === 'WELCOME' && !currentItem && !v3ProbingActive ? (
+          {/* Welcome CTA - screenMode === "WELCOME" enforced by bottomBarMode guard above */}
+          {bottomBarMode === "CTA" && screenMode === 'WELCOME' ? (
             <div className="flex flex-col items-center">
               <Button
                 onClick={async () => {
