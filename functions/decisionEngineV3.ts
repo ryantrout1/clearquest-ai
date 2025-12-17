@@ -254,165 +254,186 @@ function resolveFieldId(factModel, semanticKey) {
 // ========== OPENER NARRATIVE EXTRACTION ==========
 
 /**
- * Extract facts from opener narrative using deterministic heuristics.
- * Prioritizes high-confidence extraction for obvious patterns.
- * Uses exact field_id keys from FactModel to ensure alignment.
+ * GENERALIZED V3 FACT INGESTION (FactModel-Driven)
+ * Extracts facts from opener narrative for ANY category using FactModel schema.
+ * Maps extracted values to canonical field_id keys to prevent mismatches.
  */
 function extractOpenerFacts(openerText, categoryId, factModel) {
   if (!openerText || openerText.length < 20) return {};
+  if (!factModel) return {};
   
   const extracted = {};
   const normalized = openerText.trim();
   const lower = normalized.toLowerCase();
   
-  // UNIVERSAL: Extract dates from opener narrative (ALL categories)
-  const datePatterns = [
-    // "In March 2022", "During March 2022"
-    /(?:in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-    // "March 2022", "March of 2022"
-    /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-    // "2022 March"
-    /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i,
-    // "3/2022", "03/2022"
-    /\b(\d{1,2})\/(\d{4})\b/,
-    // "2022-03", "2022/03"
-    /\b(\d{4})[-\/](\d{1,2})\b/
+  // Get all FactModel fields (required + optional)
+  const allFields = [
+    ...(factModel.required_fields || []),
+    ...(factModel.optional_fields || [])
   ];
   
-  for (const pattern of datePatterns) {
-    const match = normalized.match(pattern);
-    if (match) {
-      let month, year;
-      
-      // Named month patterns
-      if (match[1] && /^[A-Za-z]+$/.test(match[1])) {
-        month = match[1];
-        year = match[2] || match[1];
-        // Swap if year came first
-        if (/^\d{4}$/.test(match[1])) {
-          year = match[1];
-          month = match[2];
-        }
-      }
-      // Numeric patterns (MM/YYYY or YYYY/MM)
-      else if (match[1] && match[2]) {
-        if (/^\d{4}$/.test(match[1])) {
-          year = match[1];
-          month = match[2];
-        } else {
+  console.log('[V3_FACTMODEL_INGEST][START]', {
+    categoryId,
+    openerLength: openerText.length,
+    totalFields: allFields.length,
+    requiredCount: factModel.required_fields?.length || 0
+  });
+  
+  // UNIVERSAL DATE EXTRACTION: Scan for all date-ish fields in FactModel
+  const dateFields = allFields.filter(f => {
+    const typeMatch = f.type === 'date' || f.type === 'month_year';
+    const idMatch = ['date', 'when', 'occurred', 'month', 'year', 'time'].some(kw => 
+      canon(f.field_id || '').includes(kw)
+    );
+    return typeMatch || idMatch;
+  });
+  
+  if (dateFields.length > 0) {
+    const datePatterns = [
+      /(?:in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i,
+      /\b(\d{1,2})\/(\d{4})\b/,
+      /\b(\d{4})[-\/](\d{1,2})\b/
+    ];
+    
+    for (const pattern of datePatterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        let month, year;
+        
+        if (match[1] && /^[A-Za-z]+$/.test(match[1])) {
           month = match[1];
-          year = match[2];
+          year = match[2] || match[1];
+          if (/^\d{4}$/.test(match[1])) {
+            year = match[1];
+            month = match[2];
+          }
+        } else if (match[1] && match[2]) {
+          if (/^\d{4}$/.test(match[1])) {
+            year = match[1];
+            month = match[2];
+          } else {
+            month = match[1];
+            year = match[2];
+          }
         }
-      }
-      
-      if (month && year) {
-        const monthNum = typeof month === 'string' && /^[A-Za-z]+$/.test(month) 
-          ? month 
-          : String(month).padStart(2, '0');
         
-        // Store in multiple field formats for flexibility
-        extracted.occurrence_date = `${year}-${monthNum}`;
-        extracted.occurrence_month = monthNum;
-        extracted.occurrence_year = year;
-        extracted.approx_month_year = `${month} ${year}`;
-        extracted.month_year = `${month} ${year}`;
-        
-        console.log('[V3_EXTRACT][DATE]', {
-          pattern: 'date extraction',
-          month,
-          year,
-          storedAs: extracted.occurrence_date
-        });
-        break;
+        if (month && year) {
+          const dateValue = `${month} ${year}`;
+          
+          // Map to ALL matching date fields in FactModel
+          for (const dateField of dateFields) {
+            extracted[dateField.field_id] = dateValue;
+          }
+          
+          console.log('[V3_FACTMODEL_INGEST][DATE]', {
+            extractedValue: dateValue,
+            mappedToFields: dateFields.map(f => f.field_id).join(',')
+          });
+          break;
+        }
       }
     }
   }
   
-  // PRIOR_LE_APPS specific extraction
-  if (categoryId === 'PRIOR_LE_APPS') {
-    const tempExtracted = {};
-    
-    // Extract agency_name - robust patterns with abbreviation support
+  // UNIVERSAL AGENCY EXTRACTION: Scan for agency-ish fields
+  const agencyFields = allFields.filter(f => 
+    ['agency', 'department', 'organization', 'employer'].some(kw => 
+      canon(f.field_id || '').includes(kw)
+    )
+  );
+  
+  if (agencyFields.length > 0) {
     const agencyPatterns = [
-      // "applied to Mesa Police Department for..." or "applied to Mesa PD for..."
       /applied\s+to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
       /applied\s+with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
-      /applied\s+at\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]*?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Dept|Department))/i,
-      // "to Mesa Police Department for..." (without "applied")
       /to\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
-      /with\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
-      /(?:at|from)\s+(?:the\s+)?([A-Z][A-Za-z\s&.'-]+?(?:Police Department|Police Dept|Sheriff's Office|Sheriff|Police|PD|SO|Department|Agency))/i,
-      // "Mesa PD" standalone pattern (fallback)
       /\b([A-Z][A-Za-z]+\s+(?:PD|Police|Sheriff|SO))\b/i
     ];
     
     for (const pattern of agencyPatterns) {
       const match = normalized.match(pattern);
       if (match && match[1]) {
-        let agency = match[1].trim();
-        // Clean up common suffixes that got caught
-        agency = agency.replace(/\s+(for|as|in|during|position|role)$/i, '').trim();
+        let agency = match[1].trim().replace(/\s+(for|as|in|during|position|role)$/i, '').trim();
         if (agency.length >= 3) {
-          tempExtracted.agency_name = agency;
+          for (const agencyField of agencyFields) {
+            extracted[agencyField.field_id] = agency;
+          }
+          console.log('[V3_FACTMODEL_INGEST][AGENCY]', {
+            extractedValue: agency,
+            mappedToFields: agencyFields.map(f => f.field_id).join(',')
+          });
           break;
         }
       }
     }
-    
-    // Extract position_applied_for - improved patterns
+  }
+  
+  // UNIVERSAL POSITION EXTRACTION
+  const positionFields = allFields.filter(f => 
+    ['position', 'title', 'role', 'job'].some(kw => canon(f.field_id || '').includes(kw))
+  );
+  
+  if (positionFields.length > 0) {
     const positionPatterns = [
       /for\s+(?:a|an|the)?\s*([A-Za-z\s]+?)\s+(?:position|role|job)/i,
-      /as\s+(?:a|an|the)?\s*([A-Za-z\s]+?)\s+(?:position|role|\.|,)/i,
-      /position\s+of\s+([A-Za-z\s]+?)(?:\.|,|\s+in|\s+at|\s+for|\s+with)/i,
+      /as\s+(?:a|an|the)?\s*([A-Za-z\s]+?)\s+(?:position|role)/i,
       /for\s+(?:a|an|the)?\s*(Police Officer Recruit|Police Officer|Deputy Sheriff|Sheriff Deputy|Correctional Officer|Officer|Recruit|Deputy|Agent)(?:\s|\.|\,|$)/i
     ];
     
     for (const pattern of positionPatterns) {
       const match = normalized.match(pattern);
       if (match && match[1]) {
-        let position = match[1].trim();
+        const position = match[1].trim();
         if (position.length >= 3) {
-          tempExtracted.position_applied_for = position;
+          for (const posField of positionFields) {
+            extracted[posField.field_id] = position;
+          }
+          console.log('[V3_FACTMODEL_INGEST][POSITION]', {
+            extractedValue: position,
+            mappedToFields: positionFields.map(f => f.field_id).join(',')
+          });
           break;
         }
       }
     }
-    
-    // Extract approx_month_year - improved patterns
-    const monthYearPatterns = [
-      /(?:In|During|in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
-      /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i
-    ];
-    
-    for (const pattern of monthYearPatterns) {
-      const match = normalized.match(pattern);
-      if (match) {
-        let month, year;
-        if (match[2] && /^\d{4}$/.test(match[2])) {
-          month = match[1];
-          year = match[2];
-        } else if (match[1] && /^\d{4}$/.test(match[1])) {
-          year = match[1];
-          month = match[2];
-        }
-        if (month && year) {
-          tempExtracted.approx_month_year = `${month} ${year}`;
-          break;
-        }
-      }
-    }
-    
-    // Extract outcome - keyword matching
+  }
+  
+  // UNIVERSAL OUTCOME EXTRACTION
+  const outcomeFields = allFields.filter(f => 
+    ['outcome', 'result', 'status', 'decision'].some(kw => canon(f.field_id || '').includes(kw))
+  );
+  
+  if (outcomeFields.length > 0) {
+    let outcome = null;
     if (lower.includes('rejected') || lower.includes('denied') || lower.includes('disqualified') || lower.includes('not selected')) {
-      tempExtracted.outcome = 'Not selected/rejected';
-    } else if (lower.includes('withdrew') || lower.includes('pulled out') || lower.includes('withdrew my application')) {
-      tempExtracted.outcome = 'Withdrew application';
+      outcome = 'Not selected/rejected';
+    } else if (lower.includes('withdrew') || lower.includes('pulled out')) {
+      outcome = 'Withdrew application';
     } else if (lower.includes('offered') || lower.includes('hired') || lower.includes('accepted')) {
-      tempExtracted.outcome = 'Hired/Offered position';
+      outcome = 'Hired/Offered position';
+    } else if (lower.includes('still') && (lower.includes('process') || lower.includes('pending'))) {
+      outcome = 'Still in process';
     }
     
-    // Extract how_far_got - keyword matching with priority
+    if (outcome) {
+      for (const outcomeField of outcomeFields) {
+        extracted[outcomeField.field_id] = outcome;
+      }
+      console.log('[V3_FACTMODEL_INGEST][OUTCOME]', {
+        extractedValue: outcome,
+        mappedToFields: outcomeFields.map(f => f.field_id).join(',')
+      });
+    }
+  }
+  
+  // UNIVERSAL STAGE/PROGRESS EXTRACTION
+  const stageFields = allFields.filter(f => 
+    ['stage', 'how', 'far', 'progress', 'step'].some(kw => canon(f.field_id || '').includes(kw))
+  );
+  
+  if (stageFields.length > 0) {
     const stageKeywords = [
       { keywords: ['written test', 'written exam', 'written portion'], value: 'Written test' },
       { keywords: ['physical test', 'physical fitness', 'pt test', 'fitness test'], value: 'Physical fitness test' },
@@ -420,28 +441,28 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
       { keywords: ['polygraph', 'lie detector'], value: 'Polygraph' },
       { keywords: ['background investigation', 'background check', 'background'], value: 'Background investigation' },
       { keywords: ['psychological', 'psych eval', 'psych'], value: 'Psychological evaluation' },
-      { keywords: ['medical exam', 'medical'], value: 'Medical examination' },
-      { keywords: ['interview'], value: 'Interview stage' }
+      { keywords: ['medical exam', 'medical'], value: 'Medical examination' }
     ];
     
     for (const stage of stageKeywords) {
       if (stage.keywords.some(kw => lower.includes(kw))) {
-        tempExtracted.how_far_got = stage.value;
+        for (const stageField of stageFields) {
+          extracted[stageField.field_id] = stage.value;
+        }
+        console.log('[V3_FACTMODEL_INGEST][STAGE]', {
+          extractedValue: stage.value,
+          mappedToFields: stageFields.map(f => f.field_id).join(',')
+        });
         break;
       }
     }
-    
-    // Map to exact field_id keys from FactModel
-    for (const [semanticKey, value] of Object.entries(tempExtracted)) {
-      const fieldId = resolveFieldId(factModel, semanticKey);
-      if (fieldId) {
-        extracted[fieldId] = value;
-      } else {
-        // Fallback: use semantic key if no field_id match found
-        extracted[semanticKey] = value;
-      }
-    }
   }
+  
+  console.log('[V3_FACTMODEL_INGEST][COMPLETE]', {
+    categoryId,
+    extractedCount: Object.keys(extracted).length,
+    extractedFields: Object.keys(extracted).join(',')
+  });
   
   return extracted;
 }
@@ -827,47 +848,7 @@ async function decisionEngineV3Probe(base44, {
     categoryId
   );
   
-  // PRIOR_LE_APPS BRIDGE: Map extracted date values to required date field
-  if (categoryId === 'PRIOR_LE_APPS' && isInitialCall) {
-    // Find the actual required date field by canonical matching
-    const dateAliases = ['date', 'occurred', 'occurreddate', 'when', 'whendidapply', 'applicationdate', 'approxmonthyear', 'monthyear'];
-    let dateRequiredField = null;
-    
-    for (const field of (factModel.required_fields || [])) {
-      const fieldCanon = canon(field.field_id || '');
-      if (dateAliases.some(alias => fieldCanon.includes(alias))) {
-        dateRequiredField = field;
-        break;
-      }
-    }
-    
-    // Check if we extracted a month/year value
-    const extractedKeys = Object.keys(extractedFacts);
-    const dateSemanticKeys = ['approx_month_year', 'month_year', 'occurrence_date', 'approxMonthYear', 'monthYear'];
-    const extractedDateKey = extractedKeys.find(k => dateSemanticKeys.some(dk => canon(k) === canon(dk)));
-    
-    if (dateRequiredField && extractedDateKey && extractedFacts[extractedDateKey]) {
-      const dateValue = extractedFacts[extractedDateKey];
-      
-      // Bridge: write extracted value to required field_id
-      extractedFacts[dateRequiredField.field_id] = dateValue;
-      
-      console.log('[V3_FACT_BRIDGE][PRIOR_LE_APPS]', {
-        traceId: effectiveTraceId,
-        extractedKeys: extractedKeys.join(','),
-        dateRequiredFieldId: dateRequiredField.field_id,
-        bridgedValuePreview: dateValue?.substring?.(0, 20) || dateValue,
-        missingAfter: '(will compute)'
-      });
-      
-      console.log('[V3_FACT_BRIDGE_VALUE]', {
-        fieldId: dateRequiredField.field_id,
-        valuePreview: dateValue?.substring?.(0, 20) || dateValue
-      });
-    }
-  }
-  
-  // Update incident.facts
+  // Update incident.facts with extracted values
   incident.facts = {
     ...(incident.facts || {}),
     ...extractedFacts
@@ -989,15 +970,15 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   } else if (missingFieldsAfter.length > 0) {
-    // REDUNDANT QUESTION SUPPRESSION: Skip if fact already collected
-    let candidateField = missingFieldsAfter[0];
+    // PRE-ASK GUARD: Skip fields already collected (canonical check)
+    let candidateField = null;
     let suppressedCount = 0;
     
     for (let i = 0; i < missingFieldsAfter.length; i++) {
       const field = missingFieldsAfter[i];
       const fieldIdCanon = canon(field.field_id || '');
       
-      // Check if this field already has a non-empty value in incident.facts
+      // Check if this field already has a non-empty value in incident.facts (canonical match)
       const alreadyCollected = Object.keys(incident.facts).some(k => {
         const kCanon = canon(k);
         const hasValue = incident.facts[k] && String(incident.facts[k]).trim() !== '';
@@ -1006,49 +987,57 @@ async function decisionEngineV3Probe(base44, {
       
       if (alreadyCollected) {
         suppressedCount++;
-        console.log(`[V3_PROBE][REDUNDANT_SKIP]`, {
+        const collectedKey = Object.keys(incident.facts).find(k => canon(k) === fieldIdCanon);
+        console.log(`[V3_PRE_ASK_GUARD][SKIP]`, {
           traceId: effectiveTraceId,
           fieldId: field.field_id,
           reason: 'Already collected in incident.facts',
-          value: incident.facts[Object.keys(incident.facts).find(k => canon(k) === fieldIdCanon)]
+          collectedAs: collectedKey,
+          valuePreview: incident.facts[collectedKey]?.substring?.(0, 30) || incident.facts[collectedKey]
         });
-        continue; // Skip this field, try next
+        continue;
       }
       
-      // Use this field as candidate
+      // Found first truly missing field
       candidateField = field;
       break;
     }
     
-    // If all fields were suppressed (all collected), complete
+    // If all fields suppressed, complete
     if (suppressedCount > 0 && suppressedCount === missingFieldsAfter.length) {
       nextAction = "RECAP";
       stopReason = "REQUIRED_FIELDS_COMPLETE";
       legacyFactState.completion_status = "complete";
       nextPrompt = getCompletionMessage("RECAP", null);
       
-      console.log('[V3_PROBE][ALL_SUPPRESSED]', {
+      console.log('[V3_PRE_ASK_GUARD][ALL_SUPPRESSED]', {
         traceId: effectiveTraceId,
         suppressedCount,
-        reason: 'All missing fields already collected - completing'
+        reason: 'All missing fields already collected via ingestion'
+      });
+    } else if (!candidateField) {
+      // Safety: No candidate field found (shouldn't happen)
+      nextAction = "RECAP";
+      stopReason = "NO_VALID_FIELD";
+      legacyFactState.completion_status = "complete";
+      nextPrompt = getCompletionMessage("RECAP", null);
+      
+      console.warn('[V3_PRE_ASK_GUARD][NO_FIELD]', {
+        traceId: effectiveTraceId,
+        missingCount: missingFieldsAfter.length,
+        suppressedCount
       });
     } else {
       // Ask about the first non-suppressed missing field
       nextPrompt = generateV3ProbeQuestion(candidateField, incident.facts);
       nextAction = "ASK";
       
-      // AGENCY RE-ASK GUARD: Log if asking for agency (shouldn't happen if extracted)
-      if (canon(candidateField.field_id || '').includes('agency')) {
-        const agencyInFacts = Object.keys(incident.facts).find(k => canon(k).includes('agency'));
-        console.log(`[V3_PROBE][AGENCY_QUESTION]`, {
-          traceId: effectiveTraceId,
-          fieldId: candidateField.field_id,
-          label: candidateField.label,
-          alreadyCollected: !!agencyInFacts,
-          collectedValue: agencyInFacts ? incident.facts[agencyInFacts] : null,
-          WARNING: agencyInFacts ? '⚠️ ASKING FOR AGENCY DESPITE HAVING IT IN FACTS' : null
-        });
-      }
+      console.log('[V3_PRE_ASK_GUARD][ASK]', {
+        traceId: effectiveTraceId,
+        fieldId: candidateField.field_id,
+        fieldLabel: candidateField.label,
+        promptPreview: nextPrompt?.substring(0, 60)
+      });
     }
   } else {
     // No more missing fields
