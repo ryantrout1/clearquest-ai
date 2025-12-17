@@ -5687,31 +5687,55 @@ export default function CandidateInterview() {
             );
           })()}
 
-          {/* V3 Probing Loop */}
-          {v3ProbingActive && v3ProbingContext && (
-           <ContentContainer className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
-           <V3ProbingLoop
-             key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
-             sessionId={sessionId}
-             categoryId={v3ProbingContext.categoryId}
-             categoryLabel={v3ProbingContext.categoryLabel}
-             incidentId={v3ProbingContext.incidentId}
-             baseQuestionId={v3ProbingContext.baseQuestionId}
-             questionCode={v3ProbingContext.questionCode}
-             sectionId={v3ProbingContext.sectionId}
-             instanceNumber={v3ProbingContext.instanceNumber}
-             packData={v3ProbingContext.packData}
-             openerAnswer={v3ProbingContext.openerAnswer}
-             traceId={v3ProbingContext.traceId}
-             onComplete={handleV3ProbingComplete}
-             onTranscriptUpdate={handleV3TranscriptUpdate}
-             onMultiInstancePrompt={(promptData) => {
-               setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
-             }}
-             onMultiInstanceAnswer={setV3MultiInstanceHandler}
-           />
-           </ContentContainer>
-          )}
+          {/* V3 Probing Loop - MOUNT GUARD: Only render if context is valid */}
+          {(() => {
+            const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
+              v3ProbingContext.categoryId && v3ProbingContext.packId;
+            
+            if (!shouldRenderV3Loop) {
+              if (v3ProbingActive) {
+                console.warn('[V3_UI_RENDER][PARENT_GUARD] V3 probing active but missing context', {
+                  v3ProbingActive,
+                  hasCategoryId: !!v3ProbingContext?.categoryId,
+                  hasPackId: !!v3ProbingContext?.packId
+                });
+              }
+              return null;
+            }
+            
+            console.log('[V3_UI_RENDER][PARENT_RENDER]', {
+              sessionId,
+              currentItemType: currentItem?.type,
+              v3ProbingActive,
+              rendered: true,
+              loopKey: `${sessionId}:${v3ProbingContext.categoryId}:${v3ProbingContext.instanceNumber || 1}`
+            });
+            
+            return (
+              <ContentContainer className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
+                <V3ProbingLoop
+                  key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
+                  sessionId={sessionId}
+                  categoryId={v3ProbingContext.categoryId}
+                  categoryLabel={v3ProbingContext.categoryLabel}
+                  incidentId={v3ProbingContext.incidentId}
+                  baseQuestionId={v3ProbingContext.baseQuestionId}
+                  questionCode={v3ProbingContext.questionCode}
+                  sectionId={v3ProbingContext.sectionId}
+                  instanceNumber={v3ProbingContext.instanceNumber}
+                  packData={v3ProbingContext.packData}
+                  openerAnswer={v3ProbingContext.openerAnswer}
+                  traceId={v3ProbingContext.traceId}
+                  onComplete={handleV3ProbingComplete}
+                  onTranscriptUpdate={handleV3TranscriptUpdate}
+                  onMultiInstancePrompt={(promptData) => {
+                    setPendingGatePrompt({ promptData, v3Context: v3ProbingContext });
+                  }}
+                  onMultiInstanceAnswer={setV3MultiInstanceHandler}
+                />
+              </ContentContainer>
+            );
+          })()}
 
           {/* UNIFIED STREAM: Active cards disabled - all content in transcript */}
           {false && !activeBlocker && !v3ProbingActive && !pendingSectionTransition && currentItem?.type === 'question' && v2PackMode === 'BASE' && engine && (
