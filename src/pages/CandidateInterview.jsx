@@ -4635,7 +4635,7 @@ export default function CandidateInterview() {
     if (isUserTyping) return;
     
     // Initial hard snap exactly once
-    if (!didInitialSnapRef.current && renderedCandidateMessages.length > 0) {
+    if (!didInitialSnapRef.current && renderedTranscript.length > 0) {
       bottomAnchorRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
       didInitialSnapRef.current = true;
       return;
@@ -4647,7 +4647,7 @@ export default function CandidateInterview() {
         bottomAnchorRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
       });
     }
-  }, [renderedCandidateMessages.length, screenMode, currentItem?.type, isUserTyping]);
+  }, [renderedTranscript.length, screenMode, currentItem?.type, isUserTyping]);
 
   // UX: Auto-resize textarea based on content (max 3 lines)
   useEffect(() => {
