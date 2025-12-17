@@ -2921,6 +2921,16 @@ export default function CandidateInterview() {
       // V3 PACK OPENER HANDLER - Deterministic opener answered, now enter AI probing
       // ========================================================================
       if (currentItem.type === 'v3_pack_opener') {
+        // INSTRUMENTATION: Log IMMEDIATELY before any async work
+        console.log('[V3_OPENER][SUBMIT_CLICK]', {
+          sessionId,
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          openerLen: value?.length || 0,
+          hasEngine: !!engine,
+          screenMode
+        });
+        
         const { packId, categoryId, categoryLabel, openerText, baseQuestionId, questionCode, sectionId, instanceNumber, packData } = currentItem;
 
         // CORRELATION TRACE: Generate traceId for V3 probing session
@@ -2960,6 +2970,13 @@ export default function CandidateInterview() {
           baseQuestionId
         });
 
+        console.log('[V3_OPENER][SUBMITTED_OK]', {
+          sessionId,
+          packId,
+          instanceNumber,
+          traceId,
+          transcriptLenAfter: transcriptAfterAnswer.length
+        });
         console.log("[V3_OPENER][TRANSCRIPT_AFTER_A]", { length: transcriptAfterAnswer.length });
 
         // Refresh from DB after opener answer
@@ -4093,6 +4110,18 @@ export default function CandidateInterview() {
       }
     } catch (err) {
       console.error('❌ Error processing answer:', err);
+      
+      // V3 OPENER SPECIFIC ERROR LOGGING
+      if (currentItem?.type === 'v3_pack_opener') {
+        console.error('[V3_OPENER][SUBMIT_ERROR]', {
+          sessionId,
+          packId: currentItem.packId,
+          instanceNumber: currentItem.instanceNumber,
+          errMessage: err.message,
+          errStack: err.stack?.substring(0, 200)
+        });
+      }
+      
       setError(`Error: ${err.message}`);
       // Reset state on error
       setIsCommitting(false);
