@@ -5705,6 +5705,60 @@ export default function CandidateInterview() {
             );
           })()}
 
+          {/* V3 Pack Opener Card - DETERMINISTIC RENDER (not transcript-dependent) */}
+          {(() => {
+            const isV3OpenerMode = currentItem?.type === 'v3_pack_opener' && !v3ProbingActive;
+            
+            if (!isV3OpenerMode) return null;
+            
+            const openerText = currentItem.openerText;
+            const exampleNarrative = currentItem.exampleNarrative;
+            const packId = currentItem.packId;
+            const instanceNumber = currentItem.instanceNumber;
+            const categoryLabel = currentItem.categoryLabel;
+            
+            // REGRESSION GUARD: Fail-loud if missing prompt text
+            if (!openerText || openerText.trim() === '') {
+              console.error('[V3_OPENER][MISSING_PROMPT_TEXT]', {
+                packId,
+                instanceNumber,
+                categoryId: currentItem.categoryId,
+                reason: 'openerText is empty - using fallback'
+              });
+            }
+            
+            const displayText = openerText || "Please describe your prior application(s) in your own words.";
+            
+            console.log('[V3_OPENER][DETERMINISTIC_RENDER]', {
+              packId,
+              instanceNumber,
+              categoryLabel,
+              hasExample: !!exampleNarrative,
+              textLength: displayText.length
+            });
+            
+            return (
+              <ContentContainer>
+                <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  {categoryLabel && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-purple-400">
+                        {categoryLabel}{instanceNumber > 1 ? ` — Instance ${instanceNumber}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-white text-sm leading-relaxed">{displayText}</p>
+                  {exampleNarrative && (
+                    <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
+                      <p className="text-xs text-slate-400 mb-1 font-medium">Example:</p>
+                      <p className="text-slate-300 text-xs italic">{exampleNarrative}</p>
+                    </div>
+                  )}
+                </div>
+              </ContentContainer>
+            );
+          })()}
+
           {/* V3 Probing Loop - MOUNT GUARD: Only render if context is valid */}
           {(() => {
             const shouldRenderV3Loop = v3ProbingActive && v3ProbingContext && 
