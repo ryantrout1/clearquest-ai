@@ -684,142 +684,138 @@ export default function V3ProbingLoop({
   }
   
   return (
-    <div className="w-full space-y-2">
-      {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
-      {messages.map((msg) => {
-        // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
-        if (msg.role === "ai" && !msg.isCompletion && !msg.isError) {
-          console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
-            promptPreview: msg.content?.substring(0, 60),
-            msgId: msg.id,
-            locations: ['messages_loop', 'activePromptText'],
-            reason: 'Active prompt leaked into messages array - blocking render'
-          });
-          return null; // Block rendering
-        }
+    <div className="w-full h-full flex flex-col">
+      {/* SCROLLABLE CONTENT: History (user answers, completion, errors) */}
+      <div className="flex-1 overflow-y-auto pb-40 space-y-2">
+        {/* V3 Messages - user answers and completion only (NEVER active prompts) */}
+        {messages.map((msg) => {
+          // DEFENSIVE GUARD: Block any AI message that looks like an active prompt
+          if (msg.role === "ai" && !msg.isCompletion && !msg.isError) {
+            console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
+              promptPreview: msg.content?.substring(0, 60),
+              msgId: msg.id,
+              locations: ['messages_loop', 'activePromptText'],
+              reason: 'Active prompt leaked into messages array - blocking render'
+            });
+            return null; // Block rendering
+          }
 
-        // FAIL-CLOSED: Block any content starting with "DEBUG:" from rendering
-        if (msg.content && typeof msg.content === 'string' && msg.content.trim().startsWith('DEBUG:')) {
-          console.warn('[V3_UI_CONTRACT][BLOCKED_DEBUG_CONTENT]', {
-            msgId: msg.id,
-            contentPreview: msg.content.substring(0, 60),
-            reason: 'Debug content blocked from candidate view'
-          });
-          return null;
-        }
+          // FAIL-CLOSED: Block any content starting with "DEBUG:" from rendering
+          if (msg.content && typeof msg.content === 'string' && msg.content.trim().startsWith('DEBUG:')) {
+            console.warn('[V3_UI_CONTRACT][BLOCKED_DEBUG_CONTENT]', {
+              msgId: msg.id,
+              contentPreview: msg.content.substring(0, 60),
+              reason: 'Debug content blocked from candidate view'
+            });
+            return null;
+          }
 
-        return (
-          <div key={msg.id}>
-            {msg.role === "user" && (
-              <div className="flex justify-end">
-                <div className="bg-purple-600 rounded-xl px-5 py-3">
-                  <p className="text-white text-sm">{msg.answer || msg.content}</p>
-                </div>
-              </div>
-            )}
-            {/* AI completion messages only */}
-            {msg.role === "ai" && msg.isCompletion && (
-              <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-                </div>
-              </div>
-            )}
-            {/* Error messages */}
-            {msg.role === "ai" && msg.isError && (
-              <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                  <p className="text-white text-sm leading-relaxed">{msg.content}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <div ref={messagesEndRef} />
-
-      {/* V3 UI CONTRACT: No prompt bubbles in conversation feed */}
-      {/* Active prompt renders ONLY in input area below */}
-
-      {/* Debug banner - DISABLED by default (never show to candidates) */}
-      {SHOW_V3_DEBUG_UI && !isComplete && (
-        <div className="mt-2 px-2 py-1 bg-slate-800/50 border border-slate-700/30 rounded text-xs text-slate-500 font-mono">
-          DEBUG: promptLen={activePromptText?.length || 0} deciding={isDeciding.toString()} complete={isComplete.toString()} inFlight={engineInFlightRef?.current?.toString() || 'false'}
-        </div>
-      )}
-
-      {/* V3 INPUT AREA: Prompt + Input (NO BUBBLE - label only) */}
-      {!isComplete && (
-        <div className="mt-4">
-          {/* Active prompt - simple label text, NO card/bubble */}
-          {activePromptText && (
-            <div className="mb-2">
-              {isDeciding && (
-                <div className="flex items-center gap-2 mb-1">
-                  <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                  <span className="text-xs text-slate-400">Processing...</span>
+          return (
+            <div key={msg.id}>
+              {msg.role === "user" && (
+                <div className="flex justify-end">
+                  <div className="bg-purple-600 rounded-xl px-5 py-3">
+                    <p className="text-white text-sm">{msg.answer || msg.content}</p>
+                  </div>
                 </div>
               )}
-              <p className="text-sm text-slate-200">{activePromptText}</p>
+              {/* AI completion messages only */}
+              {msg.role === "ai" && msg.isCompletion && (
+                <div className="w-full bg-emerald-900/30 border border-emerald-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+                  </div>
+                </div>
+              )}
+              {/* Error messages */}
+              {msg.role === "ai" && msg.isError && (
+                <div className="w-full bg-red-900/30 border border-red-700/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <p className="text-white text-sm leading-relaxed">{msg.content}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div ref={messagesEndRef} />
+
+        {/* Debug banner - DISABLED by default */}
+        {SHOW_V3_DEBUG_UI && !isComplete && (
+          <div className="mt-2 px-2 py-1 bg-slate-800/50 border border-slate-700/30 rounded text-xs text-slate-500 font-mono">
+            DEBUG: promptLen={activePromptText?.length || 0} deciding={isDeciding.toString()} complete={isComplete.toString()} inFlight={engineInFlightRef?.current?.toString() || 'false'}
+          </div>
+        )}
+      </div>
+
+      {/* FIXED BOTTOM COMPOSER: Prompt label + Input (pinned to viewport bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-slate-900 via-slate-900 to-slate-900/95 border-t border-slate-700/50">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          {!isComplete && (
+            <div className="space-y-2">
+              {/* Active prompt - simple label text, NO card/bubble */}
+              {activePromptText && (
+                <div>
+                  {isDeciding && (
+                    <div className="flex items-center gap-2 mb-1">
+                      <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                      <span className="text-xs text-slate-400">Processing...</span>
+                    </div>
+                  )}
+                  <p className="text-sm text-slate-200 mb-2">{activePromptText}</p>
+                </div>
+              )}
+
+              {/* Processing indicator - only if no prompt yet */}
+              {!activePromptText && isDeciding && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                  <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+                </div>
+              )}
+
+              {/* Input form - disabled while deciding */}
+              {!isDeciding && (
+                <form onSubmit={handleSubmit}>
+                  <div className="flex gap-3">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Type your answer..."
+                      className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
+                      disabled={isLoading}
+                      autoFocus
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!input.trim() || isLoading}
+                      className="bg-indigo-600 hover:bg-indigo-700 px-5"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Send
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 
-          {/* Processing indicator - only if no prompt yet */}
-          {!activePromptText && isDeciding && (
-            <div className="flex items-center gap-2 mb-2">
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-              <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+          {/* Continue button - shown after probing completes */}
+          {isComplete && (
+            <div className="flex justify-center">
+              <Button
+                onClick={handleContinue}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
+              >
+                Continue to Next Question
+              </Button>
             </div>
           )}
-
-          {/* Input form - disabled while deciding */}
-          {!isDeciding && (
-            <form onSubmit={handleSubmit}>
-              <div className="flex gap-3">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer..."
-                  className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
-                  disabled={isLoading}
-                  autoFocus
-                />
-                <Button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 px-5"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Send
-                </Button>
-              </div>
-            </form>
-          )}
         </div>
-      )}
-
-      {/* Loading state while waiting for engine - DISABLED (covered by isDeciding card) */}
-      {false && isLoading && (
-        <div className="flex items-center justify-center gap-2 py-3 text-purple-300">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Processing...</span>
-        </div>
-      )}
-
-      {/* Continue button - shown after probing completes */}
-      {isComplete && (
-        <div className="flex justify-center mt-4">
-          <Button
-            onClick={handleContinue}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2"
-          >
-            Continue to Next Question
-          </Button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
