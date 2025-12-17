@@ -634,8 +634,21 @@ async function decisionEngineV3Probe(base44, {
   // Get current missing fields
   const missingFieldsBefore = getMissingRequiredFields(factState, incidentId, factModel);
   
-  // Extract facts from answer (stub for now)
-  const extractedFacts = extractFactsFromAnswer(latestAnswerText, missingFieldsBefore, factModel);
+  // Extract facts from answer
+  // On first call (new incident), treat latestAnswerText as opener narrative
+  const isOpenerNarrative = isNewIncident && latestAnswerText && latestAnswerText.length >= 20;
+  const extractedFacts = extractFactsFromAnswer(
+    latestAnswerText, 
+    missingFieldsBefore, 
+    factModel,
+    isOpenerNarrative,
+    categoryId
+  );
+  
+  // Log extraction for debugging
+  if (Object.keys(extractedFacts).length > 0) {
+    console.log(`[V3_EXTRACT][${categoryId}] extracted=${JSON.stringify(extractedFacts)} missing=${missingFieldsBefore.map(f => f.field_id).join(',')}`);
+  }
   
   // Update incident.facts
   incident.facts = {
