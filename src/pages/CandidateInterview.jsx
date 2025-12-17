@@ -5617,11 +5617,17 @@ export default function CandidateInterview() {
                 </ContentContainer>
               )}
 
-              {/* V3 opener question (FOLLOWUP_CARD_SHOWN or v3_opener_question) */}
-              {entry.role === 'assistant' && (entry.messageType === 'v3_opener_question' ||
-                (entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener')) && (
+              {/* V3 Pack opener prompt (FOLLOWUP_CARD_SHOWN) - MUST be visible in transcript history */}
+              {entry.role === 'assistant' && entry.messageType === 'FOLLOWUP_CARD_SHOWN' && entry.meta?.variant === 'opener' && (
                 <ContentContainer>
                 <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+                  {entry.categoryLabel && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-purple-400">
+                        {entry.categoryLabel}
+                      </span>
+                    </div>
+                  )}
                   <p className="text-white text-sm leading-relaxed">{entry.text}</p>
                   {entry.example && (
                     <div className="mt-3 bg-slate-800/50 border border-slate-600/50 rounded-lg p-3">
