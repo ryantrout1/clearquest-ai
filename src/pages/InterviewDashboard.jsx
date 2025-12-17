@@ -197,6 +197,24 @@ export default function InterviewDashboard() {
     setSelectedSessions(newSelected);
   };
 
+  const handleSelectAll = () => {
+    // Only allow select all for MPD-12345 (test department)
+    const mpdSessions = processedSessions.filter(s => s.department_code === 'MPD-12345');
+    const allMpdSelected = mpdSessions.every(s => selectedSessions.has(s.id));
+    
+    if (allMpdSelected) {
+      // Deselect all MPD-12345 sessions
+      const newSelected = new Set(selectedSessions);
+      mpdSessions.forEach(s => newSelected.delete(s.id));
+      setSelectedSessions(newSelected);
+    } else {
+      // Select all MPD-12345 sessions
+      const newSelected = new Set(selectedSessions);
+      mpdSessions.forEach(s => newSelected.add(s.id));
+      setSelectedSessions(newSelected);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (!bulkDeleteConfirm) {
       setBulkDeleteConfirm(true);
@@ -321,6 +339,21 @@ export default function InterviewDashboard() {
 
           {/* Status Filter Pills */}
           <div className="flex flex-wrap items-center gap-2">
+            {departmentFilter === 'MPD-12345' && (
+              <>
+                <Button
+                  onClick={handleSelectAll}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                >
+                  {processedSessions.filter(s => s.department_code === 'MPD-12345').every(s => selectedSessions.has(s.id)) && processedSessions.filter(s => s.department_code === 'MPD-12345').length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </Button>
+                <div className="h-4 w-px bg-slate-600 mx-1" />
+              </>
+            )}
             <StatusChip 
               label="All" 
               active={statusFilter === "all"} 
