@@ -147,7 +147,8 @@ export default function V3ProbingLoop({
         baseQuestionId: baseQuestionId || null,
         questionCode: questionCode || null,
         sectionId: sectionId || null,
-        instanceNumber: instanceNumber || 1
+        instanceNumber: instanceNumber || 1,
+        isInitialCall: isInitialCall || false
       });
 
       const data = result.data || result;

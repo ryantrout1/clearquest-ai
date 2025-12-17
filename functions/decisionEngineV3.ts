@@ -736,7 +736,8 @@ async function decisionEngineV3Probe(base44, {
   
   // Diagnostic log on initial call ONLY (definitive)
   if (isInitialCall) {
-    console.log(`[V3_INITIAL_EXTRACT][${categoryId}] incidentId=${incidentId} extractedKeys=${Object.keys(extractedFacts).join(",")} missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
+    const hadAgency = Object.keys(extractedFacts).some(k => canon(k) === canon("agency_name"));
+    console.log(`[V3_OPENER_EXTRACT][INITIAL] extractedKeys=${Object.keys(extractedFacts).join(",")} hadAgency=${hadAgency} openerPreview="${latestAnswerText?.substring(0, 60) || ''}" missingBefore=${missingFieldsBefore.map(f=>f.field_id).join(",")} missingAfter=${missingFieldsAfter.map(f=>f.field_id).join(",")}`);
   }
   
   // Diagnostic log with key alignment check
