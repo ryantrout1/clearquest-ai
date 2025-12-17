@@ -741,57 +741,8 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
-      {/* FAIL-OPEN UI CONTRACT: Always show prompt if activePromptText exists */}
-      {!isComplete && (
-        <>
-          {/* PRIORITY 1: Active prompt card (ALWAYS SHOWN if activePromptText exists) */}
-          {activePromptText && (() => {
-            // DEFENSIVE CHECK: Verify this prompt isn't also in messages
-            const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            const activeCanon = canon(activePromptText);
-            const duplicateInMessages = messages.some(m => 
-              m.role === 'ai' && !m.isCompletion && !m.isError && canon(m.content) === activeCanon
-            );
-
-            if (duplicateInMessages) {
-              console.error('[V3_UI_CONTRACT][ERROR] DUPLICATE_PROMPT_RENDER_PATH', {
-                promptPreview: activePromptText.substring(0, 60),
-                locations: ['messages_loop', 'activePromptText'],
-                reason: 'Same prompt exists in messages AND activePromptText'
-              });
-            }
-
-            return (
-              <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                {isDeciding && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                    <span className="text-xs text-purple-300">Processing...</span>
-                  </div>
-                )}
-                <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
-              </div>
-            );
-          })()}
-
-          {/* PRIORITY 2: Processing indicator (only if no prompt yet) */}
-          {!activePromptText && isDeciding && (
-            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
-              </div>
-            </div>
-          )}
-
-          {/* PRIORITY 3: Safe fallback (prevents blank screen) */}
-          {!activePromptText && !isDeciding && !isLoading && (
-            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
-              <p className="text-slate-400 text-sm italic">Preparing the next question...</p>
-            </div>
-          )}
-        </>
-      )}
+      {/* V3 UI CONTRACT: No prompt bubbles in conversation feed */}
+      {/* Active prompt renders ONLY in input area below */}
 
       {/* Debug banner - DISABLED by default (never show to candidates) */}
       {SHOW_V3_DEBUG_UI && !isComplete && (
@@ -800,28 +751,56 @@ export default function V3ProbingLoop({
         </div>
       )}
 
-      {/* Input form - shown while probing active and not complete */}
-      {!isComplete && !isDeciding && (
-        <form onSubmit={handleSubmit} className="mt-4">
-          <div className="flex gap-3">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your answer..."
-              className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
-              disabled={isLoading}
-              autoFocus
-            />
-            <Button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="bg-indigo-600 hover:bg-indigo-700 px-5"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Send
-            </Button>
-          </div>
-        </form>
+      {/* V3 INPUT AREA: Prompt + Input (SINGLE SOURCE OF TRUTH) */}
+      {!isComplete && (
+        <div className="mt-4 space-y-3">
+          {/* Active prompt label - always visible when exists */}
+          {activePromptText && (
+            <div className="bg-purple-900/20 border-l-4 border-purple-500 rounded-r px-4 py-3">
+              {isDeciding && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                  <span className="text-xs text-purple-300">Processing your answer...</span>
+                </div>
+              )}
+              <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+            </div>
+          )}
+
+          {/* Processing indicator - only if no prompt yet */}
+          {!activePromptText && isDeciding && (
+            <div className="bg-slate-800/50 border border-slate-600/50 rounded px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Input form - disabled while deciding */}
+          {!isDeciding && (
+            <form onSubmit={handleSubmit}>
+              <div className="flex gap-3">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your answer..."
+                  className="flex-1 bg-[#0d1829] border-2 border-purple-500 focus:border-purple-400 text-white placeholder:text-slate-400"
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <Button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="bg-indigo-600 hover:bg-indigo-700 px-5"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
 
       {/* Loading state while waiting for engine - DISABLED (covered by isDeciding card) */}
