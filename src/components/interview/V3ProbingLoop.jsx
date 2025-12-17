@@ -189,6 +189,16 @@ export default function V3ProbingLoop({
     
     const answer = isInitialCall ? initialAnswer : input.trim();
     if (!answer || isLoading || isComplete) return;
+    
+    // IN-FLIGHT GUARD: Prevent concurrent engine calls
+    if (engineInFlightRef.current) {
+      console.log('[V3_PROBING_LOOP][IN_FLIGHT_GUARD] Engine call already in progress - blocking duplicate', {
+        loopKey,
+        isInitialCall,
+        engineInFlight: engineInFlightRef.current
+      });
+      return;
+    }
 
     // CORRELATION TRACE: Generate traceId for this probing turn
     const traceId = `${sessionId}-${Date.now()}`;
@@ -209,6 +219,9 @@ export default function V3ProbingLoop({
     if (!isInitialCall) {
       setInput("");
     }
+    
+    // Mark engine call as in-flight
+    engineInFlightRef.current = true;
 
     // Add user message (skip for initial opener - it's already in transcript)
     if (!isInitialCall) {
