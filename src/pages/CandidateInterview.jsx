@@ -4949,29 +4949,28 @@ export default function CandidateInterview() {
       const packConfig = FOLLOWUP_PACK_CONFIGS[packId];
       const packLabel = packConfig?.instancesLabel || categoryId || 'Follow-up';
 
-      // RENDER-POINT LOGGING: Log follow-up card when shown (Guard: log once per canonical ID)
+      // V3 UI CONTRACT: Do NOT append V3 opener to transcript (deterministic render only)
+      // Audit logging via system event is OK, but no visible assistant message
       const openerCardId = `followup-card-${sessionId}-${packId}-opener-${instanceNumber}`;
       if (lastLoggedFollowupCardIdRef.current !== openerCardId) {
         lastLoggedFollowupCardIdRef.current = openerCardId;
 
-        const categoryLabelForLog = effectiveCurrentItem.categoryLabel || packLabel;
+        console.log('[V3_UI_CONTRACT]', {
+          action: 'BLOCKED_TRANSCRIPT_APPEND',
+          reason: 'v3_opener_deterministic_only',
+          packId,
+          instanceNumber,
+          categoryId,
+          note: 'V3 opener renders from currentItem state, NOT transcript'
+        });
 
-        logFollowupCardShown(sessionId, {
+        // Audit-only system event (NOT visible to candidate)
+        logSystemEventHelper(sessionId, 'FOLLOWUP_CARD_SHOWN', {
           packId,
           variant: 'opener',
-          stableKey: `${instanceNumber}`,
-          promptText: openerText,
-          exampleText: exampleNarrative,
-          packLabel,
-          categoryLabel: categoryLabelForLog,
           instanceNumber,
           baseQuestionId: effectiveCurrentItem.baseQuestionId
-        }).then(() => {
-          // CRITICAL: Refresh transcript after appending prompt message
-          return refreshTranscriptFromDB('v3_opener_shown');
-        }).then((freshTranscript) => {
-          console.log("[TRANSCRIPT_REFRESH][AFTER_PROMPT_APPEND]", { freshLen: freshTranscript?.length });
-        }).catch(err => console.warn('[LOG_FOLLOWUP_CARD] Failed:', err));
+        }).catch(err => console.warn('[LOG_SYSTEM_EVENT] Failed:', err));
       }
 
       return {
