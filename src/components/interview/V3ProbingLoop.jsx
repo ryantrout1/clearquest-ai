@@ -16,6 +16,9 @@ import {
 // GLOBAL V3 LOOP REGISTRY: Prevent duplicate mounts
 const __v3LoopRegistry = globalThis.__cqV3LoopRegistry || (globalThis.__cqV3LoopRegistry = new Map());
 
+// V3 DEBUG UI: FALSE by default (never show debug UI to candidates)
+const SHOW_V3_DEBUG_UI = false;
+
 /**
  * V3 Probing Loop Component
  * 
@@ -694,7 +697,17 @@ export default function V3ProbingLoop({
           });
           return null; // Block rendering
         }
-        
+
+        // FAIL-CLOSED: Block any content starting with "DEBUG:" from rendering
+        if (msg.content && typeof msg.content === 'string' && msg.content.trim().startsWith('DEBUG:')) {
+          console.warn('[V3_UI_CONTRACT][BLOCKED_DEBUG_CONTENT]', {
+            msgId: msg.id,
+            contentPreview: msg.content.substring(0, 60),
+            reason: 'Debug content blocked from candidate view'
+          });
+          return null;
+        }
+
         return (
           <div key={msg.id}>
             {msg.role === "user" && (
@@ -780,8 +793,8 @@ export default function V3ProbingLoop({
         </>
       )}
 
-      {/* Debug banner - Dev/Preview only */}
-      {!isComplete && (typeof window !== 'undefined' && (window.location.hostname?.includes('base44') || window.location.hostname?.includes('localhost'))) && (
+      {/* Debug banner - DISABLED by default (never show to candidates) */}
+      {SHOW_V3_DEBUG_UI && !isComplete && (
         <div className="mt-2 px-2 py-1 bg-slate-800/50 border border-slate-700/30 rounded text-xs text-slate-500 font-mono">
           DEBUG: promptLen={activePromptText?.length || 0} deciding={isDeciding.toString()} complete={isComplete.toString()} inFlight={engineInFlightRef?.current?.toString() || 'false'}
         </div>
