@@ -152,6 +152,16 @@ Deno.serve(async (req) => {
       summary: "",
       timestamp: new Date().toISOString()
     };
+    
+    // Run FactModel ingestion test
+    const ingestionResult = await testFactModelIngestion(base44);
+    results.checks.factModelIngestion = ingestionResult.passed || false;
+    if (ingestionResult.error) {
+      results.checks.factModelIngestionError = ingestionResult.error;
+    }
+    if (!ingestionResult.passed && !ingestionResult.skipped) {
+      results.success = false;
+    }
 
     // ====================================
     // CHECK 1: FactModel exists for test category
