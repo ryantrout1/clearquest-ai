@@ -370,22 +370,24 @@ export default function V3ProbingLoop({
 
       // Handle next action
       if (data.nextAction === "ASK" && data.nextPrompt) {
-        // DUPLICATE PROMPT GUARD: Hash prompt with canonical text
+        // PROMPT-SET DEDUPE: Compute stable hash and check for duplicates
         const canon = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const promptHash = `${currentIncidentId}:${newProbeCount}:${canon(data.nextPrompt)}`;
+        const promptHash = `${loopKey}:${newProbeCount}:${canon(data.nextPrompt)}`;
         
         if (lastPromptHashRef.current === promptHash) {
-          console.log('[V3_UI_CONTRACT][DUPLICATE_PROMPT_BLOCKED]', {
+          console.log('[V3_PROBING_LOOP][DUPLICATE_ENGINE_RESPONSE_IGNORED]', {
             promptHash,
+            loopKey,
             incidentId: currentIncidentId,
             probeCount: newProbeCount,
-            reason: 'same_hash'
+            reason: 'Engine returned same prompt as last time - ignoring state update'
           });
           setIsDeciding(false);
           setIsLoading(false);
           return;
         }
         
+        // Update hash reference only for genuinely new prompts
         lastPromptHashRef.current = promptHash;
         
         // UI CONTRACT: SINGLE SOURCE OF TRUTH - only set activePromptText
