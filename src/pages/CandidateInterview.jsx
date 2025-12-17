@@ -109,6 +109,9 @@ const resetMountTracker = (sid) => {
     'AI_PROBING_CALLED',        // AI probing events
     'AI_PROBING_RESPONSE',
     'V3_PROBE_ASKED',           // V3 probe system events (visibleToCandidate=false)
+    'PROCESSING',               // V3 UI CONTRACT: No processing bubbles during V3
+    'REVIEWING',                // V3 UI CONTRACT: No reviewing bubbles during V3
+    'AI_THINKING',              // V3 UI CONTRACT: No thinking bubbles during V3
   ]);
 
   // Helper: Filter renderable transcript entries (no flicker)
@@ -138,7 +141,10 @@ const resetMountTracker = (sid) => {
       mt === 'LOADING' ||
       mt === 'PROBE_THINKING' ||
       mt === 'V3_THINKING' ||
-      mt === 'PLACEHOLDER'
+      mt === 'PLACEHOLDER' ||
+      mt === 'PROCESSING' ||
+      mt === 'REVIEWING' ||
+      mt === 'AI_THINKING'
     ) return false;
 
     // Apply denylist
