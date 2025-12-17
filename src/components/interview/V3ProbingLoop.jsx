@@ -147,16 +147,30 @@ export default function V3ProbingLoop({
       console.log('[V3_PROBING_LOOP][INIT_SKIP] Instance blocked - will not initialize');
       return;
     }
+    
+    // INIT-ONCE GUARD: Strictly enforce single initialization
+    if (initRanRef.current) {
+      console.log('[V3_PROBING_LOOP][INIT_ONCE_GUARD] Already initialized - blocking duplicate init', {
+        loopKey,
+        initRanRef: initRanRef.current
+      });
+      return;
+    }
+    
     if (hasInitialized.current) {
       console.log('[V3_PROBING_LOOP][INIT_SKIP] Already initialized - preventing duplicate decide() call');
       return;
     }
+    
+    // Mark as initialized BEFORE calling handleSubmit
+    initRanRef.current = true;
     hasInitialized.current = true;
     
     console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
       categoryId,
       incidentId,
-      openerAnswerLength: openerAnswer?.length || 0
+      openerAnswerLength: openerAnswer?.length || 0,
+      initRanRef: initRanRef.current
     });
     
     // Call decision engine with opener to get first probe
