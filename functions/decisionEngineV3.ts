@@ -250,6 +250,69 @@ function extractOpenerFacts(openerText, categoryId, factModel) {
   const normalized = openerText.trim();
   const lower = normalized.toLowerCase();
   
+  // UNIVERSAL: Extract dates from opener narrative (ALL categories)
+  const datePatterns = [
+    // "In March 2022", "During March 2022"
+    /(?:in|during)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+    // "March 2022", "March of 2022"
+    /(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:of\s+)?(\d{4})/i,
+    // "2022 March"
+    /(\d{4})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i,
+    // "3/2022", "03/2022"
+    /\b(\d{1,2})\/(\d{4})\b/,
+    // "2022-03", "2022/03"
+    /\b(\d{4})[-\/](\d{1,2})\b/
+  ];
+  
+  for (const pattern of datePatterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      let month, year;
+      
+      // Named month patterns
+      if (match[1] && /^[A-Za-z]+$/.test(match[1])) {
+        month = match[1];
+        year = match[2] || match[1];
+        // Swap if year came first
+        if (/^\d{4}$/.test(match[1])) {
+          year = match[1];
+          month = match[2];
+        }
+      }
+      // Numeric patterns (MM/YYYY or YYYY/MM)
+      else if (match[1] && match[2]) {
+        if (/^\d{4}$/.test(match[1])) {
+          year = match[1];
+          month = match[2];
+        } else {
+          month = match[1];
+          year = match[2];
+        }
+      }
+      
+      if (month && year) {
+        const monthNum = typeof month === 'string' && /^[A-Za-z]+$/.test(month) 
+          ? month 
+          : String(month).padStart(2, '0');
+        
+        // Store in multiple field formats for flexibility
+        extracted.occurrence_date = `${year}-${monthNum}`;
+        extracted.occurrence_month = monthNum;
+        extracted.occurrence_year = year;
+        extracted.approx_month_year = `${month} ${year}`;
+        extracted.month_year = `${month} ${year}`;
+        
+        console.log('[V3_EXTRACT][DATE]', {
+          pattern: 'date extraction',
+          month,
+          year,
+          storedAs: extracted.occurrence_date
+        });
+        break;
+      }
+    }
+  }
+  
   // PRIOR_LE_APPS specific extraction
   if (categoryId === 'PRIOR_LE_APPS') {
     const tempExtracted = {};
@@ -871,22 +934,66 @@ async function decisionEngineV3Probe(base44, {
       });
     }
   } else if (missingFieldsAfter.length > 0) {
-    // Ask about the first missing field using BI-style template
-    const nextField = missingFieldsAfter[0];
-    nextPrompt = generateV3ProbeQuestion(nextField, incident.facts);
-    nextAction = "ASK";
+    // REDUNDANT QUESTION SUPPRESSION: Skip if fact already collected
+    let candidateField = missingFieldsAfter[0];
+    let suppressedCount = 0;
     
-    // AGENCY RE-ASK GUARD: Log if asking for agency (shouldn't happen if extracted)
-    if (canon(nextField.field_id || '').includes('agency')) {
-      const agencyInFacts = Object.keys(incident.facts).find(k => canon(k).includes('agency'));
-      console.log(`[V3_PROBE][AGENCY_QUESTION]`, {
-        traceId: effectiveTraceId,
-        fieldId: nextField.field_id,
-        label: nextField.label,
-        alreadyCollected: !!agencyInFacts,
-        collectedValue: agencyInFacts ? incident.facts[agencyInFacts] : null,
-        WARNING: agencyInFacts ? '⚠️ ASKING FOR AGENCY DESPITE HAVING IT IN FACTS' : null
+    for (let i = 0; i < missingFieldsAfter.length; i++) {
+      const field = missingFieldsAfter[i];
+      const fieldIdCanon = canon(field.field_id || '');
+      
+      // Check if this field already has a non-empty value in incident.facts
+      const alreadyCollected = Object.keys(incident.facts).some(k => {
+        const kCanon = canon(k);
+        const hasValue = incident.facts[k] && String(incident.facts[k]).trim() !== '';
+        return kCanon === fieldIdCanon && hasValue;
       });
+      
+      if (alreadyCollected) {
+        suppressedCount++;
+        console.log(`[V3_PROBE][REDUNDANT_SKIP]`, {
+          traceId: effectiveTraceId,
+          fieldId: field.field_id,
+          reason: 'Already collected in incident.facts',
+          value: incident.facts[Object.keys(incident.facts).find(k => canon(k) === fieldIdCanon)]
+        });
+        continue; // Skip this field, try next
+      }
+      
+      // Use this field as candidate
+      candidateField = field;
+      break;
+    }
+    
+    // If all fields were suppressed (all collected), complete
+    if (suppressedCount > 0 && suppressedCount === missingFieldsAfter.length) {
+      nextAction = "RECAP";
+      stopReason = "REQUIRED_FIELDS_COMPLETE";
+      legacyFactState.completion_status = "complete";
+      nextPrompt = getCompletionMessage("RECAP", null);
+      
+      console.log('[V3_PROBE][ALL_SUPPRESSED]', {
+        traceId: effectiveTraceId,
+        suppressedCount,
+        reason: 'All missing fields already collected - completing'
+      });
+    } else {
+      // Ask about the first non-suppressed missing field
+      nextPrompt = generateV3ProbeQuestion(candidateField, incident.facts);
+      nextAction = "ASK";
+      
+      // AGENCY RE-ASK GUARD: Log if asking for agency (shouldn't happen if extracted)
+      if (canon(candidateField.field_id || '').includes('agency')) {
+        const agencyInFacts = Object.keys(incident.facts).find(k => canon(k).includes('agency'));
+        console.log(`[V3_PROBE][AGENCY_QUESTION]`, {
+          traceId: effectiveTraceId,
+          fieldId: candidateField.field_id,
+          label: candidateField.label,
+          alreadyCollected: !!agencyInFacts,
+          collectedValue: agencyInFacts ? incident.facts[agencyInFacts] : null,
+          WARNING: agencyInFacts ? '⚠️ ASKING FOR AGENCY DESPITE HAVING IT IN FACTS' : null
+        });
+      }
     }
   } else {
     // No more missing fields
@@ -999,6 +1106,21 @@ async function decisionEngineV3Probe(base44, {
     nextPrompt,
     stopReason
   });
+  
+  // DIAGNOSTIC: Log full decision context on initial call
+  if (isInitialCall) {
+    console.log('[V3_DECISION][INITIAL_CALL]', {
+      traceId: effectiveTraceId,
+      extractedFactsKeys: Object.keys(extractedFacts),
+      extractedFactsValues: Object.entries(extractedFacts).reduce((acc, [k, v]) => {
+        acc[k] = typeof v === 'string' ? v.substring(0, 40) : v;
+        return acc;
+      }, {}),
+      missingFieldsAfter: missingFieldsAfter.map(f => f.field_id),
+      nextAction,
+      nextPromptPreview: nextPrompt?.substring(0, 60) || null
+    });
+  }
   
   console.log("[IDE-V3] Decision result", {
     traceId: effectiveTraceId,

@@ -5681,6 +5681,7 @@ export default function CandidateInterview() {
           {v3ProbingActive && v3ProbingContext && (
            <ContentContainer className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-xl p-1">
            <V3ProbingLoop
+             key={`v3-probe-${sessionId}-${v3ProbingContext.categoryId}-${v3ProbingContext.instanceNumber || 1}`}
              sessionId={sessionId}
              categoryId={v3ProbingContext.categoryId}
              categoryLabel={v3ProbingContext.categoryLabel}

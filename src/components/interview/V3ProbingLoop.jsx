@@ -68,7 +68,10 @@ export default function V3ProbingLoop({
 
   // Initialize V3 probing with opener answer
   useEffect(() => {
-    if (hasInitialized.current) return;
+    if (hasInitialized.current) {
+      console.log('[V3_PROBING_LOOP][INIT_SKIP] Already initialized - preventing duplicate decide() call');
+      return;
+    }
     hasInitialized.current = true;
     
     console.log("[V3_PROBING_LOOP][INIT] Starting with opener answer", {
@@ -107,6 +110,8 @@ export default function V3ProbingLoop({
       probeIteration: probeCount + 1
     });
 
+    // UI CONTRACT: Show deciding state BEFORE async work
+    setIsDeciding(true);
     setIsLoading(true);
     if (!isInitialCall) {
       setInput("");
@@ -265,6 +270,11 @@ export default function V3ProbingLoop({
         };
         setMessages(prev => [...prev, aiMessage]);
         
+        // UI CONTRACT: Set active prompt state (renders in UI)
+        setActivePromptText(data.nextPrompt);
+        setActivePromptId(aiMessage.id);
+        setIsDeciding(false);
+        
         // Log V3 probe as system event only (NOT visible transcript message)
         const { logSystemEvent } = await import("../utils/chatTranscriptHelpers");
         await logSystemEvent(sessionId, 'V3_PROBE_ASKED', {
@@ -278,7 +288,8 @@ export default function V3ProbingLoop({
         console.log('[V3_UI_CONTRACT]', {
           action: 'SET_ACTIVE_PROMPT',
           promptPreview: data.nextPrompt.substring(0, 60),
-          appendedToTranscript: false
+          appendedToTranscript: false,
+          activePromptSet: true
         });
 
         // Persist AI message to local transcript (V3ProbingLoop internal state only)
@@ -292,6 +303,9 @@ export default function V3ProbingLoop({
           });
         }
       } else if (data.nextAction === "RECAP" || data.nextAction === "STOP") {
+        setIsDeciding(false);
+        setActivePromptText(null);
+        setActivePromptId(null);
         // Probing complete - use centralized completion message
         const completionMessage = data.nextPrompt || getCompletionMessage(data.nextAction, data.stopReason);
 
@@ -378,6 +392,11 @@ export default function V3ProbingLoop({
       }
     } catch (err) {
       const engineCallMs = Date.now() - engineCallStart;
+      
+      // UI CONTRACT: Clear deciding state on error
+      setIsDeciding(false);
+      setActivePromptText(null);
+      setActivePromptId(null);
       
       // FAIL-CLOSED: Backend timeout detected
       if (err.message === 'BACKEND_TIMEOUT') {
@@ -508,8 +527,37 @@ export default function V3ProbingLoop({
 
       <div ref={messagesEndRef} />
 
+      {/* UI CONTRACT: Always show EITHER deciding state OR active prompt OR fallback */}
+      {!isComplete && (
+        <>
+          {/* PRIORITY 1: Processing indicator while engine decides */}
+          {isDeciding && (
+            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                <p className="text-slate-300 text-sm">Reviewing your answer...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* PRIORITY 2: Active prompt card (visible to user) */}
+          {!isDeciding && activePromptText && (
+            <div className="w-full bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
+              <p className="text-white text-sm leading-relaxed">{activePromptText}</p>
+            </div>
+          )}
+          
+          {/* PRIORITY 3: Safe fallback (prevents blank screen) */}
+          {!isDeciding && !activePromptText && !isLoading && (
+            <div className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl p-4">
+              <p className="text-slate-400 text-sm italic">Preparing the next question...</p>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Input form - shown while probing active and not complete */}
-      {!isComplete && !isLoading && (
+      {!isComplete && !isDeciding && (
         <form onSubmit={handleSubmit} className="mt-4">
           <div className="flex gap-3">
             <Input
@@ -532,8 +580,8 @@ export default function V3ProbingLoop({
         </form>
       )}
 
-      {/* Loading state while waiting for engine */}
-      {isLoading && (
+      {/* Loading state while waiting for engine - DISABLED (covered by isDeciding card) */}
+      {false && isLoading && (
         <div className="flex items-center justify-center gap-2 py-3 text-purple-300">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Processing...</span>
